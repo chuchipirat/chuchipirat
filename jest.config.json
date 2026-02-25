@@ -1,10 +1,33 @@
 {
   "preset": "ts-jest",
   "testEnvironment": "jsdom",
+  "transform": {
+    "^.+\\.tsx?$": ["ts-jest", {
+      "diagnostics": false,
+      "astTransformers": {
+        "before": [{
+          "path": "ts-jest-mock-import-meta",
+          "options": {
+            "metaObjectReplacement": {
+              "env": {
+                "VITE_ENVIROMENT": "DEV",
+                "VITE_SUPABASE_URL": "http://localhost:8000",
+                "VITE_SUPABASE_ANON_KEY": "test-key",
+                "VITE_CONFIRMATION_EMAIL_REDIRECT": "http://localhost:3000/home"
+              }
+            }
+          }
+        }]
+      }
+    }]
+  },
   "testMatch": ["**/__tests__/**/*.ts?(x)", "**/?(*.)+(spec|test).ts?(x)"],
   "coverageDirectory": "coverage",
   "collectCoverageFrom": ["src/**/*.ts"],
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
+  "moduleNameMapper": {
+    "^.*/supabaseClient$": "<rootDir>/src/components/Database/__mocks__/supabaseClient.ts"
+  },
   "reporters": [
     "default",
     [
