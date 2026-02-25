@@ -1,0 +1,240 @@
+import Firebase from "../../Firebase/firebase.class";
+import DatabaseService from "../../Database/DatabaseService";
+import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {UserDomain} from "../../Database/Repository/UserRepository";
+import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
+import {Picture} from "../../Shared/global.interface";
+import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+
+/* =====================================================================
+// Typ der zusammengeführten Firebase-Daten (User + Public Profile)
+// ===================================================================== */
+
+/**
+ * Zusammengeführte Firebase-Nutzerdaten aus dem User-Dokument
+ * und dem Public-Profile-Subdokument.
+ */
+interface FirebaseUserData {
+  email: string;
+  firstName: string;
+  lastName: string;
+  roles: string[];
+  lastLogin: Date | {toDate: () => Date} | null;
+  noLogins: number;
+  displayName: string;
+  memberSince: Date | {toDate: () => Date};
+  memberId: number;
+  motto: string;
+  pictureSrc: Picture | string;
+}
+
+/* =====================================================================
+// UserMigrationJob — Migriert Benutzer von Firebase nach Postgres
+// ===================================================================== */
+
+/**
+ * Migrations-Job für Benutzer.
+ *
+ * Liest alle Benutzer-Dokumente aus Firestore (users/{uid}) sowie deren
+ * öffentliches Profil (users/{uid}/public/profile), führt die Daten
+ * zusammen und schreibt sie via UserRepository in die Postgres-Tabelle.
+ *
+ * Aggregate-Dokumente (mit Prefix "000_") werden automatisch gefiltert.
+ * Fehlende Public-Profile werden mit Standardwerten ergänzt.
+ *
+ * @example
+ * const job = new UserMigrationJob();
+ * const records = await job.fetchSourceRecords(firebase);
+ */
+export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
+  name = "Benutzer";
+  description =
+    "Migriert alle Benutzer (User + Public Profile) von Firebase nach Postgres.";
+
+  /* =====================================================================
+  // Alle User-Dokumente aus Firebase lesen
+  // ===================================================================== */
+  /**
+   * Liest alle Benutzer-Dokumente aus Firestore und deren öffentliches Profil.
+   * Filtert Aggregate-Dokumente (000_*) heraus und führt User-Dokument
+   * und Public Profile in einem SourceRecord zusammen.
+   *
+   * @param firebase - Firebase-Instanz
+   * @returns Array aller zusammengeführten Benutzer-Quelldatensätze
+   */
+  async fetchSourceRecords(
+    firebase: Firebase
+  ): Promise<SourceRecord<FirebaseUserData>[]> {
+    // Alle User-Dokumente lesen
+    const users = await firebase.user.readCollection<{
+      uid: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      roles: string[];
+      lastLogin: Date | {toDate: () => Date} | null;
+      noLogins: number;
+    }>({
+      uids: [""],
+      orderBy: {field: "firstName", sortOrder: SortOrder.asc},
+      ignoreCache: true,
+    });
+
+    const records: SourceRecord<FirebaseUserData>[] = [];
+
+    for (const user of users) {
+      const uid = user.uid;
+
+      // Aggregate-Dokumente überspringen (z.B. 000_allUsers)
+      if (uid.startsWith("000_")) {
+        continue;
+      }
+
+      // Öffentliches Profil lesen
+      let publicProfile: {
+        displayName?: string;
+        memberSince?: Date | {toDate: () => Date};
+        memberId?: number;
+        motto?: string;
+        pictureSrc?: Picture | string;
+      } = {};
+
+      try {
+        publicProfile = await firebase.user.public.profile.read<{
+          displayName: string;
+          memberSince: Date | {toDate: () => Date};
+          memberId: number;
+          motto: string;
+          pictureSrc: Picture | string;
+        }>({uids: [uid]});
+      } catch {
+        // Kein Public Profile vorhanden — Standardwerte werden verwendet
+      }
+
+      const displayName = publicProfile.displayName || `${user.firstName} ${user.lastName}`;
+
+      records.push({
+        id: uid,
+        label: displayName,
+        data: {
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          roles: user.roles ?? [],
+          lastLogin: user.lastLogin ?? null,
+          noLogins: user.noLogins ?? 0,
+          displayName: displayName,
+          memberSince: publicProfile.memberSince ?? new Date(0),
+          memberId: publicProfile.memberId ?? 0,
+          motto: publicProfile.motto ?? "",
+          pictureSrc: publicProfile.pictureSrc ?? {
+            smallSize: "",
+            normalSize: "",
+            fullSize: "",
+          },
+        },
+      });
+    }
+
+    return records;
+  }
+
+  /* =====================================================================
+  // Prüfen, ob ein Benutzer bereits in Postgres existiert
+  // ===================================================================== */
+  /**
+   * Prüft anhand der UID, ob der Benutzer bereits in Postgres existiert.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param record - Der zu prüfende Quelldatensatz
+   * @returns true, falls der Benutzer bereits vorhanden ist
+   */
+  async checkExists(
+    database: DatabaseService,
+    record: SourceRecord<FirebaseUserData>
+  ): Promise<boolean> {
+    const existing = await database.users.findById(record.id, true);
+    return existing !== null;
+  }
+
+  /* =====================================================================
+  // Einzelnen Benutzer nach Postgres migrieren
+  // ===================================================================== */
+  /**
+   * Mappt die zusammengeführten Firebase-Daten auf ein UserDomain-Objekt
+   * und schreibt es per Upsert in die Postgres-Tabelle.
+   *
+   * Behandelt Sonderfälle:
+   * - pictureSrc als String vs. Picture-Objekt
+   * - Firestore Timestamp vs. Date bei lastLogin/memberSince
+   *
+   * @param database - DatabaseService-Instanz
+   * @param record - Der zu migrierende Quelldatensatz
+   * @param authUser - Der angemeldete Admin-Benutzer
+   */
+  async migrateRecord(
+    database: DatabaseService,
+    record: SourceRecord<FirebaseUserData>,
+    authUser: AuthUser
+  ): Promise<void> {
+    const data = record.data;
+
+    const userDomain: UserDomain = {
+      uid: record.id,
+      email: data.email,
+      firstName: data.firstName,
+      lastName: data.lastName,
+      roles: data.roles as UserDomain["roles"],
+      lastLogin: this.toDate(data.lastLogin),
+      noLogins: data.noLogins ?? 0,
+      displayName: data.displayName,
+      memberSince: this.toDate(data.memberSince),
+      memberId: data.memberId ?? 0,
+      motto: data.motto ?? "",
+      pictureSrc: this.toPicture(data.pictureSrc),
+    };
+
+    await database.users.upsert({
+      id: record.id,
+      value: userDomain,
+      authUser: authUser,
+    });
+  }
+
+  /* =====================================================================
+  // Hilfsmethoden für Typkonvertierungen
+  // ===================================================================== */
+
+  /**
+   * Konvertiert einen Firestore-Timestamp oder unbekannten Wert zu einem Date.
+   * Firestore gibt Timestamps mit toDate()-Methode zurück, je nach Kontext
+   * aber auch direkte Date-Objekte.
+   */
+  private toDate(
+    value: Date | {toDate: () => Date} | null | undefined
+  ): Date {
+    if (!value) return new Date(0);
+    if (value instanceof Date) return value;
+    if (typeof (value as {toDate: () => Date}).toDate === "function") {
+      return (value as {toDate: () => Date}).toDate();
+    }
+    // Fallback: als String parsen
+    return new Date(value as unknown as string);
+  }
+
+  /**
+   * Konvertiert pictureSrc in ein Picture-Objekt.
+   * In Firebase kann pictureSrc als leerer String oder als Picture-Objekt
+   * gespeichert sein.
+   */
+  private toPicture(value: Picture | string | undefined | null): Picture {
+    if (!value || typeof value === "string") {
+      return {smallSize: "", normalSize: "", fullSize: ""};
+    }
+    return {
+      smallSize: value.smallSize ?? "",
+      normalSize: value.normalSize ?? "",
+      fullSize: value.fullSize ?? "",
+    };
+  }
+}

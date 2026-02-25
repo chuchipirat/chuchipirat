@@ -86,6 +86,7 @@ const OverviewCloudFx = lazy(() => import("../Admin/overviewCloudFunctions"));
 const OverviewFeeds = lazy(() => import("../Admin/overviewFeeds"));
 const ActivateSupportUser = lazy(() => import("../Admin/activateSupportUser"));
 const MailConsole = lazy(() => import("../Admin/mailConsole"));
+const Migration = lazy(() => import("../Admin/migration"));
 
 /* ===================================================================
 // ====================== Authorization Conditions ===================
@@ -582,6 +583,15 @@ const App = () => {
                   <GuardedRoute
                     condition={isAdmin}
                     element={<Jobs />}
+                  />
+                }
+              />
+              <Route
+                path={ROUTES.SYSTEM_MIGRATION}
+                element={
+                  <GuardedRoute
+                    condition={isAdmin}
+                    element={<Migration />}
                   />
                 }
               />

@@ -38,6 +38,7 @@ export const SYSTEM_OVERVIEW_CLOUDFX = "/system/overview/cloudfx";
 export const SYSTEM_OVERVIEW_FEEDS = "/system/overview/feeds";
 
 export const SYSTEM_MAIL_CONSOLE = "/system/mailconsole";
+export const SYSTEM_MIGRATION = "/system/migration";
 
 export const USER_PUBLIC_PROFILE = "/publicprofile";
 export const USER_PUBLIC_PROFILE_UID = "/publicprofile/:id";

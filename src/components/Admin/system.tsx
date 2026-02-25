@@ -34,6 +34,7 @@ import {
   RssFeed as RssFeedIcon,
   Build as BuildIcon,
   Feedback as FeedbackIcon,
+  SwapHoriz as SwapHorizIcon,
 } from "@mui/icons-material";
 
 import {
@@ -57,6 +58,8 @@ import {
   ACTIVATE_SUPPORT_USER_DESCRIPTION as TEXT_ACTIVATE_SUPPORT_USER_DESCRIPTION,
   MAIL_CONSOLE as TEXT_MAIL_CONSOLE,
   MAIL_CONSOLE_DESCRIPTION as TEXT_MAIL_CONSOLE_DESCRIPTION,
+  MIGRATION as TEXT_MIGRATION,
+  MIGRATION_DESCRIPTION as TEXT_MIGRATION_DESCRIPTION,
   MAILBOX as TEXT_MAILBOX,
   CLOUD_FX as TEXT_CLOUD_FX,
   FEEDS as TEXT_FEEDS,
@@ -75,6 +78,7 @@ import {
   SYSTEM_OVERVIEW_EVENTS as ROUTE_SYSTEM_OVERVIEW_EVENTS,
   SYSTEM_ACTIVATE_SUPPORT_USER as ROUTE_SYSTEM_ACTIVATE_SUPPORT_USER,
   SYSTEM_MAIL_CONSOLE as ROUTE_SYSTEM_MAIL_CONSOLE,
+  SYSTEM_MIGRATION as ROUTE_SYSTEM_MIGRATION,
   SYSTEM_OVERVIEW_MAILBOX as ROUTE_SYSTEM_OVERVIEW_MAILBOX,
   SYSTEM_OVERVIEW_CLOUDFX as ROUTE_SYSTEM_OVERVIEW_CLOUDFX,
   SYSTEM_OVERVIEW_FEEDS as ROUTE_OVERVIEW_FEEDS,
@@ -193,6 +197,16 @@ const SystemPage = () => {
                   icon={<TimelapseIcon />}
                   action={goToDestination}
                   routeDestination={ROUTES_SYSTEM_JOBS}
+                />
+              </Grid>
+ <Grid size={{ xs: 12, md: 6, lg: 4 }} >
+                <AdminTile
+                  id={"migration"}
+                  text={TEXT_MIGRATION}
+                  description={TEXT_MIGRATION_DESCRIPTION}
+                  icon={<SwapHorizIcon />}
+                  action={goToDestination}
+                  routeDestination={ROUTE_SYSTEM_MIGRATION}
                 />
               </Grid>
 
