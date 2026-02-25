@@ -89,6 +89,7 @@ import {
 import Action from "../../../constants/actions";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
 import {useFirebase} from "../../Firebase/firebaseContext";
+import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import AlertMessage from "../../Shared/AlertMessage";
 import Stats, {StatsField} from "../../Shared/stats.class";
@@ -744,6 +745,7 @@ interface LocationState {
 // =================================================================== */
 const EventPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const theme = useTheme();
   const location = useLocation();
@@ -1805,6 +1807,7 @@ const EventPage = () => {
                   localPicture={eventDraft.localPicture}
                   formValidation={eventDraft.formValidation}
                   firebase={firebase}
+                  database={database}
                   authUser={authUser}
                   onUpdateEvent={onEventUpdate}
                   onUpdatePicture={onEventPictureUpdate}

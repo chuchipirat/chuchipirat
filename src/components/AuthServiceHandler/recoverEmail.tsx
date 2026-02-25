@@ -10,6 +10,7 @@ import useCustomStyles from "../../constants/styles";
 
 import FirebaseMessageHandler from "../Firebase/firebaseMessageHandler.class";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import User from "../User/user.class";
 
 import {SIGN_IN as ROUTE_SIGN_IN} from "../../constants/routes";
@@ -35,6 +36,7 @@ interface RecoverEmailPageProps {
 const RecoverEmailPage: React.FC<RecoverEmailPageProps> = ({authUser: authUserProp, oobCode}) => {
   let authUser = authUserProp;
   const firebase = useFirebase();
+  const database = useDatabase();
   const actionCode = oobCode;
   const [error, setError] = React.useState<Error | null>(null);
   const [isRecovered, setIsRecovered] = React.useState(false);
@@ -63,6 +65,7 @@ const RecoverEmailPage: React.FC<RecoverEmailPageProps> = ({authUser: authUserPr
       // automatisch der Log-Off. Somit kann die DB nicht mehr geändert werden
       User.updateEmail({
         firebase: firebase,
+        database: database,
         newEmail: actionCodeInfo.data.email as string,
         authUser: authUser!,
       });

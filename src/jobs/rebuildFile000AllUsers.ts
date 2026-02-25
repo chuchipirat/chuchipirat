@@ -1,9 +1,10 @@
 import AuthUser from "../components/Firebase/Authentication/authUser.class";
 import {ValueObject} from "../components/Firebase/Db/firebase.db.super.class";
 import Firebase from "../components/Firebase/firebase.class";
+import {DatabaseService} from "../components/Database/DatabaseService";
 import User from "../components/User/user.class";
 
-export async function rebuildFile000AllUsers(firebase: Firebase) {
+export async function rebuildFile000AllUsers(firebase: Firebase, database: DatabaseService) {
   const allUsers: ValueObject = {};
   let counter = 0;
 
@@ -13,6 +14,7 @@ export async function rebuildFile000AllUsers(firebase: Firebase) {
   const profilePromises = users.map(async (user) => {
     const result = await User.getPublicProfile({
       firebase: firebase,
+      database: database,
       uid: user.uid,
     });
     return {

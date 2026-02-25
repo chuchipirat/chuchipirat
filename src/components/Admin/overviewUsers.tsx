@@ -82,6 +82,7 @@ import {FormListItem} from "../Shared/formListItem";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import {
   DataGrid,
   GridColDef,
@@ -238,6 +239,7 @@ const ROLE_DIALOG_INITIAL_STATE = {
 // =================================================================== */
 const OverviewUsersPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
 
@@ -257,7 +259,7 @@ const OverviewUsersPage = () => {
       payload: {},
     });
 
-    User.getUsersOverview({firebase: firebase})
+    User.getUsersOverview({firebase: firebase, database: database})
       .then((result) => {
         dispatch({type: ReducerActions.USERS_FETCH_SUCCESS, payload: result});
       })
@@ -283,7 +285,7 @@ const OverviewUsersPage = () => {
         type: ReducerActions.USER_FULL_PROFILE_FETCH_INIT,
         payload: {},
       });
-      await User.getFullProfile({firebase: firebase, uid: userUid}).then(
+      await User.getFullProfile({firebase: firebase, database: database, uid: userUid}).then(
         (result) => {
           dispatch({
             type: ReducerActions.USER_FULL_PROFILE_FETCH_SUCCESS,
@@ -322,6 +324,7 @@ const OverviewUsersPage = () => {
   const onDialogEditRolesUpdate = (newRoles: User["roles"]) => {
     User.updateRoles({
       firebase: firebase,
+      database: database,
       userUid: dialogValues.selectedUser.uid,
       newRoles: newRoles,
       authUser: authUser,

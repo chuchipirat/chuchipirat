@@ -62,6 +62,7 @@ import Event, {EventRefDocuments} from "./event.class";
 import User from "../../User/user.class";
 
 import Firebase from "../../Firebase/firebase.class";
+import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Utils from "../../Shared/utils.class";
 import DialogAddUser from "../../User/dialogAddUser";
@@ -152,6 +153,8 @@ interface EventInfoPageProps {
   localPicture: File | null;
   /** Firebase-Instanz für DB-Zugriffe. */
   firebase: Firebase;
+  /** Datenbank-Service für Supabase-Zugriffe. */
+  database: DatabaseService;
   /** Authentifizierter Benutzer. */
   authUser: AuthUser;
   /** Aktuelle Formular-Validierungsfehler. */
@@ -175,6 +178,7 @@ const EventInfoPage = ({
   event,
   localPicture,
   firebase,
+  database,
   authUser,
   formValidation,
   onUpdateEvent,
@@ -300,6 +304,7 @@ const EventInfoPage = ({
     try {
       const publicProfile = await User.getPublicProfile({
         firebase: firebase,
+        database: database,
         uid: personUid,
       });
       const updatedCooks = await Event.addCookToEvent({
@@ -382,6 +387,7 @@ const EventInfoPage = ({
       </Stack>
       <DialogAddUser
         firebase={firebase}
+        database={database}
         authUser={authUser}
         dialogOpen={dialogAddUserOpen}
         handleAddUser={onAddUserToEvent}

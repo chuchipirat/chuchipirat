@@ -13,6 +13,8 @@ import "@fontsource/roboto-mono";
 import {CustomDialogContextProvider} from "./components/Shared/customDialogContext";
 import {NavigationContextProvider} from "./components/Navigation/navigationContext";
 import Firebase from "./components/Firebase/firebase.class";
+import {DatabaseContext} from "./components/Database/DatabaseContext";
+import DatabaseService from "./components/Database/DatabaseService";
 import ErrorInfo from "./components/500/500";
 import Utils from "./components/Shared/utils.class";
 import {LocalizationProvider} from "@mui/x-date-pickers";
@@ -44,15 +46,17 @@ root.render(
   <React.StrictMode>
     <Sentry.ErrorBoundary fallback={<ErrorInfo />}>
       <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={de}>
-        <FirebaseContext.Provider value={new Firebase()}>
-          <AuthUserProvider>
-            <CustomDialogContextProvider>
-              <NavigationContextProvider>
-                <App />
-              </NavigationContextProvider>
-            </CustomDialogContextProvider>
-          </AuthUserProvider>
-        </FirebaseContext.Provider>
+        <DatabaseContext.Provider value={new DatabaseService()}>
+          <FirebaseContext.Provider value={new Firebase()}>
+            <AuthUserProvider>
+              <CustomDialogContextProvider>
+                <NavigationContextProvider>
+                  <App />
+                </NavigationContextProvider>
+              </CustomDialogContextProvider>
+            </AuthUserProvider>
+          </FirebaseContext.Provider>
+        </DatabaseContext.Provider>
       </LocalizationProvider>
     </Sentry.ErrorBoundary>
   </React.StrictMode>

@@ -3,6 +3,7 @@ import {useNavigate} from "react-router";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 
 import {
   SIGN_IN as ROUTE_SIGN_IN,
@@ -25,12 +26,13 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
   children,
 }) => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
 
   useEffect(() => {
     const listener = firebase.onAuthUserListener((authUser) => {
       setAuthUser(authUser);
-    });
+    }, database);
 
     return () => {
       listener(); // Aufräumarbeiten beim Komponentenabbau
@@ -57,6 +59,7 @@ export const AuthorizationGuard: React.FC<AuthorizationGuardProps> = ({
 }) => {
   const authUser = useAuthUser();
   const firebase = useFirebase();
+  const database = useDatabase();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -66,7 +69,7 @@ export const AuthorizationGuard: React.FC<AuthorizationGuardProps> = ({
       } else if (!condition(authUser)) {
         navigate(ROUTE_NO_AUTH);
       }
-    });
+    }, database);
 
     return () => {
       listener(); // Aufräumarbeiten beim Komponentenabbau

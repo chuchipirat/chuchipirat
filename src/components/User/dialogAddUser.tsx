@@ -27,12 +27,14 @@ import {
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import Firebase from "../Firebase/firebase.class";
+import DatabaseService from "../Database/DatabaseService";
 
 /* ===================================================================
 // ====================== Pop Up User hinzufügen =====================
 // =================================================================== */
 interface DialogAddUserProps {
   firebase: Firebase;
+  database: DatabaseService;
   authUser: AuthUser;
   dialogOpen: boolean;
   handleAddUser: (userUid: string) => void;
@@ -40,6 +42,7 @@ interface DialogAddUserProps {
 }
 const DialogAddUser = ({
   firebase,
+  database,
   authUser,
   dialogOpen,
   handleAddUser,
@@ -71,6 +74,7 @@ const DialogAddUser = ({
       //UID aus E-Mail-Adresse ermitteln
       await User.getUidByEmail({
         firebase: firebase,
+        database: database,
         email: userEmail.toLocaleLowerCase(),
       })
         .then((result) => {

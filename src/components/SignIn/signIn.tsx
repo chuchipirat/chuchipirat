@@ -35,6 +35,7 @@ import {ImageRepository} from "../../constants/imageRepository";
 import AlertMessage from "../Shared/AlertMessage";
 import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import User from "../User/user.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useNavigate} from "react-router";
@@ -119,6 +120,7 @@ const signInReducer = (state: State, action: DispatchAction): State => {
 // =================================================================== */
 const SignInPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const classes = useCustomStyles();
   const navigate = useNavigate();
 
@@ -179,6 +181,7 @@ const SignInPage = () => {
         if (user.user) {
           User.registerSignIn({
             firebase: firebase,
+            database: database,
             authUser: {uid: user.user.uid} as AuthUser,
           });
         }

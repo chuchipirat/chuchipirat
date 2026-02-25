@@ -57,6 +57,7 @@ import User from "../User/user.class";
 import {FirebaseError} from "@firebase/util";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 
 // ===================================================================
@@ -144,6 +145,7 @@ interface PasswordChangePageProps {
 
 const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const navigate = useNavigate();
   const classes = useCustomStyles();
@@ -213,6 +215,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
         // Profilfelder updaten
         User.updateEmail({
           firebase: firebase,
+          database: database,
           newEmail: state.passwordChangeData.email,
           authUser: authUser,
         }).then(() => {
@@ -324,6 +327,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
         {(!authUser || reauthenticattion.needed) && (
           <DialogReauthenticate
             firebase={firebase}
+            database={database}
             dialogOpen={reauthenticattion.needed && !reauthenticattion.done}
             handleOk={onReauthenticattionOk}
             handleClose={onReauthenticattionCancel}

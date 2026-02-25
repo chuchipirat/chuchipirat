@@ -21,6 +21,7 @@ import PageTitle from "../Shared/pageTitle";
 import AlertMessage from "../Shared/AlertMessage";
 
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import Role from "../../constants/roles";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
@@ -67,6 +68,7 @@ interface JobMonitor {
 // =================================================================== */
 const ExecuteJobPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   // const {customDialog} = useCustomDialog();
@@ -112,7 +114,7 @@ const ExecuteJobPage = () => {
   };
 
   const onRebuildFile000AllUsers = async () => {
-    await rebuildFile000AllUsers(firebase).then((result) => {
+    await rebuildFile000AllUsers(firebase, database).then((result) => {
       setDocumentCounter({...documentCounter, allUsers: result});
     });
   };

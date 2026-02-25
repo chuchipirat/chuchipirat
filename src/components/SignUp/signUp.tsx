@@ -30,6 +30,7 @@ import PasswordStrengthMeter from "../Shared/passwordStrengthMeter";
 import AlertMessage from "../Shared/AlertMessage";
 
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import {
   SIGN_UP as ROUTE_SIGN_UP,
   HOME as ROUTE_HOME,
@@ -139,6 +140,7 @@ const signUpReducer = (state: State, action: DispatchAction): State => {
 // =================================================================== */
 const SignUpPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
 
   const classes = useCustomStyles();
   const [state, dispatch] = React.useReducer(signUpReducer, inititialState);
@@ -206,6 +208,7 @@ const SignUpPage = () => {
         if (user.user) {
           User.createUser({
             firebase: firebase,
+            database: database,
             uid: user.user?.uid,
             firstName: state.signUpData.firstName,
             lastName: state.signUpData.lastName,

@@ -43,6 +43,7 @@ import Action from "../../constants/actions";
 import * as ROUTES from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import UserPublicProfile from "./user.public.profile.class";
 import {FormListItem} from "../Shared/formListItem";
 import {useAuthUser} from "../Session/authUserContext";
@@ -114,6 +115,7 @@ interface LocationState {
 // =================================================================== */
 const PublicProfilePage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const location = useLocation();
@@ -144,7 +146,7 @@ const PublicProfilePage = () => {
       });
     }
 
-    User.getPublicProfile({firebase: firebase, uid: urlUid}).then((result) => {
+    User.getPublicProfile({firebase: firebase, database: database, uid: urlUid}).then((result) => {
       dispatch({
         type: ReducerActions.FETCH_PUBLIC_PROFILE_SUCCESS,
         payload: result,

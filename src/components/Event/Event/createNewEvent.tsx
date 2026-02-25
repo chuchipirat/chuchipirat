@@ -52,6 +52,7 @@ import {
 } from "../../../constants/routes";
 
 import {useFirebase} from "../../Firebase/firebaseContext";
+import {useDatabase} from "../../Database/DatabaseContext";
 
 import {
   NavigationValuesContext,
@@ -243,6 +244,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
  */
 const CreateEventPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const navigate = useNavigate();
@@ -413,6 +415,7 @@ const CreateEventPage = () => {
                 localPicture={state.localPicture}
                 formValidation={state.eventFormValidation}
                 firebase={firebase}
+                database={database}
                 authUser={authUser}
                 onUpdateEvent={onUpdateEvent}
                 onUpdatePicture={onUpdatePicture}

@@ -46,6 +46,7 @@ import FirebaseDbEventShort from "./Db/firebase.db.eventShort.class";
 import LocalStorageKey from "../../constants/localStorage";
 import AuthUser from "./Authentication/authUser.class";
 import User from "../User/user.class";
+import {DatabaseService} from "../Database/DatabaseService";
 
 interface SignInWithEmailAndPassword {
   email: string;
@@ -147,7 +148,7 @@ export default class Firebase {
    * @param callback Methode, die ausgeführt wird, wenn sich die Werte auf
    * der DB ändern sollten.
    */
-  onAuthUserListener = (callback: (authUser: AuthUser | null) => void) => {
+  onAuthUserListener = (callback: (authUser: AuthUser | null) => void, database?: DatabaseService) => {
     let authUser: AuthUser;
     // let dbUser: app.firestore.DocumentData | undefined;
     return this.auth.onAuthStateChanged(async (user) => {
@@ -158,7 +159,7 @@ export default class Firebase {
         );
 
         if (!localStorageAuthUserString) {
-          await User.getFullProfile({firebase: this, uid: user.uid}).then(
+          await User.getFullProfile({firebase: this, database: database!, uid: user.uid}).then(
             (result) => {
               console.warn("user-Full-Profile read");
               authUser = {

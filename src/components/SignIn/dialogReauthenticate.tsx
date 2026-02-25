@@ -29,6 +29,7 @@ import AlertMessage from "../Shared/AlertMessage";
 import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
 import {FirebaseError} from "@firebase/util";
 import Firebase from "../Firebase/firebase.class";
+import DatabaseService from "../Database/DatabaseService";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 
 /* ===================================================================
@@ -90,6 +91,7 @@ const reAuthenticateReducer = (state: State, action: DispatchAction): State => {
 // =================================================================== */
 interface DialogReauthenticateProps {
   firebase: Firebase;
+  database: DatabaseService;
   dialogOpen: boolean;
   handleOk: () => void;
   handleClose: () => void;
@@ -97,6 +99,7 @@ interface DialogReauthenticateProps {
 }
 const DialogReauthenticate = ({
   firebase,
+  database,
   dialogOpen,
   handleOk,
   handleClose: handleCloseSuper,
@@ -138,6 +141,7 @@ const DialogReauthenticate = ({
         // Login in eigener Sammlung registrieren
         User.registerSignIn({
           firebase: firebase,
+          database: database,
           authUser: authUser!,
         });
       })

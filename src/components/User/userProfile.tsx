@@ -68,6 +68,7 @@ import {FormListItem} from "../Shared/formListItem";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import LocalStorageKey from "../../constants/localStorage";
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -210,6 +211,7 @@ const userProfileReducer = (state: State, action: DispatchAction): State => {
 // =================================================================== */
 const UserProfilePage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const navigate = useNavigate();
@@ -229,7 +231,7 @@ const UserProfilePage = () => {
       return;
     }
     dispatch({type: ReducerActions.USER_PROFILE_FETCH_INIT, payload: authUser});
-    User.getFullProfile({firebase: firebase, uid: authUser.uid})
+    User.getFullProfile({firebase: firebase, database: database, uid: authUser.uid})
       .then((result) => {
         dispatch({
           type: ReducerActions.USER_PROFILE_FETCH_SUCCESS,
@@ -267,6 +269,7 @@ const UserProfilePage = () => {
 
     User.saveFullProfile({
       firebase: firebase,
+      database: database,
       userProfile: state.userProfile,
       localPicture: state.localPicture,
       authUser: authUser!,
@@ -326,6 +329,7 @@ const UserProfilePage = () => {
 
     User.deletePicture({
       firebase: firebase,
+      database: database,
       authUser: authUser!,
     })
       .then(() =>

@@ -36,6 +36,7 @@ import PageTitle from "../Shared/pageTitle";
 import Role from "../../constants/roles";
 
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {ChangeRecord} from "../Shared/global.interface";
 import {useAuthUser} from "../Session/authUserContext";
@@ -237,6 +238,7 @@ const eventsReducer = (state: State, action: DispatchAction): State => {
 // =================================================================== */
 const OverviewEventsPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const [state, dispatch] = React.useReducer(eventsReducer, inititialState);
   const [dialogQuickView, setDialogQuickView] =
@@ -312,7 +314,7 @@ const OverviewEventsPage = () => {
     }
     dispatch({type: ReducerActions.SHOW_LOADING, payload: {value: true}});
 
-    await User.getFullProfile({firebase, uid: event.created.fromUid})
+    await User.getFullProfile({firebase, database, uid: event.created.fromUid})
       .then((result) => {
         setDialogCreateReceipt({
           dialogOpen: true,
