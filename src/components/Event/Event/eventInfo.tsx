@@ -65,6 +65,7 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Utils from "../../Shared/utils.class";
+import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 import DialogAddUser from "../../User/dialogAddUser";
 import {
   FormValidationFieldError,
@@ -242,7 +243,7 @@ const EventInfoPage = ({
     }
   };
   const onDateDeleteClick = (
-    actionEvent: React.MouseEvent<HTMLButtonElement>
+    actionEvent: React.MouseEvent<HTMLButtonElement>,
   ) => {
     let tempDates = event.dates.filter(
       (eventDate) =>
@@ -303,7 +304,6 @@ const EventInfoPage = ({
 
     try {
       const publicProfile = await User.getPublicProfile({
-        firebase: firebase,
         database: database,
         uid: personUid,
       });
@@ -480,11 +480,11 @@ const EventBasicInfoCard = ({
                   helperText={FormValidatorUtil.getHelperText(
                     formValidation,
                     "name",
-                    TEXT_EVENT_NAME_HELPERTEXT
+                    TEXT_EVENT_NAME_HELPERTEXT,
                   )}
                   error={FormValidatorUtil.isFieldErroneous(
                     formValidation,
-                    "name"
+                    "name",
                   )}
                   fullWidth
                   required
@@ -809,10 +809,20 @@ const EventCookingTeamCard = ({
                 id={"cookListItem_" + cook.uid}
               >
                 <ListItemAvatar>
-                  {cook.pictureSrc.smallSize ? (
+                  {/* Kompatibilitäts-Shim: In Firestore-Events kann pictureSrc
+                      noch als altes Picture-Objekt vorliegen */}
+                  {(
+                    typeof cook.pictureSrc === "string"
+                      ? cook.pictureSrc
+                      : ((cook.pictureSrc as any)?.smallSize ?? "")
+                  ) ? (
                     <Avatar
                       alt={cook.displayName}
-                      src={String(cook.pictureSrc.smallSize)}
+                      src={
+                        typeof cook.pictureSrc === "string"
+                          ? getImageUrl(cook.pictureSrc, ImageSize.AVATAR)
+                          : String((cook.pictureSrc as any)?.smallSize ?? "")
+                      }
                     />
                   ) : (
                     <Avatar alt={cook.displayName}>

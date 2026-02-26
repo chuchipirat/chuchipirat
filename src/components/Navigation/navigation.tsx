@@ -49,6 +49,7 @@ import Role from "../../constants/roles";
 import {NavigationValuesContext} from "../Navigation/navigationContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 
 import Utils from "../Shared/utils.class";
 import {DonateIcon} from "../Shared/icons";
@@ -108,11 +109,7 @@ type Anchor = "top" | "left" | "bottom" | "right";
 // ===================================================================
 const NavigationComponent: React.FC = () => {
   const authUser = useAuthUser();
-  return (
-    <div>
-      {authUser ? <NavigationAuth /> : <NavigationNoAuth />}
-    </div>
-  );
+  return <div>{authUser ? <NavigationAuth /> : <NavigationNoAuth />}</div>;
 };
 
 // ===================================================================
@@ -122,6 +119,7 @@ const NavigationAuth: React.FC = () => {
   const location = useLocation();
   const classes = useCustomStyles();
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
 
   const [anchorEl, setAnchorEl] = React.useState<HTMLElement | null>(null);
@@ -265,6 +263,8 @@ const NavigationAuth: React.FC = () => {
         });
         break;
       case BUTTONTEXT.SIGNOUT:
+        // Beide Auth-Provider abmelden (Supabase + Firebase)
+        database.auth.signOut().catch(() => {});
         firebase.signOut();
         localStorage.removeItem(LocalStorageKey.AUTH_USER);
 
@@ -453,13 +453,12 @@ const NavigationAuth: React.FC = () => {
               variant="h6"
               color="inherit"
               underline="none"
-              onClick={() => navigate(ROUTES.HOME)
-              }
+              onClick={() => navigate(ROUTES.HOME)}
             >
               {TEXT.APP_NAME}
             </Link>
           </Typography>
-          {Utils.isTestEnviroment() ? <TestTenantRibbon /> : null}
+          {Utils.isTestEnvironment() ? <TestTenantRibbon /> : null}
           <div>
             <IconButton
               aria-label="go to Helppage"
@@ -550,7 +549,7 @@ const NavigationNoAuth: React.FC = () => {
               {TEXT.APP_NAME}
             </Link>
           </Typography>
-          {Utils.isTestEnviroment() ? <TestTenantRibbon /> : null}
+          {Utils.isTestEnvironment() ? <TestTenantRibbon /> : null}
           <div>
             <Typography variant="h6" sx={classes.navigationTitle}>
               <Link

@@ -1,3 +1,7 @@
+// Polyfill für jsdom (react-router benötigt TextEncoder/TextDecoder)
+import {TextEncoder, TextDecoder} from "util";
+Object.assign(global, {TextEncoder, TextDecoder});
+
 import React from "react";
 import {render, screen, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";

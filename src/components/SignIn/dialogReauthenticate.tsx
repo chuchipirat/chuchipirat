@@ -26,9 +26,7 @@ import {
 import User from "../User/user.class";
 
 import AlertMessage from "../Shared/AlertMessage";
-import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
 import {FirebaseError} from "@firebase/util";
-import Firebase from "../Firebase/firebase.class";
 import DatabaseService from "../Database/DatabaseService";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 
@@ -90,7 +88,6 @@ const reAuthenticateReducer = (state: State, action: DispatchAction): State => {
 // ==================== Pop Up Abteilung hinzufügen ==================
 // =================================================================== */
 interface DialogReauthenticateProps {
-  firebase: Firebase;
   database: DatabaseService;
   dialogOpen: boolean;
   handleOk: () => void;
@@ -98,7 +95,6 @@ interface DialogReauthenticateProps {
   authUser: AuthUser | null;
 }
 const DialogReauthenticate = ({
-  firebase,
   database,
   dialogOpen,
   handleOk,
@@ -131,30 +127,28 @@ const DialogReauthenticate = ({
   // PopUp Ok
   // ------------------------------------------ */
   const onSignIn = async () => {
-    let hasError = false;
-    await firebase
-      .reauthenticateWithCredential({
-        email: state.reAuthData.email,
-        password: state.reAuthData.password,
-      })
-      .then(() => {
-        // Login in eigener Sammlung registrieren
-        User.registerSignIn({
-          firebase: firebase,
-          database: database,
-          authUser: authUser!,
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        hasError = true;
+    try {
+      await database.auth.signInWithPassword(
+        state.reAuthData.email,
+        state.reAuthData.password
+      );
+    } catch (error) {
+      console.error(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as FirebaseError,
       });
-
-    if (!hasError) {
-      handleOk();
-      dispatch({type: ReducerActions.SET_INITIAL_VALUES, payload: {}});
+      return;
     }
+
+    // Login in eigener Sammlung registrieren
+    User.registerSignIn({
+      database: database,
+      authUser: authUser!,
+    });
+
+    handleOk();
+    dispatch({type: ReducerActions.SET_INITIAL_VALUES, payload: {}});
   };
   /* ------------------------------------------
   // PopUp Schliessen
@@ -198,16 +192,7 @@ const DialogReauthenticate = ({
           />
         )}
         {state.error && (
-          <AlertMessage
-            error={state.error}
-            body={
-              state.error.code === "auth/too-many-requests" ? (
-                <ForgotPasswordLink />
-              ) : (
-                ""
-              )
-            }
-          />
+          <AlertMessage error={state.error} />
         )}
         {/* Mailadresse */}
         <TextField

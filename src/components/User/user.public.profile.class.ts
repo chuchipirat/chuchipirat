@@ -1,5 +1,4 @@
 import Firebase from "../Firebase/firebase.class";
-import {Picture as PictureSrc} from "../Shared/global.interface";
 
 interface IncrementField {
   firebase: Firebase;
@@ -27,7 +26,7 @@ export class UserPublicProfile {
   memberSince: Date;
   memberId: number;
   motto: string;
-  pictureSrc: PictureSrc;
+  pictureSrc: string;
   stats: Stats;
   // noComments: number;
   // noEvents: number;
@@ -41,11 +40,7 @@ export class UserPublicProfile {
     this.memberSince = new Date(0);
     this.memberId = 0;
     this.motto = "";
-    this.pictureSrc = {
-      smallSize: "",
-      normalSize: "",
-      fullSize: "",
-    };
+    this.pictureSrc = "";
     this.stats = {
       noComments: 0,
       noEvents: 0,

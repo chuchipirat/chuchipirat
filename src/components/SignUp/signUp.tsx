@@ -39,8 +39,6 @@ import {AuthMessages} from "../../constants/firebaseMessages";
 import {NOT_REGISTERED_YET_SIGN_UP as TEXT_NOT_REGISTERED_YET_SIGN_UP} from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
 import GlobalSettings from "../Admin/globalSettings.class";
-import {FirebaseError} from "@firebase/util";
-
 import {
   WE_NEED_SOME_DETAILS_ABOUT_YOU as TEXT_WE_NEED_SOME_DETAILS_ABOUT_YOU,
   SIGN_IN as TEXT_SIGN_IN,
@@ -66,15 +64,24 @@ import {
 import {AlertMaintenanceMode} from "../SignIn/signIn";
 import useCustomStyles from "../../constants/styles";
 
-// ===================================================================
-// ======================== globale Funktionen =======================
-// ===================================================================
+/* ===================================================================
+// ======================== State Management ==========================
+// =================================================================== */
+
 enum ReducerActions {
   UPDATE_FIELD,
   SET_SIGN_UP_ALLOWED,
   GENERIC_ERROR,
 }
 
+/**
+ * Eingabedaten für das Sign-Up-Formular.
+ *
+ * @param firstName - Vorname des Benutzers
+ * @param lastName - Nachname des Benutzers
+ * @param email - E-Mail-Adresse des Benutzers
+ * @param password - Passwort des Benutzers
+ */
 type SignUpData = {
   firstName: string;
   lastName: string;
@@ -82,23 +89,35 @@ type SignUpData = {
   password: string;
 };
 
+/** Fehlertyp, der sowohl Firebase- als auch Supabase-Fehler abdeckt */
+type AuthErrorLike = Error & {code?: string};
+
+/**
+ * State für die Sign-Up-Seite.
+ *
+ * @param signUpData - Eingegebene Registrierungsdaten
+ * @param error - Fehlerobjekt bei gescheiterter Registrierung
+ * @param signUpAllowed - Ob Registrierungen erlaubt sind
+ * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
+ * @param allowUserCreatePassword - Codewort für Test-Umgebung
+ */
 type State = {
   signUpData: SignUpData;
-  error: FirebaseError | null;
-  showPassword: boolean;
+  error: AuthErrorLike | null;
   signUpAllowed: boolean;
   maintenanceMode: boolean;
   allowUserCreatePassword: string;
 };
 
-const inititialState: State = {
+const initialState: State = {
   signUpData: {firstName: "", lastName: "", email: "", password: ""},
   error: null,
-  showPassword: false,
   signUpAllowed: true,
   maintenanceMode: false,
   allowUserCreatePassword: "",
 };
+
+/** Diskriminierte Union für typsichere Reducer-Actions */
 type DispatchAction =
   | {
       type: ReducerActions.UPDATE_FIELD;
@@ -108,8 +127,16 @@ type DispatchAction =
       type: ReducerActions.SET_SIGN_UP_ALLOWED;
       payload: GlobalSettings;
     }
-  | {type: ReducerActions.GENERIC_ERROR; payload: FirebaseError};
+  | {type: ReducerActions.GENERIC_ERROR; payload: AuthErrorLike};
 
+/**
+ * Reducer für die Sign-Up-Seite.
+ * Verwaltet Registrierungsdaten, Berechtigungen und Fehler.
+ *
+ * @param state - Aktueller State
+ * @param action - Auszuführende Aktion
+ * @returns Neuer State
+ */
 const signUpReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.UPDATE_FIELD:
@@ -138,12 +165,22 @@ const signUpReducer = (state: State, action: DispatchAction): State => {
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
+
+/**
+ * Seite zur Registrierung neuer Benutzer.
+ *
+ * Erstellt einen Supabase Auth Account und legt den Benutzer in der
+ * users-Tabelle an. In der Testumgebung wird ein Codewort abgefragt.
+ *
+ * @example
+ * <SignUpPage />
+ */
 const SignUpPage = () => {
   const firebase = useFirebase();
   const database = useDatabase();
 
   const classes = useCustomStyles();
-  const [state, dispatch] = React.useReducer(signUpReducer, inititialState);
+  const [state, dispatch] = React.useReducer(signUpReducer, initialState);
   const navigate = useNavigate();
   const {customDialog} = useCustomDialog();
 
@@ -177,7 +214,7 @@ const SignUpPage = () => {
   const onSignUp = async () => {
     // in der Integration prüfen ob man darf
     // nicht die sicherste Variante aber für die kurze Periode ok.
-    if (Utils.isTestEnviroment()) {
+    if (Utils.isTestEnvironment()) {
       const userInput = (await customDialog({
         dialogType: DialogType.SingleTextInput,
         title: "Bitte gib den erhaltenen Code ein:",
@@ -193,35 +230,38 @@ const SignUpPage = () => {
       } else if (btoa(userInput.input) !== state.allowUserCreatePassword) {
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
-          payload: new FirebaseError("auth/wrong-code", "Codewort falsch"),
+          payload: {code: "auth/wrong-code", message: "Codewort falsch"},
         });
         return;
       }
     }
 
-    firebase
-      .createUserWithEmailAndPassword({
+    try {
+      // Supabase Auth Account erstellen
+      const session = await database.auth.signUp(
+        state.signUpData.email,
+        state.signUpData.password,
+      );
+
+      // Benutzer in der users-Tabelle anlegen (id und auth_uid = Supabase UUID)
+      await User.createUser({
+        firebase: firebase,
+        database: database,
+        uid: session.user.id,
+        authUid: session.user.id,
+        firstName: state.signUpData.firstName,
+        lastName: state.signUpData.lastName,
         email: state.signUpData.email,
-        password: state.signUpData.password,
-      })
-      .then((user) => {
-        if (user.user) {
-          User.createUser({
-            firebase: firebase,
-            database: database,
-            uid: user.user?.uid,
-            firstName: state.signUpData.firstName,
-            lastName: state.signUpData.lastName,
-            email: state.signUpData.email,
-          });
-          firebase.sendEmailVerification();
-          navigate(ROUTE_HOME);
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
+
+      navigate(ROUTE_HOME);
+    } catch (error) {
+      console.error(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as AuthErrorLike,
+      });
+    }
   };
   /* ------------------------------------------
   // Dialog-Handling
@@ -267,9 +307,21 @@ const SignUpPage = () => {
   );
 };
 
-// ===================================================================
+/* ===================================================================
 // ============================= Formular ============================
-// ===================================================================
+// =================================================================== */
+
+/**
+ * Props für das Sign-Up-Formular.
+ *
+ * @param signUpData - Aktuelle Registrierungsdaten
+ * @param signUpAllowed - Ob Registrierungen erlaubt sind
+ * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
+ * @param onFieldChange - Handler für Feldänderungen
+ * @param onSignUp - Handler für den Registrieren-Button
+ * @param openDialog - Handler zum Öffnen der AGB-/Datenschutz-Dialoge
+ * @param error - Fehlerobjekt (null wenn kein Fehler)
+ */
 interface SignUpFormProps {
   signUpData: SignUpData;
   signUpAllowed: boolean;
@@ -277,8 +329,13 @@ interface SignUpFormProps {
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onSignUp: () => void;
   openDialog: (event: React.MouseEvent<HTMLAnchorElement>) => void;
-  error: FirebaseError | null;
+  error: AuthErrorLike | null;
 }
+
+/**
+ * Formular zur Registrierung mit Vorname, Nachname, E-Mail und Passwort.
+ * Zeigt Passwort-Stärkeanzeige und Links zu AGB/Datenschutz.
+ */
 const SignUpForm = ({
   signUpData,
   signUpAllowed,
@@ -308,7 +365,7 @@ const SignUpForm = ({
       <Card sx={classes.card}>
         <CardMedia
           sx={classes.cardMedia}
-          image={ImageRepository.getEnviromentRelatedPicture().SIGN_IN_HEADER}
+          image={ImageRepository.getEnvironmentRelatedPicture().SIGN_IN_HEADER}
           title={"Logo"}
         />
         <CardContent sx={classes.cardContent}>
@@ -406,17 +463,17 @@ const SignUpForm = ({
               },
             }}
           />
-          <br />
           {/* Stärke Passwort */}
           <PasswordStrengthMeter password={signUpData.password} />
-          <br />
-          <Typography>Indem du fortfährst, akzeptierst du:</Typography>
+          <Typography sx={{marginTop: "1rem"}}>
+            Indem du fortfährst, akzeptierst du:
+          </Typography>
 
           <ul>
             <li>
               <Typography>
                 die{" "}
-                <Link id="termOfUse" onClick={openDialog}>
+                <Link component="button" id="termOfUse" onClick={openDialog}>
                   Nutzungsbedingungen
                 </Link>{" "}
                 für den chuchipirat.
@@ -425,7 +482,11 @@ const SignUpForm = ({
             <li>
               <Typography>
                 die{" "}
-                <Link id="privacyPolicy" onClick={openDialog}>
+                <Link
+                  component="button"
+                  id="privacyPolicy"
+                  onClick={openDialog}
+                >
                   Datenschutzbestimmungen
                 </Link>{" "}
                 des chuchipirats.
@@ -467,9 +528,17 @@ const SignUpForm = ({
   );
 };
 
-// ===================================================================
+/* ===================================================================
 // =============================== Link ==============================
-// ===================================================================
+// =================================================================== */
+
+/**
+ * Button-Komponente zum Navigieren zur Registrierungsseite.
+ * Wird auf der Sign-In-Seite unterhalb des Login-Formulars angezeigt.
+ *
+ * @example
+ * <SignUpLink />
+ */
 export const SignUpLink = () => {
   const navigate = useNavigate();
 
@@ -483,9 +552,16 @@ export const SignUpLink = () => {
     </Button>
   );
 };
-// ===================================================================
-// ===================== Dialog Nutzungsbestimmung ===================
-// ===================================================================
+/* ===================================================================
+// ===================== Dialog Nutzungsbedingungen ==================
+// =================================================================== */
+
+/**
+ * Dialog zum Anzeigen der Nutzungsbedingungen.
+ *
+ * @param open - Ob der Dialog geöffnet ist
+ * @param onClose - Handler zum Schliessen des Dialogs
+ */
 interface DialogTermOfUseProps {
   open: boolean;
   onClose: () => void;
@@ -503,9 +579,16 @@ export const DialogTermOfUse = ({open, onClose}: DialogTermOfUseProps) => {
     </Dialog>
   );
 };
-// ===================================================================
-// ===================== Dialog Nutzungsbestimmung ===================
-// ===================================================================
+/* ===================================================================
+// =================== Dialog Datenschutzerklärung ===================
+// =================================================================== */
+
+/**
+ * Dialog zum Anzeigen der Datenschutzerklärung.
+ *
+ * @param open - Ob der Dialog geöffnet ist
+ * @param onClose - Handler zum Schliessen des Dialogs
+ */
 interface DialogPrivacyPolicyProps {
   open: boolean;
   onClose: () => void;

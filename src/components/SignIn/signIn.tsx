@@ -1,23 +1,29 @@
 import React from "react";
 
 import {
+  Backdrop,
   Button,
-  IconButton,
-  TextField,
-  Typography,
-  Container,
   Card,
   CardContent,
   CardMedia,
+  CircularProgress,
+  Container,
+  IconButton,
+  InputAdornment,
   Stack,
+  TextField,
+  Typography,
 } from "@mui/material";
-import Visibility from "@mui/icons-material/Visibility";
-import VisibilityOff from "@mui/icons-material/VisibilityOff";
-import InputAdornment from "@mui/material/InputAdornment";
+import {
+  Visibility as VisibilityIcon,
+  VisibilityOff as VisibilityOffIcon,
+} from "@mui/icons-material";
 
 import PageTitle from "../Shared/pageTitle";
 import {SignUpLink} from "../SignUp/signUp";
-import {FirebaseError} from "@firebase/util";
+import AlertMessage from "../Shared/AlertMessage";
+import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
+import PasswordMigrationDialog from "./passwordMigrationDialog";
 
 import {
   COME_IN as TEXT_COME_IN,
@@ -32,48 +38,87 @@ import {
 import {AuthMessages} from "../../constants/firebaseMessages";
 import {HOME as ROUTE_HOME} from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
-import AlertMessage from "../Shared/AlertMessage";
-import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
+
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import User from "../User/user.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useNavigate} from "react-router";
 import Utils from "../Shared/utils.class";
-import {Backdrop, CircularProgress} from "@mui/material";
 import GlobalSettings from "../Admin/globalSettings.class";
 import useCustomStyles from "../../constants/styles";
 
-// ===================================================================
-// ======================== globale Funktionen =======================
-// ===================================================================
+/* ===================================================================
+// ======================== State Management ==========================
+// =================================================================== */
+
 enum ReducerActions {
-  SET_MAINTANANCE_MODE,
-  OVERWRITE_MAINTANANCE_MODE,
+  SET_MAINTENANCE_MODE,
+  OVERWRITE_MAINTENANCE_MODE,
   UPDATE_FIELD,
   SIGN_IN,
   GENERIC_ERROR,
+  SHOW_MIGRATION_DIALOG,
+  HIDE_MIGRATION_DIALOG,
 }
 
+/**
+ * Eingabedaten für das Sign-In-Formular.
+ *
+ * @param email - E-Mail-Adresse des Benutzers
+ * @param password - Passwort des Benutzers
+ */
 type SignInData = {
   email: string;
   password: string;
 };
 
+/** Fehlertyp, der sowohl Firebase- als auch Supabase-Fehler abdeckt */
+type AuthErrorLike = Error & {code?: string};
+
+/**
+ * State für die Passwort-Migration bei Firebase-Fallback.
+ *
+ * @param open - Ob der Dialog geöffnet ist
+ * @param firebaseUid - Firebase UID des zu migrierenden Users
+ */
+type MigrationDialogState = {
+  open: boolean;
+  firebaseUid: string;
+  displayName: string;
+};
+
+/**
+ * State für die Sign-In-Seite.
+ *
+ * @param signInData - Eingegebene Login-Daten
+ * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
+ * @param error - Fehlerobjekt bei gescheitertem Login
+ * @param isSigningIn - Ob gerade ein Login-Request läuft
+ * @param migrationDialog - State des Passwort-Migrations-Dialogs
+ */
 type State = {
   signInData: SignInData;
   maintenanceMode: boolean;
-  error: FirebaseError | null;
+  error: AuthErrorLike | null;
   isSigningIn: boolean;
-  showPassword: boolean;
+  migrationDialog: MigrationDialogState;
 };
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: any;
-};
+/** Diskriminierte Union für typsichere Reducer-Actions */
+type DispatchAction =
+  | {type: ReducerActions.UPDATE_FIELD; payload: {field: string; value: string}}
+  | {type: ReducerActions.SET_MAINTENANCE_MODE; payload: {value: boolean}}
+  | {type: ReducerActions.OVERWRITE_MAINTENANCE_MODE}
+  | {type: ReducerActions.SIGN_IN}
+  | {type: ReducerActions.GENERIC_ERROR; payload: AuthErrorLike}
+  | {
+      type: ReducerActions.SHOW_MIGRATION_DIALOG;
+      payload: {firebaseUid: string; displayName: string};
+    }
+  | {type: ReducerActions.HIDE_MIGRATION_DIALOG};
 
-const inititialState: State = {
+const initialState: State = {
   signInData: {
     email: "",
     password: "",
@@ -81,9 +126,17 @@ const inititialState: State = {
   maintenanceMode: false,
   isSigningIn: false,
   error: null,
-  showPassword: false,
+  migrationDialog: {open: false, firebaseUid: "", displayName: ""},
 };
 
+/**
+ * Reducer für die Sign-In-Seite.
+ * Verwaltet Login-Daten, Wartungsmodus, Ladezustand, Fehler und Migration.
+ *
+ * @param state - Aktueller State
+ * @param action - Auszuführende Aktion
+ * @returns Neuer State
+ */
 const signInReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.UPDATE_FIELD:
@@ -94,62 +147,84 @@ const signInReducer = (state: State, action: DispatchAction): State => {
           [action.payload.field]: action.payload.value,
         },
       };
-    case ReducerActions.SET_MAINTANANCE_MODE:
+    case ReducerActions.SET_MAINTENANCE_MODE:
       return {
         ...state,
         maintenanceMode: action.payload.value,
       };
     case ReducerActions.SIGN_IN:
       return {...state, isSigningIn: true};
-    case ReducerActions.OVERWRITE_MAINTANANCE_MODE:
+    case ReducerActions.OVERWRITE_MAINTENANCE_MODE:
       return {...state, maintenanceMode: false};
     case ReducerActions.GENERIC_ERROR:
       return {
         ...state,
-        error: action.payload as FirebaseError,
+        error: action.payload,
         isSigningIn: false,
       };
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+    case ReducerActions.SHOW_MIGRATION_DIALOG:
+      return {
+        ...state,
+        isSigningIn: false,
+        migrationDialog: {
+          open: true,
+          firebaseUid: action.payload.firebaseUid,
+          displayName: action.payload.displayName,
+        },
+      };
+    case ReducerActions.HIDE_MIGRATION_DIALOG:
+      return {
+        ...state,
+        migrationDialog: {open: false, firebaseUid: "", displayName: ""},
+      };
   }
 };
 
 /* ===================================================================
 // ================================ Page =============================
 // =================================================================== */
+
+/**
+ * Seite zum Anmelden (Sign-In).
+ *
+ * Implementiert einen Hybrid-Login-Flow:
+ * 1. Supabase Auth versuchen
+ * 2. Bei Fehler: Firebase-Fallback → Passwort-Migration-Dialog
+ * 3. Beide fehlgeschlagen: Fehlermeldung anzeigen
+ *
+ * @example
+ * <SignInPage />
+ */
 const SignInPage = () => {
   const firebase = useFirebase();
   const database = useDatabase();
   const classes = useCustomStyles();
   const navigate = useNavigate();
 
-  const [state, dispatch] = React.useReducer(signInReducer, inititialState);
+  const [state, dispatch] = React.useReducer(signInReducer, initialState);
+
   /* ------------------------------------------
   // Einstellungen holen
   // ------------------------------------------ */
   React.useEffect(() => {
     GlobalSettings.getGlobalSettings({firebase}).then((result) => {
       dispatch({
-        type: ReducerActions.SET_MAINTANANCE_MODE,
+        type: ReducerActions.SET_MAINTENANCE_MODE,
         payload: {value: result.maintenanceMode},
       });
     });
   }, []);
 
+  // Geheime Tastenkombination zum Deaktivieren des Wartungsmodus (Ctrl+Alt+Shift+C)
   React.useEffect(() => {
     const handleKeyPress = (event: KeyboardEvent) => {
-      // Tastenkombinationen für Mac und Windows
-      const isCtrlPressed = event.ctrlKey || event.metaKey; // Für Mac Command-Taste
+      const isCtrlPressed = event.ctrlKey || event.metaKey;
       const isAltPressed = event.altKey;
       const isShiftPressed = event.shiftKey;
-      const isCPressed = event.key === "c" || event.keyCode === 67;
+      const isCPressed = event.key === "c" || event.key === "C";
 
       if (isCtrlPressed && isAltPressed && isShiftPressed && isCPressed) {
-        dispatch({
-          type: ReducerActions.OVERWRITE_MAINTANANCE_MODE,
-          payload: {},
-        });
+        dispatch({type: ReducerActions.OVERWRITE_MAINTENANCE_MODE});
       }
     };
     window.addEventListener("keydown", handleKeyPress);
@@ -168,35 +243,105 @@ const SignInPage = () => {
     });
   };
   /* ------------------------------------------
-  // Anmelden
+  // Anmelden (Hybrid: Supabase zuerst, Firebase-Fallback)
   // ------------------------------------------ */
   const onSignIn = async () => {
-    dispatch({type: ReducerActions.SIGN_IN, payload: {}});
-    await firebase
-      .signInWithEmailAndPassword({
-        email: state.signInData.email,
-        password: state.signInData.password,
-      })
-      .then(async (user) => {
-        if (user.user) {
-          User.registerSignIn({
-            firebase: firebase,
-            database: database,
-            authUser: {uid: user.user.uid} as AuthUser,
-          });
-        }
+    dispatch({type: ReducerActions.SIGN_IN});
 
-        // Kurz warten, damit der Auth-Context nach mag
-        await new Promise(function (resolve) {
-          setTimeout(resolve, 2000);
+    try {
+      // 1. Supabase Auth versuchen
+      const session = await database.auth.signInWithPassword(
+        state.signInData.email,
+        state.signInData.password,
+      );
+
+      // Supabase-Login erfolgreich → User-Daten laden und Login registrieren
+      // Admin-Client verwenden, da RLS beim ersten Login Timing-Probleme hat
+      const usersRepo = database.admin?.users ?? database.users;
+      try {
+        const user = await usersRepo.findByAuthUid(session.user.id);
+        if (user) {
+          await usersRepo.registerSignIn(user.uid);
+        }
+      } catch (profileError) {
+        console.warn("Profil konnte nicht geladen werden:", profileError);
+      }
+
+      // Parallel Firebase-Session aufbauen, damit Firestore-Reads
+      // funktionieren, solange die Daten noch nicht nach Supabase
+      // migriert sind. Fehler werden bewusst ignoriert (z.B. wenn
+      // der User kein Firebase-Konto hat oder das Passwort abweicht).
+      try {
+        await firebase.signInWithEmailAndPassword({
+          email: state.signInData.email,
+          password: state.signInData.password,
+        });
+      } catch {
+        // Nicht kritisch — Firestore-Zugriff ist nur Übergangsphase
+      }
+
+      // Kurz warten, damit der Auth-Context nachmag
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      navigate(ROUTE_HOME);
+    } catch {
+      // 2. Supabase fehlgeschlagen → Firebase-Fallback versuchen
+      try {
+        const firebaseUser = await firebase.signInWithEmailAndPassword({
+          email: state.signInData.email,
+          password: state.signInData.password,
         });
 
-        navigate(ROUTE_HOME);
-      })
-      .catch((error: FirebaseError) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
+        if (firebaseUser.user) {
+          // Anzeigename aus Postgres laden (User wurde bereits migriert)
+          let displayName = "";
+          try {
+            const usersRepo = database.admin?.users ?? database.users;
+            const profile = await usersRepo.findById(firebaseUser.user.uid);
+            if (profile) {
+              displayName = profile.displayName;
+            }
+          } catch {
+            // Nicht kritisch — displayName bleibt leer
+          }
+
+          // Firebase-Login erfolgreich → Migrations-Dialog öffnen
+          dispatch({
+            type: ReducerActions.SHOW_MIGRATION_DIALOG,
+            payload: {firebaseUid: firebaseUser.user.uid, displayName},
+          });
+        }
+      } catch (firebaseError) {
+        // Beide Login-Versuche fehlgeschlagen
+        console.error(firebaseError);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: firebaseError as AuthErrorLike,
+        });
+      }
+    }
+  };
+
+  /* ------------------------------------------
+  // Callback nach erfolgreicher Passwort-Migration
+  // ------------------------------------------ */
+  const onMigrationSuccess = async () => {
+    // Firebase abmelden (Supabase ist jetzt aktiv)
+    await firebase.signOut();
+    dispatch({type: ReducerActions.HIDE_MIGRATION_DIALOG});
+
+    // Kurz warten, damit der Auth-Context nachmag
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    navigate(ROUTE_HOME);
+  };
+
+  const onMigrationClose = () => {
+    // Dialog schliessen, Firebase abmelden und Passwort-Feld leeren
+    firebase.signOut();
+    dispatch({type: ReducerActions.HIDE_MIGRATION_DIALOG});
+    dispatch({
+      type: ReducerActions.UPDATE_FIELD,
+      payload: {field: "password", value: ""},
+    });
   };
   return (
     <React.Fragment>
@@ -213,7 +358,7 @@ const SignInPage = () => {
             <CardMedia
               sx={classes.cardMedia}
               image={
-                ImageRepository.getEnviromentRelatedPicture().SIGN_IN_HEADER
+                ImageRepository.getEnvironmentRelatedPicture().SIGN_IN_HEADER
               }
               title={"Logo"}
             />
@@ -230,7 +375,7 @@ const SignInPage = () => {
                   severity={"error"}
                   messageTitle={TEXT_ALERT_TITLE_UUPS}
                   body={
-                    state.error.code! === AuthMessages.WRONG_PASSWORD ? (
+                    state.error.code === AuthMessages.WRONG_PASSWORD ? (
                       <ForgotPasswordLink />
                     ) : (
                       ""
@@ -243,19 +388,43 @@ const SignInPage = () => {
           </Card>
         </Stack>
       </Container>
+      {/* Passwort-Migrations-Dialog für bestehende Firebase-User */}
+      <PasswordMigrationDialog
+        open={state.migrationDialog.open}
+        email={state.signInData.email}
+        firebaseUid={state.migrationDialog.firebaseUid}
+        displayName={state.migrationDialog.displayName}
+        database={database}
+        onSuccess={onMigrationSuccess}
+        onClose={onMigrationClose}
+      />
     </React.Fragment>
   );
 };
 
-// ===================================================================
+/* ===================================================================
 // ====================== Formular Email/Passwort ====================
-// ===================================================================
+// =================================================================== */
+
+/**
+ * Props für das Sign-In-Formular.
+ *
+ * @param signInData - Aktuelle Login-Daten
+ * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
+ * @param onFieldChange - Handler für Feldänderungen
+ * @param onSignIn - Handler für den Login-Button
+ */
 interface SignInFormProps {
   signInData: SignInData;
   maintenanceMode: boolean;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onSignIn: () => void;
 }
+
+/**
+ * Formular zur Eingabe von E-Mail und Passwort für den Login.
+ * Zeigt Passwort-Toggle und deaktiviert Felder im Wartungsmodus.
+ */
 const SignInForm = ({
   signInData,
   maintenanceMode,
@@ -323,7 +492,7 @@ const SignInForm = ({
                   onMouseDown={handleMouseDownPassword}
                   size="large"
                 >
-                  {showPassword ? <Visibility /> : <VisibilityOff />}
+                  {showPassword ? <VisibilityIcon /> : <VisibilityOffIcon />}
                 </IconButton>
               </InputAdornment>
             ),
@@ -333,8 +502,6 @@ const SignInForm = ({
       <Button
         disabled={
           maintenanceMode ||
-          !signInData.email ||
-          !signInData.email.includes("@") ||
           !signInData.password ||
           !Utils.isEmail(signInData.email)
         }
@@ -350,9 +517,17 @@ const SignInForm = ({
     </React.Fragment>
   );
 };
-// ===================================================================
-// ========================== Wartungswarnung ========================
-// ===================================================================
+/* ===================================================================
+// ========================== Wartungswarnung =========================
+// =================================================================== */
+
+/**
+ * Warnmeldung, die im Wartungsmodus angezeigt wird.
+ * Informiert den Benutzer, dass Anmeldungen vorübergehend nicht möglich sind.
+ *
+ * @example
+ * <AlertMaintenanceMode />
+ */
 export const AlertMaintenanceMode = () => {
   return (
     <AlertMessage

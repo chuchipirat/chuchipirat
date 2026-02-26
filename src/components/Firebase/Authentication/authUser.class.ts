@@ -1,9 +1,9 @@
 import Role from "../../../constants/roles";
-import {Picture} from "../../Shared/global.interface";
+
 export interface AuthUserPublicProfile {
   displayName: string;
   motto: string;
-  pictureSrc: Picture;
+  pictureSrc: string;
 }
 
 export class AuthUser {
@@ -24,7 +24,7 @@ export class AuthUser {
     this.publicProfile = {
       displayName: "",
       motto: "",
-      pictureSrc: {smallSize: "", normalSize: "", fullSize: ""},
+      pictureSrc: "",
     };
   }
 }

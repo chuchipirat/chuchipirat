@@ -62,10 +62,7 @@ import {FormListItem} from "../Shared/formListItem";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
-import {
-  DataGrid,
-  GridColDef,
-} from "@mui/x-data-grid";
+import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 
 import MailConsole, {
@@ -456,7 +453,7 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
     setFilteredMaillogUi(filterMaillog(maillog, ""));
   };
   const updateSearchString = (
-    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
+    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
   ) => {
     setSearchString(event.target.value);
     setFilteredMaillogUi(filterMaillog(maillog, event.target.value as string));
@@ -466,7 +463,7 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
   // ------------------------------------------ */
   const filterMaillog = (
     maillog: MailLogOverviewStructure[],
-    searchString: string
+    searchString: string,
   ) => {
     let filteredMaillog: MailLogOverviewStructure[] = [];
     if (searchString) {
@@ -475,7 +472,7 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
         (mail) =>
           mail.uid!.toLocaleLowerCase().includes(searchString) ||
           mail.recipients.toLowerCase().includes(searchString) ||
-          mail.templateName.toLowerCase().includes(searchString)
+          mail.templateName.toLowerCase().includes(searchString),
       );
     } else {
       filteredMaillog = maillog;
@@ -497,7 +494,7 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
         noRecipients: mail.noRecipients,
         templateName: mail.template.name,
         timestamp: mail.timestamp,
-      })
+      }),
     );
 
     setMaillog(maillogUiStructure);
@@ -584,7 +581,7 @@ const DialogMailProtocol = ({
           backgroundImage: `url(${
             mailProtocol.template.data?.headerPictureSrc
               ? mailProtocol.template.data?.headerPictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           })`,
           backgroundPosition: "center",

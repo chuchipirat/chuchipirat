@@ -2,8 +2,8 @@ export class ImageRepository {
   /* =====================================================================
   // Allgemeine Bilder
   // ===================================================================== */
-  static getEnviromentRelatedPicture = () => {
-    switch (import.meta.env.VITE_ENVIROMENT) {
+  static getEnvironmentRelatedPicture = () => {
+    switch (import.meta.env.VITE_ENVIRONMENT) {
       case "PRD":
         return PRODUCTION;
       case "TST":
@@ -17,8 +17,8 @@ export class ImageRepository {
   /* =====================================================================
   // Bilder für Landing-Page
   // ===================================================================== */
-  static getLandingPageEnviromentRelatedPicture = () => {
-    switch (import.meta.env.VITE_ENVIROMENT) {
+  static getLandingPageEnvironmentRelatedPicture = () => {
+    switch (import.meta.env.VITE_ENVIRONMENT) {
       case "PRD":
         return LANDING_PAGE_PICTURES_PRODUCTION;
       case "TST":

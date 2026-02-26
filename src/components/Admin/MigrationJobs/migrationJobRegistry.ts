@@ -1,5 +1,6 @@
 import {MigrationJob} from "./MigrationJob.interface";
 import {UserMigrationJob} from "./UserMigrationJob";
+import {ImageMigrationJob} from "./ImageMigrationJob";
 
 /* =====================================================================
 // Registry aller verfügbaren Migrations-Jobs
@@ -16,6 +17,7 @@ import {UserMigrationJob} from "./UserMigrationJob";
  */
 export const migrationJobRegistry: Record<string, MigrationJob> = {
   users: new UserMigrationJob(),
+  images: new ImageMigrationJob(),
 };
 
 /**

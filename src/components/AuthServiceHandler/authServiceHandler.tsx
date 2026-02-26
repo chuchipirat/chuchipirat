@@ -17,26 +17,61 @@ const AUTH_SERVICE_HANDLER_MODE = {
   RESET_PASSWORD: "resetPassword",
   RECOVER_EMAIL: "recoverEmail",
 };
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
-const AuthServiceHandlerPage = () => {
-  const location = useLocation();
-  // Anhand des Actions-Mode entscheiden welche Seite angezeigt wird.
-  let mode = "";
-  let queryString = "";
-  let oobCode = "";
 
-  // Die URL enthält den Actioncode, --> Mode entscheidet welche Aktion
-  // nötig ist.
-  if (location.search && (!mode || !oobCode)) {
-    queryString = location.search;
+/**
+ * Erkennt den Modus anhand der URL-Parameter.
+ *
+ * Unterstützt zwei Formate:
+ * - Firebase: `?mode=resetPassword&oobCode=...`
+ * - Supabase: `#access_token=...&type=recovery` (Hash-Fragment)
+ *
+ * Bei Supabase Recovery-Links wird die Session automatisch vom
+ * Supabase-Client erkannt. Der AuthServiceHandler zeigt dann
+ * die Passwort-Änderungsseite an.
+ */
+function detectMode(search: string, hash: string): {mode: string; oobCode: string} {
+  // 1. Supabase Hash-Format prüfen (type=recovery im Hash-Fragment)
+  if (hash) {
+    const hashParams = new URLSearchParams(hash.replace("#", ""));
+    const type = hashParams.get("type");
+
+    if (type === "recovery") {
+      return {mode: AUTH_SERVICE_HANDLER_MODE.RESET_PASSWORD, oobCode: ""};
+    }
+    if (type === "signup" || type === "email_change") {
+      return {mode: AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL, oobCode: ""};
+    }
+  }
+
+  // 2. Firebase Query-Format prüfen (?mode=...&oobCode=...)
+  if (search) {
+    let queryString = search;
     if (queryString.charAt(0) === "?") {
       queryString = queryString.slice(1, -1);
     }
-    mode = qs.parse(queryString).mode;
-    oobCode = qs.parse(queryString).oobCode;
+    const parsed = qs.parse(queryString);
+    const mode = (parsed.mode as string) || "";
+    const oobCode = (parsed.oobCode as string) || "";
+    return {mode, oobCode};
   }
+
+  return {mode: "", oobCode: ""};
+}
+
+/* ===================================================================
+// =============================== Page ==============================
+// =================================================================== */
+/**
+ * AuthServiceHandler — Routing für Auth-Aktionen (Passwort-Reset, E-Mail-Verifizierung).
+ *
+ * Unterstützt sowohl Firebase-Style Query-Parameter als auch
+ * Supabase-Style Hash-Fragmente. Bei Supabase wird die Session
+ * automatisch vom Client etabliert, sodass kein oobCode benötigt wird.
+ */
+const AuthServiceHandlerPage = () => {
+  const location = useLocation();
+  const {mode, oobCode} = detectMode(location.search, location.hash);
+
   return (
     <React.Fragment>
       {mode === AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL && <VerifyEmail />}

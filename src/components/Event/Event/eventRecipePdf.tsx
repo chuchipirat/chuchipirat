@@ -86,7 +86,7 @@ const EventReceiptPdfPage = ({
           <View style={styles.tableCol40}>
             <Image
               style={styles.Image}
-              src={ImageRepository.getEnviromentRelatedPicture().RECEIPT_IMAGE}
+              src={ImageRepository.getEnvironmentRelatedPicture().RECEIPT_IMAGE}
             />
           </View>
           {/* Quittungsangaben rechts */}
@@ -162,7 +162,7 @@ const DataBlock = ({receiptData}: DataBlockProps) => {
         </View>
         <View style={styles.tableCol70}>
           <Text style={styles.dataValue}>{`Fr. ${receiptData.amount.toFixed(
-            2
+            2,
           )}`}</Text>
         </View>
       </View>

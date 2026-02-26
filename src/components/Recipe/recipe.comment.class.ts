@@ -75,7 +75,7 @@ export class RecipeComment {
       user: {
         userUid: authUser.uid,
         displayName: authUser.publicProfile.displayName,
-        pictureSrc: authUser.publicProfile.pictureSrc.normalSize,
+        pictureSrc: authUser.publicProfile.pictureSrc,
         motto: authUser.publicProfile.motto,
       },
     };

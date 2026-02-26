@@ -56,7 +56,7 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
               image={
                 event.pictureSrc
                   ? event.pictureSrc
-                  : ImageRepository.getEnviromentRelatedPicture()
+                  : ImageRepository.getEnvironmentRelatedPicture()
                       .CARD_PLACEHOLDER_MEDIA
               }
               title={event.name}

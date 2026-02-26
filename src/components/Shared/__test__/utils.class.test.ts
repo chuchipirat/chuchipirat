@@ -1,4 +1,4 @@
-import Utils, {Enviroment} from "../utils.class";
+import Utils, {Environment} from "../utils.class";
 import authUser from "../../Firebase/Authentication/__mocks__/authuser.mock";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 
@@ -240,26 +240,26 @@ test("Utils.sortArray(), sortiere Array absteigend nach verschachteltem Attribut
 /* =====================================================================
 // Prüfung ob das die Produktion ist
 // ===================================================================== */
-test("Utils.isProductionEnviroment()", () => {
-  expect(Utils.isProductionEnviroment()).toBeFalsy();
+test("Utils.isProductionEnvironment()", () => {
+  expect(Utils.isProductionEnvironment()).toBeFalsy();
 });
 /* =====================================================================
 // Prüfung ob das die Entwicklung ist
 // ===================================================================== */
-test("Utils.isDevEnviroment()", () => {
-  expect(Utils.isDevEnviroment()).toBeFalsy();
+test("Utils.isDevEnvironment()", () => {
+  expect(Utils.isDevEnvironment()).toBeTruthy();
 });
 /* =====================================================================
 // Prüfung ob das die Test-Instanz ist
 // ===================================================================== */
-test("Utils.isTestEnviroment()", () => {
-  expect(Utils.isTestEnviroment()).toBeFalsy();
+test("Utils.isTestEnvironment()", () => {
+  expect(Utils.isTestEnvironment()).toBeFalsy();
 });
 /* =====================================================================
 // Umgebung holen
 // ===================================================================== */
-test("Utils.getEnviroment()", () => {
-  expect(Utils.getEnviroment()).toBe(Enviroment.development);
+test("Utils.getEnvironment()", () => {
+  expect(Utils.getEnvironment()).toBe(Environment.development);
 });
 /* =====================================================================
 // Lade-Anzeige prüfen

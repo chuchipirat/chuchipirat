@@ -202,10 +202,10 @@ const EventUsedRecipesPage = ({
 
   const [state, dispatch] = React.useReducer(
     usedRecipesReducer,
-    inititialState
+    inititialState,
   );
   const [dialogSelectMenueData, setDialogSelectMenueData] = React.useState(
-    DIALOG_SELECT_MENUE_DATA_INITIAL_DATA
+    DIALOG_SELECT_MENUE_DATA_INITIAL_DATA,
   );
   /* ------------------------------------------
   // Navigation-Handler
@@ -243,7 +243,7 @@ const EventUsedRecipesPage = ({
     setDialogSelectMenueData(DIALOG_SELECT_MENUE_DATA_INITIAL_DATA);
   };
   const onConfirmDialogSelectMenues = async (
-    selectedMenues: DialogSelectMenuesForRecipeDialogValues
+    selectedMenues: DialogSelectMenuesForRecipeDialogValues,
   ) => {
     setDialogSelectMenueData({...dialogSelectMenueData, open: false});
 
@@ -310,7 +310,7 @@ const EventUsedRecipesPage = ({
   // ------------------------------------------ */
   const onRefreshLists = (
     newName?: string,
-    selectedMenues?: Menue["uid"][]
+    selectedMenues?: Menue["uid"][],
   ) => {
     // Alle Liste aktualisieren
     dispatch({type: ReducerActions.SHOW_LOADING, payload: {isLoading: true}});
@@ -356,7 +356,7 @@ const EventUsedRecipesPage = ({
   };
 
   const onListElementSelect = async (
-    event: React.MouseEvent<HTMLElement, MouseEvent>
+    event: React.MouseEvent<HTMLElement, MouseEvent>,
   ) => {
     // Menües in der richtigen Reihenfolge aufbauen, damit diese dann auch richtig angezeigt werden
 
@@ -411,7 +411,7 @@ const EventUsedRecipesPage = ({
         Menuplan.getMealsOfMenues({
           menuplan: menuplan,
           menues: usedRecipes.lists[selectedListUid].properties.selectedMenues,
-        })
+        }),
       ) ||
       // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
       // Auswahl entfernt
@@ -434,7 +434,7 @@ const EventUsedRecipesPage = ({
     // }).forEach((menueUid) => (selectedMenues[menueUid] = true));
 
     selectedMenues.forEach(
-      (menueUid) => (selectedMenuesForDialog[menueUid] = true)
+      (menueUid) => (selectedMenuesForDialog[menueUid] = true),
     );
     setDialogSelectMenueData({
       menues: selectedMenuesForDialog,
@@ -469,13 +469,13 @@ const EventUsedRecipesPage = ({
         unitConversionBasic={unitConversionBasic}
         unitConversionProducts={unitConversionProducts}
         authUser={authUser}
-      />
+      />,
     )
       .toBlob()
       .then((result) => {
         fileSaver.saveAs(
           result,
-          event.name + " " + TEXT_QUANTITY_CALCULATION + TEXT_SUFFIX_PDF
+          event.name + " " + TEXT_QUANTITY_CALCULATION + TEXT_SUFFIX_PDF,
         );
       });
   };
@@ -569,7 +569,7 @@ const EventUsedRecipes = ({
             ].mealRecipeOrder.map(
               (mealRecipeUid) =>
                 !menuplan.mealRecipes[mealRecipeUid].recipe.recipeUid.includes(
-                  "[DELETED]"
+                  "[DELETED]",
                 ) &&
                 usedRecipes[
                   menuplan.mealRecipes[mealRecipeUid].recipe.recipeUid
@@ -589,7 +589,7 @@ const EventUsedRecipes = ({
                     unitConversionProducts={unitConversionProducts}
                     key={"eventUsedRecipe_" + mealRecipeUid}
                   />
-                )
+                ),
             );
           })}
         </Stack>
@@ -647,7 +647,8 @@ const EventUsedMealRecipe = ({
           groupConfiguration={groupConfiguration}
         />
         {/* Zutaten */}
-        <Grid size={{ xs: 12, sm: 6 }}
+        <Grid
+          size={{xs: 12, sm: 6}}
           style={{marginTop: "2em", marginBottom: "2em"}}
           key={"recipeGridIngredients_" + mealRecipe.uid}
         >
@@ -661,7 +662,8 @@ const EventUsedMealRecipe = ({
           />
         </Grid>
         {/* Zubereitung */}
-        <Grid size={{ xs: 12, sm: 6 }}
+        <Grid
+          size={{xs: 12, sm: 6}}
           style={{marginTop: "2em", marginBottom: "2em"}}
           key={"recipeGridPreparations_" + mealRecipe.uid}
         >
@@ -669,7 +671,8 @@ const EventUsedMealRecipe = ({
         </Grid>
         {/* Material */}
         {recipe?.materials?.order.length > 0 && (
-          <Grid size={12}
+          <Grid
+            size={12}
             style={{marginTop: "2em", marginBottom: "2em"}}
             key={"recipeGridMaterials_" + mealRecipe.uid}
           >
@@ -686,7 +689,7 @@ const EventUsedMealRecipe = ({
               component="img"
               sx={classes.marginCenter}
               src={
-                ImageRepository.getEnviromentRelatedPicture().VECTOR_LOGO_GREY
+                ImageRepository.getEnvironmentRelatedPicture().VECTOR_LOGO_GREY
               }
               alt=""
               width="50px"

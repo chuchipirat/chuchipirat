@@ -72,7 +72,7 @@ const DonatePage = () => {
               <Box
                 component="img"
                 src={
-                  ImageRepository.getEnviromentRelatedPicture().TWINT_QR_CODE
+                  ImageRepository.getEnvironmentRelatedPicture().TWINT_QR_CODE
                 }
                 sx={classes.cardMediaQrCode}
                 style={{maxWidth: "100%", height: "auto"}}

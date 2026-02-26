@@ -3,7 +3,6 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
-import {Picture} from "../../Shared/global.interface";
 import {Role} from "../../../constants/roles";
 import {UserOverviewStructure} from "../../User/user.class";
 import UserPublicProfile from "../../User/user.public.profile.class";
@@ -19,19 +18,17 @@ import UserPublicProfile from "../../User/user.public.profile.class";
 export interface UserRow {
   [key: string]: unknown;
   id: string;
+  /** Supabase Auth UUID — wird beim ersten Supabase-Login gesetzt */
+  auth_uid: string | null;
   email: string;
   first_name: string;
   last_name: string;
   roles: string[];
-  last_login: string | null;
   no_logins: number;
   display_name: string;
-  member_since: string;
   member_id: number;
   motto: string;
-  picture_src_small: string;
-  picture_src_normal: string;
-  picture_src_full: string;
+  picture_src: string;
   created_at: string;
   last_change_at: string;
 }
@@ -46,17 +43,19 @@ export interface UserRow {
  */
 export interface UserDomain {
   uid: string;
+  /** Supabase Auth UUID — wird beim ersten Supabase-Login gesetzt */
+  authUid?: string;
   email: string;
   firstName: string;
   lastName: string;
   roles: Role[];
-  lastLogin: Date;
   noLogins: number;
   displayName: string;
-  memberSince: Date;
   memberId: number;
   motto: string;
-  pictureSrc: Picture;
+  pictureSrc: string;
+  /** Erstellungsdatum (DB-Spalte created_at). Bei der Migration aus memberSince gesetzt. */
+  createdAt?: Date;
 }
 
 /* =====================================================================
@@ -79,33 +78,40 @@ export interface UserDomain {
 export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   tableName = "users";
 
+  constructor(client?: import("@supabase/supabase-js").SupabaseClient) {
+    super(client);
+  }
+
   /* =====================================================================
   // Domain → DB-Zeile Mapping
   // ===================================================================== */
   /**
    * Konvertiert ein UserDomain-Objekt in eine Postgres-Zeile.
-   * Wandelt camelCase → snake_case und flacht die Picture-Struktur ab.
+   * Wandelt camelCase → snake_case.
    * @param user - Das Domain-Objekt
    * @returns Partielle DB-Zeile
    */
   toRow(user: UserDomain): Partial<UserRow> {
-    return {
+    const row: Partial<UserRow> = {
       id: user.uid,
+      auth_uid: user.authUid ?? null,
       email: user.email.toLocaleLowerCase(),
       first_name: user.firstName,
       last_name: user.lastName,
       roles: user.roles,
-      last_login: user.lastLogin ? user.lastLogin.toISOString() : null,
       no_logins: user.noLogins,
       display_name: user.displayName,
-      member_since: user.memberSince
-        ? user.memberSince.toISOString()
-        : new Date().toISOString(),
       motto: user.motto,
-      picture_src_small: user.pictureSrc?.smallSize ?? "",
-      picture_src_normal: user.pictureSrc?.normalSize ?? "",
-      picture_src_full: user.pictureSrc?.fullSize ?? "",
+      picture_src: user.pictureSrc ?? "",
     };
+
+    // created_at nur setzen, wenn explizit angegeben (z.B. bei Migration).
+    // Andernfalls greift der DB-Default (NOW()).
+    if (user.createdAt) {
+      row.created_at = user.createdAt.toISOString();
+    }
+
+    return row;
   }
 
   /* =====================================================================
@@ -113,28 +119,24 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   // ===================================================================== */
   /**
    * Konvertiert eine Postgres-Zeile in ein UserDomain-Objekt.
-   * Wandelt snake_case → camelCase und baut die Picture-Struktur zusammen.
+   * Wandelt snake_case → camelCase.
    * @param row - Die DB-Zeile
    * @returns Domain-Objekt
    */
   toDomain(row: UserRow): UserDomain {
     return {
       uid: row.id,
+      authUid: row.auth_uid ?? undefined,
       email: row.email,
       firstName: row.first_name,
       lastName: row.last_name,
       roles: row.roles as Role[],
-      lastLogin: row.last_login ? new Date(row.last_login) : new Date(0),
       noLogins: row.no_logins,
       displayName: row.display_name,
-      memberSince: row.member_since ? new Date(row.member_since) : new Date(0),
       memberId: row.member_id,
       motto: row.motto,
-      pictureSrc: {
-        smallSize: row.picture_src_small,
-        normalSize: row.picture_src_normal,
-        fullSize: row.picture_src_full,
-      },
+      pictureSrc: row.picture_src,
+      createdAt: row.created_at ? new Date(row.created_at) : undefined,
     };
   }
 
@@ -162,7 +164,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const {data, error} = await this.client
       .from(this.tableName)
       .select(
-        "id, first_name, last_name, email, display_name, member_id, member_since"
+        "id, first_name, last_name, email, display_name, member_id, created_at"
       )
       .order("first_name", {ascending: true});
 
@@ -176,7 +178,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       | "email"
       | "display_name"
       | "member_id"
-      | "member_since"
+      | "created_at"
     >[]).map((row) => ({
       uid: row.id,
       firstName: row.first_name,
@@ -184,7 +186,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       email: row.email,
       displayName: row.display_name,
       memberId: row.member_id,
-      memberSince: new Date(row.member_since),
+      memberSince: new Date(row.created_at),
     }));
   }
 
@@ -236,14 +238,10 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const profile = new UserPublicProfile();
     profile.uid = data.id;
     profile.displayName = data.display_name;
-    profile.memberSince = new Date(data.member_since);
+    profile.memberSince = new Date(data.created_at);
     profile.memberId = data.member_id;
     profile.motto = data.motto;
-    profile.pictureSrc = {
-      smallSize: data.picture_src_small,
-      normalSize: data.picture_src_normal,
-      fullSize: data.picture_src_full,
-    };
+    profile.pictureSrc = data.picture_src;
     // Stats will be populated via views/joins once data tables exist
     profile.stats = {
       noComments: 0,
@@ -287,16 +285,63 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   }
 
   /* =====================================================================
-  // Login registrieren (last_login aktualisieren, no_logins hochzählen)
+  // Benutzer anhand der Supabase Auth UUID suchen
+  // ===================================================================== */
+  /**
+   * Sucht einen Benutzer anhand der Supabase Auth UUID.
+   * Wird vom Auth-State-Listener verwendet, um den Benutzer nach dem
+   * Supabase-Login zu laden.
+   *
+   * @param authUid - Supabase Auth UUID
+   * @returns Das Domain-Objekt oder null, falls nicht gefunden
+   */
+  async findByAuthUid(authUid: string): Promise<UserDomain | null> {
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .select("*")
+      .eq("auth_uid", authUid)
+      .single();
+
+    if (error) {
+      if (error.code === "PGRST116") return null;
+      throw error;
+    }
+
+    return this.toDomain(data as UserRow);
+  }
+
+  /* =====================================================================
+  // Supabase Auth UUID mit bestehendem Benutzer verknüpfen
+  // ===================================================================== */
+  /**
+   * Verknüpft einen bestehenden Benutzer mit einem Supabase Auth Account.
+   * Wird beim Passwort-Migrations-Schritt aufgerufen, nachdem der Benutzer
+   * seinen Supabase Auth Account erstellt hat.
+   *
+   * @param userId - Die bestehende Firebase-UID des Benutzers
+   * @param authUid - Die neue Supabase Auth UUID
+   */
+  async linkAuthUid(userId: string, authUid: string): Promise<void> {
+    const {error} = await this.client
+      .from(this.tableName)
+      .update({auth_uid: authUid})
+      .eq("id", userId);
+
+    if (error) throw error;
+  }
+
+  /* =====================================================================
+  // Login registrieren (no_logins hochzählen)
   // Ersetzt: User.registerSignIn()
   // ===================================================================== */
   /**
-   * Registriert einen erfolgreichen Login. Aktualisiert den Zeitstempel
-   * des letzten Logins und zählt die Anzahl Logins hoch.
+   * Registriert einen erfolgreichen Login. Zählt die Anzahl Logins hoch.
+   * Der Zeitstempel des letzten Logins wird von Supabase Auth in
+   * auth.users.last_sign_in_at verwaltet.
+   *
    * @param userId - UID des Benutzers
    */
   async registerSignIn(userId: string): Promise<void> {
-    // Read current login count, then increment
     const {data: current, error: readError} = await this.client
       .from(this.tableName)
       .select("no_logins")
@@ -308,7 +353,6 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const {error} = await this.client
       .from(this.tableName)
       .update({
-        last_login: new Date().toISOString(),
         no_logins: ((current?.no_logins as number) ?? 0) + 1,
       })
       .eq("id", userId);

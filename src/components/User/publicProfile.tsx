@@ -38,6 +38,7 @@ import {
   RECIPES_CREATED_PRIVATE as TEXT_RECIPES_CREATED_PRIVATE,
   EVENTS_PARTICIPATED as TEXT_EVENTS_PARTICIPATED,
   FOUND_BUGS as TEXT_FOUND_BUGS,
+  ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
 } from "../../constants/text";
 import Action from "../../constants/actions";
 import * as ROUTES from "../../constants/routes";
@@ -45,7 +46,9 @@ import {ImageRepository} from "../../constants/imageRepository";
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import UserPublicProfile from "./user.public.profile.class";
+import {getImageUrl, ImageSize} from "../Shared/imageUrl";
 import {FormListItem} from "../Shared/formListItem";
+import AlertMessage from "../Shared/AlertMessage";
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 /* ===================================================================
@@ -63,15 +66,27 @@ type State = {
   error: Error | null;
 };
 
-const inititialState: State = {
+const initialState: State = {
   publicProfile: new UserPublicProfile(),
   isLoading: false,
   error: null,
 };
-type DispatchAction = {
-  type: ReducerActions;
-  payload: any;
-};
+
+/**
+ * Diskriminierte Union für alle Reducer-Aktionen.
+ * Jede Aktion hat einen eigenen Payload-Typ (oder keinen).
+ */
+type DispatchAction =
+  | {
+      type: ReducerActions.FETCH_PUBLIC_PROFILE;
+      payload: {displayName: string; pictureSrc: string};
+    }
+  | {
+      type: ReducerActions.FETCH_PUBLIC_PROFILE_SUCCESS;
+      payload: UserPublicProfile;
+    }
+  | {type: ReducerActions.SET_IS_LOADING; payload: boolean}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 const publicProfileReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.FETCH_PUBLIC_PROFILE: {
@@ -89,22 +104,14 @@ const publicProfileReducer = (state: State, action: DispatchAction): State => {
       };
     }
     case ReducerActions.SET_IS_LOADING:
-      return {...state, isLoading: true};
+      return {...state, isLoading: action.payload};
     case ReducerActions.GENERIC_ERROR:
-      return {...state, error: action.payload as Error};
+      return {...state, isLoading: false, error: action.payload};
     default:
       console.error("Unbekannter ActionType: ", action.type);
       throw new Error();
   }
 };
-
-interface MatchParams {
-  id: string;
-}
-interface LocationState {
-  displayName: string;
-  pictureSrc: string;
-}
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -124,7 +131,7 @@ const PublicProfilePage = () => {
 
   const [state, dispatch] = React.useReducer(
     publicProfileReducer,
-    inititialState
+    initialState,
   );
 
   const urlUid = id ?? "";
@@ -146,13 +153,17 @@ const PublicProfilePage = () => {
       });
     }
 
-    User.getPublicProfile({firebase: firebase, database: database, uid: urlUid}).then((result) => {
-      dispatch({
-        type: ReducerActions.FETCH_PUBLIC_PROFILE_SUCCESS,
-        payload: result,
+    User.getPublicProfile({database: database, uid: urlUid})
+      .then((result) => {
+        dispatch({
+          type: ReducerActions.FETCH_PUBLIC_PROFILE_SUCCESS,
+          payload: result,
+        });
+      })
+      .catch((error) => {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-    });
-  }, []);
+  }, [urlUid]);
 
   if (authUser === null) {
     return null;
@@ -163,7 +174,7 @@ const PublicProfilePage = () => {
   // ------------------------------------------ */
   const onEditClick = () => {
     navigate(`${ROUTES.USER_PROFILE}/${authUser!.uid}`, {
-      state: {action: Action.VIEW}
+      state: {action: Action.VIEW},
     });
   };
   return (
@@ -174,7 +185,7 @@ const PublicProfilePage = () => {
       />
       {state.publicProfile.uid === authUser?.uid ? (
         // Nur Anzeigen wenn die Person das eigene Profil anschaut
-        (<ButtonRow
+        <ButtonRow
           key="buttons_view"
           buttons={[
             {
@@ -187,7 +198,7 @@ const PublicProfilePage = () => {
               onClick: onEditClick,
             },
           ]}
-        />)
+        />
       ) : null}
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
@@ -195,15 +206,24 @@ const PublicProfilePage = () => {
           <CircularProgress color="inherit" />
         </Backdrop>
         <Stack spacing={2}>
+          {state.error && (
+            <AlertMessage
+              error={state.error}
+              messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+            />
+          )}
           <Card sx={classes.card}>
             <Box component={"div"} style={{position: "relative"}}>
               <React.Fragment>
                 <CardMedia
                   sx={classes.cardMedia}
                   image={
-                    state.publicProfile.pictureSrc.normalSize
-                      ? state.publicProfile.pictureSrc.normalSize
-                      : ImageRepository.getEnviromentRelatedPicture()
+                    state.publicProfile.pictureSrc
+                      ? getImageUrl(
+                          state.publicProfile.pictureSrc,
+                          ImageSize.PROFILE_CARD,
+                        )
+                      : ImageRepository.getEnvironmentRelatedPicture()
                           .CARD_PLACEHOLDER_MEDIA
                   }
                   title={state.publicProfile.displayName}

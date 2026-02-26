@@ -3,7 +3,6 @@ import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {UserDomain} from "../../Database/Repository/UserRepository";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
-import {Picture} from "../../Shared/global.interface";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
 /* =====================================================================
@@ -14,6 +13,13 @@ import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
  * Zusammengeführte Firebase-Nutzerdaten aus dem User-Dokument
  * und dem Public-Profile-Subdokument.
  */
+/** Inline-Typ für das alte Firebase-Picture-Objekt (vor der Storage-Migration). */
+interface FirebasePicture {
+  smallSize?: string;
+  normalSize?: string;
+  fullSize?: string;
+}
+
 interface FirebaseUserData {
   email: string;
   firstName: string;
@@ -25,7 +31,7 @@ interface FirebaseUserData {
   memberSince: Date | {toDate: () => Date};
   memberId: number;
   motto: string;
-  pictureSrc: Picture | string;
+  pictureSrc: FirebasePicture | string;
 }
 
 /* =====================================================================
@@ -96,7 +102,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
         memberSince?: Date | {toDate: () => Date};
         memberId?: number;
         motto?: string;
-        pictureSrc?: Picture | string;
+        pictureSrc?: FirebasePicture | string;
       } = {};
 
       try {
@@ -105,7 +111,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
           memberSince: Date | {toDate: () => Date};
           memberId: number;
           motto: string;
-          pictureSrc: Picture | string;
+          pictureSrc: FirebasePicture | string;
         }>({uids: [uid]});
       } catch {
         // Kein Public Profile vorhanden — Standardwerte werden verwendet
@@ -127,11 +133,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
           memberSince: publicProfile.memberSince ?? new Date(0),
           memberId: publicProfile.memberId ?? 0,
           motto: publicProfile.motto ?? "",
-          pictureSrc: publicProfile.pictureSrc ?? {
-            smallSize: "",
-            normalSize: "",
-            fullSize: "",
-          },
+          pictureSrc: publicProfile.pictureSrc ?? "",
         },
       });
     }
@@ -153,7 +155,9 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
     database: DatabaseService,
     record: SourceRecord<FirebaseUserData>
   ): Promise<boolean> {
-    const existing = await database.users.findById(record.id, true);
+    // Admin-Client verwenden (umgeht RLS)
+    const users = database.admin?.users ?? database.users;
+    const existing = await users.findById(record.id, true);
     return existing !== null;
   }
 
@@ -179,22 +183,27 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
   ): Promise<void> {
     const data = record.data;
 
+    // auth_uid bleibt undefined (→ null in DB) für migrierte User.
+    // Wird beim ersten Supabase-Login durch den Migrations-Dialog gesetzt.
+    const memberSince = this.toDate(data.memberSince);
     const userDomain: UserDomain = {
       uid: record.id,
+      authUid: undefined,
       email: data.email,
       firstName: data.firstName,
       lastName: data.lastName,
       roles: data.roles as UserDomain["roles"],
-      lastLogin: this.toDate(data.lastLogin),
       noLogins: data.noLogins ?? 0,
       displayName: data.displayName,
-      memberSince: this.toDate(data.memberSince),
       memberId: data.memberId ?? 0,
       motto: data.motto ?? "",
-      pictureSrc: this.toPicture(data.pictureSrc),
+      pictureSrc: this.extractPictureSrc(data.pictureSrc),
+      createdAt: memberSince,
     };
 
-    await database.users.upsert({
+    // Admin-Client verwenden (umgeht RLS für Migration)
+    const users = database.admin?.users ?? database.users;
+    await users.upsert({
       id: record.id,
       value: userDomain,
       authUser: authUser,
@@ -223,18 +232,18 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
   }
 
   /**
-   * Konvertiert pictureSrc in ein Picture-Objekt.
+   * Extrahiert die Bild-URL aus dem pictureSrc-Feld.
    * In Firebase kann pictureSrc als leerer String oder als Picture-Objekt
-   * gespeichert sein.
+   * gespeichert sein. Gibt immer einen einzelnen String zurück.
+   *
+   * @param value - pictureSrc-Wert aus Firebase (String oder Picture-Objekt)
+   * @returns Bild-URL als String (bevorzugt normalSize)
    */
-  private toPicture(value: Picture | string | undefined | null): Picture {
-    if (!value || typeof value === "string") {
-      return {smallSize: "", normalSize: "", fullSize: ""};
-    }
-    return {
-      smallSize: value.smallSize ?? "",
-      normalSize: value.normalSize ?? "",
-      fullSize: value.fullSize ?? "",
-    };
+  private extractPictureSrc(
+    value: FirebasePicture | string | undefined | null
+  ): string {
+    if (!value) return "";
+    if (typeof value === "string") return value;
+    return value.normalSize ?? "";
   }
 }

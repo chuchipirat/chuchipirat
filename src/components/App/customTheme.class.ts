@@ -1,12 +1,12 @@
 import {PaletteOptions} from "@mui/material";
-import Utils, {Enviroment} from "../Shared/utils.class";
+import Utils, {Environment} from "../Shared/utils.class";
 import {red} from "@mui/material/colors";
 
 export default class CustomTheme {
   static getTheme = (prefersDarkMode: boolean): PaletteOptions => {
-    switch (Utils.getEnviroment()) {
-      case Enviroment.production:
-      case Enviroment.development:
+    switch (Utils.getEnvironment()) {
+      case Environment.production:
+      case Environment.development:
         if (prefersDarkMode) {
           return {
             mode: "dark",
@@ -42,7 +42,7 @@ export default class CustomTheme {
             error: red,
           };
         }
-      case Enviroment.test:
+      case Environment.test:
         if (prefersDarkMode) {
           return {
             mode: "dark",

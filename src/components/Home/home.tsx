@@ -515,6 +515,23 @@ const HomePage = () => {
           <Grid size={12}>
             <Divider style={{marginBottom: "2rem"}} />
           </Grid>
+          {Utils.isTestEnvironment() && (
+            <Grid size={12}>
+              <Typography variant="h5" align="center" gutterBottom>
+                Testing
+              </Typography>
+              <Typography variant="h5" align="center" gutterBottom>
+                <Link
+                  href="https://help.chuchipirat.ch/known_errors"
+                  target="_blank"
+                >
+                  --» Aktuell bekannte Fehler «--
+                </Link>
+              </Typography>
+              <br />
+              <Divider style={{marginBottom: "2rem"}} />
+            </Grid>
+          )}
           <Grid size={{xs: 12, md: 4}}>
             <HomeNewestRecipes
               recipes={state.recipes}
@@ -602,7 +619,7 @@ const HomeNextEvents = ({
             <CardMedia
               sx={classes.cardMedia}
               image={
-                ImageRepository.getEnviromentRelatedPicture()
+                ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
               }
               title={TEXT_CREATE_EVENT}
@@ -780,7 +797,7 @@ const HomeNewestRecipes = ({
                     image={
                       recipe.sourceObject.pictureSrc
                         ? recipe.sourceObject.pictureSrc
-                        : ImageRepository.getEnviromentRelatedPicture()
+                        : ImageRepository.getEnvironmentRelatedPicture()
                             .CARD_PLACEHOLDER_MEDIA
                     }
                     title={recipe.sourceObject.name}

@@ -13,7 +13,6 @@ export async function rebuildFile000AllUsers(firebase: Firebase, database: Datab
   // Erstellen Sie ein Array von Promises für getPublicProfile
   const profilePromises = users.map(async (user) => {
     const result = await User.getPublicProfile({
-      firebase: firebase,
       database: database,
       uid: user.uid,
     });

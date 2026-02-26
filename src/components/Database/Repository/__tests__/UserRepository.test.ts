@@ -39,7 +39,7 @@ describe("UserRepository", () => {
     test("Domain-Objekt korrekt in DB-Zeile umwandeln", () => {
       const row = repo.toRow(userDomain);
 
-      expect(row.id).toBe("abc12345678901234567");
+      expect(row.id).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(row.email).toBe("test@chuchipirat.ch");
       expect(row.first_name).toBe("Test");
       expect(row.last_name).toBe("User");
@@ -49,12 +49,10 @@ describe("UserRepository", () => {
       expect(row.motto).toBe("Testing is caring");
     });
 
-    test("Picture-Struktur in flache Spalten abbilden", () => {
+    test("pictureSrc als einzelne Spalte abbilden", () => {
       const row = repo.toRow(userDomain);
 
-      expect(row.picture_src_small).toBe("https://example.com/small.jpg");
-      expect(row.picture_src_normal).toBe("https://example.com/normal.jpg");
-      expect(row.picture_src_full).toBe("https://example.com/full.jpg");
+      expect(row.picture_src).toBe("https://example.com/profile.jpg");
     });
 
     test("E-Mail wird lowercase gespeichert", () => {
@@ -67,27 +65,20 @@ describe("UserRepository", () => {
     test("Leere pictureSrc sicher behandeln", () => {
       const user = {
         ...userDomain,
-        pictureSrc: {smallSize: "", normalSize: "", fullSize: ""},
+        pictureSrc: "",
       };
       const row = repo.toRow(user);
 
-      expect(row.picture_src_small).toBe("");
-      expect(row.picture_src_normal).toBe("");
-      expect(row.picture_src_full).toBe("");
+      expect(row.picture_src).toBe("");
     });
 
-    test("Datum als ISO-String serialisieren", () => {
+    test("created_at nur setzen wenn explizit angegeben", () => {
       const row = repo.toRow(userDomain);
+      expect(row.created_at).toBeUndefined();
 
-      expect(row.last_login).toBe("2026-02-20T10:00:00.000Z");
-      expect(row.member_since).toBe("2025-01-15T00:00:00.000Z");
-    });
-
-    test("Null lastLogin korrekt behandeln", () => {
-      const user = {...userDomain, lastLogin: null as unknown as Date};
-      const row = repo.toRow(user);
-
-      expect(row.last_login).toBeNull();
+      const withCreatedAt = {...userDomain, createdAt: new Date("2025-01-15T00:00:00.000Z")};
+      const row2 = repo.toRow(withCreatedAt);
+      expect(row2.created_at).toBe("2025-01-15T00:00:00.000Z");
     });
   });
 
@@ -98,7 +89,7 @@ describe("UserRepository", () => {
     test("DB-Zeile korrekt in Domain-Objekt umwandeln", () => {
       const domain = repo.toDomain(userRow);
 
-      expect(domain.uid).toBe("abc12345678901234567");
+      expect(domain.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(domain.email).toBe("test@chuchipirat.ch");
       expect(domain.firstName).toBe("Test");
       expect(domain.lastName).toBe("User");
@@ -109,31 +100,17 @@ describe("UserRepository", () => {
       expect(domain.motto).toBe("Testing is caring");
     });
 
-    test("Flache Spalten in Picture-Struktur zusammenbauen", () => {
+    test("picture_src als String übernehmen", () => {
       const domain = repo.toDomain(userRow);
 
-      expect(domain.pictureSrc).toEqual({
-        smallSize: "https://example.com/small.jpg",
-        normalSize: "https://example.com/normal.jpg",
-        fullSize: "https://example.com/full.jpg",
-      });
+      expect(domain.pictureSrc).toBe("https://example.com/profile.jpg");
     });
 
-    test("Datum-Strings als Date-Objekte parsen", () => {
+    test("created_at als Date-Objekt parsen", () => {
       const domain = repo.toDomain(userRow);
 
-      expect(domain.lastLogin).toBeInstanceOf(Date);
-      expect(domain.memberSince).toBeInstanceOf(Date);
-      expect(domain.lastLogin.toISOString()).toBe("2026-02-20T10:00:00.000Z");
-      expect(domain.memberSince.toISOString()).toBe("2025-01-15T00:00:00.000Z");
-    });
-
-    test("Null last_login als Epoch-Datum behandeln", () => {
-      const row = {...userRow, last_login: null};
-      const domain = repo.toDomain(row);
-
-      expect(domain.lastLogin).toBeInstanceOf(Date);
-      expect(domain.lastLogin.getTime()).toBe(0);
+      expect(domain.createdAt).toBeInstanceOf(Date);
+      expect(domain.createdAt!.toISOString()).toBe("2025-01-15T00:00:00.000Z");
     });
   });
 
@@ -172,7 +149,7 @@ describe("UserRepository", () => {
           email: userRow.email,
           display_name: userRow.display_name,
           member_id: userRow.member_id,
-          member_since: userRow.member_since,
+          created_at: userRow.created_at,
         },
         {
           id: userRow2.id,
@@ -181,7 +158,7 @@ describe("UserRepository", () => {
           email: userRow2.email,
           display_name: userRow2.display_name,
           member_id: userRow2.member_id,
-          member_since: userRow2.member_since,
+          created_at: userRow2.created_at,
         },
       ];
 
@@ -194,16 +171,16 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
       expect(supabaseMock.queryMock.select).toHaveBeenCalledWith(
-        "id, first_name, last_name, email, display_name, member_id, member_since"
+        "id, first_name, last_name, email, display_name, member_id, created_at"
       );
       expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("first_name", {
         ascending: true,
       });
       expect(result).toHaveLength(2);
-      expect(result[0].uid).toBe("abc12345678901234567");
+      expect(result[0].uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(result[0].firstName).toBe("Test");
       expect(result[0].displayName).toBe("TestUser");
-      expect(result[1].uid).toBe("def98765432109876543");
+      expect(result[1].uid).toBe("X8kLmN3pQrStUvWxYz1234abcde");
     });
 
     test("Fehler bei findOverview() werfen", async () => {
@@ -224,7 +201,7 @@ describe("UserRepository", () => {
   describe("findByEmail()", () => {
     test("UID anhand E-Mail finden", async () => {
       supabaseMock.queryMock.limit.mockResolvedValue({
-        data: [{id: "abc12345678901234567"}],
+        data: [{id: "T02c6mxOWDstBdvwzjbs5Tfc2abc"}],
         error: null,
       });
 
@@ -234,12 +211,12 @@ describe("UserRepository", () => {
         "email",
         "test@chuchipirat.ch"
       );
-      expect(result).toBe("abc12345678901234567");
+      expect(result).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
     });
 
     test("E-Mail wird lowercase und trimmed", async () => {
       supabaseMock.queryMock.limit.mockResolvedValue({
-        data: [{id: "abc12345678901234567"}],
+        data: [{id: "T02c6mxOWDstBdvwzjbs5Tfc2abc"}],
         error: null,
       });
 
@@ -293,22 +270,18 @@ describe("UserRepository", () => {
         error: null,
       });
 
-      const result = await repo.findPublicProfile("abc12345678901234567");
+      const result = await repo.findPublicProfile("T02c6mxOWDstBdvwzjbs5Tfc2abc");
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("user_profiles");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
         "id",
-        "abc12345678901234567"
+        "T02c6mxOWDstBdvwzjbs5Tfc2abc"
       );
-      expect(result.uid).toBe("abc12345678901234567");
+      expect(result.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(result.displayName).toBe("TestUser");
       expect(result.memberId).toBe(42);
       expect(result.motto).toBe("Testing is caring");
-      expect(result.pictureSrc).toEqual({
-        smallSize: "https://example.com/small.jpg",
-        normalSize: "https://example.com/normal.jpg",
-        fullSize: "https://example.com/full.jpg",
-      });
+      expect(result.pictureSrc).toBe("https://example.com/profile.jpg");
     });
 
     test("Stats mit Standardwerten (0) zurückgeben", async () => {
@@ -317,7 +290,7 @@ describe("UserRepository", () => {
         error: null,
       });
 
-      const result = await repo.findPublicProfile("abc12345678901234567");
+      const result = await repo.findPublicProfile("T02c6mxOWDstBdvwzjbs5Tfc2abc");
 
       expect(result.stats).toEqual({
         noComments: 0,
@@ -350,9 +323,9 @@ describe("UserRepository", () => {
         error: null,
       });
 
-      const result = await repo.findFullProfile("abc12345678901234567");
+      const result = await repo.findFullProfile("T02c6mxOWDstBdvwzjbs5Tfc2abc");
 
-      expect(result.uid).toBe("abc12345678901234567");
+      expect(result.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(result.email).toBe("test@chuchipirat.ch");
       expect(result.firstName).toBe("Test");
       expect(result.displayName).toBe("TestUser");
@@ -401,7 +374,7 @@ describe("UserRepository", () => {
         return Promise.resolve({data: null, error: null});
       });
 
-      await repo.registerSignIn("abc12345678901234567");
+      await repo.registerSignIn("T02c6mxOWDstBdvwzjbs5Tfc2abc");
 
       // Verify select was called to read current count
       expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("no_logins");
@@ -409,7 +382,6 @@ describe("UserRepository", () => {
       expect(supabaseMock.queryMock.update).toHaveBeenCalled();
       const updateCall = supabaseMock.queryMock.update.mock.calls[0][0];
       expect(updateCall.no_logins).toBe(6);
-      expect(updateCall.last_login).toBeDefined();
     });
 
     test("Fehler beim Lesen werfen", async () => {
@@ -421,7 +393,7 @@ describe("UserRepository", () => {
       });
 
       await expect(
-        repo.registerSignIn("abc12345678901234567")
+        repo.registerSignIn("T02c6mxOWDstBdvwzjbs5Tfc2abc")
       ).rejects.toEqual({message: "Read failed"});
     });
   });

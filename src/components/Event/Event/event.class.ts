@@ -451,7 +451,7 @@ export default class Event {
         objectPictureSrc: event.pictureSrc,
         objectUserUid: cookPublicProfile.uid,
         objectUserDisplayName: cookPublicProfile.displayName,
-        objectUserPictureSrc: cookPublicProfile.pictureSrc.normalSize,
+        objectUserPictureSrc: cookPublicProfile.pictureSrc,
       });
       logEvent(firebase.analytics, FirebaseAnalyticEvent.eventCookAdded);
     }

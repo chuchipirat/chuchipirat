@@ -296,6 +296,7 @@ const CreateEventPage = () => {
   };
   const goToResume = (
     _event: React.MouseEvent<HTMLButtonElement>,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     value?: {[key: string]: any},
   ) => {
     const groupConfig = value as EventGroupConfiguration;
@@ -522,7 +523,7 @@ const CreateEventCompletion = ({
                 <Box
                   component="img"
                   src={
-                    ImageRepository.getEnviromentRelatedPicture().TWINT_QR_CODE
+                    ImageRepository.getEnvironmentRelatedPicture().TWINT_QR_CODE
                   }
                   sx={classes.cardMediaQrCode}
                   style={{maxWidth: "100%", height: "auto"}}

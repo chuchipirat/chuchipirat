@@ -914,7 +914,7 @@ const RecipeHeader = ({
           backgroundImage: `url(${
             recipe.pictureSrc
               ? recipe.pictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           })`,
           backgroundPosition: "center",

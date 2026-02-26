@@ -10,17 +10,6 @@ export interface ChangeRecord {
   fromUid: string;
   fromDisplayName: string;
 }
-/**
- * Bilder-URL in verschiedenen grössen
- * @param smallSize - für Avatar
- * @param normalSize - normale Grösse
- * @param fullSize - Grösse in voller Auflösung
- */
-export interface Picture {
-  smallSize: string;
-  normalSize: string;
-  fullSize: string;
-}
 export interface ButtonAction {
   buttonText: string;
   onClick: (

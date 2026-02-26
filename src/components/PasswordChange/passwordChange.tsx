@@ -116,9 +116,9 @@ const passwordChangeReducer = (state: State, action: DispatchAction): State => {
         snackbar: {...state.snackbar, open: false},
       };
     case ReducerActions.SUCCESS_MAIL_CHANGE:
-      return {...state, successEmailChange: true};
+      return {...state, successEmailChange: true, error: null};
     case ReducerActions.SUCCESS_PW_CHANGE:
-      return {...state, successPwChange: true};
+      return {...state, successPwChange: true, error: null};
     case ReducerActions.SUCCESS_REAUTHENTICATION:
       return {
         ...state,
@@ -153,7 +153,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
 
   const [state, dispatch] = React.useReducer(
     passwordChangeReducer,
-    inititialState
+    inititialState,
   );
 
   // kommt die Anfrage aus der Passwort-Zurücksetzen-Mail.
@@ -166,14 +166,16 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
   // ------------------------------------------ */
   React.useEffect(() => {
     if (!state.passwordChangeData.email && resetCode && !state.error) {
-      // Mailadresse herausfinden
-      firebase
-        .getEmailFromVerifyCode(resetCode)
-        .then((result) => {
-          dispatch({
-            type: ReducerActions.UPDATE_FIELD,
-            payload: {field: "email", value: result},
-          });
+      // Bei Supabase Recovery wird die E-Mail aus der Session geladen
+      database.auth
+        .getUser()
+        .then((user) => {
+          if (user?.email) {
+            dispatch({
+              type: ReducerActions.UPDATE_FIELD,
+              payload: {field: "email", value: user.email},
+            });
+          }
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
@@ -251,32 +253,15 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
   /* ------------------------------------------
   // Passwort ändern
   // ------------------------------------------ */
-  const onPwChange = () => {
-    if (!resetCode && authUser) {
-      // User angemeldet und ändert PW
-      firebase
-        .passwordUpdate({password: state.passwordChangeData.password})
-        .then(() => {
-          dispatch({type: ReducerActions.SUCCESS_PW_CHANGE, payload: {}});
-        })
-        .catch((error) => {
-          console.error(error);
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        });
-    } else if (resetCode) {
-      // PW Anhand Reset-Code zurücksetzen
-      firebase
-        .confirmPasswordReset({
-          resetCode: resetCode,
-          password: state.passwordChangeData.password,
-        })
-        .then(() => {
-          dispatch({type: ReducerActions.SUCCESS_PW_CHANGE, payload: {}});
-        })
-        .catch((error) => {
-          console.error(error);
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        });
+  const onPwChange = async () => {
+    // Supabase Auth: updatePassword funktioniert sowohl für eingeloggte User
+    // als auch nach Token-Verifizierung (Recovery-Link)
+    try {
+      await database.auth.updatePassword(state.passwordChangeData.password);
+      dispatch({type: ReducerActions.SUCCESS_PW_CHANGE, payload: {}});
+    } catch (error) {
+      console.error(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
     }
   };
   /* ------------------------------------------
@@ -326,7 +311,6 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
         {/* PopUp für Reauthentifizierung */}
         {(!authUser || reauthenticattion.needed) && (
           <DialogReauthenticate
-            firebase={firebase}
             database={database}
             dialogOpen={reauthenticattion.needed && !reauthenticattion.done}
             handleOk={onReauthenticattionOk}
@@ -387,7 +371,7 @@ const PasswordChangeForm = ({
       <Card>
         <CardMedia
           sx={classes.cardMedia}
-          image={ImageRepository.getEnviromentRelatedPicture().SIGN_IN_HEADER}
+          image={ImageRepository.getEnvironmentRelatedPicture().SIGN_IN_HEADER}
           title={"Logo"}
         />
         <CardContent sx={classes.cardContent}>

@@ -190,7 +190,7 @@ export class RequestPublishRecipe extends Request {
       authorUid: requestObject.created.fromUid,
       pictureSrc: requestObject.pictureSrc
         ? requestObject.pictureSrc
-        : ImageRepository.getEnviromentRelatedPicture().CARD_PLACEHOLDER_MEDIA,
+        : ImageRepository.getEnvironmentRelatedPicture().CARD_PLACEHOLDER_MEDIA,
     };
   }
   /* =====================================================================
@@ -222,12 +222,12 @@ export class RequestPublishRecipe extends Request {
   // Bestimmen was für Status nachfolgend möglich sind
   // ===================================================================== */
   static getNextPossibleTransitions(
-    status: RequestStatus
+    status: RequestStatus,
   ): Array<RequestTransition> {
     // Übergänge holen
     const request = new RequestPublishRecipe();
     return request.transitions.filter(
-      (transition) => transition.fromState == status
+      (transition) => transition.fromState == status,
     );
   }
 }

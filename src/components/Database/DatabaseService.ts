@@ -1,4 +1,7 @@
+import {AuthService} from "./AuthService";
 import {UserRepository} from "./Repository/UserRepository";
+import {UserStorageRepository} from "./Repository/UserStorageRepository";
+import {supabaseAdmin} from "./supabaseClient";
 
 /* =====================================================================
 // DatabaseService — Zentraler Einstiegspunkt für Datenbankzugriff
@@ -10,17 +13,34 @@ import {UserRepository} from "./Repository/UserRepository";
 /**
  * Zentraler Service für den Zugriff auf die Supabase/Postgres-Datenbank.
  *
- * Bündelt alle Repository-Instanzen und wird über den DatabaseContext
- * in der App bereitgestellt. Entspricht dem Firebase-Pendant
- * `firebase.user`, `firebase.event` usw. — nur mit Repository-Pattern.
+ * Bündelt alle Repository-Instanzen und den AuthService und wird über
+ * den DatabaseContext in der App bereitgestellt. Entspricht dem
+ * Firebase-Pendant `firebase.user`, `firebase.event` usw. — nur mit
+ * Repository-Pattern.
  *
- * @property users - Repository für Benutzer-CRUD-Operationen
+ * @property auth - Service für Supabase Auth Operationen
+ * @property users - Repository für Benutzer-CRUD-Operationen (RLS aktiv)
+ * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
+ * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
+ *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
+ *   der Service Role Key nicht konfiguriert ist.
  */
 export class DatabaseService {
+  auth: AuthService;
   users: UserRepository;
+  storage: {users: UserStorageRepository};
+  admin: {users: UserRepository; storage: {users: UserStorageRepository}} | null;
 
   constructor() {
+    this.auth = new AuthService();
     this.users = new UserRepository();
+    this.storage = {users: new UserStorageRepository()};
+    this.admin = supabaseAdmin
+      ? {
+          users: new UserRepository(supabaseAdmin),
+          storage: {users: new UserStorageRepository(supabaseAdmin)},
+        }
+      : null;
   }
 }
 

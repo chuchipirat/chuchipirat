@@ -41,7 +41,6 @@ import {
   LASTNAME as TEXT_LASTNAME,
   MOTTO as TEXT_MOTTO,
   EMAIL as TEXT_EMAIL,
-  LAST_LOGIN as TEXT_LAST_LOGIN,
   NO_LOGINS as TEXT_NO_LOGINS,
   INTRODUCE_YOURSELF as TEXT_INTRODUCE_YOURSELF,
   DISPLAYNAME as TEXT_DISPLAYNAME,
@@ -54,6 +53,7 @@ import {ImageRepository} from "../../constants/imageRepository";
 
 import useCustomStyles from "../../constants/styles";
 import User, {UserFullProfile} from "./user.class";
+import {getImageUrl, ImageSize} from "../Shared/imageUrl";
 
 import PageTitle from "../Shared/pageTitle";
 import ButtonRow from "../Shared/buttonRow";
@@ -78,7 +78,8 @@ enum ReducerActions {
   USER_PROFILE_FETCH_SUCCESS,
   USER_PROFILE_VALUE_CHANGE,
   USER_PROFILE_ON_SAVE,
-  USER_PICTURE_SET,
+  USER_PICTURE_UPLOAD_START,
+  USER_PICTURE_UPLOAD_SUCCESS,
   USER_PICTURE_DELETED,
   SET_IS_LOADING,
   SNACKBAR_CLOSE,
@@ -88,20 +89,37 @@ enum ReducerActions {
 type State = {
   userProfile: UserFullProfile;
   localPicture: File | null;
+  /** Lokale Object URL für sofortige Anzeige während des Uploads */
+  previewPictureUrl: string;
   isLoading: boolean;
   isLoadingPicture: boolean;
   error: Error | null;
   snackbar: Snackbar;
 };
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: any;
-};
+/**
+ * Diskriminierte Union für alle Reducer-Aktionen.
+ * Jede Aktion hat einen eigenen Payload-Typ (oder keinen).
+ */
+type DispatchAction =
+  | {type: ReducerActions.USER_PROFILE_FETCH_INIT; payload: AuthUser}
+  | {type: ReducerActions.USER_PROFILE_FETCH_SUCCESS; payload: UserFullProfile}
+  | {
+      type: ReducerActions.USER_PROFILE_VALUE_CHANGE;
+      payload: {field: string; value: string};
+    }
+  | {type: ReducerActions.USER_PROFILE_ON_SAVE}
+  | {type: ReducerActions.USER_PICTURE_UPLOAD_START; payload: string}
+  | {type: ReducerActions.USER_PICTURE_UPLOAD_SUCCESS; payload: string}
+  | {type: ReducerActions.USER_PICTURE_DELETED}
+  | {type: ReducerActions.SET_IS_LOADING; payload: boolean}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
-const inititialState: State = {
+const initialState: State = {
   userProfile: {...new User(), ...new UserPublicProfile()},
   localPicture: null,
+  previewPictureUrl: "",
   isLoading: false,
   isLoadingPicture: false,
   error: null,
@@ -110,22 +128,23 @@ const inititialState: State = {
 
 const userProfileReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
-    case ReducerActions.USER_PROFILE_FETCH_INIT:
-      // Ladeanezeige
+    case ReducerActions.USER_PROFILE_FETCH_INIT: {
+      // Ladeanzeige mit Daten aus AuthUser vorbelegen
+      const authUser = action.payload;
       return {
         ...state,
         userProfile: {
           ...state.userProfile,
-          displayName: action.payload.displayname,
-          firstName: action.payload.firstName,
-          lastName: action.payload.lastName,
-          email: action.payload.email,
-          motto: action.payload.publicProfile.motto,
-          pictureSrc: action.payload.publicProfile.pictureSrc,
+          displayName: authUser.publicProfile.displayName,
+          firstName: authUser.firstName,
+          lastName: authUser.lastName,
+          email: authUser.email,
+          motto: authUser.publicProfile.motto,
+          pictureSrc: authUser.publicProfile.pictureSrc,
         },
-
         isLoading: true,
       };
+    }
     case ReducerActions.USER_PROFILE_FETCH_SUCCESS:
       // Profil setzen
       return {
@@ -153,11 +172,24 @@ const userProfileReducer = (state: State, action: DispatchAction): State => {
           open: true,
         },
       };
-    case ReducerActions.USER_PICTURE_SET:
-      // Gewähltes Bild zwischenspeichern
+    case ReducerActions.USER_PICTURE_UPLOAD_START:
+      // Upload gestartet – Preview-URL setzen und Ladebalken anzeigen
       return {
         ...state,
-        localPicture: action.payload,
+        previewPictureUrl: action.payload,
+        isLoadingPicture: true,
+      };
+    case ReducerActions.USER_PICTURE_UPLOAD_SUCCESS:
+      // Upload abgeschlossen – Storage-URL in Profil übernehmen, Preview leeren
+      return {
+        ...state,
+        userProfile: {
+          ...state.userProfile,
+          pictureSrc: action.payload,
+        },
+        localPicture: null,
+        previewPictureUrl: "",
+        isLoadingPicture: false,
       };
     case ReducerActions.USER_PICTURE_DELETED:
       return {
@@ -165,7 +197,7 @@ const userProfileReducer = (state: State, action: DispatchAction): State => {
         localPicture: null,
         userProfile: {
           ...state.userProfile,
-          pictureSrc: {smallSize: "", normalSize: "", fullSize: ""},
+          pictureSrc: "",
         },
         snackbar: {
           severity: "info",
@@ -217,10 +249,7 @@ const UserProfilePage = () => {
   const navigate = useNavigate();
   const {customDialog} = useCustomDialog();
 
-  const [state, dispatch] = React.useReducer(
-    userProfileReducer,
-    inititialState
-  );
+  const [state, dispatch] = React.useReducer(userProfileReducer, initialState);
 
   const [editMode, setEditMode] = React.useState(false);
   /* ------------------------------------------
@@ -231,7 +260,11 @@ const UserProfilePage = () => {
       return;
     }
     dispatch({type: ReducerActions.USER_PROFILE_FETCH_INIT, payload: authUser});
-    User.getFullProfile({firebase: firebase, database: database, uid: authUser.uid})
+    User.getFullProfile({
+      firebase: firebase,
+      database: database,
+      uid: authUser.uid,
+    })
       .then((result) => {
         dispatch({
           type: ReducerActions.USER_PROFILE_FETCH_SUCCESS,
@@ -245,7 +278,7 @@ const UserProfilePage = () => {
           payload: error,
         });
       });
-  }, []);
+  }, [authUser?.uid]);
   /* ------------------------------------------
   // Änderungsmodus aktivieren
   // ------------------------------------------ */
@@ -275,7 +308,7 @@ const UserProfilePage = () => {
       authUser: authUser!,
     })
       .then(() => {
-        dispatch({type: ReducerActions.USER_PROFILE_ON_SAVE, payload: {}});
+        dispatch({type: ReducerActions.USER_PROFILE_ON_SAVE});
 
         // Den Auth-User zwingen das ganze neu zu lesen
         localStorage.removeItem(LocalStorageKey.AUTH_USER);
@@ -306,11 +339,34 @@ const UserProfilePage = () => {
   // Bild in Firebase Storage hochladen
   // ------------------------------------------ */
   const onPictureUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const selectedFile = event.target.files?.[0] || null;
+    const selectedFile = event.target.files?.[0];
+    if (!selectedFile) return;
 
-    dispatch({type: ReducerActions.USER_PICTURE_SET, payload: selectedFile});
+    // Sofort eine lokale Preview anzeigen
+    const previewUrl = URL.createObjectURL(selectedFile);
+    dispatch({
+      type: ReducerActions.USER_PICTURE_UPLOAD_START,
+      payload: previewUrl,
+    });
+
+    try {
+      // Bild sofort in Supabase Storage hochladen (upsert überschreibt alte Datei)
+      const publicUrl = await User.uploadPicture({
+        database,
+        file: selectedFile,
+        authUser: authUser!,
+      });
+      dispatch({
+        type: ReducerActions.USER_PICTURE_UPLOAD_SUCCESS,
+        payload: publicUrl,
+      });
+    } catch (error) {
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+    } finally {
+      URL.revokeObjectURL(previewUrl);
+    }
   };
   /* ------------------------------------------
   // Bild löschen
@@ -332,9 +388,7 @@ const UserProfilePage = () => {
       database: database,
       authUser: authUser!,
     })
-      .then(() =>
-        dispatch({type: ReducerActions.USER_PICTURE_DELETED, payload: {}})
-      )
+      .then(() => dispatch({type: ReducerActions.USER_PICTURE_DELETED}))
       .catch((error) => {
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
@@ -345,8 +399,12 @@ const UserProfilePage = () => {
   /* ------------------------------------------
   // Snackback schliessen
   // ------------------------------------------ */
-  const handleSnackbarClose = () => {
-    dispatch({type: ReducerActions.SNACKBAR_CLOSE, payload: {}});
+  const handleSnackbarClose = (
+    _event: Event | React.SyntheticEvent,
+    reason?: string,
+  ) => {
+    if (reason === "clickaway") return;
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
   /* ------------------------------------------
   // ================= AUSGABE ================
@@ -381,11 +439,7 @@ const UserProfilePage = () => {
             <React.Fragment>
               <ProfileCard
                 userProfile={state.userProfile}
-                previewPictureUrl={
-                  state.localPicture
-                    ? URL.createObjectURL(state.localPicture)
-                    : ""
-                }
+                previewPictureUrl={state.previewPictureUrl}
                 editMode={editMode}
                 isLoadingPicture={state.isLoadingPicture}
                 onFieldChange={onChangeField}
@@ -474,7 +528,7 @@ const PageHeader = ({
 // =================================================================== */
 interface ProfileCardProps {
   userProfile: UserFullProfile;
-  previewPictureUrl: string | null;
+  previewPictureUrl: string;
   isLoadingPicture: boolean;
   editMode: boolean;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -499,12 +553,12 @@ const ProfileCard = ({
         <CardMedia
           sx={classes.cardMedia}
           image={
-            userProfile.pictureSrc.normalSize
-              ? userProfile.pictureSrc.normalSize
-              : previewPictureUrl
+            previewPictureUrl
               ? previewPictureUrl
-              : ImageRepository.getEnviromentRelatedPicture()
-                  .CARD_PLACEHOLDER_MEDIA
+              : userProfile.pictureSrc
+                ? getImageUrl(userProfile.pictureSrc, ImageSize.PROFILE_CARD)
+                : ImageRepository.getEnvironmentRelatedPicture()
+                    .CARD_PLACEHOLDER_MEDIA
           }
           title={
             userProfile.firstName && userProfile.lastName
@@ -550,7 +604,7 @@ const ProfileCard = ({
                   <PhotoCameraIcon />
                 </Fab>
               </label>
-              {userProfile.pictureSrc.normalSize && (
+              {userProfile.pictureSrc && (
                 <Fab component="span" size="small" onClick={onDelete}>
                   <DeleteIcon />
                 </Fab>
@@ -588,17 +642,6 @@ const ProfileCard = ({
             onChange={onFieldChange}
           />
           <FormListItem
-            id={"lastLogin"}
-            key={"lastLogin"}
-            value={userProfile.lastLogin.toLocaleString("de-CH", {
-              year: "numeric",
-              month: "2-digit",
-              day: "2-digit",
-            })}
-            label={TEXT_LAST_LOGIN}
-            disabled={true}
-          />
-          <FormListItem
             id={"noLogins"}
             key={"noLogins"}
             value={userProfile.noLogins}
@@ -613,7 +656,7 @@ const ProfileCard = ({
 /* ===================================================================
 // ======================== Public Profile Card  =====================
 // =================================================================== */
-interface PublicProfileCard {
+interface PublicProfileCardProps {
   userProfile: UserFullProfile;
   editMode: boolean;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
@@ -622,7 +665,7 @@ const PublicProfileCard = ({
   userProfile,
   editMode,
   onFieldChange,
-}: PublicProfileCard) => {
+}: PublicProfileCardProps) => {
   const classes = useCustomStyles();
 
   return (
@@ -674,10 +717,10 @@ const PublicProfileCard = ({
 /* ===================================================================
 // ========================= Gefundene Schätze =======================
 // =================================================================== */
-interface AchievedRewardsCard {
+interface AchievedRewardsCardProps {
   publicProfile: UserFullProfile;
 }
-const AchievedRewardsCard = ({publicProfile}: AchievedRewardsCard) => {
+const AchievedRewardsCard = ({publicProfile}: AchievedRewardsCardProps) => {
   const classes = useCustomStyles();
   return (
     <Card>

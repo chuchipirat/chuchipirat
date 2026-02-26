@@ -56,7 +56,7 @@ interface ConvertArrayToObject<T> {
   keyName: keyof T;
 }
 
-export enum Enviroment {
+export enum Environment {
   development,
   test,
   production,
@@ -264,52 +264,43 @@ export default class Utils {
 
   // ===================================================================== */
   /**
-   * Prüfung ob wir uns in der Produktion befinden
-   * @returns true/false ob wir in der Produktion sind
+   * Prüfung ob wir uns in der Produktion befinden.
+   *
+   * @returns `true` wenn VITE_ENVIRONMENT === "PRD".
    */
-  static isProductionEnviroment() {
-    if (import.meta.env.VITE_ENVIROMENT === "PRD") {
-      return true;
-    } else {
-      return false;
-    }
+  static isProductionEnvironment(): boolean {
+    return import.meta.env.VITE_ENVIRONMENT === "PRD";
   }
   // ===================================================================== */
   /**
-   * Prüfung ob wir uns in der Entwicklung befinden
-   * @returns true/false ob wir in der Entwicklung sind
+   * Prüfung ob wir uns in der Entwicklung befinden.
+   *
+   * @returns `true` wenn VITE_ENVIRONMENT === "DEV".
    */
-  static isDevEnviroment() {
-    if (import.meta.env.VITE_ENVIROMENT === "DEV") {
-      return true;
-    } else {
-      return false;
-    }
+  static isDevEnvironment(): boolean {
+    return import.meta.env.VITE_ENVIRONMENT === "DEV";
   }
   // ===================================================================== */
   /**
-   * Prüfung ob wir uns in der Testumgebung befinden
-   * @returns true/false ob wir in der Entwicklung sind
+   * Prüfung ob wir uns in der Testumgebung befinden.
+   *
+   * @returns `true` wenn VITE_ENVIRONMENT === "TST".
    */
-  static isTestEnviroment() {
-    if (import.meta.env.VITE_ENVIROMENT === "TST") {
-      return true;
-    } else {
-      return false;
-    }
+  static isTestEnvironment(): boolean {
+    return import.meta.env.VITE_ENVIRONMENT === "TST";
   }
   // ===================================================================== */
   /**
    * System bestimmen
    * @returns Systemtyp
    */
-  static getEnviroment(): Enviroment {
-    if (Utils.isProductionEnviroment()) {
-      return Enviroment.production;
-    } else if (Utils.isTestEnviroment()) {
-      return Enviroment.test;
+  static getEnvironment(): Environment {
+    if (Utils.isProductionEnvironment()) {
+      return Environment.production;
+    } else if (Utils.isTestEnvironment()) {
+      return Environment.test;
     } else {
-      return Enviroment.development;
+      return Environment.development;
     }
   }
   // ===================================================================== */

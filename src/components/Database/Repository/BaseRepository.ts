@@ -123,7 +123,11 @@ interface IncrementManyParams {
 }
 
 export abstract class BaseRepository<TDomain, TRow extends Record<string, unknown>> {
-  protected client: SupabaseClient = supabase;
+  protected client: SupabaseClient;
+
+  constructor(client?: SupabaseClient) {
+    this.client = client ?? supabase;
+  }
 
   /** Name der Postgres-Tabelle (z.B. "users", "events") */
   abstract tableName: string;

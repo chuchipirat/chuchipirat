@@ -111,7 +111,7 @@ export const useMigration = (): UseMigrationReturn => {
 
       let sourceRecords;
       try {
-        sourceRecords = await job.fetchSourceRecords(firebase);
+        sourceRecords = await job.fetchSourceRecords(firebase, database);
       } catch (error) {
         // Fehler beim Laden — direkt abbrechen
         setResults([

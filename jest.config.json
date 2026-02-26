@@ -2,25 +2,30 @@
   "preset": "ts-jest",
   "testEnvironment": "jsdom",
   "transform": {
-    "^.+\\.tsx?$": ["ts-jest", {
-      "tsconfig": "tsconfig.test.json",
-      "diagnostics": false,
-      "astTransformers": {
-        "before": [{
-          "path": "ts-jest-mock-import-meta",
-          "options": {
-            "metaObjectReplacement": {
-              "env": {
-                "VITE_ENVIROMENT": "DEV",
-                "VITE_SUPABASE_URL": "http://localhost:8000",
-                "VITE_SUPABASE_ANON_KEY": "test-key",
-                "VITE_CONFIRMATION_EMAIL_REDIRECT": "http://localhost:3000/home"
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      {
+        "tsconfig": "tsconfig.test.json",
+        "diagnostics": false,
+        "astTransformers": {
+          "before": [
+            {
+              "path": "ts-jest-mock-import-meta",
+              "options": {
+                "metaObjectReplacement": {
+                  "env": {
+                    "VITE_ENVIRONMENT": "DEV",
+                    "VITE_SUPABASE_URL": "http://localhost:8000",
+                    "VITE_SUPABASE_ANON_KEY": "test-key",
+                    "VITE_CONFIRMATION_EMAIL_REDIRECT": "http://localhost:3000/home"
+                  }
+                }
               }
             }
-          }
-        }]
+          ]
+        }
       }
-    }]
+    ]
   },
   "testMatch": ["**/__tests__/**/*.ts?(x)", "**/?(*.)+(spec|test).ts?(x)"],
   "coverageDirectory": "coverage",

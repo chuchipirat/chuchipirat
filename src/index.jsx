@@ -23,8 +23,8 @@ import {de} from "date-fns/locale";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
-  enabled: !Utils.isDevEnviroment(),
-  environment: import.meta.env.VITE_ENVIROMENT,
+  enabled: !Utils.isDevEnvironment(),
+  environment: import.meta.env.VITE_ENVIRONMENT,
   release: packageJson.version,
   integrations: [
     Sentry.browserTracingIntegration(),
@@ -59,6 +59,5 @@ root.render(
         </DatabaseContext.Provider>
       </LocalizationProvider>
     </Sentry.ErrorBoundary>
-  </React.StrictMode>
+  </React.StrictMode>,
 );
-

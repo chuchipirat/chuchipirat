@@ -1,10 +1,27 @@
 import {AuthMessages, General} from "../../constants/firebaseMessages";
-import {FIREBASE_MESSAGES as TEXT_FIREBASE_MESSAGES} from "../../constants/text";
+import {
+  FIREBASE_MESSAGES as TEXT_FIREBASE_MESSAGES,
+  SUPABASE_MESSAGES as TEXT_SUPABASE_MESSAGES,
+} from "../../constants/text";
 
-// Meldungen auf Deutsch umschreieben
-// Firebase -> gibt nur englische Meldungen zurück
+/**
+ * Übersetzt Fehlermeldungen von Firebase und Supabase Auth ins Deutsche.
+ *
+ * Firebase-Fehler werden anhand des `error.code` übersetzt,
+ * Supabase-Fehler anhand des `error.message` (da Supabase keine
+ * einheitlichen Fehlercodes verwendet).
+ */
 class FirebaseMessageHandler {
-  static translateMessage(error) {
+  /**
+   * Übersetzt eine Fehlermeldung ins Deutsche.
+   * Prüft zuerst den Firebase-Code, dann die Supabase-Nachricht.
+   * Gibt die originale Meldung zurück, falls keine Übersetzung existiert.
+   *
+   * @param error - Fehlerobjekt mit `code` (Firebase) oder `message` (Supabase)
+   * @returns Deutsche Fehlermeldung
+   */
+  static translateMessage(error: {code?: string; message: string}): string {
+    // Firebase-Fehler anhand des error.code
     switch (error.code) {
       case AuthMessages.WEAK_PASSWORD:
       case AuthMessages.INVALID_EMAIL:
@@ -23,7 +40,8 @@ class FirebaseMessageHandler {
           FirebaseMessageHandler.getTextCode(error.code)
         ];
       default:
-        return error.message;
+        // Supabase-Fehler anhand der englischen Nachricht
+        return TEXT_SUPABASE_MESSAGES[error.message] ?? error.message;
     }
   }
   /* =====================================================================

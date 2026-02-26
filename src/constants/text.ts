@@ -736,6 +736,15 @@ export const PASSWORD_RESET = "Passwort zurücksetzen";
 export const HAVE_YOU_FORGOTEN_YOUR_PASSWORD =
   "Hast du möglicherweise dein Passwort vergessen? ";
 
+export const PASSWORD_MIGRATION_TITLE = "Passwort aktualisieren";
+export const PASSWORD_MIGRATION_DESCRIPTION =
+  "Wir haben unser Anmeldesystem aktualisiert. Bitte setze ein neues Passwort, um deinen Account zu migrieren.";
+export const PASSWORD_MIGRATION_NEW_PASSWORD = "Neues Passwort setzen";
+export const PASSWORD_MIGRATION_CONFIRM = "Passwort bestätigen";
+export const PASSWORD_MIGRATION_SUCCESS =
+  "Dein Passwort wurde gesetzt. Vielen Dank! Melde dich jetzt mit dem neuen Passwort an.";
+export const PASSWORDS_DONT_MATCH = "Passwörter stimmen nicht überein";
+
 export const PASSWORD_HOW_STRONG_IS_IT = "Die Stärke deines Passwortes ist: ";
 export const PASSWORD_STRENGTH_METER = {
   WEAK: "Schwach",
@@ -1018,7 +1027,25 @@ export const FIREBASE_MESSAGES = {
     "Fehler bei der Anmeldung: Die eingegebenen Anmeldeinformationen sind ungültig.",
 };
 /* =====================================================================
-// Texte zum Admin-Bereich 
+// Supabase-Fehlermeldungen (englische Originalmeldungen → Deutsch)
+// ===================================================================== */
+/**
+ * Übersetzungstabelle für Supabase Auth-Fehlermeldungen.
+ * Schlüssel ist die originale englische Meldung (error.message),
+ * Wert die deutsche Übersetzung.
+ */
+export const SUPABASE_MESSAGES: Record<string, string> = {
+  "New password should be different from the old password.":
+    "Das neue Passwort muss sich vom alten Passwort unterscheiden.",
+  "Invalid login credentials":
+    "Ungültige Anmeldedaten.",
+  "User already registered":
+    "Es besteht bereits ein Account mit dieser Adresse.",
+  "Password should be at least 6 characters.":
+    "Passwort zu schwach: Passwort muss aus mindestens 6 Zeichen bestehen.",
+};
+/* =====================================================================
+// Texte zum Admin-Bereich
 // ===================================================================== */
 export const DB_INDICES = "DB Indizes";
 export const DB_INDICES_DESCRIPTION = "DB Indizes aufbauen";

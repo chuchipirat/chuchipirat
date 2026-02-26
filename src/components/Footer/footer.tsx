@@ -26,6 +26,11 @@ import packageJson from "../../../package.json";
 import {useNavigate} from "react-router";
 import useCustomStyles from "../../constants/styles";
 
+/**
+ * Fusszeile der Applikation.
+ * Enthält Links zu Jubla, GitHub, E-Mail, Helpcenter, Nutzungsbedingungen,
+ * Datenschutzerklärung und Instagram sowie das Copyright.
+ */
 const Footer = () => {
   const classes = useCustomStyles();
   const navigate = useNavigate();
@@ -38,26 +43,26 @@ const Footer = () => {
     <footer>
       <Container sx={classes.container}>
         <Grid container justifyContent="center" alignItems="center" spacing={4}>
- <Grid size={2} />
- <Grid size={3} >
+          <Grid size={2} />
+          <Grid size={3}>
             <Divider sx={classes.mediumDivider} key={"footerDividerLeft"} />
           </Grid>
- <Grid size={2} container justifyContent="center" >
+          <Grid size={2} container justifyContent="center">
             <Box
               component="img"
               src={
-                ImageRepository.getEnviromentRelatedPicture().VECTOR_LOGO_GREY
+                ImageRepository.getEnvironmentRelatedPicture().VECTOR_LOGO_GREY
               }
               alt=""
               width="50px"
             />
           </Grid>
- <Grid size={3} >
+          <Grid size={3}>
             <Divider sx={classes.mediumDivider} key={"footerDividerRight"} />
           </Grid>
- <Grid size={2} />
+          <Grid size={2} />
 
- <Grid size={12} >
+          <Grid size={12}>
             <Typography variant="h6" align="center" gutterBottom>
               {TEXT_APP_NAME}
             </Typography>
@@ -141,7 +146,7 @@ const Footer = () => {
               <IconInstagram />
             </IconButton>
           </Grid>
- <Grid size={12} >
+          <Grid size={12}>
             <Copyright />
             <br />
           </Grid>
@@ -153,6 +158,9 @@ const Footer = () => {
 
 export default Footer;
 
+/**
+ * Copyright-Hinweis mit aktuellem Jahr und Link zur Webseite.
+ */
 export const Copyright = () => {
   return (
     <React.Fragment>

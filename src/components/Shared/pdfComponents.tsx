@@ -82,7 +82,7 @@ export const Footer = ({
       {showLogo && (
         <Image
           style={styles.footerImage}
-          src={ImageRepository.getEnviromentRelatedPicture().PDF_FOOTER_IMAGE}
+          src={ImageRepository.getEnvironmentRelatedPicture().PDF_FOOTER_IMAGE}
           fixed
         />
       )}

@@ -10,6 +10,7 @@ import {
 } from "@mui/material";
 
 import {
+  HOME as ROUTE_HOME,
   SIGN_IN as ROUTE_SIGN_IN,
   SIGN_UP as ROUTE_SIGN_UP,
 } from "../../constants/routes";
@@ -44,13 +45,17 @@ import {useNavigate} from "react-router";
 
 import PageTitle from "../Shared/pageTitle";
 import ButtonRow from "../Shared/buttonRow";
-import {HOME as ROUTE_HOME} from "../../constants/routes";
 import {useAuthUser} from "../Session/authUserContext";
 import useCustomStyles from "../../constants/styles";
 
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
+/**
+ * Startseite der Applikation für nicht angemeldete Benutzer.
+ * Zeigt App-Informationen, Feature-Highlights und Anmelde-/Registrierungsbuttons.
+ * Leitet angemeldete Benutzer automatisch zur Home-Seite weiter.
+ */
 const LandingPage = () => {
   const authUser = useAuthUser();
   const navigate = useNavigate();
@@ -100,7 +105,7 @@ const LandingPage = () => {
         <Stack spacing={4} alignItems="center" justifyContent="center">
           <Box
             component="img"
-            src={ImageRepository.getEnviromentRelatedPicture().LANDING_LOGO}
+            src={ImageRepository.getEnvironmentRelatedPicture().LANDING_LOGO}
             // width="350em"
             alt="Logo"
           />
@@ -117,7 +122,7 @@ const LandingPage = () => {
           </Typography>
           <ImageCard
             url={
-              ImageRepository.getLandingPageEnviromentRelatedPicture().recipes
+              ImageRepository.getLandingPageEnvironmentRelatedPicture().recipes
             }
           />
           {/* Gruppen-Config */}
@@ -134,7 +139,7 @@ const LandingPage = () => {
           </Typography>
           <ImageCard
             url={
-              ImageRepository.getLandingPageEnviromentRelatedPicture()
+              ImageRepository.getLandingPageEnvironmentRelatedPicture()
                 .groupconfig
             }
           />
@@ -146,7 +151,7 @@ const LandingPage = () => {
           </Typography>
           <ImageCard
             url={
-              ImageRepository.getLandingPageEnviromentRelatedPicture().menuplan
+              ImageRepository.getLandingPageEnvironmentRelatedPicture().menuplan
             }
           />
           {/* Skalierung */}
@@ -157,7 +162,7 @@ const LandingPage = () => {
           </Typography>
           <ImageCard
             url={
-              ImageRepository.getLandingPageEnviromentRelatedPicture().scaling
+              ImageRepository.getLandingPageEnvironmentRelatedPicture().scaling
             }
           />
           {/* Einkaufen */}
@@ -168,7 +173,7 @@ const LandingPage = () => {
           </Typography>
           <ImageCard
             url={
-              ImageRepository.getLandingPageEnviromentRelatedPicture()
+              ImageRepository.getLandingPageEnvironmentRelatedPicture()
                 .shoppinglist
             }
           />
@@ -189,9 +194,16 @@ const LandingPage = () => {
     </React.Fragment>
   );
 };
+/** Props für die ImageCard-Komponente. */
 interface ImageCardProps {
+  /** URL des anzuzeigenden Bildes. */
   url: string;
 }
+/**
+ * Karte mit einem einzelnen Bild im 4:3-Format.
+ *
+ * @param props.url - Bild-URL.
+ */
 const ImageCard = ({url}: ImageCardProps) => {
   return (
     <Card

@@ -39,7 +39,7 @@ export interface DialogQuickViewActions {
   variant: "text" | "outlined" | "contained";
   onClick: (
     actionEvent: React.MouseEvent<HTMLButtonElement> | undefined,
-    event: EventShort
+    event: EventShort,
   ) => void;
 }
 
@@ -78,7 +78,7 @@ const DialogEventQuickView = ({
           image={
             eventShort.pictureSrc
               ? eventShort.pictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           }
           title={"Bild " + eventShort.name}
@@ -158,12 +158,15 @@ const DialogEventQuickView = ({
               <Link
                 style={{cursor: "pointer"}}
                 onClick={() =>
-                  navigate(`${ROUTES_USER_PUBLIC_PROFILE}/${eventShort.created.fromUid}`, {
-                    state: {
-                      action: Action.VIEW,
-                      displayName: eventShort.created.fromDisplayName,
-                    }
-                  })
+                  navigate(
+                    `${ROUTES_USER_PUBLIC_PROFILE}/${eventShort.created.fromUid}`,
+                    {
+                      state: {
+                        action: Action.VIEW,
+                        displayName: eventShort.created.fromDisplayName,
+                      },
+                    },
+                  )
                 }
               >
                 {eventShort.created.fromDisplayName}

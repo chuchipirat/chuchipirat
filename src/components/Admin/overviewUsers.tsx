@@ -78,16 +78,13 @@ import AlertMessage from "../Shared/AlertMessage";
 import SearchPanel from "../Shared/searchPanel";
 
 import {ImageRepository} from "../../constants/imageRepository";
+import {getImageUrl, ImageSize} from "../Shared/imageUrl";
 import {FormListItem} from "../Shared/formListItem";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {
-  DataGrid,
-  GridColDef,
-  GridSortModel,
-} from "@mui/x-data-grid";
+import {DataGrid, GridColDef, GridSortModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import Event from "../Event/Event/event.class";
 import isEqual from "lodash/isEqual";
@@ -259,7 +256,7 @@ const OverviewUsersPage = () => {
       payload: {},
     });
 
-    User.getUsersOverview({firebase: firebase, database: database})
+    User.getUsersOverview({database: database})
       .then((result) => {
         dispatch({type: ReducerActions.USERS_FETCH_SUCCESS, payload: result});
       })
@@ -285,15 +282,17 @@ const OverviewUsersPage = () => {
         type: ReducerActions.USER_FULL_PROFILE_FETCH_INIT,
         payload: {},
       });
-      await User.getFullProfile({firebase: firebase, database: database, uid: userUid}).then(
-        (result) => {
-          dispatch({
-            type: ReducerActions.USER_FULL_PROFILE_FETCH_SUCCESS,
-            payload: result,
-          });
-          setDialogValues({...dialogValues, selectedUser: result, open: true});
-        }
-      );
+      await User.getFullProfile({
+        firebase: firebase,
+        database: database,
+        uid: userUid,
+      }).then((result) => {
+        dispatch({
+          type: ReducerActions.USER_FULL_PROFILE_FETCH_SUCCESS,
+          payload: result,
+        });
+        setDialogValues({...dialogValues, selectedUser: result, open: true});
+      });
     } else {
       setDialogValues({
         ...dialogValues,
@@ -597,7 +596,7 @@ const UsersTable = ({dbUsers, onUserSelect}: UsersTableProps) => {
     setFilteredUsersUi(filterUsers(users, ""));
   };
   const updateSearchString = (
-    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
+    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
   ) => {
     setSearchString(event.target.value);
     setFilteredUsersUi(filterUsers(users, event.target.value as string));
@@ -607,7 +606,7 @@ const UsersTable = ({dbUsers, onUserSelect}: UsersTableProps) => {
   // ------------------------------------------ */
   const filterUsers = (
     users: UserOverviewStructure[],
-    searchString: string
+    searchString: string,
   ) => {
     let filteredUsers: UserOverviewStructure[] = [];
     if (searchString) {
@@ -618,7 +617,7 @@ const UsersTable = ({dbUsers, onUserSelect}: UsersTableProps) => {
           user.firstName.toLowerCase().includes(searchString) ||
           user.lastName.toLowerCase().includes(searchString) ||
           user.displayName.toLowerCase().includes(searchString) ||
-          user.email.toLowerCase().includes(searchString)
+          user.email.toLowerCase().includes(searchString),
       );
     } else {
       filteredUsers = users;
@@ -731,9 +730,9 @@ const DialogUser = ({
         sx={classes.dialogHeaderWithPicture}
         style={{
           backgroundImage: `url(${
-            userFullProfile?.pictureSrc?.normalSize
-              ? userFullProfile?.pictureSrc?.normalSize
-              : ImageRepository.getEnviromentRelatedPicture()
+            userFullProfile?.pictureSrc
+              ? getImageUrl(userFullProfile.pictureSrc, ImageSize.PROFILE_CARD)
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           })`,
           backgroundPosition: "center",
@@ -930,7 +929,7 @@ const DialogEditRoles = ({
 }: DialogEditRolesProps) => {
   const theme = useTheme();
   const [roleSelection, setRoleSelection] = React.useState(
-    ROLE_SELECTION_INITIAL_STATE
+    ROLE_SELECTION_INITIAL_STATE,
   );
   /* ------------------------------------------
 	// Switch-Handling

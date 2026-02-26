@@ -99,7 +99,7 @@ export class Mail {
     this.buttonLink = "";
     this.buttonText = "";
     this.headerPictureSrc =
-      ImageRepository.getEnviromentRelatedPicture().CARD_PLACEHOLDER_MEDIA;
+      ImageRepository.getEnvironmentRelatedPicture().CARD_PLACEHOLDER_MEDIA;
   }
 }
 
@@ -197,7 +197,7 @@ class MailConsole {
         deletedDocuments.push(
           firebase.mailbox
             .delete({uids: [logEntry.uid]})
-            .catch((error) => console.error(error))
+            .catch((error) => console.error(error)),
         );
         counter++;
       } else {
@@ -222,7 +222,7 @@ class MailConsole {
       });
 
     mailLog = mailLog.filter(
-      (logEntry) => logEntry.timestamp.getTime() >= offsetTimestamp
+      (logEntry) => logEntry.timestamp.getTime() >= offsetTimestamp,
     );
 
     return {counter, mailLog};

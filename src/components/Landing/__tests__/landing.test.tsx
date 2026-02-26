@@ -1,3 +1,7 @@
+// Polyfill für jsdom (react-router benötigt TextEncoder/TextDecoder)
+import {TextEncoder, TextDecoder} from "util";
+Object.assign(global, {TextEncoder, TextDecoder});
+
 import React from "react";
 import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
@@ -13,6 +17,19 @@ import {MemoryRouter, useLocation} from "react-router";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
 import authUser from "../../Firebase/Authentication/__mocks__/authuser.mock";
+
+jest.mock("../../../constants/imageRepository", () => ({
+  ImageRepository: {
+    getEnvironmentRelatedPicture: () => ({LANDING_LOGO: "mock-logo.png"}),
+    getLandingPageEnvironmentRelatedPicture: () => ({
+      recipes: "mock-recipes.png",
+      groupconfig: "mock-groupconfig.png",
+      menuplan: "mock-menuplan.png",
+      scaling: "mock-scaling.png",
+      shoppinglist: "mock-shoppinglist.png",
+    }),
+  },
+}));
 
 let testLocation: ReturnType<typeof useLocation>;
 const LocationDisplay = () => {
@@ -31,32 +48,36 @@ const renderLanding = (authUserValue: any = null) => {
           <LocationDisplay />
         </AuthUserContext.Provider>
       </FirebaseContext.Provider>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
-test("Buttons aktiv", () => {
-  renderLanding(null);
+describe("LandingPage", () => {
+  beforeEach(() => jest.clearAllMocks());
 
-  let button = screen.getByRole("button", {name: /Anmelden/i});
-  expect(button).toBeEnabled();
-  button = screen.getByRole("button", {name: /Registrieren/i});
-  expect(button).toBeEnabled();
-});
+  test("Buttons aktiv", () => {
+    renderLanding(null);
 
-test("Navigation funktioniert", () => {
-  renderLanding(null);
-  let button = screen.getByRole("button", {name: /Anmelden/i});
-  userEvent.click(button);
+    let button = screen.getByRole("button", {name: /Anmelden/i});
+    expect(button).toBeEnabled();
+    button = screen.getByRole("button", {name: /Registrieren/i});
+    expect(button).toBeEnabled();
+  });
 
-  expect(testLocation.pathname).toBe(ROUTE_SIGN_IN);
-  button = screen.getByRole("button", {name: /Registrieren/i});
+  test("Navigation funktioniert", async () => {
+    renderLanding(null);
+    let button = screen.getByRole("button", {name: /Anmelden/i});
+    await userEvent.click(button);
 
-  userEvent.click(button);
-  expect(testLocation.pathname).toBe(ROUTE_SIGN_UP);
-});
+    expect(testLocation.pathname).toBe(ROUTE_SIGN_IN);
+    button = screen.getByRole("button", {name: /Registrieren/i});
 
-test("Authuser != null, Weiterleitung zu Home", () => {
-  renderLanding(authUser);
-  expect(testLocation.pathname).toBe(ROUTE_HOME);
+    await userEvent.click(button);
+    expect(testLocation.pathname).toBe(ROUTE_SIGN_UP);
+  });
+
+  test("Authuser != null, Weiterleitung zu Home", () => {
+    renderLanding(authUser);
+    expect(testLocation.pathname).toBe(ROUTE_HOME);
+  });
 });

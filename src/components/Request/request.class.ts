@@ -345,9 +345,7 @@ export abstract class Request {
       firstName: authUser.firstName,
       lastName: authUser.lastName,
       email: authUser.email,
-      pictureSrc: authUser.publicProfile?.pictureSrc?.normalSize
-        ? authUser.publicProfile.pictureSrc.normalSize
-        : "",
+      pictureSrc: authUser.publicProfile?.pictureSrc ?? "",
     };
     this.assignee = {
       uid: "",
@@ -360,7 +358,7 @@ export abstract class Request {
         user: {
           uid: authUser.uid,
           displayName: authUser.publicProfile.displayName,
-          pictureSrc: authUser.publicProfile.pictureSrc.normalSize,
+          pictureSrc: authUser.publicProfile.pictureSrc,
         },
         comment: messageForReview,
       });
@@ -619,7 +617,7 @@ export abstract class Request {
   static async assignToMe({request, firebase, authUser}: AssignToMe) {
     request.assignee = {
       displayName: authUser.publicProfile.displayName,
-      pictureSrc: authUser.publicProfile.pictureSrc.normalSize,
+      pictureSrc: authUser.publicProfile.pictureSrc,
       uid: authUser.uid,
     };
     request.changeLog = Request.createChangeLogEntry({
@@ -669,7 +667,7 @@ export abstract class Request {
       date: new Date(),
       user: {
         displayName: authUser.publicProfile.displayName,
-        pictureSrc: authUser.publicProfile.pictureSrc.normalSize,
+        pictureSrc: authUser.publicProfile.pictureSrc,
         uid: authUser.uid,
       },
     });

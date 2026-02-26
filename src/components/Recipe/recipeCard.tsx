@@ -94,7 +94,7 @@ const RecipeCard = ({
         ) {
           infoLine = addTextEntry(
             infoLine,
-            TEXT_ALLERGENS_FREE_TYPES[parseInt(allergen)]
+            TEXT_ALLERGENS_FREE_TYPES[parseInt(allergen)],
           );
         }
       });
@@ -153,7 +153,7 @@ const RecipeCard = ({
               image={
                 recipe.pictureSrc
                   ? recipe.pictureSrc
-                  : ImageRepository.getEnviromentRelatedPicture()
+                  : ImageRepository.getEnvironmentRelatedPicture()
                       .CARD_PLACEHOLDER_MEDIA
               }
               title={recipe.name}
@@ -209,11 +209,7 @@ const RecipeCard = ({
             }}
           >
             <Box sx={{display: "flex", alignItems: "center"}}>
-              <Rating
-                value={recipe.rating.avgRating}
-                size="small"
-                readOnly
-              />
+              <Rating value={recipe.rating.avgRating} size="small" readOnly />
               <Typography
                 variant="body2"
                 color="textSecondary"

@@ -112,7 +112,7 @@ const EventsPage = () => {
   // ------------------------------------------ */
   const onEventOpen = (raisedEvent: React.MouseEvent<HTMLButtonElement>) => {
     const event = state.events.find(
-      (event) => event.uid === raisedEvent.currentTarget.name.split("_")[1]
+      (event) => event.uid === raisedEvent.currentTarget.name.split("_")[1],
     );
 
     if (!event) {
@@ -122,7 +122,7 @@ const EventsPage = () => {
       state: {
         action: Action.VIEW,
         event: event,
-      }
+      },
     });
   };
   const onEventCreate = () => {
@@ -218,12 +218,15 @@ const EventsGrid = ({
       style={{marginBottom: "3rem"}}
     >
       {isLoading && (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} >
+        <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
           <EventCardLoading key={"loadingEventCard"} />
         </Grid>
       )}
       {events.map((event) => (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={"eventGrid_" + event.uid}>
+        <Grid
+          size={{xs: 12, sm: 6, md: 4, lg: 3}}
+          key={"eventGrid_" + event.uid}
+        >
           <EventCard
             event={event}
             onCardClick={onCardClick}
@@ -233,16 +236,19 @@ const EventsGrid = ({
       ))}
       {/* Leere Grids erzeugen, damit die Karten in einem Tabellenlayout angezeigt werden */}
       {Array.from({length: events.length % rowSize}).map((index) => (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={"eventGridEmpty_" + index} />
+        <Grid
+          size={{xs: 12, sm: 6, md: 4, lg: 3}}
+          key={"eventGridEmpty_" + index}
+        />
       ))}
 
       {showCreateNewCard && (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} >
+        <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
           <Card sx={classes.card} key={"eventCardNew"}>
             <CardMedia
               sx={classes.cardMedia}
               image={
-                ImageRepository.getEnviromentRelatedPicture()
+                ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
               }
               title={TEXT_CREATE_EVENT}

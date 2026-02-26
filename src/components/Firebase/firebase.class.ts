@@ -148,51 +148,56 @@ export default class Firebase {
    * @param callback Methode, die ausgeführt wird, wenn sich die Werte auf
    * der DB ändern sollten.
    */
-  onAuthUserListener = (callback: (authUser: AuthUser | null) => void, database?: DatabaseService) => {
+  onAuthUserListener = (
+    callback: (authUser: AuthUser | null) => void,
+    database?: DatabaseService,
+  ) => {
     let authUser: AuthUser;
     // let dbUser: app.firestore.DocumentData | undefined;
     return this.auth.onAuthStateChanged(async (user) => {
       if (user) {
         // Prüfen ob Infos zu User bereits im Session Storage gespeichert wurden
         const localStorageAuthUserString = localStorage.getItem(
-          LocalStorageKey.AUTH_USER
+          LocalStorageKey.AUTH_USER,
         );
 
         if (!localStorageAuthUserString) {
-          await User.getFullProfile({firebase: this, database: database!, uid: user.uid}).then(
-            (result) => {
-              console.warn("user-Full-Profile read");
-              authUser = {
-                uid: user.uid,
-                email: result.email,
-                emailVerified: user.emailVerified,
-                firstName: result.firstName,
-                lastName: result.lastName,
-                roles: result.roles,
-                publicProfile: {
-                  displayName: result.displayName,
-                  motto: result.motto,
-                  pictureSrc: result.pictureSrc,
-                },
-              };
+          await User.getFullProfile({
+            firebase: this,
+            database: database!,
+            uid: user.uid,
+          }).then((result) => {
+            console.warn("user-Full-Profile read");
+            authUser = {
+              uid: user.uid,
+              email: result.email,
+              emailVerified: user.emailVerified,
+              firstName: result.firstName,
+              lastName: result.lastName,
+              roles: result.roles,
+              publicProfile: {
+                displayName: result.displayName,
+                motto: result.motto,
+                pictureSrc: result.pictureSrc,
+              },
+            };
 
-              localStorage.setItem(
-                LocalStorageKey.AUTH_USER,
-                JSON.stringify(authUser)
-              );
-              callback(authUser);
-            }
-          );
+            localStorage.setItem(
+              LocalStorageKey.AUTH_USER,
+              JSON.stringify(authUser),
+            );
+            callback(authUser);
+          });
         } else {
           // Prüfen ob sich was geändert hat
           const localStorageUser = JSON.parse(
-            localStorageAuthUserString
+            localStorageAuthUserString,
           ) as AuthUser;
           if (user.emailVerified !== localStorageUser.emailVerified) {
             localStorageUser.emailVerified = user.emailVerified;
             localStorage.setItem(
               LocalStorageKey.AUTH_USER,
-              JSON.stringify(localStorageUser)
+              JSON.stringify(localStorageUser),
             );
           }
 
@@ -210,6 +215,7 @@ export default class Firebase {
    * Neuer User auf der App anlegen
    * @param email E-Mailadresse des User
    * @param password Password des User
+   * @deprecated Wird durch AuthService.signUp() ersetzt (Phase 2).
    */
   createUserWithEmailAndPassword = ({
     email,
@@ -231,6 +237,7 @@ export default class Firebase {
   /**
    * Verifizierung des Users per E-Mail: löst eine E-Mail aus, mit dem
    * Link um die Verifizierung durchzuführen
+   * @deprecated Supabase Auth übernimmt E-Mail-Verifizierung automatisch (Phase 2).
    */
   sendEmailVerification = () => {
     const auth = getAuth();
@@ -248,6 +255,8 @@ export default class Firebase {
    * Sign-In in der App
    * @param email E-Mailadresse des User
    * @param password Password des User
+   * @deprecated Wird durch AuthService.signInWithPassword() ersetzt (Phase 2).
+   * Bleibt als Fallback für noch nicht migrierte User aktiv.
    */
   signInWithEmailAndPassword = ({
     email,
@@ -271,6 +280,7 @@ export default class Firebase {
    * eine Re-Authentifizierung
    * @param email E-Mailadresse des User
    * @param password Password des User
+   * @deprecated Wird in Phase 3 entfernt, wenn Firebase Auth komplett abgeschaltet wird.
    */
   reauthenticateWithCredential = ({
     email,
@@ -283,7 +293,7 @@ export default class Firebase {
       (error) => {
         console.error(error);
         throw error;
-      }
+      },
     );
   };
   /* =====================================================================
@@ -291,6 +301,7 @@ export default class Firebase {
   // ===================================================================== */
   /**
    * Den aktuellen User abmelden
+   * @deprecated Wird durch AuthService.signOut() ersetzt (Phase 2).
    */
   signOut = async () => {
     const auth = getAuth();
@@ -307,6 +318,7 @@ export default class Firebase {
   /**
    * Die aktuelle E-Mailadresse ändern
    * @param email - Neue Adresse
+   * @deprecated Wird in Phase 3 durch Supabase Auth E-Mail-Änderung ersetzt.
    */
   emailChange = (email: string) => {
     const auth = getAuth();
@@ -321,6 +333,7 @@ export default class Firebase {
   /**
    * Das aktuelle Passwort zurücksetzen -> Passwort vergessen
    * @param email - Adresse
+   * @deprecated Wird durch AuthService.resetPassword() ersetzt (Phase 2).
    */
   passwordReset = (email: string) => {
     const auth = getAuth();
@@ -336,6 +349,7 @@ export default class Firebase {
    * Das aktuelle Passwort ändern. Der User muss angemeldet und allenfalls
    * reauthentifiziert sein.
    * @param password - Neues Password
+   * @deprecated Wird durch AuthService.updatePassword() ersetzt (Phase 2).
    */
   passwordUpdate = ({password}: PasswordUpdate) => {
     const auth = getAuth();
@@ -356,6 +370,7 @@ export default class Firebase {
    * reauthentifiziert sein.
    * @param resetCode - Code aus der E-Mail
    * @param password - Password
+   * @deprecated Wird durch AuthService.updatePassword() ersetzt (Phase 2).
    */
   confirmPasswordReset = ({resetCode, password}: ConfirmPasswordReset) => {
     const auth = getAuth();
@@ -374,6 +389,7 @@ export default class Firebase {
   /**
    * Mailadresse abfragen anhand Obj.Code (Passwort zurücksetzen)
    * @param resetCode - Code aus der E-Mail
+   * @deprecated Wird in Phase 3 entfernt. Supabase Auth handhabt Token-Verifizierung automatisch.
    */
   getEmailFromVerifyCode = (resetCode: string) => {
     const auth = getAuth();

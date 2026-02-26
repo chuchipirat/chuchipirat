@@ -41,14 +41,12 @@ interface DialogAddUserProps {
   handleClose: () => void;
 }
 const DialogAddUser = ({
-  firebase,
   database,
   authUser,
   dialogOpen,
   handleAddUser,
   handleClose,
 }: DialogAddUserProps) => {
-
   const [userEmail, setUserEmail] = React.useState("");
   const [formValidationState, setFormValidationState] = React.useState({
     error: false,
@@ -73,7 +71,6 @@ const DialogAddUser = ({
       }
       //UID aus E-Mail-Adresse ermitteln
       await User.getUidByEmail({
-        firebase: firebase,
         database: database,
         email: userEmail.toLocaleLowerCase(),
       })

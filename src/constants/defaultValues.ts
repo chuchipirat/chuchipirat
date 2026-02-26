@@ -1,6 +1,6 @@
 // Default Werte für jegliche Parameter
 
-import Utils, {Enviroment} from "../components/Shared/utils.class";
+import Utils, {Environment} from "../components/Shared/utils.class";
 import {
   WITHOUT_INTOLERANCES as TEXT_WITHOUT_INTOLERANCES,
   LACTOSE_INTOLERANCE as TEXT_LACTOSE_INTOLERANCE,
@@ -43,12 +43,12 @@ export const DIETS = [TEXT_MEAT, TEXT_VEGETARIAN];
 // Support User bestimmen
 // HINT 💡: Muss auch in der Cloud-FX nachgeführt werden.
 export const getSupportUserUid = () => {
-  switch (Utils.getEnviroment()) {
-    case Enviroment.development:
+  switch (Utils.getEnvironment()) {
+    case Environment.development:
       return "uQRD5ZpXkhT0sRo8VSLknNuyVkJ3";
-    case Enviroment.test:
+    case Environment.test:
       return "xCehsNho63VgoAKKmpVeQzAHRAA2";
-    case Enviroment.production:
+    case Environment.production:
       return "yuvhzHC3aGMpw0JYlMxUv8T2USl2";
   }
 };

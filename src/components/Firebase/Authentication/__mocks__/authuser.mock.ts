@@ -11,11 +11,7 @@ export const authUser: AuthUser = {
   publicProfile: {
     displayName: "Test User",
     motto: "🤪 ich teste mich dumm und dämlich...",
-    pictureSrc: {
-      smallSize: "https://jestjs.io/img/opengraph.png",
-      normalSize: "https://jestjs.io/img/opengraph.png",
-      fullSize: "https://jestjs.io/img/opengraph.png",
-    },
+    pictureSrc: "https://jestjs.io/img/opengraph.png",
   },
 };
 

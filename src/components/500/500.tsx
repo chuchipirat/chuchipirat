@@ -19,7 +19,7 @@ const ErrorInfo = () => {
         <Stack spacing={4} alignItems="center" justifyContent="center">
           <Box
             component="img"
-            src={ImageRepository.getEnviromentRelatedPicture().LANDING_LOGO}
+            src={ImageRepository.getEnvironmentRelatedPicture().LANDING_LOGO}
             width="35em"
             alt="Logo"
           />

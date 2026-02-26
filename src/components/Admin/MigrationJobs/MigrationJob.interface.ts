@@ -93,9 +93,14 @@ export interface MigrationJob<T = unknown> {
    * Liest alle Datensätze aus der Firebase-Quelle.
    *
    * @param firebase - Firebase-Instanz
+   * @param database - Optionale DatabaseService-Instanz (z.B. für Bild-Migration,
+   *   die Quelldaten aus Postgres statt Firebase liest)
    * @returns Array aller Quelldatensätze
    */
-  fetchSourceRecords(firebase: Firebase): Promise<SourceRecord<T>[]>;
+  fetchSourceRecords(
+    firebase: Firebase,
+    database?: DatabaseService
+  ): Promise<SourceRecord<T>[]>;
 
   /**
    * Prüft, ob ein Datensatz bereits in Postgres existiert.
