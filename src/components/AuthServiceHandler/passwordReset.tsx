@@ -27,7 +27,7 @@ import {
   HAVE_YOU_FORGOTEN_YOUR_PASSWORD as TEXT_HAVE_YOU_FORGOTEN_YOUR_PASSWORD,
 } from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
-import {useNavigate} from "react-router";
+import {useNavigate, useLocation} from "react-router";
 import Utils from "../Shared/utils.class";
 import {useDatabase} from "../Database/DatabaseContext";
 
@@ -111,11 +111,16 @@ const passwordResetReducer = (state: State, action: DispatchAction): State => {
 const PasswordResetPage = () => {
   const database = useDatabase();
   const classes = useCustomStyles();
+  const location = useLocation();
 
-  const [state, dispatch] = React.useReducer(
-    passwordResetReducer,
-    initialState,
-  );
+  // E-Mail aus Navigation-State übernehmen (z.B. von der Sign-In-Seite)
+  const prefillEmail =
+    (location.state as {email?: string} | null)?.email ?? "";
+
+  const [state, dispatch] = React.useReducer(passwordResetReducer, {
+    ...initialState,
+    email: prefillEmail,
+  });
 
   /* ------------------------------------------
   // Feld-Handler
@@ -265,17 +270,29 @@ const PasswordResetForm = ({
 // =================================================================== */
 
 /**
+ * Props für den ForgotPasswordLink.
+ *
+ * @param email - Optionale E-Mail-Adresse, die an die Passwort-Reset-Seite
+ *   weitergegeben wird, damit der Benutzer sie nicht erneut eingeben muss.
+ */
+interface ForgotPasswordLinkProps {
+  email?: string;
+}
+
+/**
  * Link-Komponente zum Navigieren zur Passwort-Zurücksetzen-Seite.
  * Wird in SignIn- und SignUp-Fehleranzeigen eingebettet.
+ * Übergibt die E-Mail-Adresse via Navigation-State an die Zielseite.
  *
+ * @param props.email - Vorab ausgefüllte E-Mail-Adresse
  * @example
- * <ForgotPasswordLink />
+ * <ForgotPasswordLink email="user@example.com" />
  */
-export const ForgotPasswordLink = () => {
+export const ForgotPasswordLink = ({email}: ForgotPasswordLinkProps) => {
   const navigate = useNavigate();
 
   const goToPasswordReset = () => {
-    navigate(ROUTES_PASSWORD_RESET);
+    navigate(ROUTES_PASSWORD_RESET, {state: {email}});
   };
 
   return (

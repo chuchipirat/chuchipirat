@@ -276,9 +276,7 @@ describe("SignUpPage", () => {
 
   describe("Erfolgreiche Registrierung", () => {
     test("Supabase signUp und User.createUser werden aufgerufen", async () => {
-      mockAuthSignUp.mockResolvedValueOnce({
-        user: {id: "new-supabase-uuid"},
-      });
+      mockAuthSignUp.mockResolvedValueOnce({id: "new-supabase-uuid"});
       renderSignUpPage();
 
       await userEvent.type(screen.getByLabelText(/vorname/i), "Max");

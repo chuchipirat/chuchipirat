@@ -9,10 +9,8 @@ import PageTitle from "../Shared/pageTitle";
 import useCustomStyles from "../../constants/styles";
 
 import FirebaseMessageHandler from "../Firebase/firebaseMessageHandler.class";
+import SupabaseMessageHandler from "../Database/supabaseMessageHandler.class";
 import {useFirebase} from "../Firebase/firebaseContext";
-import {useDatabase} from "../Database/DatabaseContext";
-import User from "../User/user.class";
-
 import {SIGN_IN as ROUTE_SIGN_IN} from "../../constants/routes";
 import {
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
@@ -28,15 +26,20 @@ import {checkActionCode} from "firebase/auth";
 // ===================================================================
 // =============================== Page ==============================
 // ===================================================================
+/**
+ * @deprecated Nur für Legacy-Firebase-Links (oobCode-basiert).
+ * Supabase verwendet keinen separaten „Recover Email"-Action-Code-Flow.
+ * Diese Komponente bleibt funktionsfähig, damit bestehende Firebase-Links
+ * noch verarbeitet werden können, wird aber nicht mehr aktiv verwendet.
+ */
 interface RecoverEmailPageProps {
-  authUser: AuthUser | null;
+  authUser?: AuthUser | null;
   oobCode: string;
 }
 
-const RecoverEmailPage: React.FC<RecoverEmailPageProps> = ({authUser: authUserProp, oobCode}) => {
+const RecoverEmailPage: React.FC<RecoverEmailPageProps> = ({authUser: authUserProp = null, oobCode}) => {
   let authUser = authUserProp;
   const firebase = useFirebase();
-  const database = useDatabase();
   const actionCode = oobCode;
   const [error, setError] = React.useState<Error | null>(null);
   const [isRecovered, setIsRecovered] = React.useState(false);
@@ -61,14 +64,8 @@ const RecoverEmailPage: React.FC<RecoverEmailPageProps> = ({authUser: authUserPr
     }
 
     checkActionCode(firebase.auth, actionCode).then((actionCodeInfo) => {
-      // Update muss vorher passieren. Nach Eingabe des Action-Code geschieht
-      // automatisch der Log-Off. Somit kann die DB nicht mehr geändert werden
-      User.updateEmail({
-        firebase: firebase,
-        database: database,
-        newEmail: actionCodeInfo.data.email as string,
-        authUser: authUser!,
-      });
+      // E-Mail-Sync in public.users erfolgt automatisch über den
+      // Datenbank-Trigger trg_sync_auth_email — kein manueller Patch nötig.
       updateLocalStorage(actionCodeInfo.data.email as string);
 
       firebase
@@ -107,7 +104,8 @@ const RecoverEmailPage: React.FC<RecoverEmailPageProps> = ({authUser: authUserPr
         {error && (
           <Alert severity="error">
             <AlertTitle>{TEXT_ALERT_TITLE_UUPS}</AlertTitle>
-            {FirebaseMessageHandler.translateMessage(error)}
+            {FirebaseMessageHandler.translateMessage(error) ??
+              SupabaseMessageHandler.translateMessage(error)}
           </Alert>
         )}
         {isRecovered && (

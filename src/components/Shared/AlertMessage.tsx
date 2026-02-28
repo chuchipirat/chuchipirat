@@ -1,6 +1,7 @@
 import React from "react";
 import {Alert, AlertColor, AlertTitle} from "@mui/material";
 import FirebaseMessageHandler from "../Firebase/firebaseMessageHandler.class";
+import SupabaseMessageHandler from "../Database/supabaseMessageHandler.class";
 import useCustomStyles from "../../constants/styles";
 
 interface AlertMessageProps {
@@ -20,12 +21,19 @@ const AlertMessage = ({
   body,
 }: AlertMessageProps) => {
   const classes = useCustomStyles();
+
+  // Firebase-Code zuerst prüfen, dann Supabase-Nachricht
+  const translatedError = error
+    ? FirebaseMessageHandler.translateMessage(error) ??
+      SupabaseMessageHandler.translateMessage(error)
+    : null;
+
   return (
     <React.Fragment>
       <Alert severity={severity} sx={classes.alertMessage}>
         {messageTitle && <AlertTitle>{messageTitle}</AlertTitle>}
         <React.Fragment>
-          {error && FirebaseMessageHandler.translateMessage(error)}
+          {translatedError}
           {body}
         </React.Fragment>
       </Alert>

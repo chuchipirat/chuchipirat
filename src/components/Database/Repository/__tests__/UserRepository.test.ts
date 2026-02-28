@@ -2,7 +2,8 @@
  * Unit-Tests für UserRepository.
  *
  * Testet toRow/toDomain-Mapping sowie die user-spezifischen Methoden
- * (findOverview, findByEmail, findPublicProfile, findFullProfile, registerSignIn).
+ * (findOverview, findByEmail, findByAuthUid, findPublicProfile,
+ * findFullProfile, linkAuthUid, registerSignIn).
  * Der Supabase-Client wird vollständig gemockt.
  */
 import {UserRepository} from "../UserRepository";
@@ -76,7 +77,10 @@ describe("UserRepository", () => {
       const row = repo.toRow(userDomain);
       expect(row.created_at).toBeUndefined();
 
-      const withCreatedAt = {...userDomain, createdAt: new Date("2025-01-15T00:00:00.000Z")};
+      const withCreatedAt = {
+        ...userDomain,
+        createdAt: new Date("2025-01-15T00:00:00.000Z"),
+      };
       const row2 = repo.toRow(withCreatedAt);
       expect(row2.created_at).toBe("2025-01-15T00:00:00.000Z");
     });
@@ -171,7 +175,7 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
       expect(supabaseMock.queryMock.select).toHaveBeenCalledWith(
-        "id, first_name, last_name, email, display_name, member_id, created_at"
+        "id, first_name, last_name, email, display_name, member_id, created_at",
       );
       expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("first_name", {
         ascending: true,
@@ -209,7 +213,7 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
         "email",
-        "test@chuchipirat.ch"
+        "test@chuchipirat.ch",
       );
       expect(result).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
     });
@@ -224,7 +228,7 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
         "email",
-        "test@chuchipirat.ch"
+        "test@chuchipirat.ch",
       );
     });
 
@@ -270,12 +274,14 @@ describe("UserRepository", () => {
         error: null,
       });
 
-      const result = await repo.findPublicProfile("T02c6mxOWDstBdvwzjbs5Tfc2abc");
+      const result = await repo.findPublicProfile(
+        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+      );
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("user_profiles");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
         "id",
-        "T02c6mxOWDstBdvwzjbs5Tfc2abc"
+        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
       );
       expect(result.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(result.displayName).toBe("TestUser");
@@ -290,7 +296,9 @@ describe("UserRepository", () => {
         error: null,
       });
 
-      const result = await repo.findPublicProfile("T02c6mxOWDstBdvwzjbs5Tfc2abc");
+      const result = await repo.findPublicProfile(
+        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+      );
 
       expect(result.stats).toEqual({
         noComments: 0,
@@ -307,9 +315,9 @@ describe("UserRepository", () => {
         error: {message: "Not found"},
       });
 
-      await expect(
-        repo.findPublicProfile("nonexistent")
-      ).rejects.toEqual({message: "Not found"});
+      await expect(repo.findPublicProfile("nonexistent")).rejects.toEqual({
+        message: "Not found",
+      });
     });
   });
 
@@ -345,8 +353,95 @@ describe("UserRepository", () => {
       });
 
       await expect(repo.findFullProfile("nonexistent")).rejects.toThrow(
-        "User not found: nonexistent"
+        "User not found: nonexistent",
       );
+    });
+  });
+
+  /* ------------------------------------------
+  // findByAuthUid()
+  // ------------------------------------------ */
+  describe("findByAuthUid()", () => {
+    test("User anhand Auth-UID finden und als Domain-Objekt zurückgeben", async () => {
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: userRow,
+        error: null,
+      });
+
+      const result = await repo.findByAuthUid("supabase-auth-uuid-123");
+
+      expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
+      expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("*");
+      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
+        "auth_uid",
+        "supabase-auth-uuid-123",
+      );
+      expect(supabaseMock.queryMock.single).toHaveBeenCalled();
+      expect(result).not.toBeNull();
+      expect(result!.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
+      expect(result!.email).toBe("test@chuchipirat.ch");
+      expect(result!.firstName).toBe("Test");
+    });
+
+    test("null zurückgeben wenn Auth-UID nicht gefunden (PGRST116)", async () => {
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: null,
+        error: {code: "PGRST116", message: "No rows found"},
+      });
+
+      const result = await repo.findByAuthUid("nonexistent-auth-uid");
+
+      expect(result).toBeNull();
+    });
+
+    test("Fehler bei anderem Fehlercode werfen", async () => {
+      const dbError = {code: "42000", message: "Database error"};
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: null,
+        error: dbError,
+      });
+
+      await expect(repo.findByAuthUid("some-auth-uid")).rejects.toEqual(
+        dbError,
+      );
+    });
+  });
+
+  /* ------------------------------------------
+  // linkAuthUid()
+  // ------------------------------------------ */
+  describe("linkAuthUid()", () => {
+    test("Auth-UID mit bestehendem User verknüpfen", async () => {
+      supabaseMock.queryMock.eq.mockResolvedValue({
+        data: null,
+        error: null,
+      });
+
+      await repo.linkAuthUid(
+        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+        "new-supabase-auth-uid",
+      );
+
+      expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
+      expect(supabaseMock.queryMock.update).toHaveBeenCalledWith({
+        auth_uid: "new-supabase-auth-uid",
+      });
+      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
+        "id",
+        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+      );
+    });
+
+    test("Fehler bei linkAuthUid() werfen", async () => {
+      const updateError = {message: "Update failed", code: "23505"};
+      supabaseMock.queryMock.eq.mockResolvedValue({
+        data: null,
+        error: updateError,
+      });
+
+      await expect(
+        repo.linkAuthUid("some-user-id", "some-auth-uid"),
+      ).rejects.toEqual(updateError);
     });
   });
 
@@ -354,47 +449,26 @@ describe("UserRepository", () => {
   // registerSignIn()
   // ------------------------------------------ */
   describe("registerSignIn()", () => {
-    test("Login-Daten aktualisieren", async () => {
-      // registerSignIn calls: from().select().eq().single() then from().update().eq()
-      // We need eq() to return an object with single() for the first call
-      // and a resolved promise for the second call (update)
-      let eqCallCount = 0;
-      supabaseMock.queryMock.eq.mockImplementation(() => {
-        eqCallCount++;
-        if (eqCallCount === 1) {
-          // First call: select chain → needs .single()
-          return {
-            single: jest.fn().mockResolvedValue({
-              data: {no_logins: 5},
-              error: null,
-            }),
-          };
-        }
-        // Second call: update chain → resolves directly
-        return Promise.resolve({data: null, error: null});
-      });
+    test("RPC increment_logins mit korrekter User-ID aufrufen", async () => {
+      supabaseMock.client.rpc.mockResolvedValue({data: null, error: null});
 
       await repo.registerSignIn("T02c6mxOWDstBdvwzjbs5Tfc2abc");
 
-      // Verify select was called to read current count
-      expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("no_logins");
-      // Verify update was called with incremented count
-      expect(supabaseMock.queryMock.update).toHaveBeenCalled();
-      const updateCall = supabaseMock.queryMock.update.mock.calls[0][0];
-      expect(updateCall.no_logins).toBe(6);
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith("increment_logins", {
+        user_id: "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+      });
     });
 
-    test("Fehler beim Lesen werfen", async () => {
-      supabaseMock.queryMock.eq.mockReturnValue({
-        single: jest.fn().mockResolvedValue({
-          data: null,
-          error: {message: "Read failed"},
-        }),
+    test("Fehler bei RPC-Aufruf werfen", async () => {
+      const rpcError = {message: "RPC failed", code: "42000"};
+      supabaseMock.client.rpc.mockResolvedValue({
+        data: null,
+        error: rpcError,
       });
 
       await expect(
-        repo.registerSignIn("T02c6mxOWDstBdvwzjbs5Tfc2abc")
-      ).rejects.toEqual({message: "Read failed"});
+        repo.registerSignIn("T02c6mxOWDstBdvwzjbs5Tfc2abc"),
+      ).rejects.toEqual(rpcError);
     });
   });
 });

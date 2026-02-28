@@ -704,10 +704,21 @@ export const VERIFY_YOUR_EMAIL =
   "Kontrolliere bitte deine E-Mail: Schau in deinem Postfach nach (auch im Spam-Ordner), ob du eine Nachricht bekommen hast. Klicke auf den Link in der E-Mail, um deine E-Mail-Adresse zu bestätigen. Falls nötig, kannst du die Bestätigungs-E-Mail erneut anfordern.";
 export const VERIFICATION_EMAIL_SENT =
   "Die E-Mail zur Bestätigung wurde verschickt. Schau in deinen E-Mails (auch im Spam-Ordner) nach der Bestätigungs-E-Mail. Nachdem du die E-Mail bestätigt hast, aktualisiere bitte diese Seite.";
+export const SIGN_UP_SUCCESS_TITLE = "Fast geschafft!";
+export const SIGN_UP_SUCCESS_TEXT =
+  "Wir haben dir eine Bestätigungs-E-Mail gesendet. Bitte prüfe dein Postfach (auch den Spam-Ordner) und klicke auf den Link in der E-Mail, um deine Registrierung abzuschliessen. Danach kannst du dich anmelden.";
 export const NO_AUTH_REDIRECT_TO_HOME =
   "Für die angeforderte Seite hast du keine Berechtigung. Du wirst automatisch umgeleitet.";
 export const NOT_REGISTERED_YET_SIGN_UP = "Noch keinen Account? Melde dich an!";
 export const EMAIL_HAS_BEEN_CHANGED = "Deine E-Mail-Adresse wurden geändert. ";
+export const EMAIL_CHANGE_CONFIRMATION_SENT =
+  "Wir haben eine Bestätigungs-E-Mail an die neue Adresse gesendet. Bitte prüfe dein Postfach (auch den Spam-Ordner) und klicke auf den Link, um die Änderung abzuschliessen.";
+export const EMAIL_CHANGE_CONFIRMED_TITLE = "E-Mail-Adresse geändert";
+export const EMAIL_CHANGE_CONFIRMED_TEXT =
+  "Deine E-Mail-Adresse wurde erfolgreich aktualisiert.";
+export const EMAIL_CHANGE_CONFIRMED_REDIRECT = (seconds: number) =>
+  `Du wirst in ${seconds} Sekunden auf dein Profil weitergeleitet.`;
+export const EMAIL_CHANGE_CONFIRMED_GO_TO_PROFILE = "Direkt zum Profil";
 export const LOGIN_CHANGE_ARE_YOU_READY = "Bereit für ein neues Login?";
 export const SIGN_IN_WHY_REAUTHENTICATE = "Bitte authentifiziere dich erneut.";
 export const LOGIN_SUCCESSFULL = "Login erfolgreich";
@@ -735,6 +746,12 @@ export const PASSWORD_CHANGE = "Passwort ändern";
 export const PASSWORD_RESET = "Passwort zurücksetzen";
 export const HAVE_YOU_FORGOTEN_YOUR_PASSWORD =
   "Hast du möglicherweise dein Passwort vergessen? ";
+export const PASSWORD_RESET_SUCCESS_TITLE = "Passwort geändert";
+export const PASSWORD_RESET_SUCCESS_TEXT =
+  "Dein Passwort wurde erfolgreich geändert. Du kannst dich jetzt mit deinem neuen Passwort anmelden.";
+export const PASSWORD_RESET_SUCCESS_REDIRECT = (seconds: number) =>
+  `Du wirst in ${seconds} Sekunden weitergeleitet.`;
+export const PASSWORD_RESET_GO_TO_HOME = "Direkt weiter";
 
 export const PASSWORD_MIGRATION_TITLE = "Passwort aktualisieren";
 export const PASSWORD_MIGRATION_DESCRIPTION =
@@ -1043,6 +1060,8 @@ export const SUPABASE_MESSAGES: Record<string, string> = {
     "Es besteht bereits ein Account mit dieser Adresse.",
   "Password should be at least 6 characters.":
     "Passwort zu schwach: Passwort muss aus mindestens 6 Zeichen bestehen.",
+  "For security purposes, you can only request this after 10 seconds.":
+    "Aus Sicherheitsgründen kannst du dies erst nach 10 Sekunden erneut anfordern.",
 };
 /* =====================================================================
 // Texte zum Admin-Bereich

@@ -5,7 +5,7 @@ import {
   Subscription,
   User,
 } from "@supabase/supabase-js";
-import {supabase} from "./supabaseClient";
+import {supabase, supabaseAdmin} from "./supabaseClient";
 
 /**
  * AuthService — Kapselt alle Supabase Auth Methoden.
@@ -51,33 +51,100 @@ export class AuthService {
   // ===================================================================== */
   /**
    * Erstellt einen neuen Supabase Auth Account.
-   * Wird sowohl für neue Benutzer (Sign-Up) als auch für die
-   * Passwort-Migration bestehender Firebase-Benutzer verwendet.
+   *
+   * Bei aktivierter E-Mail-Bestätigung wird keine Session zurückgegeben —
+   * der Benutzer muss zuerst den Link in der Bestätigungs-E-Mail anklicken.
+   * Supabase sendet die Bestätigungs-E-Mail automatisch.
    *
    * @param email - E-Mail-Adresse des neuen Benutzers
    * @param password - Gewähltes Passwort
    * @param options - Optionale Zusatzdaten
    * @param options.displayName - Anzeigename für das Auth-Profil (user_metadata)
-   * @returns Die aktive Session nach erfolgreicher Registrierung
+   * @returns Der erstellte User (noch nicht bestätigt)
    * @throws {AuthError} Bei bereits existierender E-Mail oder ungültigem Passwort
    */
   async signUp(
     email: string,
     password: string,
     options?: {displayName?: string}
-  ): Promise<Session> {
+  ): Promise<User> {
     const {data, error} = await supabase.auth.signUp({
       email,
       password,
-      options: options?.displayName
-        ? {data: {display_name: options.displayName}}
+      options: {
+        ...(options?.displayName
+          ? {data: {display_name: options.displayName}}
+          : {}),
+        emailRedirectTo: `${window.location.origin}/authservicehandler`,
+      },
+    });
+
+    if (error) throw error;
+    if (!data.user) throw new Error("No user returned after sign-up");
+
+    return data.user;
+  }
+
+  /* =====================================================================
+  // Bestätigungs-E-Mail erneut senden
+  // ===================================================================== */
+  /**
+   * Sendet die Bestätigungs-E-Mail erneut an eine noch nicht verifizierte
+   * E-Mail-Adresse. Nutzt den Supabase `resend`-Mechanismus.
+   *
+   * @param email - E-Mail-Adresse des noch nicht bestätigten Benutzers
+   * @throws {AuthError} Bei ungültiger E-Mail oder Netzwerkfehler
+   */
+  async resendConfirmationEmail(email: string): Promise<void> {
+    const {error} = await supabase.auth.resend({
+      type: "signup",
+      email,
+      options: {
+        emailRedirectTo: `${window.location.origin}/authservicehandler`,
+      },
+    });
+    if (error) throw error;
+  }
+
+  /* =====================================================================
+  // Bestätigten Benutzer erstellen (Admin, ohne E-Mail-Verifizierung)
+  // ===================================================================== */
+  /**
+   * Erstellt einen neuen Supabase Auth Account mit bereits bestätigter
+   * E-Mail-Adresse. Wird für die stille Migration von Firebase-Benutzern
+   * verwendet, die ihre E-Mail bereits über Firebase verifiziert haben.
+   *
+   * Verwendet den Admin-Client (Service Role Key), um die E-Mail-Bestätigung
+   * zu überspringen.
+   *
+   * @param email - E-Mail-Adresse des Benutzers
+   * @param password - Passwort des Benutzers
+   * @param options - Optionale Zusatzdaten
+   * @param options.displayName - Anzeigename für das Auth-Profil
+   * @returns Der erstellte User mit bestätigter E-Mail
+   * @throws {Error} Wenn der Admin-Client nicht verfügbar ist
+   * @throws {AuthError} Bei bereits existierender E-Mail oder ungültigem Passwort
+   */
+  async createConfirmedUser(
+    email: string,
+    password: string,
+    options?: {displayName?: string}
+  ): Promise<User> {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available");
+    }
+
+    const {data, error} = await supabaseAdmin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: options?.displayName
+        ? {display_name: options.displayName}
         : undefined,
     });
 
     if (error) throw error;
-    if (!data.session) throw new Error("No session returned after sign-up");
-
-    return data.session;
+    return data.user;
   }
 
   /* =====================================================================
@@ -108,7 +175,7 @@ export class AuthService {
    */
   async resetPassword(email: string): Promise<void> {
     const {error} = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/action`,
+      redirectTo: `${window.location.origin}/authservicehandler`,
     });
     if (error) throw error;
   }
@@ -126,6 +193,27 @@ export class AuthService {
    */
   async updatePassword(password: string): Promise<void> {
     const {error} = await supabase.auth.updateUser({password});
+    if (error) throw error;
+  }
+
+  /* =====================================================================
+  // E-Mail-Adresse ändern
+  // ===================================================================== */
+  /**
+   * Aktualisiert die E-Mail-Adresse des aktuell authentifizierten Benutzers.
+   *
+   * Supabase sendet automatisch eine Bestätigungs-E-Mail an die neue Adresse.
+   * Nach Bestätigung wird der Benutzer auf `/authservicehandler` weitergeleitet,
+   * wo die Änderung in `public.users` und im localStorage übernommen wird.
+   *
+   * @param newEmail - Die neue E-Mail-Adresse
+   * @throws {AuthError} Bei ungültiger E-Mail oder fehlender Session
+   */
+  async updateEmail(newEmail: string): Promise<void> {
+    const {error} = await supabase.auth.updateUser(
+      {email: newEmail},
+      {emailRedirectTo: `${window.location.origin}/authservicehandler`}
+    );
     if (error) throw error;
   }
 

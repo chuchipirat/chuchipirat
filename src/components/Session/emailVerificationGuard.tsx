@@ -11,14 +11,20 @@ import {
   ISNT_THERE_A_CAPTAIN_MISSING_SOMEWHERE as TEXT_ISNT_THERE_A_CAPTAIN_MISSING_SOMEWHERE,
 } from "../../constants/text";
 import LocalStorageKey from "../../constants/localStorage";
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useAuthUser} from "./authUserContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import useCustomStyles from "../../constants/styles";
 
 /* ===================================================================
 // ============== Prüfung ob Email-Verifizierung nötig ist ===========
 // =================================================================== */
-const needsEmailVerification = (authUser) => {
+/**
+ * Prüft, ob der Benutzer seine E-Mail-Adresse noch bestätigen muss.
+ *
+ * @param authUser - Der aktuelle AuthUser oder null
+ * @returns `true`, wenn E-Mail-Verifizierung noch aussteht
+ */
+const needsEmailVerification = (authUser: {emailVerified: boolean} | null) => {
   if (authUser && !authUser.emailVerified) {
     const storageContent = localStorage.getItem(LocalStorageKey.AUTH_USER);
     if (!storageContent) {
@@ -39,16 +45,29 @@ const needsEmailVerification = (authUser) => {
 /* ===================================================================
 // ======== Prüfung und Anzeige der Verifizierungs-Nachricht =========
 // =================================================================== */
+/**
+ * Guard-Komponente, die E-Mail-Verifizierung erzwingt.
+ *
+ * Zeigt eine Meldung mit Resend-Button an, wenn der Benutzer seine
+ * E-Mail-Adresse noch nicht bestätigt hat. Verwendet Supabase Auth
+ * zum erneuten Senden der Bestätigungs-E-Mail.
+ *
+ * @param children - Kinder-Komponenten, die nur bei verifizierter E-Mail gerendert werden
+ */
 export const EmailVerificationGuard: React.FC<{
   children: React.ReactNode;
 }> = ({children}) => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const [isSent, setIsSent] = useState(false);
   const classes = useCustomStyles();
 
   const onSendEmailVerification = () => {
-    firebase.sendEmailVerification().then(() => setIsSent(true));
+    if (authUser?.email) {
+      database.auth
+        .resendConfirmationEmail(authUser.email)
+        .then(() => setIsSent(true));
+    }
   };
 
   if (needsEmailVerification(authUser)) {

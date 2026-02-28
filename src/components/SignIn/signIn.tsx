@@ -283,7 +283,7 @@ const SignInPage = () => {
       // Kurz warten, damit der Auth-Context nachmag
       await new Promise((resolve) => setTimeout(resolve, 2000));
       navigate(ROUTE_HOME);
-    } catch {
+    } catch (supabaseError) {
       // 2. Supabase fehlgeschlagen → Firebase-Fallback versuchen
       try {
         const firebaseUser = await firebase.signInWithEmailAndPassword({
@@ -292,30 +292,96 @@ const SignInPage = () => {
         });
 
         if (firebaseUser.user) {
-          // Anzeigename aus Postgres laden (User wurde bereits migriert)
+          const usersRepo = database.admin?.users ?? database.users;
           let displayName = "";
+          let alreadyMigrated = false;
+
           try {
-            const usersRepo = database.admin?.users ?? database.users;
             const profile = await usersRepo.findById(firebaseUser.user.uid);
             if (profile) {
               displayName = profile.displayName;
+              alreadyMigrated = !!profile.authUid;
             }
           } catch {
             // Nicht kritisch — displayName bleibt leer
           }
 
-          // Firebase-Login erfolgreich → Migrations-Dialog öffnen
-          dispatch({
-            type: ReducerActions.SHOW_MIGRATION_DIALOG,
-            payload: {firebaseUid: firebaseUser.user.uid, displayName},
-          });
+          if (alreadyMigrated) {
+            // User ist bereits migriert — falsches Passwort für Supabase
+            await firebase.signOut();
+            dispatch({
+              type: ReducerActions.GENERIC_ERROR,
+              payload: {
+                message: "Invalid login credentials",
+                code: AuthMessages.WRONG_PASSWORD,
+              } as AuthErrorLike,
+            });
+            return;
+          }
+
+          // Stille Migration: Bestätigten Supabase-Account erstellen
+          // (kein Verifizierungsmail, da bereits über Firebase verifiziert)
+          try {
+            const supabaseUser = await database.auth.createConfirmedUser(
+              state.signInData.email,
+              state.signInData.password,
+              {displayName: displayName || undefined},
+            );
+
+            // auth_uid in DB verknüpfen (Admin-Client umgeht RLS)
+            await usersRepo.linkAuthUid(
+              firebaseUser.user.uid,
+              supabaseUser.id,
+            );
+
+            // Supabase-Session abmelden (Race-Condition mit Auth-Context vermeiden)
+            await database.auth.signOut();
+
+            // Firebase Auth deaktivieren (fire-and-forget)
+            firebase.disableAuthAccount().catch((err) =>
+              console.warn("Firebase Auth deaktivieren fehlgeschlagen:", err),
+            );
+
+            // Firebase abmelden
+            await firebase.signOut();
+
+            // Über Supabase einloggen (auth_uid ist jetzt verknüpft)
+            await database.auth.signInWithPassword(
+              state.signInData.email,
+              state.signInData.password,
+            );
+
+            // Login registrieren
+            try {
+              const user = await usersRepo.findByAuthUid(supabaseUser.id);
+              if (user) await usersRepo.registerSignIn(user.uid);
+            } catch {
+              // Nicht kritisch
+            }
+
+            // Kurz warten, damit der Auth-Context nachmag
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+            navigate(ROUTE_HOME);
+          } catch (migrationError) {
+            // signUp fehlgeschlagen (z.B. Passwort-Policy) → Fallback auf Dialog
+            console.warn(
+              "Stille Migration fehlgeschlagen, zeige Dialog:",
+              migrationError,
+            );
+            dispatch({
+              type: ReducerActions.SHOW_MIGRATION_DIALOG,
+              payload: {firebaseUid: firebaseUser.user.uid, displayName},
+            });
+          }
         }
       } catch (firebaseError) {
         // Beide Login-Versuche fehlgeschlagen
+        // Supabase ist der primäre Auth-Provider — dessen Fehler bevorzugen
         console.error(firebaseError);
+        const primaryError = supabaseError as AuthErrorLike;
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
-          payload: firebaseError as AuthErrorLike,
+          payload: primaryError,
         });
       }
     }
@@ -375,8 +441,9 @@ const SignInPage = () => {
                   severity={"error"}
                   messageTitle={TEXT_ALERT_TITLE_UUPS}
                   body={
-                    state.error.code === AuthMessages.WRONG_PASSWORD ? (
-                      <ForgotPasswordLink />
+                    state.error.code === AuthMessages.WRONG_PASSWORD ||
+                    state.error.code === AuthMessages.INVALID_CREDENTIALS ? (
+                      <ForgotPasswordLink email={state.signInData.email} />
                     ) : (
                       ""
                     )

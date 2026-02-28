@@ -37,8 +37,16 @@ jest.mock("../../User/user.class", () => ({
   },
 }));
 
-/** Mock: FirebaseMessageHandler — gibt error.message direkt zurück */
+/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
 jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
+  __esModule: true,
+  default: {
+    translateMessage: () => null,
+  },
+}));
+
+/** Mock: SupabaseMessageHandler — gibt error.message direkt zurück */
+jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   __esModule: true,
   default: {
     translateMessage: (error: {message: string}) => error.message,

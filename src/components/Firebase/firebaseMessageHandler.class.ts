@@ -1,27 +1,25 @@
 import {AuthMessages, General} from "../../constants/firebaseMessages";
-import {
-  FIREBASE_MESSAGES as TEXT_FIREBASE_MESSAGES,
-  SUPABASE_MESSAGES as TEXT_SUPABASE_MESSAGES,
-} from "../../constants/text";
+import {FIREBASE_MESSAGES as TEXT_FIREBASE_MESSAGES} from "../../constants/text";
 
 /**
- * Übersetzt Fehlermeldungen von Firebase und Supabase Auth ins Deutsche.
+ * Übersetzt Fehlermeldungen von Firebase Auth ins Deutsche.
  *
- * Firebase-Fehler werden anhand des `error.code` übersetzt,
- * Supabase-Fehler anhand des `error.message` (da Supabase keine
- * einheitlichen Fehlercodes verwendet).
+ * Firebase-Fehler werden anhand des `error.code` übersetzt.
+ * Gibt `null` zurück, falls der Code nicht erkannt wird.
  */
 class FirebaseMessageHandler {
   /**
-   * Übersetzt eine Fehlermeldung ins Deutsche.
-   * Prüft zuerst den Firebase-Code, dann die Supabase-Nachricht.
-   * Gibt die originale Meldung zurück, falls keine Übersetzung existiert.
+   * Übersetzt eine Firebase-Fehlermeldung ins Deutsche.
+   * Gibt `null` zurück, falls der Code nicht erkannt wird —
+   * der Aufrufer kann dann auf einen anderen Handler zurückgreifen.
    *
-   * @param error - Fehlerobjekt mit `code` (Firebase) oder `message` (Supabase)
-   * @returns Deutsche Fehlermeldung
+   * @param error - Fehlerobjekt mit `code` (Firebase Auth error code)
+   * @returns Deutsche Fehlermeldung oder `null` bei unbekanntem Code
+   * @example
+   * FirebaseMessageHandler.translateMessage({code: "auth/wrong-password", message: ""})
+   * // "Passwort falsch."
    */
-  static translateMessage(error: {code?: string; message: string}): string {
-    // Firebase-Fehler anhand des error.code
+  static translateMessage(error: {code?: string; message: string}): string | null {
     switch (error.code) {
       case AuthMessages.WEAK_PASSWORD:
       case AuthMessages.INVALID_EMAIL:
@@ -40,8 +38,7 @@ class FirebaseMessageHandler {
           FirebaseMessageHandler.getTextCode(error.code)
         ];
       default:
-        // Supabase-Fehler anhand der englischen Nachricht
-        return TEXT_SUPABASE_MESSAGES[error.message] ?? error.message;
+        return null;
     }
   }
   /* =====================================================================

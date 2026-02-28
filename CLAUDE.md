@@ -25,6 +25,7 @@ Environment-specific builds use `env-cmd` with `.env.development`, `.env.test`, 
 - **@react-pdf/renderer** for PDF export (menu plans, recipes, shopping/material lists)
 - **@atlaskit/pragmatic-drag-and-drop** for drag-and-drop reordering
 - **Fuse.js** for fuzzy search, **date-fns** for dates, **Sentry** for error monitoring
+- **Supabase** (local dev via Docker Compose, **not** Supabase CLI) — configuration lives in `supabase/.env` and `supabase/docker-compose.yml`. Do **not** edit `supabase/config.toml` for local config — it is only used by the Supabase CLI which is not in use.
 
 ## Architecture
 
@@ -79,6 +80,20 @@ React-PDF renderer creates exportable documents: menu plans, scaled recipes, sho
 - **TypeScript strict mode** enabled with `strictNullChecks`
 - **Three Firebase environments**: dev (`chuchipirat-dev`), test (`chuchipirat-tst`), prod (`chuchipirat`)
 - **Clean Code**: use clean-code principles.
+
+## Email Templates
+
+When creating or editing email templates (e.g. in `supabase/volumes/auth/templates/`):
+
+- **Font**: Use `'Roboto', 'Helvetica Neue', Arial, sans-serif` as the font-family
+- **Primary color**: `#006064` (teal) for header background, buttons, and accent links
+- **Header image**: Always include the chuchipirat logo in the header:
+  ```
+  https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/mailTemplates%2FMail%20Header%20weiss.png?alt=media&token=61c6aa52-d611-4921-ad8c-3c9ecb26f85d
+  ```
+  Use `width="220"` and `max-width: 220px` for proper sizing
+- **Language**: All email text in German
+- **Footer**: Include `hallo@chuchipirat.ch` as contact
 
 ## Refactoring Guidelines
 

@@ -335,27 +335,17 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   // Ersetzt: User.registerSignIn()
   // ===================================================================== */
   /**
-   * Registriert einen erfolgreichen Login. Zählt die Anzahl Logins hoch.
+   * Registriert einen erfolgreichen Login. Zählt die Anzahl Logins
+   * atomar in einem einzigen Statement hoch.
    * Der Zeitstempel des letzten Logins wird von Supabase Auth in
    * auth.users.last_sign_in_at verwaltet.
    *
    * @param userId - UID des Benutzers
    */
   async registerSignIn(userId: string): Promise<void> {
-    const {data: current, error: readError} = await this.client
-      .from(this.tableName)
-      .select("no_logins")
-      .eq("id", userId)
-      .single();
-
-    if (readError) throw readError;
-
-    const {error} = await this.client
-      .from(this.tableName)
-      .update({
-        no_logins: ((current?.no_logins as number) ?? 0) + 1,
-      })
-      .eq("id", userId);
+    const {error} = await this.client.rpc("increment_logins", {
+      user_id: userId,
+    });
 
     if (error) throw error;
   }

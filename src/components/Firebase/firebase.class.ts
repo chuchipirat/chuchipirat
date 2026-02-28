@@ -42,6 +42,8 @@ import {
   checkActionCode,
 } from "firebase/auth";
 
+import {Functions, getFunctions, httpsCallable} from "firebase/functions";
+
 import FirebaseDbEventShort from "./Db/firebase.db.eventShort.class";
 import LocalStorageKey from "../../constants/localStorage";
 import AuthUser from "./Authentication/authUser.class";
@@ -86,6 +88,7 @@ export default class Firebase {
   analytics: Analytics;
   performance: FirebasePerformance;
   storage: Storage;
+  functions: Functions;
 
   recipePublic: FirebaseDbRecipePublic;
   recipePrivate: FirebaseDbRecipePrivate;
@@ -116,6 +119,7 @@ export default class Firebase {
     this.analytics = getAnalytics(firebaseApp);
     this.performance = getPerformance(firebaseApp);
     this.storage = getStorage(firebaseApp);
+    this.functions = getFunctions(firebaseApp, "europe-west6");
 
     this.recipePublic = new FirebaseDbRecipePublic(this);
     this.recipePrivate = new FirebaseDbRecipePrivate(this);
@@ -311,6 +315,21 @@ export default class Firebase {
       console.error(error);
       throw error;
     }
+  };
+  /* =====================================================================
+  // Firebase Auth Account deaktivieren
+  // ===================================================================== */
+  /**
+   * Deaktiviert den Firebase Auth Account des aktuell angemeldeten Users.
+   * Wird nach erfolgreicher Migration zu Supabase aufgerufen, damit sich
+   * der User nicht mehr über Firebase einloggen kann.
+   *
+   * @returns Promise<void>
+   * @throws Fehler, wenn der Cloud-Function-Aufruf fehlschlägt.
+   */
+  disableAuthAccount = async (): Promise<void> => {
+    const callable = httpsCallable(this.functions, "disableFirebaseAuth");
+    await callable();
   };
   /* =====================================================================
    * E-Mailadresse ändern

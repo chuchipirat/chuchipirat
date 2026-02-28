@@ -116,6 +116,8 @@ services:
         condition: service_healthy
       analytics:
         condition: service_healthy
+      mail-templates:
+        condition: service_started
     environment:
       GOTRUE_API_HOST: 0.0.0.0
       GOTRUE_API_PORT: 9999
@@ -141,7 +143,7 @@ services:
       # Uncomment to bypass nonce check in ID Token flow. Commonly set to true when using Google Sign In on mobile.
       # GOTRUE_EXTERNAL_SKIP_NONCE_CHECK: true
 
-      # GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: true
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "false"
       # GOTRUE_SMTP_MAX_FREQUENCY: 1s
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
       GOTRUE_SMTP_HOST: ${SMTP_HOST}
@@ -153,6 +155,12 @@ services:
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${MAILER_URLPATHS_CONFIRMATION}
       GOTRUE_MAILER_URLPATHS_RECOVERY: ${MAILER_URLPATHS_RECOVERY}
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://mail-templates/confirmation.html
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "chuchipirat: E-Mail-Adresse bestätigen"
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://mail-templates/email_change.html
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "chuchipirat: Neue E-Mail-Adresse bestätigen"
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://mail-templates/recovery.html
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "chuchipirat: Passwort zurücksetzen"
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
@@ -347,6 +355,7 @@ services:
       SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       # TODO: Allow configuring VERIFY_JWT per function. This PR might help: https://github.com/supabase/cli/pull/786
       VERIFY_JWT: "${FUNCTIONS_VERIFY_JWT}"
+      VESTABOARD_READ_WRITE_KEY: ${VESTABOARD_READ_WRITE_KEY}
     command:
       [
         "start",
@@ -542,6 +551,24 @@ services:
         "-c",
         "/app/bin/migrate && /app/bin/supavisor eval \"$$(cat /etc/pooler/pooler.exs)\" && /app/bin/server"
       ]
+
+  # Statischer Webserver für E-Mail-Templates (GoTrue lädt Templates nur via HTTP)
+  mail-templates:
+    container_name: chuchipirat-mail-templates
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./volumes/auth/templates:/usr/share/nginx/html:ro,z
+
+  # MailPit — lokaler SMTP-Server zum Testen von E-Mails (Bestätigung, Passwort-Reset etc.)
+  # Web-UI erreichbar unter http://localhost:8025
+  # Unterstützt STARTTLS, das von GoTrue verlangt wird.
+  supabase-mail:
+    container_name: chuchipirat-mail
+    image: axllent/mailpit:v1.22
+    restart: unless-stopped
+    ports:
+      - 8025:8025/tcp
 
 volumes:
   db-config:

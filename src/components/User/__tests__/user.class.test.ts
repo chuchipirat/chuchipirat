@@ -163,7 +163,7 @@ describe("createUser()", () => {
         email: "anna@test.ch",
         noLogins: 0,
         roles: [Role.basic],
-        displayName: "ANNA@Test.CH",
+        displayName: "Anna Test",
         memberId: 0,
         motto: "",
       }),
@@ -660,30 +660,6 @@ describe("deletePicture()", () => {
     expect(
       mockFirebase.cloudFunction.updateUserPictureSrc.triggerCloudFunction
     ).toHaveBeenCalled();
-  });
-});
-
-/* =====================================================================
-// updateEmail()
-// ===================================================================== */
-describe("updateEmail()", () => {
-  test("E-Mail in DB patchen und Analytics-Event loggen", async () => {
-    const authUser = createMockAuthUser();
-    mockDatabase.users.patch.mockResolvedValue(undefined);
-
-    await User.updateEmail({
-      firebase: mockFirebase as any,
-      database: mockDatabase as any,
-      newEmail: "new@test.ch",
-      authUser: authUser,
-    });
-
-    expect(mockDatabase.users.patch).toHaveBeenCalledWith({
-      id: "user-123",
-      fields: {email: "new@test.ch"},
-      authUser: authUser,
-    });
-    expect(logEvent).toHaveBeenCalled();
   });
 });
 

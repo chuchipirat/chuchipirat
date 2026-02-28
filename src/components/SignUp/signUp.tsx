@@ -2,6 +2,8 @@ import React from "react";
 import {useNavigate} from "react-router";
 
 import {
+  Alert,
+  AlertTitle,
   Button,
   IconButton,
   TextField,
@@ -31,10 +33,7 @@ import AlertMessage from "../Shared/AlertMessage";
 
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {
-  SIGN_UP as ROUTE_SIGN_UP,
-  HOME as ROUTE_HOME,
-} from "../../constants/routes";
+import {SIGN_UP as ROUTE_SIGN_UP} from "../../constants/routes";
 import {AuthMessages} from "../../constants/firebaseMessages";
 import {NOT_REGISTERED_YET_SIGN_UP as TEXT_NOT_REGISTERED_YET_SIGN_UP} from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
@@ -51,6 +50,8 @@ import {
   SHOW_PASSWORD as TEXT_SHOW_PASSWORD,
   CREATE_ACCOUNT as TEXT_CREATE_ACCOUNT,
   CLOSE as TEXT_CLOSE,
+  SIGN_UP_SUCCESS_TITLE as TEXT_SIGN_UP_SUCCESS_TITLE,
+  SIGN_UP_SUCCESS_TEXT as TEXT_SIGN_UP_SUCCESS_TEXT,
 } from "../../constants/text";
 import User from "../User/user.class";
 import {PrivacyPolicyText} from "../App/privacyPolicy";
@@ -72,6 +73,7 @@ enum ReducerActions {
   UPDATE_FIELD,
   SET_SIGN_UP_ALLOWED,
   GENERIC_ERROR,
+  SIGN_UP_SUCCESS,
 }
 
 /**
@@ -100,6 +102,7 @@ type AuthErrorLike = Error & {code?: string};
  * @param signUpAllowed - Ob Registrierungen erlaubt sind
  * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
  * @param allowUserCreatePassword - Codewort für Test-Umgebung
+ * @param signUpSuccess - Ob die Registrierung erfolgreich war (Bestätigungs-E-Mail gesendet)
  */
 type State = {
   signUpData: SignUpData;
@@ -107,6 +110,7 @@ type State = {
   signUpAllowed: boolean;
   maintenanceMode: boolean;
   allowUserCreatePassword: string;
+  signUpSuccess: boolean;
 };
 
 const initialState: State = {
@@ -115,6 +119,7 @@ const initialState: State = {
   signUpAllowed: true,
   maintenanceMode: false,
   allowUserCreatePassword: "",
+  signUpSuccess: false,
 };
 
 /** Diskriminierte Union für typsichere Reducer-Actions */
@@ -127,7 +132,8 @@ type DispatchAction =
       type: ReducerActions.SET_SIGN_UP_ALLOWED;
       payload: GlobalSettings;
     }
-  | {type: ReducerActions.GENERIC_ERROR; payload: AuthErrorLike};
+  | {type: ReducerActions.GENERIC_ERROR; payload: AuthErrorLike}
+  | {type: ReducerActions.SIGN_UP_SUCCESS};
 
 /**
  * Reducer für die Sign-Up-Seite.
@@ -156,6 +162,8 @@ const signUpReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.GENERIC_ERROR:
       return {...state, error: action.payload};
+    case ReducerActions.SIGN_UP_SUCCESS:
+      return {...state, signUpSuccess: true, error: null};
     default: {
       const exhaustiveCheck: never = action;
       throw new Error(`Unbekannter ActionType: ${exhaustiveCheck}`);
@@ -181,7 +189,6 @@ const SignUpPage = () => {
 
   const classes = useCustomStyles();
   const [state, dispatch] = React.useReducer(signUpReducer, initialState);
-  const navigate = useNavigate();
   const {customDialog} = useCustomDialog();
 
   const [smallPrintDialogs, setSmallPrintDialogs] = React.useState({
@@ -230,31 +237,32 @@ const SignUpPage = () => {
       } else if (btoa(userInput.input) !== state.allowUserCreatePassword) {
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
-          payload: {code: "auth/wrong-code", message: "Codewort falsch"},
+          payload: {name: "AuthError", code: "auth/wrong-code", message: "Codewort falsch"},
         });
         return;
       }
     }
 
     try {
-      // Supabase Auth Account erstellen
-      const session = await database.auth.signUp(
+      // Supabase Auth Account erstellen (E-Mail-Bestätigung nötig, keine Session)
+      const user = await database.auth.signUp(
         state.signUpData.email,
         state.signUpData.password,
       );
 
-      // Benutzer in der users-Tabelle anlegen (id und auth_uid = Supabase UUID)
+      // Benutzer in der users-Tabelle anlegen (Admin-Client, da User noch keine Session hat)
       await User.createUser({
         firebase: firebase,
         database: database,
-        uid: session.user.id,
-        authUid: session.user.id,
+        uid: user.id,
+        authUid: user.id,
         firstName: state.signUpData.firstName,
         lastName: state.signUpData.lastName,
         email: state.signUpData.email,
       });
 
-      navigate(ROUTE_HOME);
+      // Bestätigungsmeldung anzeigen statt Home-Redirect
+      dispatch({type: ReducerActions.SIGN_UP_SUCCESS});
     } catch (error) {
       console.error(error);
       dispatch({
@@ -267,7 +275,7 @@ const SignUpPage = () => {
   // Dialog-Handling
   // ------------------------------------------ */
   const onSmallPrintDialogOpen = (
-    event: React.MouseEvent<HTMLAnchorElement>,
+    event: React.MouseEvent<HTMLElement>,
   ) => {
     setSmallPrintDialogs({
       ...smallPrintDialogs,
@@ -284,15 +292,22 @@ const SignUpPage = () => {
       <Container sx={classes.container} component="main" maxWidth="xs">
         <Stack spacing={2}>
           {state.maintenanceMode && <AlertMaintenanceMode />}
-          <SignUpForm
-            signUpData={state.signUpData}
-            signUpAllowed={state.signUpAllowed}
-            maintenanceMode={state.maintenanceMode}
-            error={state.error}
-            onFieldChange={onFieldChange}
-            onSignUp={onSignUp}
-            openDialog={onSmallPrintDialogOpen}
-          />
+          {state.signUpSuccess ? (
+            <Alert severity="success">
+              <AlertTitle>{TEXT_SIGN_UP_SUCCESS_TITLE}</AlertTitle>
+              {TEXT_SIGN_UP_SUCCESS_TEXT}
+            </Alert>
+          ) : (
+            <SignUpForm
+              signUpData={state.signUpData}
+              signUpAllowed={state.signUpAllowed}
+              maintenanceMode={state.maintenanceMode}
+              error={state.error}
+              onFieldChange={onFieldChange}
+              onSignUp={onSignUp}
+              openDialog={onSmallPrintDialogOpen}
+            />
+          )}
         </Stack>
       </Container>
       <DialogTermOfUse
@@ -328,7 +343,7 @@ interface SignUpFormProps {
   maintenanceMode: boolean;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onSignUp: () => void;
-  openDialog: (event: React.MouseEvent<HTMLAnchorElement>) => void;
+  openDialog: (event: React.MouseEvent<HTMLElement>) => void;
   error: AuthErrorLike | null;
 }
 
@@ -514,7 +529,8 @@ const SignUpForm = ({
               error={error}
               severity={"error"}
               body={
-                error.code === AuthMessages.EMAIL_ALREADY_IN_USE ? (
+                error.code === AuthMessages.EMAIL_ALREADY_IN_USE ||
+                error.code === AuthMessages.USER_ALREADY_EXISTS ? (
                   <ForgotPasswordLink />
                 ) : (
                   ""

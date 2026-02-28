@@ -163,18 +163,6 @@ interface DeletePicture {
   authUser: AuthUser;
 }
 
-/** Parameter für {@link User.updateEmail} */
-interface UpdateEmail {
-  /** Firebase-Instanz (für Analytics) */
-  firebase: Firebase;
-  /** DatabaseService-Instanz für Supabase-Zugriff */
-  database: DatabaseService;
-  /** Die neue E-Mail-Adresse */
-  newEmail: string;
-  /** Der angemeldete Benutzer */
-  authUser: AuthUser;
-}
-
 /** Parameter für {@link User.updateRoles} */
 interface UpdateRoles {
   /** Firebase-Instanz (noch benötigt während Übergangsphase) */
@@ -303,7 +291,7 @@ export default class User {
           email: email.toLocaleLowerCase(),
           noLogins: 0,
           roles: [Role.basic],
-          displayName: email,
+          displayName: `${firstName} ${lastName}`.trim() || firstName,
           memberId: 0,
           motto: "",
           pictureSrc: "",
@@ -645,33 +633,6 @@ export default class User {
       },
       authUser: authUser,
     });
-  };
-  /* =====================================================================
-  // E-Mailadresse updaten
-  // ===================================================================== */
-  /**
-   * Aktualisiert die E-Mail-Adresse eines Benutzers.
-   *
-   * @param firebase - Firebase-Instanz (für Analytics)
-   * @param database - DatabaseService-Instanz
-   * @param newEmail - Die neue E-Mail-Adresse
-   * @param authUser - Der angemeldete Benutzer
-   */
-  static updateEmail = async ({
-    firebase,
-    database,
-    newEmail,
-    authUser,
-  }: UpdateEmail) => {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
-    await users.patch({
-      id: authUser.uid,
-      fields: {email: newEmail},
-      authUser: authUser,
-    });
-
-    logEvent(firebase.analytics, FirebaseAnalyticEvent.userChangedEmail);
   };
   /* =====================================================================
   // Berechtigungen aktualisieren

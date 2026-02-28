@@ -56,8 +56,16 @@ jest.mock("../../../constants/imageRepository", () => ({
   },
 }));
 
-/** Mock: FirebaseMessageHandler — gibt error.message direkt zurück */
+/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
 jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
+  __esModule: true,
+  default: {
+    translateMessage: () => null,
+  },
+}));
+
+/** Mock: SupabaseMessageHandler — gibt error.message direkt zurück */
+jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   __esModule: true,
   default: {
     translateMessage: (error: {message: string}) => error.message,
@@ -168,14 +176,14 @@ describe("PasswordChangePage", () => {
       ).toBeInTheDocument();
     });
 
-    test("E-Mail-Feld ist deaktiviert", async () => {
+    test("Kein E-Mail-Feld und kein 'E-Mail ändern'-Button im Reset-Flow", () => {
       mockGetUser.mockResolvedValue({email: "test@example.com"});
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
-      await waitFor(() => {
-        const emailField = screen.getByLabelText(/e-mail/i);
-        expect(emailField).toBeDisabled();
-      });
+      expect(screen.queryByLabelText(/e-mail/i)).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {name: /e-mail ändern/i}),
+      ).not.toBeInTheDocument();
     });
 
     test("Kein Reauthentifizierungs-Dialog wird angezeigt", () => {
@@ -183,15 +191,6 @@ describe("PasswordChangePage", () => {
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
       expect(screen.queryByText(/Ausweis bitte/i)).not.toBeInTheDocument();
-    });
-
-    test("Kein 'E-Mail ändern'-Button wird angezeigt", () => {
-      mockGetUser.mockResolvedValue({email: "test@example.com"});
-      renderPasswordChangePage({oobCode: "reset-code-123"});
-
-      expect(
-        screen.queryByRole("button", {name: /e-mail ändern/i}),
-      ).not.toBeInTheDocument();
     });
   });
 
