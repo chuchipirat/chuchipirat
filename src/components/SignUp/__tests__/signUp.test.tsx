@@ -37,6 +37,9 @@ const mockDatabase = {
     getSession: jest.fn(),
   },
   users: {},
+  globalSettings: {
+    getSettings: (...args: unknown[]) => mockGetSettings(...args),
+  },
 } as any;
 
 /** Mock-Firebase-Instanz */
@@ -48,19 +51,14 @@ const mockFirebase = {
   },
 } as any;
 
-/** Mock: GlobalSettings — Standard: signUp erlaubt, kein Maintenance-Modus */
-const mockGetGlobalSettings = jest.fn().mockResolvedValue({
+/**
+ * Mock: signUp.tsx ruft jetzt database.globalSettings.getSettings() auf.
+ * Der Mock wird über mockDatabase.globalSettings bereitgestellt.
+ */
+const mockGetSettings = jest.fn().mockResolvedValue({
   maintenanceMode: false,
   allowSignUp: true,
-  allowUserCreatePassword: "",
 });
-
-jest.mock("../../Admin/globalSettings.class", () => ({
-  __esModule: true,
-  default: {
-    getGlobalSettings: (...args: unknown[]) => mockGetGlobalSettings(...args),
-  },
-}));
 
 /** Mock: User.createUser */
 const mockCreateUser = jest.fn().mockResolvedValue(undefined);
@@ -86,12 +84,6 @@ jest.mock("../../Shared/passwordStrengthMeter", () => ({
   default: ({password}: {password: string}) => (
     <div data-testid="password-strength">Stärke: {password.length}</div>
   ),
-}));
-
-/** Mock: customDialogContext (für Test-Umgebung Code-Dialog) */
-jest.mock("../../Shared/customDialogContext", () => ({
-  ...jest.requireActual("../../Shared/customDialogContext"),
-  useCustomDialog: () => ({customDialog: jest.fn()}),
 }));
 
 /** Mock: PrivacyPolicyText und TermOfUseText */
@@ -154,10 +146,9 @@ const getPasswordField = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockGetGlobalSettings.mockResolvedValue({
+  mockGetSettings.mockResolvedValue({
     maintenanceMode: false,
     allowSignUp: true,
-    allowUserCreatePassword: "",
   });
 });
 
@@ -332,15 +323,16 @@ describe("SignUpPage", () => {
 
   describe("SignUp nicht erlaubt", () => {
     test("Info-Meldung wird angezeigt wenn signUp nicht erlaubt ist", async () => {
-      mockGetGlobalSettings.mockResolvedValue({
+      mockGetSettings.mockResolvedValue({
         maintenanceMode: false,
         allowSignUp: false,
-        allowUserCreatePassword: "",
       });
       renderSignUpPage();
 
       await waitFor(() => {
-        expect(screen.getByText(/Beta-Phase/i)).toBeInTheDocument();
+        expect(
+          screen.getByText(/keine Neuanmeldungen möglich/i),
+        ).toBeInTheDocument();
       });
     });
   });

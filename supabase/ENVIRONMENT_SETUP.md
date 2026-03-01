@@ -18,6 +18,11 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260228000001_add_auth_uid_foreign_key.sql` | FK auf auth.users |
 | `20260228000002_add_increment_logins_function.sql` | Atomare Login-Zähler-Funktion |
 | `20260228000003_sync_auth_email_trigger.sql` | Trigger: E-Mail-Sync auth.users → public.users |
+| `20260301000001_create_global_settings.sql` | Singleton-Tabelle für globale Einstellungen (allowSignUp, maintenanceMode) |
+| `20260301000002_create_system_messages.sql` | Singleton-Tabelle für Systemmeldungen (Alert-Banner auf Startseite) |
+| `20260301000003_audit_columns_uuid_fk.sql` | Audit-Spalten umbenennen (created_by, updated_at, updated_by), TEXT→UUID, FK auf auth.users(id) |
+| `20260302000001_system_messages_multi_row.sql` | system_messages von Singleton auf Multi-Row umstellen (Constraint entfernen, INSERT/DELETE-Policies) |
+| `20260302000002_create_revoke_sessions_function.sql` | SQL-Funktion `revoke_user_sessions()` zum Löschen von Auth-Sessions (für sign-out-all-users Edge Function) |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -52,6 +57,7 @@ Edge Functions liegen in `supabase/volumes/functions/` und werden vom Edge Runti
 |----------|-------------|-------------------|
 | `main` | Dispatcher/Router (required) | `JWT_SECRET`, `VERIFY_JWT` |
 | `notify-vestaboard` | Vestaboard-Willkommensnachricht bei E-Mail-Verifizierung | `VESTABOARD_READ_WRITE_KEY` |
+| `sign-out-all-users` | Meldet alle Nicht-Admin-Benutzer ab (Admin-Funktion) | `SUPABASE_SERVICE_ROLE_KEY` |
 
 ### Produktions-Checkliste Edge Functions
 

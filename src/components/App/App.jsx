@@ -71,8 +71,9 @@ const Donate = lazy(() => import("../Donate/donate"));
 const PasswordReset = lazy(() => import("../AuthServiceHandler/passwordReset"));
 
 const System = lazy(() => import("../Admin/system"));
-const GlobalSettings = lazy(() => import("../Admin/globalSettings"));
-const SystemMessage = lazy(() => import("../Admin/systemMessage"));
+const GlobalSettings = lazy(() => import("../Admin/GlobalSettings/globalSettings"));
+const SystemMessageOverview = lazy(() => import("../Admin/SystemMessage/systemMessageOverview"));
+const SystemMessage = lazy(() => import("../Admin/SystemMessage/systemMessage"));
 const WhereUsed = lazy(() => import("../Admin/whereUsed"));
 const MergeItems = lazy(() => import("../Admin/mergeItems"));
 const ConvertItem = lazy(() => import("../Admin/convertItem"));
@@ -513,10 +514,28 @@ const App = () => {
                 }
               />
               <Route
-                path={ROUTES.SYSTEM_SYSTEM_MESSAGE}
+                path={ROUTES.SYSTEM_SYSTEM_MESSAGES}
                 element={
                   <GuardedRoute
-                    condition={isAdminOrCommunityLeader}
+                    condition={isAdmin}
+                    element={<SystemMessageOverview />}
+                  />
+                }
+              />
+              <Route
+                path={ROUTES.SYSTEM_SYSTEM_MESSAGE_NEW}
+                element={
+                  <GuardedRoute
+                    condition={isAdmin}
+                    element={<SystemMessage />}
+                  />
+                }
+              />
+              <Route
+                path={ROUTES.SYSTEM_SYSTEM_MESSAGE_EDIT}
+                element={
+                  <GuardedRoute
+                    condition={isAdmin}
                     element={<SystemMessage />}
                   />
                 }

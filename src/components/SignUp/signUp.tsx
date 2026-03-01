@@ -37,7 +37,6 @@ import {SIGN_UP as ROUTE_SIGN_UP} from "../../constants/routes";
 import {AuthMessages} from "../../constants/firebaseMessages";
 import {NOT_REGISTERED_YET_SIGN_UP as TEXT_NOT_REGISTERED_YET_SIGN_UP} from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
-import GlobalSettings from "../Admin/globalSettings.class";
 import {
   WE_NEED_SOME_DETAILS_ABOUT_YOU as TEXT_WE_NEED_SOME_DETAILS_ABOUT_YOU,
   SIGN_IN as TEXT_SIGN_IN,
@@ -56,12 +55,6 @@ import {
 import User from "../User/user.class";
 import {PrivacyPolicyText} from "../App/privacyPolicy";
 import {TermOfUseText} from "../App/termOfUse";
-import Utils from "../Shared/utils.class";
-import {
-  DialogType,
-  SingleTextInputResult,
-  useCustomDialog,
-} from "../Shared/customDialogContext";
 import {AlertMaintenanceMode} from "../SignIn/signIn";
 import useCustomStyles from "../../constants/styles";
 
@@ -101,7 +94,6 @@ type AuthErrorLike = Error & {code?: string};
  * @param error - Fehlerobjekt bei gescheiterter Registrierung
  * @param signUpAllowed - Ob Registrierungen erlaubt sind
  * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
- * @param allowUserCreatePassword - Codewort für Test-Umgebung
  * @param signUpSuccess - Ob die Registrierung erfolgreich war (Bestätigungs-E-Mail gesendet)
  */
 type State = {
@@ -109,7 +101,6 @@ type State = {
   error: AuthErrorLike | null;
   signUpAllowed: boolean;
   maintenanceMode: boolean;
-  allowUserCreatePassword: string;
   signUpSuccess: boolean;
 };
 
@@ -118,7 +109,6 @@ const initialState: State = {
   error: null,
   signUpAllowed: true,
   maintenanceMode: false,
-  allowUserCreatePassword: "",
   signUpSuccess: false,
 };
 
@@ -130,7 +120,7 @@ type DispatchAction =
     }
   | {
       type: ReducerActions.SET_SIGN_UP_ALLOWED;
-      payload: GlobalSettings;
+      payload: {allowSignUp: boolean; maintenanceMode: boolean};
     }
   | {type: ReducerActions.GENERIC_ERROR; payload: AuthErrorLike}
   | {type: ReducerActions.SIGN_UP_SUCCESS};
@@ -158,7 +148,6 @@ const signUpReducer = (state: State, action: DispatchAction): State => {
         ...state,
         signUpAllowed: action.payload.allowSignUp,
         maintenanceMode: action.payload.maintenanceMode,
-        allowUserCreatePassword: action.payload.allowUserCreatePassword,
       };
     case ReducerActions.GENERIC_ERROR:
       return {...state, error: action.payload};
@@ -189,7 +178,6 @@ const SignUpPage = () => {
 
   const classes = useCustomStyles();
   const [state, dispatch] = React.useReducer(signUpReducer, initialState);
-  const {customDialog} = useCustomDialog();
 
   const [smallPrintDialogs, setSmallPrintDialogs] = React.useState({
     termOfUse: false,
@@ -199,11 +187,13 @@ const SignUpPage = () => {
   // Einstellungen holen
   // ------------------------------------------ */
   React.useEffect(() => {
-    GlobalSettings.getGlobalSettings({firebase}).then((result) => {
-      dispatch({
-        type: ReducerActions.SET_SIGN_UP_ALLOWED,
-        payload: result,
-      });
+    database.globalSettings.getSettings().then((result) => {
+      if (result) {
+        dispatch({
+          type: ReducerActions.SET_SIGN_UP_ALLOWED,
+          payload: result,
+        });
+      }
     });
   }, []);
   /* ------------------------------------------
@@ -219,30 +209,6 @@ const SignUpPage = () => {
   // Anmelden
   // ------------------------------------------ */
   const onSignUp = async () => {
-    // in der Integration prüfen ob man darf
-    // nicht die sicherste Variante aber für die kurze Periode ok.
-    if (Utils.isTestEnvironment()) {
-      const userInput = (await customDialog({
-        dialogType: DialogType.SingleTextInput,
-        title: "Bitte gib den erhaltenen Code ein:",
-        text: "Mit der Anleitung, wie du testen kannst, hast du einen Code erhalten. Bitte gibt diesen Code hier ein.",
-        singleTextInputProperties: {
-          initialValue: "",
-          textInputLabel: "Code",
-        },
-      })) as SingleTextInputResult;
-
-      if (!userInput.valid) {
-        return;
-      } else if (btoa(userInput.input) !== state.allowUserCreatePassword) {
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: {name: "AuthError", code: "auth/wrong-code", message: "Codewort falsch"},
-        });
-        return;
-      }
-    }
-
     try {
       // Supabase Auth Account erstellen (E-Mail-Bestätigung nötig, keine Session)
       const user = await database.auth.signUp(

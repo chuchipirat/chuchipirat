@@ -1,7 +1,7 @@
--- Helper: auto-update last_change_at
-CREATE OR REPLACE FUNCTION update_last_change_at()
+-- Helper: auto-update updated_at
+CREATE OR REPLACE FUNCTION update_updated_at()
 RETURNS TRIGGER LANGUAGE plpgsql AS $$
-BEGIN NEW.last_change_at = NOW(); RETURN NEW; END;
+BEGIN NEW.updated_at = NOW(); RETURN NEW; END;
 $$;
 
 -- Users table (fully normalized, zero JSONB)
@@ -32,7 +32,7 @@ CREATE TABLE public.users (
 
   -- Audit
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  last_change_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
   -- Full-text search (replaces searchFields subcollection)
   search_vector TSVECTOR GENERATED ALWAYS AS (
@@ -50,9 +50,9 @@ CREATE INDEX idx_users_roles ON public.users USING GIN(roles);
 CREATE INDEX idx_users_search ON public.users USING GIN(search_vector);
 
 -- Auto-update trigger
-CREATE TRIGGER trg_users_last_change
+CREATE TRIGGER trg_users_updated_at
   BEFORE UPDATE ON public.users
-  FOR EACH ROW EXECUTE FUNCTION update_last_change_at();
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
 -- RLS policies are defined in 20260226000001_add_auth_uid.sql (Phase 2).
 

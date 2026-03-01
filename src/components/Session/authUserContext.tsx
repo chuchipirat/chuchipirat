@@ -84,6 +84,7 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
             if (userDomain) {
               const newAuthUser: AuthUser = {
                 uid: userDomain.uid,
+                authUid: session.user.id,
                 email: userDomain.email,
                 emailVerified: !!session.user.email_confirmed_at,
                 firstName: userDomain.firstName,
@@ -117,6 +118,7 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
 
               const newAuthUser: AuthUser = {
                 uid: fullProfile.uid,
+                authUid: session.user.id,
                 email: fullProfile.email,
                 emailVerified: !!session.user.email_confirmed_at,
                 firstName: fullProfile.firstName,

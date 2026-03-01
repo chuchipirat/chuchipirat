@@ -45,7 +45,6 @@ import User from "../User/user.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useNavigate} from "react-router";
 import Utils from "../Shared/utils.class";
-import GlobalSettings from "../Admin/globalSettings.class";
 import useCustomStyles from "../../constants/styles";
 
 /* ===================================================================
@@ -207,10 +206,10 @@ const SignInPage = () => {
   // Einstellungen holen
   // ------------------------------------------ */
   React.useEffect(() => {
-    GlobalSettings.getGlobalSettings({firebase}).then((result) => {
+    database.globalSettings.getSettings().then((result) => {
       dispatch({
         type: ReducerActions.SET_MAINTENANCE_MODE,
-        payload: {value: result.maintenanceMode},
+        payload: {value: result?.maintenanceMode ?? false},
       });
     });
   }, []);
@@ -294,28 +293,49 @@ const SignInPage = () => {
         if (firebaseUser.user) {
           const usersRepo = database.admin?.users ?? database.users;
           let displayName = "";
-          let alreadyMigrated = false;
+          let authUid = "";
 
           try {
             const profile = await usersRepo.findById(firebaseUser.user.uid);
             if (profile) {
               displayName = profile.displayName;
-              alreadyMigrated = !!profile.authUid;
+              authUid = profile.authUid ?? "";
             }
           } catch {
             // Nicht kritisch — displayName bleibt leer
           }
 
-          if (alreadyMigrated) {
-            // User ist bereits migriert — falsches Passwort für Supabase
-            await firebase.signOut();
-            dispatch({
-              type: ReducerActions.GENERIC_ERROR,
-              payload: {
-                message: "Invalid login credentials",
-                code: AuthMessages.WRONG_PASSWORD,
-              } as AuthErrorLike,
-            });
+          if (authUid) {
+            // Passwort in Supabase synchronisieren und erneut anmelden
+            try {
+              await database.auth.updateUserPassword(
+                authUid,
+                state.signInData.password,
+              );
+              await database.auth.signInWithPassword(
+                state.signInData.email,
+                state.signInData.password,
+              );
+
+              // Login registrieren
+              try {
+                const user = await usersRepo.findByAuthUid(authUid);
+                if (user) await usersRepo.registerSignIn(user.uid);
+              } catch {
+                // Nicht kritisch
+              }
+
+              await firebase.signOut();
+              await new Promise((resolve) => setTimeout(resolve, 2000));
+              navigate(ROUTE_HOME);
+            } catch (syncError) {
+              console.error("Passwort-Sync fehlgeschlagen:", syncError);
+              await firebase.signOut();
+              dispatch({
+                type: ReducerActions.GENERIC_ERROR,
+                payload: supabaseError as AuthErrorLike,
+              });
+            }
             return;
           }
 

@@ -126,7 +126,7 @@ describe("UserRepository", () => {
     // Simuliere die fehlenden DB-generierten Felder
     row.member_id = userDomain.memberId;
     row.created_at = "2025-01-15T00:00:00.000Z";
-    row.last_change_at = "2026-02-20T10:00:00.000Z";
+    row.updated_at = "2026-02-20T10:00:00.000Z";
 
     const result = repo.toDomain(row);
 

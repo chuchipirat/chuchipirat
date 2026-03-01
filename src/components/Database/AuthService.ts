@@ -31,10 +31,7 @@ export class AuthService {
    * @returns Die aktive Session nach erfolgreicher Anmeldung
    * @throws {AuthError} Bei ungültigen Anmeldedaten oder Netzwerkfehler
    */
-  async signInWithPassword(
-    email: string,
-    password: string
-  ): Promise<Session> {
+  async signInWithPassword(email: string, password: string): Promise<Session> {
     const {data, error} = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -66,7 +63,7 @@ export class AuthService {
   async signUp(
     email: string,
     password: string,
-    options?: {displayName?: string}
+    options?: {displayName?: string},
   ): Promise<User> {
     const {data, error} = await supabase.auth.signUp({
       email,
@@ -128,7 +125,7 @@ export class AuthService {
   async createConfirmedUser(
     email: string,
     password: string,
-    options?: {displayName?: string}
+    options?: {displayName?: string},
   ): Promise<User> {
     if (!supabaseAdmin) {
       throw new Error("Admin client not available");
@@ -145,6 +142,34 @@ export class AuthService {
 
     if (error) throw error;
     return data.user;
+  }
+
+  /* =====================================================================
+  // Passwort eines Benutzers administrativ aktualisieren
+  // ===================================================================== */
+  /**
+   * Aktualisiert das Passwort eines Benutzers über den Admin-Client.
+   *
+   * Wird verwendet, wenn ein bereits migrierter Benutzer sich mit dem
+   * Firebase-Passwort anmeldet, das vom Supabase-Passwort abweicht.
+   * Nach erfolgreicher Firebase-Validierung wird das Supabase-Passwort
+   * synchronisiert.
+   * //FIXME: muss nach der Migration entfernt werden, da dann alle Benutzer über Supabase Auth
+   * @param userId - Supabase Auth User-ID (auth_uid)
+   * @param newPassword - Das neue Passwort (vom Firebase-Login validiert)
+   * @throws {Error} Wenn der Admin-Client nicht verfügbar ist
+   * @throws {AuthError} Bei ungültigem Passwort oder Netzwerkfehler
+   */
+  async updateUserPassword(userId: string, newPassword: string): Promise<void> {
+    if (!supabaseAdmin) {
+      throw new Error("Admin client not available");
+    }
+
+    const {error} = await supabaseAdmin.auth.admin.updateUserById(userId, {
+      password: newPassword,
+    });
+
+    if (error) throw error;
   }
 
   /* =====================================================================
@@ -212,7 +237,7 @@ export class AuthService {
   async updateEmail(newEmail: string): Promise<void> {
     const {error} = await supabase.auth.updateUser(
       {email: newEmail},
-      {emailRedirectTo: `${window.location.origin}/authservicehandler`}
+      {emailRedirectTo: `${window.location.origin}/authservicehandler`},
     );
     if (error) throw error;
   }
@@ -229,7 +254,7 @@ export class AuthService {
    * @returns Unsubscribe-Funktion zum Entfernen des Listeners
    */
   onAuthStateChange(
-    callback: (event: AuthChangeEvent, session: Session | null) => void
+    callback: (event: AuthChangeEvent, session: Session | null) => void,
   ): () => void {
     const {data} = supabase.auth.onAuthStateChange(callback);
     return () => {

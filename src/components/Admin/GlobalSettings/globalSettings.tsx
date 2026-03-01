@@ -9,7 +9,6 @@ import {
   Container,
   List,
   ListItem,
-  ListItemSecondaryAction,
   ListItemText,
   SnackbarCloseReason,
   Stack,
@@ -36,22 +35,22 @@ import {
   DIALOG_SUBTITLE_SIGNOUT_USERS_CONFIRMATION as TEXT_DIALOG_SUBTITLE_SIGNOUT_USERS_CONFIRMATION,
   DIALOG_TEXT_SIGNOUT_USERS_CONFIRMATION as TEXT_DIALOG_TEXT_SIGNOUT_USERS_CONFIRMATION,
   USERS_ARE_LOGGED_OUT as TEXT_USERS_ARE_LOGGED_OUT,
-} from "../../constants/text";
+} from "../../../constants/text";
 
-import GlobalSettings from "./globalSettings.class";
+import {GlobalSettingsDomain} from "../../Database/Repository/GlobalSettingsRepository";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
+import PageTitle from "../../Shared/pageTitle";
+import ButtonRow from "../../Shared/buttonRow";
+import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
 
-import AlertMessage from "../Shared/AlertMessage";
+import AlertMessage from "../../Shared/AlertMessage";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import Role from "../../constants/roles";
-import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
-import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
-import useCustomStyles from "../../constants/styles";
+import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {useAuthUser} from "../../Session/authUserContext";
+import {useDatabase} from "../../Database/DatabaseContext";
+import {supabase} from "../../Database/supabaseClient";
+import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
+import useCustomStyles from "../../../constants/styles";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -71,7 +70,7 @@ type DispatchAction = {
 };
 
 type State = {
-  globalSettings: GlobalSettings;
+  globalSettings: GlobalSettingsDomain;
   isError: boolean;
   error: Error | null;
   isLoading: boolean;
@@ -79,7 +78,7 @@ type State = {
 };
 
 const inititialState: State = {
-  globalSettings: new GlobalSettings(),
+  globalSettings: {allowSignUp: false, maintenanceMode: false},
   error: null,
   isError: false,
   isLoading: false,
@@ -97,7 +96,7 @@ const globalSettingsReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS:
       return {
         ...state,
-        globalSettings: action.payload as GlobalSettings,
+        globalSettings: action.payload as GlobalSettingsDomain,
         isLoading: false,
         isError: false,
       };
@@ -134,7 +133,7 @@ const globalSettingsReducer = (state: State, action: DispatchAction): State => {
         error: null,
         snackbar: {
           severity: "success",
-          message: TEXT_USERS_ARE_LOGGED_OUT,
+          message: `${action.payload.count} ${TEXT_USERS_ARE_LOGGED_OUT}`,
           open: true,
         },
       };
@@ -161,7 +160,7 @@ const globalSettingsReducer = (state: State, action: DispatchAction): State => {
 // =============================== Base ==============================
 // =================================================================== */
 const GlobalSettingsPage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const {customDialog} = useCustomDialog();
@@ -170,7 +169,7 @@ const GlobalSettingsPage = () => {
 
   const [state, dispatch] = React.useReducer(
     globalSettingsReducer,
-    inititialState
+    inititialState,
   );
 
   /* ------------------------------------------
@@ -181,11 +180,12 @@ const GlobalSettingsPage = () => {
       type: ReducerActions.GLOBAL_SETTINGS_FETCH_INIT,
       payload: {},
     });
-    GlobalSettings.getGlobalSettings({firebase})
+    database.globalSettings
+      .getSettings()
       .then((result) => {
         dispatch({
           type: ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS,
-          payload: result,
+          payload: result ?? {allowSignUp: false, maintenanceMode: false},
         });
       })
       .catch((error) => {
@@ -236,11 +236,13 @@ const GlobalSettingsPage = () => {
     if (!isConfirmed) {
       return;
     }
-    GlobalSettings.signOutAllUsers({firebase: firebase, authUser: authUser!})
-      .then(() => {
+    supabase.functions
+      .invoke("sign-out-all-users")
+      .then(({data, error}) => {
+        if (error) throw error;
         dispatch({
           type: ReducerActions.SIGN_OUT_ALL_USERS,
-          payload: {},
+          payload: {count: data?.count ?? 0},
         });
       })
       .catch((error) => {
@@ -251,11 +253,8 @@ const GlobalSettingsPage = () => {
   // Einstellungen speichern
   // ------------------------------------------ */
   const onSaveClick = () => {
-    GlobalSettings.save({
-      firebase: firebase,
-      globalSettings: state.globalSettings,
-      authUser: authUser as AuthUser,
-    })
+    database.globalSettings
+      .saveSettings(state.globalSettings, authUser as AuthUser)
       .then(() => {
         dispatch({
           type: ReducerActions.GLOBAL_SETTINGS_SAVE_SUCCESS,
@@ -274,7 +273,7 @@ const GlobalSettingsPage = () => {
   // ------------------------------------------ */
   const handleSnackbarClose = (
     event: Event | SyntheticEvent<any, Event>,
-    reason: SnackbarCloseReason
+    reason: SnackbarCloseReason,
   ) => {
     if (reason === "clickaway") {
       return;
@@ -351,7 +350,7 @@ const GlobalSettingsPage = () => {
 // // =================================================================== */
 interface PanelGlobalSettingsProps {
   editMode: boolean;
-  globalSettings: GlobalSettings;
+  globalSettings: GlobalSettingsDomain;
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onSignOutAllUsers: () => void;
 }
@@ -367,12 +366,8 @@ const PanelGlobalSettings = ({
     <Card sx={classes.card} key={"cardInfo"}>
       <CardContent sx={classes.cardContent} key={"cardContentInfo"}>
         <List>
-          <ListItem>
-            <ListItemText
-              primary={TEXT_GLOBAL_SETTINGS_ALLOW_SIGNUP_LABEL}
-              secondary={TEXT_GLOBAL_SETTINGS_ALLOW_SIGNUP_DESCRIPTION}
-            />
-            <ListItemSecondaryAction>
+          <ListItem
+            secondaryAction={
               <Switch
                 checked={globalSettings.allowSignUp}
                 onChange={onChange}
@@ -380,14 +375,15 @@ const PanelGlobalSettings = ({
                 id={"allowSignUp"}
                 disabled={!editMode}
               />
-            </ListItemSecondaryAction>
-          </ListItem>
-          <ListItem>
+            }
+          >
             <ListItemText
-              primary={TEXT_GLOBAL_SETTINGS_MAINTENANCE_MODE_LABEL}
-              secondary={TEXT_GLOBAL_SETTINGS_MAINTENANCE_MODE_DESCRIPTION}
+              primary={TEXT_GLOBAL_SETTINGS_ALLOW_SIGNUP_LABEL}
+              secondary={TEXT_GLOBAL_SETTINGS_ALLOW_SIGNUP_DESCRIPTION}
             />
-            <ListItemSecondaryAction>
+          </ListItem>
+          <ListItem
+            secondaryAction={
               <Switch
                 checked={globalSettings.maintenanceMode}
                 onChange={onChange}
@@ -395,22 +391,30 @@ const PanelGlobalSettings = ({
                 id={"maintenanceMode"}
                 disabled={!editMode}
               />
-            </ListItemSecondaryAction>
-          </ListItem>
-          <ListItem>
+            }
+          >
             <ListItemText
-              primary={TEXT_SIGN_OUT_ALL_USERS}
-              secondary={TEXT_SIGN_OUT_ALL_USERS_DESCRIPTION}
+              primary={TEXT_GLOBAL_SETTINGS_MAINTENANCE_MODE_LABEL}
+              secondary={TEXT_GLOBAL_SETTINGS_MAINTENANCE_MODE_DESCRIPTION}
             />
-            <ListItemSecondaryAction>
+          </ListItem>
+          <ListItem
+            secondaryAction={
               <Button
                 variant="outlined"
-                style={{color: theme.palette.error.main}}
+                sx={{color: theme.palette.error.main, whiteSpace: "nowrap"}}
                 onClick={onSignOutAllUsers}
               >
                 {TEXT_SIGN_OUT_EVERYBODY}
               </Button>
-            </ListItemSecondaryAction>
+            }
+          >
+            <ListItemText
+              primary={TEXT_SIGN_OUT_ALL_USERS}
+              secondary={TEXT_SIGN_OUT_ALL_USERS_DESCRIPTION}
+              slotProps={{secondary: {sx: {whiteSpace: "pre-line"}}}}
+              sx={{mr: 2}}
+            />
           </ListItem>
         </List>
       </CardContent>

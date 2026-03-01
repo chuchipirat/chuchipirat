@@ -1,8 +1,10 @@
 import React from "react";
+import {useNavigate, useParams} from "react-router";
 
-import {useFirebase} from "../Firebase/firebaseContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {useAuthUser} from "../Session/authUserContext";
+import {useDatabase} from "../../Database/DatabaseContext";
+import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {useAuthUser} from "../../Session/authUserContext";
+import {SystemMessageDomain} from "../../Database/Repository/SystemMessageRepository";
 import {
   Backdrop,
   CardContent,
@@ -27,30 +29,30 @@ import {
 
 import {DatePicker} from "@mui/x-date-pickers/DatePicker";
 
-import AlertMessage from "../Shared/AlertMessage";
-import PageTitle from "../Shared/pageTitle";
+import AlertMessage from "../../Shared/AlertMessage";
+import PageTitle from "../../Shared/pageTitle";
 
-import SystemMessage from "./systemMessage.class";
 import {
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
   EDITOR as TEXT_EDITOR,
   TITLE as TEXT_TITLE,
   PREVIEW as TEXT_PREVIEW,
-  SYSTEM_MESSAGE as TEXT_SYSTEM_MESSAGE,
   ATENTION_IMPORTANT_ANNOUNCEMENT as TEXT_ATENTION_IMPORTANT_ANNOUNCEMENT,
   TYPE as TEXT_TYPE,
   VALID_TO as TEXT_VALID_TO,
   SAVE as TEXT_SAVE,
-  SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
-} from "../../constants/text";
-import useCustomStyles from "../../constants/styles";
-import Role from "../../constants/roles";
+  SYSTEM_MESSAGE_SAVED as TEXT_SYSTEM_MESSAGE_SAVED,
+  NEW_SYSTEM_MESSAGE as TEXT_NEW_SYSTEM_MESSAGE,
+  EDIT_SYSTEM_MESSAGE as TEXT_EDIT_SYSTEM_MESSAGE,
+} from "../../../constants/text";
+import * as ROUTES from "../../../constants/routes";
+import useCustomStyles from "../../../constants/styles";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
 import CustomSnackbar, {
   SNACKBAR_INITIAL_STATE_VALUES,
   Snackbar,
-} from "../Shared/customSnackbar";
+} from "../../Shared/customSnackbar";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -69,20 +71,25 @@ type DispatchAction = {
 };
 
 type State = {
-  systemMessage: SystemMessage;
+  systemMessage: SystemMessageDomain;
   isLoading: boolean;
+  isNewMode: boolean;
   error: Error | null;
   snackbar: Snackbar;
 };
 
-const inititialState: State = {
-  systemMessage: new SystemMessage(),
-  isLoading: false,
-  error: null,
-  snackbar: SNACKBAR_INITIAL_STATE_VALUES,
+/**
+ * Leere Systemmeldung für den Erstellmodus.
+ */
+const emptySystemMessage: SystemMessageDomain = {
+  uid: "",
+  title: "",
+  text: "",
+  type: "info",
+  validTo: new Date(),
 };
 
-const mailConsoleReducer = (state: State, action: DispatchAction): State => {
+const systemMessageReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.SYSTEM_MESSAGE_FETCH_INIT:
       return {...state, isLoading: true};
@@ -97,7 +104,7 @@ const mailConsoleReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS:
       return {
         ...state,
-        systemMessage: action.payload as SystemMessage,
+        systemMessage: action.payload as SystemMessageDomain,
         isLoading: false,
       };
     case ReducerActions.SYSTEM_MESSAGE_SAVE:
@@ -106,7 +113,7 @@ const mailConsoleReducer = (state: State, action: DispatchAction): State => {
         snackbar: {
           open: true,
           severity: "success",
-          message: TEXT_SAVE_SUCCESS,
+          message: TEXT_SYSTEM_MESSAGE_SAVED,
         },
       };
     case ReducerActions.SNACKBAR_CLOSE:
@@ -116,7 +123,7 @@ const mailConsoleReducer = (state: State, action: DispatchAction): State => {
       };
 
     case ReducerActions.GENERIC_ERROR:
-      return {...state, error: action.payload as Error};
+      return {...state, error: action.payload as Error, isLoading: false};
     default:
       console.error("Unbekannter ActionType: ", action.type);
       throw new Error();
@@ -127,41 +134,57 @@ const mailConsoleReducer = (state: State, action: DispatchAction): State => {
 // =============================== Page ==============================
 // =================================================================== */
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Seite zum Erstellen und Bearbeiten von Systemmeldungen.
+ * Unterscheidet anhand des Route-Parameters :id zwischen Erstell- und Bearbeitmodus.
+ */
 const SystemMessagePage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
+  const navigate = useNavigate();
+  const {id} = useParams<{id: string}>();
 
-  const [state, dispatch] = React.useReducer(
-    mailConsoleReducer,
-    inititialState
-  );
+  const isNewMode = id === "new" || !id;
+
+  const [state, dispatch] = React.useReducer(systemMessageReducer, {
+    systemMessage: {...emptySystemMessage},
+    isLoading: false,
+    isNewMode,
+    error: null,
+    snackbar: SNACKBAR_INITIAL_STATE_VALUES,
+  });
 
   if (!authUser) {
     return null;
   }
   /* ------------------------------------------
-  // INitialier DB- Read
+  // Initialer DB-Read (nur im Bearbeitmodus)
   // ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({type: ReducerActions.SYSTEM_MESSAGE_FETCH_INIT, payload: {}});
-    SystemMessage.getSystemMessage({
-      firebase: firebase,
-      mustBeValid: false,
-    }).then((result) => {
-      if (result == null) {
-        result = new SystemMessage();
-      }
+    if (isNewMode) return;
 
-      dispatch({
-        type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS,
-        payload: result,
+    dispatch({type: ReducerActions.SYSTEM_MESSAGE_FETCH_INIT, payload: {}});
+    database.systemMessages
+      .findById(id!)
+      .then((result) => {
+        if (result) {
+          dispatch({
+            type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS,
+            payload: result,
+          });
+        } else {
+          dispatch({
+            type: ReducerActions.GENERIC_ERROR,
+            payload: new Error(`Systemmeldung mit ID "${id}" nicht gefunden.`),
+          });
+        }
+      })
+      .catch((error) => {
+        console.error(error);
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-    });
-  }, []);
+  }, [id]);
   /* ------------------------------------------
   // Field-Handler
   // ------------------------------------------ */
@@ -193,13 +216,28 @@ const SystemMessagePage = () => {
   // Speichern
   // ------------------------------------------ */
   const onSave = () => {
-    SystemMessage.save({
-      firebase: firebase,
-      systemMessage: state.systemMessage,
-      authUser: authUser,
-    })
+    const savePromise = isNewMode
+      ? database.systemMessages.createMessage(
+          state.systemMessage,
+          authUser as AuthUser
+        )
+      : database.systemMessages.updateMessage(
+          state.systemMessage.uid,
+          state.systemMessage,
+          authUser as AuthUser
+        );
+
+    savePromise
       .then(() => {
-        dispatch({type: ReducerActions.SYSTEM_MESSAGE_SAVE, payload: {}});
+        navigate(ROUTES.SYSTEM_SYSTEM_MESSAGES, {
+          state: {
+            snackbar: {
+              open: true,
+              severity: "success",
+              message: TEXT_SYSTEM_MESSAGE_SAVED,
+            },
+          },
+        });
       })
       .catch((error) => {
         console.error(error);
@@ -209,7 +247,10 @@ const SystemMessagePage = () => {
   /* ------------------------------------------
   // Snackbar-Handler
   // ------------------------------------------ */
-  const handleSnackbarClose = (event, reason) => {
+  const handleSnackbarClose = (
+    _event: React.SyntheticEvent | Event,
+    reason?: string
+  ) => {
     if (reason === "clickaway") {
       return;
     }
@@ -218,11 +259,14 @@ const SystemMessagePage = () => {
       payload: {},
     });
   };
+
+  const pageTitle = isNewMode ? TEXT_NEW_SYSTEM_MESSAGE : TEXT_EDIT_SYSTEM_MESSAGE;
+
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
       <PageTitle
-        title={TEXT_SYSTEM_MESSAGE}
+        title={pageTitle}
         subTitle={TEXT_ATENTION_IMPORTANT_ANNOUNCEMENT}
       />
       {/* ===== BODY ===== */}
@@ -266,7 +310,7 @@ const SystemMessagePage = () => {
 // =================================================================== */
 
 interface SystemMessageFormProps {
-  systemMessage: SystemMessage;
+  systemMessage: SystemMessageDomain;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onChangeType: (event: SelectChangeEvent) => void;
   onDatePickerUpdate: (date: Date | null) => void;
@@ -341,10 +385,19 @@ const SystemMessageForm = ({
 /* ===================================================================
 // ============================ Vorschau =============================
 // =================================================================== */
+/**
+ * Props für die Systemmeldungs-Vorschau.
+ *
+ * @param systemMessage - Meldungsobjekt mit title, text und type
+ */
 interface PreviewProps {
-  systemMessage: SystemMessage;
+  systemMessage: {title: string; text: string; type: "success" | "info" | "warning" | "error"};
 }
 
+/**
+ * Alert-Komponente zur Anzeige einer Systemmeldung.
+ * Wird sowohl auf der Admin-Seite (Vorschau) als auch auf der Startseite verwendet.
+ */
 export const AlertSystemMessage = ({systemMessage}: PreviewProps) => {
   return (
     <Alert severity={systemMessage.type}>

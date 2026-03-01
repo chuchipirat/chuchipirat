@@ -18,7 +18,7 @@ export const userRow: UserRow = {
   motto: "Testing is caring",
   picture_src: "https://example.com/profile.jpg",
   created_at: "2025-01-15T00:00:00.000Z",
-  last_change_at: "2026-02-20T10:00:00.000Z",
+  updated_at: "2026-02-20T10:00:00.000Z",
 };
 
 /** Mock: Domain-Objekt (camelCase) wie es in der App verwendet wird */
@@ -49,7 +49,7 @@ export const userRow2: UserRow = {
   motto: "I am the boss",
   picture_src: "",
   created_at: "2024-06-01T00:00:00.000Z",
-  last_change_at: "2026-02-25T08:00:00.000Z",
+  updated_at: "2026-02-25T08:00:00.000Z",
 };
 
 /** Mock: user_profiles View Zeile */

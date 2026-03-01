@@ -3,6 +3,7 @@ import {AuthUser} from "../authUser.class";
 
 export const authUser: AuthUser = {
   uid: "RvLIR9NDGOWPwos8PrSZVgfIZvj9",
+  authUid: "supabase-auth-uuid-mock",
   email: "test@chuchipirat.ch",
   emailVerified: true,
   firstName: "Test",

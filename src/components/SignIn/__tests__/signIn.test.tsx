@@ -43,6 +43,12 @@ const mockDatabase = {
   users: {
     findByAuthUid: mockFindByAuthUid,
   },
+  globalSettings: {
+    getSettings: jest.fn().mockResolvedValue({
+      allowSignUp: true,
+      maintenanceMode: false,
+    }),
+  },
 } as any;
 
 /** Mock-Firebase-Instanz */
@@ -56,17 +62,10 @@ const mockFirebase = {
   },
 } as any;
 
-/** Mock: GlobalSettings.getGlobalSettings gibt Standard-Werte zurück */
-jest.mock("../../Admin/globalSettings.class", () => ({
-  __esModule: true,
-  default: {
-    getGlobalSettings: jest.fn().mockResolvedValue({
-      maintenanceMode: false,
-      allowSignUp: true,
-      allowUserCreatePassword: "",
-    }),
-  },
-}));
+/**
+ * Mock: signIn.tsx ruft jetzt database.globalSettings.getSettings() auf.
+ * Der Mock wird über mockDatabase.globalSettings bereitgestellt.
+ */
 
 /** Mock: User.registerSignIn (kein Seiteneffekt nötig) */
 jest.mock("../../User/user.class", () => ({

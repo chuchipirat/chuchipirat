@@ -26,7 +26,9 @@ export const SYSTEM_WHERE_USED = "/system/whereused";
 export const SYSTEM_MERGE_ITEM = "/system/mergeitem";
 export const SYSTEM_CONVERT_ITEM = "/system/convertitem";
 export const SYSTEM_GLOBAL_SETTINGS = "/system/globalsettings";
-export const SYSTEM_SYSTEM_MESSAGE = "/system/systemmessage";
+export const SYSTEM_SYSTEM_MESSAGES = "/system/systemmessages";
+export const SYSTEM_SYSTEM_MESSAGE_NEW = "/system/systemmessage/new";
+export const SYSTEM_SYSTEM_MESSAGE_EDIT = "/system/systemmessage/:id";
 export const SYSTEM_DB_INDICES = "/system/dbIndices";
 export const SYSTEM_ACTIVATE_SUPPORT_USER = "/system/activatesupportuser";
 

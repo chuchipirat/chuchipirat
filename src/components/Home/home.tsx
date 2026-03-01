@@ -66,8 +66,9 @@ import {
 } from "../Navigation/navigationContext";
 import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
 import {useFirebase} from "../Firebase/firebaseContext";
-import SystemMessage from "../Admin/systemMessage.class";
-import {AlertSystemMessage} from "../Admin/systemMessage";
+import {useDatabase} from "../Database/DatabaseContext";
+import {SystemMessageDomain} from "../Database/Repository/SystemMessageRepository";
+import {AlertSystemMessage} from "../Admin/SystemMessage/systemMessage";
 import {General} from "../../constants/firebaseMessages";
 import useCustomStyles from "../../constants/styles";
 /* ===================================================================
@@ -101,7 +102,7 @@ type DispatchAction =
   | {type: ReducerActions.FEED_FETCH_SUCCESS; payload: Feed[]}
   | {type: ReducerActions.STATS_FETCH_INIT}
   | {type: ReducerActions.STATS_FETCH_SUCCESS; payload: Kpi[]}
-  | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS; payload: SystemMessage}
+  | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS; payload: SystemMessageDomain[]}
   | {type: ReducerActions.SET_SNACKBAR; payload: Snackbar}
   | {type: ReducerActions.CLOSE_SNACKBAR}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
@@ -112,7 +113,7 @@ type State = {
   recipes: Feed[];
   feed: Feed[];
   stats: Kpi[];
-  systemMessage: SystemMessage | null;
+  systemMessages: SystemMessageDomain[];
   snackbar: Snackbar;
   isLoadingEvents: boolean;
   isLoadingPassedEvents: boolean;
@@ -128,7 +129,7 @@ const inititialState: State = {
   recipes: [],
   feed: [],
   stats: [],
-  systemMessage: null,
+  systemMessages: [],
   snackbar: {} as Snackbar,
   isLoadingEvents: false,
   isLoadingPassedEvents: false,
@@ -198,7 +199,7 @@ const homeReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS:
       return {
         ...state,
-        systemMessage: action.payload,
+        systemMessages: action.payload,
       };
     case ReducerActions.SET_SNACKBAR:
       return {
@@ -227,6 +228,7 @@ const homeReducer = (state: State, action: DispatchAction): State => {
 // =================================================================== */
 const HomePage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const location = useLocation();
 
@@ -346,15 +348,15 @@ const HomePage = () => {
       });
   }, []);
   React.useEffect(() => {
-    SystemMessage.getSystemMessage({
-      firebase: firebase,
-      mustBeValid: true,
-    })
+    database.systemMessages
+      .getValidMessages()
       .then((result) => {
-        if (result?.text) {
+        // Nur Meldungen mit Text anzeigen
+        const withText = result.filter((msg) => msg.text);
+        if (withText.length > 0) {
           dispatch({
             type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS,
-            payload: result,
+            payload: withText,
           });
         }
       })
@@ -491,11 +493,11 @@ const HomePage = () => {
               />
             </Grid>
           )}
-          {state.systemMessage !== null && (
-            <Grid size={12} key="systemMessage">
-              <AlertSystemMessage systemMessage={state.systemMessage} />
+          {state.systemMessages.map((msg) => (
+            <Grid size={12} key={`systemMessage_${msg.uid}`}>
+              <AlertSystemMessage systemMessage={msg} />
             </Grid>
-          )}
+          ))}
           <Grid size={12}>
             <HomeNextEvents
               events={state.events}

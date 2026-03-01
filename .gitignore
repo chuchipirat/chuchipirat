@@ -16,6 +16,7 @@
 
 # misc
 .DS_Store
+*.DS_Store
 .env
 .env-cmdrc
 .env.development
@@ -58,9 +59,7 @@ supabase/volumes/auth/*
 supabase/volumes/auth/templates/*
 !supabase/volumes/auth/templates/**
 !supabase/volumes/functions
-supabase/volumes/functions/*
-!supabase/volumes/functions/main
-!supabase/volumes/functions/notify-vestaboard
+!supabase/volumes/functions/*
 supabase/dev/
 supabase/.env
 supabase/.temp/

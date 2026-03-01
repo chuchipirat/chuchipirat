@@ -57,6 +57,39 @@ HOCs (`withAuthentication`, `withAuthorization`, `withFirebase`) wrap components
 - **Functional React components** with hooks for UI
 - Shared utilities in `src/components/Shared/utils.class.ts`
 
+### Migration Architecture: 3-Layer Pattern
+
+The codebase is being migrated from Firebase to Supabase/Postgres. When migrating domain entities, follow this 3-layer architecture:
+
+```
+UI Component  →  Domain Service (.class.ts)  →  Repository
+   (tsx)         (pure business logic)           (persistence/CRUD)
+```
+
+**The UI never calls the Repository directly.** It accesses data through the `DatabaseContext` (`useDatabase()`) which exposes Repository methods, and calls Domain Service classes for business logic (validation, transformations, scaling).
+
+#### Layer responsibilities
+
+| Layer | Location | Responsibility | DB Access? |
+|-------|----------|---------------|------------|
+| **Repository** | `src/components/Database/Repository/` | CRUD, `toRow()`/`toDomain()` mapping, query filters | Yes |
+| **Domain Service** | `src/components/<Feature>/<entity>.class.ts` | Validation, transformations, computed values, factories | **No** |
+| **UI Component** | `src/components/<Feature>/<component>.tsx` | Rendering, user interaction, state management | Via `useDatabase()` |
+
+#### When to keep a Domain Service class vs. use only a Domain Interface
+
+- **Keep `.class.ts`** if the entity has **business logic** (validation, scaling, transformations, factory methods). Strip all DB/Firebase code during migration — it becomes a **pure logic service**.
+  - Examples: `Recipe` (~19 business logic methods), `Product` (merging, conversion), `Event`, `Material`
+- **Use only a Domain Interface** (defined in the Repository file) if the entity is a **simple data structure** with no business logic beyond what the Repository handles.
+  - Examples: `GlobalSettings` (just two booleans), `SystemMessage` (only validTo normalization, handled in Repository)
+
+#### Migration workflow for a `.class.ts` file
+
+1. **Create Repository** (`<Entity>Repository.ts`): Define `Row` interface, `Domain` interface, `toRow()`/`toDomain()`, CRUD methods
+2. **Strip DB code from `.class.ts`**: Remove all Firebase/Supabase calls, keep pure business logic (validation, transformations, factories)
+3. **Update UI**: Replace `Entity.save({firebase, ...})` with `database.<entity>.save(...)` and keep `EntityService.validate(...)` calls
+4. **If `.class.ts` becomes empty** (no business logic methods remain): Delete it, use `Domain` interface from Repository instead
+
 ### Constants
 
 All in `src/constants/`:
@@ -94,6 +127,80 @@ When creating or editing email templates (e.g. in `supabase/volumes/auth/templat
   Use `width="220"` and `max-width: 220px` for proper sizing
 - **Language**: All email text in German
 - **Footer**: Include `hallo@chuchipirat.ch` as contact
+
+## Supabase/Postgres Table Conventions
+
+When creating or modifying Postgres tables, follow these rules:
+
+### Column Naming
+
+- Use **snake_case** for all column and table names (e.g. `allow_sign_up`, `updated_at`)
+- Domain models in TypeScript use **camelCase** — the Repository's `toRow()`/`toDomain()` handles the mapping
+
+### Audit Columns
+
+Every table **must** have these 4 audit columns:
+
+```sql
+created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+created_by  UUID DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
+updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+updated_by  UUID DEFAULT auth.uid() REFERENCES auth.users(id) ON DELETE SET NULL,
+```
+
+- `created_at` — auto-set by DB default on INSERT; never changes
+- `created_by` — auto-set by DB default (`auth.uid()`) on INSERT; never changes; FK to `auth.users(id)`
+- `updated_at` — auto-updated by trigger `update_updated_at()` on every UPDATE
+- `updated_by` — auto-updated by trigger `update_updated_by()` on every INSERT/UPDATE; FK to `auth.users(id)`
+- Type is **UUID** (not TEXT) — matches `auth.users.id`
+- `created_by` and `updated_by` are nullable — `auth.uid()` returns NULL for service-role / dashboard access (no JWT)
+- `ON DELETE SET NULL` — if an auth account is deleted, the audit reference is cleared
+- For singleton tables, `created_by` will be NULL (row is inserted during migration without JWT) — this is correct and expected
+
+### Triggers
+
+Every table needs these two triggers:
+
+```sql
+CREATE TRIGGER trg_<table>_updated_at
+  BEFORE UPDATE ON public.<table>
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TRIGGER trg_<table>_updated_by
+  BEFORE INSERT OR UPDATE ON public.<table>
+  FOR EACH ROW EXECUTE FUNCTION update_updated_by();
+```
+
+- `update_updated_at()` — sets `updated_at = NOW()` on UPDATE
+- `update_updated_by()` — sets `updated_by = auth.uid()` on INSERT/UPDATE
+
+The trigger functions are shared across all tables (created in the first migration that needs them).
+
+### Row Level Security (RLS)
+
+- **Always** enable RLS: `ALTER TABLE public.<table> ENABLE ROW LEVEL SECURITY;`
+- Create explicit policies for SELECT, INSERT, UPDATE, DELETE as needed
+- Use `is_admin()` for admin-only write access
+- Use `auth.uid()` for user-scoped access (e.g. `USING (auth_uid = auth.uid())`)
+- Grant minimal permissions: `GRANT SELECT ON public.<table> TO anon, authenticated;`
+
+### Singleton Tables
+
+For configuration tables with exactly one row (e.g. `global_settings`, `system_messages`):
+
+```sql
+id TEXT PRIMARY KEY DEFAULT 'default',
+-- ... columns ...
+CONSTRAINT single_row CHECK (id = 'default')
+```
+
+Insert the default row at the end of the migration: `INSERT INTO public.<table> (id) VALUES ('default');`
+
+### App-Level Access
+
+- Use the **regular Supabase client** (not service-role/admin) for reads and writes from authenticated users — this ensures `auth.uid()` is available in defaults and triggers
+- Only use the **admin client** (service-role) for operations that genuinely need to bypass RLS (e.g. data migration, cross-user operations)
+- The `BaseRepository` accepts `authUser` in CRUD methods for API consistency, but audit columns are populated **automatically by the database** via defaults and triggers — the app does **not** set them manually
 
 ## Refactoring Guidelines
 

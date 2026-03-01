@@ -82,7 +82,7 @@ import {
   SYSTEM_OVERVIEW_MAILBOX as ROUTE_SYSTEM_OVERVIEW_MAILBOX,
   SYSTEM_OVERVIEW_CLOUDFX as ROUTE_SYSTEM_OVERVIEW_CLOUDFX,
   SYSTEM_OVERVIEW_FEEDS as ROUTE_OVERVIEW_FEEDS,
-  SYSTEM_SYSTEM_MESSAGE as ROUTE_SYSTEM_SYSTEM_MESSAGE,
+  SYSTEM_SYSTEM_MESSAGES as ROUTE_SYSTEM_SYSTEM_MESSAGES,
 } from "../../constants/routes";
 
 import useCustomStyles from "../../constants/styles";
@@ -322,7 +322,7 @@ const SettingsTile = ({goToDestination}: SettingsTileProps) => {
             </ListItemIcon>
             <ListItemText
               primary={TEXT_SYSTEM_MESSAGE}
-              onClick={() => goToDestination(ROUTE_SYSTEM_SYSTEM_MESSAGE)}
+              onClick={() => goToDestination(ROUTE_SYSTEM_SYSTEM_MESSAGES)}
             />
           </ListItemButton>
         </List>

@@ -30,7 +30,7 @@ export interface UserRow {
   motto: string;
   picture_src: string;
   created_at: string;
-  last_change_at: string;
+  updated_at: string;
 }
 
 /* =====================================================================

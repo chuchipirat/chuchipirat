@@ -152,6 +152,16 @@ export const PANEL_PRODUCTS = "Produkte";
 export const INTRODUCE_YOURSELF = "Stell dich vor";
 export const GLOBAL_SETTINGS = "Globale Einstellungen";
 export const SYSTEM_MESSAGE = "Systemmeldung";
+export const SYSTEM_MESSAGES = "Systemmeldungen";
+export const NEW_SYSTEM_MESSAGE = "Neue Systemmeldung";
+export const EDIT_SYSTEM_MESSAGE = "Systemmeldung bearbeiten";
+export const CREATE_SYSTEM_MESSAGE = "Systemmeldung erstellen";
+export const DELETE_SYSTEM_MESSAGE = "Systemmeldung löschen";
+export const DELETE_SYSTEM_MESSAGE_CONFIRMATION =
+  "Möchtest du diese Systemmeldung wirklich löschen?";
+export const SHOW_EXPIRED_MESSAGES = "Vergangene Meldungen anzeigen";
+export const SYSTEM_MESSAGE_DELETED = "Systemmeldung gelöscht";
+export const SYSTEM_MESSAGE_SAVED = "Systemmeldung gespeichert";
 export const ATENTION_IMPORTANT_ANNOUNCEMENT =
   "Achtung, Achtung, wichtige Durchsage!";
 export const DELETE_FEED = "Feed-Einträge löschen";
@@ -649,9 +659,10 @@ export const ACTIVATE_SUPPORT_USER_DESCRIPTION =
   "Den Support-User für einen Anlass berechtigen.";
 export const SIGN_OUT_ALL_USERS = "Alle Benutzer*innen abmelden";
 export const SIGN_OUT_ALL_USERS_DESCRIPTION =
-  "Für alle Benutzer*innen (ausser Admin) ein Log-Out durchführen.";
+  "Für alle Benutzer*innen (ausser Admin)\nein Log-Out durchführen.";
 export const SIGN_OUT_EVERYBODY = "Alle abmelden";
-export const USERS_ARE_LOGGED_OUT = "Benutzer*innen werden abgemeldet.";
+export const USERS_ARE_LOGGED_OUT =
+  "Benutzer*innen werden abgemeldet. Die Abmeldung wird innerhalb von einer Stunde wirksam.";
 /* =====================================================================
 // Diverse (längere) Texte
 // ===================================================================== */
@@ -724,7 +735,7 @@ export const SIGN_IN_WHY_REAUTHENTICATE = "Bitte authentifiziere dich erneut.";
 export const LOGIN_SUCCESSFULL = "Login erfolgreich";
 export const SIGN_UP_NOT_ALLOWED_TITLE = "Wohin des Weges Pirat?";
 export const SIGN_UP_NOT_ALLOWED_TEXT =
-  "Der chuchipirat befindet sich in der Beta-Phase. Die Anmeldung ist daher auf wenige Personen eingeschränkt. Melde dich unter hallo@chuchipirat für mehr Infos.";
+  "Aktuell sind keine Neuanmeldungen möglich. Danke fürs Verständnis. Wenn du schon einen Account hast, kannst du dich ganz normal einloggen.";
 export const MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED =
   "chuchipirat macht Pause: Wartungsmodus aktiviert";
 export const MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED_TEXT =
@@ -1054,8 +1065,7 @@ export const FIREBASE_MESSAGES = {
 export const SUPABASE_MESSAGES: Record<string, string> = {
   "New password should be different from the old password.":
     "Das neue Passwort muss sich vom alten Passwort unterscheiden.",
-  "Invalid login credentials":
-    "Ungültige Anmeldedaten.",
+  "Invalid login credentials": "Ungültige Anmeldedaten.",
   "User already registered":
     "Es besteht bereits ein Account mit dieser Adresse.",
   "Password should be at least 6 characters.":

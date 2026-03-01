@@ -8,6 +8,7 @@
 import {BaseRepository} from "../BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
+  SessionStorageHandler,
   StorageObjectProperty,
 } from "../../../Firebase/Db/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
@@ -52,6 +53,33 @@ class TestRepository extends BaseRepository<TestDomain, TestRow> {
   }
 }
 
+/**
+ * Repository mit aktivem Caching für Cache-spezifische Tests.
+ */
+class CacheableTestRepository extends BaseRepository<TestDomain, TestRow> {
+  tableName = "test_table";
+
+  toRow(domain: TestDomain): Partial<TestRow> {
+    return {
+      id: domain.uid,
+      name: domain.name,
+      is_active: domain.active,
+    };
+  }
+
+  toDomain(row: TestRow): TestDomain {
+    return {
+      uid: row.id,
+      name: row.name,
+      active: row.is_active,
+    };
+  }
+
+  getCacheConfig(): StorageObjectProperty {
+    return STORAGE_OBJECT_PROPERTY.EVENT;
+  }
+}
+
 /* =====================================================================
 // Test-Daten
 // ===================================================================== */
@@ -67,7 +95,7 @@ const testDomain: TestDomain = {
   active: true,
 };
 
-const authUser = {uid: "user-123"} as any;
+const authUser = {uid: "user-123", authUid: "auth-uuid-456"} as any;
 
 /* =====================================================================
 // Tests
@@ -443,6 +471,428 @@ describe("BaseRepository", () => {
 
       unsubscribe();
       expect(supabaseMock.client.removeChannel).toHaveBeenCalled();
+    });
+
+    test("onData wird bei UPDATE-Payload aufgerufen", () => {
+      const onData = jest.fn();
+      const onError = jest.fn();
+
+      // Callback des .on()-Aufrufs abfangen
+      let postgresCallback: (payload: any) => void = () => {};
+      const mockOn = jest.fn().mockImplementation((_event, _filter, cb) => {
+        postgresCallback = cb;
+        return {subscribe: jest.fn()};
+      });
+      supabaseMock.client.channel.mockReturnValue({
+        on: mockOn,
+        subscribe: jest.fn(),
+      });
+
+      repo.subscribe({id: "test-id-123", onData, onError});
+
+      // Simuliere ein UPDATE-Event
+      postgresCallback({eventType: "UPDATE", new: testRow});
+
+      expect(onData).toHaveBeenCalledWith(testDomain);
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    test("onError wird bei DELETE-Payload aufgerufen", () => {
+      const onData = jest.fn();
+      const onError = jest.fn();
+
+      let postgresCallback: (payload: any) => void = () => {};
+      const mockOn = jest.fn().mockImplementation((_event, _filter, cb) => {
+        postgresCallback = cb;
+        return {subscribe: jest.fn()};
+      });
+      supabaseMock.client.channel.mockReturnValue({
+        on: mockOn,
+        subscribe: jest.fn(),
+      });
+
+      repo.subscribe({id: "test-id-123", onData, onError});
+
+      // Simuliere ein DELETE-Event
+      postgresCallback({eventType: "DELETE"});
+
+      expect(onError).toHaveBeenCalledWith(new Error("Record deleted"));
+      expect(onData).not.toHaveBeenCalled();
+    });
+
+    test("onError wird bei CHANNEL_ERROR aufgerufen", () => {
+      const onData = jest.fn();
+      const onError = jest.fn();
+
+      let statusCallback: (status: string) => void = () => {};
+      const mockSubscribe = jest.fn().mockImplementation((cb) => {
+        statusCallback = cb;
+        return {};
+      });
+      supabaseMock.client.channel.mockReturnValue({
+        on: jest.fn().mockReturnValue({subscribe: mockSubscribe}),
+      });
+
+      repo.subscribe({id: "test-id-123", onData, onError});
+
+      statusCallback("CHANNEL_ERROR");
+
+      expect(onError).toHaveBeenCalledWith(
+        new Error("Realtime subscription error for test_table:test-id-123")
+      );
+    });
+
+    test("onError wird bei Fehler im toDomain-Callback aufgerufen", () => {
+      const onData = jest.fn();
+      const onError = jest.fn();
+
+      let postgresCallback: (payload: any) => void = () => {};
+      const mockOn = jest.fn().mockImplementation((_event, _filter, cb) => {
+        postgresCallback = cb;
+        return {subscribe: jest.fn()};
+      });
+      supabaseMock.client.channel.mockReturnValue({
+        on: mockOn,
+        subscribe: jest.fn(),
+      });
+
+      repo.subscribe({id: "test-id-123", onData, onError});
+
+      // Ungültige Daten, die einen Fehler in toDomain verursachen
+      postgresCallback({eventType: "UPDATE", new: null});
+
+      expect(onError).toHaveBeenCalled();
+      expect(onData).not.toHaveBeenCalled();
+    });
+  });
+
+  /* ------------------------------------------
+  // incrementMany()
+  // ------------------------------------------ */
+  describe("incrementMany()", () => {
+    test("Mehrere Felder sequenziell inkrementieren", async () => {
+      supabaseMock.client.rpc.mockResolvedValue({data: null, error: null});
+
+      await repo.incrementMany({
+        id: "test-id-123",
+        increments: [
+          {field: "counter_a", amount: 1},
+          {field: "counter_b", amount: -2},
+        ],
+      });
+
+      expect(supabaseMock.client.rpc).toHaveBeenCalledTimes(2);
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith("increment_field", {
+        table_name: "test_table",
+        row_id: "test-id-123",
+        field_name: "counter_a",
+        amount: 1,
+      });
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith("increment_field", {
+        table_name: "test_table",
+        row_id: "test-id-123",
+        field_name: "counter_b",
+        amount: -2,
+      });
+    });
+
+    test("Leeres Array verursacht keinen RPC-Aufruf", async () => {
+      await repo.incrementMany({id: "test-id", increments: []});
+
+      expect(supabaseMock.client.rpc).not.toHaveBeenCalled();
+    });
+
+    test("Fehler beim zweiten Increment bricht ab", async () => {
+      supabaseMock.client.rpc
+        .mockResolvedValueOnce({data: null, error: null})
+        .mockResolvedValueOnce({data: null, error: {message: "RPC failed"}});
+
+      await expect(
+        repo.incrementMany({
+          id: "test-id",
+          increments: [
+            {field: "a", amount: 1},
+            {field: "b", amount: 1},
+          ],
+        })
+      ).rejects.toEqual({message: "RPC failed"});
+    });
+  });
+
+  /* ------------------------------------------
+  // findMany() — zusätzliche Tests
+  // ------------------------------------------ */
+  describe("findMany() — erweitert", () => {
+    test("Fehler bei findMany() werfen", async () => {
+      supabaseMock.queryMock.select.mockReturnValue({
+        ...supabaseMock.queryMock,
+        then: (resolve: any, reject: any) =>
+          reject
+            ? resolve({data: null, error: {message: "Query failed"}})
+            : resolve({data: null, error: {message: "Query failed"}}),
+      });
+
+      // Die Methode prüft error und wirft
+      await expect(repo.findMany()).rejects.toEqual({message: "Query failed"});
+    });
+
+    test("Mit absteigender Sortierung laden", async () => {
+      const mockData = [testRow];
+      supabaseMock.queryMock.limit.mockResolvedValue({
+        data: mockData,
+        error: null,
+      });
+
+      await repo.findMany({
+        orderBy: {field: "name", direction: "desc"},
+        limit: 5,
+      });
+
+      expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("name", {
+        ascending: false,
+      });
+    });
+  });
+
+  /* ------------------------------------------
+  // applyFilter() — alle Operatoren
+  // ------------------------------------------ */
+  describe("applyFilter() — alle Operatoren", () => {
+    // Hilfsfunktion: führt findMany mit einem Filter aus
+    const runWithFilter = async (
+      operator: string,
+      value: unknown,
+      expectedMethod: string
+    ) => {
+      supabaseMock = createSupabaseMock();
+      repo = new TestRepository();
+      (repo as any).client = supabaseMock.client;
+
+      const mockData = [testRow];
+      // Jeder Operator-Mock gibt ein thenable Objekt zurück
+      supabaseMock.queryMock[expectedMethod].mockReturnValue({
+        ...supabaseMock.queryMock,
+        then: (resolve: any) => resolve({data: mockData, error: null}),
+      });
+
+      await repo.findMany({
+        filters: [{field: "name", operator: operator as any, value}],
+      });
+
+      expect(supabaseMock.queryMock[expectedMethod]).toHaveBeenCalledWith(
+        "name",
+        value
+      );
+    };
+
+    test("neq-Operator", async () => {
+      await runWithFilter("neq", "test", "neq");
+    });
+
+    test("gt-Operator", async () => {
+      await runWithFilter("gt", 10, "gt");
+    });
+
+    test("gte-Operator", async () => {
+      await runWithFilter("gte", 10, "gte");
+    });
+
+    test("lt-Operator", async () => {
+      await runWithFilter("lt", 5, "lt");
+    });
+
+    test("lte-Operator", async () => {
+      await runWithFilter("lte", 5, "lte");
+    });
+
+    test("like-Operator", async () => {
+      await runWithFilter("like", "%test%", "like");
+    });
+
+    test("ilike-Operator", async () => {
+      await runWithFilter("ilike", "%TEST%", "ilike");
+    });
+
+    test("in-Operator", async () => {
+      const values = ["a", "b", "c"];
+      supabaseMock.queryMock.in.mockReturnValue({
+        ...supabaseMock.queryMock,
+        then: (resolve: any) => resolve({data: [testRow], error: null}),
+      });
+
+      await repo.findMany({
+        filters: [{field: "name", operator: "in", value: values}],
+      });
+
+      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("name", values);
+    });
+  });
+
+  /* ------------------------------------------
+  // findById() — zusätzliche Tests
+  // ------------------------------------------ */
+  describe("findById() — erweitert", () => {
+    test("ignoreCache=true überspringt den Cache", async () => {
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: testRow,
+        error: null,
+      });
+
+      const result = await repo.findById("test-id-123", true);
+
+      // Sollte trotzdem die DB abfragen
+      expect(supabaseMock.client.from).toHaveBeenCalledWith("test_table");
+      expect(result).not.toBeNull();
+      expect(result!.uid).toBe("test-id-123");
+    });
+  });
+
+  /* ------------------------------------------
+  // Cache-Verhalten mit aktivem Caching
+  // ------------------------------------------ */
+  describe("Cache-Verhalten (excludeFromCaching=false)", () => {
+    let cacheRepo: CacheableTestRepository;
+
+    beforeEach(() => {
+      cacheRepo = new CacheableTestRepository();
+      (cacheRepo as any).client = supabaseMock.client;
+    });
+
+    test("findById schreibt Ergebnis in den Cache", async () => {
+      const spy = jest.spyOn(SessionStorageHandler, "upsertDocument");
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: testRow,
+        error: null,
+      });
+
+      await cacheRepo.findById("test-id-123");
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentUid: "test-id-123",
+          value: testDomain,
+        })
+      );
+      spy.mockRestore();
+    });
+
+    test("findById liest aus dem Cache wenn vorhanden", async () => {
+      const getSpy = jest
+        .spyOn(SessionStorageHandler, "getDocument")
+        .mockReturnValue(testDomain as any);
+
+      const result = await cacheRepo.findById("test-id-123");
+
+      // Kein DB-Aufruf, da Cache-Hit
+      expect(supabaseMock.client.from).not.toHaveBeenCalled();
+      expect(result).toEqual(testDomain);
+
+      getSpy.mockRestore();
+    });
+
+    test("findById mit ignoreCache=true überspringt Cache-Lookup", async () => {
+      const getSpy = jest
+        .spyOn(SessionStorageHandler, "getDocument")
+        .mockReturnValue(testDomain as any);
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: testRow,
+        error: null,
+      });
+
+      await cacheRepo.findById("test-id-123", true);
+
+      // Cache-Lookup wird nicht aufgerufen
+      expect(getSpy).not.toHaveBeenCalled();
+      // DB wird abgefragt
+      expect(supabaseMock.client.from).toHaveBeenCalled();
+
+      getSpy.mockRestore();
+    });
+
+    test("insert schreibt Ergebnis in den Cache", async () => {
+      const spy = jest.spyOn(SessionStorageHandler, "upsertDocument");
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: testRow,
+        error: null,
+      });
+
+      await cacheRepo.insert({value: testDomain, authUser});
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentUid: "test-id-123",
+          value: testDomain,
+        })
+      );
+      spy.mockRestore();
+    });
+
+    test("update schreibt Ergebnis in den Cache", async () => {
+      const spy = jest.spyOn(SessionStorageHandler, "upsertDocument");
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: testRow,
+        error: null,
+      });
+
+      await cacheRepo.update({id: "test-id-123", value: testDomain, authUser});
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentUid: "test-id-123",
+          value: testDomain,
+        })
+      );
+      spy.mockRestore();
+    });
+
+    test("patch aktualisiert Cache-Felder", async () => {
+      const spy = jest.spyOn(SessionStorageHandler, "updateDocumentField");
+      supabaseMock.queryMock.eq.mockResolvedValue({data: null, error: null});
+
+      await cacheRepo.patch({
+        id: "test-id-123",
+        fields: {name: "New Name"},
+      });
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentUid: "test-id-123",
+          value: {name: "New Name"},
+        })
+      );
+      spy.mockRestore();
+    });
+
+    test("upsert schreibt Ergebnis in den Cache", async () => {
+      const spy = jest.spyOn(SessionStorageHandler, "upsertDocument");
+      supabaseMock.queryMock.single.mockResolvedValue({
+        data: testRow,
+        error: null,
+      });
+
+      await cacheRepo.upsert({id: "test-id-123", value: testDomain, authUser});
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentUid: "test-id-123",
+          value: testDomain,
+        })
+      );
+      spy.mockRestore();
+    });
+
+    test("remove löscht Eintrag aus dem Cache", async () => {
+      const spy = jest.spyOn(SessionStorageHandler, "deleteDocument");
+      supabaseMock.queryMock.eq.mockResolvedValue({data: null, error: null});
+
+      await cacheRepo.remove("test-id-123");
+
+      expect(spy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          documentUid: "test-id-123",
+        })
+      );
+      spy.mockRestore();
     });
   });
 });
