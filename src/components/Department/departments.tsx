@@ -1,4 +1,10 @@
-import React from "react";
+/**
+ * DepartmentsPage — Übersichtsseite für Abteilungen (Stammdaten).
+ *
+ * Zeigt alle Abteilungen tabellarisch an, erlaubt das Bearbeiten von
+ * Namen und Sortierreihenfolge sowie das Anlegen neuer Abteilungen.
+ */
+import React, {SyntheticEvent} from "react";
 
 import {
   DEPARTMENTS as TEXT_DEPARTMENTS,
@@ -11,19 +17,18 @@ import {
   DEPARTMENT as TEXT_DEPARTMENT,
   RANK as TEXT_RANK,
   ORDER as TEXT_ORDER,
-  PORTION as TEXT_POSITION,
   DEPARTMENT_CREATED as TEXT_DEPARTMENT_CREATED,
   SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
 } from "../../constants/text";
 
-import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import CustomSnackbar, {
   SNACKBAR_INITIAL_STATE_VALUES,
   Snackbar,
 } from "../Shared/customSnackbar";
 
-import Roles, {Role} from "../../constants/roles";
-import Department from "./department.class";
+import Roles from "../../constants/roles";
+import {DepartmentDomain} from "../Database/Repository/DepartmentRepository";
 import ButtonRow from "../Shared/buttonRow";
 import PageTitle from "../Shared/pageTitle";
 import useCustomStyles from "../../constants/styles";
@@ -40,6 +45,7 @@ import {
   MenuItem,
   Select,
   SelectChangeEvent,
+  SnackbarCloseReason,
   TextField,
   Typography,
 } from "@mui/material";
@@ -49,10 +55,8 @@ import EnhancedTable, {
   ColumnTextAlign,
   TableColumnTypes,
 } from "../Shared/enhancedTable";
-import Utils from "../Shared/utils.class";
 import DialogDepartment from "./dialogDepartment";
 import {useAuthUser} from "../Session/authUserContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -67,20 +71,47 @@ enum ReducerActions {
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
 }
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
 
-type State = {
-  departments: Department[];
+/**
+ * Diskriminierte Union für typsichere Reducer-Actions.
+ */
+type ReducerAction =
+  | {type: ReducerActions.FETCH_INIT}
+  | {
+      type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS;
+      payload: DepartmentDomain[];
+    }
+  | {
+      type: ReducerActions.DEPARTMENT_ON_CHANGE;
+      payload: {field: string; key: string; value: string};
+    }
+  | {
+      type: ReducerActions.SET_NEW_POSITION_FOR_DEPARTMENT;
+      payload: DepartmentDomain[];
+    }
+  | {type: ReducerActions.DEPARTMENTS_SAVED}
+  | {type: ReducerActions.NEW_DEPARTMENT_CREATED; payload: DepartmentDomain}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
+
+/**
+ * State der DepartmentsPage.
+ *
+ * @param departments - Liste aller Abteilungen
+ * @param positionList - Verfügbare Positionen (1..N als Strings)
+ * @param error - Letzter aufgetretener Fehler (oder null)
+ * @param isLoading - Ob gerade Daten geladen werden
+ * @param snackbar - Zustand der Snackbar-Benachrichtigung
+ */
+interface State {
+  departments: DepartmentDomain[];
   positionList: string[];
   error: Error | null;
   isLoading: boolean;
   snackbar: Snackbar;
-};
+}
 
-const inititialState: State = {
+const initialState: State = {
   departments: [],
   positionList: [],
   error: null,
@@ -88,7 +119,82 @@ const inititialState: State = {
   snackbar: SNACKBAR_INITIAL_STATE_VALUES,
 };
 
-const departmentsReducer = (state: State, action: DispatchAction): State => {
+/* ===================================================================
+// ======================== Hilfsfunktionen ==========================
+// =================================================================== */
+
+/**
+ * Normalisiert die Positionen aller Abteilungen auf lückenlose 1..N-Werte.
+ *
+ * Sortiert zuerst nach `pos` und weist dann jedem Eintrag eine
+ * fortlaufende Position zu. Damit wird das MUI-Select-Problem mit
+ * nicht-zusammenhängenden Positionswerten behoben.
+ *
+ * @param departments - Liste der Abteilungen mit ggf. lückenhaften Positionen
+ * @returns Neue Liste mit normalisierten Positionen (1-basiert)
+ */
+const normalizeDepartmentPositions = (
+  departments: DepartmentDomain[],
+): DepartmentDomain[] => {
+  return [...departments]
+    .sort((a, b) => a.pos - b.pos)
+    .map((dept, index) => ({...dept, pos: index + 1}));
+};
+
+/**
+ * Erzeugt eine Positionsliste ["1", "2", ..., "N"] für das Select-Dropdown.
+ *
+ * @param arrayLength - Anzahl der Einträge
+ * @returns Array mit Positions-Strings
+ */
+const createPositionList = (arrayLength: number): string[] => {
+  return Array.from({length: arrayLength}, (_, i) => String(i + 1));
+};
+
+/**
+ * Verschiebt eine Abteilung an eine neue Position und nummeriert alle
+ * Positionen neu (1..N).
+ *
+ * @param departments - Aktuelle Liste der Abteilungen (mit normalisierten Positionen)
+ * @param departmentUid - UID der zu verschiebenden Abteilung
+ * @param newPos - Neue Zielposition (1-basiert)
+ * @returns Neu sortierte und normalisierte Liste, oder undefined wenn uid nicht gefunden
+ */
+const reorderDepartment = (
+  departments: DepartmentDomain[],
+  departmentUid: string,
+  newPos: number,
+): DepartmentDomain[] | undefined => {
+  const sorted = [...departments].sort((deptA, deptB) => deptA.pos - deptB.pos);
+  const currentIndex = sorted.findIndex((department) => department.uid === departmentUid);
+  if (currentIndex === -1) {
+    return undefined;
+  }
+
+  // Abteilung entfernen und an neuer Position einfügen
+  const [moved] = sorted.splice(currentIndex, 1);
+  sorted.splice(newPos - 1, 0, moved);
+
+  // Positionen direkt aus der neuen Array-Reihenfolge zuweisen
+  // (nicht normalizeDepartmentPositions verwenden, da diese nach
+  // den alten pos-Werten sortiert und die Umordnung rückgängig macht)
+  return sorted.map((dept, index) => ({...dept, pos: index + 1}));
+};
+
+/* ===================================================================
+// ======================== Reducer ==================================
+// =================================================================== */
+
+/**
+ * Reducer für die DepartmentsPage.
+ *
+ * Verwaltet Lade-, Bearbeitungs- und Fehlerzustände der Abteilungsliste.
+ *
+ * @param state - Aktueller Zustand
+ * @param action - Diskriminierte Union-Action
+ * @returns Neuer Zustand
+ */
+const departmentsReducer = (state: State, action: ReducerAction): State => {
   switch (action.type) {
     case ReducerActions.FETCH_INIT:
       // Daten werden geladen
@@ -96,28 +202,33 @@ const departmentsReducer = (state: State, action: DispatchAction): State => {
         ...state,
         isLoading: true,
       };
-    case ReducerActions.DEPARTMENTS_FETCH_SUCCESS:
-      // Abteilungen geholt
+    case ReducerActions.DEPARTMENTS_FETCH_SUCCESS: {
+      // Abteilungen geholt — Positionen normalisieren
+      const normalized = normalizeDepartmentPositions(action.payload);
       return {
         ...state,
-        departments: action.payload as Department[],
-        positionList: createPositionList(action.payload.length),
+        departments: normalized,
+        positionList: createPositionList(normalized.length),
         isLoading: false,
       };
+    }
     case ReducerActions.DEPARTMENT_ON_CHANGE:
-      // Feldwert geändert
+      // Feldwert geändert (immutabel)
       return {
         ...state,
         departments: state.departments.map((department) => {
           if (department.uid === action.payload.key) {
-            department[action.payload.field] = action.payload.value;
+            return {
+              ...department,
+              [action.payload.field]: action.payload.value,
+            };
           }
           return department;
         }),
       };
     case ReducerActions.SET_NEW_POSITION_FOR_DEPARTMENT:
-      // Position geänder
-      return {...state, departments: action.payload as Department[]};
+      // Position geändert
+      return {...state, departments: action.payload};
     case ReducerActions.DEPARTMENTS_SAVED:
       // Alle Einträge gespeichert
       return {
@@ -129,18 +240,22 @@ const departmentsReducer = (state: State, action: DispatchAction): State => {
           open: true,
         },
       };
-    case ReducerActions.NEW_DEPARTMENT_CREATED:
-      // Neue Abteilung wurde angelegt
+    case ReducerActions.NEW_DEPARTMENT_CREATED: {
+      // Neue Abteilung wurde angelegt — Liste normalisieren
+      const withNew = normalizeDepartmentPositions(
+        state.departments.concat([action.payload]),
+      );
       return {
         ...state,
-        departments: state.departments.concat([action.payload as Department]),
-        positionList: createPositionList(state.departments.length + 1),
+        departments: withNew,
+        positionList: createPositionList(withNew.length),
         snackbar: {
           severity: "success",
           message: TEXT_DEPARTMENT_CREATED(action.payload.name),
           open: true,
         },
       };
+    }
     case ReducerActions.SNACKBAR_CLOSE:
       // Snackbar schliessen
       return {
@@ -152,14 +267,19 @@ const departmentsReducer = (state: State, action: DispatchAction): State => {
       return {
         ...state,
         isLoading: false,
-        error: action.payload as Error,
+        error: action.payload,
       };
-
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+    default: {
+      // Exhaustive-Check: TypeScript meldet einen Fehler, falls ein
+      // neuer ReducerActions-Wert nicht behandelt wird.
+      const _exhaustiveCheck: never = action;
+      throw new Error(
+        `Unbekannter ActionType: ${JSON.stringify(_exhaustiveCheck)}`
+      );
+    }
   }
 };
+
 const TABLE_COLUMS: Column[] = [
   {
     id: "uid",
@@ -187,50 +307,38 @@ const TABLE_COLUMS: Column[] = [
   },
 ];
 
-const createPositionList = (arrayLength: number) => {
-  const positionList: string[] = [];
-  for (let i = 0; i < arrayLength; i++) {
-    positionList.push(String(i + 1));
-  }
-  return positionList;
-};
-
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
-
 /* ===================================================================
 // =============================== Base ==============================
 // =================================================================== */
+
+/**
+ * Hauptkomponente für die Abteilungsverwaltung.
+ *
+ * Lädt alle Abteilungen beim Mount, bietet einen Bearbeitungsmodus
+ * zum Umbenennen und Umsortieren und erlaubt das Anlegen neuer
+ * Abteilungen über einen Dialog.
+ */
 const DepartmentsPage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
 
   const [editMode, setEditMode] = React.useState(false);
-  const [state, dispatch] = React.useReducer(
-    departmentsReducer,
-    inititialState
-  );
-  const [addDepartmentPopUp, setAddDepartmentPopUp] = React.useState({
-    open: false,
-  });
+  const [state, dispatch] = React.useReducer(departmentsReducer, initialState);
+  const [addDepartmentPopUp, setAddDepartmentPopUp] = React.useState(false);
 
   /* ------------------------------------------
   // Daten aus der DB holen
   // ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.FETCH_INIT,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.FETCH_INIT});
 
-    // Abteilungen holen
-    Department.getAllDepartments({firebase: firebase})
+    database.departments
+      .getAllDepartments()
       .then((result) => {
         dispatch({
           type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-          payload: Utils.sortArray({array: result, attributeName: "pos"}),
+          payload: result,
         });
       })
       .catch((error) => {
@@ -240,7 +348,8 @@ const DepartmentsPage = () => {
           payload: error,
         });
       });
-  }, []);
+  }, [database]);
+
   if (!authUser) {
     return null;
   }
@@ -254,24 +363,24 @@ const DepartmentsPage = () => {
   // PopUp Handler
   // ------------------------------------------ */
   const onAddDepartment = () => {
-    setAddDepartmentPopUp({...addDepartmentPopUp, open: true});
+    setAddDepartmentPopUp(true);
   };
   const onPopUpClose = () => {
-    setAddDepartmentPopUp({...addDepartmentPopUp, open: false});
+    setAddDepartmentPopUp(false);
   };
   const onPopUpError = (error: Error) => {
     dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-    setAddDepartmentPopUp({...addDepartmentPopUp, open: false});
+    setAddDepartmentPopUp(false);
   };
   /* ------------------------------------------
   // Abteilung wurde angelegt
   // ------------------------------------------ */
-  const onCreateDepartment = (department: Department) => {
+  const onCreateDepartment = (department: DepartmentDomain) => {
     dispatch({
       type: ReducerActions.NEW_DEPARTMENT_CREATED,
       payload: department,
     });
-    setAddDepartmentPopUp({...addDepartmentPopUp, open: false});
+    setAddDepartmentPopUp(false);
   };
   /* ------------------------------------------
   // Feldwert geändert
@@ -296,34 +405,28 @@ const DepartmentsPage = () => {
       return;
     }
 
-    const sortedDepartmentList = Department.setPositionForDepartment({
-      departmentList: state.departments,
-      departmentUid: selectedItem[1],
-      newPos: parseInt(event.target.value as string),
-    });
+    const reordered = reorderDepartment(
+      state.departments,
+      selectedItem[1],
+      parseInt(event.target.value as string),
+    );
 
-    if (!sortedDepartmentList) {
+    if (!reordered) {
       return;
     }
     dispatch({
       type: ReducerActions.SET_NEW_POSITION_FOR_DEPARTMENT,
-      payload: sortedDepartmentList,
+      payload: reordered,
     });
   };
   /* ------------------------------------------
   // Speichern
   // ------------------------------------------ */
   const onSave = () => {
-    Department.saveAllDepartments({
-      firebase: firebase,
-      departments: state.departments,
-      authUser: authUser,
-    })
+    database.departments
+      .saveAllDepartments(state.departments, authUser)
       .then(() => {
-        dispatch({
-          type: ReducerActions.DEPARTMENTS_SAVED,
-          payload: {},
-        });
+        dispatch({type: ReducerActions.DEPARTMENTS_SAVED});
       })
       .catch((error) => {
         dispatch({
@@ -332,18 +435,19 @@ const DepartmentsPage = () => {
         });
       });
   };
-  // /* ------------------------------------------
-  // // Snackback schliessen
-  // // ------------------------------------------ */
-  const onSnackbarClose = (event, reason) => {
+  /* ------------------------------------------
+  // Snackbar schliessen
+  // ------------------------------------------ */
+  const onSnackbarClose = (
+    _event: Event | SyntheticEvent,
+    reason: SnackbarCloseReason,
+  ) => {
     if (reason === "clickaway") {
       return;
     }
-    dispatch({
-      type: ReducerActions.SNACKBAR_CLOSE,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
+
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
@@ -412,8 +516,7 @@ const DepartmentsPage = () => {
         </Grid>
       </Container>
       <DialogDepartment
-        firebase={firebase}
-        dialogOpen={addDepartmentPopUp.open}
+        dialogOpen={addDepartmentPopUp}
         nextHigherPos={state.positionList.length + 1}
         handleCreate={onCreateDepartment}
         handleClose={onPopUpClose}
@@ -429,11 +532,25 @@ const DepartmentsPage = () => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ========================= Departments Tabelle =====================
 // =================================================================== */
+
+/**
+ * Tabellenkomponente für die Abteilungsliste.
+ *
+ * Zeigt im Lesemodus eine EnhancedTable, im Bearbeitungsmodus
+ * editierbare Textfelder und Positions-Dropdowns.
+ *
+ * @param departments - Liste der Abteilungen
+ * @param positionList - Verfügbare Positionen als Strings
+ * @param onChangeField - Handler für Namensänderungen
+ * @param onChangeSelect - Handler für Positionsänderungen
+ * @param editMode - Ob der Bearbeitungsmodus aktiv ist
+ */
 interface DepartmentTableProps {
-  departments: Department[];
+  departments: DepartmentDomain[];
   positionList: string[];
   onChangeField: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onChangeSelect: (event: SelectChangeEvent) => void;
@@ -476,10 +593,10 @@ const DepartmentTable = ({
                 </Grid>
                 <Grid key={"gridItemPos_" + department.uid} size={4}>
                   <FormControl fullWidth sx={classes.formControl}>
-                    <InputLabel key="label_pos">{TEXT_POSITION}</InputLabel>
+                    <InputLabel key="label_pos">{TEXT_ORDER}</InputLabel>
                     <Select
                       labelId="label_pos"
-                      label={TEXT_POSITION}
+                      label={TEXT_ORDER}
                       id={"pos_" + department.uid}
                       name={"pos_" + department.uid}
                       value={department.pos.toString()}

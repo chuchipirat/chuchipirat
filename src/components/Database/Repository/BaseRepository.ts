@@ -133,6 +133,16 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
   abstract tableName: string;
 
   /**
+   * Name der Primärschlüssel-Spalte in der Postgres-Tabelle.
+   * Standard ist "id". Kann in Subklassen überschrieben werden,
+   * wenn eine Tabelle einen natürlichen Schlüssel als PK verwendet
+   * (z.B. "key" für die units-Tabelle).
+   */
+  protected get primaryKeyColumn(): string {
+    return "id";
+  }
+
+  /**
    * Konvertiert ein Domain-Objekt in eine DB-Zeile.
    * @param domain - Das Domain-Objekt (camelCase)
    * @returns Partielle DB-Zeile (snake_case)
@@ -168,7 +178,7 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     const row = this.toRow(value);
 
     if (id) {
-      (row as Record<string, unknown>).id = id;
+      (row as Record<string, unknown>)[this.primaryKeyColumn] = id;
     }
 
     const {data, error} = await this.client
@@ -180,8 +190,9 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     if (error) throw error;
 
     const domain = this.toDomain(data as TRow);
-    this.cacheUpsert((data as Record<string, unknown>).id as string, domain);
-    return {id: (data as Record<string, unknown>).id as string, value: domain};
+    const pk = (data as Record<string, unknown>)[this.primaryKeyColumn] as string;
+    this.cacheUpsert(pk, domain);
+    return {id: pk, value: domain};
   }
 
   /* =====================================================================
@@ -203,7 +214,7 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     const {data, error} = await this.client
       .from(this.tableName)
       .select("*")
-      .eq("id", id)
+      .eq(this.primaryKeyColumn, id)
       .single();
 
     if (error) {
@@ -268,7 +279,7 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
           event: "*",
           schema: "public",
           table: this.tableName,
-          filter: `id=eq.${id}`,
+          filter: `${this.primaryKeyColumn}=eq.${id}`,
         },
         (payload) => {
           try {
@@ -309,13 +320,13 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     authUser: _authUser,
   }: UpdateParams<TDomain>): Promise<TDomain> {
     const row = this.toRow(value);
-    // Remove id from the update payload — it's the primary key
-    delete (row as Record<string, unknown>).id;
+    // Primärschlüssel aus dem Update-Payload entfernen
+    delete (row as Record<string, unknown>)[this.primaryKeyColumn];
 
     const {data, error} = await this.client
       .from(this.tableName)
       .update(row)
-      .eq("id", id)
+      .eq(this.primaryKeyColumn, id)
       .select()
       .single();
 
@@ -341,7 +352,7 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     const {error} = await this.client
       .from(this.tableName)
       .update(fields as Record<string, unknown>)
-      .eq("id", id);
+      .eq(this.primaryKeyColumn, id);
 
     if (error) throw error;
 
@@ -362,7 +373,7 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     authUser: _authUser,
   }: UpsertParams<TDomain>): Promise<TDomain> {
     const row = this.toRow(value);
-    (row as Record<string, unknown>).id = id;
+    (row as Record<string, unknown>)[this.primaryKeyColumn] = id;
 
     const {data, error} = await this.client
       .from(this.tableName)
@@ -428,7 +439,7 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     const {error} = await this.client
       .from(this.tableName)
       .delete()
-      .eq("id", id);
+      .eq(this.primaryKeyColumn, id);
 
     if (error) throw error;
 

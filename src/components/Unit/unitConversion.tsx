@@ -35,6 +35,7 @@ import {
   BASIC as TEXT_BASIC,
   PRODUCT_SPECIFIC as TEXT_PRODUCT_SPECIFIC,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
+  CANCEL as TEXT_CANCEL,
 } from "../../constants/text";
 import Role from "../../constants/roles";
 
@@ -58,10 +59,10 @@ import Unit from "./unit.class";
 import UnitConversion from "./unitConversion.class";
 import Product from "../Product/product.class";
 
-import Utils from "../Shared/utils.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
+import {UnitConversionBasicDomain} from "../Database/Repository/UnitConversionBasicRepository";
+import {UnitConversionProductDomain} from "../Database/Repository/UnitConversionProductRepository";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -78,6 +79,7 @@ enum ReducerActions {
   UNIT_CONVERSION_BASIC_ON_CHANGE,
   UNIT_CONVERSION_PRODUCT_ON_CHANGE,
   UNIT_CONVERSIONS_SAVED,
+  UNIT_CONVERSIONS_EDIT_CANCELLED,
   DELETE_BASIC_UNIT_CONVERSION,
   DELETE_PRODUCT_UNIT_CONVERSION,
   GENERIC_ERROR,
@@ -100,12 +102,44 @@ type State = {
   isLoading: isLoading;
   snackbar: Snackbar;
 };
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
 
-const inititialState: State = {
+/** Diskriminierte Union für Reducer-Actions — typsichere Payloads. */
+type ReducerAction =
+  | {type: ReducerActions.FETCH_INIT; payload: {field: string}}
+  | {
+      type: ReducerActions.UNIT_CONVERSION_BASIC_FETCH_SUCCESS;
+      payload: UnitConversion[];
+    }
+  | {
+      type: ReducerActions.UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS;
+      payload: UnitConversion[];
+    }
+  | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
+  | {type: ReducerActions.UNITS_FETCH_SUCCESS; payload: Unit[]}
+  | {type: ReducerActions.NEW_UNIT_CONVERSION_BASIC; payload: UnitConversion}
+  | {type: ReducerActions.NEW_UNIT_CONVERSION_PRODUCT; payload: UnitConversion}
+  | {
+      type: ReducerActions.UNIT_CONVERSION_BASIC_ON_CHANGE;
+      payload: {uid: string; field: string; value: string};
+    }
+  | {
+      type: ReducerActions.UNIT_CONVERSION_PRODUCT_ON_CHANGE;
+      payload: {uid: string; field: string; value: string};
+    }
+  | {type: ReducerActions.UNIT_CONVERSIONS_SAVED; payload: Record<string, never>}
+  | {
+      type: ReducerActions.UNIT_CONVERSIONS_EDIT_CANCELLED;
+      payload: {basic: UnitConversion[]; product: UnitConversion[]};
+    }
+  | {type: ReducerActions.DELETE_BASIC_UNIT_CONVERSION; payload: {uid: string}}
+  | {
+      type: ReducerActions.DELETE_PRODUCT_UNIT_CONVERSION;
+      payload: {uid: string};
+    }
+  | {type: ReducerActions.SNACKBAR_CLOSE; payload: Record<string, never>}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
+
+const initialState: State = {
   unitConversionBasic: [],
   unitConversionProduct: [],
   products: [],
@@ -121,7 +155,32 @@ const inititialState: State = {
   snackbar: {open: false, severity: "success", message: ""},
 };
 
-const unitConversionReducer = (state: State, action: DispatchAction): State => {
+/* ------------------------------------------
+// Berechnet ob noch Daten geladen werden (pure Funktion ohne Seiteneffekte)
+// ------------------------------------------ */
+/**
+ * Berechnet den Gesamtlade-Status ohne den Zustand zu mutieren.
+ *
+ * @param current - Aktueller isLoading-Zustand
+ * @param changedField - Das Feld, dessen Wert sich ändert
+ * @param newValue - Neuer Wert für das geänderte Feld
+ * @returns true wenn mindestens ein Nicht-overall-Feld true ist
+ */
+const computeOverallLoading = (
+  current: isLoading,
+  changedField: keyof Omit<isLoading, "overall">,
+  newValue: boolean
+): boolean => {
+  const updated = {...current, [changedField]: newValue};
+  return Object.keys(updated).some(
+    (key) => key !== "overall" && updated[key as keyof isLoading] === true
+  );
+};
+
+const unitConversionReducer = (
+  state: State,
+  action: ReducerAction
+): State => {
   switch (action.type) {
     case ReducerActions.FETCH_INIT:
       // Daten werden geladen
@@ -137,11 +196,11 @@ const unitConversionReducer = (state: State, action: DispatchAction): State => {
       // Basic Umrechnung erfolgreich gelesen
       return {
         ...state,
-        unitConversionBasic: action.payload as UnitConversion[],
+        unitConversionBasic: action.payload,
         isLoading: {
           ...state.isLoading,
           unitConversionBasic: false,
-          overall: deriveIsLoading(
+          overall: computeOverallLoading(
             state.isLoading,
             "unitConversionBasic",
             false
@@ -152,11 +211,11 @@ const unitConversionReducer = (state: State, action: DispatchAction): State => {
       // Produkte Umrechnung erfolgreich gelesen
       return {
         ...state,
-        unitConversionProduct: action.payload as UnitConversion[],
+        unitConversionProduct: action.payload,
         isLoading: {
           ...state.isLoading,
           unitConversionProduct: false,
-          overall: deriveIsLoading(
+          overall: computeOverallLoading(
             state.isLoading,
             "unitConversionProduct",
             false
@@ -167,43 +226,51 @@ const unitConversionReducer = (state: State, action: DispatchAction): State => {
       // Produkte erfolgreich gelesen
       return {
         ...state,
-        products: action.payload as Product[],
+        products: action.payload,
         isLoading: {
           ...state.isLoading,
           products: false,
-          overall: deriveIsLoading(state.isLoading, "products", false),
+          overall: computeOverallLoading(state.isLoading, "products", false),
         },
       };
     case ReducerActions.UNITS_FETCH_SUCCESS:
-      // Produkte erfolgreich gelesen
+      // Einheiten erfolgreich gelesen
       return {
         ...state,
-        units: action.payload as Unit[],
+        units: action.payload,
         isLoading: {
           ...state.isLoading,
-          overall: deriveIsLoading(state.isLoading, "units", false),
+          overall: computeOverallLoading(state.isLoading, "units", false),
           units: false,
         },
       };
     case ReducerActions.UNIT_CONVERSION_BASIC_ON_CHANGE:
-      // änderung der Feldwerte
+      // Änderung der Feldwerte — immutabler Spread statt Mutation
       return {
         ...state,
-        unitConversionBasic: state.unitConversionBasic.map((unitConversion) => {
-          if (unitConversion.uid === action.payload.uid) {
-            unitConversion[action.payload.field] = action.payload.value;
+        unitConversionBasic: state.unitConversionBasic.map(
+          (unitConversion) => {
+            if (unitConversion.uid === action.payload.uid) {
+              return {
+                ...unitConversion,
+                [action.payload.field]: action.payload.value,
+              };
+            }
+            return unitConversion;
           }
-          return unitConversion;
-        }) as UnitConversion[],
+        ) as UnitConversion[],
       };
     case ReducerActions.UNIT_CONVERSION_PRODUCT_ON_CHANGE:
-      // änderung der Feldwerte
+      // Änderung der Feldwerte — immutabler Spread statt Mutation
       return {
         ...state,
         unitConversionProduct: state.unitConversionProduct.map(
           (unitConversion) => {
             if (unitConversion.uid === action.payload.uid) {
-              unitConversion[action.payload.field] = action.payload.value;
+              return {
+                ...unitConversion,
+                [action.payload.field]: action.payload.value,
+              };
             }
             return unitConversion;
           }
@@ -211,19 +278,18 @@ const unitConversionReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.NEW_UNIT_CONVERSION_BASIC: {
       // Neue Umrechnung wurde erfasst
-      const tempUnitConversionBasic = [...state.unitConversionBasic];
-      tempUnitConversionBasic.push(action.payload as UnitConversion);
       return {
         ...state,
-        unitConversionBasic: tempUnitConversionBasic,
+        unitConversionBasic: [...state.unitConversionBasic, action.payload],
       };
     }
     case ReducerActions.NEW_UNIT_CONVERSION_PRODUCT: {
-      const tempUnitConversionProduct = [...state.unitConversionProduct];
-      tempUnitConversionProduct.push(action.payload as UnitConversion);
       return {
         ...state,
-        unitConversionProduct: tempUnitConversionProduct,
+        unitConversionProduct: [
+          ...state.unitConversionProduct,
+          action.payload,
+        ],
       };
     }
     case ReducerActions.DELETE_BASIC_UNIT_CONVERSION:
@@ -245,7 +311,7 @@ const unitConversionReducer = (state: State, action: DispatchAction): State => {
         }),
       };
     case ReducerActions.UNIT_CONVERSIONS_SAVED:
-      // Alles  gepeichert
+      // Alles gespeichert
       return {
         ...state,
         snackbar: {
@@ -253,6 +319,13 @@ const unitConversionReducer = (state: State, action: DispatchAction): State => {
           message: TEXT_SAVE_SUCCESS,
           open: true,
         } as Snackbar,
+      };
+    case ReducerActions.UNIT_CONVERSIONS_EDIT_CANCELLED:
+      // Bearbeitung abgebrochen — Snapshot wiederherstellen
+      return {
+        ...state,
+        unitConversionBasic: action.payload.basic,
+        unitConversionProduct: action.payload.product,
       };
     case ReducerActions.SNACKBAR_CLOSE:
       // Snackbar schliessen
@@ -268,36 +341,18 @@ const unitConversionReducer = (state: State, action: DispatchAction): State => {
       // allgemeiner Fehler
       return {
         ...state,
-        error: action.payload as Error,
+        error: action.payload,
       };
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
-  }
-};
-/* ------------------------------------------
-// Ableiten ob Daten noch geladen werden
-// ------------------------------------------ */
-const deriveIsLoading = (
-  actualState: isLoading,
-  newField: string,
-  newValue: boolean
-) => {
-  let counterTrue = 0;
-  actualState[newField] = newValue;
-
-  Object.keys(actualState).forEach((key) => {
-    if (key !== "overall" && actualState[key] == true) {
-      counterTrue += 1;
+    default: {
+      // Exhaustive check — TypeScript meldet Fehler bei unbekanntem ActionType
+      const _exhaustive: never = action;
+      throw new Error(
+        `Unbekannter ActionType: ${(_exhaustive as ReducerAction).type}`
+      );
     }
-  });
-
-  if (counterTrue === 0) {
-    return false;
-  } else {
-    return true;
   }
 };
+
 const BASIC_TABLE_COLUMS: Column[] = [
   {
     id: "uid",
@@ -398,13 +453,13 @@ const PRODUCT_TABLE_COLUMS: Column[] = [
 // =============================== Base ==============================
 // =================================================================== */
 const UnitConversionPage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
 
   const [state, dispatch] = React.useReducer(
     unitConversionReducer,
-    inititialState
+    initialState
   );
 
   const [unitConversionCreateValues, setUnitConversionCreateValues] =
@@ -414,6 +469,10 @@ const UnitConversionPage = () => {
     });
   const [editMode, setEditMode] = React.useState(false);
   const [tabValue, setTabValue] = React.useState(0);
+
+  // Snapshots speichern den Zustand beim Eintritt in den Bearbeitungsmodus
+  const basicSnapshot = React.useRef<UnitConversion[]>([]);
+  const productSnapshot = React.useRef<UnitConversion[]>([]);
 
   /* ------------------------------------------
 	// Daten aus der db holen
@@ -425,29 +484,19 @@ const UnitConversionPage = () => {
       payload: {field: "unitConversionBasic"},
     });
 
-    UnitConversion.getAllConversionBasic({firebase: firebase}).then(
-      (result) => {
-        // Die Werte werden als Array benötigt, damit die Tabelle damit umgehen kann
-        const unitConversionBasic = Utils.convertObjectToArray(result, "uid");
-        dispatch({
-          type: ReducerActions.UNIT_CONVERSION_BASIC_FETCH_SUCCESS,
-          payload: unitConversionBasic,
-        });
-      }
-    );
+    database.unitConversionBasic.getAllConversions().then((result) => {
+      dispatch({
+        type: ReducerActions.UNIT_CONVERSION_BASIC_FETCH_SUCCESS,
+        payload: result as UnitConversion[],
+      });
+    });
     // Umrechnungen Produkte holen
-    UnitConversion.getAllConversionProducts({firebase: firebase}).then(
-      (result) => {
-        const unitConversionBasicProducts = Utils.convertObjectToArray(
-          result,
-          "uid"
-        );
-        dispatch({
-          type: ReducerActions.UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS,
-          payload: unitConversionBasicProducts,
-        });
-      }
-    );
+    database.unitConversionProducts.getAllConversions().then((result) => {
+      dispatch({
+        type: ReducerActions.UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS,
+        payload: result as UnitConversion[],
+      });
+    });
   }, []);
   React.useEffect(() => {
     if (editMode) {
@@ -457,7 +506,8 @@ const UnitConversionPage = () => {
           type: ReducerActions.FETCH_INIT,
           payload: {field: "products"},
         });
-        Product.getAllProducts({firebase: firebase, onlyUsable: true})
+        database.products
+          .getAllProducts({onlyUsable: true})
           .then((result) => {
             dispatch({
               type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
@@ -478,11 +528,12 @@ const UnitConversionPage = () => {
           type: ReducerActions.FETCH_INIT,
           payload: {field: "units"},
         });
-        Unit.getAllUnits({firebase: firebase})
+        database.units
+          .getAllUnits()
           .then((result) => {
             dispatch({
               type: ReducerActions.UNITS_FETCH_SUCCESS,
-              payload: result,
+              payload: result as unknown as Unit[],
             });
           })
           .catch((error) => {
@@ -498,10 +549,29 @@ const UnitConversionPage = () => {
     return null;
   }
   /* ------------------------------------------
-	// Edit Mode wechsel
+	// Edit Mode starten — Snapshot anlegen
 	// ------------------------------------------ */
-  const toggleEditMode = () => {
-    setEditMode(!editMode);
+  const onEditClick = () => {
+    basicSnapshot.current = state.unitConversionBasic.map((conversion) => ({
+      ...conversion,
+    }));
+    productSnapshot.current = state.unitConversionProduct.map((conversion) => ({
+      ...conversion,
+    }));
+    setEditMode(true);
+  };
+  /* ------------------------------------------
+	// Bearbeitung abbrechen — Snapshot wiederherstellen
+	// ------------------------------------------ */
+  const onCancelClick = () => {
+    dispatch({
+      type: ReducerActions.UNIT_CONVERSIONS_EDIT_CANCELLED,
+      payload: {
+        basic: basicSnapshot.current,
+        product: productSnapshot.current,
+      },
+    });
+    setEditMode(false);
   };
   /* ------------------------------------------
 	// Tab wechseln
@@ -578,27 +648,96 @@ const UnitConversionPage = () => {
     });
   };
   /* ------------------------------------------
-	// Änderungen speichern
+	// Selektives Speichern: nur geänderte/neue/gelöschte Zeilen werden persistiert
 	// ------------------------------------------ */
-  const onSaveClick = () => {
-    UnitConversion.saveUnitConversions({
-      firebase: firebase,
-      unitConversionBasic: state.unitConversionBasic,
-      unitConversionProducts: state.unitConversionProduct,
-      authUser: authUser,
-    })
-      .then(() => {
-        dispatch({
-          type: ReducerActions.UNIT_CONVERSIONS_SAVED,
-          payload: {},
-        });
-      })
-      .catch((error) => {
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error,
-        });
+  const onSaveClick = async () => {
+    const snapshotBasicMap = new Map(
+      basicSnapshot.current.map((conversion) => [conversion.uid, conversion])
+    );
+    const snapshotProductMap = new Map(
+      productSnapshot.current.map((conversion) => [conversion.uid, conversion])
+    );
+
+    // UIDs im Snapshot, die im aktuellen State fehlen → gelöscht
+    const deletedBasicUids = basicSnapshot.current
+      .filter(
+        (snap) =>
+          !state.unitConversionBasic.some((current) => current.uid === snap.uid)
+      )
+      .map((snap) => snap.uid);
+    const deletedProductUids = productSnapshot.current
+      .filter(
+        (snap) =>
+          !state.unitConversionProduct.some(
+            (current) => current.uid === snap.uid
+          )
+      )
+      .map((snap) => snap.uid);
+
+    // Neue oder geänderte Zeilen (Numerator oder Denominator hat sich verändert)
+    const changedBasic = state.unitConversionBasic.filter((conversion) => {
+      const snap = snapshotBasicMap.get(conversion.uid);
+      return (
+        !snap ||
+        snap.numerator !== conversion.numerator ||
+        snap.denominator !== conversion.denominator
+      );
+    });
+    const changedProduct = state.unitConversionProduct.filter((conversion) => {
+      const snap = snapshotProductMap.get(conversion.uid);
+      return (
+        !snap ||
+        snap.numerator !== conversion.numerator ||
+        snap.denominator !== conversion.denominator
+      );
+    });
+
+    const hasChanges =
+      deletedBasicUids.length > 0 ||
+      deletedProductUids.length > 0 ||
+      changedBasic.length > 0 ||
+      changedProduct.length > 0;
+
+    // Keine Änderungen — einfach den Bearbeitungsmodus schliessen
+    if (!hasChanges) {
+      setEditMode(false);
+      return;
+    }
+
+    try {
+      for (const uid of deletedBasicUids) {
+        await database.unitConversionBasic.deleteConversion(uid);
+      }
+      for (const uid of deletedProductUids) {
+        await database.unitConversionProducts.deleteConversion(uid);
+      }
+      for (const conversion of changedBasic) {
+        await database.unitConversionBasic.upsertConversion(
+          conversion as unknown as UnitConversionBasicDomain,
+          authUser!
+        );
+      }
+      for (const conversion of changedProduct) {
+        await database.unitConversionProducts.upsertConversion(
+          conversion as unknown as UnitConversionProductDomain,
+          authUser!
+        );
+      }
+      // Snapshot auf den soeben gespeicherten Zustand aktualisieren
+      basicSnapshot.current = state.unitConversionBasic.map((conversion) => ({
+        ...conversion,
+      }));
+      productSnapshot.current = state.unitConversionProduct.map(
+        (conversion) => ({...conversion})
+      );
+      dispatch({type: ReducerActions.UNIT_CONVERSIONS_SAVED, payload: {}});
+      setEditMode(false);
+    } catch (error) {
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as Error,
       });
+    }
   };
   /* ------------------------------------------
 	// Snackback schliessen
@@ -687,7 +826,16 @@ const UnitConversionPage = () => {
             label: TEXT_EDIT,
             variant: "contained",
             color: "primary",
-            onClick: toggleEditMode,
+            onClick: onEditClick,
+          },
+          {
+            id: "cancel",
+            hero: true,
+            visible: editMode && authUser.roles.includes(Role.communityLeader),
+            label: TEXT_CANCEL,
+            variant: "outlined",
+            color: "primary",
+            onClick: onCancelClick,
           },
           {
             id: "save",
@@ -761,7 +909,6 @@ const UnitConversionPage = () => {
         </Grid>
       </Container>
       <DialogCreateUnitConversion
-        firebase={firebase}
         units={state.units}
         products={state.products}
         dialogOpen={unitConversionCreateValues.popUpOpen}
@@ -827,7 +974,10 @@ const BasicConversionPanel = ({
             </Grid>
             <Grid size={2} />
 
-            <Divider />
+            {/* Trennlinie als vollbreites Grid-Item, damit kein Flex-Layout-Versatz entsteht */}
+            <Grid size={12}>
+              <Divider />
+            </Grid>
             {unitConversions.map((conversionRule) => (
               <BasicConversionEditRow
                 key={"basicConversionRow_" + conversionRule.uid}
@@ -940,14 +1090,14 @@ const ProductConversionPanel = ({
             <Grid
               size={{
                 xs: 12,
-                sm: 4
+                sm: 4,
               }}>
               <Typography variant="subtitle1">{TEXT_PRODUCT}</Typography>
             </Grid>
             <Grid
               size={{
                 xs: 3,
-                sm: 2
+                sm: 2,
               }}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_DENOMINATOR}
@@ -956,7 +1106,7 @@ const ProductConversionPanel = ({
             <Grid
               size={{
                 xs: 2,
-                sm: 1
+                sm: 1,
               }}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_UNIT_FROM}
@@ -965,7 +1115,7 @@ const ProductConversionPanel = ({
             <Grid
               size={{
                 xs: 3,
-                sm: 2
+                sm: 2,
               }}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_NUMERATOR}
@@ -974,7 +1124,7 @@ const ProductConversionPanel = ({
             <Grid
               size={{
                 xs: 2,
-                sm: 1
+                sm: 1,
               }}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_UNIT_TO}
@@ -982,7 +1132,10 @@ const ProductConversionPanel = ({
             </Grid>
             <Grid size={2} />
 
-            <Divider />
+            {/* Trennlinie als vollbreites Grid-Item, damit kein Flex-Layout-Versatz entsteht */}
+            <Grid size={12}>
+              <Divider />
+            </Grid>
             {unitConversions.map((conversionRule) => (
               <ProductConversionEditRow
                 key={"productConversionRow_" + conversionRule.uid}
@@ -1022,7 +1175,7 @@ const ProductConversionEditRow = ({
         key={"grid_productName_" + unitConversion.uid}
         size={{
           xs: 12,
-          sm: 4
+          sm: 4,
         }}>
         <Typography color="textSecondary">
           {unitConversion.productName}
@@ -1032,7 +1185,7 @@ const ProductConversionEditRow = ({
         key={"grid_denominator_" + unitConversion.uid}
         size={{
           xs: 3,
-          sm: 2
+          sm: 2,
         }}>
         <TextField
           id={"denominator_" + unitConversion.uid}
@@ -1047,7 +1200,7 @@ const ProductConversionEditRow = ({
         key={"grid_fromUnit_" + unitConversion.uid}
         size={{
           xs: 2,
-          sm: 1
+          sm: 1,
         }}>
         <Typography color="textSecondary" align="center">
           {unitConversion.fromUnit}
@@ -1057,7 +1210,7 @@ const ProductConversionEditRow = ({
         key={"grid_numerator_" + unitConversion.uid}
         size={{
           xs: 3,
-          sm: 2
+          sm: 2,
         }}>
         <TextField
           id={"numerator_" + unitConversion.uid}
@@ -1072,7 +1225,7 @@ const ProductConversionEditRow = ({
         key={"grid_toUnit_" + unitConversion.uid}
         size={{
           xs: 2,
-          sm: 1
+          sm: 1,
         }}>
         <Typography color="textSecondary" align="center">
           {unitConversion.toUnit}
@@ -1082,7 +1235,7 @@ const ProductConversionEditRow = ({
         key={"grid_deleteRow_" + unitConversion.uid}
         size={{
           xs: 2,
-          sm: 2
+          sm: 2,
         }}>
         <IconButton
           color="primary"

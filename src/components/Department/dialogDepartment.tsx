@@ -8,7 +8,7 @@ import DialogActions from "@mui/material/DialogActions";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 
-import Department from "./department.class";
+import {DepartmentDomain} from "../Database/Repository/DepartmentRepository";
 import {
   GIVE_DEPARTMENT_NAME as TEXT_GIVE_DEPARTMENT_NAME,
   CREATE_DEPARTMENT as TEXT_CREATE_DEPARTMENT,
@@ -16,8 +16,8 @@ import {
   CANCEL as TEXT_CANCEL,
   CREATE as TEXT_CREATE,
 } from "../../constants/text";
-import Firebase from "../Firebase/firebase.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
+import {useDatabase} from "../Database/DatabaseContext";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -29,16 +29,14 @@ export const DEPARTMENT_INITIAL_STATE = {
 // ==================== Pop Up Abteilung hinzufügen ==================
 // =================================================================== */
 interface DialogDepartmentProps {
-  firebase: Firebase;
   authUser: AuthUser;
   dialogOpen: boolean;
-  handleCreate: (department: Department) => void;
+  handleCreate: (department: DepartmentDomain) => void;
   handleClose: () => void;
   handleError: (error: Error) => void;
   nextHigherPos: number;
 }
 const DialogDepartment = ({
-  firebase,
   authUser,
   dialogOpen,
   handleCreate,
@@ -46,6 +44,7 @@ const DialogDepartment = ({
   handleError,
   nextHigherPos = 99,
 }: DialogDepartmentProps) => {
+  const database = useDatabase();
   const [formFields, setFormFields] = React.useState(DEPARTMENT_INITIAL_STATE);
   const [validation, setValidation] = React.useState({
     name: {hasError: false, errorText: ""},
@@ -83,14 +82,15 @@ const DialogDepartment = ({
       return;
     }
     // Neue Abteilung anlegen
-    Department.createDepartment({
-      firebase: firebase,
-      name: formFields.name,
-      pos: nextHigherPos,
-      authUser: authUser,
-    })
+    database.departments
+      .createDepartment(formFields.name, nextHigherPos, authUser)
       .then((result) => {
-        handleCreate(result);
+        handleCreate({
+          uid: result.id,
+          name: result.value.name,
+          pos: result.value.pos,
+          usable: result.value.usable,
+        });
         setFormFields(DEPARTMENT_INITIAL_STATE);
       })
       .catch((error) => {

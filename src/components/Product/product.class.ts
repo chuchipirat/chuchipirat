@@ -225,7 +225,7 @@ export default class Product {
 
     department.uid = departmentUid;
 
-    product.uid = Utils.generateUid(20);
+    product.uid = crypto.randomUUID();
     product.name = name.trim();
     product.department = department;
     product.shoppingUnit = shoppingUnit ? shoppingUnit : "";

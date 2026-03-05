@@ -516,6 +516,7 @@ export const DIALOG_INFO_DIET_PROPERTIES =
 export const UNIT_CREATED = (unit: string) => {
   return `Einheit «${unit}» wurde angelegt.`;
 };
+export const UNIT_DELETED = (unit: string) => `Einheit «${unit}» wurde gelöscht.`;
 export const UNIT_CONVERSION_BASIC_CREATED =
   "Basic-Einheit Umrechnung wurde angelegt.";
 export const UNIT_CONVERSION_PRODUCT_CREATED = (product: string) => {

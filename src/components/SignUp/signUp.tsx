@@ -51,12 +51,14 @@ import {
   CLOSE as TEXT_CLOSE,
   SIGN_UP_SUCCESS_TITLE as TEXT_SIGN_UP_SUCCESS_TITLE,
   SIGN_UP_SUCCESS_TEXT as TEXT_SIGN_UP_SUCCESS_TEXT,
+  GIVE_VALID_EMAIL as TEXT_GIVE_VALID_EMAIL,
 } from "../../constants/text";
 import User from "../User/user.class";
 import {PrivacyPolicyText} from "../App/privacyPolicy";
 import {TermOfUseText} from "../App/termOfUse";
 import {AlertMaintenanceMode} from "../SignIn/signIn";
 import useCustomStyles from "../../constants/styles";
+import Utils from "../Shared/utils.class";
 
 /* ===================================================================
 // ======================== State Management ==========================
@@ -410,6 +412,11 @@ const SignUpForm = ({
             onChange={onFieldChange}
             disabled={!signUpAllowed || maintenanceMode}
           />
+          {signUpData.email && !Utils.isEmail(signUpData.email) && (
+            <Typography color="error" variant="body2">
+              {TEXT_GIVE_VALID_EMAIL}
+            </Typography>
+          )}
           {/* Passwort */}
           <TextField
             type={showPassword ? "text" : "password"}
@@ -478,9 +485,9 @@ const SignUpForm = ({
             disabled={
               maintenanceMode ||
               !signUpAllowed ||
-              signUpData.password === "" ||
-              signUpData.email === "" ||
-              signUpData.firstName === ""
+              signUpData.firstName === "" ||
+              !Utils.isEmail(signUpData.email) ||
+              signUpData.password.length < 6
             }
             fullWidth
             variant="contained"

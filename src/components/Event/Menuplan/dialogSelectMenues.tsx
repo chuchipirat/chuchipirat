@@ -147,7 +147,7 @@ export const getMealForMealTypeAndDate = (
   const dateStr = Utils.dateAsString(date);
   return (
     Object.values(meals).find(
-      (m) => m.mealType === mealTypeUid && m.date === dateStr,
+      (meal) => meal.mealType === mealTypeUid && meal.date === dateStr,
     ) ?? null
   );
 };
@@ -225,7 +225,7 @@ export const DialogSelectMenues = ({
   // Für RadioGroup.value: aktuell selektierte UID ableiten
   const selectedMenueUid = React.useMemo(() => {
     if (!singleSelection || !dialogValues) return "";
-    return Object.keys(dialogValues).find((k) => dialogValues[k]) ?? "";
+    return Object.keys(dialogValues).find((menueUid) => dialogValues[menueUid]) ?? "";
   }, [dialogValues, singleSelection]);
 
   // ------------------------------------------
@@ -239,15 +239,15 @@ export const DialogSelectMenues = ({
     let newValueToSet = true;
 
     const meal = Object.values(meals).find(
-      (m) => m.date === selectedDate && m.menuOrder.length !== 0,
+      (candidate) => candidate.date === selectedDate && candidate.menuOrder.length !== 0,
     );
     if (meal) {
       newValueToSet = !dialogValues[meal.menuOrder[0]];
     }
 
-    Object.values(meals).forEach((m) => {
-      if (m.date === selectedDate) {
-        m.menuOrder.forEach((menueUid) => {
+    Object.values(meals).forEach((meal) => {
+      if (meal.date === selectedDate) {
+        meal.menuOrder.forEach((menueUid) => {
           newDialogValues[menueUid] = newValueToSet;
         });
       }

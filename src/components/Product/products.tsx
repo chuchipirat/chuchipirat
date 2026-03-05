@@ -73,7 +73,6 @@ import Department from "../Department/department.class";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import Material, {MaterialType} from "../Material/material.class";
-import Role from "../../constants/roles";
 import {
   DialogType,
   SingleTextInputResult,
@@ -81,10 +80,10 @@ import {
 } from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import {DataGrid, GridColDef, gridClasses} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
-import Feed, {FeedType} from "../Shared/feed.class";
-import Firebase from "../Firebase/firebase.class";
+import {ProductDomain} from "../Database/Repository/ProductRepository";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -92,7 +91,9 @@ import Firebase from "../Firebase/firebase.class";
 enum ReducerActions {
   PRODUCTS_FETCH_INIT,
   PRODUCTS_FETCH_SUCCESS,
+  PRODUCT_UPDATED,
   PRODUCTS_SAVED,
+  PRODUCTS_EDIT_CANCELLED,
   NEWEST_PRODUCTS_FETCH_INIT,
   NEWEST_PRODUCTS_FETCH_SUCCESS,
   NEWEST_PRODUCTS_CLEAR,
@@ -105,15 +106,49 @@ enum ReducerActions {
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
 }
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+
+/**
+ * Diskriminierte Union für alle Reducer-Actions der ProductsPage.
+ */
+type ReducerAction =
+  | {type: ReducerActions.PRODUCTS_FETCH_INIT}
+  | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
+  | {type: ReducerActions.PRODUCT_UPDATED; payload: Product}
+  | {type: ReducerActions.PRODUCTS_SAVED}
+  | {type: ReducerActions.PRODUCTS_EDIT_CANCELLED; payload: Product[]}
+  | {type: ReducerActions.NEWEST_PRODUCTS_FETCH_INIT}
+  | {type: ReducerActions.NEWEST_PRODUCTS_FETCH_SUCCESS; payload: string[]}
+  | {type: ReducerActions.NEWEST_PRODUCTS_CLEAR}
+  | {type: ReducerActions.PRODUCT_CONVERTED_TO_MATERIAL; payload: Product}
+  | {type: ReducerActions.DEPARTMENT_FETCH_INIT}
+  | {type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS; payload: Department[]}
+  | {type: ReducerActions.UNITS_FETCH_INIT}
+  | {type: ReducerActions.UNITS_FETCH_SUCCESS; payload: Unit[]}
+  | {
+      type: ReducerActions.SNACKBAR_SHOW;
+      payload: {severity: Snackbar["severity"]; message: string};
+    }
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
+
+/**
+ * Zustand der ProductsPage.
+ *
+ * @param products - Aktuelle Produktliste (Bearbeitungsstand)
+ * @param changedUids - UIDs der seit dem letzten Speichern geänderten Produkte
+ * @param departments - Geladene Abteilungen (nur im Edit-Modus)
+ * @param units - Geladene Einheiten (nur im Edit-Modus)
+ * @param newestProductUids - UIDs der in den letzten N Tagen angelegten Produkte
+ * @param error - Letzter aufgetretener Fehler
+ * @param isLoading - Ladezustände pro Ressource
+ * @param snackbar - Zustand der Erfolgsmeldung
+ */
 type State = {
   products: Product[];
+  changedUids: Set<string>;
   departments: Department[];
   units: Unit[];
-  newestProducts: Feed[];
+  newestProductUids: string[];
   error: Error | null;
   isLoading: {
     overall: boolean;
@@ -124,11 +159,12 @@ type State = {
   snackbar: Snackbar;
 };
 
-const inititialState: State = {
+const initialState: State = {
   products: [],
+  changedUids: new Set<string>(),
   departments: [],
   units: [],
-  newestProducts: [],
+  newestProductUids: [],
   error: null,
   isLoading: {
     overall: false,
@@ -139,8 +175,29 @@ const inititialState: State = {
   snackbar: {open: false, severity: "success", message: ""},
 };
 
-const productsReducer = (state: State, action: DispatchAction): State => {
-  let products: State["products"] = [];
+/**
+ * Berechnet den overall-Ladezustand anhand der Teilzustände, ohne den
+ * bestehenden Zustand zu mutieren.
+ * Das overall-Flag selbst wird aus der Berechnung ausgeschlossen,
+ * da es das Ergebnis dieser Funktion ist und nicht als Eingabe zählt.
+ *
+ * @param isLoading - Vollständiger isLoading-Zustand (overall wird ignoriert)
+ * @param changedField - Das Feld, dessen Wert sich ändert
+ * @param newValue - Neuer Wert für changedField
+ * @returns true, wenn mindestens ein Teilzustand noch aktiv ist
+ */
+const computeOverallLoading = (
+  isLoading: State["isLoading"],
+  changedField: keyof Omit<State["isLoading"], "overall">,
+  newValue: boolean,
+): boolean => {
+  // overall wird bewusst ausgeschlossen — es ist das Ergebnis, kein Eingang
+  const {overall: _overall, ...rest} = isLoading;
+  const updated = {...rest, [changedField]: newValue};
+  return Object.values(updated).some((value) => value === true);
+};
+
+const productsReducer = (state: State, action: ReducerAction): State => {
   switch (action.type) {
     case ReducerActions.PRODUCTS_FETCH_INIT:
       // Daten werden geladen
@@ -153,25 +210,42 @@ const productsReducer = (state: State, action: DispatchAction): State => {
         },
       };
     case ReducerActions.PRODUCTS_FETCH_SUCCESS:
-      // Produkte erfolgreich geladen
+      // Produkte erfolgreich geladen — changedUids zurücksetzen
       return {
         ...state,
-        products: action.payload as Product[],
+        products: action.payload,
+        changedUids: new Set<string>(),
         isLoading: {
           ...state.isLoading,
-          overall: deriveIsLoading(state.isLoading, "products", false),
+          overall: computeOverallLoading(state.isLoading, "products", false),
           products: false,
         },
       };
+    case ReducerActions.PRODUCT_UPDATED: {
+      // Einzelnes Produkt immutabel ersetzen und UID als geändert markieren
+      const updated = state.products.map((product) =>
+        product.uid === action.payload.uid ? action.payload : product,
+      );
+      const changedUids = new Set(state.changedUids);
+      changedUids.add(action.payload.uid);
+      return {...state, products: updated, changedUids};
+    }
     case ReducerActions.PRODUCTS_SAVED:
       return {
         ...state,
-        products: action.payload as Product[],
+        changedUids: new Set<string>(),
         snackbar: {
           open: true,
           severity: "success",
           message: TEXT_SAVE_SUCCESS,
         },
+      };
+    case ReducerActions.PRODUCTS_EDIT_CANCELLED:
+      // Snapshot wiederherstellen und changedUids leeren
+      return {
+        ...state,
+        products: action.payload,
+        changedUids: new Set<string>(),
       };
     case ReducerActions.DEPARTMENT_FETCH_INIT:
       return {
@@ -186,10 +260,10 @@ const productsReducer = (state: State, action: DispatchAction): State => {
       // Abteilungen erfolgreich geladen
       return {
         ...state,
-        departments: action.payload as Department[],
+        departments: action.payload,
         isLoading: {
           ...state.isLoading,
-          overall: deriveIsLoading(state.isLoading, "departments", false),
+          overall: computeOverallLoading(state.isLoading, "departments", false),
           departments: false,
         },
       };
@@ -206,10 +280,10 @@ const productsReducer = (state: State, action: DispatchAction): State => {
       // Einheiten erfolgreich geladen
       return {
         ...state,
-        units: action.payload as Unit[],
+        units: action.payload,
         isLoading: {
           ...state.isLoading,
-          overall: deriveIsLoading(state.isLoading, "units", false),
+          overall: computeOverallLoading(state.isLoading, "units", false),
           units: false,
         },
       };
@@ -217,21 +291,19 @@ const productsReducer = (state: State, action: DispatchAction): State => {
       return {
         ...state,
         isLoading: {...state.isLoading, overall: false},
-        newestProducts: action.payload as Feed[],
+        newestProductUids: action.payload,
       };
     case ReducerActions.NEWEST_PRODUCTS_FETCH_INIT:
       return {...state, isLoading: {...state.isLoading, overall: true}};
     case ReducerActions.NEWEST_PRODUCTS_CLEAR:
-      return {...state, newestProducts: []};
+      return {...state, newestProductUids: []};
     case ReducerActions.PRODUCT_CONVERTED_TO_MATERIAL:
-      // Konvertiertes Produkt aus Liste löschen
-      products = state.products.filter(
-        (product) => product.uid !== action.payload.uid
-      );
-
+      // Konvertiertes Produkt aus Liste entfernen
       return {
         ...state,
-        products: products,
+        products: state.products.filter(
+          (product) => product.uid !== action.payload.uid,
+        ),
         snackbar: {
           severity: "success",
           open: true,
@@ -262,31 +334,13 @@ const productsReducer = (state: State, action: DispatchAction): State => {
       // allgemeiner Fehler
       return {
         ...state,
-        error: action.payload as Error,
+        error: action.payload,
         isLoading: {...state.isLoading, overall: false},
       };
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
-  }
-};
-
-/* ------------------------------------------
-// Ableiten ob Daten noch geladen werden
-// ------------------------------------------ */
-const deriveIsLoading = (actualState, newField, newValue) => {
-  let counterTrue = 0;
-  actualState[newField] = newValue;
-
-  for (const [key, value] of Object.entries(actualState)) {
-    if (key !== "overall" && value === true) {
-      counterTrue += 1;
+    default: {
+      const _: never = action;
+      throw new Error(`Unbekannter ActionType: ${JSON.stringify(_)}`);
     }
-  }
-  if (counterTrue === 0) {
-    return false;
-  } else {
-    return true;
   }
 };
 
@@ -299,36 +353,36 @@ const PRODUCT_POPUP_VALUES = {
   popUpOpen: false,
   dietProperties: Product.createEmptyDietProperty(),
 };
+
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Hauptseite für die Produkt-/Zutaten-Verwaltung.
+ * Lädt Produkte aus Supabase und ermöglicht Bearbeiten, selektives Speichern
+ * und Konvertierung zu Material.
+ */
 const ProductsPage = () => {
+  // firebase wird nur noch für onConvertProductToMaterial (Cloud-FX) benötigt
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const {customDialog} = useCustomDialog();
 
-  const [state, dispatch] = React.useReducer(productsReducer, inititialState);
+  const [state, dispatch] = React.useReducer(productsReducer, initialState);
   const [editMode, setEditMode] = React.useState(false);
-  const [saveTrigger, setSaveTrigger] = React.useState(0);
-  const [cancelTrigger, setCancelTrigger] = React.useState(0);
+  // Snapshot für Cancel: Deep-Copy der Produkte vor dem Bearbeitungsbeginn
+  const productsSnapshot = React.useRef<Product[]>([]);
+
   /* ------------------------------------------
 	// Daten aus DB holen
 	// ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.PRODUCTS_FETCH_INIT,
-      payload: {},
-    });
-    Product.getAllProducts({
-      firebase: firebase,
-      onlyUsable: false,
-      withDepartmentName: true,
-    })
+    dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT});
+    database.products
+      .getAllProducts({onlyUsable: false, withDepartmentName: true})
       .then((result) => {
         dispatch({
           type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
@@ -343,14 +397,13 @@ const ProductsPage = () => {
         });
       });
   }, []);
+
   React.useEffect(() => {
     if (editMode) {
       if (state.departments.length === 0) {
-        dispatch({
-          type: ReducerActions.DEPARTMENT_FETCH_INIT,
-          payload: {},
-        });
-        Department.getAllDepartments({firebase: firebase})
+        dispatch({type: ReducerActions.DEPARTMENT_FETCH_INIT});
+        database.departments
+          .getAllDepartments()
           .then((result) => {
             dispatch({
               type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
@@ -366,14 +419,13 @@ const ProductsPage = () => {
           });
       }
       if (state.units.length === 0) {
-        dispatch({
-          type: ReducerActions.UNITS_FETCH_INIT,
-          payload: {},
-        });
-        Unit.getAllUnits({firebase: firebase})
+        dispatch({type: ReducerActions.UNITS_FETCH_INIT});
+        database.units
+          .getAllUnits()
           .then((result) => {
             // leeres Feld gehört auch dazu
             result.push({
+              uid: "",
               key: "",
               name: "",
               dimension: UnitDimension.dimensionless,
@@ -394,69 +446,105 @@ const ProductsPage = () => {
       }
     }
   }, [editMode]);
+
   if (!authUser) {
     return null;
   }
+
   /* ------------------------------------------
 	// Edit Mode wechseln
 	// ------------------------------------------ */
-  // Die Triggerfunktionen werden benötigt, damit
-  // useEffect() Methode in der Unterkomponente
-  // reagiert und danach die Callback-Methode onXXX
-  // aufruft
-  const toggleEditMode = () => {
-    setEditMode(!editMode);
+  const onEditClick = () => {
+    // Snapshot erstellen, damit Cancel die Originalwerte wiederherstellen kann
+    productsSnapshot.current = state.products.map((product) => ({
+      ...product,
+      dietProperties: {
+        ...product.dietProperties,
+        allergens: [...product.dietProperties.allergens],
+      },
+    }));
+    setEditMode(true);
   };
-  const raiseSaveTrigger = () => {
-    setSaveTrigger((trigger) => trigger + 1);
+
+  const onCancelClick = () => {
+    dispatch({
+      type: ReducerActions.PRODUCTS_EDIT_CANCELLED,
+      payload: productsSnapshot.current,
+    });
+    setEditMode(false);
   };
-  const onSave = (products: Product[]) => {
-    Product.saveAllProducts({
-      firebase: firebase,
-      products: products,
-      authUser: authUser,
-    })
-      .then((result) => {
-        dispatch({type: ReducerActions.PRODUCTS_SAVED, payload: result});
-      })
-      .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
-  };
-  const raiseCancelTrigger = () => {
-    setCancelTrigger((trigger) => trigger + 1);
-  };
-  const onCancel = () => {
-    toggleEditMode();
-  };
-  const loadNewestProducts = () => {
-    if (state.newestProducts.length === 0) {
-      dispatch({type: ReducerActions.NEWEST_PRODUCTS_FETCH_INIT, payload: {}});
-      Feed.getNewestFeeds({
-        firebase: firebase,
-        limitTo: 100,
-        visibility: Role.communityLeader,
-        feedType: FeedType.productCreated,
-        daysOffset: 10,
-      }).then((result) => {
-        if (result.length > 0) {
-          dispatch({
-            type: ReducerActions.NEWEST_PRODUCTS_FETCH_SUCCESS,
-            payload: result,
-          });
-        } else {
-          dispatch({
-            type: ReducerActions.SNACKBAR_SHOW,
-            payload: {severity: "info", message: TEXT_NO_NEWEST_PRODUCTS_FOUND},
-          });
-        }
-      });
-    } else {
-      // löschen, damit alle wieder angezeigt werden
-      dispatch({type: ReducerActions.NEWEST_PRODUCTS_CLEAR, payload: {}});
+
+  /* ------------------------------------------
+  // Selektives Speichern (nur geänderte Produkte)
+  // ------------------------------------------ */
+  const onSave = async () => {
+    const changedProducts = state.products.filter((product) =>
+      state.changedUids.has(product.uid),
+    );
+    if (changedProducts.length === 0) {
+      return;
+    }
+    try {
+      for (const product of changedProducts) {
+        await database.products.updateProduct(
+          product as ProductDomain,
+          authUser,
+        );
+      }
+      dispatch({type: ReducerActions.PRODUCTS_SAVED});
+      setEditMode(false);
+    } catch (error) {
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
 
+  /* ------------------------------------------
+  // Produkt-Änderung aus Unterkomponente
+  // ------------------------------------------ */
+  const onProductChange = (product: Product) => {
+    dispatch({type: ReducerActions.PRODUCT_UPDATED, payload: product});
+  };
+
+  /**
+   * Schaltet die Ansicht der neuesten Produkte ein oder aus.
+   * Beim ersten Aufruf werden die UIDs der in den letzten 10 Tagen
+   * angelegten Produkte aus Supabase geladen. Beim zweiten Aufruf
+   * wird die Filterung zurückgesetzt und alle Produkte wieder angezeigt.
+   */
+  const loadNewestProducts = () => {
+    if (state.newestProductUids.length === 0) {
+      dispatch({type: ReducerActions.NEWEST_PRODUCTS_FETCH_INIT});
+      database.products
+        .getRecentProductUids(10)
+        .then((result) => {
+          if (result.length > 0) {
+            dispatch({
+              type: ReducerActions.NEWEST_PRODUCTS_FETCH_SUCCESS,
+              payload: result,
+            });
+          } else {
+            dispatch({
+              type: ReducerActions.SNACKBAR_SHOW,
+              payload: {
+                severity: "info",
+                message: TEXT_NO_NEWEST_PRODUCTS_FOUND,
+              },
+            });
+          }
+        })
+        .catch((error) => {
+          dispatch({
+            type: ReducerActions.GENERIC_ERROR,
+            payload: error as Error,
+          });
+        });
+    } else {
+      // Filterung zurücksetzen, damit alle Produkte wieder angezeigt werden
+      dispatch({type: ReducerActions.NEWEST_PRODUCTS_CLEAR});
+    }
+  };
+
+  // TODO: Reimplement with Supabase Edge Function — Material.createMaterialFromProduct() nutzt noch Firebase
   const onConvertProductToMaterial = async (product: Product) => {
     // Fragen welcher Material-Typ gesetzt werden soll?
     const userInput = (await customDialog({
@@ -488,21 +576,20 @@ const ProductsPage = () => {
       });
     }
   };
+
   /* ------------------------------------------
-  // Snackback schliessen
+  // Snackbar schliessen
   // ------------------------------------------ */
   const handleSnackbarClose = (
     event: Event | SyntheticEvent<any, Event>,
-    reason: SnackbarCloseReason
+    reason: SnackbarCloseReason,
   ) => {
     if (reason === "clickaway") {
       return;
     }
-    dispatch({
-      type: ReducerActions.SNACKBAR_CLOSE,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
+
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
@@ -512,11 +599,11 @@ const ProductsPage = () => {
       />
       <ProductsButtonRow
         editMode={editMode}
-        onEdit={toggleEditMode}
-        onSave={raiseSaveTrigger}
-        onCancel={raiseCancelTrigger}
+        onEdit={onEditClick}
+        onSave={onSave}
+        onCancel={onCancelClick}
         onLoadNewestProducts={loadNewestProducts}
-        showLoadNewestProducts={state.newestProducts.length === 0}
+        showLoadNewestProducts={state.newestProductUids.length === 0}
         authUser={authUser}
       />
       {/* ===== BODY ===== */}
@@ -534,16 +621,12 @@ const ProductsPage = () => {
         )}
         <ProductsTable
           editMode={editMode}
-          dbProducts={state.products}
+          products={state.products}
           departments={state.departments}
           units={state.units}
-          newestProducts={state.newestProducts}
-          saveTrigger={saveTrigger}
-          cancelTrigger={cancelTrigger}
-          onSave={onSave}
-          onCancel={onCancel}
+          newestProductUids={state.newestProductUids}
+          onProductChange={onProductChange}
           onConvertProductToMaterial={onConvertProductToMaterial}
-          firebase={firebase}
           authUser={authUser}
         />
         <CustomSnackbar
@@ -556,9 +639,21 @@ const ProductsPage = () => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================ Buttons ==============================
 // =================================================================== */
+/**
+ * Props für die Schaltflächen-Zeile der Produkt-Seite.
+ *
+ * @param editMode - Gibt an, ob der Bearbeitungsmodus aktiv ist
+ * @param onEdit - Callback zum Aktivieren des Bearbeitungsmodus
+ * @param onCancel - Callback zum Abbrechen und Verwerfen der Änderungen
+ * @param onSave - Callback zum Speichern der Änderungen
+ * @param onLoadNewestProducts - Callback zum Umschalten der Neueste-Produkte-Ansicht
+ * @param showLoadNewestProducts - true wenn «Neueste anzeigen» sichtbar sein soll
+ * @param authUser - Angemeldeter Benutzer (für Rollenprüfung)
+ */
 interface ProductsButtonRowProps {
   editMode: boolean;
   onEdit: () => void;
@@ -568,6 +663,11 @@ interface ProductsButtonRowProps {
   showLoadNewestProducts: boolean;
   authUser: AuthUser;
 }
+
+/**
+ * Schaltflächen-Zeile für die Produkt-Seite.
+ * Zeigt je nach Modus Edit/Save/Cancel-Buttons und den Neueste-Produkte-Toggle.
+ */
 const ProductsButtonRow = ({
   editMode,
   onEdit,
@@ -633,24 +733,45 @@ const ProductsButtonRow = ({
     />
   );
 };
+
 /* ===================================================================
 // =========================== Produkte Panel ========================
 // =================================================================== */
+/**
+ * Props für die Produkte-Tabelle.
+ *
+ * @param products - Aktuelle Produktliste (vom Reducer verwaltet)
+ * @param departments - Verfügbare Abteilungen (für Dialog und Anzeige)
+ * @param units - Verfügbare Einheiten (für Dialog und Anzeige)
+ * @param newestProductUids - UIDs der neuesten Produkte für die Filteransicht
+ * @param editMode - Gibt an, ob der Bearbeitungsmodus aktiv ist
+ * @param onProductChange - Callback bei Inline-Änderung eines Produkts
+ * @param onConvertProductToMaterial - Callback zur Konvertierung eines Produkts
+ * @param authUser - Angemeldeter Benutzer
+ */
 interface ProductsTableProps {
-  dbProducts: Product[];
+  products: Product[];
   departments: Department[];
   units: Unit[];
-  newestProducts: Feed[];
+  newestProductUids: string[];
   editMode: boolean;
-  saveTrigger: any;
-  cancelTrigger: any;
-  onSave: (editedProducts: Product[]) => void;
-  onCancel: () => void;
+  onProductChange: (product: Product) => void;
   onConvertProductToMaterial: (product: Product) => void;
-  firebase: Firebase;
   authUser: AuthUser;
 }
-// Aufbau der UI-Tabelle
+
+/**
+ * UI-Zeile für die Produkte-Tabelle.
+ *
+ * @param uid - Eindeutige ID des Produkts
+ * @param name - Produktname
+ * @param departmentName - Name der zugehörigen Abteilung
+ * @param shoppingUnit - Einkaufseinheit
+ * @param containsLactose - Enthält das Produkt Laktose
+ * @param containsGluten - Enthält das Produkt Gluten
+ * @param diet - Diät-Klassifikation
+ * @param usable - Gibt an, ob das Produkt aktiv ist
+ */
 interface ProductLineUi {
   uid: Product["uid"];
   name: Product["name"];
@@ -660,28 +781,24 @@ interface ProductLineUi {
   containsGluten: boolean;
   diet: Diet;
   usable: boolean;
-  // context: JSX.Element;
 }
 
+/**
+ * Tabellen-Komponente für die Produkt-Verwaltung.
+ * Rendert einen DataGrid mit Such-Panel, Inline-Checkboxen und Kontext-Menü.
+ * Die eigentliche Produktliste wird vom übergeordneten Reducer verwaltet.
+ */
 const ProductsTable = ({
-  dbProducts,
+  products,
   departments,
   units,
-  newestProducts,
+  newestProductUids,
   editMode,
-  saveTrigger,
-  cancelTrigger,
-  onSave,
-  onCancel,
+  onProductChange,
   onConvertProductToMaterial: onConvertProductToMaterialSuper,
-  firebase,
   authUser,
 }: ProductsTableProps) => {
   const [searchString, setSearchString] = React.useState("");
-  const [products, setProducts] = React.useState<Product[]>([]);
-  const [filteredProductsUi, setFilteredProductsUi] = React.useState<
-    ProductLineUi[]
-  >([]);
   const [productPopUpValues, setProductPopUpValues] =
     React.useState(PRODUCT_POPUP_VALUES);
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
@@ -692,13 +809,68 @@ const ProductsTable = ({
   const classes = useCustomStyles();
   const theme = useTheme();
 
+  /* ------------------------------------------
+  // Daten für UI aufbereiten
+  // ------------------------------------------ */
+  const prepareProductsListForUi = (productList: Product[]): ProductLineUi[] => {
+    return productList.map((product) => {
+      return {
+        uid: product.uid,
+        name: product.name,
+        departmentName: product.department.name,
+        shoppingUnit: product.shoppingUnit,
+        containsLactose: product.dietProperties?.allergens?.includes(
+          Allergen.Lactose,
+        ),
+        containsGluten: product.dietProperties?.allergens?.includes(
+          Allergen.Gluten,
+        ),
+        diet: product.dietProperties.diet,
+        usable: product.usable,
+      };
+    });
+  };
+
+  /* ------------------------------------------
+  // Abgeleitete Listen via useMemo
+  // ------------------------------------------ */
+  const filteredProducts = React.useMemo(() => {
+    let result = searchString
+      ? products.filter(
+          (product) =>
+            product.name.toLowerCase().includes(searchString.toLowerCase()) ||
+            product?.department?.name
+              .toLowerCase()
+              .includes(searchString.toLowerCase()) ||
+            product?.shoppingUnit
+              ?.toLowerCase()
+              .includes(searchString.toLowerCase()),
+        )
+      : products;
+
+    if (newestProductUids.length > 0) {
+      // Nur Produkte anzeigen, die in den letzten Tagen angelegt wurden
+      result = result.filter((product) =>
+        newestProductUids.includes(product.uid),
+      );
+    }
+    return result;
+  }, [products, searchString, newestProductUids]);
+
+  const filteredProductsUi = React.useMemo(
+    () => prepareProductsListForUi(filteredProducts),
+    // editMode als Abhängigkeit, damit die Grid-Zeilen bei Moduswechsel neu rendern
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredProducts, editMode],
+  );
+
   const DATA_GRID_COLUMNS: GridColDef[] = [
     {
       field: "open",
       headerName: TEXT_OPEN,
       sortable: false,
       renderCell: (params) => {
-        const onClick = () => openPopUp(params.id as string); // onFeedLogSelect(params.id as string);
+        const onClick = () => openPopUp(params.id as string);
 
         return (
           <IconButton
@@ -816,172 +988,48 @@ const ProductsTable = ({
   ];
 
   /* ------------------------------------------
-  // Mutierte Daten hochschieben
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (saveTrigger) {
-      onSave(products);
-    }
-  }, [saveTrigger]);
-  React.useEffect(() => {
-    // Änderungen verwerfen
-    if (cancelTrigger) {
-      // Werte kopieren --> sonst werden Referenzen übergeben
-      // und bei einem Abbruch (Cancel-Klick) werden die Änderungen
-      // nicht rücktgängig gemacht
-      setProducts(
-        dbProducts.map((product) => {
-          return {
-            ...product,
-            dietProperties: {
-              ...product.dietProperties,
-              allergens: product.dietProperties?.allergens.map(
-                (allergen) => allergen
-              ),
-            },
-          };
-        })
-      );
-
-      setFilteredProductsUi(
-        prepareProductsListForUi(filterProducts(dbProducts, searchString))
-      );
-      onCancel();
-    }
-  }, [cancelTrigger]);
-  /* ------------------------------------------
-  // Änderung des Edit-Mode verarbeiten
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (searchString) {
-      setFilteredProductsUi(
-        prepareProductsListForUi(filterProducts(products, searchString))
-      );
-    }
-  }, [editMode]);
-  /* ------------------------------------------
-  // Neueste Produkte anzeigen
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (newestProducts.length > 0) {
-      // setProducts(newestProductsList);
-      setFilteredProductsUi(
-        prepareProductsListForUi(filterProducts(dbProducts, ""))
-      );
-    } else if (products.length !== 0 && newestProducts.length === 0) {
-      setFilteredProductsUi(
-        prepareProductsListForUi(filterProducts(dbProducts, ""))
-      );
-    }
-  }, [newestProducts.length]);
-  /* ------------------------------------------
   // Suche
   // ------------------------------------------ */
   const clearSearchString = () => {
     setSearchString("");
-    setFilteredProductsUi(
-      prepareProductsListForUi(filterProducts(products, ""))
-    );
   };
   const updateSearchString = (
-    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
+    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
   ) => {
-    setSearchString(event.target.value);
-    setFilteredProductsUi(
-      prepareProductsListForUi(
-        filterProducts(products, event.target.value as string)
-      )
-    );
+    setSearchString(event.target.value as string);
   };
-  /* ------------------------------------------
-  // Filter-Logik 
-  // ------------------------------------------ */
-  const filterProducts = (products: Product[], searchString: string) => {
-    let filteredProducts: Product[] = [];
-    if (searchString) {
-      searchString = searchString.toLowerCase();
-      filteredProducts = products.filter(
-        (product) =>
-          product.name.toLowerCase().includes(searchString) ||
-          product?.department?.name.toLowerCase().includes(searchString) ||
-          product?.shoppingUnit?.toLowerCase().includes(searchString)
-      );
-    } else {
-      filteredProducts = products;
-    }
 
-    if (newestProducts.length > 0) {
-      // alles herausfiltern, dass nicht in den letzten Tagen angelegt wurde
-      filteredProducts = filteredProducts.filter((product) =>
-        newestProducts.some((feed) => feed.sourceObject.uid === product.uid)
-      );
-    }
-
-    return filteredProducts;
-  };
   /* ------------------------------------------
-  // Daten für UI aufbereiten 
-  // ------------------------------------------ */
-  const prepareProductsListForUi = (products: Product[]) => {
-    return products.map((product) => {
-      return {
-        uid: product.uid,
-        name: product.name,
-        departmentName: product.department.name,
-        shoppingUnit: product.shoppingUnit,
-        containsLactose: product.dietProperties?.allergens?.includes(
-          Allergen.Lactose
-        ),
-        containsGluten: product.dietProperties?.allergens?.includes(
-          Allergen.Gluten
-        ),
-        diet: product.dietProperties.diet,
-        usable: product.usable,
-      };
-    });
-  };
-  /* ------------------------------------------
-  // Checkboxen/RadioButton-Edit
+  // Checkboxen-Edit (immutabel)
   // ------------------------------------------ */
   const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const pressedCheckbox = event.target.name.split("_");
-    const tempProducts = products;
-    const changedProduct = tempProducts.find(
-      (product) => product.uid === pressedCheckbox[2]
-    );
-    if (!changedProduct) {
+    const parts = event.target.name.split("_");
+    const product = products.find((candidate) => candidate.uid === parts[2]);
+    if (!product) {
       return;
     }
 
-    if (pressedCheckbox[1] === "usable") {
-      changedProduct.usable = event.target.checked;
+    if (parts[1] === "usable") {
+      onProductChange({...product, usable: event.target.checked});
     } else {
-      const changedAllergene = parseInt(pressedCheckbox[1]) as Allergen;
-
-      if (event.target.checked) {
-        // Wert hinzufügen
-        changedProduct.dietProperties.allergens.push(changedAllergene);
-      } else {
-        // Wert entfernen
-        const index =
-          changedProduct.dietProperties.allergens.indexOf(changedAllergene);
-        if (index > -1) {
-          changedProduct.dietProperties.allergens.splice(index, 1);
-        }
-      }
+      const allergen = parseInt(parts[1]) as Allergen;
+      const current = product.dietProperties.allergens;
+      const updated = event.target.checked
+        ? [...current, allergen]
+        : current.filter((candidate) => candidate !== allergen);
+      onProductChange({
+        ...product,
+        dietProperties: {...product.dietProperties, allergens: updated},
+      });
     }
-
-    setProducts(tempProducts);
-    setFilteredProductsUi(
-      prepareProductsListForUi(filterProducts(tempProducts, searchString))
-    );
   };
+
   /* ------------------------------------------
-	// Context-Menü 
+	// Context-Menü
 	// ------------------------------------------ */
   const openContextMenu = (
     event: React.MouseEvent<HTMLElement>,
-    productUid: Product["uid"]
+    productUid: Product["uid"],
   ) => {
     setContextMenuAnchorElement(event.currentTarget);
     setContextMenuProductUid(productUid);
@@ -991,27 +1039,24 @@ const ProductsTable = ({
     setContextMenuProductUid("");
   };
   const onConvertProductToMaterial = () => {
-    const product = dbProducts.find(
-      (product) => product.uid === contextMenuProductUid
+    const product = products.find(
+      (candidate) => candidate.uid === contextMenuProductUid,
     );
     if (!product) {
       return;
     }
+    // Reducer in der Elternkomponente entfernt das Produkt via PRODUCT_CONVERTED_TO_MATERIAL
     onConvertProductToMaterialSuper(product);
-    setProducts(
-      dbProducts.filter((product) => product.uid !== contextMenuProductUid)
-    );
-    setContextMenuAnchorElement(null);
-    setContextMenuProductUid("");
+    closeContextMenu();
   };
 
   /* ------------------------------------------
-	// PopUp 
+	// PopUp
 	// ------------------------------------------ */
   const openPopUp = (productUid: string) => {
-    let product = {} as Product;
-
-    product = products.find((product) => product.uid === productUid) as Product;
+    const product = products.find(
+      (candidate) => candidate.uid === productUid,
+    ) as Product;
 
     if (!product) {
       return;
@@ -1036,62 +1081,24 @@ const ProductsTable = ({
   const onPopUpClose = () => {
     setProductPopUpValues(PRODUCT_POPUP_VALUES);
   };
+
+  /**
+   * Verarbeitet das OK-Event des Produkt-Dialogs (immutabel).
+   *
+   * @param changedProduct - Das vom Dialog zurückgegebene Produkt
+   */
   const onPopUpOk = (changedProduct: Product) => {
-    // angepasstes Produkt updaten
-    const tempProducts = products;
-
-    const index = tempProducts.findIndex(
-      (product) => product.uid === changedProduct.uid
-    );
-    if (index === -1) {
-      return;
-    }
-
-    tempProducts[index] = {
+    onProductChange({
       ...changedProduct,
-      department: {
-        uid: changedProduct.department.uid,
-        name: changedProduct.department.name,
-      },
-    };
-
-    if (!tempProducts[index].shoppingUnit) {
-      tempProducts[index].shoppingUnit = "";
-    }
-
-    setProducts(tempProducts);
-    setFilteredProductsUi(
-      prepareProductsListForUi(filterProducts(tempProducts, searchString))
-    );
+      shoppingUnit: changedProduct.shoppingUnit || "",
+    });
     setProductPopUpValues(PRODUCT_POPUP_VALUES);
   };
+
   const onPopUpChooseExisting = () => {
     console.info("");
   };
-  if (dbProducts.length > 0 && products.length == 0) {
-    // Deep-Copy, damit der Cancel-Befehl wieder die DB-Daten zeigt,
-    // werden die Daten hier für die Tabelle geklont.
-    setProducts(
-      dbProducts.map((product) => {
-        return {
-          ...product,
-          dietProperties: {
-            ...product.dietProperties,
-            allergens: product.dietProperties?.allergens.map(
-              (allergen) => allergen
-            ),
-          },
-        };
-      })
-    );
-  }
 
-  if (!searchString && products.length > 0 && filteredProductsUi.length === 0) {
-    // Initialer Aufbau
-    setFilteredProductsUi(
-      prepareProductsListForUi(filterProducts(products, ""))
-    );
-  }
   return (
     <React.Fragment>
       <Card sx={classes.card} key={"requestTablePanel"}>
@@ -1105,9 +1112,9 @@ const ProductsTable = ({
             variant="body2"
             style={{marginTop: "0.5em", marginBottom: "2em"}}
           >
-            {filteredProductsUi.length == products.length
+            {filteredProducts.length === products.length
               ? `${products.length} ${TEXT_PRODUCTS}`
-              : `${filteredProductsUi.length} ${TEXT_FROM.toLowerCase()} ${
+              : `${filteredProducts.length} ${TEXT_FROM.toLowerCase()} ${
                   products.length
                 } ${TEXT_PRODUCTS}`}
           </Typography>
@@ -1176,7 +1183,8 @@ const ProductsTable = ({
         handleChooseExisting={onPopUpChooseExisting}
         selectedDepartment={
           departments.find(
-            (department) => department.uid === productPopUpValues.department.uid
+            (department) =>
+              department.uid === productPopUpValues.department.uid,
           )!
         }
         selectedUnit={productPopUpValues.shoppingUnit}
@@ -1184,7 +1192,6 @@ const ProductsTable = ({
         departments={departments}
         units={units}
         authUser={authUser}
-        firebase={firebase}
       />
     </React.Fragment>
   );

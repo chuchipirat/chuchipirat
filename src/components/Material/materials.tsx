@@ -1,3 +1,10 @@
+/**
+ * MaterialPage — Übersichtsseite für Materialien (Stammdaten).
+ *
+ * Zeigt alle Materialien tabellarisch an und erlaubt das Bearbeiten
+ * von Name, Typ und Verwendbarkeit. Nur geänderte Materialien werden
+ * beim Speichern in die Datenbank geschrieben.
+ */
 import React, {SyntheticEvent} from "react";
 
 import {
@@ -16,8 +23,22 @@ import {
   SnackbarCloseReason,
 } from "@mui/material";
 
-import * as TEXT from "../../constants/text";
-import Roles, {Role} from "../../constants/roles";
+import {
+  MATERIALS as TEXT_MATERIALS,
+  BUTTON_EDIT as TEXT_BUTTON_EDIT,
+  BUTTON_SAVE as TEXT_BUTTON_SAVE,
+  BUTTON_CANCEL as TEXT_BUTTON_CANCEL,
+  ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
+  UID as TEXT_UID,
+  FIELD_PRODUCT as TEXT_FIELD_PRODUCT,
+  MATERIAL_TYPE as TEXT_MATERIAL_TYPE,
+  MATERIAL_TYPE_CONSUMABLE as TEXT_MATERIAL_TYPE_CONSUMABLE,
+  MATERIAL_TYPE_USAGE as TEXT_MATERIAL_TYPE_USAGE,
+  USABLE as TEXT_USABLE,
+  SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
+  FROM as TEXT_FROM,
+} from "../../constants/text";
+import Roles from "../../constants/roles";
 
 import PageTitle from "../Shared/pageTitle";
 import ButtonRow from "../Shared/buttonRow";
@@ -30,90 +51,129 @@ import AlertMessage from "../Shared/AlertMessage";
 
 import EditIcon from "@mui/icons-material/Edit";
 
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
+import CustomSnackbar, {
+  SNACKBAR_INITIAL_STATE_VALUES,
+  Snackbar,
+} from "../Shared/customSnackbar";
 import useCustomStyles from "../../constants/styles";
 import SearchPanel from "../Shared/searchPanel";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import Material, {MaterialType} from "./material.class";
-import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
+
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
+
 enum ReducerActions {
-  MATERIALS_FETCH_INIT = 1,
+  MATERIALS_FETCH_INIT,
   MATERIALS_FETCH_SUCCESS,
+  MATERIAL_UPDATED,
   MATERIALS_SAVED,
+  MATERIALS_EDIT_CANCELLED,
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
 }
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+
+/**
+ * Diskriminierte Union für typsichere Reducer-Actions.
+ */
+type ReducerAction =
+  | {type: ReducerActions.MATERIALS_FETCH_INIT}
+  | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
+  | {type: ReducerActions.MATERIAL_UPDATED; payload: Material}
+  | {type: ReducerActions.MATERIALS_SAVED}
+  | {type: ReducerActions.MATERIALS_EDIT_CANCELLED; payload: Material[]}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
+
+/**
+ * State der MaterialPage.
+ *
+ * @property materials - Aktuelle Liste aller Materialien (inkl. laufender Änderungen)
+ * @property changedUids - UIDs der Materialien, die seit dem letzten Speichern geändert wurden
+ * @property error - Fehlerobjekt bei DB-Problemen
+ * @property isLoading - Ladezustand
+ * @property snackbar - Snackbar-Zustand
+ */
 type State = {
   materials: Material[];
+  changedUids: Set<string>;
   error: Error | null;
   isLoading: boolean;
   snackbar: Snackbar;
 };
 
-const inititialState: State = {
+const initialState: State = {
   materials: [],
+  changedUids: new Set(),
   error: null,
   isLoading: false,
-  snackbar: {open: false, severity: "success", message: ""},
+  snackbar: SNACKBAR_INITIAL_STATE_VALUES,
 };
 
-const materialsReducer = (state: State, action: DispatchAction): State => {
+/**
+ * Reducer für die MaterialPage.
+ * Verwaltet Materialien, geänderte UIDs, Ladezustand, Fehler und Snackbar.
+ *
+ * @param state - Aktueller State
+ * @param action - Auszuführende Aktion
+ * @returns Neuer State
+ */
+const materialsReducer = (state: State, action: ReducerAction): State => {
   switch (action.type) {
     case ReducerActions.MATERIALS_FETCH_INIT:
-      // Daten werden geladen
-      return {
-        ...state,
-        isLoading: true,
-      };
+      return {...state, isLoading: true, error: null};
+
     case ReducerActions.MATERIALS_FETCH_SUCCESS:
-      // Produkte erfolgreich geladen
       return {
         ...state,
-        materials: action.payload as Material[],
+        materials: action.payload,
+        changedUids: new Set(),
         isLoading: false,
       };
+
+    case ReducerActions.MATERIAL_UPDATED: {
+      // Geändertes Material immutabel ersetzen und UID als geändert markieren
+      const updatedMaterials = state.materials.map((material) =>
+        material.uid === action.payload.uid ? action.payload : material
+      );
+      const changedUids = new Set(state.changedUids);
+      changedUids.add(action.payload.uid);
+      return {...state, materials: updatedMaterials, changedUids};
+    }
+
     case ReducerActions.MATERIALS_SAVED:
       return {
         ...state,
-        materials: action.payload as Material[],
-        snackbar: {
-          open: true,
-          severity: "success",
-          message: TEXT.SAVE_SUCCESS,
-        },
+        changedUids: new Set(),
+        snackbar: {open: true, severity: "success", message: TEXT_SAVE_SUCCESS},
       };
+
+    case ReducerActions.MATERIALS_EDIT_CANCELLED:
+      // Snapshot wiederherstellen und geänderte UIDs zurücksetzen
+      return {
+        ...state,
+        materials: action.payload,
+        changedUids: new Set(),
+      };
+
     case ReducerActions.SNACKBAR_CLOSE:
-      // Snackbar schliessen
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: "",
-          open: false,
-        },
-      };
+      return {...state, snackbar: {...state.snackbar, open: false}};
+
     case ReducerActions.GENERIC_ERROR:
-      // allgemeiner Fehler
-      return {
-        ...state,
-        error: action.payload as Error,
-        isLoading: false,
-      };
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      return {...state, error: action.payload, isLoading: false};
+
+    default: {
+      const _exhaustiveCheck: never = action;
+      throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
+    }
   }
 };
 
+/** Anfangswerte für den Material-Bearbeitungs-Popup. */
 const MATERIAL_POPUP_VALUES = {
   materialName: "",
   materialUid: "",
@@ -126,30 +186,33 @@ const MATERIAL_POPUP_VALUES = {
 // =============================== Page ==============================
 // =================================================================== */
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Hauptseite für Materialien (Stammdaten).
+ *
+ * Lädt alle Materialien aus der DB, zeigt sie in einer Tabelle an
+ * und schreibt beim Speichern nur die tatsächlich geänderten zurück.
+ *
+ * @example
+ * <MaterialPage />
+ */
 const MaterialPage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
 
-  const [state, dispatch] = React.useReducer(materialsReducer, inititialState);
+  const [state, dispatch] = React.useReducer(materialsReducer, initialState);
   const [editMode, setEditMode] = React.useState(false);
-  const [saveTrigger, setSaveTrigger] = React.useState(0);
-  const [cancelTrigger, setCancelTrigger] = React.useState(0);
+
+  /** Snapshot der Materialien beim Wechsel in den Bearbeitungsmodus. */
+  const materialsSnapshot = React.useRef<Material[]>([]);
+
   /* ------------------------------------------
-	// Daten aus DB holen
-	// ------------------------------------------ */
+  // Daten aus DB holen
+  // ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.MATERIALS_FETCH_INIT,
-      payload: {},
-    });
-    Material.getAllMaterials({
-      firebase: firebase,
-      onlyUsable: false,
-    })
+    dispatch({type: ReducerActions.MATERIALS_FETCH_INIT});
+    database.materials
+      .getAllMaterials(false)
       .then((result) => {
         dispatch({
           type: ReducerActions.MATERIALS_FETCH_SUCCESS,
@@ -158,75 +221,80 @@ const MaterialPage = () => {
       })
       .catch((error) => {
         console.error(error);
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error,
-        });
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
       });
   }, []);
+
   if (!authUser) {
     return null;
   }
+
   /* ------------------------------------------
-	// Edit Mode wechseln
-	// ------------------------------------------ */
-  // Die Triggerfunktionen werden benötigt, damit
-  // useEffect() Methode in der Unterkomponente
-  // reagiert und danach die Callback-Methode onXXX
-  // aufruft
-  const toggleEditMode = () => {
-    setEditMode(!editMode);
+  // Bearbeitungsmodus aktivieren
+  // ------------------------------------------ */
+  const onEditClick = () => {
+    // Snapshot für Cancel speichern
+    materialsSnapshot.current = state.materials.map((material) => ({...material}));
+    setEditMode(true);
   };
-  const raiseSaveTrigger = () => {
-    setSaveTrigger((trigger) => trigger + 1);
-  };
-  const onSave = (materials: Material[]) => {
-    Material.saveAllMaterials({
-      firebase: firebase,
-      materials: materials,
-      authUser: authUser,
-    })
-      .then((result) => {
-        dispatch({type: ReducerActions.MATERIALS_SAVED, payload: result});
-      })
-      .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
-  };
-  const raiseCancelTrigger = () => {
-    setCancelTrigger((trigger) => trigger + 1);
-  };
-  const onCancel = () => {
-    toggleEditMode();
-  };
+
   /* ------------------------------------------
-  // Snackback schliessen
+  // Abbrechen ohne Speichern
+  // ------------------------------------------ */
+  const onCancelClick = () => {
+    dispatch({
+      type: ReducerActions.MATERIALS_EDIT_CANCELLED,
+      payload: materialsSnapshot.current,
+    });
+    setEditMode(false);
+  };
+
+  /* ------------------------------------------
+  // Nur geänderte Materialien speichern
+  // ------------------------------------------ */
+  const onSave = async () => {
+    const changedMaterials = state.materials.filter((material) =>
+      state.changedUids.has(material.uid)
+    );
+    if (changedMaterials.length === 0) return;
+
+    try {
+      for (const material of changedMaterials) {
+        await database.materials.updateMaterial(material, authUser);
+      }
+      dispatch({type: ReducerActions.MATERIALS_SAVED});
+    } catch (error) {
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
+  };
+
+  /* ------------------------------------------
+  // Material geändert (inline oder über Dialog)
+  // ------------------------------------------ */
+  const onMaterialChange = (material: Material) => {
+    dispatch({type: ReducerActions.MATERIAL_UPDATED, payload: material});
+  };
+
+  /* ------------------------------------------
+  // Snackbar schliessen
   // ------------------------------------------ */
   const handleSnackbarClose = (
-    event: Event | SyntheticEvent<any, Event>,
+    _event: Event | SyntheticEvent<any, Event>,
     reason: SnackbarCloseReason
   ) => {
-    if (reason === "clickaway") {
-      return;
-    }
-    dispatch({
-      type: ReducerActions.SNACKBAR_CLOSE,
-      payload: {},
-    });
+    if (reason === "clickaway") return;
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
 
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle
-        title={TEXT.MATERIALS}
-        // subTitle={TEXT.PAGE_SUBTITLE_PRODUCTS}
-      />
+      <PageTitle title={TEXT_MATERIALS} />
       <MaterialsButtonRow
         editMode={editMode}
-        onEdit={toggleEditMode}
-        onSave={raiseSaveTrigger}
-        onCancel={raiseCancelTrigger}
+        onEdit={onEditClick}
+        onSave={onSave}
+        onCancel={onCancelClick}
         authUser={authUser}
       />
       {/* ===== BODY ===== */}
@@ -239,16 +307,13 @@ const MaterialPage = () => {
           <AlertMessage
             error={state.error}
             severity="error"
-            messageTitle={TEXT.ALERT_TITLE_UUPS}
+            messageTitle={TEXT_ALERT_TITLE_UUPS}
           />
         )}
         <MaterialsTable
+          materials={state.materials}
           editMode={editMode}
-          dbMaterials={state.materials}
-          saveTrigger={saveTrigger}
-          cancelTrigger={cancelTrigger}
-          onSave={onSave}
-          onCancel={onCancel}
+          onMaterialChange={onMaterialChange}
           authUser={authUser}
         />
         <CustomSnackbar
@@ -261,9 +326,20 @@ const MaterialPage = () => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================ Buttons ==============================
 // =================================================================== */
+
+/**
+ * Props für die MaterialsButtonRow.
+ *
+ * @property editMode - Ob der Bearbeitungsmodus aktiv ist
+ * @property onEdit - Callback zum Aktivieren des Bearbeitungsmodus
+ * @property onSave - Callback zum Speichern der Änderungen
+ * @property onCancel - Callback zum Abbrechen ohne Speichern
+ * @property authUser - Der angemeldete Benutzer (für Rollenprüfung)
+ */
 interface MaterialsButtonRowProps {
   editMode: boolean;
   onEdit: () => void;
@@ -271,6 +347,11 @@ interface MaterialsButtonRowProps {
   onSave: () => void;
   authUser: AuthUser;
 }
+
+/**
+ * Aktionsbuttons für die MaterialPage (Bearbeiten, Speichern, Abbrechen).
+ * Bearbeiten ist nur für Admins und Community-Leiter sichtbar.
+ */
 const MaterialsButtonRow = ({
   editMode,
   onEdit,
@@ -289,7 +370,7 @@ const MaterialsButtonRow = ({
             !editMode &&
             (authUser.roles.includes(Roles.communityLeader) ||
               authUser.roles.includes(Roles.admin)),
-          label: TEXT.BUTTON_EDIT,
+          label: TEXT_BUTTON_EDIT,
           variant: "contained",
           color: "primary",
           onClick: onEdit,
@@ -298,7 +379,7 @@ const MaterialsButtonRow = ({
           id: "save",
           hero: true,
           visible: editMode,
-          label: TEXT.BUTTON_SAVE,
+          label: TEXT_BUTTON_SAVE,
           variant: "contained",
           color: "primary",
           onClick: onSave,
@@ -307,7 +388,7 @@ const MaterialsButtonRow = ({
           id: "cancel",
           hero: true,
           visible: editMode,
-          label: TEXT.BUTTON_CANCEL,
+          label: TEXT_BUTTON_CANCEL,
           variant: "outlined",
           color: "primary",
           onClick: onCancel,
@@ -316,19 +397,27 @@ const MaterialsButtonRow = ({
     />
   );
 };
+
 /* ===================================================================
 // =========================== Material Panel ========================
 // =================================================================== */
+
+/**
+ * Props für MaterialsTable.
+ *
+ * @property materials - Aktuelle Materialliste (aus dem Page-Reducer)
+ * @property editMode - Ob der Bearbeitungsmodus aktiv ist
+ * @property onMaterialChange - Callback wenn ein Material geändert wird
+ * @property authUser - Der angemeldete Benutzer
+ */
 interface MaterialsTableProps {
-  dbMaterials: Material[];
+  materials: Material[];
   editMode: boolean;
-  saveTrigger: any;
-  cancelTrigger: any;
-  onSave: (editedMaterials: Material[]) => void;
-  onCancel: () => void;
+  onMaterialChange: (material: Material) => void;
   authUser: AuthUser;
 }
-// Aufbau der UI-Tabelle
+
+/** UI-Zeilenstruktur für die Materialtabelle. */
 interface MaterialLineUi {
   uid: Material["uid"];
   name: Material["name"];
@@ -336,20 +425,18 @@ interface MaterialLineUi {
   usable: JSX.Element;
 }
 
+/**
+ * Tabelle mit Suchfeld und Bearbeitungs-Dialog für Materialien.
+ * Alle Daten kommen via Props — kein eigener Materials-State.
+ * `filteredMaterials` und `filteredMaterialsUi` werden per `useMemo` berechnet.
+ */
 const MaterialsTable = ({
-  dbMaterials,
+  materials,
   editMode,
-  saveTrigger,
-  cancelTrigger,
-  onSave,
-  onCancel,
+  onMaterialChange,
   authUser,
 }: MaterialsTableProps) => {
   const [searchString, setSearchString] = React.useState("");
-  const [materials, setMaterials] = React.useState<Material[]>([]);
-  const [filteredMaterialsUi, setFilteredMaterialsUi] = React.useState<
-    MaterialLineUi[]
-  >([]);
   const [materialPopUpValues, setMaterialPopUpValues] = React.useState(
     MATERIAL_POPUP_VALUES
   );
@@ -357,7 +444,7 @@ const MaterialsTable = ({
   const classes = useCustomStyles();
   const theme = useTheme();
 
-  const TABLE_COLUMS = [
+  const TABLE_COLUMNS = [
     {
       id: "edit",
       type: TableColumnTypes.button,
@@ -372,7 +459,7 @@ const MaterialsTable = ({
       type: TableColumnTypes.string,
       textAlign: ColumnTextAlign.center,
       disablePadding: false,
-      label: TEXT.UID,
+      label: TEXT_UID,
       visible: false,
     },
     {
@@ -380,7 +467,7 @@ const MaterialsTable = ({
       type: TableColumnTypes.string,
       textAlign: ColumnTextAlign.left,
       disablePadding: false,
-      label: TEXT.FIELD_PRODUCT,
+      label: TEXT_FIELD_PRODUCT,
       visible: true,
     },
     {
@@ -388,7 +475,7 @@ const MaterialsTable = ({
       type: TableColumnTypes.string,
       textAlign: ColumnTextAlign.left,
       disablePadding: false,
-      label: TEXT.MATERIAL_TYPE,
+      label: TEXT_MATERIAL_TYPE,
       visible: true,
     },
     {
@@ -396,176 +483,76 @@ const MaterialsTable = ({
       type: TableColumnTypes.string,
       textAlign: ColumnTextAlign.center,
       disablePadding: false,
-      label: TEXT.USABLE,
+      label: TEXT_USABLE,
       visible: true,
     },
   ];
-  /* ------------------------------------------
-  // Mutierte Daten hochschieben
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (saveTrigger) {
-      onSave(materials);
-    }
-  }, [saveTrigger]);
-  React.useEffect(() => {
-    // Änderungen verwerfen
-    if (cancelTrigger) {
-      // Werte kopieren --> sonst werden Referenzen übergeben
-      // und bei einem Abbruch (Cancel-Klick) werden die Änderungen
-      // nicht rücktgängig gemacht
-      setMaterials(
-        dbMaterials.map((material) => {
-          return {
-            ...material,
-          };
-        })
-      );
 
-      setFilteredMaterialsUi(
-        prepareMaterialsListForUi(filterMaterials(dbMaterials, searchString))
-      );
-      onCancel();
-    }
-  }, [cancelTrigger]);
   /* ------------------------------------------
-  // Änderung des Edit-Mode verarbeiten
+  // Gefilterte Materialien (abgeleitet von materials + searchString)
   // ------------------------------------------ */
-  React.useEffect(() => {
-    setFilteredMaterialsUi(
-      prepareMaterialsListForUi(filterMaterials(materials, searchString))
-    );
-  }, [editMode]);
+  const filteredMaterials = React.useMemo(() => {
+    if (!searchString) return materials;
+    const lower = searchString.toLowerCase();
+    return materials.filter((material) => material.name.toLowerCase().includes(lower));
+  }, [materials, searchString]);
+
+  /* ------------------------------------------
+  // UI-Darstellung (abgeleitet von filteredMaterials + editMode)
+  // ------------------------------------------ */
+  const filteredMaterialsUi = React.useMemo(
+    () => prepareMaterialsListForUi(filteredMaterials, editMode, handleRadioButtonChange, handleCheckBoxChange),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [filteredMaterials, editMode]
+  );
+
   /* ------------------------------------------
   // Suche
   // ------------------------------------------ */
   const clearSearchString = () => {
     setSearchString("");
-    setFilteredMaterialsUi(
-      prepareMaterialsListForUi(filterMaterials(materials, ""))
-    );
   };
+
   const updateSearchString = (
     event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
   ) => {
     setSearchString(event.target.value);
-    setFilteredMaterialsUi(
-      prepareMaterialsListForUi(
-        filterMaterials(materials, event.target.value as string)
-      )
-    );
   };
+
   /* ------------------------------------------
-  // Filter-Logik 
+  // Inline-Änderungen (Radio + Checkbox)
   // ------------------------------------------ */
-  const filterMaterials = (materials: Material[], searchString: string) => {
-    let filteredMaterials: Material[] = [];
-    if (searchString) {
-      searchString = searchString.toLowerCase();
-      filteredMaterials = materials.filter((material) =>
-        material.name.toLowerCase().includes(searchString)
-      );
-    } else {
-      filteredMaterials = materials;
-    }
-    return filteredMaterials;
-  };
-  /* ------------------------------------------
-  // Daten für UI aufbereiten 
-  // ------------------------------------------ */
-  const prepareMaterialsListForUi = (materials: Material[]) => {
-    return materials.map((material) => {
-      return {
-        uid: material.uid,
-        name: material.name,
-        usable: (
-          <Checkbox
-            id={"checkbox_" + material.uid}
-            disabled={!editMode}
-            checked={material.usable}
-            onChange={handleCheckBoxChange}
-          />
-        ),
-        type: (
-          <RadioGroup
-            aria-label="Typ"
-            name={"radioGroup_" + material.uid}
-            key={"radioGroup_" + material.uid}
-            value={material.type}
-            onChange={handleRadioButtonChange}
-            row
-          >
-            <FormControlLabel
-              value={MaterialType.consumable}
-              control={<Radio size="small" disabled={!editMode} />}
-              label={TEXT.MATERIAL_TYPE_CONSUMABLE}
-            />
-            <FormControlLabel
-              value={MaterialType.usage}
-              control={<Radio size="small" disabled={!editMode} />}
-              label={TEXT.MATERIAL_TYPE_USAGE}
-            />
-          </RadioGroup>
-        ),
-      };
+  function handleRadioButtonChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const uid = event.target.name.split("_")[1];
+    const material = materials.find((candidate) => candidate.uid === uid);
+    if (!material) return;
+    onMaterialChange({
+      ...material,
+      type: parseInt(event.target.value) as MaterialType,
     });
-  };
-  const handleRadioButtonChange = (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const pressedRadioButtonGroup = event.target.name.split("_");
-    const tempMaterials = materials;
-    const changedMaterial = tempMaterials.find(
-      (material) => material.uid === pressedRadioButtonGroup[1]
-    );
-    if (!changedMaterial) {
-      return;
-    }
-    changedMaterial.type = parseInt(event.target.value) as MaterialType;
-    setMaterials(tempMaterials);
-    setFilteredMaterialsUi(
-      prepareMaterialsListForUi(filterMaterials(tempMaterials, searchString))
-    );
-  };
-  const handleCheckBoxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const pressedCheckbox = event.target.id.split("_");
-    const tempMaterials = materials;
-    const changedMaterial = tempMaterials.find(
-      (material) => material.uid === pressedCheckbox[1]
-    );
-    if (!changedMaterial) {
-      return;
-    }
-    changedMaterial.usable = event.target.checked;
-    setMaterials(tempMaterials);
-    setFilteredMaterialsUi(
-      prepareMaterialsListForUi(filterMaterials(tempMaterials, searchString))
-    );
-  };
+  }
+
+  function handleCheckBoxChange(event: React.ChangeEvent<HTMLInputElement>) {
+    const uid = event.target.id.split("_")[1];
+    const material = materials.find((candidate) => candidate.uid === uid);
+    if (!material) return;
+    onMaterialChange({...material, usable: event.target.checked});
+  }
+
   /* ------------------------------------------
-	// PopUp 
-	// ------------------------------------------ */
+  // Popup öffnen
+  // ------------------------------------------ */
   const openPopUp = (
-    event:
+    _event:
       | React.MouseEvent<HTMLSpanElement, MouseEvent>
       | React.MouseEvent<HTMLTableRowElement, MouseEvent>,
     materialToEdit: MaterialLineUi | string
   ) => {
-    let material = {} as Material;
+    const uid =
+      typeof materialToEdit === "string" ? materialToEdit : materialToEdit.uid;
+    const material = materials.find((candidate) => candidate.uid === uid);
+    if (!material) return;
 
-    if (typeof materialToEdit === "string") {
-      material = materials.find(
-        (material) => material.uid === materialToEdit
-      ) as Material;
-    } else {
-      material = materials.find(
-        (material) => material.uid === materialToEdit.uid
-      ) as Material;
-    }
-
-    if (!material) {
-      return;
-    }
     setMaterialPopUpValues({
       materialUid: material.uid,
       materialName: material.name,
@@ -574,50 +561,20 @@ const MaterialsTable = ({
       popUpOpen: true,
     });
   };
+
   const onPopUpClose = () => {
     setMaterialPopUpValues(MATERIAL_POPUP_VALUES);
   };
+
   const onPopUpOk = (changedMaterial: Material) => {
-    // angepasstes Produkt updaten
-    const tempMaterials = materials;
-
-    const index = tempMaterials.findIndex(
-      (material) => material.uid === changedMaterial.uid
-    );
-    if (index === -1) {
-      return;
-    }
-
-    tempMaterials[index] = {
-      ...changedMaterial,
-    };
-
-    setMaterials(tempMaterials);
-    setFilteredMaterialsUi(
-      prepareMaterialsListForUi(filterMaterials(tempMaterials, searchString))
-    );
+    onMaterialChange(changedMaterial);
     setMaterialPopUpValues(MATERIAL_POPUP_VALUES);
   };
-  if (dbMaterials.length > 0 && materials.length == 0) {
-    // Deep-Copy, damit der Cancel-Befehl wieder die DB-Daten zeigt,
-    // werden die Daten hier für die Tabelle geklont.
-    setMaterials([...dbMaterials]);
-  }
-  if (
-    !searchString &&
-    materials.length > 0 &&
-    filteredMaterialsUi.length === 0
-  ) {
-    // Initialer Aufbau
-    setFilteredMaterialsUi(
-      prepareMaterialsListForUi(filterMaterials(materials, ""))
-    );
-  }
 
   return (
     <React.Fragment>
-      <Card sx={classes.card} key={"requestTablePanel"}>
-        <CardContent sx={classes.cardContent} key={"requestTableContent"}>
+      <Card sx={classes.card} key={"materialTablePanel"}>
+        <CardContent sx={classes.cardContent} key={"materialTableContent"}>
           <Stack sx={{marginBottom: theme.spacing(1)}}>
             <SearchPanel
               searchString={searchString}
@@ -628,16 +585,16 @@ const MaterialsTable = ({
               variant="body2"
               style={{marginTop: "0.5em", marginBottom: "2em"}}
             >
-              {filteredMaterialsUi.length == materials.length
-                ? `${materials.length} ${TEXT.MATERIALS}`
-                : `${filteredMaterialsUi.length} ${TEXT.FROM.toLowerCase()} ${
+              {filteredMaterialsUi.length === materials.length
+                ? `${materials.length} ${TEXT_MATERIALS}`
+                : `${filteredMaterialsUi.length} ${TEXT_FROM.toLowerCase()} ${
                     materials.length
-                  } ${TEXT.MATERIALS}`}
+                  } ${TEXT_MATERIALS}`}
             </Typography>
 
             <EnhancedTable
               tableData={filteredMaterialsUi}
-              tableColumns={TABLE_COLUMS}
+              tableColumns={TABLE_COLUMNS}
               keyColum={"uid"}
               onIconClick={openPopUp}
             />
@@ -659,5 +616,60 @@ const MaterialsTable = ({
     </React.Fragment>
   );
 };
+
+/* ===================================================================
+// ====================== Hilfsfunktionen ============================
+// =================================================================== */
+
+/**
+ * Bereitet die Materialliste für die UI-Tabelle auf.
+ * Wandelt Typ und Verwendbarkeit in JSX-Elemente um.
+ *
+ * @param materials - Zu rendernde Materialien
+ * @param editMode - Ob Steuerelemente aktiviert sein sollen
+ * @param onRadioChange - Handler für Typ-Änderungen
+ * @param onCheckboxChange - Handler für Verwendbarkeits-Änderungen
+ * @returns Array von UI-Zeilen
+ */
+function prepareMaterialsListForUi(
+  materials: Material[],
+  editMode: boolean,
+  onRadioChange: (event: React.ChangeEvent<HTMLInputElement>) => void,
+  onCheckboxChange: (event: React.ChangeEvent<HTMLInputElement>) => void
+): MaterialLineUi[] {
+  return materials.map((material) => ({
+    uid: material.uid,
+    name: material.name,
+    usable: (
+      <Checkbox
+        id={"checkbox_" + material.uid}
+        disabled={!editMode}
+        checked={material.usable}
+        onChange={onCheckboxChange}
+      />
+    ),
+    type: (
+      <RadioGroup
+        aria-label="Typ"
+        name={"radioGroup_" + material.uid}
+        key={"radioGroup_" + material.uid}
+        value={material.type}
+        onChange={onRadioChange}
+        row
+      >
+        <FormControlLabel
+          value={MaterialType.consumable}
+          control={<Radio size="small" disabled={!editMode} />}
+          label={TEXT_MATERIAL_TYPE_CONSUMABLE}
+        />
+        <FormControlLabel
+          value={MaterialType.usage}
+          control={<Radio size="small" disabled={!editMode} />}
+          label={TEXT_MATERIAL_TYPE_USAGE}
+        />
+      </RadioGroup>
+    ),
+  }));
+}
 
 export default MaterialPage;

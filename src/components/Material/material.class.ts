@@ -137,7 +137,7 @@ export default class Material {
   }: CreateMaterial) => {
     const material = new Material();
 
-    material.uid = Utils.generateUid(20);
+    material.uid = crypto.randomUUID();
     material.name = name.trim();
     material.type = type;
     material.usable = true;

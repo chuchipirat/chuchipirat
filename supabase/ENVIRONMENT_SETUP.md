@@ -23,6 +23,12 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260301000003_audit_columns_uuid_fk.sql` | Audit-Spalten umbenennen (created_by, updated_at, updated_by), TEXT→UUID, FK auf auth.users(id) |
 | `20260302000001_system_messages_multi_row.sql` | system_messages von Singleton auf Multi-Row umstellen (Constraint entfernen, INSERT/DELETE-Policies) |
 | `20260302000002_create_revoke_sessions_function.sql` | SQL-Funktion `revoke_user_sessions()` zum Löschen von Auth-Sessions (für sign-out-all-users Edge Function) |
+| `20260303000001_create_departments.sql` | Stammdaten-Tabelle für Abteilungen (z.B. Gemüse, Milchprodukte) |
+| `20260303000002_create_units.sql` | Stammdaten-Tabelle für Einheiten (z.B. kg, Stück, dl) |
+| `20260303000003_create_materials.sql` | Stammdaten-Tabelle für Material (z.B. Küchenutensilien) |
+| `20260303000004_create_products.sql` | Stammdaten-Tabelle für Produkte (Zutaten mit Abteilung/Einheit) |
+| `20260303000005_create_unit_conversion_basic.sql` | Basis-Umrechnungen zwischen Einheiten |
+| `20260303000006_create_unit_conversion_products.sql` | Produktspezifische Umrechnungen zwischen Einheiten |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -84,7 +90,13 @@ Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) 
 
 1. **Users** migrieren (erstellt Zeilen in `public.users`)
 2. **Profilbilder** migrieren (kopiert von Firebase Storage in Supabase Storage)
-3. Weitere Entitäten (Events, Rezepte, etc.) folgen in späteren Phasen
+3. **Departments** migrieren (Abteilungen)
+4. **Units** migrieren (Einheiten)
+5. **Materials** migrieren (Material/Küchenutensilien)
+6. **Products** migrieren (Produkte/Zutaten — hängt von Departments + Units ab)
+7. **UnitConversionBasic** migrieren (Basis-Umrechnungen — hängt von Units ab)
+8. **UnitConversionProducts** migrieren (Produkt-Umrechnungen — hängt von Products + Units ab)
+9. Weitere Entitäten (Events, Rezepte, etc.) folgen in späteren Phasen
 
 ---
 

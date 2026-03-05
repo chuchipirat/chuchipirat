@@ -6,15 +6,12 @@ import {
   DialogContent,
   DialogActions,
   Autocomplete,
-  FormControl,
   Button,
   TextField,
   Alert,
   AlertTitle,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
-
-import useCustomStyles from "../../constants/styles";
 
 import {
   DENOMINATOR as TEXT_DENOMINATOR,
@@ -34,7 +31,6 @@ import {
 } from "../../constants/text";
 import Product from "../Product/product.class";
 import Unit from "./unit.class";
-import Firebase from "../Firebase/firebase.class";
 import UnitConversion, {
   SingleUnitConversionBasic,
   SingleUnitConversionProduct,
@@ -80,7 +76,6 @@ export interface HandleCreateProps {
 // ===================== Pop Up Einheit hinzufügen ===================
 // =================================================================== */
 interface DialogCreateUnitConversionProps {
-  firebase: Firebase;
   units: Unit[];
   products: Product[];
   dialogOpen: boolean;
@@ -97,8 +92,6 @@ const DialogCreateUnitConversion = ({
   handleCreate,
   handleClose,
 }: DialogCreateUnitConversionProps) => {
-  const classes = useCustomStyles();
-
   const [formFields, setFormFields] = React.useState(
     UNIT_CONVERSION_ADD_INITIAL_STATE
   );
@@ -311,112 +304,111 @@ const DialogCreateUnitConversion = ({
         )}
         <Grid container spacing={2}>
           {unitConversionType === UnitConversionType.PRODUCT && (
- <Grid size={12} >
-              <FormControl sx={classes.formSelect} margin="normal">
-                <Autocomplete
-                  id={"product"}
-                  value={formFields.product}
-                  options={products}
-                  autoSelect
-                  autoHighlight
-                  getOptionLabel={(product) => product.name}
-                  onChange={(event, newValue) => {
-                    onChangeField(
-                      event as React.ChangeEvent<HTMLInputElement>,
-                      newValue
-                    );
-                  }}
-                  renderInput={(params) => (
-                    <TextField
-                      {...params}
-                      label={TEXT_PRODUCT}
-                      error={validation.product.hasError}
-                      helperText={validation.product.helperText}
-                    />
-                  )}
-                />
-              </FormControl>
+            <Grid size={12}>
+              <Autocomplete
+                id={"product"}
+                value={formFields.product}
+                options={products}
+                autoSelect
+                autoHighlight
+                getOptionLabel={(product) => product.name}
+                onChange={(event, newValue) => {
+                  onChangeField(
+                    event as React.ChangeEvent<HTMLInputElement>,
+                    newValue
+                  );
+                }}
+                renderInput={(params) => (
+                  <TextField
+                    {...params}
+                    margin="normal"
+                    label={TEXT_PRODUCT}
+                    error={validation.product.hasError}
+                    helperText={validation.product.helperText}
+                  />
+                )}
+              />
             </Grid>
           )}
- <Grid size={6} >
+          <Grid size={6}>
             <TextField
               error={validation.denominator.hasError}
-              margin="dense"
+              margin="normal"
               id="denominator"
               name="denominator"
               value={formFields.denominator}
               required
+              fullWidth
               onChange={onChangeField}
               label={TEXT_DENOMINATOR}
               type="number"
               helperText={validation.denominator.helperText}
             />
           </Grid>
- <Grid size={6} >
-            <FormControl sx={classes.formSelect} margin="normal">
-              <Autocomplete
-                id={"fromUnit"}
-                value={formFields.fromUnit}
-                options={units}
-                autoSelect
-                autoHighlight
-                getOptionLabel={(unit) => unit.key}
-                onChange={(event, newValue) => {
-                  onChangeField(
-                    event as React.ChangeEvent<HTMLInputElement>,
-                    newValue
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label={TEXT_UNIT_FROM}
-                    error={validation.fromUnit.hasError}
-                    helperText={validation.fromUnit.helperText}
-                  />
-                )}
-              />
-            </FormControl>
+          <Grid size={6}>
+            <Autocomplete
+              id={"fromUnit"}
+              value={formFields.fromUnit}
+              options={units}
+              autoSelect
+              autoHighlight
+              getOptionLabel={(unit) => unit.key}
+              onChange={(event, newValue) => {
+                onChangeField(
+                  event as React.ChangeEvent<HTMLInputElement>,
+                  newValue
+                );
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  margin="normal"
+                  label={TEXT_UNIT_FROM}
+                  error={validation.fromUnit.hasError}
+                  helperText={validation.fromUnit.helperText}
+                />
+              )}
+            />
           </Grid>
- <Grid size={6} >
+          <Grid size={6}>
             <TextField
               error={validation.numerator.hasError}
-              margin="dense"
+              margin="normal"
               id="numerator"
               name="numerator"
               value={formFields.numerator}
               required
+              fullWidth
               onChange={onChangeField}
               label={TEXT_NUMERATOR}
               type="number"
               helperText={validation.numerator.helperText}
             />
           </Grid>
- <Grid size={6} >
-            <FormControl sx={classes.formSelect} margin="normal">
-              <Autocomplete
-                id={"toUnit"}
-                value={formFields.toUnit}
-                options={units}
-                autoSelect
-                autoHighlight
-                getOptionLabel={(unit) => unit.key}
-                onChange={(event, newValue) => {
-                  onChangeField(
-                    event as React.ChangeEvent<HTMLInputElement>,
-                    newValue
-                  );
-                }}
-                renderInput={(params) => (
-                  <TextField
-                    {...params}
-                    label={TEXT_UNIT_TO}
-                    error={validation.toUnit.hasError}
-                    helperText={validation.toUnit.helperText}
-                  />
-                )}
-              />
-            </FormControl>
+          <Grid size={6}>
+            <Autocomplete
+              id={"toUnit"}
+              value={formFields.toUnit}
+              options={units}
+              autoSelect
+              autoHighlight
+              getOptionLabel={(unit) => unit.key}
+              onChange={(event, newValue) => {
+                onChangeField(
+                  event as React.ChangeEvent<HTMLInputElement>,
+                  newValue
+                );
+              }}
+              renderInput={(params) => (
+                <TextField
+                  {...params}
+                  margin="normal"
+                  label={TEXT_UNIT_TO}
+                  error={validation.toUnit.hasError}
+                  helperText={validation.toUnit.helperText}
+                />
+              )}
+            />
           </Grid>
         </Grid>
       </DialogContent>

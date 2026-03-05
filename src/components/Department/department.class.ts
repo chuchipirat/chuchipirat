@@ -79,7 +79,7 @@ export default class Department {
     authUser,
   }: CreateDepartment) => {
     const department = new Department();
-    department.uid = Utils.generateUid(20);
+    department.uid = crypto.randomUUID();
     department.name = name;
     department.pos = pos;
 

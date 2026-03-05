@@ -119,7 +119,7 @@ export default class UnitConversion {
     toUnit,
   }: CreateUnitConversionBasic): UnitConversion => {
     return {
-      uid: Utils.generateUid(20),
+      uid: crypto.randomUUID(),
       fromUnit: fromUnit,
       toUnit: toUnit,
       numerator: numerator,
@@ -200,7 +200,7 @@ export default class UnitConversion {
     denominator,
   }: CreateUnitConversionProduct): UnitConversion => {
     return {
-      uid: Utils.generateUid(20),
+      uid: crypto.randomUUID(),
       productName: product.name,
       productUid: product.uid,
       fromUnit: fromUnit,

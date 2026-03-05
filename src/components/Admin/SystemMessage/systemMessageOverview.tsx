@@ -98,7 +98,7 @@ const overviewReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.MESSAGE_DELETED:
       return {
         ...state,
-        messages: state.messages.filter((m) => m.uid !== action.payload),
+        messages: state.messages.filter((message) => message.uid !== action.payload),
       };
     case ReducerActions.SNACKBAR_SET:
       return {...state, snackbar: action.payload};
@@ -273,8 +273,8 @@ const SystemMessageOverviewPage = () => {
           <IconButton
             aria-label={TEXT_EDIT}
             size="small"
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={(event) => {
+              event.stopPropagation();
               onEdit(params.row.uid);
             }}
             style={{marginRight: theme.spacing(0.5)}}
@@ -284,8 +284,8 @@ const SystemMessageOverviewPage = () => {
           <IconButton
             aria-label={TEXT_DELETE}
             size="small"
-            onClick={(e) => {
-              e.stopPropagation();
+            onClick={(event) => {
+              event.stopPropagation();
               onDelete(params.row.uid);
             }}
           >
@@ -328,7 +328,7 @@ const SystemMessageOverviewPage = () => {
                   control={
                     <Switch
                       checked={showExpired}
-                      onChange={(e) => setShowExpired(e.target.checked)}
+                      onChange={(event) => setShowExpired(event.target.checked)}
                     />
                   }
                   label={TEXT_SHOW_EXPIRED_MESSAGES}
