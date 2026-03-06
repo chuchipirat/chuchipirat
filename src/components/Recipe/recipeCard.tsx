@@ -16,7 +16,11 @@ import {
   Skeleton,
   Box,
 } from "@mui/material";
-import {Info as InfoIcon, Add as AddIcon} from "@mui/icons-material";
+import {
+  Info as InfoIcon,
+  Add as AddIcon,
+  ChatBubbleOutline as ChatBubbleOutlineIcon,
+} from "@mui/icons-material";
 
 import RecipeShort from "./recipeShort.class";
 import {ImageRepository} from "../../constants/imageRepository";
@@ -208,17 +212,27 @@ const RecipeCard = ({
               alignItems: "center",
             }}
           >
-            <Box sx={{display: "flex", alignItems: "center"}}>
-              <Rating value={recipe.rating.avgRating} size="small" readOnly />
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{marginLeft: "0.5rem"}}
-              >
-                {`${recipe.rating.noRatings} ${
-                  recipe.rating.noRatings === 1 ? TEXT_VOTE : TEXT_VOTES
-                }`}
-              </Typography>
+            <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
+              <Box sx={{display: "flex", alignItems: "center"}}>
+                <Rating value={recipe.rating.avgRating} size="small" readOnly />
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  sx={{marginLeft: "0.5rem"}}
+                >
+                  {`${recipe.rating.noRatings} ${
+                    recipe.rating.noRatings === 1 ? TEXT_VOTE : TEXT_VOTES
+                  }`}
+                </Typography>
+              </Box>
+              {(recipe.noComments ?? 0) > 0 && (
+                <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
+                  <ChatBubbleOutlineIcon fontSize="small" color="action" />
+                  <Typography variant="body2" color="textSecondary">
+                    {recipe.noComments}
+                  </Typography>
+                </Box>
+              )}
             </Box>
             {onFabButtonClickSuper ? (
               <Fab

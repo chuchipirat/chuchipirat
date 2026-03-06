@@ -691,24 +691,44 @@ describe("updateRoles()", () => {
 // updateStats()
 // ===================================================================== */
 describe("updateStats()", () => {
-  test("Firebase incrementField aufrufen", async () => {
-    mockFirebase.user.public.profile.incrementField.mockResolvedValue(
-      undefined
-    );
+  test("Supabase incrementFoundBugs aufrufen", async () => {
+    const mockIncrementFoundBugs = jest.fn().mockResolvedValue(undefined);
+    const dbWithAdmin = {
+      ...mockDatabase,
+      admin: {
+        users: {
+          ...mockDatabase.users,
+          incrementFoundBugs: mockIncrementFoundBugs,
+        },
+      },
+    };
 
     await User.updateStats({
-      firebase: mockFirebase as any,
+      database: dbWithAdmin as any,
       userUid: "u1",
-      statsField: "noComments",
       statsValue: 1,
     });
 
-    expect(
-      mockFirebase.user.public.profile.incrementField
-    ).toHaveBeenCalledWith({
-      uids: ["u1"],
-      field: "stats.noComments",
-      value: 1,
+    expect(mockIncrementFoundBugs).toHaveBeenCalledWith("u1", 1);
+  });
+
+  test("Verwendet database.users wenn kein admin-Client vorhanden", async () => {
+    const mockIncrementFoundBugs = jest.fn().mockResolvedValue(undefined);
+    const dbWithoutAdmin = {
+      ...mockDatabase,
+      admin: null,
+      users: {
+        ...mockDatabase.users,
+        incrementFoundBugs: mockIncrementFoundBugs,
+      },
+    };
+
+    await User.updateStats({
+      database: dbWithoutAdmin as any,
+      userUid: "u1",
+      statsValue: -1,
     });
+
+    expect(mockIncrementFoundBugs).toHaveBeenCalledWith("u1", -1);
   });
 });

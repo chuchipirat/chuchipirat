@@ -1,50 +1,55 @@
 import Utils from "../Shared/utils.class";
-
-import Firebase from "../Firebase/firebase.class";
-import {AuthUser} from "../Firebase/Authentication/authUser.class";
-
-import UserPublicProfile, {
-  UserPublicProfileStatsFields,
-} from "../User/user.public.profile.class";
-import Stats, {StatsField} from "../Shared/stats.class";
-import Feed, {FeedType} from "../Shared/feed.class";
-
-import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
-import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
-import * as TEXT from "../../constants/text";
 import RecipeShort from "./recipeShort.class";
-import RecipeRating, {Rating} from "./recipe.rating.class";
-import RecipeComment from "./recipe.comment.class";
+import {Rating} from "./recipe.rating.class";
 import {ChangeRecord} from "../Shared/global.interface";
+import * as TEXT from "../../constants/text";
 import Unit, {UnitDimension} from "../Unit/unit.class";
-import {RequestPublishRecipe, RequestReportError} from "../Request/internal";
-
 import Product, {Diet, DietProperties} from "../Product/product.class";
 import Event from "../Event/Event/event.class";
-
 import _ from "lodash";
-import Role from "../../constants/roles";
-import {SessionStorageHandler} from "../Firebase/Db/sessionStorageHandler.class";
 import UnitConversion, {
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../Unit/unitConversion.class";
 import Material from "../Material/material.class";
-import {logEvent} from "firebase/analytics";
-import {arrayUnion, DocumentSnapshot, getDoc} from "firebase/firestore";
+import type {RecipeDomain} from "../Database/Repository/RecipeRepository";
+import type {RecipeIngredientDomain} from "../Database/Repository/RecipeIngredientRepository";
+import type {RecipePreparationStepDomain} from "../Database/Repository/RecipePreparationStepRepository";
+import type {RecipeMaterialDomain} from "../Database/Repository/RecipeMaterialRepository";
 
+/* =====================================================================
+// Öffentliche Typen und Schnittstellen
+// ===================================================================== */
+
+/**
+ * Generische Datenstruktur für geordnete Rezept-Positionen (Zutaten,
+ * Zubereitungsschritte, Materialien).
+ *
+ * @template T Typ der einzelnen Einträge.
+ */
 export interface RecipeObjectStructure<T> {
   entries: {[key: string]: T};
   order: string[];
 }
+
+/**
+ * Skalierungsoptionen für die Zutatenberechnung.
+ */
 export interface ScalingOptions {
   convertUnits: boolean;
 }
+
+/**
+ * Basisinterface für alle Positionstypen (Zutat, Schritt, Abschnitt).
+ */
 export interface PositionBase {
   uid: string;
   posType: PositionType;
 }
 
+/**
+ * Eine Zutat (Positionstyp: ingredient) im Rezept.
+ */
 export interface Ingredient extends PositionBase {
   product: IngredientProduct;
   quantity: number;
@@ -53,29 +58,44 @@ export interface Ingredient extends PositionBase {
   scalingFactor: number;
 }
 
+/**
+ * Eine Materialposition im Rezept.
+ */
 export interface RecipeMaterialPosition {
   uid: string;
   quantity: number;
   material: RecipeProduct;
 }
 
+/**
+ * Vereinfachtes Referenz-Objekt für Produkt oder Material (uid + name).
+ */
 export interface RecipeProduct {
   uid: string;
   name: string;
 }
 
+/**
+ * Unterscheidet Zutaten, Zubereitungsschritte und Abschnitte.
+ */
 export enum PositionType {
   ingredient,
   preparationStep,
   section,
 }
 
+/**
+ * Typ eines Rezepts (öffentlich, privat, Variante).
+ */
 export enum RecipeType {
   public = "public",
   private = "private",
   variant = "variant",
 }
 
+/**
+ * Menü-Typus, dem ein Rezept zugeordnet werden kann.
+ */
 export enum MenuType {
   None,
   MainCourse,
@@ -88,25 +108,31 @@ export enum MenuType {
   Beverage,
 }
 
-// export interface Section {
-//   uid: string;
-//   posType: PositionType;
-//   name: string;
-// }
-
+/**
+ * Produkt-Referenz im Zutaten-Context.
+ */
 export interface IngredientProduct {
   uid: string;
   name: string;
 }
 
+/**
+ * Zubereitungsschritt im Rezept.
+ */
 export interface PreparationStep extends PositionBase {
   step: string;
 }
 
+/**
+ * Abschnitt-Trennzeile innerhalb einer Positionsliste.
+ */
 export interface Section extends PositionBase {
   name: string;
 }
 
+/**
+ * Eigenschaften einer Rezeptvariante.
+ */
 export interface RecipeVariantProperties {
   note: string;
   variantName: string;
@@ -115,6 +141,27 @@ export interface RecipeVariantProperties {
   originalRecipeType: RecipeType;
   originalRecipeCreator: ChangeRecord["fromUid"];
 }
+
+/**
+ * Eindeutige Identifikation eines Rezepts über alle Typen hinweg.
+ */
+export interface RecipeIndetifier {
+  uid: Recipe["uid"];
+  recipeType: RecipeType;
+  createdFromUid: ChangeRecord["fromUid"];
+  eventUid: Event["uid"];
+}
+
+/**
+ * Sammlung mehrerer Rezepte, indiziert nach UID.
+ */
+export interface Recipes {
+  [key: Recipe["uid"]]: Recipe;
+}
+
+/* =====================================================================
+// Interne Schnittstellen für Geschäftslogik-Methoden
+// ===================================================================== */
 interface CreateRecipeVariant {
   recipe: Recipe;
   eventUid: Event["uid"];
@@ -130,28 +177,6 @@ interface AddTag {
   tags: string[];
   tagsToAdd: string;
 }
-// interface AddLinkedRecipe {
-//   linkedRecipes: RecipeShort[];
-//   recipeToLink: RecipeShort;
-// }
-// interface RemoveLinkedRecipe {
-//   linkedRecipes: RecipeShort[];
-//   recipeToRemoveUid: string;
-// }
-/**
- * Speichern
- * @param firebase - Objekt zur DB
- * @param recipe - zu speicherndes Rezept
- * @param authUser - Authentifzierungsobjekt zu User
- * @param triggerCloudfunction - mit FALSE kann unterbunden werden, dass die
- * Cloudfunction(s) ausgeführt werden
- */
-interface Save {
-  firebase: Firebase;
-  recipe: Recipe;
-  products: Product[];
-  authUser: AuthUser;
-}
 interface PrepareSave {
   recipe: Recipe;
   products: Product[];
@@ -165,86 +190,6 @@ interface DefinePositionSectionAdjusted {
   order: string[];
   entries: {[key: string]: {posType: PositionType}};
 }
-interface SaveTags {
-  firebase: Firebase;
-  recipe: Recipe;
-  tags: Recipe["tags"];
-  authUser: AuthUser;
-}
-interface Delete {
-  firebase: Firebase;
-  recipe: Recipe;
-  authUser?: AuthUser;
-}
-interface DeleteAllVariants {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-// interface UploadPicture {
-//   firebase: Firebase;
-//   file: File;
-//   recipe: Recipe;
-//   authUser: AuthUser;
-// }
-// interface DeletePicture {
-//   firebase: Firebase;
-//   recipe: Recipe;
-//   authUser: AuthUser;
-// }
-// interface CreateEmptySection {
-//   type: SectionType;
-// }
-// interface AddEmptyEntry<T> {
-//   array: T[];
-//   pos: number;
-//   emptyObject: T;
-//   renumberByField: string;
-// }
-// interface DeleteEntry<T> {
-//   array: T[];
-//   fieldValue: string | number | boolean;
-//   fieldName: string;
-//   emptyObject: T;
-//   renumberByField: string;
-// }
-// interface moveArrayEntryDown<T> {
-//   array: T[];
-//   posToMoveDown: number;
-//   renumberByField: string;
-// }
-// interface moveArrayEntryUp<T> {
-//   array: T[];
-//   posToMoveUp: number;
-//   renumberByField: string;
-// }
-interface GetRecipe {
-  firebase: Firebase;
-  uid: string;
-  type: RecipeType;
-  userUid: string;
-  eventUid?: string;
-  authUser: AuthUser;
-}
-interface GetAllRecipes {
-  firebase: Firebase;
-}
-interface GetMultipleRecipes {
-  firebase: Firebase;
-  recipes: RecipeIndetifier[];
-}
-interface UpdateRating {
-  firebase: Firebase;
-  recipe: Recipe;
-  newRating: number;
-  authUser: AuthUser;
-}
-interface SaveComment {
-  firebase: Firebase;
-  uid: string;
-  newComment: string;
-  authUser: AuthUser;
-}
 interface Scale {
   recipe: Recipe;
   portionsToScale: number;
@@ -255,28 +200,20 @@ interface Scale {
   products?: Product[];
 }
 
-interface CreateRequest {
-  firebase: Firebase;
-  recipe: Recipe;
-  messageForReview: string;
-  authUser: AuthUser;
-}
-
-// Macht ein Rezept eindeutig
-export interface RecipeIndetifier {
-  uid: Recipe["uid"];
-  recipeType: RecipeType;
-  createdFromUid: ChangeRecord["fromUid"];
-  eventUid: Event["uid"];
-}
-
-// Mehrere Rezepte, mit der UID als Member
-export interface Recipes {
-  [key: Recipe["uid"]]: Recipe;
-}
+/* =====================================================================
+// Recipe-Klasse
+// ===================================================================== */
 
 /**
- * Rezept-Klasse
+ * Domänenklasse für ein Rezept.
+ *
+ * Enthält Geschäftslogik (Validierung, Diät-Berechnung, Skalierung) und
+ * Konverter-Methoden zwischen dem in-memory `RecipeObjectStructure`-Format
+ * und den flachen Repository-Domain-Typen.
+ *
+ * Firebase-Persistenz-Methoden wurden im Rahmen der Supabase-Migration
+ * entfernt. Persistenz erfolgt nun über RecipeRepository und die
+ * zugehörigen child-Repositories via DatabaseService.
  */
 export default class Recipe {
   uid: string;
@@ -291,15 +228,16 @@ export default class Recipe {
   pictureSrc: string;
   note: string;
   tags: string[];
+  /** Verknüpfte Rezepte (für Firebase-Kompatibilität; bei Supabase stets `[]`). */
   linkedRecipes: RecipeShort[];
   ingredients: RecipeObjectStructure<Ingredient | Section>;
   preparationSteps: RecipeObjectStructure<PreparationStep | Section>;
-  // sections: Section[];
-  // materials: RecipeMaterialPosition[];
   materials: RecipeObjectStructure<RecipeMaterialPosition>;
   dietProperties: DietProperties;
   menuTypes: MenuType[];
   outdoorKitchenSuitable: boolean;
+  /** Ob das Rezept öffentlich sichtbar/freigegeben ist. */
+  usable: boolean;
   rating: Rating;
   usedProducts?: Product["uid"][];
   usedMaterials?: Material["uid"][];
@@ -308,8 +246,9 @@ export default class Recipe {
   lastChange: ChangeRecord;
   type: RecipeType;
   variantProperties?: RecipeVariantProperties;
+
   /* =====================================================================
-  // Kostruktor
+  // Konstruktor
   // ===================================================================== */
   constructor() {
     this.uid = "";
@@ -327,11 +266,11 @@ export default class Recipe {
     this.linkedRecipes = [];
     this.ingredients = {entries: {}, order: []};
     this.preparationSteps = {entries: {}, order: []};
-    // this.sections = [];
     this.materials = {entries: {}, order: []};
     this.dietProperties = Product.createEmptyDietProperty();
     this.menuTypes = [];
     this.outdoorKitchenSuitable = false;
+    this.usable = true;
     this.usedProducts = [];
     this.created = {date: new Date(0), fromUid: "", fromDisplayName: ""};
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
@@ -356,9 +295,17 @@ export default class Recipe {
     this.type = RecipeType.private;
     this.isInReview = false;
   }
+
   /* =====================================================================
   // Variante erstellen
   // ===================================================================== */
+  /**
+   * Erstellt eine Rezeptvariante (tiefer Clone) für einen bestimmten Event.
+   *
+   * @param recipe - Das Originalrezept, von dem die Variante abgeleitet wird.
+   * @param eventUid - UID des Events, zu dem die Variante gehört.
+   * @returns Neue Recipe-Instanz mit `type = variant` und gesetzten `variantProperties`.
+   */
   static createRecipeVariant({recipe, eventUid}: CreateRecipeVariant) {
     const recipeVariant: Recipe = _.cloneDeep(recipe);
 
@@ -386,10 +333,17 @@ export default class Recipe {
 
     return recipeVariant;
   }
+
   /* =====================================================================
   // Leere Einträge erzeugen
   // ===================================================================== */
-  // in den Listen Einträge erzeugen, wenn nötig
+  /**
+   * Stellt sicher, dass Zutaten-, Zubereitungs- und Materiallisten mindestens
+   * eine leere Position enthalten.
+   *
+   * @param recipe - Das zu prüfende Rezept.
+   * @returns Rezept mit garantiert mindestens einer leeren Position pro Liste.
+   */
   static createEmptyListEntries({recipe}: CreateEmptyListEntries) {
     recipe.ingredients = Recipe.createEmptyListEntryIngredients(
       recipe.ingredients,
@@ -400,9 +354,13 @@ export default class Recipe {
     recipe.materials = Recipe.createEmptyListEntryMaterials(recipe.materials);
     return recipe;
   }
-  /* =====================================================================
-  // Leere Einträge Zutaten erzeugen
-  // ===================================================================== */
+
+  /**
+   * Fügt am Ende der Zutatenliste eine leere Position ein, wenn nötig.
+   *
+   * @param ingredients - Die bestehende Zutatenliste.
+   * @returns Aktualisierte Zutatenliste.
+   */
   static createEmptyListEntryIngredients(ingredients: Recipe["ingredients"]) {
     if (ingredients.order.length == 0) {
       const ingredient = Recipe.createEmptyIngredient();
@@ -424,9 +382,13 @@ export default class Recipe {
     }
     return ingredients;
   }
-  /* =====================================================================
-  // Leere Einträge Zubereitungsschritte erzeugen
-  // ===================================================================== */
+
+  /**
+   * Fügt am Ende der Zubereitungsschrittliste eine leere Position ein, wenn nötig.
+   *
+   * @param preparationSteps - Die bestehende Zubereitungsliste.
+   * @returns Aktualisierte Zubereitungsliste.
+   */
   static createEmptyListEntryPreparationSteps(
     preparationSteps: Recipe["preparationSteps"],
   ) {
@@ -451,9 +413,13 @@ export default class Recipe {
     }
     return preparationSteps;
   }
-  /* =====================================================================
-  // Leere Einträge Materialien erzeugen
-  // ===================================================================== */
+
+  /**
+   * Fügt am Ende der Materialliste eine leere Position ein, wenn nötig.
+   *
+   * @param materials - Die bestehende Materialliste.
+   * @returns Aktualisierte Materialliste.
+   */
   static createEmptyListEntryMaterials(materials: Recipe["materials"]) {
     if (Object.keys(materials.entries).length == 0) {
       const material = Recipe.createEmptyMaterial();
@@ -464,7 +430,7 @@ export default class Recipe {
         materials.entries[materials.order[materials.order.length - 1]];
 
       if (lastEntry && lastEntry.material.uid) {
-        // leere Position am Schluss
+        // Leere Position am Schluss
         const material = Recipe.createEmptyMaterial();
         materials.entries[material.uid] = material;
         materials.order.push(material.uid);
@@ -472,21 +438,38 @@ export default class Recipe {
     }
     return materials;
   }
+
   /* =====================================================================
   // Tag löschen
   // ===================================================================== */
+  /**
+   * Entfernt einen Tag aus der Tag-Liste.
+   *
+   * @param tags - Bestehende Tag-Liste.
+   * @param tagToDelete - Zu entfernender Tag.
+   * @returns Neue Tag-Liste ohne den gelöschten Tag.
+   */
   static deleteTag({tags, tagToDelete}: DeleteTag) {
     return tags.filter((tag) => tag !== tagToDelete);
   }
+
   /* =====================================================================
   // Tag hinzufügen
   // ===================================================================== */
+  /**
+   * Fügt einen oder mehrere Tags (durch Leerzeichen getrennt) zur Liste hinzu.
+   * Duplikate werden ignoriert.
+   *
+   * @param tags - Bestehende Tag-Liste.
+   * @param tagsToAdd - Neuer Tag(s) als Leerzeichen-getrennter String.
+   * @returns Aktualisierte Tag-Liste.
+   */
   static addTag({tags, tagsToAdd}: AddTag) {
     if (!tagsToAdd) {
       return tags;
     }
 
-    // Wenn der Input Leerzeichen hat in mehrere Tags spliten
+    // Wenn der Input Leerzeichen hat, in mehrere Tags splitten
     const newTags = tagsToAdd.split(" ");
 
     newTags.forEach((newTag) => {
@@ -497,29 +480,16 @@ export default class Recipe {
     });
     return tags;
   }
-  /* =====================================================================
-  // Verlinktes Rezept hinzufügen
-  // ===================================================================== */
-  // static addLinkedRecipe({linkedRecipes, recipeToLink}: AddLinkedRecipe) {
-  //   linkedRecipes.push(recipeToLink);
 
-  //   return Utils.sortArray({
-  //     array: linkedRecipes,
-  //     attributeName: "name",
-  //   });
-  // }
-  /* =====================================================================
-  // Verlinktes Rezept entfernen
-  // ===================================================================== */
-  // static removeLinkedRecipe({
-  //   linkedRecipes,
-  //   recipeToRemoveUid,
-  // }: RemoveLinkedRecipe) {
-  //   return linkedRecipes.filter((recipe) => recipe.uid !== recipeToRemoveUid);
-  // }
   /* =====================================================================
   // Daten prüfen
   // ===================================================================== */
+  /**
+   * Validiert Pflichtfelder eines Rezepts.
+   *
+   * @param recipe - Das zu prüfende Rezept.
+   * @throws {Error} Wenn Pflichtfelder fehlen oder ungültige Werte enthalten.
+   */
   static checkRecipeData(recipe: Recipe) {
     if (!recipe.name) {
       throw new Error(TEXT.RECIPE_NAME_CANT_BE_EMPTY);
@@ -577,328 +547,21 @@ export default class Recipe {
       }
     });
   }
-  /* =====================================================================
-  // Daten in Firebase SPEICHERN
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static async save({firebase, recipe, products, authUser}: Save) {
-    const recipeData = Recipe.prepareSave({
-      recipe: recipe,
-      products: products,
-    });
-
-    if (recipe.type === RecipeType.public) {
-      await Recipe.savePublic({
-        firebase: firebase,
-        recipe: recipeData,
-        products: products,
-        authUser: authUser,
-      }).then((result) => (recipe = result));
-    } else if (recipe.type === RecipeType.private) {
-      await Recipe.savePrivate({
-        firebase: firebase,
-        recipe: recipeData,
-        products: products,
-        authUser: authUser,
-      }).then((result) => (recipe = result));
-    } else if (recipe.type === RecipeType.variant) {
-      await Recipe.saveVariant({
-        firebase: firebase,
-        recipe: recipeData,
-        products: products,
-        authUser: authUser,
-      }).then((result) => (recipe = result));
-    }
-    // sicherstellen, dass mindestens eine Postion in Zutaten und Zubereitungsschritte vorhanden ist
-    recipe = Recipe.createEmptyListEntries({recipe: recipe});
-    return recipe;
-  }
-  /* =====================================================================
-  // Daten in Firebase SPEICHERN für öffentliche Rezepte
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  private static savePublic = async ({firebase, recipe, authUser}: Save) => {
-    let recipeNameBeforeSave = "";
-
-    // Alte Werte holen bevor gespeichert wird; dadurch wird entschieden ob später die
-    // Cloudfunction die Änderungen überall updaten muss
-    await firebase.recipePublic
-      .read<Recipe>({uids: [recipe.uid]})
-      .then((result) => {
-        recipeNameBeforeSave = result.name;
-      });
-    //Speichern
-    await firebase.recipePublic
-      .set<Recipe>({
-        uids: [recipe.uid],
-        value: recipe,
-        authUser: authUser,
-      })
-      .then((result) => {
-        recipe = result as Recipe;
-      })
-      .then(() => {
-        // 000_allRecipes Updaten
-        firebase.recipeShortPublic
-          .updateFields({
-            uids: [""], // wird in der Klasse bestimmt,
-            values: {
-              [recipe.uid]: RecipeShort.createShortRecipeFromRecipe(recipe),
-            },
-            authUser: authUser,
-          })
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    if (recipe.name !== recipeNameBeforeSave) {
-      firebase.cloudFunction.updateRecipe.triggerCloudFunction({
-        values: {
-          uid: recipe.uid,
-          type: recipe.type,
-          newName: recipe.name,
-        },
-        authUser: authUser,
-      });
-    }
-    logEvent(firebase.analytics, FirebaseAnalyticEvent.cloudFunctionExecuted);
-
-    return recipe;
-  };
-  /* =====================================================================
-  // Daten in Firebase SPEICHERN für private Rezepte
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  private static savePrivate = async ({firebase, recipe, authUser}: Save) => {
-    let newRecipe = false;
-    let recipeNameBeforeSave = "";
-
-    if (!recipe.uid) {
-      newRecipe = true;
-      await firebase.recipePrivate
-        .create<Recipe>({
-          uids: [authUser.uid],
-          value: recipe,
-          authUser: authUser,
-        })
-        .then((result) => {
-          recipe = result.value;
-        })
-        .catch((error) => {
-          console.error(error);
-          throw error;
-        });
-    } else {
-      // Alte Werte holen bevor gespeichert wird; dadurch wird entschieden ob später die
-      // Cloudfunction die Änderungen überall updaten muss
-      await firebase.recipePrivate
-        .read<Recipe>({uids: [recipe.created.fromUid, recipe.uid]})
-        .then((result) => {
-          recipeNameBeforeSave = result.name;
-        });
-      //Speichern
-      await firebase.recipePrivate
-        .set<Recipe>({
-          uids: [recipe.created.fromUid, recipe.uid],
-          value: recipe,
-          authUser: authUser,
-        })
-        .then((result) => {
-          recipe = result as Recipe;
-        })
-        .catch((error) => {
-          console.error(error);
-          throw error;
-        });
-    }
-    const recipeShort = RecipeShort.createShortRecipeFromRecipe(recipe);
-    // 000_allRecipes Updaten
-    firebase.recipeShortPrivate
-      .updateFields({
-        uids: [recipe.created.fromUid],
-        values: {
-          [recipe.uid]: recipeShort,
-        },
-        authUser: authUser,
-      })
-      .catch((error) => {
-        if (
-          error.name === "FirebaseError" &&
-          error.message.startsWith("No document to update")
-        ) {
-          // Dokument existiert nicht - neu Anlegen
-          firebase.recipeShortPrivate.set({
-            uids: [recipe.created.fromUid],
-            value: recipeShort,
-            authUser: authUser,
-          });
-          // Liste aller User mit privaten Rezepten ergänzen
-          firebase.recipePrivate.updateFields({
-            uids: [],
-            values: {
-              userWithPrivateRecipes: arrayUnion(authUser.uid),
-            },
-            authUser: authUser,
-          });
-        } else {
-          console.error(error);
-          throw error;
-        }
-      });
-
-    if (newRecipe) {
-      // Event auslösen
-      logEvent(firebase.analytics, FirebaseAnalyticEvent.recipeCreated);
-      // Stats anzahl Private Rezepte
-
-      // Counter für Stats herunterzählen
-      Stats.incrementStat({
-        firebase: firebase,
-        field: StatsField.noRecipesPrivate,
-        value: 1,
-      });
-      // Dem User Credits geben
-      UserPublicProfile.incrementField({
-        firebase: firebase,
-        uid: authUser.uid,
-        field: UserPublicProfileStatsFields.noRecipesPrivate,
-        step: 1,
-      });
-
-      Feed.createFeedEntry({
-        firebase: firebase,
-        authUser: authUser,
-        feedType: FeedType.recipeCreated,
-        objectUid: recipe.uid,
-        objectName: recipe.name,
-        objectPictureSrc: recipe.pictureSrc,
-        objectType: RecipeType.private,
-        feedVisibility: Role.communityLeader,
-      });
-    }
-
-    if (!newRecipe && recipe.name !== recipeNameBeforeSave) {
-      firebase.cloudFunction.updateRecipe.triggerCloudFunction({
-        values: {
-          uid: recipe.uid,
-          type: recipe.type,
-          newName: recipe.name,
-        },
-        authUser: authUser,
-      });
-    }
-    logEvent(firebase.analytics, FirebaseAnalyticEvent.cloudFunctionExecuted);
-
-    return recipe;
-  };
-  /* =====================================================================
-  // Daten in Firebase SPEICHERN für Varianten-Rezepte
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  private static saveVariant = async ({firebase, recipe, authUser}: Save) => {
-    let newRecipe = false;
-    if (!recipe.uid) {
-      newRecipe = true;
-      await firebase.recipeVariant
-        .create<Recipe>({
-          uids: [recipe.variantProperties!.eventUid!],
-          value: recipe,
-          authUser: authUser,
-        })
-        .then((result) => {
-          recipe = result.value;
-        })
-        .catch((error) => {
-          console.error(error);
-          throw error;
-        });
-    } else {
-      //Speichern
-      await firebase.recipeVariant
-        .set<Recipe>({
-          uids: [recipe.variantProperties!.eventUid!, recipe.uid],
-          value: recipe,
-          authUser: authUser,
-        })
-        .then((result) => {
-          recipe = result as Recipe;
-        })
-        .catch((error) => {
-          console.error(error);
-          throw error;
-        });
-    }
-
-    const recipeShort = RecipeShort.createShortRecipeFromRecipe(recipe);
-
-    // 000_allRecipes Updaten
-    await firebase.recipeShortVariant
-      .updateFields({
-        uids: [recipe.variantProperties!.eventUid],
-        values: {
-          [recipe.uid]: recipeShort,
-        },
-        authUser: authUser,
-      })
-      .catch(async (error) => {
-        if (
-          error.name === "FirebaseError" &&
-          error.message.startsWith("No document to update")
-        ) {
-          // Dokument existiert nicht - neu Anlegen
-          await firebase.recipeShortVariant.set({
-            uids: [recipe.variantProperties!.eventUid],
-            value: recipeShort,
-            authUser: authUser,
-          });
-        } else {
-          console.error(error);
-          throw error;
-        }
-      });
-
-    if (newRecipe) {
-      // Event auslösen
-      logEvent(firebase.analytics, FirebaseAnalyticEvent.recipeVariantCreated);
-      Stats.incrementStat({
-        firebase: firebase,
-        field: StatsField.noRecipesVariants,
-        value: 1,
-      });
-      Stats.incrementRecipeVariantCounter({
-        firebase: firebase,
-        recipeUid: recipe.variantProperties!.originalRecipeUid,
-        value: 1,
-      });
-      Feed.createFeedEntry({
-        firebase: firebase,
-        authUser: authUser,
-        feedType: FeedType.recipeCreated,
-        objectUid: recipe.uid,
-        objectName: recipe.name,
-        objectPictureSrc: recipe.pictureSrc,
-        objectType: RecipeType.variant,
-        feedVisibility: Role.communityLeader,
-      });
-    }
-    return recipe;
-  };
 
   /* =====================================================================
   // Speichern vorbereiten
   // ===================================================================== */
+  /**
+   * Bereitet ein Rezept für das Speichern vor: bereinigt leere Positionen,
+   * berechnet Diät-Eigenschaften, validiert und normalisiert numerische Werte.
+   *
+   * @param recipe - Das zu speichernde Rezept.
+   * @param products - Produktliste für die Diät-Berechnung.
+   * @returns Bereinigtes und validiertes Rezept.
+   * @throws {Error} Wenn die Validierung fehlschlägt.
+   */
   static prepareSave({recipe, products}: PrepareSave) {
-    // Falls mehrere leere Einträge vorhanden, diese entfernen
+    // Leere Positionen entfernen
     if (Object.keys(recipe.ingredients.entries).length > 0) {
       recipe.ingredients = Recipe.deleteEmptyIngredients(recipe.ingredients);
     }
@@ -911,13 +574,13 @@ export default class Recipe {
       );
     }
 
-    // vorbereiten der Diät-Eigenschaften.
+    // Diät-Eigenschaften berechnen
     recipe.dietProperties = Recipe.defineDietProperties({
       recipe: recipe,
       products: products,
     });
 
-    // Nochmals prüfen ob alles ok.
+    // Nochmals prüfen ob alles ok
     try {
       Recipe.checkRecipeData(recipe);
     } catch (error) {
@@ -925,7 +588,7 @@ export default class Recipe {
       throw error;
     }
 
-    // Prüfen ob Werte auch !== null
+    // Sicherstellen, dass numerische Werte korrekt gespeichert werden
     Object.values(recipe.ingredients.entries).forEach((ingredient) => {
       if (ingredient.posType == PositionType.ingredient) {
         ingredient = ingredient as Ingredient;
@@ -955,28 +618,24 @@ export default class Recipe {
       }
     });
 
-    // Zutaten und Zubereitung nochmals Positionen nummerieren
-    // recipe.ingredients = Utils.renumberArray({
-    //   array: recipe.ingredients,
-    //   field: "pos",
-    // }) as Ingredient[];
-
-    // recipe.preparationSteps = Utils.renumberArray({
-    //   array: recipe.preparationSteps,
-    //   field: "pos",
-    // }) as PreparationStep[];
-
-    // recipe.usedProducts = Recipe.getUsedProducts(recipe.ingredients);
-
-    // Zutaten: sicherstellen, dass Nummerische Werte auch so gespeichert werden
     recipe.portions = parseInt(recipe.portions.toString());
     return recipe;
   }
+
   /* =====================================================================
-  // Bestimmen welche Diät-Eigenschaften ein Rezept hat
+  // Diät-Eigenschaften bestimmen
   // ===================================================================== */
+  /**
+   * Berechnet die Diät-Eigenschaften (Diättyp, Allergene) des Rezepts
+   * aus den verwendeten Produkten.
+   *
+   * @param recipe - Das Rezept, dessen Zutaten ausgewertet werden.
+   * @param products - Produktliste mit Diät-Informationen.
+   * @returns Berechnete `DietProperties`.
+   * @throws {Error} Wenn ein Produkt aus der Zutat nicht in der Produktliste gefunden wird.
+   */
   static defineDietProperties({recipe, products}: DefineDietProperties) {
-    // HINT: diese Funktion muss auch in der Cloud-FX  nachgeführt werden
+    // HINT: diese Funktion muss auch in der Cloud-FX nachgeführt werden
     const dietProperties = {allergens: [], diet: Diet.Vegan} as DietProperties;
 
     // Ein Vorkommnis reicht, damit ein Rezept die entsprechende Allergie erhält
@@ -985,7 +644,6 @@ export default class Recipe {
         ingredient = ingredient as Ingredient;
         const productUid = ingredient.product.uid;
 
-        // Infos zu Produkt holen
         const product = products.find(
           (product) => product.uid === productUid,
         ) as Product;
@@ -1007,14 +665,23 @@ export default class Recipe {
     });
 
     if (dietProperties.allergens.length > 0) {
-      // Duplikate löschen
       dietProperties.allergens = [...new Set(dietProperties.allergens)];
     }
     return dietProperties;
   }
+
   /* =====================================================================
-  // Position definieren, und dabei die vorhergehenden Sektion ingnorieren
+  // Position mit Sektions-Anpassung bestimmen
   // ===================================================================== */
+  /**
+   * Gibt die bereinigte Positionsnummer einer Zutat/eines Schritts zurück,
+   * wobei Abschnitte nicht mitgezählt werden.
+   *
+   * @param uid - UID der gesuchten Position.
+   * @param order - Reihenfolge-Array der Einträge.
+   * @param entries - Eintrags-Map mit posType.
+   * @returns Positionsnummer (1-basiert, Abschnitte ausgeblendet).
+   */
   static definePositionSectionAdjusted({
     uid,
     entries,
@@ -1038,94 +705,16 @@ export default class Recipe {
 
     return positionCounter;
   }
+
   /* =====================================================================
-  // Genutzte Produkte sammeln (damit diese auch wieder gefunden werden)
+  // Leere Zutaten entfernen
   // ===================================================================== */
-  // static getUsedProducts(ingredients: Ingredient[]) {
-  //   let usedProducts: string[] = [];
-  //   ingredients.forEach((position) => usedProducts.push(position.product.uid));
-  //   return usedProducts;
-  // }
-  /* =====================================================================
-  // Tags speichern
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static async saveTags({firebase, recipe, tags, authUser}: SaveTags) {
-    // einzelnes Feld updaten!
-
-    if (!recipe.uid) {
-      // Wenn Rezept neu angelegt wird, werden die Tags mit dem
-      // speichern festgehalten
-      return;
-    }
-
-    switch (recipe.type) {
-      case RecipeType.public:
-        await firebase.recipePublic
-          .updateFields({
-            uids: [recipe.uid],
-            values: {tags: tags},
-            authUser: authUser,
-          })
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-
-        await firebase.recipeShortPublic
-          .updateFields({
-            uids: [],
-            values: {
-              [recipe.uid]: {
-                ...RecipeShort.createShortRecipeFromRecipe(recipe),
-                tags: tags,
-              },
-            },
-            authUser: authUser,
-          })
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-        break;
-      case RecipeType.private:
-        await firebase.recipePrivate
-          .updateFields({
-            uids: [recipe.created.fromUid, recipe.uid],
-            values: {tags: tags},
-            authUser: authUser,
-          })
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-
-        await firebase.recipeShortPrivate
-          .updateFields({
-            uids: [recipe.created.fromUid],
-            values: {
-              [recipe.uid]: {
-                ...RecipeShort.createShortRecipeFromRecipe(recipe),
-                tags: tags,
-              },
-            },
-            authUser: authUser,
-          })
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-        break;
-        break;
-      case RecipeType.variant:
-        break;
-    }
-    // await firebase
-  }
-  /* =====================================================================
-  // leere Zutaten entfernen
-  // ===================================================================== */
+  /**
+   * Entfernt leere Zutaten-Positionen aus der Zutatenliste.
+   *
+   * @param ingredients - Zutatenliste mit möglichen Leereinträgen.
+   * @returns Bereinigte Zutatenliste.
+   */
   static deleteEmptyIngredients(
     ingredients: RecipeObjectStructure<Ingredient | Section>,
   ) {
@@ -1149,9 +738,16 @@ export default class Recipe {
     });
     return ingredients;
   }
+
   /* =====================================================================
-  // leere Zubereitungsschritte entfernen
+  // Leere Zubereitungsschritte entfernen
   // ===================================================================== */
+  /**
+   * Entfernt leere Zubereitungsschritte aus der Zubereitungsliste.
+   *
+   * @param preparationSteps - Zubereitungsliste mit möglichen Leereinträgen.
+   * @returns Bereinigte Zubereitungsliste.
+   */
   static deleteEmptyPreparationSteps(
     preparationSteps: RecipeObjectStructure<PreparationStep | Section>,
   ) {
@@ -1176,13 +772,19 @@ export default class Recipe {
     });
     return cleanedPreparationSteps;
   }
+
   /* =====================================================================
-  // leere Materiale entfernen
+  // Leere Materialien entfernen
   // ===================================================================== */
+  /**
+   * Entfernt leere Materialpositionen aus der Materialliste.
+   *
+   * @param materials - Materialliste mit möglichen Leereinträgen.
+   * @returns Bereinigte Materialliste.
+   */
   static deleteEmptyMaterials(
     materials: RecipeObjectStructure<RecipeMaterialPosition>,
   ) {
-    //TODO: Test-ME
     const materialUids = [...materials.order];
     materialUids.forEach((materialUid) => {
       if (!materials.entries[materialUid].material.name) {
@@ -1194,242 +796,18 @@ export default class Recipe {
     });
     return materials;
   }
+
   /* =====================================================================
-  // Rezept löschen
+  // Leere Objekte erzeugen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static async delete({firebase, recipe, authUser}: Delete) {
-    // sicherstellen, dass nur die richtigen Personen löschen dürfen
-
-    if (!authUser) {
-      throw Error(TEXT.ERROR_PARAMETER_NOT_PASSED);
-    }
-
-    switch (recipe.type) {
-      case RecipeType.public:
-        if (!authUser.roles.includes(Role.admin)) {
-          throw Error(TEXT.FIREBASE_MESSAGES.PERMISSION_DENIED);
-        }
-        break;
-      case RecipeType.private:
-        if (recipe.created.fromUid !== authUser.uid) {
-          throw Error(TEXT.FIREBASE_MESSAGES.PERMISSION_DENIED);
-        }
-        break;
-      case RecipeType.variant:
-        // Wird durch die Firebase-Rule abgefangen
-        break;
-    }
-
-    if (recipe.type === RecipeType.public) {
-      // Rezept löschen
-      await Recipe.deletePublic({
-        firebase: firebase,
-        recipe: recipe,
-        authUser: authUser,
-      }).catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    } else if (recipe.type === RecipeType.private) {
-      await Recipe.deletePrivate({
-        firebase: firebase,
-        recipe: recipe,
-        authUser: authUser,
-      }).catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    } else if (recipe.type === RecipeType.variant) {
-      await Recipe.deleteVariant({
-        firebase: firebase,
-        recipe: recipe,
-        authUser: authUser,
-      }).catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    }
-    // 000_allRecipes anpassen
-    await RecipeShort.delete({
-      firebase: firebase,
-      recipeUid: recipe.uid,
-      recipeType: recipe.type,
-      authUser: authUser,
-      eventUid:
-        recipe.type == RecipeType.variant
-          ? recipe.variantProperties!.eventUid
-          : "",
-    }).catch((error) => {
-      console.error(error);
-      throw error;
-    });
-
-    // Cloud-Function triggern, die die Rezepte aus den Menüplänen entfernt
-    if (recipe.type !== RecipeType.variant) {
-      firebase.cloudFunction.deleteRecipe.triggerCloudFunction({
-        values: {
-          uid: recipe.uid,
-          name: recipe.name,
-        },
-        authUser: authUser,
-      });
-    }
-  }
-  /* =====================================================================
   /**
-   * deletePublic: öffentliches Rezept löschen
-   * alle nötigen Infos (000_allRecipes) und Counter werden angepasst.
+   * Erstellt eine leere Zutaten-Position.
+   *
+   * @returns Leere `Ingredient`-Instanz mit zufälliger UID.
    */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  private static deletePublic = async ({
-    firebase,
-    recipe,
-    authUser,
-  }: Delete) => {
-    if (!authUser) {
-      throw Error(TEXT.ERROR_PARAMETER_NOT_PASSED);
-    }
-    await firebase.recipePublic.delete({uids: [recipe.uid]}).catch((error) => {
-      console.error(error);
-      throw error;
-    });
-    // Counter für Stats herunterzählen
-    Stats.incrementStat({
-      firebase: firebase,
-      field: StatsField.noRecipesPublic,
-      value: -1,
-    });
-    // Dem User Credits nehmen
-    UserPublicProfile.incrementField({
-      firebase: firebase,
-      uid: authUser.uid,
-      field: UserPublicProfileStatsFields.noRecipesPublic,
-      step: -1,
-    });
-  };
-  /* =====================================================================
-  /**
-   * deletePrivate: Privates Rezept löschen
-   * alle nötigen Infos (000_allRecipes) und Counter werden angepasst.
-   */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  private static deletePrivate = async ({
-    firebase,
-    recipe,
-    authUser,
-  }: Delete) => {
-    if (!authUser) {
-      throw Error(TEXT.ERROR_PARAMETER_NOT_PASSED);
-    }
-
-    await firebase.recipePrivate
-      .delete({uids: [recipe.created.fromUid, recipe.uid]})
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    // Counter für Stats herunterzählen
-    Stats.incrementStat({
-      firebase: firebase,
-      field: StatsField.noRecipesPrivate,
-      value: -1,
-    });
-    // Dem User Credits nehmen
-    UserPublicProfile.incrementField({
-      firebase: firebase,
-      uid: recipe.created.fromUid,
-      field: UserPublicProfileStatsFields.noRecipesPrivate,
-      step: -1,
-    });
-  };
-  /* =====================================================================
-  /**
-   * deleteVariant: Varianten-Rezept löschen
-   * alle nötigen Infos (000_allRecipes) und Counter werden angepasst.
-   */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  private static deleteVariant = async ({firebase, recipe}: Delete) => {
-    await firebase.recipeVariant
-      .delete({uids: [recipe.variantProperties!.eventUid!, recipe.uid]})
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    // Counter für Stats herunterzählen
-    Stats.incrementStat({
-      firebase: firebase,
-      field: StatsField.noRecipesVariants,
-      value: -1,
-    });
-    Stats.incrementRecipeVariantCounter({
-      firebase: firebase,
-      recipeUid: recipe.variantProperties!.originalRecipeUid,
-      value: -1,
-    });
-  };
-  /* =====================================================================
-  /**
-   * Alle Rezept-Varianten löschen
-   * Wird benötigt, wenn der ganze Event gelöscht wird.
-   */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static deleteAllVariants = async ({
-    eventUid,
-    firebase,
-    authUser,
-  }: DeleteAllVariants) => {
-    let counter = 0;
-    // Rezept-Übersicht holen
-    await RecipeShort.getShortRecipesVariant({
-      firebase: firebase,
-      eventUid: eventUid,
-    })
-      .then((result) =>
-        result.forEach(async (recipeVariantShort) => {
-          await Recipe.delete({
-            recipe: {
-              ...new Recipe(),
-              ...recipeVariantShort,
-              variantProperties: {eventUid: eventUid},
-            } as Recipe,
-            firebase: firebase,
-            authUser: authUser,
-          }).then(() => {
-            counter++;
-          });
-        }),
-      )
-      .then(async () => {
-        // Rezept-Übersich löschen
-        await RecipeShort.deleteOverview({
-          eventUid: eventUid,
-          firebase: firebase,
-        }).catch((error) => {
-          console.error(error);
-          throw error;
-        });
-      })
-      .then(() => {
-        Stats.incrementStat({
-          field: StatsField.noRecipesVariants,
-          value: counter * -1,
-          firebase: firebase,
-        });
-      });
-  };
-  /* =====================================================================
-  // Leeres Objket Zutat erzeugen
-  // ===================================================================== */
   static createEmptyIngredient(): Ingredient {
     return {
-      uid: Utils.generateUid(5),
-      // recipeId: "",
+      uid: crypto.randomUUID(),
       posType: PositionType.ingredient,
       product: {uid: "", name: ""},
       quantity: 0,
@@ -1438,371 +816,62 @@ export default class Recipe {
       scalingFactor: 1,
     };
   }
-  /* =====================================================================
-  // Leeres Objket Abschnitt erzeugen
-  // ===================================================================== */
+
+  /**
+   * Erstellt eine leere Abschnitt-Trennzeile.
+   *
+   * @returns Leere `Section`-Instanz mit zufälliger UID.
+   */
   static createEmptySection(): Section {
     return {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       posType: PositionType.section,
       name: "",
     };
   }
-  /* =====================================================================
-  // Leeren Zubereitungsschritt erzeugen
-  // ===================================================================== */
+
+  /**
+   * Erstellt einen leeren Zubereitungsschritt.
+   *
+   * @returns Leere `PreparationStep`-Instanz mit zufälliger UID.
+   */
   static createEmptyPreparationStep(): PreparationStep {
     return {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       posType: PositionType.preparationStep,
       step: "",
     };
   }
-  /* =====================================================================
-  // Leeres Material erzeugen
-  // ===================================================================== */
+
+  /**
+   * Erstellt eine leere Materialposition.
+   *
+   * @returns Leere `RecipeMaterialPosition`-Instanz mit zufälliger UID.
+   */
   static createEmptyMaterial(): RecipeMaterialPosition {
     return {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       quantity: 0,
       material: {uid: "", name: ""},
     } as RecipeMaterialPosition;
   }
+
   /* =====================================================================
-  // Rezept lesen
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static getRecipe = async ({
-    firebase,
-    uid,
-    type,
-    userUid,
-    eventUid = "",
-    authUser,
-  }: GetRecipe) => {
-    let recipe = new Recipe();
-
-    if (
-      !firebase ||
-      !uid ||
-      !type ||
-      (!userUid && type === RecipeType.private) ||
-      (!eventUid && type === RecipeType.variant)
-    ) {
-      throw new Error(TEXT.ERROR_PARAMETER_NOT_PASSED);
-    }
-    if (type === RecipeType.public) {
-      await firebase.recipePublic
-        .read<Recipe>({uids: [uid]})
-        .then((result) => {
-          if (!result) {
-            throw Error(TEXT.ERROR_RECIPE_UNKNOWN(uid));
-          }
-          recipe = result;
-        })
-        .then(async () => {
-          // Bewertung holen
-          recipe.rating.myRating = await RecipeRating.getUserRating({
-            firebase: firebase,
-            recipeUid: recipe.uid,
-            userUid: authUser.uid,
-          });
-
-          recipe = Recipe.createEmptyListEntries({recipe: recipe});
-        })
-        .catch(() => {
-          // User hat kein Rating abgegeben. Voll ok!
-          // console.error(error);
-          // throw error;
-        });
-    } else if (type === RecipeType.private) {
-      await firebase.recipePrivate
-        .read<Recipe>({uids: [userUid, uid]})
-        .then((result) => {
-          if (!result) {
-            throw Error(TEXT.ERROR_RECIPE_UNKNOWN(uid));
-          }
-          recipe = result;
-          recipe = Recipe.createEmptyListEntries({recipe: recipe});
-        });
-    } else if (type === RecipeType.variant) {
-      await firebase.recipeVariant
-        .read<Recipe>({uids: [eventUid, uid]})
-        .then((result) => {
-          if (!result) {
-            throw Error(TEXT.ERROR_RECIPE_UNKNOWN(uid));
-          }
-          recipe = result;
-          recipe = Recipe.createEmptyListEntries({recipe: recipe});
-        })
-        .catch((error) => console.error(error));
-    } else {
-      throw Error(TEXT.ERROR_RECIPE_UNKNOWN(uid));
-    }
-
-    return recipe;
-  };
-  /* =====================================================================
-  // Alle Rezepte aus der DB holen
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static getAllRecipes = async ({
-    firebase,
-  }: GetAllRecipes): Promise<Recipe[]> => {
-    let recipes: Recipe[] = [];
-
-    if (!firebase) {
-      throw new Error(TEXT.ERROR_PARAMETER_NOT_PASSED);
-    }
-
-    await firebase.recipePublic
-      .readCollection<Recipe>({
-        uids: [],
-        orderBy: {field: "name", sortOrder: SortOrder.asc},
-        limit: 1000,
-      })
-      .then((result) => {
-        recipes = result as Recipe[];
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    return recipes;
-  };
-  /* =====================================================================
-  // Mehrere Rezepte aus der DB suchen
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static getMultipleRecipes = async ({
-    firebase,
-    recipes,
-  }: GetMultipleRecipes) => {
-    const docRefs: Promise<DocumentSnapshot>[] = [];
-    const result: {[key: Recipe["uid"]]: Recipe} = {};
-
-    if (!firebase || !recipes || recipes.length === 0) {
-      throw new Error(TEXT.ERROR_PARAMETER_NOT_PASSED);
-    }
-
-    // Trennen zwischen öffentlichen , Privaten, und Varianten
-    recipes.forEach((recipe) => {
-      if (recipe.uid.includes("[DELETED]")) {
-        // gelöschte Rezepte ignorieren
-        return;
-      }
-      switch (recipe.recipeType) {
-        case RecipeType.public:
-          docRefs.push(getDoc(firebase.recipePublic.getDocument([recipe.uid])));
-          break;
-        case RecipeType.private:
-          docRefs.push(
-            getDoc(
-              firebase.recipePrivate.getDocument([
-                recipe.createdFromUid,
-                recipe.uid,
-              ]),
-            ),
-          );
-          break;
-        case RecipeType.variant:
-          docRefs.push(
-            getDoc(
-              firebase.recipeVariant.getDocument([recipe.eventUid, recipe.uid]),
-            ),
-          );
-          break;
-      }
-    });
-    const documents = (await Promise.all(docRefs)) as {[field: string]: any}[];
-
-    documents.forEach((document) => {
-      let recipe = {} as Recipe;
-      const recipeType = recipes.find(
-        (recipe) => recipe.uid == document.id,
-      )?.recipeType;
-
-      switch (recipeType) {
-        case RecipeType.public:
-          recipe = firebase.recipePublic.prepareDataForApp({
-            uid: document.id,
-            value: firebase.recipePublic.convertTimestampValuesToDates(
-              document.data(),
-            ),
-          });
-          break;
-        case RecipeType.private:
-          recipe = firebase.recipePrivate.prepareDataForApp({
-            uid: document.id,
-            value: firebase.recipePrivate.convertTimestampValuesToDates(
-              document.data(),
-            ),
-          });
-          break;
-        case RecipeType.variant:
-          recipe = firebase.recipeVariant.prepareDataForApp({
-            uid: document.id,
-            value: firebase.recipeVariant.convertTimestampValuesToDates(
-              document.data(),
-            ),
-          });
-          break;
-      }
-
-      // Gleich in Local Storage aufnehmen
-      SessionStorageHandler.upsertDocument({
-        storageObjectProperty:
-          firebase.recipePublic.getSessionHandlerProperty(), // gilt für alle Typen
-        documentUid: document.id,
-        value: recipe,
-        prefix: "",
-      });
-
-      result[document.id] = recipe;
-    });
-
-    return result;
-  };
+  // Skalierung
   // ===================================================================== */
   /**
-   * Rating updaten - je nach dem ob der User das Rating, neu hinzufügt,
-   * ändert oder löscht, wird das durschnittliche Rating für das Rezept
-   * neu gerechnet. Um die Kommazahlen im 0.1 Bereich zu erhalten, wird
-   * jeweils gerechnet und dann *10 -> runden -> /10
-   * Vor dem Speichern, muss der aktuelle Wert auf der DB nochmals
-   * nachgelesen werden, da es sein könnte, dass in der Zwischenzeit jemand
-   * anders ein neues Rating abgegeben hat. Daher: aktuelle Daten holen
-   * und nochmals neu durchrechnen.
-   * @param param0 - Objekt mit Firebase-Referenz, Rezept-Referenz,
-   *        neues Rating und authUser
-   * @returns neu Berechnetes Rating für Rezept
+   * Skaliert die Zutatenmengen auf eine neue Portionenzahl.
+   * Optional werden Einheiten umgerechnet (z.B. EL → dl).
+   *
+   * @param recipe - Das Originalrezept.
+   * @param portionsToScale - Zielportionenzahl.
+   * @param scalingOptions - Optionale Einheitenumrechnung aktivieren.
+   * @param units - Einheitenliste (benötigt bei convertUnits).
+   * @param unitConversionBasic - Standard-Umrechnungsregeln.
+   * @param unitConversionProducts - Produkt-spezifische Umrechnungsregeln.
+   * @param products - Produktliste (benötigt bei convertUnits).
+   * @returns Neue `RecipeObjectStructure` mit skalierten Zutatenmengen.
    */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static updateRating = async ({
-    firebase,
-    recipe,
-    newRating,
-    authUser,
-  }: UpdateRating) => {
-    const oldRating = recipe.rating.myRating;
-
-    // Aktuelle Werte holen
-    await firebase.recipePublic
-      .read<Recipe>({uids: [recipe.uid]})
-      .then((result) => {
-        recipe.rating = result.rating;
-        if (oldRating !== 0 && newRating === 0) {
-          //  Rating wurde gelöscht
-          recipe.rating.avgRating =
-            Math.round(
-              ((recipe.rating.avgRating * recipe.rating.noRatings - oldRating) /
-                (recipe.rating.noRatings - 1)) *
-                10,
-            ) / 10;
-          recipe.rating.noRatings = recipe.rating.noRatings - 1;
-        } else if (oldRating > 0) {
-          // geändertes Rating
-          recipe.rating.avgRating =
-            Math.round(
-              ((recipe.rating.avgRating * recipe.rating.noRatings -
-                oldRating +
-                newRating) /
-                recipe.rating.noRatings) *
-                10,
-            ) / 10;
-        } else {
-          // neues Rating
-          recipe.rating.avgRating =
-            Math.round(
-              ((recipe.rating.avgRating * recipe.rating.noRatings + newRating) /
-                (recipe.rating.noRatings + 1)) *
-                10,
-            ) / 10;
-          recipe.rating.noRatings = recipe.rating.noRatings + 1;
-        }
-
-        recipe.rating.myRating = newRating;
-
-        // Rating speichern
-        firebase.recipePublic.updateFields({
-          uids: [recipe.uid],
-          values: {
-            rating: {
-              avgRating: recipe.rating.avgRating,
-              noRatings: recipe.rating.noRatings,
-            },
-          },
-          authUser: authUser,
-          updateChangeFields: false,
-        });
-
-        //000_allRecipes updaten
-        firebase.recipeShortPublic
-          .updateFields({
-            uids: [""], // wird in der Klasse bestimmt,
-            values: {
-              [recipe.uid]: RecipeShort.createShortRecipeFromRecipe(recipe),
-            },
-            authUser: authUser,
-            updateChangeFields: false,
-          })
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-      });
-    // User-spezifisches Rating speichern
-    await RecipeRating.updateUserRating({
-      firebase: firebase,
-      recipe: recipe,
-      newRating: newRating,
-      authUser: authUser,
-    }).catch((error) => {
-      console.error(error);
-      throw error;
-    });
-    logEvent(firebase.analytics, FirebaseAnalyticEvent.recipeRatingSet);
-    return recipe.rating;
-  };
-  /* =====================================================================
-  // Kommentar speichern
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static saveComment = async ({
-    firebase,
-    uid,
-    newComment,
-    authUser,
-  }: SaveComment) => {
-    let comment = new RecipeComment();
-
-    await RecipeComment.save({
-      firebase: firebase,
-      recipeUid: uid,
-      comment: newComment,
-      authUser: authUser,
-    })
-      .then((result) => {
-        comment = result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    // Bitzeli Analytics
-    logEvent(firebase.analytics, FirebaseAnalyticEvent.recipeCommentCreated);
-    // Timestamp umwandeln
-    return comment;
-  };
-  /* =====================================================================
-  // Rezept skalieren
-  // ===================================================================== */
   static scaleIngredients = ({
     recipe,
     portionsToScale,
@@ -1819,7 +888,7 @@ export default class Recipe {
         ingredient = ingredient as Ingredient;
 
         if (ingredient.product.uid) {
-          // Leere positionen interessieren uns nicht
+          // Leere Positionen interessieren uns nicht
 
           const scaledIngredient = {...ingredient};
           if (
@@ -1846,7 +915,7 @@ export default class Recipe {
                 scaledIngredient.quantity < ingredient.quantity
               ) {
                 // Wenn zwar mehr Portionen zubereitet werden, aber die Menge weniger
-                // ist als mit den Originalmengen übernehmen wir die Originalmenge.
+                // ist als die Originalmenge, übernehmen wir die Originalmenge
                 scaledIngredient.quantity = ingredient.quantity;
               }
             }
@@ -1855,23 +924,28 @@ export default class Recipe {
           if (scalingOptions?.convertUnits) {
             // Einheit versuchen umzurechnen
 
-            // Produkt suchen, damit die Ziel-Einheit bestimmt werden kann.
+            // Produkt suchen, damit die Ziel-Einheit bestimmt werden kann
             const product = products?.find(
               (product) => product.uid == scaledIngredient.product.uid,
             );
+            if (!product?.shoppingUnit) {
+              // Produkt nicht im Katalog oder ohne Einkaufseinheit — skalierte Menge
+              // in Originaleinheit übernehmen, keine Umrechnung versuchen.
+              return;
+            }
             let {convertedQuantity, convertedUnit} =
               UnitConversion.convertQuantity({
                 quantity: scaledIngredient.quantity,
                 productUid: scaledIngredient.product.uid,
                 fromUnit: scaledIngredient.unit,
-                toUnit: product!.shoppingUnit!,
+                toUnit: product.shoppingUnit,
                 units: units!,
                 unitConversionBasic: unitConversionBasic!,
                 unitConversionProducts: unitConversionProducts!,
               });
             if (
               convertedUnit === scaledIngredient.unit &&
-              scaledIngredient.unit !== product?.shoppingUnit
+              scaledIngredient.unit !== product.shoppingUnit
             ) {
               // Die Umrechnung hat nicht geklappt, nochmals versuchen:
               // Möglicherweise muss zuerst von TL nach EL konvertiert werden
@@ -1907,19 +981,18 @@ export default class Recipe {
                         tempConvertedQuantity = convertedQuantity;
                         tempConvertedUnit = convertedUnit;
 
-                        // Die Umrechnung nochmals versuchen. Diesmal mit
-                        // der neuen Einheit
+                        // Die Umrechnung nochmals versuchen mit der neuen Einheit
                         ({convertedQuantity, convertedUnit} =
                           UnitConversion.convertQuantity({
                             quantity: tempConvertedQuantity,
                             productUid: scaledIngredient.product.uid,
                             fromUnit: tempConvertedUnit,
-                            toUnit: product!.shoppingUnit!,
+                            toUnit: product.shoppingUnit,
                             units: units!,
                             unitConversionBasic: unitConversionBasic!,
                             unitConversionProducts: unitConversionProducts!,
                           }));
-                        if (convertedUnit === product?.shoppingUnit) {
+                        if (convertedUnit === product.shoppingUnit) {
                           tempConvertedQuantity = convertedQuantity;
                           tempConvertedUnit = convertedUnit;
                           conversionFound = true;
@@ -1947,6 +1020,14 @@ export default class Recipe {
     });
     return scaledIngredients;
   };
+
+  /**
+   * Skaliert die Materialmengen auf eine neue Portionenzahl.
+   *
+   * @param recipe - Das Originalrezept.
+   * @param portionsToScale - Zielportionenzahl.
+   * @returns Neue `RecipeObjectStructure` mit skalierten Materialmengen.
+   */
   static scaleMaterials = ({recipe, portionsToScale}: Scale) => {
     const scaledMaterials = {} as RecipeObjectStructure<RecipeMaterialPosition>;
 
@@ -1962,56 +1043,331 @@ export default class Recipe {
     return scaledMaterials;
   };
 
+  /* =====================================================================
+  // Konverter: Repository-Daten → Recipe
   // ===================================================================== */
   /**
-   * Request für Rezept eröffnen.
-   * @param param0 - Objekt mit Firebase-Referenz, und Objekt, dass den
-   * Request auslöst authUser
+   * Erstellt eine vollständige Recipe-Instanz aus den flachen Repository-Daten.
+   * Baut die `RecipeObjectStructure`-Listen aus den sortierten Flat-Arrays auf.
+   *
+   * @param header - Rezept-Kopfdaten (RecipeDomain).
+   * @param ingredients - Zutatenliste, sortiert nach sortOrder.
+   * @param steps - Zubereitungsschrittliste, sortiert nach sortOrder.
+   * @param materials - Materialliste, sortiert nach sortOrder.
+   * @returns Vollständige Recipe-Instanz.
+   * @example
+   * const recipe = Recipe.fromRepositoryData(header, ingredients, steps, materials);
    */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static createRecipePublishRequest = async ({
-    firebase,
-    recipe,
-    messageForReview,
-    authUser,
-  }: CreateRequest) => {
-    const requestNo = await new RequestPublishRecipe().createRequest({
-      firebase: firebase,
-      requestObject: recipe,
-      messageForReview: messageForReview,
-      authUser: authUser,
-    });
-    // Rezept update, dass sich diesen in Review befindet.
-    await firebase.recipePrivate.updateFields({
-      uids: [recipe.created.fromUid, recipe.uid],
-      values: {isInReview: true},
-      authUser: authUser,
-    });
-    return requestNo;
-  };
+  static fromRepositoryData(
+    header: RecipeDomain,
+    ingredients: RecipeIngredientDomain[],
+    steps: RecipePreparationStepDomain[],
+    materials: RecipeMaterialDomain[],
+  ): Recipe {
+    const recipe = new Recipe();
 
+    // Header-Felder übernehmen
+    recipe.uid = header.uid;
+    recipe.name = header.name;
+    recipe.portions = header.portions;
+    recipe.source = header.source;
+    recipe.times = {...header.times};
+    recipe.pictureSrc = header.pictureSrc;
+    recipe.note = header.note;
+    recipe.tags = [...header.tags];
+    recipe.menuTypes = [...header.menuTypes];
+    recipe.dietProperties = {
+      diet: header.dietProperties.diet,
+      allergens: [...header.dietProperties.allergens],
+    };
+    recipe.outdoorKitchenSuitable = header.outdoorKitchenSuitable;
+    recipe.usable = header.usable;
+    recipe.isInReview = header.isInReview;
+    recipe.type = header.recipeType as RecipeType;
+    recipe.rating = {
+      avgRating: header.avgRating,
+      noRatings: header.noRatings,
+      myRating: 0, // Nutzerspezifisch — wird separat nachgeladen
+    };
+    recipe.created = {
+      date: header.createdAt,
+      fromUid: header.createdBy,
+      fromDisplayName: "",
+    };
+    recipe.lastChange = {...recipe.created};
+    recipe.linkedRecipes = [];
+    recipe.usedProducts = [];
+    recipe.usedMaterials = [];
+
+    if (header.variantProperties) {
+      recipe.variantProperties = {
+        note: header.variantProperties.note,
+        variantName: header.variantProperties.variantName,
+        eventUid: header.variantProperties.eventUid,
+        originalRecipeUid: header.variantProperties.originalRecipeUid,
+        originalRecipeType:
+          header.variantProperties.originalRecipeType as RecipeType,
+        originalRecipeCreator:
+          header.variantProperties.originalRecipeCreatorUid,
+      };
+    }
+
+    // Zutaten: flaches Array → RecipeObjectStructure
+    recipe.ingredients = {entries: {}, order: []};
+    for (const ingredientRow of [...ingredients].sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    )) {
+      const uid = ingredientRow.uid;
+      if (ingredientRow.posType === "section") {
+        recipe.ingredients.entries[uid] = {
+          uid,
+          posType: PositionType.section,
+          name: ingredientRow.sectionName,
+        } as Section;
+      } else {
+        recipe.ingredients.entries[uid] = {
+          uid,
+          posType: PositionType.ingredient,
+          product: {uid: ingredientRow.productId ?? "", name: ""},
+          quantity: ingredientRow.quantity,
+          unit: ingredientRow.unit ?? "",
+          detail: ingredientRow.detail,
+          scalingFactor: ingredientRow.scalingFactor,
+        } as Ingredient;
+      }
+      recipe.ingredients.order.push(uid);
+    }
+
+    // Zubereitungsschritte: flaches Array → RecipeObjectStructure
+    recipe.preparationSteps = {entries: {}, order: []};
+    for (const stepRow of [...steps].sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    )) {
+      const uid = stepRow.uid;
+      if (stepRow.posType === "section") {
+        recipe.preparationSteps.entries[uid] = {
+          uid,
+          posType: PositionType.section,
+          name: stepRow.sectionName,
+        } as Section;
+      } else {
+        recipe.preparationSteps.entries[uid] = {
+          uid,
+          posType: PositionType.preparationStep,
+          step: stepRow.step,
+        } as PreparationStep;
+      }
+      recipe.preparationSteps.order.push(uid);
+    }
+
+    // Materialien: flaches Array → RecipeObjectStructure
+    recipe.materials = {entries: {}, order: []};
+    for (const materialRow of [...materials].sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    )) {
+      const uid = materialRow.uid;
+      recipe.materials.entries[uid] = {
+        uid,
+        material: {uid: materialRow.materialId ?? "", name: ""},
+        quantity: materialRow.quantity,
+      } as RecipeMaterialPosition;
+      recipe.materials.order.push(uid);
+    }
+
+    return recipe;
+  }
+
+  /* =====================================================================
+  // Konverter: Recipe → Repository-Zeilen
   // ===================================================================== */
   /**
-   * Fehler im Rezept melden.
-   * @param param0 - Objekt mit Firebase-Referenz, und Objekt, dass den
-   * Request auslöst authUser
+   * Konvertiert die Zutatenliste eines Rezepts in ein flaches
+   * `RecipeIngredientDomain`-Array für das Repository.
+   * Abschnitte werden als posType `'section'` gespeichert.
+   *
+   * @param recipe - Das Rezept mit der Zutatenliste.
+   * @param recipeId - ID des übergeordneten Rezepts (FK).
+   * @returns Flaches Array von `RecipeIngredientDomain`-Objekten.
+   * @example
+   * const rows = Recipe.toIngredientRows(recipe, recipe.uid);
+   * await database.recipeIngredients.saveAllForRecipe(recipe.uid, rows, authUser);
    */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static createReportErrorRequest = async ({
-    firebase,
-    recipe,
-    messageForReview,
-    authUser,
-  }: CreateRequest) => {
-    const requestNo = await new RequestReportError().createRequest({
-      firebase: firebase,
-      requestObject: recipe,
-      messageForReview: messageForReview,
-      authUser: authUser,
-    });
+  static toIngredientRows(
+    recipe: Recipe,
+    recipeId: string,
+  ): RecipeIngredientDomain[] {
+    const rows: RecipeIngredientDomain[] = [];
+    let sortOrder = 0;
 
-    return requestNo;
-  };
+    for (const uid of recipe.ingredients.order) {
+      sortOrder += 10;
+      const position = recipe.ingredients.entries[uid];
+
+      if (position.posType === PositionType.section) {
+        const section = position as Section;
+        rows.push({
+          uid,
+          recipeId,
+          sortOrder,
+          posType: "section",
+          productId: null,
+          quantity: 0,
+          unit: null,
+          detail: "",
+          scalingFactor: 1,
+          sectionName: section.name,
+        });
+      } else {
+        const ingredient = position as Ingredient;
+        rows.push({
+          uid,
+          recipeId,
+          sortOrder,
+          posType: "ingredient",
+          productId: ingredient.product.uid || null,
+          quantity: ingredient.quantity,
+          unit: ingredient.unit || null,
+          detail: ingredient.detail,
+          scalingFactor: ingredient.scalingFactor,
+          sectionName: "",
+        });
+      }
+    }
+
+    return rows;
+  }
+
+  /**
+   * Konvertiert die Zubereitungsschrittliste eines Rezepts in ein flaches
+   * `RecipePreparationStepDomain`-Array für das Repository.
+   *
+   * @param recipe - Das Rezept mit der Zubereitungsliste.
+   * @param recipeId - ID des übergeordneten Rezepts (FK).
+   * @returns Flaches Array von `RecipePreparationStepDomain`-Objekten.
+   * @example
+   * const rows = Recipe.toPreparationStepRows(recipe, recipe.uid);
+   */
+  static toPreparationStepRows(
+    recipe: Recipe,
+    recipeId: string,
+  ): RecipePreparationStepDomain[] {
+    const rows: RecipePreparationStepDomain[] = [];
+    let sortOrder = 0;
+
+    for (const uid of recipe.preparationSteps.order) {
+      sortOrder += 10;
+      const position = recipe.preparationSteps.entries[uid];
+
+      if (position.posType === PositionType.section) {
+        const section = position as Section;
+        rows.push({
+          uid,
+          recipeId,
+          sortOrder,
+          posType: "section",
+          step: "",
+          sectionName: section.name,
+        });
+      } else {
+        const step = position as PreparationStep;
+        rows.push({
+          uid,
+          recipeId,
+          sortOrder,
+          posType: "preparation_step",
+          step: step.step,
+          sectionName: "",
+        });
+      }
+    }
+
+    return rows;
+  }
+
+  /**
+   * Konvertiert die Materialliste eines Rezepts in ein flaches
+   * `RecipeMaterialDomain`-Array für das Repository.
+   *
+   * @param recipe - Das Rezept mit der Materialliste.
+   * @param recipeId - ID des übergeordneten Rezepts (FK).
+   * @returns Flaches Array von `RecipeMaterialDomain`-Objekten.
+   * @example
+   * const rows = Recipe.toMaterialRows(recipe, recipe.uid);
+   */
+  static toMaterialRows(
+    recipe: Recipe,
+    recipeId: string,
+  ): RecipeMaterialDomain[] {
+    const rows: RecipeMaterialDomain[] = [];
+    let sortOrder = 0;
+
+    for (const uid of recipe.materials.order) {
+      sortOrder += 10;
+      const material = recipe.materials.entries[uid];
+      rows.push({
+        uid,
+        recipeId,
+        sortOrder,
+        materialId: material.material.uid || null,
+        quantity: material.quantity,
+      });
+    }
+
+    return rows;
+  }
+
+  /* =====================================================================
+  // Konverter: Recipe → RecipeDomain (für Repository-Speicherung)
+  // ===================================================================== */
+  /**
+   * Konvertiert eine Recipe-Instanz in ein flaches RecipeDomain-Objekt.
+   * Wird vor dem Speichern über `RecipeRepository.insertRecipe` oder
+   * `RecipeRepository.updateRecipe` verwendet.
+   *
+   * @param recipe - Die Recipe-Instanz (in-memory).
+   * @returns RecipeDomain-Objekt für Datenbankoperationen.
+   * @example
+   * const domain = Recipe.toDomain(preparedRecipe);
+   * await database.recipes.insertRecipe(domain, authUser);
+   */
+  static toDomain(recipe: Recipe): RecipeDomain {
+    return {
+      uid: recipe.uid,
+      name: recipe.name,
+      portions: recipe.portions,
+      source: recipe.source ?? "",
+      times: {
+        preparation: recipe.times?.preparation ?? 0,
+        rest: recipe.times?.rest ?? 0,
+        cooking: recipe.times?.cooking ?? 0,
+      },
+      pictureSrc: recipe.pictureSrc ?? "",
+      note: recipe.note ?? "",
+      tags: [...(recipe.tags ?? [])],
+      menuTypes: [...(recipe.menuTypes ?? [])],
+      dietProperties: {
+        diet: recipe.dietProperties?.diet ?? 0,
+        allergens: [...(recipe.dietProperties?.allergens ?? [])],
+      },
+      outdoorKitchenSuitable: recipe.outdoorKitchenSuitable ?? false,
+      isInReview: recipe.isInReview ?? false,
+      usable: recipe.usable ?? true,
+      avgRating: recipe.rating?.avgRating ?? 0,
+      noRatings: recipe.rating?.noRatings ?? 0,
+      recipeType: recipe.type ?? RecipeType.private,
+      variantProperties: recipe.variantProperties
+        ? {
+            note: recipe.variantProperties.note,
+            variantName: recipe.variantProperties.variantName,
+            eventUid: recipe.variantProperties.eventUid,
+            originalRecipeUid: recipe.variantProperties.originalRecipeUid,
+            originalRecipeType: recipe.variantProperties.originalRecipeType,
+            originalRecipeCreatorUid:
+              recipe.variantProperties.originalRecipeCreator,
+          }
+        : undefined,
+      createdAt: recipe.created?.date ?? new Date(0),
+      createdBy: recipe.created?.fromUid ?? "",
+    };
+  }
 }

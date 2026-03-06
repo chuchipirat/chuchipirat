@@ -74,42 +74,47 @@ const RecipePage = ({
   actualDate,
   authUser,
 }: RecipePageProps) => {
+  const hasMaterials =
+    recipe.materials?.order.length > 0 &&
+    recipe.materials.entries[recipe.materials.order[0]].uid !== "";
+
   return (
     <Page key={"page_" + recipe.uid} style={styles.body}>
       <RecipeHeader recipe={recipe} scaledPortions={scaledPortions} />
-      <View style={styles.containerBottomBorder} />
-      <View style={styles.table}>
-        <View style={styles.tableRow}>
-          <View style={styles.tableCol50}>
-            <View style={styles.tableNoMargin}>
+      {/* Zweispaltiges Layout: Zutaten links, Zubereitung rechts.
+          react-pdf behandelt ein flexDirection:"row" View als atomare Einheit
+          — passt der Block nicht mehr auf die aktuelle Seite, wandert er als
+          Ganzes auf Seite 2. Damit das nicht passiert, wurde der vertikale
+          Leerraum auf ein Minimum reduziert (kein margins-Wrapper, kein
+          ungenutzter Skalierungs-Header). */}
+      <View style={styles.twoColumnRow}>
+        <View style={styles.tableCol50}>
+          <View style={styles.tableNoMargin}>
+            <View style={styles.tableCol100}>
+              <RecipeIngredients
+                ingredients={recipe.ingredients}
+                scaledIngredients={scaledIngredients}
+                scaledPortions={scaledPortions}
+              />
+            </View>
+            {hasMaterials ? (
               <View style={styles.tableCol100}>
-                <RecipeIngredients
-                  ingredients={recipe.ingredients}
-                  scaledIngredients={scaledIngredients}
+                <RecipeMaterial
+                  materials={recipe.materials}
                   scaledPortions={scaledPortions}
+                  scaledMaterials={scaledMaterials}
                 />
               </View>
-              {recipe.materials?.order.length > 0 &&
-              recipe.materials.entries[recipe.materials.order[0]].uid !== "" ? (
-                <View style={styles.tableCol100}>
-                  <RecipeMaterial
-                    materials={recipe.materials}
-                    scaledPortions={scaledPortions}
-                    scaledMaterials={scaledMaterials}
-                  />
-                </View>
-              ) : (
-                <View />
-              )}
-            </View>
-            <View style={styles.tableCol100}></View>
+            ) : (
+              <View />
+            )}
           </View>
+        </View>
 
-          <View style={styles.tableCol50}>
-            <View style={styles.tableNoMargin}>
-              <View style={styles.tableCol100}>
-                <RecipePreparation recipe={recipe} />
-              </View>
+        <View style={styles.tableCol50}>
+          <View style={styles.tableNoMargin}>
+            <View style={styles.tableCol100}>
+              <RecipePreparation recipe={recipe} />
             </View>
           </View>
         </View>
@@ -314,8 +319,8 @@ export const RecipeIngredients = ({
             <View style={styles.tableColItem} />
           </View>
         ) : (
-          //leer
-          (<View style={styles.tableRow}>
+          // Kein Leerzeilen-Platzhalter — spart ~17pt vertikalen Raum
+          (<View>
             <View style={styles.tableCol100} />
           </View>)
         )}

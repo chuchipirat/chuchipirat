@@ -179,6 +179,36 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     respectPrefix: false,
     excludeFromCaching: false,
   },
+  RECIPE_INGREDIENT: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_PREPARATION_STEP: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_MATERIAL: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_RATING: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_COMMENT: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
 };
 
 const PREFIX_DOCUMENTUID_SEPARATOR = "|";

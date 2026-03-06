@@ -32,6 +32,8 @@ interface FirebaseUserData {
   memberId: number;
   motto: string;
   pictureSrc: FirebasePicture | string;
+  /** Aus Firebase public profile stats.noFoundBugs migriert. */
+  noFoundBugs: number;
 }
 
 /* =====================================================================
@@ -103,6 +105,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
         memberId?: number;
         motto?: string;
         pictureSrc?: FirebasePicture | string;
+        stats?: {noFoundBugs?: number};
       } = {};
 
       try {
@@ -112,6 +115,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
           memberId: number;
           motto: string;
           pictureSrc: FirebasePicture | string;
+          stats?: {noFoundBugs?: number};
         }>({uids: [uid]});
       } catch {
         // Kein Public Profile vorhanden — Standardwerte werden verwendet
@@ -134,6 +138,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
           memberId: publicProfile.memberId ?? 0,
           motto: publicProfile.motto ?? "",
           pictureSrc: publicProfile.pictureSrc ?? "",
+          noFoundBugs: publicProfile.stats?.noFoundBugs ?? 0,
         },
       });
     }
@@ -194,6 +199,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
       lastName: data.lastName,
       roles: data.roles as UserDomain["roles"],
       noLogins: data.noLogins ?? 0,
+      noFoundBugs: data.noFoundBugs ?? 0,
       displayName: data.displayName,
       memberId: data.memberId ?? 0,
       motto: data.motto ?? "",

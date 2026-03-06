@@ -53,23 +53,30 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
     const unsubscribeSupabase = database.auth.onAuthStateChange(
       async (event, session) => {
         if (session?.user) {
-          // Prüfe zuerst den LocalStorage-Cache
+          // Prüfe zuerst den LocalStorage-Cache — aber nur wenn er zum aktuellen
+          // Session-User gehört. Sonst würde ein anderer User (z.B. nach Benutzer-
+          // wechsel ohne expliziten Logout) den falschen authUid erhalten, was zu
+          // RLS-Verletzungen führt (user_id != auth.uid()).
           const cachedString = localStorage.getItem(LocalStorageKey.AUTH_USER);
           if (cachedString) {
             const cached = JSON.parse(cachedString) as AuthUser;
-            // emailVerified aus Supabase Session ableiten
-            cached.emailVerified = !!session.user.email_confirmed_at;
+            if (cached.authUid === session.user.id) {
+              // emailVerified aus Supabase Session ableiten
+              cached.emailVerified = !!session.user.email_confirmed_at;
 
-            // Kompatibilitäts-Shim: Im Cache kann pictureSrc noch als altes
-            // Picture-Objekt vorliegen (vor der Storage-Migration)
-            const picSrc = cached.publicProfile.pictureSrc;
-            if (typeof picSrc !== "string") {
-              cached.publicProfile.pictureSrc =
-                (picSrc as any)?.normalSize ?? "";
+              // Kompatibilitäts-Shim: Im Cache kann pictureSrc noch als altes
+              // Picture-Objekt vorliegen (vor der Storage-Migration)
+              const picSrc = cached.publicProfile.pictureSrc;
+              if (typeof picSrc !== "string") {
+                cached.publicProfile.pictureSrc =
+                  (picSrc as any)?.normalSize ?? "";
+              }
+
+              updateAuthUser(cached);
+              return;
             }
-
-            updateAuthUser(cached);
-            return;
+            // Cache gehört einem anderen User → verwerfen
+            localStorage.removeItem(LocalStorageKey.AUTH_USER);
           }
 
           // Benutzerprofil via auth_uid laden

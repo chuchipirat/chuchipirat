@@ -7,6 +7,7 @@ import {MaterialMigrationJob} from "./MaterialMigrationJob";
 import {ProductMigrationJob} from "./ProductMigrationJob";
 import {UnitConversionBasicMigrationJob} from "./UnitConversionBasicMigrationJob";
 import {UnitConversionProductMigrationJob} from "./UnitConversionProductMigrationJob";
+import {RecipeMigrationJob} from "./RecipeMigrationJob";
 
 /* =====================================================================
 // Registry aller verfügbaren Migrations-Jobs
@@ -24,6 +25,7 @@ import {UnitConversionProductMigrationJob} from "./UnitConversionProductMigratio
  * 4. Produkte (hängt von Abteilungen und Einheiten ab)
  * 5. Standard-Umrechnungen (hängt von Einheiten ab)
  * 6. Produkt-Umrechnungen (hängt von Produkten und Einheiten ab)
+ * 7. Rezepte (hängt von Benutzern, Produkten und Materialien ab)
  *
  * @example
  * const job = migrationJobRegistry["departments"];
@@ -38,6 +40,7 @@ export const migrationJobRegistry: Record<string, MigrationJob> = {
   products: new ProductMigrationJob(),
   unitConversionBasic: new UnitConversionBasicMigrationJob(),
   unitConversionProducts: new UnitConversionProductMigrationJob(),
+  recipes: new RecipeMigrationJob(),
 };
 
 /**

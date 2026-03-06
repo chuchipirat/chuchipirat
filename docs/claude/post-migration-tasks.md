@@ -89,6 +89,176 @@ are not enforced while the admin client is used.
 
 ---
 
+## Refactor recipe loading to use PostgREST embedded resources
+
+**Context:** `recipe.tsx` and `recipe.edit.tsx` currently load a recipe via 4–5 separate parallel
+Supabase queries (recipe header, ingredients, preparation steps, materials, and a full products
+list to resolve ingredient product names). This works correctly but has two drawbacks:
+
+1. **5 HTTP round trips** per recipe open — even in parallel, each is an independent PostgREST
+   request through Kong.
+2. **Awkward product-name workaround:** `Recipe.fromRepositoryData()` sets
+   `ingredient.product.name = ""` because the ingredients table only stores `product_id`
+   (a Postgres UUID). A separate `database.products.getAllProducts()` call is made just to
+   populate names, which loads the entire products catalogue for every recipe view.
+
+**Preferred solution: PostgREST embedded resources**
+
+Supabase/PostgREST supports embedding related rows via foreign key relationships in a single
+request. The query would look like:
+
+```typescript
+const {data, error} = await supabase
+  .from("recipes")
+  .select(`
+    *,
+    recipe_ingredients(
+      *,
+      products ( name )
+    ),
+    recipe_preparation_steps(*),
+    recipe_materials(
+      *,
+      materials ( name )
+    )
+  `)
+  .eq("id", recipeUid)
+  .single();
+```
+
+PostgREST resolves the `products(name)` and `materials(name)` joins via the FK relationships
+declared in the schema — no extra query needed. RLS is enforced on every underlying table as
+normal.
+
+The response shape will be:
+
+```json
+{
+  "id": "...",
+  "name": "Spaghetti Bolognese",
+  "recipe_ingredients": [
+    {
+      "id": "...",
+      "sort_order": 10,
+      "pos_type": "ingredient",
+      "product_id": "4e374b6a-...",
+      "products": { "name": "Hackfleisch" },
+      "quantity": 500,
+      "unit": "g",
+      "detail": "",
+      "scaling_factor": 1
+    }
+  ],
+  "recipe_preparation_steps": [ { "sort_order": 10, "step": "Zwiebeln andünsten", ... } ],
+  "recipe_materials": [
+    {
+      "material_id": "...",
+      "materials": { "name": "Bratpfanne" },
+      "quantity": 1
+    }
+  ]
+}
+```
+
+**Implementation steps:**
+
+### 1. Add `RecipeRepository.getRecipeFull(id)` method
+
+Add a new method to `RecipeRepository` that performs the embedded-resource query and returns a
+typed result object (a new interface `RecipeFullRow` or similar). Keep `getRecipe()` as-is — it
+is still used for recipe list enrichment and other narrow reads.
+
+```typescript
+/**
+ * Lädt ein Rezept inklusive aller Kindtabellen (Zutaten, Zubereitungsschritte,
+ * Materialpositionen) sowie Produkt- und Materialnamen per Embedded-Resource-Query.
+ * Ersetzt die bisherigen 4–5 parallelen Einzelabfragen in recipe.tsx / recipe.edit.tsx.
+ *
+ * @param id - Postgres-UUID des Rezepts
+ * @returns Das vollständige Rezept-Datenobjekt oder null
+ */
+async getRecipeFull(id: string): Promise<RecipeFullRow | null> { ... }
+```
+
+### 2. Add `RecipeFullRow` interface
+
+Define the shape of the embedded response, mirroring the PostgREST output:
+
+```typescript
+export interface RecipeFullRow extends RecipeRow {
+  recipe_ingredients: (RecipeIngredientRow & { products: { name: string } | null })[];
+  recipe_preparation_steps: RecipePreparationStepRow[];
+  recipe_materials: (RecipeMaterialRow & { materials: { name: string } | null })[];
+}
+```
+
+### 3. Add `Recipe.fromFullRow(row: RecipeFullRow): Recipe` static method
+
+Add a new factory method to `recipe.class.ts` (or extend `fromRepositoryData`) that accepts the
+full embedded row and populates ingredient and material names directly:
+
+```typescript
+static fromFullRow(row: RecipeFullRow): Recipe {
+  // Build header domain from row (reuse existing toDomain logic)
+  // Build ingredient list: sort by sort_order, set product.name from row.products?.name
+  // Build preparation step list
+  // Build material list: set material.name from row.materials?.name
+}
+```
+
+This eliminates `ingredient.product.name = ""` as a structural problem — names are always
+available.
+
+### 4. Update `recipe.tsx` and `recipe.edit.tsx`
+
+Replace:
+```typescript
+Promise.all([
+  database.recipes.getRecipe(recipeUid),
+  database.recipeIngredients.getIngredientsForRecipe(recipeUid),
+  database.recipePreparationSteps.getStepsForRecipe(recipeUid),
+  database.recipeMaterials.getMaterialsForRecipe(recipeUid),
+  database.products.getAllProducts(),   // ← only needed for name resolution
+])
+  .then(([header, ingredients, steps, materials, products]) => {
+    const recipe = Recipe.fromRepositoryData(header, ingredients, steps, materials);
+    // ... populate product names manually ...
+  })
+```
+
+With:
+```typescript
+database.recipes
+  .getRecipeFull(recipeUid)
+  .then((row) => {
+    if (!row) throw new Error(`Rezept ${recipeUid} nicht gefunden.`);
+    const recipe = Recipe.fromFullRow(row);
+    dispatch({ type: ReducerActions.RECIPE_FETCH_SUCCESS, payload: {recipe} });
+  })
+```
+
+### 5. Remove workaround code
+
+Once `fromFullRow` is in place, remove:
+- The `database.products.getAllProducts()` call in `recipe.tsx`
+- The product-name population loop in `recipe.tsx`
+- The product-name population logic in the `PRODUCTS_FETCH_SUCCESS` reducer case
+  in `recipe.edit.tsx` (that loop was only needed because names were `""`)
+
+**Write path stays unchanged.** `saveAllForRecipe()` in `RecipeIngredientRepository`,
+`RecipePreparationStepRepository`, and `RecipeMaterialRepository` continues to use the
+individual repositories — the refactor only affects the read path.
+
+**Files to change:**
+| File | Change |
+|------|--------|
+| `src/components/Database/Repository/RecipeRepository.ts` | Add `RecipeFullRow`, `getRecipeFull()` |
+| `src/components/Recipe/recipe.class.ts` | Add `Recipe.fromFullRow()` |
+| `src/components/Recipe/recipe.tsx` | Replace Promise.all with `getRecipeFull()` |
+| `src/components/Recipe/recipe.edit.tsx` | Replace Promise.all with `getRecipeFull()`; simplify `PRODUCTS_FETCH_SUCCESS` reducer |
+
+---
+
 ## Further tasks
 
 *(Add new items here as they are discovered during ongoing migration work.)*

@@ -39,7 +39,10 @@ import {
   Card,
   CardContent,
   List,
+  ListItem,
+  ListItemAvatar,
   ListItemText,
+  Avatar,
   Rating,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
@@ -51,6 +54,9 @@ import AddIcon from "@mui/icons-material/Add";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
 
 import {
   VARIANT_NOTE as TEXT_VARIANT_NOTE,
@@ -110,9 +116,17 @@ import {
   DIALOG_TEXT_DELETION_CONFIRMATION as TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
+  COMMENTS as TEXT_COMMENTS,
+  FIELD_YOUR_COMMENT as TEXT_FIELD_YOUR_COMMENT,
+  FIELD_PLACEHOLDER_COMMENT as TEXT_FIELD_PLACEHOLDER_COMMENT,
+  BUTTON_SAVE_COMMENT as TEXT_BUTTON_SAVE_COMMENT,
+  BUTTON_LOAD_OLDER_COMMENTS as TEXT_BUTTON_LOAD_OLDER_COMMENTS,
+  COMMENT_DELETE_TITLE as TEXT_COMMENT_DELETE_TITLE,
+  COMMENT_DELETE_TEXT as TEXT_COMMENT_DELETE_TEXT,
 } from "../../constants/text";
 import * as ROUTES from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
+import {getImageUrl, ImageSize} from "../Shared/imageUrl";
 import RecipePdf from "./recipePdf";
 
 import Role from "../../constants/roles";
@@ -124,6 +138,7 @@ import Utils from "../Shared/utils.class";
 import AlertMessage from "../Shared/AlertMessage";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
+import {useAuthUser} from "../Session/authUserContext";
 import {OnUpdateRecipeProps, RecipeDivider} from "./recipe";
 import {
   GlutenFreeIcon,
@@ -135,6 +150,10 @@ import {
   VegetarianIcon,
 } from "../Shared/icons";
 import Firebase from "../Firebase/firebase.class";
+import {useDatabase} from "../Database/DatabaseContext";
+import {RecipeCommentDomain} from "../Database/Repository/RecipeCommentRepository";
+import {RequestPublishRecipe} from "../Request/request.publishRecipe.class";
+import {RequestReportError} from "../Request/request.reportError.class";
 import DialogScaleRecipe, {OnScale} from "./dialogScaleRecipe";
 import DialogPublishRecipe from "./dialogPublishRecipe";
 
@@ -275,6 +294,7 @@ const RecipeView = ({
   authUser,
 }: RecipeViewProps) => {
   const classes = useCustomStyles();
+  const database = useDatabase();
   const navigate = useNavigate();
   const {customDialog} = useCustomDialog();
   const navigationValuesContext = React.useContext(NavigationValuesContext);
@@ -341,22 +361,34 @@ const RecipeView = ({
   /* ------------------------------------------
   // Rating
   // ------------------------------------------ */
-  const onSetRating = (value: number) => {
-    Recipe.updateRating({
-      firebase: firebase,
-      recipe: recipe,
-      newRating: value,
-      authUser: authUser,
-    }).then((result) => {
+  const onSetRating = async (value: number) => {
+    try {
+      await database.recipeRatings.upsertRating(
+        {uid: "", recipeId: recipe.uid, userId: authUser.authUid, rating: value},
+        authUser,
+      );
+      // DB-Trigger hat avg_rating + no_ratings in recipes aktualisiert → nachladen.
+      // Cache umgehen, damit die vom Trigger aktualisierten Werte gelesen werden.
+      const updatedHeader = await database.recipes.getRecipe(recipe.uid, true);
       onUpdateRecipe({
-        recipe: {...recipe, rating: result},
+        recipe: {
+          ...recipe,
+          rating: {
+            avgRating: updatedHeader?.avgRating ?? recipe.rating.avgRating,
+            noRatings: updatedHeader?.noRatings ?? recipe.rating.noRatings,
+            myRating: value,
+          },
+        },
         snackbar: {
           message: TEXT_THANK_YOU_FOR_YOUR_RATING,
           severity: "info",
           open: true,
         },
       });
-    });
+    } catch (err) {
+      console.error(err);
+      onError && onError(err as Error);
+    }
   };
   /* ------------------------------------------
   // Tags
@@ -367,34 +399,36 @@ const RecipeView = ({
   const handleTagAddDialogClose = () => {
     setTagAddDialogOpen(false);
   };
-  const onTagDelete = (tagToDelete: string) => {
+  const onTagDelete = async (tagToDelete: string) => {
     const tags = Recipe.deleteTag({
       tags: recipe.tags,
       tagToDelete: tagToDelete,
     });
-    Recipe.saveTags({
-      firebase: firebase,
-      recipe: recipe,
-      tags: tags,
-      authUser: authUser,
-    }).then(() => {
-      onUpdateRecipe({
-        recipe: {...recipe, tags: tags},
+    try {
+      await database.recipes.patch({
+        id: recipe.uid,
+        fields: {tags},
+        authUser,
       });
-    });
+      onUpdateRecipe({recipe: {...recipe, tags}});
+    } catch (err) {
+      console.error(err);
+      onError && onError(err as Error);
+    }
   };
-  const handleTagAddDialogAdd = (tags: string[]) => {
+  const handleTagAddDialogAdd = async (tags: string[]) => {
     const listOfTags = recipe.tags.concat(tags);
-    Recipe.saveTags({
-      firebase: firebase,
-      recipe: recipe,
-      tags: listOfTags,
-      authUser: authUser,
-    }).then(() => {
-      onUpdateRecipe({
-        recipe: {...recipe, tags: listOfTags},
+    try {
+      await database.recipes.patch({
+        id: recipe.uid,
+        fields: {tags: listOfTags},
+        authUser,
       });
-    });
+      onUpdateRecipe({recipe: {...recipe, tags: listOfTags}});
+    } catch (err) {
+      console.error(err);
+      onError && onError(err as Error);
+    }
     setTagAddDialogOpen(false);
   };
   /* ------------------------------------------
@@ -429,9 +463,13 @@ const RecipeView = ({
       });
 
       if (!state.unitConversionBasic) {
-        await UnitConversion.getAllConversionBasic({firebase})
+        await database.unitConversionBasic
+          .getAllConversions()
           .then((result) => {
-            unitConversionBasic = result;
+            // Array in Lookup-Map umwandeln (Schlüssel = uid)
+            unitConversionBasic = Object.fromEntries(
+              result.map((c) => [c.uid, c]),
+            ) as unknown as UnitConversionBasic;
           })
           .catch((error) => {
             dispatch({
@@ -441,9 +479,13 @@ const RecipeView = ({
           });
       }
       if (!state.unitConversionProducts) {
-        await UnitConversion.getAllConversionProducts({firebase})
+        await database.unitConversionProducts
+          .getAllConversions()
           .then((result) => {
-            unitConversionProducts = result;
+            // Array in Lookup-Map umwandeln (Schlüssel = uid)
+            unitConversionProducts = Object.fromEntries(
+              result.map((c) => [c.uid, c]),
+            ) as unknown as UnitConversionProducts;
           })
           .catch((error) => {
             dispatch({
@@ -453,12 +495,10 @@ const RecipeView = ({
           });
       }
       if (state.products.length == 0) {
-        await Product.getAllProducts({
-          firebase: firebase,
-          onlyUsable: true,
-        })
+        await database.products
+          .getAllProducts({onlyUsable: true})
           .then((result) => {
-            products = result;
+            products = result as unknown as Product[];
           })
           .catch((error) => {
             console.error(error);
@@ -469,11 +509,10 @@ const RecipeView = ({
           });
       }
       if (!state.units) {
-        await Unit.getAllUnits({
-          firebase: firebase,
-        })
+        await database.units
+          .getAllUnits()
           .then((result) => {
-            units = result;
+            units = result as unknown as Unit[];
           })
           .catch((error) => {
             console.error(error);
@@ -614,29 +653,35 @@ const RecipeView = ({
     setPublishRecipeDialogOpen(false);
   };
   const onCreateRecipePublishRequest = async (messageForReview: string) => {
-    // File schreiben, der den Request eröffnet (in Review)
-    await Recipe.createRecipePublishRequest({
-      firebase: firebase,
-      recipe: recipe,
-      messageForReview: messageForReview,
-      authUser: authUser,
-    })
-      .then((requestNo) => {
-        recipe.isInReview = true;
-        onUpdateRecipe({
-          recipe: recipe,
-          snackbar: {
-            message: TEXT_PUBLISH_RECIPE_REQUEST_CREATED(requestNo),
-            severity: "success",
-            open: true,
-          },
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        onError && onError(error);
+    try {
+      // Firebase-Request erstellen (Request-System noch auf Firebase)
+      const publishRequest = new RequestPublishRecipe();
+      const requestNo = await publishRequest.createRequest({
+        firebase,
+        requestObject: recipe as unknown as Parameters<
+          typeof publishRequest.createRequest
+        >[0]["requestObject"],
+        messageForReview,
+        authUser,
       });
-
+      // is_in_review in Supabase-Rezept aktualisieren
+      await database.recipes.patch({
+        id: recipe.uid,
+        fields: {is_in_review: true},
+        authUser,
+      });
+      onUpdateRecipe({
+        recipe: {...recipe, isInReview: true},
+        snackbar: {
+          message: TEXT_PUBLISH_RECIPE_REQUEST_CREATED(requestNo),
+          severity: "success",
+          open: true,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      onError && onError(error as Error);
+    }
     setPublishRecipeDialogOpen(false);
   };
   const onShowRequest = () => {
@@ -657,28 +702,29 @@ const RecipeView = ({
     setReportErrorDialogOpen(false);
   };
   const onReportErrorRequest = async (messageForReview: string) => {
-    // File schreiben, der den Request eröffnet (in Review)
-    await Recipe.createReportErrorRequest({
-      firebase: firebase,
-      recipe: recipe,
-      messageForReview: messageForReview,
-      authUser: authUser,
-    })
-      .then((requestNo) => {
-        onUpdateRecipe({
-          recipe: recipe,
-          snackbar: {
-            message: TEXT_REPORT_ERROR_RECIPE_REQUEST_CREATED(requestNo),
-            severity: "success",
-            open: true,
-          },
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        onError && onError(error);
+    try {
+      // Firebase-Request erstellen (Request-System noch auf Firebase)
+      const reportErrorRequest = new RequestReportError();
+      const requestNo = await reportErrorRequest.createRequest({
+        firebase,
+        requestObject: recipe as unknown as Parameters<
+          typeof reportErrorRequest.createRequest
+        >[0]["requestObject"],
+        messageForReview,
+        authUser,
       });
-
+      onUpdateRecipe({
+        recipe,
+        snackbar: {
+          message: TEXT_REPORT_ERROR_RECIPE_REQUEST_CREATED(requestNo),
+          severity: "success",
+          open: true,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      onError && onError(error as Error);
+    }
     setReportErrorDialogOpen(false);
   };
 
@@ -705,36 +751,27 @@ const RecipeView = ({
       payload: {isLoading: true},
     });
 
-    await Recipe.delete({
-      firebase: firebase,
-      recipe: recipe,
-      authUser: authUser,
-    })
-      .then(() => {
-        // Kurzer Timeout, damit der Session-Storage nachmag
-        setTimeout(function () {
-          //Zurück zur Rezeptübersicht
-          if (recipe.type !== RecipeType.variant) {
-            navigate(ROUTES.RECIPES, {
-              state: {
-                acion: Action.DELETE,
-                object: recipe.uid,
-                snackbar: {
-                  open: true,
-                  severity: "success",
-                  message: `Rezept «${recipe.name}» wurde gelöscht.`,
-                },
-              },
-            });
-          } else {
-            onRecipeDelete && onRecipeDelete();
-          }
-        }, 500);
-      })
-      .catch((error) => {
-        onError && onError(error);
-        return;
-      });
+    try {
+      // ON DELETE CASCADE in der DB entfernt alle Kind-Datensätze automatisch
+      await database.recipes.deleteRecipe(recipe.uid);
+      if (recipe.type !== RecipeType.variant) {
+        navigate(ROUTES.RECIPES, {
+          state: {
+            action: Action.DELETE,
+            object: recipe.uid,
+            snackbar: {
+              open: true,
+              severity: "success",
+              message: `Rezept «${recipe.name}» wurde gelöscht.`,
+            },
+          },
+        });
+      } else {
+        onRecipeDelete && onRecipeDelete();
+      }
+    } catch (error) {
+      onError && onError(error as Error);
+    }
   };
 
   return (
@@ -834,6 +871,17 @@ const RecipeView = ({
                 <RecipeVariantNote recipe={recipe} />
               </Grid>
             )}
+          {recipe.type === RecipeType.public && (
+            <React.Fragment>
+              <RecipeDivider style={{marginTop: "1em", marginBottom: "1em"}} />
+              <Grid size={12} style={{marginTop: "2em", marginBottom: "2em"}}>
+                <RecipeComments
+                  recipeId={recipe.uid}
+                  disableFunctionality={disableFunctionality}
+                />
+              </Grid>
+            </React.Fragment>
+          )}
         </Grid>
       </Container>
       <DialogTagAdd
@@ -983,7 +1031,7 @@ const RecipeHeader = ({
                       <Rating
                         name="rating.myRating"
                         value={recipe.rating.myRating}
-                        precision={0.5}
+                        precision={1}
                         size="small"
                         onChange={onUpdateMyRating}
                       />
@@ -1126,8 +1174,7 @@ const RecipeButtonRow = ({
       visible:
         recipe.type === RecipeType.private &&
         (recipe?.isInReview === false || recipe.isInReview === undefined) &&
-        (recipe.created.fromUid === authUser.uid ||
-          authUser.roles.includes(Role.admin)),
+        recipe.created.fromUid === authUser.authUid,
       label: TEXT_PUBLISH_RECIPE,
       variant: "outlined",
       color: "primary",
@@ -1163,7 +1210,7 @@ const RecipeButtonRow = ({
     hero: true,
     visible:
       (recipe.type === RecipeType.private &&
-        recipe.created.fromUid === authUser.uid &&
+        recipe.created.fromUid === authUser.authUid &&
         !isEmbedded) ||
       (recipe.type === RecipeType.public &&
         authUser.roles.includes(Role.admin) &&
@@ -1171,7 +1218,7 @@ const RecipeButtonRow = ({
       // Wenn Embeded, nur Varianten löschen
       (recipe.type === RecipeType.variant &&
         isEmbedded &&
-        recipe.created.fromUid === authUser.uid),
+        recipe.created.fromUid === authUser.authUid),
     label: TEXT_DELETE_RECIPE,
     variant: "outlined",
     color: "primary",
@@ -1207,9 +1254,31 @@ export const RecipeInfoPanel = ({
 }: RecipeInfoPanelProps) => {
   const classes = useCustomStyles();
   const navigate = useNavigate();
+  const database = useDatabase();
 
   const [tipsAndTagsSectionOpen, setTipsAndTagsSectionOpen] =
     React.useState(false);
+  const [authorDisplayName, setAuthorDisplayName] = React.useState(
+    recipe.created.fromDisplayName,
+  );
+
+  // Autorname aus der DB laden — recipe.created.fromDisplayName ist bei
+  // Supabase-Rezepten leer, da der Name nicht denormalisiert gespeichert wird.
+  React.useEffect(() => {
+    if (authorDisplayName || !recipe.created.fromUid) return;
+
+    database.users
+      .getUserDisplayInfo([recipe.created.fromUid])
+      .then((profileMap) => {
+        const profile = profileMap.get(recipe.created.fromUid);
+        if (profile?.displayName) {
+          setAuthorDisplayName(profile.displayName);
+        }
+      })
+      .catch(() => {
+        // Stiller Fehler — Autorname bleibt leer
+      });
+  }, [recipe.created.fromUid]);
 
   const handleOnTipsAndTagsClick = () => {
     setTipsAndTagsSectionOpen(!tipsAndTagsSectionOpen);
@@ -1247,13 +1316,13 @@ export const RecipeInfoPanel = ({
                     {
                       state: {
                         action: Action.VIEW,
-                        displayName: recipe.created.fromDisplayName,
+                        displayName: authorDisplayName,
                       },
                     },
                   )
                 }
               >
-                {recipe.created?.fromDisplayName}
+                {authorDisplayName}
               </Link>
             }
             label={TEXT_CREATED_FROM}
@@ -1326,7 +1395,7 @@ export const RecipeInfoPanel = ({
                               authUser.roles.includes(Role.communityLeader)
                               ? () => onTagDelete(tag)
                               : recipe.type === RecipeType.private &&
-                                  authUser.uid === authUser.uid
+                                  recipe.created.fromUid === authUser.authUid
                                 ? () => onTagDelete(tag)
                                 : undefined
                             : undefined
@@ -2159,6 +2228,329 @@ const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
           </Typography>
         </Grid>
       </Grid>
+    </React.Fragment>
+  );
+};
+
+/* ===================================================================
+// ========================== Kommentare ============================
+// =================================================================== */
+/**
+ * Props für die RecipeComments-Komponente.
+ *
+ * @param recipeId - UID des Rezepts, für das Kommentare geladen werden
+ * @param disableFunctionality - Wenn true, ist der Kommentarbereich schreibgeschützt
+ */
+interface RecipeCommentsProps {
+  recipeId: string;
+  disableFunctionality?: boolean;
+}
+
+/** Anzahl Kommentare pro Seite */
+const COMMENTS_PAGE_SIZE = 50;
+/** Maximale Zeichenanzahl für einen Kommentar */
+const MAX_COMMENT_LENGTH = 500;
+
+/**
+ * Zeigt den Kommentarbereich eines Rezepts an.
+ * Unterstützt Hinzufügen, Bearbeiten (eigene) und Löschen (eigene + CL/Admin) von Kommentaren.
+ *
+ * @param recipeId - UID des Rezepts
+ * @param disableFunctionality - Schreibgeschützter Modus (z.B. im eingebetteten View)
+ */
+const RecipeComments = ({
+  recipeId,
+  disableFunctionality = false,
+}: RecipeCommentsProps) => {
+  const database = useDatabase();
+  const authUser = useAuthUser();
+  const {customDialog} = useCustomDialog();
+
+  const [comments, setComments] = React.useState<RecipeCommentDomain[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [offset, setOffset] = React.useState(0);
+  const [hasMore, setHasMore] = React.useState(false);
+  const [newComment, setNewComment] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingText, setEditingText] = React.useState("");
+
+  /* ------------------------------------------
+  // Kommentare laden
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    setLoading(true);
+    database.recipeComments
+      .getCommentsForRecipe(recipeId, COMMENTS_PAGE_SIZE, 0)
+      .then((loadedComments) => {
+        setComments(loadedComments);
+        setHasMore(loadedComments.length === COMMENTS_PAGE_SIZE);
+        setOffset(loadedComments.length);
+      })
+      .catch(console.error)
+      .finally(() => setLoading(false));
+  }, [recipeId]);
+
+  /* ------------------------------------------
+  // Ältere Kommentare nachladen
+  // ------------------------------------------ */
+  const onLoadMore = () => {
+    database.recipeComments
+      .getCommentsForRecipe(recipeId, COMMENTS_PAGE_SIZE, offset)
+      .then((olderComments) => {
+        setComments((previous) => [...previous, ...olderComments]);
+        setHasMore(olderComments.length === COMMENTS_PAGE_SIZE);
+        setOffset((previous) => previous + olderComments.length);
+      })
+      .catch(console.error);
+  };
+
+  /* ------------------------------------------
+  // Berechtigungsprüfungen
+  // ------------------------------------------ */
+  const canEdit = (comment: RecipeCommentDomain) =>
+    !disableFunctionality && comment.createdBy === authUser?.authUid;
+
+  const canDelete = (comment: RecipeCommentDomain) =>
+    !disableFunctionality &&
+    (comment.createdBy === authUser?.authUid ||
+      authUser?.roles?.includes(Role.admin) ||
+      authUser?.roles?.includes(Role.communityLeader));
+
+  /* ------------------------------------------
+  // Kommentar hinzufügen
+  // ------------------------------------------ */
+  const onAddComment = async () => {
+    if (!newComment.trim() || !authUser) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const insertedComment = await database.recipeComments.insertComment(
+        {recipeId, comment: newComment.trim()},
+        authUser,
+      );
+      setComments((previous) => [insertedComment, ...previous]);
+      setNewComment("");
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ------------------------------------------
+  // Inline-Bearbeitung starten/abbrechen
+  // ------------------------------------------ */
+  const onStartEdit = (comment: RecipeCommentDomain) => {
+    setEditingId(comment.uid);
+    setEditingText(comment.comment);
+  };
+
+  const onCancelEdit = () => {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  /* ------------------------------------------
+  // Eigenen Kommentar speichern
+  // ------------------------------------------ */
+  const onSaveEdit = async () => {
+    if (!editingId || !authUser) {
+      return;
+    }
+    try {
+      await database.recipeComments.updateComment(
+        editingId,
+        editingText.trim(),
+        authUser,
+      );
+      setComments((previous) =>
+        previous.map((comment) =>
+          comment.uid === editingId
+            ? {...comment, comment: editingText.trim()}
+            : comment,
+        ),
+      );
+      setEditingId(null);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /* ------------------------------------------
+  // Kommentar löschen (mit Bestätigungsdialog)
+  // ------------------------------------------ */
+  const onDeleteComment = async (commentToDelete: RecipeCommentDomain) => {
+    const isConfirmed = await customDialog({
+      dialogType: DialogType.Confirm,
+      title: TEXT_COMMENT_DELETE_TITLE,
+      text: TEXT_COMMENT_DELETE_TEXT,
+      buttonTextCancel: TEXT_CANCEL,
+      buttonTextConfirm: TEXT_DELETE,
+    });
+    if (!isConfirmed) {
+      return;
+    }
+    try {
+      await database.recipeComments.deleteComment(commentToDelete.uid);
+      setComments((previous) =>
+        previous.filter((comment) => comment.uid !== commentToDelete.uid),
+      );
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  /* ------------------------------------------
+  // Render
+  // ------------------------------------------ */
+  return (
+    <React.Fragment>
+      <Typography component="h2" variant="h4" align="center" gutterBottom>
+        {TEXT_COMMENTS}
+      </Typography>
+
+      {/* Eingabeformular — nur wenn interaktiv und eingeloggt */}
+      {!disableFunctionality && authUser && (
+        <Box sx={{display: "flex", gap: 1, mt: 1, mb: 2, alignItems: "flex-start"}}>
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label={TEXT_FIELD_YOUR_COMMENT}
+            placeholder={TEXT_FIELD_PLACEHOLDER_COMMENT}
+            value={newComment}
+            onChange={(event) => setNewComment(event.target.value)}
+            inputProps={{maxLength: MAX_COMMENT_LENGTH}}
+            helperText={`${newComment.length} / ${MAX_COMMENT_LENGTH}`}
+          />
+          <Tooltip title={TEXT_BUTTON_SAVE_COMMENT}>
+            <span>
+              <IconButton
+                color="primary"
+                disabled={!newComment.trim() || saving}
+                onClick={onAddComment}
+                sx={{mt: 1}}
+              >
+                <SaveIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+      )}
+
+      {/* Ladeanzeige */}
+      {loading && <CircularProgress size={24} sx={{display: "block", mx: "auto", my: 2}} />}
+
+      {/* Kommentarliste */}
+      <List disablePadding>
+        {comments.map((comment) => (
+          <ListItem
+            key={comment.uid}
+            alignItems="flex-start"
+            disableGutters
+            sx={{
+              mb: 1.5,
+              pb: 1.5,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              "&:last-child": {borderBottom: "none", mb: 0, pb: 0},
+            }}
+          >
+            <ListItemAvatar>
+              <Avatar
+                src={
+                  comment.pictureSrc
+                    ? getImageUrl(comment.pictureSrc, ImageSize.AVATAR)
+                    : undefined
+                }
+                alt={comment.displayName}
+                sx={{width: 40, height: 40}}
+              >
+                {comment.displayName
+                  ? comment.displayName.charAt(0).toUpperCase()
+                  : "?"}
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              disableTypography
+              primary={
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  {/* Name + Datum vertikal gestapelt */}
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight="bold" lineHeight={1.3}>
+                      {comment.displayName || "–"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {comment.createdAt.toLocaleString("de-CH", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Typography>
+                  </Box>
+                  {/* Aktionsschaltflächen rechts oben */}
+                  <Box sx={{display: "flex", alignItems: "center", flexShrink: 0, ml: 1}}>
+                    {canEdit(comment) && editingId !== comment.uid && (
+                      <IconButton size="small" onClick={() => onStartEdit(comment)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    {canDelete(comment) && (
+                      <IconButton size="small" onClick={() => onDeleteComment(comment)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                </Box>
+              }
+              secondary={
+                editingId === comment.uid ? (
+                  <Box sx={{mt: 0.5}}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      size="small"
+                      value={editingText}
+                      onChange={(event) => setEditingText(event.target.value)}
+                      inputProps={{maxLength: MAX_COMMENT_LENGTH}}
+                      helperText={`${editingText.length} / ${MAX_COMMENT_LENGTH}`}
+                    />
+                    <Box sx={{display: "flex", gap: 1, mt: 0.5}}>
+                      <IconButton size="small" color="primary" onClick={onSaveEdit}>
+                        <SaveIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={onCancelEdit}>
+                        <CancelIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{mt: 0.5, whiteSpace: "pre-wrap"}}>
+                    {comment.comment}
+                  </Typography>
+                )
+              }
+            />
+          </ListItem>
+        ))}
+      </List>
+
+      {/* Ältere Kommentare laden */}
+      {hasMore && (
+        <Button onClick={onLoadMore} variant="text" fullWidth sx={{mt: 1}}>
+          {TEXT_BUTTON_LOAD_OLDER_COMMENTS}
+        </Button>
+      )}
     </React.Fragment>
   );
 };

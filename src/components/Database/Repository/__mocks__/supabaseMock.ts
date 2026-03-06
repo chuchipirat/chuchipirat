@@ -34,8 +34,9 @@ export const createQueryMock = () => {
   chainable("order");
   chainable("limit");
 
-  // single() beendet die Kette und gibt das Ergebnis zurück
+  // single() / maybeSingle() beenden die Kette und geben das Ergebnis zurück
   mock.single = jest.fn().mockResolvedValue({data: null, error: null});
+  mock.maybeSingle = jest.fn().mockResolvedValue({data: null, error: null});
 
   // Wenn die Kette ohne single() endet, muss der Query-Mock selbst thenable sein
   // Dies wird durch den "then"-Mock auf dem Objekt simuliert

@@ -25,6 +25,7 @@ export interface UserRow {
   last_name: string;
   roles: string[];
   no_logins: number;
+  no_found_bugs: number;
   display_name: string;
   member_id: number;
   motto: string;
@@ -50,6 +51,8 @@ export interface UserDomain {
   lastName: string;
   roles: Role[];
   noLogins: number;
+  /** Anzahl gemeldeter/bestätigter Bugs (aus Firebase stats.noFoundBugs migriert). */
+  noFoundBugs: number;
   displayName: string;
   memberId: number;
   motto: string;
@@ -100,6 +103,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       last_name: user.lastName,
       roles: user.roles,
       no_logins: user.noLogins,
+      no_found_bugs: user.noFoundBugs ?? 0,
       display_name: user.displayName,
       motto: user.motto,
       picture_src: user.pictureSrc ?? "",
@@ -132,6 +136,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       lastName: row.last_name,
       roles: row.roles as Role[],
       noLogins: row.no_logins,
+      noFoundBugs: row.no_found_bugs ?? 0,
       displayName: row.display_name,
       memberId: row.member_id,
       motto: row.motto,
@@ -164,7 +169,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const {data, error} = await this.client
       .from(this.tableName)
       .select(
-        "id, first_name, last_name, email, display_name, member_id, created_at"
+        "id, auth_uid, first_name, last_name, email, display_name, member_id, created_at"
       )
       .order("first_name", {ascending: true});
 
@@ -173,6 +178,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     return (data as Pick<
       UserRow,
       | "id"
+      | "auth_uid"
       | "first_name"
       | "last_name"
       | "email"
@@ -181,6 +187,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       | "created_at"
     >[]).map((row) => ({
       uid: row.id,
+      authUid: row.auth_uid ?? undefined,
       firstName: row.first_name,
       lastName: row.last_name,
       email: row.email,
@@ -188,6 +195,26 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       memberId: row.member_id,
       memberSince: new Date(row.created_at),
     }));
+  }
+
+  /* =====================================================================
+  // no_found_bugs atomar erhöhen / verringern
+  // Ersetzt: firebase.user.public.profile.incrementField({field: 'stats.noFoundBugs'})
+  // ===================================================================== */
+  /**
+   * Erhöht oder verringert no_found_bugs atomar per RPC.
+   * Der DB-Wert unterschreitet nie 0 (GREATEST(0, …) in der Funktion gesichert).
+   *
+   * @param userId - Firebase UID (PK in users)
+   * @param delta - +1 (Increment) oder -1 (Decrement)
+   * @throws {PostgrestError} bei Datenbankfehler
+   */
+  async incrementFoundBugs(userId: string, delta: number): Promise<void> {
+    const {error} = await this.client.rpc("increment_found_bugs", {
+      p_user_id: userId,
+      p_delta: delta,
+    });
+    if (error) throw error;
   }
 
   /* =====================================================================
@@ -230,10 +257,11 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const {data, error} = await this.client
       .from("user_profiles")
       .select("*")
-      .eq("id", userId)
-      .single();
+      .eq("auth_uid", userId)
+      .maybeSingle();
 
     if (error) throw error;
+    if (!data) throw new Error(`Benutzerprofil nicht gefunden: ${userId}`);
 
     const profile = new UserPublicProfile();
     profile.uid = data.id;
@@ -348,5 +376,89 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     });
 
     if (error) throw error;
+  }
+
+  /* =====================================================================
+  // Admin-Suchmethoden — verwenden Service Role Client (kein RLS)
+  // ===================================================================== */
+
+  /**
+   * Findet Auth-UUIDs aller Benutzer, deren display_name den Begriff enthält.
+   * Wird als erste Stufe der Ersteller-Namens-Suche in der Admin-Rezeptübersicht
+   * eingesetzt.
+   *
+   * @param term - Suchbegriff (case-insensitive Teilstring)
+   * @returns Array von auth_uid-Werten der gefundenen Benutzer
+   */
+  async findAuthUidsByDisplayName(term: string): Promise<string[]> {
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .select("auth_uid")
+      .ilike("display_name", `%${term}%`);
+
+    if (error) throw error;
+    return (data ?? [])
+      .map((r: {auth_uid: string | null}) => r.auth_uid)
+      .filter((uid): uid is string => uid !== null && uid !== "");
+  }
+
+  /**
+   * Gibt eine Map von auth_uid → display_name für eine Menge von UUIDs zurück.
+   * Wird verwendet, um Ersteller-Namen auf Admin-Karten anzuzeigen.
+   *
+   * @param authUids - Array von Auth-UUIDs
+   * @returns Map<auth_uid, display_name>
+   */
+  async findDisplayNamesByAuthUids(
+    authUids: string[],
+  ): Promise<Map<string, string>> {
+    if (authUids.length === 0) return new Map();
+
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .select("auth_uid, display_name")
+      .in("auth_uid", authUids);
+
+    if (error) throw error;
+    return new Map(
+      (data ?? []).map((r: {auth_uid: string; display_name: string}) => [
+        r.auth_uid,
+        r.display_name,
+      ]),
+    );
+  }
+
+  /**
+   * Gibt die minimalen Anzeige-Felder (display_name, picture_src) für eine
+   * Menge von Auth-UUIDs zurück. Verwendet die SECURITY DEFINER Funktion
+   * `get_comment_author_profiles`, die RLS auf public.users umgeht und
+   * ausschliesslich öffentliche Felder exponiert.
+   *
+   * @param authUids - Array von Supabase Auth-UUIDs
+   * @returns Map<auth_uid, {displayName, pictureSrc}>
+   */
+  async getUserDisplayInfo(
+    authUids: string[],
+  ): Promise<Map<string, {displayName: string; pictureSrc: string}>> {
+    if (authUids.length === 0) return new Map();
+
+    const {data, error} = await this.client.rpc("get_comment_author_profiles", {
+      uids: authUids,
+    });
+
+    if (error) throw error;
+
+    return new Map(
+      (
+        data as Array<{
+          auth_uid: string;
+          display_name: string;
+          picture_src: string;
+        }>
+      ).map((p) => [
+        p.auth_uid,
+        {displayName: p.display_name ?? "", pictureSrc: p.picture_src ?? ""},
+      ]),
+    );
   }
 }

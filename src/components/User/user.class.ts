@@ -35,13 +35,15 @@ export interface UserShort {
  * Wird von User.getUsersOverview() zurückgegeben.
  */
 export interface UserOverviewStructure {
+  uid?: User["uid"];
+  /** Supabase Auth UUID — vorhanden sobald der User sich einmal per Supabase eingeloggt hat. */
+  authUid?: string;
   firstName: User["firstName"];
   lastName: User["lastName"];
   displayName: UserPublicProfile["displayName"];
   email: User["email"];
   memberId: UserPublicProfile["memberId"];
   memberSince: Date;
-  uid?: User["uid"];
 }
 
 /**
@@ -179,13 +181,11 @@ interface UpdateRoles {
 
 /** Parameter für {@link User.updateStats} */
 interface UpdateStats {
-  /** Firebase-Instanz (Stats werden vorerst noch über Firebase verwaltet) */
-  firebase: Firebase;
-  /** UID des Benutzers */
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** UID des Benutzers (Firebase UID / PK in users) */
   userUid: User["uid"];
-  /** Name des Statistik-Feldes (z.B. "noComments", "noEvents") */
-  statsField: string;
-  /** Wert um den das Feld geändert wird (positiv oder negativ) */
+  /** Wert um den no_found_bugs geändert wird (+1 oder -1) */
   statsValue: number;
 }
 
@@ -290,6 +290,7 @@ export default class User {
           lastName: lastName,
           email: email.toLocaleLowerCase(),
           noLogins: 0,
+          noFoundBugs: 0,
           roles: [Role.basic],
           displayName: `${firstName} ${lastName}`.trim() || firstName,
           memberId: 0,
@@ -660,35 +661,19 @@ export default class User {
     });
   };
   /* =====================================================================
-  // Statistikfeld hoch- bzw. runterzählen
+  // no_found_bugs hoch- bzw. runterzählen
   // ===================================================================== */
-  // Stats are deferred — will be computed from data tables via views.
-  // Keep this method for compatibility during transition.
   /**
-   * Zählt ein Statistikfeld im öffentlichen Profil hoch oder runter.
-   * Wird vorerst noch über Firebase verwaltet und später durch Views ersetzt.
+   * Zählt no_found_bugs eines Benutzers atomar hoch oder runter.
+   * Nutzt den Supabase-RPC increment_found_bugs — der DB-Wert unterschreitet nie 0.
    *
-   * @param firebase - Firebase-Instanz
-   * @param userUid - UID des Benutzers
-   * @param statsField - Name des Statistik-Feldes
-   * @param statsValue - Änderungswert (positiv oder negativ)
-   * @throws Error bei Firebase-Fehler
+   * @param database - DatabaseService-Instanz
+   * @param userUid - UID des Benutzers (Firebase UID / PK in users)
+   * @param statsValue - +1 (Increment) oder -1 (Decrement)
+   * @throws Error bei Datenbankfehler
    */
-  static updateStats = async ({
-    firebase,
-    userUid,
-    statsField,
-    statsValue,
-  }: UpdateStats) => {
-    try {
-      await firebase.user.public.profile.incrementField({
-        uids: [userUid],
-        field: `stats.${statsField}`,
-        value: statsValue,
-      });
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
+  static updateStats = async ({database, userUid, statsValue}: UpdateStats) => {
+    const repo = database.admin?.users ?? database.users;
+    await repo.incrementFoundBugs(userUid, statsValue);
   };
 }

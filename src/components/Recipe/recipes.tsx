@@ -75,7 +75,8 @@ import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
 
 import {Lock as LockIcon, Category as CategoryIcon} from "@mui/icons-material";
 
-import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
+import type {RecipeShortDomain} from "../Database/Repository/RecipeRepository";
 import {Allergen, Diet} from "../Product/product.class";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -226,6 +227,46 @@ const MenuProps = {
 };
 
 /* ===================================================================
+// ====================== Hilfsfunktionen ============================
+// =================================================================== */
+
+/**
+ * Wandelt ein RecipeShortDomain-Objekt in ein RecipeShort-Objekt um.
+ * Wird benötigt, um die Supabase-Repository-Daten mit den bestehenden
+ * UI-Komponenten (RecipeCard) kompatibel zu machen.
+ *
+ * @param domain - Das RecipeShortDomain-Objekt aus dem Supabase-Repository.
+ * @returns Ein RecipeShort-Objekt für die UI.
+ */
+const domainToRecipeShort = (domain: RecipeShortDomain): RecipeShort => {
+  const recipeShort = new RecipeShort();
+  recipeShort.uid = domain.uid;
+  recipeShort.name = domain.name;
+  recipeShort.source = domain.source;
+  recipeShort.pictureSrc = domain.pictureSrc;
+  recipeShort.tags = domain.tags;
+  recipeShort.linkedRecipes = [];
+  recipeShort.dietProperties = {
+    diet: domain.dietProperties.diet,
+    allergens: domain.dietProperties.allergens,
+  };
+  recipeShort.menuTypes = domain.menuTypes as RecipeShort["menuTypes"];
+  recipeShort.outdoorKitchenSuitable = domain.outdoorKitchenSuitable;
+  recipeShort.created = {
+    date: domain.createdAt,
+    fromUid: domain.createdBy,
+    fromDisplayName: "",
+  };
+  recipeShort.type = domain.recipeType as RecipeShort["type"];
+  recipeShort.rating = {avgRating: domain.avgRating, noRatings: domain.noRatings};
+  recipeShort.noComments = domain.noComments;
+  if (domain.variantName) {
+    recipeShort.variantName = domain.variantName;
+  }
+  return recipeShort;
+};
+
+/* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
 /* ===================================================================
@@ -237,7 +278,7 @@ const MenuProps = {
  * mit Suchfunktion und Filtermöglichkeiten an.
  */
 const RecipesPage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const location = useLocation();
@@ -264,14 +305,20 @@ const RecipesPage = () => {
     }
 
     dispatch({type: ReducerActions.RECIPES_FETCH_INIT});
-    RecipeShort.getShortRecipes({
-      firebase: firebase,
-      authUser: authUser,
-    })
-      .then((result) => {
+    // Nur die für die Übersicht benötigten Spalten laden (Kurz-Abfrage)
+    Promise.all([
+      database.recipes.getAllPublicRecipeShorts(),
+      database.recipes.getPrivateRecipeShortsForUser(authUser.authUid),
+    ])
+      .then(([publicRecipes, privateRecipes]) => {
+        const all = [...publicRecipes, ...privateRecipes].map(
+          domainToRecipeShort,
+        );
+        // alphabetisch sortieren
+        all.sort((a, b) => a.name.localeCompare(b.name));
         dispatch({
           type: ReducerActions.RECIPES_FETCH_SUCCESS,
-          payload: result,
+          payload: all,
         });
       })
       .catch((error) => {
@@ -533,7 +580,7 @@ export const RecipeSearch = ({
 
       if (
         searchSettings.showOnlyMyRecipes &&
-        recipe.created.fromUid !== authUser.uid
+        recipe.created.fromUid !== authUser.authUid
       ) {
         return false;
       }

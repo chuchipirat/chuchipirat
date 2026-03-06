@@ -96,15 +96,15 @@ import Product from "../Product/product.class";
 import Unit, {UnitDimension} from "../Unit/unit.class";
 import Utils from "../Shared/utils.class";
 import Department from "../Department/department.class";
-import RecipeShort from "./recipeShort.class";
 import AlertMessage from "../Shared/AlertMessage";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import * as TEXT from "../../constants/text";
 import * as ROUTES from "../../constants/routes";
 
-import Firebase from "../Firebase/firebase.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
+import {useDatabase} from "../Database/DatabaseContext";
+import type {RecipeDomain, RecipeShortDomain} from "../Database/Repository/RecipeRepository";
 import {DialogTagAdd} from "./recipe.view";
 import Material from "../Material/material.class";
 import DialogMaterial from "../Material/dialogMaterial";
@@ -235,7 +235,7 @@ type DispatchAction =
   | {type: ReducerActions.MATERIALS_FETCH_INIT}
   | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
   | {type: ReducerActions.PUBLIC_RECIPES_FETCH_INIT}
-  | {type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS; payload: RecipeShort[]}
+  | {type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS; payload: RecipeShortDomain[]}
   | {
       type: ReducerActions.SNACKBAR_SHOW;
       payload: {severity: AlertColor; message: string};
@@ -249,7 +249,7 @@ type State = {
   products: Product[];
   departments: Department[];
   materials: Material[];
-  publicRecipes: RecipeShort[];
+  publicRecipes: RecipeShortDomain[];
   error: Error | null;
   snackbar: Snackbar;
   loadCollector: {
@@ -535,15 +535,47 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
           products: true,
         },
       };
-    case ReducerActions.PRODUCTS_FETCH_SUCCESS:
+    case ReducerActions.PRODUCTS_FETCH_SUCCESS: {
+      const loadedProducts = action.payload;
+      // Zutaten-Produktnamen aus den geladenen Produkten befüllen.
+      // fromRepositoryData setzt product.name = "" — nach dem Laden der
+      // Produkte werden die Namen anhand der Postgres-UUID aufgelöst.
+      const productNameMap = new Map(
+        loadedProducts.map((p) => [p.uid, p.name]),
+      );
+      // entries separat kopieren, damit keine State-Mutation entsteht
+      const enrichedIngredients = {
+        order: [...state.recipe.ingredients.order],
+        entries: {...state.recipe.ingredients.entries},
+      };
+      for (const uid of enrichedIngredients.order) {
+        const entry = enrichedIngredients.entries[uid] as unknown as Record<
+          string,
+          unknown
+        >;
+        const product = entry.product as
+          | {uid: string; name: string}
+          | undefined;
+        if (product?.uid && !product.name) {
+          enrichedIngredients.entries[uid] = {
+            ...entry,
+            product: {
+              uid: product.uid,
+              name: productNameMap.get(product.uid) ?? "",
+            },
+          } as unknown as Ingredient | Section;
+        }
+      }
       return {
         ...state,
-        products: action.payload,
+        products: loadedProducts,
+        recipe: {...state.recipe, ingredients: enrichedIngredients},
         loadCollector: {
           ...state.loadCollector,
           products: false,
         },
       };
+    }
     case ReducerActions.DEPARTMENTS_FETCH_INIT:
       return {
         ...state,
@@ -754,7 +786,6 @@ interface RecipeEditProps {
   dbRecipe: Recipe;
   mealPlan: Array<PlanedMealsRecipe>;
   groupConfiguration?: EventGroupConfiguration;
-  firebase: Firebase;
   isLoading: boolean;
   isEmbedded: boolean; // in einer Drawer eingebetettet, oder so...
   switchEditMode?: ({ignoreState}: SwitchEditMode) => void;
@@ -771,7 +802,6 @@ const RecipeEdit = ({
   dbRecipe,
   mealPlan,
   groupConfiguration,
-  firebase,
   isLoading,
   isEmbedded,
   switchEditMode,
@@ -779,6 +809,7 @@ const RecipeEdit = ({
   authUser,
 }: RecipeEditProps) => {
   const classes = useCustomStyles();
+  const database = useDatabase();
   const navigate = useNavigate();
 
   const navigationValuesContext = useContext(NavigationValuesContext);
@@ -805,7 +836,7 @@ const RecipeEdit = ({
     ...{popUpOpen: false},
   });
   const [possibleDuplicateRecipes, setPossibleDuplicateRecipes] = useState<
-    FuseResult<RecipeShort>[]
+    FuseResult<RecipeShortDomain>[]
   >([]);
 
   const {customDialog} = useCustomDialog();
@@ -844,7 +875,8 @@ const RecipeEdit = ({
         type: ReducerActions.UNITS_FETCH_INIT,
       });
 
-      Unit.getAllUnits({firebase: firebase})
+      database.units
+        .getAllUnits()
         .then((result) => {
           // leeres Feld gehört auch dazu
           result.push({
@@ -855,7 +887,7 @@ const RecipeEdit = ({
 
           dispatch({
             type: ReducerActions.UNITS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Unit[],
           });
         })
         .catch((error) => {
@@ -870,14 +902,13 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.PRODUCTS_FETCH_INIT,
       });
-      Product.getAllProducts({
-        firebase: firebase,
-        onlyUsable: true,
-      })
+      // Produkte aus Supabase laden (enthält Postgres-UUIDs, passend zu recipe_ingredients.product_id)
+      database.products
+        .getAllProducts({onlyUsable: true})
         .then((result) => {
           dispatch({
             type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Product[],
           });
         })
         .catch((error) => {
@@ -892,11 +923,13 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.DEPARTMENTS_FETCH_INIT,
       });
-      Department.getAllDepartments({firebase: firebase})
+      // Abteilungen aus Supabase laden (Postgres-UUIDs, passend zu products.department_id)
+      database.departments
+        .getAllDepartments()
         .then((result) => {
           dispatch({
             type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Department[],
           });
         })
         .catch((error) => {
@@ -911,11 +944,13 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.MATERIALS_FETCH_INIT,
       });
-      Material.getAllMaterials({firebase: firebase})
+      // Materialien aus Supabase laden (Postgres-UUIDs, passend zu recipe_materials.material_id)
+      database.materials
+        .getAllMaterials(true)
         .then((result) => {
           dispatch({
             type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Material[],
           });
         })
         .catch((error) => {
@@ -930,7 +965,8 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.PUBLIC_RECIPES_FETCH_INIT,
       });
-      RecipeShort.getShortRecipesPublic({firebase: firebase})
+      database.recipes
+        .getAllPublicRecipeShorts()
         .then((result) => {
           dispatch({
             type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS,
@@ -1035,27 +1071,20 @@ const RecipeEdit = ({
     let ingredientPos: string[];
     let product: Product;
 
-    if (!event?.target.id && action !== "clear") {
+    // objectId bevorzugen: Autocomplete-Components setzen es explizit auf
+    // "<field>_<UUID>". event.target.id enthält bei Autocompletes die
+    // Option-Listen-ID (z.B. "product_<UUID>-option-0") — unzuverlässig.
+    const sourceId = objectId ?? event?.target.id;
+    if (!sourceId && action !== "clear") {
       return;
     }
-
-    if (event?.target.id) {
-      // alt id={"quantity_" + ingredient.uid + "_" + ingredient.pos}
-      // neu id={"quantity_" + ingredient.uid}
-
-      ingredientPos = event.target.id.split("_");
-    } else {
-      if (!objectId) {
-        return;
-      }
-      ingredientPos = objectId.split("_");
+    if (!sourceId) {
+      return;
     }
+    ingredientPos = sourceId.split("_");
 
     const fieldName = ingredientPos[0];
-    let ingredientUid = ingredientPos[1];
-    if (ingredientUid.includes("-")) {
-      ingredientUid = ingredientUid.split("-")[0];
-    }
+    const ingredientUid = ingredientPos[1];
 
     let value: string | IngredientProduct;
     if (
@@ -1133,25 +1162,20 @@ const RecipeEdit = ({
     let materialPos: string[];
     let material: Material;
 
-    if (!event?.target.id && action !== "clear") {
+    // objectId bevorzugen: Autocomplete-Components setzen es explizit auf
+    // "<field>_<UUID>". event.target.id enthält bei Autocompletes die
+    // Option-Listen-ID (z.B. "material_<UUID>-option-0") — unzuverlässig.
+    const sourceId = objectId ?? event?.target.id;
+    if (!sourceId && action !== "clear") {
       return;
     }
-
-    if (event?.target.id) {
-      materialPos = event.target.id.split("_");
-    } else {
-      if (!objectId) {
-        return;
-      }
-      materialPos = objectId.split("_");
+    if (!sourceId) {
+      return;
     }
+    materialPos = sourceId.split("_");
 
     const fieldName = materialPos[0];
-    let materialUid = materialPos[1];
-    if (materialUid.includes("-")) {
-      // Falls über Dropdown ausgewählt, kommt noch der präfix -Option-1 zurück
-      materialUid = materialUid.split("-")[0];
-    }
+    const materialUid = materialPos[1];
     let value: string | RecipeProduct;
 
     if (
@@ -1259,58 +1283,125 @@ const RecipeEdit = ({
       });
       return;
     }
-    await Recipe.save({
-      firebase: firebase,
-      recipe: state.recipe,
-      products: state.products,
-      authUser: authUser,
-    })
-      .then((result) => {
-        if (
-          state.recipe.uid == "" &&
-          result.type !== RecipeType.variant &&
-          !isEmbedded
-        ) {
-          // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,
-          // die bei leerer UID zur Rezeptübersicht navigieren würde.
-          if (switchEditMode) {
-            switchEditMode({ignoreState: true});
-          }
-          navigate(`${ROUTES.RECIPE}/${result.created.fromUid}/${result.uid}`, {
-            replace: true,
-            state: {
-              action: Action.VIEW,
-              recipe: result,
-            },
-          });
-        } else {
-          if (switchEditMode) {
-            switchEditMode({});
-          }
-          // Angepasstes Rezept Hochgeben und in den Read-Modus wechseln
-          onUpdateRecipe({
-            recipe: result,
-            snackbar: {
-              message: TEXT.RECIPE_SAVE_SUCCESS,
-              severity: "success",
-              open: true,
-            },
-          });
+    try {
+      const isNew = state.recipe.uid === "";
 
-          // Meldung auf gleicher Seite anzeigen
-          dispatch({
-            type: ReducerActions.SNACKBAR_SHOW,
-            payload: {
-              severity: "success",
-              message: TEXT.RECIPE_SAVE_SUCCESS,
-            },
-          });
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      // Rezept für das Speichern vorbereiten (Diät-Properties, Bereinigung)
+      const preparedRecipe = Recipe.prepareSave({
+        recipe: state.recipe,
+        products: state.products,
       });
+
+      // In RecipeDomain konvertieren und in der DB speichern
+      const domain: RecipeDomain = Recipe.toDomain(preparedRecipe);
+      const savedHeader = isNew
+        ? await database.recipes.insertRecipe(domain, authUser)
+        : await database.recipes.updateRecipe(domain, authUser);
+
+      // Kind-Datensätze (Zutaten, Schritte, Materialien) parallel speichern
+      const ingredientRows = Recipe.toIngredientRows(
+        preparedRecipe,
+        savedHeader.uid,
+      );
+      const stepRows = Recipe.toPreparationStepRows(
+        preparedRecipe,
+        savedHeader.uid,
+      );
+      const materialRows = Recipe.toMaterialRows(
+        preparedRecipe,
+        savedHeader.uid,
+      );
+      await Promise.all([
+        database.recipeIngredients.saveAllForRecipe(
+          savedHeader.uid,
+          ingredientRows,
+          authUser,
+        ),
+        database.recipePreparationSteps.saveAllForRecipe(
+          savedHeader.uid,
+          stepRows,
+          authUser,
+        ),
+        database.recipeMaterials.saveAllForRecipe(
+          savedHeader.uid,
+          materialRows,
+          authUser,
+        ),
+      ]);
+
+      // Vollständiges Recipe-Objekt aus den gespeicherten Daten rekonstruieren
+      const result = Recipe.fromRepositoryData(
+        savedHeader,
+        ingredientRows,
+        stepRows,
+        materialRows,
+      );
+      // Zutaten-Produktnamen aus den bereits geladenen Produkten befüllen
+      // (fromRepositoryData setzt product.name = "" — Auflösung via Postgres-UUID)
+      const productNameMap = new Map(
+        state.products.map((p) => [p.uid, p.name]),
+      );
+      for (const uid of result.ingredients.order) {
+        const entry = result.ingredients.entries[uid] as unknown as Record<
+          string,
+          unknown
+        >;
+        const product = entry.product as
+          | {uid: string; name: string}
+          | undefined;
+        if (product?.uid) {
+          product.name = productNameMap.get(product.uid) ?? "";
+        }
+      }
+      // Materialien-Namen aus den bereits geladenen Materialien befüllen
+      // (fromRepositoryData setzt material.name = "" — Auflösung via Postgres-UUID)
+      const materialNameMap = new Map(
+        state.materials.map((m) => [m.uid, m.name]),
+      );
+      for (const uid of result.materials.order) {
+        const entry = result.materials.entries[uid] as unknown as Record<
+          string,
+          unknown
+        >;
+        const material = entry.material as {uid: string; name: string} | undefined;
+        if (material?.uid) {
+          material.name = materialNameMap.get(material.uid) ?? "";
+        }
+      }
+
+      if (isNew && result.type !== RecipeType.variant && !isEmbedded) {
+        // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,
+        // die bei leerer UID zur Rezeptübersicht navigieren würde.
+        if (switchEditMode) {
+          switchEditMode({ignoreState: true});
+        }
+        navigate(`${ROUTES.RECIPE}/${result.created.fromUid}/${result.uid}`, {
+          replace: true,
+          state: {action: Action.VIEW, recipe: result},
+        });
+      } else {
+        if (switchEditMode) {
+          switchEditMode({});
+        }
+        // Angepasstes Rezept hochgeben und in den Read-Modus wechseln
+        onUpdateRecipe({
+          recipe: result,
+          snackbar: {
+            message: TEXT.RECIPE_SAVE_SUCCESS,
+            severity: "success",
+            open: true,
+          },
+        });
+        // Meldung auf gleicher Seite anzeigen
+        dispatch({
+          type: ReducerActions.SNACKBAR_SHOW,
+          payload: {severity: "success", message: TEXT.RECIPE_SAVE_SUCCESS},
+        });
+      }
+    } catch (error) {
+      console.error(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
   const onCancel = async () => {
     const isConfirmed = await customDialog({
@@ -1376,8 +1467,6 @@ const RecipeEdit = ({
     // 0 = Name des Buttons (moreClick)
     // 1 = Abschnitt in dem er geklickt wurde (ingredients)
     // 2 = UID der Position
-
-    console.log(pressedButton);
 
     setPositionMenuSelectedItem({
       type: pressedButton[1] as RecipeBlock,
@@ -1726,7 +1815,6 @@ const RecipeEdit = ({
         // noListEntries={positionMenuSelectedItem.noOfPostitions}
       />
       <DialogProduct
-        firebase={firebase}
         productName={productAddPopupValues.name}
         productUid={productAddPopupValues.uid}
         productDietProperties={productAddPopupValues.dietProperties}
@@ -1742,7 +1830,6 @@ const RecipeEdit = ({
         authUser={authUser}
       />
       <DialogMaterial
-        firebase={firebase}
         materialName={materialAddPopupValues.name}
         materialUid={materialAddPopupValues.uid}
         materialType={materialAddPopupValues.type}
@@ -1773,7 +1860,7 @@ const RecipeEdit = ({
 // =================================================================== */
 interface RecipeHeaderProps {
   recipe: Recipe;
-  possibleDuplicateRecipes: FuseResult<RecipeShort>[];
+  possibleDuplicateRecipes: FuseResult<RecipeShortDomain>[];
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onBlur: (event: React.FocusEvent<HTMLInputElement>) => void;
 }
@@ -3303,7 +3390,7 @@ const MaterialListEntry = ({
       id={"listitem_materials_" + material.uid}
       secondaryAction={
         <IconButton
-          id={"MoreBtn_" + RecipeBlock.prepartionSteps + "_" + material.uid}
+          id={"MoreBtn_" + RecipeBlock.materials + "_" + material.uid}
           aria-label="position-options"
           onClick={onPositionMoreClick}
           size="small"

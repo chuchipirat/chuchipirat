@@ -752,7 +752,9 @@ describe("Recipe.createEmptySection()", () => {
   test("Abschnitt erzeugen", () => {
     const section = Recipe.createEmptySection();
 
-    expect(section.uid.length).toBe(5);
+    expect(section.uid).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
     expect(section.posType).toBe(PositionType.section);
     expect(section.name).toBe("");
   });
@@ -888,6 +890,44 @@ describe("Recipe.scaleIngredients()", () => {
     });
     expect(scaledIngredients["ghi"].quantity).toBe(11);
     expect(scaledIngredients["ghi"].unit).toBe("");
+  });
+  test("kein Absturz wenn Produkt nicht im Produktkatalog enthalten (convertUnits=true)", () => {
+    // Regression: product.uid in der Zutat ist nicht in products[] vorhanden.
+    // scaleIngredients() darf nicht mit "Cannot read properties of undefined
+    // (reading 'shoppingUnit')" abstürzen — stattdessen wird die skalierte
+    // Menge in der Originaleinheit übernommen.
+    const recipeMock = _.cloneDeep(recipe);
+    const unitsMock = _.cloneDeep(units);
+    const unitConversionMock = _.cloneDeep(unitConversionBasic);
+    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+
+    // Produkte-Array enthält das Produkt der Zutat "abc" (okt0) absichtlich nicht.
+    const partialProducts = [
+      {
+        uid: "mozza",
+        name: "Mozzarella",
+        department: {uid: "molk", name: "Molkerei"},
+        shoppingUnit: "kg",
+        dietProperties: {allergens: [], diet: 0},
+        usable: true,
+      },
+    ];
+
+    expect(() => {
+      const result = Recipe.scaleIngredients({
+        recipe: recipeMock,
+        portionsToScale: 44,
+        scalingOptions: {convertUnits: true},
+        products: partialProducts as any,
+        units: unitsMock,
+        unitConversionBasic: unitConversionMock,
+        unitConversionProducts: unitConversionProductsMock,
+      });
+      // "abc" hat Produkt "okt0" (nicht in partialProducts) → keine Umrechnung,
+      // aber die skalierte Menge muss trotzdem korrekt sein.
+      expect(result["abc"].quantity).toBe(462);
+      expect(result["abc"].unit).toBe("");
+    }).not.toThrow();
   });
   test("linear skalieren mit Skalierungsfaktor - kleine Menge", () => {
     // angenommen es wird skaliert, aber die skalierte Menge ist weniger

@@ -148,6 +148,7 @@ export const recipe: Recipe = {
   dietProperties: {allergens: [], diet: Diet.Meat},
   menuTypes: [],
   outdoorKitchenSuitable: false,
+  usable: true,
   rating: {avgRating: 5, noRatings: 1, myRating: 0},
   usedProducts: [],
   isInReview: false,

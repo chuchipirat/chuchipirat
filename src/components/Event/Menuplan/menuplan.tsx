@@ -209,7 +209,7 @@ import Action from "../../../constants/actions";
 
 import {RecipeSearch} from "../../Recipe/recipes";
 import RecipeShort from "../../Recipe/recipeShort.class";
-import RecipeView, {OnAddToEvent} from "../../Recipe/recipe.view";
+import type {OnAddToEvent} from "../../Recipe/recipe.view";
 import Recipe, {RecipeType, Recipes} from "../../Recipe/recipe.class";
 import EventGroupConfiguration, {
   Intolerance,
@@ -237,7 +237,6 @@ import {
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
-import RecipeEdit from "../../Recipe/recipe.edit";
 import {
   DialogSelectMenues,
   DialogSelectMenuesForRecipeDialogValues,
@@ -301,16 +300,12 @@ enum MenueEditTypes {
   PRODUCT = "PRODUCT",
   MATERIAL = "MATERIAL",
 }
-interface DrawerSettings {
-  open: boolean;
-  isLoadingData: boolean;
-}
-export interface RecipeDrawerData extends DrawerSettings {
-  recipe: Recipe;
-  mealPlan: Array<PlanedMealsRecipe>;
-  scaledPortions: number;
-  editMode: boolean;
-}
+import {
+  RecipeDrawer,
+  RecipeDrawerData,
+  DrawerSettings,
+  RECIPE_DRAWER_DATA_INITIAL_VALUES,
+} from "../../Recipe/RecipeDrawer";
 interface RecipeSearchDrawerData extends DrawerSettings {
   menue: Menue | null;
 }
@@ -483,14 +478,6 @@ interface DialogGoods {
   product: MenuplanProduct | null;
   material: MenuplanMaterial | null;
 }
-export const RECIPE_DRAWER_DATA_INITIAL_VALUES: RecipeDrawerData = {
-  open: false,
-  isLoadingData: false,
-  recipe: new Recipe(),
-  mealPlan: [],
-  scaledPortions: 0,
-  editMode: false,
-};
 const MenuplanPage = ({
   menuplan,
   groupConfiguration,
@@ -3594,109 +3581,6 @@ const RecipeSearchDrawer = ({
     </Drawer>
   );
 };
-/* ===================================================================
-// ========================== Rezept-Drawer ==========================
-// =================================================================== */
-interface RecipeDrawerProps {
-  drawerSettings: DrawerSettings;
-  recipe: Recipe;
-  mealPlan: Array<PlanedMealsRecipe>;
-  groupConfiguration: EventGroupConfiguration;
-  scaledPortions: number;
-  editMode: boolean;
-  disableFunctionality?: boolean;
-  firebase: Firebase;
-  authUser: AuthUser;
-  onClose: () => void;
-  onAddToEvent?: ({recipe}: OnAddToEvent) => void;
-  onEditRecipeMealPlan?: (mealRecipeUid: MealRecipe["uid"]) => void;
-  onRecipeUpdate?: (recipe: Recipe) => void;
-  onSwitchEditMode?: () => void;
-  onRecipeDelete?: () => void;
-}
-export const RecipeDrawer = ({
-  drawerSettings,
-  recipe,
-  mealPlan,
-  groupConfiguration,
-  editMode,
-  disableFunctionality = false,
-  scaledPortions,
-  firebase,
-  authUser,
-  onClose,
-  onAddToEvent,
-  onEditRecipeMealPlan,
-  onSwitchEditMode,
-  onRecipeDelete,
-  onRecipeUpdate: onRecipeUpdateSuper,
-}: RecipeDrawerProps) => {
-  const classes = useCustomStyles();
-
-  const onRecipeUpdate = ({recipe}: {recipe: Recipe}) => {
-    // Umbiegen der Signatur
-    if (onRecipeUpdateSuper) {
-      onRecipeUpdateSuper(recipe);
-    }
-  };
-  return (
-    <Drawer
-      anchor="bottom"
-      open={drawerSettings.open}
-      onClose={onClose}
-      sx={classes.recipeDrawerBackground}
-      ModalProps={{
-        keepMounted: true,
-      }}
-    >
-      <IconButton
-        color="inherit"
-        aria-label="close"
-        sx={classes.closeDrawerIconButton}
-        onClick={onClose}
-        size="large"
-      >
-        <CloseIcon fontSize="small" />
-      </IconButton>
-      <Container
-        style={{width: "100%", height: "100vh", padding: "0"}}
-        maxWidth={false}
-      >
-        {editMode ? (
-          <RecipeEdit
-            dbRecipe={recipe}
-            mealPlan={mealPlan}
-            firebase={firebase}
-            isLoading={false}
-            isEmbedded={true}
-            switchEditMode={onSwitchEditMode}
-            onUpdateRecipe={onRecipeUpdate}
-            authUser={authUser}
-          />
-        ) : (
-          <RecipeView
-            recipe={recipe}
-            mealPlan={mealPlan}
-            firebase={firebase}
-            isEmbedded={true}
-            isLoading={drawerSettings.isLoadingData}
-            error={null}
-            disableFunctionality={disableFunctionality}
-            groupConfiguration={groupConfiguration}
-            scaledPortions={scaledPortions}
-            switchEditMode={onSwitchEditMode}
-            onUpdateRecipe={onRecipeUpdate}
-            onEditRecipeMealPlan={onEditRecipeMealPlan}
-            onAddToEvent={onAddToEvent}
-            onRecipeDelete={onRecipeDelete}
-            authUser={authUser}
-          />
-        )}
-      </Container>
-    </Drawer>
-  );
-};
-
 /* ===================================================================
 // ==================== Einplanung der Portionen =====================
 // =================================================================== */

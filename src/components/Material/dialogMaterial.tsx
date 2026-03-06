@@ -20,6 +20,7 @@ import {
 } from "@mui/material";
 
 import Material, {MaterialType} from "./material.class";
+import {useDatabase} from "../Database/DatabaseContext";
 
 import {
   DIALOG_TITLE_MATERIAL_ADD,
@@ -37,12 +38,10 @@ import {
   BUTTON_SAVE,
   BUTTON_CANCEL,
   ERROR_MATERIAL_WITH_THIS_NAME_ALREADY_EXISTS,
-  ERROR_PARAMETER_NOT_PASSED,
   USABLE,
 } from "../../constants/text";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Firebase from "../Firebase/firebase.class";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 
 /* ===================================================================
@@ -54,7 +53,6 @@ export const MATERIAL_POP_UP_VALUES_INITIAL_STATE = {
   type: MaterialType.none,
   usable: true,
   clear: false,
-  firstCall: true,
 };
 
 export enum MaterialDialog {
@@ -67,11 +65,13 @@ export const MATERIAL_DIALOG_TYPE = {
 };
 
 /* ===================================================================
-// ===================== Pop Up Produkt hinzufügen ===================
+// ===================== Pop Up Material hinzufügen ==================
 // =================================================================== */
 
+/**
+ * Props für den DialogMaterial.
+ */
 interface DialogMaterialProps {
-  firebase?: Firebase;
   dialogType: MaterialDialog;
   materialName: Material["name"];
   materialUid: Material["uid"];
@@ -81,16 +81,18 @@ interface DialogMaterialProps {
   dialogOpen: boolean;
   handleOk: (material: Material) => void;
   handleClose: () => void;
-  // selectedDepartment: Department;
-  // selectedUnit: Unit;
-  // usable: boolean;
-  // departments: Department[];
-  // units: Unit[];
   authUser: AuthUser;
 }
 
+/**
+ * Dialog zum Erstellen und Bearbeiten eines Materials.
+ * Im CREATE-Modus wird das Material via Supabase (useDatabase()) angelegt.
+ * Im EDIT-Modus werden die geänderten Werte per handleOk-Callback zurückgegeben.
+ *
+ * @param props - DialogMaterialProps
+ * @returns JSX-Element des Dialogs
+ */
 const DialogMaterial = ({
-  firebase,
   dialogType,
   materialName = "",
   materialUid = "",
@@ -103,6 +105,7 @@ const DialogMaterial = ({
   authUser,
 }: DialogMaterialProps) => {
   const theme = useTheme();
+  const database = useDatabase();
 
   const [materialPopUpValues, setMaterialPopUpValues] = React.useState(
     MATERIAL_POP_UP_VALUES_INITIAL_STATE
@@ -112,60 +115,71 @@ const DialogMaterial = ({
     type: {hasError: false, errorText: ""},
   });
 
+  // Formularfelder beim Öffnen des Dialogs initialisieren
+  React.useEffect(() => {
+    if (!dialogOpen) return;
+    setMaterialPopUpValues({
+      ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
+      uid: materialUid,
+      name: materialName?.trim() ?? "",
+      type: materialType,
+      usable: materialUsable,
+    });
+    // Validierungsfehler zurücksetzen
+    setValidation({
+      name: {hasError: false, errorText: ""},
+      type: {hasError: false, errorText: ""},
+    });
+  }, [dialogOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+
   /* ------------------------------------------
   // Change Ereignis Felder
   // ------------------------------------------ */
-  const onChangeField = (
-    event: React.ChangeEvent<HTMLInputElement>,
-    newValue?: any,
-    objectId?: string
-  ) => {
-    let value: string | ValueObject | boolean;
-    let field: string;
-
-    if (event.target.id) {
-      field = event.target.id.split("-")[0];
-    } else {
-      objectId ? (field = objectId) : (field = "");
-    }
-
+  /**
+   * Verarbeitet Änderungen am Name-Textfeld.
+   *
+   * @param event - Change-Event des Eingabefelds
+   */
+  const onChangeField = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const field = event.target.id.split("-")[0];
     switch (field) {
-      case "material":
-        value = newValue;
-        break;
-      case "department":
-        value = newValue;
-        break;
       case "name":
-        value = event.target.value;
-        break;
-      case "usable":
-        value = event.target.checked;
+        setMaterialPopUpValues({
+          ...materialPopUpValues,
+          name: event.target.value,
+          clear: false,
+        });
         break;
       default:
         return;
     }
-    setMaterialPopUpValues({
-      ...materialPopUpValues,
-      [field]: value,
-      clear: false,
-      firstCall: false,
-    });
   };
+
+  /**
+   * Verarbeitet Änderungen am Materialtyp-RadioButton.
+   *
+   * @param event - Change-Event des Radio-Inputs
+   */
   const onChangeRadioButton = (event: React.ChangeEvent<HTMLInputElement>) => {
     setMaterialPopUpValues({
       ...materialPopUpValues,
       type: parseInt((event.target as HTMLInputElement).value) as MaterialType,
       clear: false,
-      firstCall: false,
     });
   };
+
+  /**
+   * Verarbeitet Änderungen der Verwendbar-Checkbox.
+   *
+   * @param event - Change-Event der Checkbox
+   */
   const onChangeCheckbox = (event: React.ChangeEvent<HTMLInputElement>) => {
     setMaterialPopUpValues({
       ...materialPopUpValues,
       usable: event.target.checked,
     });
   };
+
   /* ------------------------------------------
   // PopUp Abbrechen
   // ------------------------------------------ */
@@ -175,12 +189,13 @@ const DialogMaterial = ({
     });
     handleClose();
   };
+
   /* ------------------------------------------
   // PopUp Ok - schliessen
   // ------------------------------------------ */
   const onOkClick = () => {
-    //  Prüfung Typ und Name gesetzt
-    const tempValidation = validation;
+    // Prüfung Typ und Name gesetzt
+    const tempValidation = {...validation};
 
     !materialPopUpValues.name
       ? (tempValidation.name = {
@@ -195,9 +210,9 @@ const DialogMaterial = ({
           errorText: FORM_GIVE_MATERIAL_TYPE,
         })
       : (tempValidation.type = {hasError: false, errorText: ""});
+
     if (
-      // Nur wenn keine UID
-      // sicherstellen, dass nicht zwei Material mit dem selben Namen erfasst werden
+      // Sicherstellen, dass nicht zwei Materialien mit demselben Namen erfasst werden
       !materialPopUpValues.uid &&
       materials.find(
         (material) =>
@@ -205,35 +220,44 @@ const DialogMaterial = ({
           materialPopUpValues.name.toLowerCase().trim()
       ) !== undefined
     ) {
-      // Ein Produkt mit diesem Namen besteht schon. --> Abbruch
       tempValidation.name = {
         hasError: true,
         errorText: ERROR_MATERIAL_WITH_THIS_NAME_ALREADY_EXISTS,
       };
     }
+
     if (tempValidation.name.hasError || tempValidation.type.hasError) {
       setValidation(tempValidation);
       setMaterialPopUpValues({...materialPopUpValues});
     } else {
       switch (dialogType) {
         case MATERIAL_DIALOG_TYPE.CREATE:
-          if (!firebase) {
-            throw new Error(ERROR_PARAMETER_NOT_PASSED);
-          }
-          //Neues Produkt anlegen
-          Material.createMaterial({
-            firebase: firebase,
-            name: materialPopUpValues.name,
-            type: materialPopUpValues.type,
-            authUser: authUser,
-          }).then((result) => {
-            handleOk(result);
-            setMaterialPopUpValues({
-              ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
-              clear: true,
+          // Neues Material in Supabase anlegen
+          database.materials
+            .insertMaterial(
+              {
+                name: materialPopUpValues.name,
+                type: materialPopUpValues.type,
+                usable: true,
+              },
+              authUser
+            )
+            .then((domain) => {
+              // Domain → Material-Instanz für Rückgabe an den Aufrufer
+              const result = new Material();
+              result.uid = domain.uid;
+              result.name = domain.name;
+              result.type = domain.type;
+              result.usable = domain.usable;
+              handleOk(result);
+              setMaterialPopUpValues({
+                ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
+                clear: true,
+              });
+            })
+            .catch((error) => {
+              console.error("Fehler beim Anlegen des Materials:", error);
             });
-          });
-
           break;
         case MATERIAL_DIALOG_TYPE.EDIT: {
           const material = new Material();
@@ -250,29 +274,16 @@ const DialogMaterial = ({
       }
     }
   };
+
   /* ------------------------------------------
-  // PopUp Ok - schliessen
+  // Dialog schliessen (Backdrop / ESC)
   // ------------------------------------------ */
-  const onClose = (event: ValueObject, reason: string) => {
+  const onClose = (_event: ValueObject, reason: string) => {
     if (reason !== "backdropClick" && reason !== "escapeKeyDown") {
       handleClose();
     }
   };
 
-  // Werte setzen, wenn das erste Mal PopUp geöffnet wird
-  if (
-    !materialPopUpValues.name &&
-    materialName &&
-    materialPopUpValues.firstCall == true
-  ) {
-    setMaterialPopUpValues({
-      ...materialPopUpValues,
-      uid: materialUid,
-      name: materialName.trim(),
-      type: materialType,
-      usable: materialUsable,
-    });
-  }
   return (
     <Dialog
       open={dialogOpen}

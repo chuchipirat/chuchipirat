@@ -46,6 +46,7 @@ describe("UserRepository", () => {
       expect(row.last_name).toBe("User");
       expect(row.roles).toEqual(["basic"]);
       expect(row.no_logins).toBe(5);
+      expect(row.no_found_bugs).toBe(3);
       expect(row.display_name).toBe("TestUser");
       expect(row.motto).toBe("Testing is caring");
     });
@@ -99,6 +100,7 @@ describe("UserRepository", () => {
       expect(domain.lastName).toBe("User");
       expect(domain.roles).toEqual([Role.basic]);
       expect(domain.noLogins).toBe(5);
+      expect(domain.noFoundBugs).toBe(3);
       expect(domain.displayName).toBe("TestUser");
       expect(domain.memberId).toBe(42);
       expect(domain.motto).toBe("Testing is caring");
@@ -144,10 +146,11 @@ describe("UserRepository", () => {
   // findOverview()
   // ------------------------------------------ */
   describe("findOverview()", () => {
-    test("Alle User als Übersicht laden", async () => {
+    test("Alle User als Übersicht laden inkl. auth_uid", async () => {
       const overviewRows = [
         {
           id: userRow.id,
+          auth_uid: userRow.auth_uid,
           first_name: userRow.first_name,
           last_name: userRow.last_name,
           email: userRow.email,
@@ -157,6 +160,7 @@ describe("UserRepository", () => {
         },
         {
           id: userRow2.id,
+          auth_uid: userRow2.auth_uid,
           first_name: userRow2.first_name,
           last_name: userRow2.last_name,
           email: userRow2.email,
@@ -175,16 +179,18 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
       expect(supabaseMock.queryMock.select).toHaveBeenCalledWith(
-        "id, first_name, last_name, email, display_name, member_id, created_at",
+        "id, auth_uid, first_name, last_name, email, display_name, member_id, created_at",
       );
       expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("first_name", {
         ascending: true,
       });
       expect(result).toHaveLength(2);
       expect(result[0].uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
+      expect(result[0].authUid).toBeUndefined(); // userRow.auth_uid is null
       expect(result[0].firstName).toBe("Test");
       expect(result[0].displayName).toBe("TestUser");
       expect(result[1].uid).toBe("X8kLmN3pQrStUvWxYz1234abcde");
+      expect(result[1].authUid).toBe("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     });
 
     test("Fehler bei findOverview() werfen", async () => {
@@ -268,20 +274,22 @@ describe("UserRepository", () => {
   // findPublicProfile()
   // ------------------------------------------ */
   describe("findPublicProfile()", () => {
-    test("Öffentliches Profil laden", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
+    test("Öffentliches Profil anhand auth_uid laden", async () => {
+      // Seit der Supabase-Migration wird die Abfrage per auth_uid durchgeführt,
+      // da URLs die Supabase Auth UUID verwenden.
+      supabaseMock.queryMock.maybeSingle.mockResolvedValue({
         data: userProfileRow,
         error: null,
       });
 
       const result = await repo.findPublicProfile(
-        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+        "supabase-auth-uuid-123",
       );
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("user_profiles");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
-        "id",
-        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+        "auth_uid",
+        "supabase-auth-uuid-123",
       );
       expect(result.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(result.displayName).toBe("TestUser");
@@ -291,13 +299,13 @@ describe("UserRepository", () => {
     });
 
     test("Stats mit Standardwerten (0) zurückgeben", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
+      supabaseMock.queryMock.maybeSingle.mockResolvedValue({
         data: userProfileRow,
         error: null,
       });
 
       const result = await repo.findPublicProfile(
-        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+        "supabase-auth-uuid-123",
       );
 
       expect(result.stats).toEqual({
@@ -309,15 +317,26 @@ describe("UserRepository", () => {
       });
     });
 
-    test("Fehler bei findPublicProfile() werfen", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
+    test("Wirft Fehler wenn Datenbankfehler auftritt", async () => {
+      supabaseMock.queryMock.maybeSingle.mockResolvedValue({
         data: null,
-        error: {message: "Not found"},
+        error: {message: "Connection refused"},
       });
 
-      await expect(repo.findPublicProfile("nonexistent")).rejects.toEqual({
-        message: "Not found",
+      await expect(repo.findPublicProfile("any-uid")).rejects.toEqual({
+        message: "Connection refused",
       });
+    });
+
+    test("Wirft Fehler wenn Profil nicht gefunden (data ist null)", async () => {
+      supabaseMock.queryMock.maybeSingle.mockResolvedValue({
+        data: null,
+        error: null,
+      });
+
+      await expect(repo.findPublicProfile("unknown-uid")).rejects.toThrow(
+        /Benutzerprofil nicht gefunden/,
+      );
     });
   });
 
@@ -469,6 +488,113 @@ describe("UserRepository", () => {
       await expect(
         repo.registerSignIn("T02c6mxOWDstBdvwzjbs5Tfc2abc"),
       ).rejects.toEqual(rpcError);
+    });
+  });
+
+  /* ------------------------------------------
+  // incrementFoundBugs()
+  // ------------------------------------------ */
+  describe("incrementFoundBugs()", () => {
+    test("Ruft RPC increment_found_bugs mit userId und delta auf", async () => {
+      supabaseMock.client.rpc.mockResolvedValue({data: null, error: null});
+
+      await repo.incrementFoundBugs("T02c6mxOWDstBdvwzjbs5Tfc2abc", 1);
+
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
+        "increment_found_bugs",
+        {
+          p_user_id: "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+          p_delta: 1,
+        },
+      );
+    });
+
+    test("Übergibt negativen delta für Decrement", async () => {
+      supabaseMock.client.rpc.mockResolvedValue({data: null, error: null});
+
+      await repo.incrementFoundBugs("user-123", -1);
+
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
+        "increment_found_bugs",
+        {p_user_id: "user-123", p_delta: -1},
+      );
+    });
+
+    test("Wirft Fehler bei DB-Error", async () => {
+      const rpcError = {message: "RPC failed", code: "42000"};
+      supabaseMock.client.rpc.mockResolvedValue({data: null, error: rpcError});
+
+      await expect(
+        repo.incrementFoundBugs("user-123", 1),
+      ).rejects.toEqual(rpcError);
+    });
+  });
+
+  /* ------------------------------------------
+  // findAuthUidsByDisplayName() — Admin-Suchmethode
+  // ------------------------------------------ */
+  describe("findAuthUidsByDisplayName()", () => {
+    test("Ruft ilike mit eingebettetem Begriff auf und gibt auth_uid-Array zurück", async () => {
+      supabaseMock.queryMock.ilike = jest.fn().mockResolvedValue({
+        data: [
+          {auth_uid: "auth-uuid-1"},
+          {auth_uid: "auth-uuid-2"},
+        ],
+        error: null,
+      });
+
+      const result = await repo.findAuthUidsByDisplayName("Max");
+
+      expect(supabaseMock.queryMock.ilike).toHaveBeenCalledWith(
+        "display_name",
+        "%Max%",
+      );
+      expect(result).toEqual(["auth-uuid-1", "auth-uuid-2"]);
+    });
+
+    test("Gibt leeres Array zurück wenn keine Treffer", async () => {
+      supabaseMock.queryMock.ilike = jest.fn().mockResolvedValue({
+        data: [],
+        error: null,
+      });
+
+      const result = await repo.findAuthUidsByDisplayName("NICHT_VORHANDEN");
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  /* ------------------------------------------
+  // findDisplayNamesByAuthUids() — Admin-Suchmethode
+  // ------------------------------------------ */
+  describe("findDisplayNamesByAuthUids()", () => {
+    test("Ruft in('auth_uid', uids) auf und gibt Map uid→name zurück", async () => {
+      supabaseMock.queryMock.in = jest.fn().mockResolvedValue({
+        data: [
+          {auth_uid: "auth-uuid-1", display_name: "Max Muster"},
+          {auth_uid: "auth-uuid-2", display_name: "Anna Meier"},
+        ],
+        error: null,
+      });
+
+      const result = await repo.findDisplayNamesByAuthUids([
+        "auth-uuid-1",
+        "auth-uuid-2",
+      ]);
+
+      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("auth_uid", [
+        "auth-uuid-1",
+        "auth-uuid-2",
+      ]);
+      expect(result.get("auth-uuid-1")).toBe("Max Muster");
+      expect(result.get("auth-uuid-2")).toBe("Anna Meier");
+    });
+
+    test("Gibt leere Map zurück wenn authUids leer", async () => {
+      const result = await repo.findDisplayNamesByAuthUids([]);
+
+      expect(result.size).toBe(0);
+      // Kein DB-Aufruf
+      expect(supabaseMock.client.from).not.toHaveBeenCalled();
     });
   });
 });

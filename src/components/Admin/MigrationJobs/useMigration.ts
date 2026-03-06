@@ -1,5 +1,23 @@
 import {useState, useRef, useCallback} from "react";
 
+/**
+ * Extrahiert eine lesbare Fehlermeldung aus einem beliebigen Error-Wert.
+ * Behandelt sowohl native Error-Instanzen als auch Supabase PostgrestError-Objekte
+ * (plain objects mit `code`, `message`, `details`).
+ *
+ * @param error - Der gefangene Fehler (beliebiger Typ)
+ * @returns Eine lesbare Fehlermeldung als String
+ */
+function formatError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (error !== null && typeof error === "object") {
+    const e = error as Record<string, unknown>;
+    const parts = [e.code, e.message, e.details].filter(Boolean);
+    return parts.length > 0 ? parts.join(" — ") : JSON.stringify(error);
+  }
+  return String(error);
+}
+
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
@@ -119,7 +137,7 @@ export const useMigration = (): UseMigrationReturn => {
             id: "FETCH_ERROR",
             label: "Fehler beim Laden der Quelldaten",
             status: "failed",
-            error: error instanceof Error ? error.message : String(error),
+            error: formatError(error),
           },
         ]);
         setPhase("completed");
@@ -181,7 +199,7 @@ export const useMigration = (): UseMigrationReturn => {
               id: record.id,
               label: record.label,
               status: "failed",
-              error: error instanceof Error ? error.message : String(error),
+              error: formatError(error),
             },
           ]);
         }

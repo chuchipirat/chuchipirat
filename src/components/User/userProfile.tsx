@@ -229,7 +229,7 @@ const userProfileReducer = (state: State, action: DispatchAction): State => {
         error: action.payload,
       };
     default:
-      console.error("Unbekannter ActionType: ", action.type);
+      console.error("Unbekannter ActionType: ", (action as {type: unknown}).type);
       throw new Error();
   }
 };
@@ -294,7 +294,7 @@ const UserProfilePage = () => {
       User.checkUserProfileData(state.userProfile);
     } catch (error) {
       console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
       return;
     }
 
@@ -363,7 +363,7 @@ const UserProfilePage = () => {
         payload: publicUrl,
       });
     } catch (error) {
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     } finally {
       URL.revokeObjectURL(previewUrl);
     }

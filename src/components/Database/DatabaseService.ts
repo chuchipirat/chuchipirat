@@ -9,13 +9,19 @@ import {MaterialRepository} from "./Repository/MaterialRepository";
 import {ProductRepository} from "./Repository/ProductRepository";
 import {UnitConversionBasicRepository} from "./Repository/UnitConversionBasicRepository";
 import {UnitConversionProductRepository} from "./Repository/UnitConversionProductRepository";
+import {RecipeRepository} from "./Repository/RecipeRepository";
+import {RecipeIngredientRepository} from "./Repository/RecipeIngredientRepository";
+import {RecipePreparationStepRepository} from "./Repository/RecipePreparationStepRepository";
+import {RecipeMaterialRepository} from "./Repository/RecipeMaterialRepository";
+import {RecipeRatingRepository} from "./Repository/RecipeRatingRepository";
+import {RecipeCommentRepository} from "./Repository/RecipeCommentRepository";
 import {supabaseAdmin} from "./supabaseClient";
 
 /* =====================================================================
 // DatabaseService — Zentraler Einstiegspunkt für Datenbankzugriff
 // Ersetzt die DB-bezogenen Teile von firebase.class.ts.
 // Neue Repositories werden hier als Properties ergänzt,
-// sobald sie implementiert sind (z.B. EventRepository, RecipeRepository).
+// sobald sie implementiert sind (z.B. EventRepository).
 // ===================================================================== */
 
 /**
@@ -36,6 +42,12 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property products - Repository für Produkte
  * @property unitConversionBasic - Repository für Standard-Einheitenumrechnungen
  * @property unitConversionProducts - Repository für produktspezifische Einheitenumrechnungen
+ * @property recipes - Repository für Rezept-Kopfdaten
+ * @property recipeIngredients - Repository für Rezept-Zutaten und Abschnitts-Trennzeilen
+ * @property recipePreparationSteps - Repository für Zubereitungsschritte
+ * @property recipeMaterials - Repository für Materialpositionen
+ * @property recipeRatings - Repository für Rezeptbewertungen
+ * @property recipeComments - Repository für Rezeptkommentare
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
  * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
  *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
@@ -52,6 +64,12 @@ export class DatabaseService {
   products: ProductRepository;
   unitConversionBasic: UnitConversionBasicRepository;
   unitConversionProducts: UnitConversionProductRepository;
+  recipes: RecipeRepository;
+  recipeIngredients: RecipeIngredientRepository;
+  recipePreparationSteps: RecipePreparationStepRepository;
+  recipeMaterials: RecipeMaterialRepository;
+  recipeRatings: RecipeRatingRepository;
+  recipeComments: RecipeCommentRepository;
   storage: {users: UserStorageRepository};
   admin: {
     users: UserRepository;
@@ -63,6 +81,12 @@ export class DatabaseService {
     products: ProductRepository;
     unitConversionBasic: UnitConversionBasicRepository;
     unitConversionProducts: UnitConversionProductRepository;
+    recipes: RecipeRepository;
+    recipeIngredients: RecipeIngredientRepository;
+    recipePreparationSteps: RecipePreparationStepRepository;
+    recipeMaterials: RecipeMaterialRepository;
+    recipeRatings: RecipeRatingRepository;
+    recipeComments: RecipeCommentRepository;
     storage: {users: UserStorageRepository};
   } | null;
 
@@ -77,6 +101,12 @@ export class DatabaseService {
     this.products = new ProductRepository();
     this.unitConversionBasic = new UnitConversionBasicRepository();
     this.unitConversionProducts = new UnitConversionProductRepository();
+    this.recipes = new RecipeRepository();
+    this.recipeIngredients = new RecipeIngredientRepository();
+    this.recipePreparationSteps = new RecipePreparationStepRepository();
+    this.recipeMaterials = new RecipeMaterialRepository();
+    this.recipeRatings = new RecipeRatingRepository();
+    this.recipeComments = new RecipeCommentRepository();
     this.storage = {users: new UserStorageRepository()};
     this.admin = supabaseAdmin
       ? {
@@ -89,6 +119,12 @@ export class DatabaseService {
           products: new ProductRepository(supabaseAdmin),
           unitConversionBasic: new UnitConversionBasicRepository(supabaseAdmin),
           unitConversionProducts: new UnitConversionProductRepository(supabaseAdmin),
+          recipes: new RecipeRepository(supabaseAdmin),
+          recipeIngredients: new RecipeIngredientRepository(supabaseAdmin),
+          recipePreparationSteps: new RecipePreparationStepRepository(supabaseAdmin),
+          recipeMaterials: new RecipeMaterialRepository(supabaseAdmin),
+          recipeRatings: new RecipeRatingRepository(supabaseAdmin),
+          recipeComments: new RecipeCommentRepository(supabaseAdmin),
           storage: {users: new UserStorageRepository(supabaseAdmin)},
         }
       : null;

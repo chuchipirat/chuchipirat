@@ -573,6 +573,9 @@ export const ENABLE_DRAG_AND_DROP = "Drag & Drop aktivieren";
 export const ADD_MEAL = "Mahlzeit hinzufügen";
 export const COMMENT = "Kommentar";
 export const COMMENTS = "Kommentare";
+export const COMMENT_DELETE_TITLE = "Kommentar löschen";
+export const COMMENT_DELETE_TEXT =
+  "Möchtest du diesen Kommentar wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden.";
 export const NEW_MENU = "Neues Menü";
 export const ADD_RECIPE = "Rezept hinzufügen";
 export const EDIT_MENUE = "Menü bearbeiten";

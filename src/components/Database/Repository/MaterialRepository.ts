@@ -167,6 +167,25 @@ export class MaterialRepository extends BaseRepository<
   }
 
   /**
+   * Legt ein neues Material in der Datenbank an.
+   * Die uid wird von Postgres generiert und im zurückgegebenen Objekt gesetzt.
+   *
+   * @param material - Das Domain-Objekt ohne uid (wird von Postgres vergeben)
+   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @returns Das eingefügte Domain-Objekt mit generierter uid
+   */
+  async insertMaterial(
+    material: Omit<MaterialDomain, "uid">,
+    authUser: AuthUser,
+  ): Promise<MaterialDomain> {
+    const {value} = await this.insert({
+      value: {...material, uid: ""} as MaterialDomain,
+      authUser,
+    });
+    return value;
+  }
+
+  /**
    * Aktualisiert ein einzelnes Material in der Datenbank.
    *
    * @param material - Das aktualisierte Domain-Objekt

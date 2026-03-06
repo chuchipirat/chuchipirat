@@ -24,6 +24,7 @@ import {
 } from "../../constants/text";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 
 // Lazy Loading
 const RecipeEdit = lazy(() => import("./recipe.edit"));
@@ -188,6 +189,7 @@ const recipeReducer = (state: State, action: DispatchAction): State => {
 // =================================================================== */
 const RecipePage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const location = useLocation();
   const navigate = useNavigate();
@@ -205,10 +207,7 @@ const RecipePage = () => {
   if (location.state) {
     action = location?.state?.action;
     if (
-      Object.prototype.hasOwnProperty.call(
-        location.state,
-        "scaledPortions"
-      )
+      Object.prototype.hasOwnProperty.call(location.state, "scaledPortions")
     ) {
       scaledPortions = parseInt(location.state!.scaledPortions!);
     } else {
@@ -259,23 +258,62 @@ const RecipePage = () => {
         },
       });
       if (!location.state?.recipe) {
-        //TODO: Wenn das ganze Rezept übergeben wird, muss nicht nachgelesen werden.
         dispatch({type: ReducerActions.RECIPE_FETCH_INIT, payload: {}});
-        // Rezept lesen (es können auch fremde private Rezepte gelesen werden -
-        // darum wird hier nicht die eigene User-ID übergeben)
-        Recipe.getRecipe({
-          firebase: firebase,
-          authUser: authUser!,
-          uid: recipeUid,
-          userUid: userUid,
-          type: recipeType,
-        })
-          .then((result) => {
+        // Rezept und alle Kind-Datensätze parallel laden
+        Promise.all([
+          database.recipes.getRecipe(recipeUid),
+          database.recipeIngredients.getIngredientsForRecipe(recipeUid),
+          database.recipePreparationSteps.getStepsForRecipe(recipeUid),
+          database.recipeMaterials.getMaterialsForRecipe(recipeUid),
+          // Produkte und Materialien mitladen, um Namen zu befüllen
+          // (fromRepositoryData setzt name="" — Auflösung via Postgres-UUID)
+          database.products.getAllProducts(),
+          database.materials.getAllMaterials(),
+          // Eigene Bewertung laden (authUser.authUid = Supabase-UUID)
+          authUser
+            ? database.recipeRatings.getRatingForUser(recipeUid, authUser.authUid)
+            : Promise.resolve(null),
+        ])
+          .then(async ([header, ingredients, steps, materials, products, allMaterials, myRatingDomain]) => {
+            if (!header) {
+              throw new Error(`Rezept ${recipeUid} nicht gefunden.`);
+            }
+            const recipe = Recipe.fromRepositoryData(
+              header,
+              ingredients,
+              steps,
+              materials,
+            );
+            recipe.rating.myRating = myRatingDomain?.rating ?? 0;
+            // Ersteller-Anzeigenamen nachladen (fromRepositoryData setzt fromDisplayName="")
+            if (header.createdBy) {
+              const creatorNameMap = await database.users.findDisplayNamesByAuthUids([
+                header.createdBy,
+              ]);
+              recipe.created.fromDisplayName =
+                creatorNameMap.get(header.createdBy) ?? "";
+            }
+            // Zutaten-Produktnamen befüllen
+            const productNameMap = new Map(products.map((p) => [p.uid, p.name]));
+            for (const uid of recipe.ingredients.order) {
+              const entry = recipe.ingredients.entries[uid] as unknown as Record<string, unknown>;
+              const product = entry.product as {uid: string; name: string} | undefined;
+              if (product?.uid) {
+                product.name = productNameMap.get(product.uid) ?? "";
+              }
+            }
+            // Materialien-Namen befüllen
+            const materialNameMap = new Map(allMaterials.map((m) => [m.uid, m.name]));
+            for (const uid of recipe.materials.order) {
+              const entry = recipe.materials.entries[uid] as unknown as Record<string, unknown>;
+              const mat = entry.material as {uid: string; name: string} | undefined;
+              if (mat?.uid) {
+                mat.name = materialNameMap.get(mat.uid) ?? "";
+              }
+            }
             dispatch({
               type: ReducerActions.RECIPE_FETCH_SUCCESS,
-              payload: {
-                recipe: result,
-              },
+              payload: {recipe},
             });
           })
           .catch((error) => {
@@ -297,7 +335,7 @@ const RecipePage = () => {
   // Edit-Modus umschiessen
   // ------------------------------------------ */
   const switchEditMode = async (
-    {ignoreState}: SwitchEditMode = {ignoreState: false}
+    {ignoreState}: SwitchEditMode = {ignoreState: false},
   ) => {
     // Wenn der ignoreState true ist, wird nicht geprüft
     // ob die UID leer ist. --> dies damit nach dem speichern
@@ -349,7 +387,7 @@ const RecipePage = () => {
   // ------------------------------------------ */
   const handleSnackbarClose = (
     _event: Event | SyntheticEvent<Element, Event>,
-    reason: SnackbarCloseReason
+    reason: SnackbarCloseReason,
   ) => {
     if (reason === "clickaway") {
       return;
@@ -365,7 +403,6 @@ const RecipePage = () => {
         <RecipeEdit
           dbRecipe={state.recipe}
           mealPlan={[]}
-          firebase={firebase}
           isLoading={state.isLoading}
           isEmbedded={false}
           switchEditMode={switchEditMode}

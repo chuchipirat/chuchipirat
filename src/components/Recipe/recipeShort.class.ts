@@ -77,6 +77,8 @@ export class RecipeShort {
   source: string;
   type: RecipeType;
   rating: PublicRecipeRating;
+  /** Anzahl Kommentare — optional, da für Firebase-Rezepte nicht verfügbar. */
+  noComments?: number;
   variantName?: string;
   // ===================================================================== */
   /**
@@ -95,6 +97,7 @@ export class RecipeShort {
     this.source = "";
     this.type = RecipeType.private;
     this.rating = {avgRating: 0, noRatings: 0};
+    this.noComments = 0;
   }
   // ===================================================================== */
   /**

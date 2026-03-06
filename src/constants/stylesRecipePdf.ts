@@ -102,6 +102,13 @@ export default class PdfStyles {
         display: "table",
         width: "auto",
       },
+      // Zweispaltige Zeile ohne vertikale Margins — minimiert den vertikalen
+      // Leerraum damit auch längere Rezepte auf einer Seite Platz finden.
+      twoColumnRow: {
+        flexDirection: "row",
+        width: "100%",
+        marginTop: 4,
+      },
 
       tableRow: {
         margin: "auto",
