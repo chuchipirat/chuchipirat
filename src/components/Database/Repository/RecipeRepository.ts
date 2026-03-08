@@ -584,6 +584,29 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
     return (data ?? []).map((row) => this.rowToShortDomain(row as unknown as Record<string, unknown>));
   }
 
+  /**
+   * Lädt alle Varianten-Rezepte eines Events in Kurzform.
+   * Wird in der Event-Ansicht benötigt, damit Varianten im Rezept-Suchdrawer erscheinen.
+   *
+   * @param eventUid - Die Supabase-UUID des Events
+   * @returns Array der Varianten-Kurz-Rezepte, sortiert nach Name
+   */
+  async getVariantShortsForEvent(
+    eventUid: string,
+  ): Promise<RecipeShortDomain[]> {
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .select(RECIPE_SHORT_COLUMNS)
+      .eq("recipe_type", "variant")
+      .eq("variant_event_uid", eventUid)
+      .order("name", {ascending: true});
+
+    if (error) throw error;
+    return (data ?? []).map((row) =>
+      this.rowToShortDomain(row as unknown as Record<string, unknown>),
+    );
+  }
+
   /* =====================================================================
   // Admin-Suchmethoden — verwenden Service Role Client (kein RLS)
   // ===================================================================== */

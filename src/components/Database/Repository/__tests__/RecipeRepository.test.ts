@@ -458,4 +458,73 @@ describe("RecipeRepository", () => {
       ).rejects.toEqual(dbError);
     });
   });
+
+  /* ------------------------------------------
+  // getVariantShortsForEvent()
+  // ------------------------------------------ */
+  describe("getVariantShortsForEvent()", () => {
+    const variantShortRow = {
+      id: "variant-uuid-001",
+      name: "Spaghetti Variante",
+      source: "",
+      picture_src: "",
+      tags: [],
+      menu_types: ["main_course"],
+      diet: "meat",
+      allergens: [],
+      outdoor_kitchen_suitable: false,
+      avg_rating: 0,
+      no_ratings: 0,
+      no_comments: 0,
+      recipe_type: "variant",
+      variant_name: "Event-Variante",
+      created_at: "2026-03-01T00:00:00Z",
+      created_by: "auth-uuid-123",
+    };
+
+    test("Filtert nach recipe_type=variant und variant_event_uid", async () => {
+      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+        data: [variantShortRow],
+        error: null,
+      });
+
+      const result = await repo.getVariantShortsForEvent("event-uuid-001");
+
+      expect(supabaseMock.client.from).toHaveBeenCalledWith("recipes");
+      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
+        "recipe_type",
+        "variant",
+      );
+      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
+        "variant_event_uid",
+        "event-uuid-001",
+      );
+      expect(result).toHaveLength(1);
+      expect(result[0].uid).toBe("variant-uuid-001");
+      expect(result[0].recipeType).toBe("variant");
+      expect(result[0].variantName).toBe("Event-Variante");
+    });
+
+    test("Gibt leeres Array zurück wenn keine Varianten vorhanden", async () => {
+      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+        data: [],
+        error: null,
+      });
+
+      const result = await repo.getVariantShortsForEvent("event-uuid-002");
+      expect(result).toHaveLength(0);
+    });
+
+    test("Wirft Fehler bei DB-Error", async () => {
+      const dbError = {message: "Query failed", code: "42000"};
+      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+        data: null,
+        error: dbError,
+      });
+
+      await expect(
+        repo.getVariantShortsForEvent("event-uuid-001"),
+      ).rejects.toEqual(dbError);
+    });
+  });
 });

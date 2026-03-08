@@ -12,6 +12,7 @@ import {EventMigrationJob} from "./EventMigrationJob";
 import {GroupConfigMigrationJob} from "./GroupConfigMigrationJob";
 import {MenuplanMigrationJob} from "./MenuplanMigrationJob";
 import {EventPictureMigrationJob} from "./EventPictureMigrationJob";
+import {RecipeVariantMigrationJob} from "./RecipeVariantMigrationJob";
 
 /* =====================================================================
 // Registry aller verfügbaren Migrations-Jobs
@@ -34,6 +35,7 @@ import {EventPictureMigrationJob} from "./EventPictureMigrationJob";
  * 9. Gruppenconfig (hängt von Events ab)
  * 10. Menupläne (hängt von Events, Gruppenconfig, Rezepten, Produkten, Materialien ab)
  * 11. Event-Bilder (hängt von Events ab)
+ * 12. Varianten-Rezepte (hängt von Events, Rezepten, Benutzern, Produkten, Materialien ab)
  *
  * @example
  * const job = migrationJobRegistry["departments"];
@@ -53,6 +55,7 @@ export const migrationJobRegistry: Record<string, MigrationJob> = {
   groupConfig: new GroupConfigMigrationJob(),
   menuplan: new MenuplanMigrationJob(),
   eventPictures: new EventPictureMigrationJob(),
+  recipeVariants: new RecipeVariantMigrationJob(),
 };
 
 /**

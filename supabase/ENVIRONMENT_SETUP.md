@@ -46,6 +46,8 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260308000008_find_user_id_by_email.sql`            | SQL-Funktion `find_user_id_by_email()` zum Nachschlagen der User-ID anhand einer E-Mail-Adresse |
 | `20260308000009_media_events_policies.sql`            | Storage-Policies für Event-Bilder: INSERT/UPDATE/DELETE im `media`-Bucket unter `events/` — nur Köche des Events dürfen Bilder verwalten (via `is_event_cook()`). Erhöht Bucket-Limit von 2 MB auf 5 MB (Event-Bilder sind grösser als Profilbilder) |
 | `20260308000010_enable_realtime_events.sql`           | Aktiviert Supabase Realtime für alle 14 Event-Tabellen (`events`, `event_cooks`, `event_dates`, `event_groupconfiguration_*`, `event_meal_types`, `event_meals`, `event_menues`, `event_menue_recipes/products/materials`, `event_notes`, `event_menuplan_item_plans`) via `ALTER PUBLICATION supabase_realtime ADD TABLE` |
+| `20260308000011_add_recipe_variant_fks.sql`           | FK-Constraints für Varianten-Felder in `recipes`: `variant_event_uid` → `events(id)` ON DELETE CASCADE, `original_recipe_uid` → `recipes(id)` ON DELETE SET NULL |
+| `20260308000012_create_recipe_ingredient_material_views.sql` | Views `recipe_ingredients_with_names` und `recipe_materials_with_names` — LEFT JOIN auf `products`/`materials` für aufgelöste Namen, `security_invoker = true` |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -146,6 +148,7 @@ Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) 
 11. **GroupConfig** migrieren (Gruppenconfig: Diäten, Unverträglichkeiten, Portionen — hängt von Events ab)
 12. **Menuplan** migrieren (Menupläne: Mahlzeiten, Menüs, Rezepte, Produkte, Materialien — hängt von Events, GroupConfig, Recipes, Products, Materials ab)
 13. **EventPictures** migrieren (kopiert Event-Bilder von Firebase Storage nach Supabase Storage — hängt von Events ab)
+14. **RecipeVariants** migrieren (Varianten-Rezepte — hängt von Events, Recipes, Users, Products, Materials ab)
 
 ---
 

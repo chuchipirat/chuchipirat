@@ -293,24 +293,6 @@ const RecipePage = () => {
               recipe.created.fromDisplayName =
                 creatorNameMap.get(header.createdBy) ?? "";
             }
-            // Zutaten-Produktnamen befüllen
-            const productNameMap = new Map(products.map((p) => [p.uid, p.name]));
-            for (const uid of recipe.ingredients.order) {
-              const entry = recipe.ingredients.entries[uid] as unknown as Record<string, unknown>;
-              const product = entry.product as {uid: string; name: string} | undefined;
-              if (product?.uid) {
-                product.name = productNameMap.get(product.uid) ?? "";
-              }
-            }
-            // Materialien-Namen befüllen
-            const materialNameMap = new Map(allMaterials.map((m) => [m.uid, m.name]));
-            for (const uid of recipe.materials.order) {
-              const entry = recipe.materials.entries[uid] as unknown as Record<string, unknown>;
-              const mat = entry.material as {uid: string; name: string} | undefined;
-              if (mat?.uid) {
-                mat.name = materialNameMap.get(mat.uid) ?? "";
-              }
-            }
             dispatch({
               type: ReducerActions.RECIPE_FETCH_SUCCESS,
               payload: {recipe},

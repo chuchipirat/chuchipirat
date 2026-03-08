@@ -537,39 +537,9 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.PRODUCTS_FETCH_SUCCESS: {
       const loadedProducts = action.payload;
-      // Zutaten-Produktnamen aus den geladenen Produkten befüllen.
-      // fromRepositoryData setzt product.name = "" — nach dem Laden der
-      // Produkte werden die Namen anhand der Postgres-UUID aufgelöst.
-      const productNameMap = new Map(
-        loadedProducts.map((p) => [p.uid, p.name]),
-      );
-      // entries separat kopieren, damit keine State-Mutation entsteht
-      const enrichedIngredients = {
-        order: [...state.recipe.ingredients.order],
-        entries: {...state.recipe.ingredients.entries},
-      };
-      for (const uid of enrichedIngredients.order) {
-        const entry = enrichedIngredients.entries[uid] as unknown as Record<
-          string,
-          unknown
-        >;
-        const product = entry.product as
-          | {uid: string; name: string}
-          | undefined;
-        if (product?.uid && !product.name) {
-          enrichedIngredients.entries[uid] = {
-            ...entry,
-            product: {
-              uid: product.uid,
-              name: productNameMap.get(product.uid) ?? "",
-            },
-          } as unknown as Ingredient | Section;
-        }
-      }
       return {
         ...state,
         products: loadedProducts,
-        recipe: {...state.recipe, ingredients: enrichedIngredients},
         loadCollector: {
           ...state.loadCollector,
           products: false,
@@ -1329,46 +1299,20 @@ const RecipeEdit = ({
         ),
       ]);
 
-      // Vollständiges Recipe-Objekt aus den gespeicherten Daten rekonstruieren
+      // Nach dem Speichern die Daten via View neu laden, damit die
+      // aufgelösten Produkt-/Materialnamen enthalten sind.
+      const [savedIngredients, savedSteps, savedMaterials] = await Promise.all([
+        database.recipeIngredients.getIngredientsForRecipe(savedHeader.uid),
+        database.recipePreparationSteps.getStepsForRecipe(savedHeader.uid),
+        database.recipeMaterials.getMaterialsForRecipe(savedHeader.uid),
+      ]);
+
       const result = Recipe.fromRepositoryData(
         savedHeader,
-        ingredientRows,
-        stepRows,
-        materialRows,
+        savedIngredients,
+        savedSteps,
+        savedMaterials,
       );
-      // Zutaten-Produktnamen aus den bereits geladenen Produkten befüllen
-      // (fromRepositoryData setzt product.name = "" — Auflösung via Postgres-UUID)
-      const productNameMap = new Map(
-        state.products.map((p) => [p.uid, p.name]),
-      );
-      for (const uid of result.ingredients.order) {
-        const entry = result.ingredients.entries[uid] as unknown as Record<
-          string,
-          unknown
-        >;
-        const product = entry.product as
-          | {uid: string; name: string}
-          | undefined;
-        if (product?.uid) {
-          product.name = productNameMap.get(product.uid) ?? "";
-        }
-      }
-      // Materialien-Namen aus den bereits geladenen Materialien befüllen
-      // (fromRepositoryData setzt material.name = "" — Auflösung via Postgres-UUID)
-      const materialNameMap = new Map(
-        state.materials.map((m) => [m.uid, m.name]),
-      );
-      for (const uid of result.materials.order) {
-        const entry = result.materials.entries[uid] as unknown as Record<
-          string,
-          unknown
-        >;
-        const material = entry.material as {uid: string; name: string} | undefined;
-        if (material?.uid) {
-          material.name = materialNameMap.get(material.uid) ?? "";
-        }
-      }
-
       if (isNew && result.type !== RecipeType.variant && !isEmbedded) {
         // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,
         // die bei leerer UID zur Rezeptübersicht navigieren würde.

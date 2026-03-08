@@ -38,6 +38,7 @@ const testRow: RecipeMaterialRow = {
   sort_order: 0,
   material_id: "material-uuid-001",
   quantity: 2,
+  material_name: "Backblech",
   created_at: "2026-01-01T00:00:00Z",
   created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
   updated_at: "2026-01-01T00:00:00Z",
@@ -58,6 +59,7 @@ const testDomain: RecipeMaterialDomain = {
   sortOrder: 0,
   materialId: "material-uuid-001",
   quantity: 2,
+  materialName: "Backblech",
 };
 
 const authUser = {uid: "user-123", authUid: "auth-uuid-123"} as AuthUser;
@@ -116,6 +118,7 @@ describe("RecipeMaterialRepository", () => {
       expect(domain.materialId).toBe("material-uuid-001");
       expect(domain.sortOrder).toBe(0);
       expect(domain.quantity).toBe(2);
+      expect(domain.materialName).toBe("Backblech");
     });
   });
 
@@ -131,7 +134,8 @@ describe("RecipeMaterialRepository", () => {
 
       const result = await repo.getMaterialsForRecipe("recipe-uuid-001");
 
-      expect(supabaseMock.client.from).toHaveBeenCalledWith("recipe_materials");
+      // Liest von der View statt der Basistabelle
+      expect(supabaseMock.client.from).toHaveBeenCalledWith("recipe_materials_with_names");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith("recipe_id", "recipe-uuid-001");
       expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("sort_order", {
         ascending: true,

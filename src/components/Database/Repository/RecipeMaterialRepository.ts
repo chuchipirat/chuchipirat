@@ -27,6 +27,7 @@ import {AuthUser} from "../../Firebase/Authentication/authUser.class";
  * @param sort_order - Reihenfolge innerhalb des Rezepts
  * @param material_id - FK auf materials.id (nullable bei gelöschtem Material)
  * @param quantity - Menge des Materials
+ * @param material_name - Aufgelöster Materialname (nur von View, nullable)
  * @param created_at - Erstellungszeitpunkt
  * @param created_by - UID des Erstellers
  * @param updated_at - Zeitpunkt der letzten Änderung
@@ -40,6 +41,7 @@ export interface RecipeMaterialRow {
   sort_order: number;
   material_id: string | null;
   quantity: number;
+  material_name: string | null;
   created_at: string;
   created_by: string | null;
   updated_at: string;
@@ -57,6 +59,7 @@ export interface RecipeMaterialRow {
  * @param sortOrder - Reihenfolge innerhalb des Rezepts
  * @param materialId - ID des Materials (null, wenn Material gelöscht wurde)
  * @param quantity - Menge des Materials
+ * @param materialName - Aufgelöster Materialname (optional, nur beim Lesen via View gesetzt)
  */
 export interface RecipeMaterialDomain {
   uid: string;
@@ -64,6 +67,7 @@ export interface RecipeMaterialDomain {
   sortOrder: number;
   materialId: string | null;
   quantity: number;
+  materialName?: string;
 }
 
 /* =====================================================================
@@ -116,6 +120,7 @@ export class RecipeMaterialRepository extends BaseRepository<
       sortOrder: row.sort_order,
       materialId: row.material_id ?? null,
       quantity: Number(row.quantity),
+      materialName: row.material_name ?? "",
     };
   }
 
@@ -142,10 +147,15 @@ export class RecipeMaterialRepository extends BaseRepository<
   async getMaterialsForRecipe(
     recipeId: string,
   ): Promise<RecipeMaterialDomain[]> {
-    return this.findMany({
-      filters: [{field: "recipe_id", operator: "eq", value: recipeId}],
-      orderBy: {field: "sort_order", direction: "asc"},
-    });
+    // View statt Basistabelle: liefert material_name via LEFT JOIN
+    const {data, error} = await this.client
+      .from("recipe_materials_with_names")
+      .select("*")
+      .eq("recipe_id", recipeId)
+      .order("sort_order", {ascending: true});
+
+    if (error) throw error;
+    return (data ?? []).map((row) => this.toDomain(row as RecipeMaterialRow));
   }
 
   /**

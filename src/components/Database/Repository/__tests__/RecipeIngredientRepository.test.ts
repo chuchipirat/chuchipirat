@@ -44,6 +44,7 @@ const testRow: RecipeIngredientRow = {
   detail: "fein gehackt",
   scaling_factor: 1,
   section_name: "",
+  product_name: "Zwiebeln",
   created_at: "2026-01-01T00:00:00Z",
   created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
   updated_at: "2026-01-01T00:00:00Z",
@@ -71,6 +72,7 @@ const testDomain: RecipeIngredientDomain = {
   detail: "fein gehackt",
   scalingFactor: 1,
   sectionName: "",
+  productName: "Zwiebeln",
 };
 
 const testSectionDomain: RecipeIngredientDomain = {
@@ -144,6 +146,7 @@ describe("RecipeIngredientRepository", () => {
       expect(domain.productId).toBe("prod-uuid-001");
       expect(domain.quantity).toBe(500);
       expect(domain.unit).toBe("g");
+      expect(domain.productName).toBe("Zwiebeln");
     });
 
     test("toDomain(): Abschnitts-Zeile → Domain (section)", () => {
@@ -167,7 +170,8 @@ describe("RecipeIngredientRepository", () => {
 
       const result = await repo.getIngredientsForRecipe("recipe-uuid-001");
 
-      expect(supabaseMock.client.from).toHaveBeenCalledWith("recipe_ingredients");
+      // Liest von der View statt der Basistabelle
+      expect(supabaseMock.client.from).toHaveBeenCalledWith("recipe_ingredients_with_names");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith("recipe_id", "recipe-uuid-001");
       expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("sort_order", {
         ascending: true,

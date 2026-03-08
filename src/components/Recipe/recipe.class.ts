@@ -1128,7 +1128,7 @@ export default class Recipe {
         recipe.ingredients.entries[uid] = {
           uid,
           posType: PositionType.ingredient,
-          product: {uid: ingredientRow.productId ?? "", name: ""},
+          product: {uid: ingredientRow.productId ?? "", name: ingredientRow.productName ?? ""},
           quantity: ingredientRow.quantity,
           unit: ingredientRow.unit ?? "",
           detail: ingredientRow.detail,
@@ -1168,7 +1168,7 @@ export default class Recipe {
       const uid = materialRow.uid;
       recipe.materials.entries[uid] = {
         uid,
-        material: {uid: materialRow.materialId ?? "", name: ""},
+        material: {uid: materialRow.materialId ?? "", name: materialRow.materialName ?? ""},
         quantity: materialRow.quantity,
       } as RecipeMaterialPosition;
       recipe.materials.order.push(uid);

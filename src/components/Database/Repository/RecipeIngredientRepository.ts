@@ -33,6 +33,7 @@ import {AuthUser} from "../../Firebase/Authentication/authUser.class";
  * @param detail - Detailangabe (leer bei pos_type='section')
  * @param scaling_factor - Skalierungsfaktor (1.0 = normal)
  * @param section_name - Abschnittsname (leer bei pos_type='ingredient')
+ * @param product_name - Aufgelöster Produktname (nur von View, null bei Abschnitten)
  * @param created_at - Erstellungszeitpunkt
  * @param created_by - UID des Erstellers
  * @param updated_at - Zeitpunkt der letzten Änderung
@@ -51,6 +52,7 @@ export interface RecipeIngredientRow {
   detail: string;
   scaling_factor: number;
   section_name: string;
+  product_name: string | null;
   created_at: string;
   created_by: string | null;
   updated_at: string;
@@ -73,6 +75,7 @@ export interface RecipeIngredientRow {
  * @param detail - Detailangabe (leer bei posType='section')
  * @param scalingFactor - Skalierungsfaktor (Standard: 1)
  * @param sectionName - Abschnittsname (leer bei posType='ingredient')
+ * @param productName - Aufgelöster Produktname (optional, nur beim Lesen via View gesetzt)
  */
 export interface RecipeIngredientDomain {
   uid: string;
@@ -85,6 +88,7 @@ export interface RecipeIngredientDomain {
   detail: string;
   scalingFactor: number;
   sectionName: string;
+  productName?: string;
 }
 
 /* =====================================================================
@@ -149,6 +153,7 @@ export class RecipeIngredientRepository extends BaseRepository<
       detail: row.detail,
       scalingFactor: Number(row.scaling_factor),
       sectionName: row.section_name,
+      productName: row.product_name ?? "",
     };
   }
 
@@ -177,10 +182,15 @@ export class RecipeIngredientRepository extends BaseRepository<
   async getIngredientsForRecipe(
     recipeId: string,
   ): Promise<RecipeIngredientDomain[]> {
-    return this.findMany({
-      filters: [{field: "recipe_id", operator: "eq", value: recipeId}],
-      orderBy: {field: "sort_order", direction: "asc"},
-    });
+    // View statt Basistabelle: liefert product_name via LEFT JOIN
+    const {data, error} = await this.client
+      .from("recipe_ingredients_with_names")
+      .select("*")
+      .eq("recipe_id", recipeId)
+      .order("sort_order", {ascending: true});
+
+    if (error) throw error;
+    return (data ?? []).map((row) => this.toDomain(row as RecipeIngredientRow));
   }
 
   /**

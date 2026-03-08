@@ -1591,12 +1591,13 @@ const EventPage = () => {
     switch (type) {
       case FetchMissingDataType.RECIPES:
         dispatch({type: ReducerActions.RECIPE_LIST_FETCH_INIT, payload: {}});
-        // Rezepte aus Supabase laden (öffentliche + private)
+        // Rezepte aus Supabase laden (öffentliche + private + Varianten dieses Events)
         Promise.all([
           database.recipes.getAllPublicRecipeShorts(),
           database.recipes.getPrivateRecipeShortsForUser(authUser.authUid),
+          database.recipes.getVariantShortsForEvent(state.event.uid),
         ])
-          .then(([publicRecipes, privateRecipes]) => {
+          .then(([publicRecipes, privateRecipes, variantRecipes]) => {
             // RecipeShortDomain → RecipeShort konvertieren
             const toRecipeShort = (d: RecipeShortDomain): RecipeShort => {
               const rs = new RecipeShort();
@@ -1621,6 +1622,7 @@ const EventPage = () => {
             const allRecipes = [
               ...publicRecipes.map(toRecipeShort),
               ...privateRecipes.map(toRecipeShort),
+              ...variantRecipes.map(toRecipeShort),
             ];
             allRecipes.sort((a, b) => a.name.localeCompare(b.name));
             dispatch({
@@ -1648,15 +1650,22 @@ const EventPage = () => {
           payload: recipeShort,
         });
 
-        Recipe.getRecipe({
-          firebase: firebase,
-          authUser: authUser,
-          uid: recipeShort.uid,
-          type: recipeShort.type,
-          userUid: recipeShort.created.fromUid,
-          eventUid: state.event.uid,
-        })
-          .then((result) => {
+        // Rezept aus Supabase laden (Header + Zutaten + Schritte + Material)
+        Promise.all([
+          database.recipes.getRecipe(recipeShort.uid),
+          database.recipeIngredients.getIngredientsForRecipe(recipeShort.uid),
+          database.recipePreparationSteps.getStepsForRecipe(recipeShort.uid),
+          database.recipeMaterials.getMaterialsForRecipe(recipeShort.uid),
+        ])
+          .then(([header, ingredients, steps, materials]) => {
+            if (!header) throw new Error("Rezept nicht gefunden");
+            const result = Recipe.fromRepositoryData(
+              header,
+              ingredients,
+              steps,
+              materials,
+            );
+
             dispatch({
               type: ReducerActions.RECIPE_FETCH_SUCCESS,
               payload: result,

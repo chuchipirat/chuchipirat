@@ -231,7 +231,6 @@ import DialogProduct, {
   ProductDialog,
 } from "../../Product/dialogProduct";
 import Department from "../../Department/department.class";
-import Event, {EventRefDocuments} from "../Event/event.class";
 import {
   DialogType,
   SingleTextInputResult,
@@ -1477,21 +1476,7 @@ const MenuplanPage = ({
         // Noch nicht weiter hochgeben. Rezept wurde noch nicht gespeichert
         return;
       } else if (recipe.uid !== "" && recipeDrawerData.recipe.uid == "") {
-        if (!event.refDocuments?.includes(EventRefDocuments.recipeVariants)) {
-          // sichern das es auch Rezept-Varianten gibt
-          Event.save({
-            event: {
-              ...event,
-              refDocuments: Event.addRefDocument({
-                refDocuments: event.refDocuments,
-                newDocumentType: EventRefDocuments.recipeVariants,
-              }),
-            },
-            firebase: firebase,
-            authUser: authUser,
-          });
-        }
-        // Variante wurde erstellt. jetzt wurde gespeichert
+        // Variante wurde erstellt und gespeichert
         if (recipeDrawerData.mealPlan.length > 0) {
           // Aus Rezept eine Variante erstellt . Bestehendes in MealRecipe austauschen
           const updatedMealRecipes = {...menuplan.mealRecipes};

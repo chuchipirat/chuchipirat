@@ -233,7 +233,7 @@ export function menuplanDomainToClass(
         name: recipeDomain.recipeId === null
           ? recipeDomain.deletedRecipeName || ""
           : recipeDomain.recipeName,
-        type: RecipeType.public,
+        type: recipeDomain.variantName ? RecipeType.variant : RecipeType.public,
         createdFromUid: "",
         variantName: recipeDomain.variantName || undefined,
       },
