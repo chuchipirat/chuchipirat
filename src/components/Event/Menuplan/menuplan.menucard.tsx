@@ -1,4 +1,4 @@
-import React, {memo, useRef, useState, useEffect} from "react";
+import React, {memo, useRef, useState, useEffect, useContext} from "react";
 
 import {
   Box,
@@ -81,6 +81,7 @@ import {setCustomNativeDragPreview} from "@atlaskit/pragmatic-drag-and-drop/elem
 import {preserveOffsetOnSource} from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
 
 import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {HighlightedMenueContext} from "./highlightContext";
 import {
   DialogType,
   SingleTextInputResult,
@@ -715,15 +716,18 @@ const MenueCard = ({
 }: MenueCardProps) => {
   const classes = useCustomStyles();
   const {customDialog} = useCustomDialog();
+  const highlightedUids = useContext(HighlightedMenueContext);
+  const isHighlighted = highlightedUids.has(menue.uid);
 
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     useState<HTMLElement | null>(null);
-  const [menueName, setMenueName] = useState<Menue["name"]>("");
+  const [menueName, setMenueName] = useState<Menue["name"]>(menue.name);
   const note = Object.values(notes).find((note) => note.menueUid == menue.uid);
 
-  if (menue.name && !menueName) {
+  // Lokalen State mit Prop synchronisieren (z.B. bei Realtime-Updates anderer Benutzer)
+  useEffect(() => {
     setMenueName(menue.name);
-  }
+  }, [menue.name]);
 
   /* ------------------------------------------
   // Kontexmenü
@@ -861,6 +865,13 @@ const MenueCard = ({
               ...classes.menuCard,
               ...classes.menueCardDrag[state.type],
               ...(state.type === "is-dragging" && {opacity: 0.4}),
+              ...(isHighlighted && {
+                "@keyframes remoteChangeGlow": {
+                  "0%": {boxShadow: "0 0 8px 3px rgba(25, 118, 210, 0.5)"},
+                  "100%": {boxShadow: "0 0 0 0 rgba(25, 118, 210, 0)"},
+                },
+                animation: "remoteChangeGlow 2s ease-out",
+              }),
             }}
           >
             <CardHeader

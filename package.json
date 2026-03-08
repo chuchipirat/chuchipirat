@@ -50,6 +50,7 @@
     "analyze": "source-map-explorer 'build/static/js/*.js'",
     "lint": "eslint --ext .ts .",
     "test": "jest --watch --coverage",
+    "test:coverage": "jest --coverage",
     "postinstall": "patch-package"
   },
   "resolutions": {

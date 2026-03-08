@@ -20,6 +20,10 @@ import {
 import useCustomStyles from "../../../constants/styles";
 
 import Event, {EventRefDocuments} from "./event.class";
+import {eventDomainToClass, eventClassToDomain, eventDatesToDateDomains} from "./eventBridge";
+import {groupConfigDomainToClass} from "../GroupConfiguration/groupConfigBridge";
+import {menuplanDomainToClass, menuplanClassToDomain} from "../Menuplan/menuplanBridge";
+import {resizeImage} from "../../Shared/imageResize";
 import PageTitle from "../../Shared/pageTitle";
 
 import {
@@ -66,6 +70,8 @@ import Menuplan from "../Menuplan/menuplan.class";
 import UsedRecipes from "../UsedRecipes/usedRecipes.class";
 import Utils from "../../Shared/utils.class";
 import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeType} from "../../Recipe/recipe.class";
+import {RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
 import Material from "../../Material/material.class";
 import Product from "../../Product/product.class";
 import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
@@ -95,6 +101,9 @@ import AlertMessage from "../../Shared/AlertMessage";
 import Stats, {StatsField} from "../../Shared/stats.class";
 import {logEvent} from "firebase/analytics";
 import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
+import User from "../../User/user.class";
+import {EventDomain} from "../../Database/Repository/EventRepository";
+import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 
 /* ===================================================================
 // ============================== Global =============================
@@ -118,6 +127,50 @@ const deriveEventUid = ({event, pathname}: DeriveEventUid) => {
     return pathname.split("/").slice(-1).toString();
   }
 };
+/**
+ * Ermittelt die UIDs von Menüs, die sich zwischen zwei Menuplan-Zuständen
+ * geändert haben. Vergleicht Name, Rezept-/Produkt-/Material-Reihenfolge
+ * und erkennt neu hinzugekommene Menüs.
+ *
+ * @param oldMenuplan - Vorheriger Menuplan-Zustand
+ * @param newMenuplan - Neuer Menuplan-Zustand (z.B. aus Realtime-Reload)
+ * @returns Set mit den UIDs der geänderten Menüs
+ */
+function getChangedMenueUids(
+  oldMenuplan: Menuplan,
+  newMenuplan: Menuplan,
+): Set<string> {
+  const changed = new Set<string>();
+  const allUids = new Set([
+    ...Object.keys(oldMenuplan.menues),
+    ...Object.keys(newMenuplan.menues),
+  ]);
+
+  for (const uid of allUids) {
+    const oldM = oldMenuplan.menues[uid];
+    const newM = newMenuplan.menues[uid];
+
+    // Neues Menü hinzugefügt
+    if (!oldM && newM) {
+      changed.add(uid);
+      continue;
+    }
+    // Menü entfernt — kein Highlight nötig (Element existiert nicht mehr)
+    if (!newM) continue;
+
+    // Inhalt vergleichen: Name und Reihenfolge der Kinder
+    if (
+      oldM.name !== newM.name ||
+      oldM.mealRecipeOrder.join(",") !== newM.mealRecipeOrder.join(",") ||
+      oldM.productOrder.join(",") !== newM.productOrder.join(",") ||
+      oldM.materialOrder.join(",") !== newM.materialOrder.join(",")
+    ) {
+      changed.add(uid);
+    }
+  }
+  return changed;
+}
+
 export interface OnMenuplanUpdate {
   field: string;
   value: ValueObject;
@@ -758,6 +811,23 @@ const EventPage = () => {
   const [state, dispatch] = React.useReducer(eventReducer, INITITIAL_STATE);
   const [activeTab, setActiveTab] = React.useState(EventTabs.menuplan);
   const [eventDraft, setEventDraft] = React.useState(INTITIAL_STATE_EVENT_DRAF);
+  // Flag: Während ein Menuplan-Save läuft, soll die Realtime-Subscription
+  // keine Reloads auslösen — das delete-all + re-insert würde sonst einen
+  // leeren Zwischenstand laden und das optimistische Update überschreiben.
+  const menuplanSaveInProgress = React.useRef(false);
+
+  // Menü-UIDs, die durch einen anderen Benutzer geändert wurden — kurzzeitig
+  // hervorgehoben (Glow-Animation), dann automatisch geleert.
+  const [highlightedMenueUids, setHighlightedMenueUids] = React.useState<
+    Set<string>
+  >(new Set());
+  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  // Ref für den aktuellen Menuplan, damit der Debounce-Callback (der in einem
+  // useEffect mit [] lebt) immer Zugriff auf den neuesten Stand hat.
+  const menuplanRef = React.useRef<Menuplan>(state.menuplan);
+  React.useEffect(() => {
+    menuplanRef.current = state.menuplan;
+  }, [state.menuplan]);
 
   /* ------------------------------------------
   // Daten aus der DB lesen
@@ -769,103 +839,191 @@ const EventPage = () => {
     });
   }
 
+  // Konvertiert EventDomain → Event-Klasse und reichert die Köche mit öffentlichen Profildaten an
+  const enrichEventWithCookProfiles = async (
+    domain: EventDomain,
+  ): Promise<Event> => {
+    const event = eventDomainToClass(domain);
+
+    // Öffentliche Profile der Köche parallel laden
+    const profilePromises = event.cooks.map(async (cook) => {
+      try {
+        const profile = await User.getPublicProfile({
+          database,
+          uid: cook.uid,
+        });
+        return {
+          ...cook,
+          displayName: profile.displayName,
+          motto: profile.motto,
+          pictureSrc: profile.pictureSrc,
+        };
+      } catch {
+        // Profil nicht gefunden — Fallback auf leere Werte
+        return cook;
+      }
+    });
+
+    event.cooks = await Promise.all(profilePromises);
+    return event;
+  };
+
   React.useEffect(() => {
-    // Event
-    let unsubscribe: (() => void) | undefined;
+    // Event — Supabase Realtime Subscription
     if (!state.event.uid) {
       dispatch({type: ReducerActions.EVENT_FETCH_INIT, payload: {}});
-      Event.getEventListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (event) => {
+
+      // Initialer Load
+      database.events
+        .getEvent(eventUid)
+        .then(async (eventDomain) => {
+          if (eventDomain) {
+            const event = await enrichEventWithCookProfiles(eventDomain);
+            dispatch({
+              type: ReducerActions.EVENT_FETCH_SUCCESS,
+              payload: event,
+            });
+          }
+        })
+        .catch((error) => {
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        });
+    }
+
+    // Realtime-Subscription für laufende Änderungen
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
+    const unsubscribe = database.events.subscribeToEvent(
+      eventUid,
+      (eventDomain) => {
+        enrichEventWithCookProfiles(eventDomain).then((event) => {
           dispatch({
             type: ReducerActions.EVENT_FETCH_SUCCESS,
             payload: event,
           });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
-        })
-        .catch((error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
-    }
+      },
+      (error) => {
+        console.warn("Realtime event subscription error:", error.message);
+      },
+    );
+
     return function cleanup() {
-      unsubscribe && unsubscribe();
+      unsubscribe();
     };
   }, []);
   React.useEffect(() => {
-    //Group-Config
-    let unsubscribe: (() => void) | undefined;
+    // Group-Config — Supabase Realtime Subscription
     dispatch({type: ReducerActions.GROUP_CONFIG_FETCH_INIT, payload: {}});
-    try {
-      EventGroupConfiguration.getGroupConfigurationListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (groupConfiguration) => {
-          dispatch({
-            type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-            payload: groupConfiguration,
-          });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
-        })
-        .catch((error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+
+    // Initialer Load
+    database.eventGroupConfig
+      .getGroupConfig(eventUid)
+      .then((gcDomain) => {
+        dispatch({
+          type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
+          payload: groupConfigDomainToClass(gcDomain, eventUid),
         });
-    } catch (error) {
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
-    }
+      })
+      .catch((error) => {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      });
+
+    // Realtime-Subscription für laufende Änderungen
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
+    const unsubscribe = database.eventGroupConfig.subscribeToGroupConfig(
+      eventUid,
+      (gcDomain) => {
+        dispatch({
+          type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
+          payload: groupConfigDomainToClass(gcDomain, eventUid),
+        });
+      },
+      (error) => {
+        console.warn("Realtime groupconfig subscription error:", error.message);
+      },
+    );
+
     return function cleanup() {
-      unsubscribe && unsubscribe();
+      unsubscribe();
     };
   }, []);
   React.useEffect(() => {
-    //Menüplan
-    let unsubscribe: (() => void) | undefined;
+    // Menüplan — Supabase Realtime Subscription
     if (!state.menuplan.uid) {
       dispatch({type: ReducerActions.MENUPLAN_FETCH_INIT, payload: {}});
 
-      Menuplan.getMenuplanListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (menuplan) => {
+      // Initialer Load
+      database.menuplan
+        .getMenuplan(eventUid)
+        .then((menuplanDomain) => {
           dispatch({
             type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
-            payload: menuplan,
+            payload: menuplanDomainToClass(menuplanDomain, eventUid),
           });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
     }
 
+    // Debounced Reload-Funktion — saveMenuplan() löst mehrere Realtime-Events
+    // gleichzeitig aus (delete + insert über 8 Tabellen), daher zusammenfassen.
+    // Während eines Saves wird der Reload übersprungen, damit der leere
+    // Zwischenstand (nach DELETE, vor INSERT) nicht das optimistische Update überschreibt.
+    const debouncedReload = _.debounce(() => {
+      if (menuplanSaveInProgress.current) return;
+
+      database.menuplan
+        .getMenuplan(eventUid)
+        .then((menuplanDomain) => {
+          if (menuplanSaveInProgress.current) return;
+          const newMenuplan = menuplanDomainToClass(menuplanDomain, eventUid);
+
+          // Geänderte Menüs ermitteln und kurzzeitig hervorheben
+          const changedUids = getChangedMenueUids(
+            menuplanRef.current,
+            newMenuplan,
+          );
+          if (changedUids.size > 0) {
+            setHighlightedMenueUids(changedUids);
+            if (highlightTimeoutRef.current)
+              clearTimeout(highlightTimeoutRef.current);
+            highlightTimeoutRef.current = setTimeout(
+              () => setHighlightedMenueUids(new Set()),
+              2000,
+            );
+          }
+
+          dispatch({
+            type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
+            payload: newMenuplan,
+          });
+        })
+        .catch((error) => {
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        });
+    }, 200);
+
+    // Realtime-Subscription für laufende Änderungen
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
+    const unsubscribe = database.menuplan.subscribeToMenuplan(
+      eventUid,
+      debouncedReload,
+      (error) => {
+        console.warn("Realtime menuplan subscription error:", error.message);
+      },
+    );
+
     return function cleanup() {
-      unsubscribe && unsubscribe();
+      debouncedReload.cancel();
+      unsubscribe();
+      if (highlightTimeoutRef.current)
+        clearTimeout(highlightTimeoutRef.current);
     };
   }, []);
   React.useEffect(() => {
-    // ShoppingList-Collection
-    if (
-      activeTab == EventTabs.shoppingList &&
-      state.event.refDocuments?.includes(EventRefDocuments.shoppingList)
-    ) {
+    // ShoppingList-Collection (noch auf Firebase)
+    if (activeTab == EventTabs.shoppingList) {
       let unsubscribe: (() => void) | undefined;
       dispatch({
         type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_INIT,
@@ -891,9 +1049,9 @@ const EventPage = () => {
         unsubscribe && unsubscribe();
       };
     }
-  }, [activeTab, state.event.refDocuments]);
+  }, [activeTab]);
   React.useEffect(() => {
-    // Unit Conversion
+    // Unit Conversion — aus Supabase laden
     if (
       (activeTab == EventTabs.quantityCalculation ||
         activeTab == EventTabs.shoppingList) &&
@@ -902,20 +1060,36 @@ const EventPage = () => {
     ) {
       dispatch({type: ReducerActions.UNIT_CONVERSION_FETCH_INIT, payload: {}});
 
-      UnitConversion.getAllConversionBasic({firebase: firebase})
-        .then((result) => {
-          const unitConversionBasic = result;
-          UnitConversion.getAllConversionProducts({firebase: firebase}).then(
-            (result) => {
-              dispatch({
-                type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
-                payload: {
-                  unitConversionBasic: unitConversionBasic,
-                  unitConversionProducts: result,
-                },
-              });
-            },
-          );
+      Promise.all([
+        database.unitConversionBasic.getAllConversions(),
+        database.unitConversionProducts.getAllConversions(),
+      ])
+        .then(([basicDomains, productDomains]) => {
+          // Domain-Arrays in die Map-Strukturen konvertieren
+          const unitConversionBasic: UnitConversionBasic = {};
+          for (const d of basicDomains) {
+            unitConversionBasic[d.uid] = {
+              fromUnit: d.fromUnit,
+              toUnit: d.toUnit,
+              numerator: d.numerator,
+              denominator: d.denominator,
+            };
+          }
+          const unitConversionProducts: UnitConversionProducts = {};
+          for (const d of productDomains) {
+            unitConversionProducts[d.uid] = {
+              fromUnit: d.fromUnit,
+              toUnit: d.toUnit,
+              numerator: d.numerator,
+              denominator: d.denominator,
+              productUid: d.productUid,
+              productName: d.productName,
+            };
+          }
+          dispatch({
+            type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
+            payload: {unitConversionBasic, unitConversionProducts},
+          });
         })
         .catch((error) => {
           dispatch({
@@ -926,22 +1100,29 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Produkte
+    // Produkte — aus Supabase laden
     if (
       (activeTab == EventTabs.quantityCalculation ||
         activeTab == EventTabs.shoppingList) &&
       state.products.length == 0
     ) {
       dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT, payload: {}});
-      Product.getAllProducts({
-        firebase: firebase,
-        onlyUsable: true,
-        withDepartmentName: false,
-      })
-        .then((result) => {
+      database.products
+        .getAllProducts({onlyUsable: true, withDepartmentName: false})
+        .then((productDomains) => {
+          const products: Product[] = productDomains.map((d) => {
+            const p = new Product();
+            p.uid = d.uid;
+            p.name = d.name;
+            p.department = d.department;
+            p.shoppingUnit = d.shoppingUnit;
+            p.dietProperties = d.dietProperties;
+            p.usable = d.usable;
+            return p;
+          });
           dispatch({
             type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-            payload: result,
+            payload: products,
           });
         })
         .catch((error) => {
@@ -953,14 +1134,22 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Abteilungen
+    // Abteilungen — aus Supabase laden
     if (activeTab == EventTabs.shoppingList && state.departments.length == 0) {
       dispatch({type: ReducerActions.DEPARTMENTS_FETCH_INIT, payload: {}});
-      Department.getAllDepartments({firebase: firebase})
-        .then((result) => {
+      database.departments
+        .getAllDepartments()
+        .then((deptDomains) => {
+          const departments: Department[] = deptDomains.map((d) => {
+            const dept = new Department();
+            dept.uid = d.uid;
+            dept.name = d.name;
+            dept.pos = d.pos;
+            return dept;
+          });
           dispatch({
             type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-            payload: result,
+            payload: departments,
           });
         })
         .catch((error) => {
@@ -972,7 +1161,7 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Materiale
+    // Materiale — aus Supabase laden
     if (
       (activeTab == EventTabs.shoppingList ||
         activeTab == EventTabs.materialList) &&
@@ -980,14 +1169,20 @@ const EventPage = () => {
     ) {
       dispatch({type: ReducerActions.MATERIALS_FETCH_INIT, payload: {}});
 
-      Material.getAllMaterials({
-        firebase: firebase,
-        onlyUsable: true,
-      })
-        .then((result) => {
+      database.materials
+        .getAllMaterials(true)
+        .then((materialDomains) => {
+          const materials: Material[] = materialDomains.map((d) => {
+            const m = new Material();
+            m.uid = d.uid;
+            m.name = d.name;
+            m.type = d.type;
+            m.usable = d.usable;
+            return m;
+          });
           dispatch({
             type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-            payload: result,
+            payload: materials,
           });
         })
         .catch((error) => {
@@ -999,17 +1194,23 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Einheiten
+    // Einheiten — aus Supabase laden
     if (activeTab == EventTabs.shoppingList && state.units.length == 0) {
       dispatch({type: ReducerActions.UNTIS_FETCH_INIT, payload: {}});
 
-      Unit.getAllUnits({
-        firebase: firebase,
-      })
-        .then((result) => {
+      database.units
+        .getAllUnits()
+        .then((unitDomains) => {
+          const units: Unit[] = unitDomains.map(
+            (d) => {
+              const u = new Unit({key: d.key, name: d.name});
+              u.dimension = d.dimension as Unit["dimension"];
+              return u;
+            },
+          );
           dispatch({
             type: ReducerActions.UNITS_FETCH_SUCCESS,
-            payload: result,
+            payload: units,
           });
         })
         .catch((error) => {
@@ -1021,11 +1222,8 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Verwendete Rezepte
-    if (
-      activeTab == EventTabs.usedRecipes &&
-      state.event.refDocuments?.includes(EventRefDocuments.usedRecipes)
-    ) {
+    // Verwendete Rezepte (noch auf Firebase)
+    if (activeTab == EventTabs.usedRecipes) {
       let unsubscribe: () => void;
       dispatch({type: ReducerActions.USED_RECIPES_FETCH_INIT, payload: {}});
       UsedRecipes.getUsedRecipesListener({
@@ -1051,13 +1249,10 @@ const EventPage = () => {
         unsubscribe();
       };
     }
-  }, [activeTab, state.event.refDocuments]);
+  }, [activeTab]);
   React.useEffect(() => {
-    // Materialliste
-    if (
-      activeTab == EventTabs.materialList &&
-      state.event.refDocuments?.includes(EventRefDocuments.materialList)
-    ) {
+    // Materialliste (noch auf Firebase)
+    if (activeTab == EventTabs.materialList) {
       let unsubscribe: () => void;
       dispatch({type: ReducerActions.MATERIALLIST_FETCH_INIT, payload: {}});
       MaterialList.getMaterialListListener({
@@ -1083,7 +1278,7 @@ const EventPage = () => {
         unsubscribe();
       };
     }
-  }, [activeTab, state.event.refDocuments]);
+  }, [activeTab]);
   React.useEffect(() => {
     if (activeTab === EventTabs.eventInfo && !eventDraft.event.uid) {
       setEventDraft(_.cloneDeep({...eventDraft, event: state.event}));
@@ -1102,15 +1297,35 @@ const EventPage = () => {
   // Change-Handling
   // ------------------------------------------ */
   const onMenuplanUpdate = (menuplan: Menuplan) => {
-    Menuplan.save({
-      menuplan: menuplan,
-      firebase: firebase,
-      authUser: authUser as AuthUser,
-    }).catch((error) => {
-      console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-    });
-    // Kein zurückschreiben in den State, da der Listener, das wieder erhält....
+    // Vorherigen Zustand sichern für Rollback bei Fehler
+    const previousMenuplan = state.menuplan;
+
+    // Optimistisches Update: State sofort aktualisieren, damit die UI
+    // den neuen Zustand zeigt, ohne auf den Realtime-Roundtrip zu warten.
+    // (saveMenuplan macht delete-all + re-insert, was mehrere Realtime-Events
+    // auslöst, die durch den Debounce verloren gehen können.)
+    dispatch({type: ReducerActions.MENUPLAN_FETCH_SUCCESS, payload: menuplan});
+
+    // Save-Flag setzen, damit Realtime-Reloads den optimistischen State nicht
+    // mit leerem Zwischenstand (nach DELETE, vor INSERT) überschreiben.
+    menuplanSaveInProgress.current = true;
+
+    const menuplanDomain = menuplanClassToDomain(menuplan, eventUid);
+    database.menuplan
+      .saveMenuplan(eventUid, menuplanDomain, authUser as AuthUser)
+      .then(() => {
+        menuplanSaveInProgress.current = false;
+      })
+      .catch((error) => {
+        menuplanSaveInProgress.current = false;
+        console.error("Menuplan-Speichern fehlgeschlagen:", error);
+        // Rollback: vorherigen Zustand wiederherstellen, damit keine Daten verloren gehen
+        dispatch({
+          type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
+          payload: previousMenuplan,
+        });
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      });
   };
   const onRecipeUpdate = (recipe: Recipe) => {
     // in den bestehenden Rezepten anpassen
@@ -1126,7 +1341,6 @@ const EventPage = () => {
     const menuplan = Menuplan.recalculatePortions({
       menuplan: state.menuplan,
       groupConfig: groupConfiguration,
-      firebase: firebase,
     });
 
     // neuer Menüplan speichern
@@ -1151,20 +1365,6 @@ const EventPage = () => {
       eventUid: state.event.uid,
       shoppingListCollection: shoppingListCollection,
       authUser: authUser,
-    }).then(() => {
-      if (!state.event.refDocuments?.includes(EventRefDocuments.shoppingList)) {
-        // Den Event-Updaten mit der Info, dass ein neues Dokument vorhanden ist
-        // dann springt auch der Listener für die Used Recipes an.
-        const updateRefDocuments = Event.addRefDocument({
-          refDocuments: state.event.refDocuments,
-          newDocumentType: EventRefDocuments.shoppingList,
-        });
-        Event.save({
-          firebase: firebase,
-          event: {...state.event, refDocuments: updateRefDocuments},
-          authUser: authUser,
-        });
-      }
     });
   };
   const onUsedRecipesUpdate = (usedRecipes: UsedRecipes) => {
@@ -1172,20 +1372,6 @@ const EventPage = () => {
       firebase: firebase,
       usedRecipes: usedRecipes,
       authUser: authUser,
-    }).then(() => {
-      if (!state.event.refDocuments?.includes(EventRefDocuments.usedRecipes)) {
-        // Den Event-Updaten mit der Info, dass ein neues Dokument vorhanden ist
-        // dann springt auch der Listener für die Used Recipes an.
-        const updateRefDocuments = Event.addRefDocument({
-          refDocuments: state.event.refDocuments,
-          newDocumentType: EventRefDocuments.usedRecipes,
-        });
-        Event.save({
-          firebase: firebase,
-          event: {...state.event, refDocuments: updateRefDocuments},
-          authUser: authUser,
-        });
-      }
     });
   };
   const onMaterialListUpdate = (materialList: MaterialList) => {
@@ -1193,20 +1379,6 @@ const EventPage = () => {
       firebase: firebase,
       materialList: materialList,
       authUser: authUser,
-    }).then(() => {
-      if (!state.event.refDocuments?.includes(EventRefDocuments.materialList)) {
-        // Den Event-Updaten mit der Info, dass ein neues Dokument vorhanden ist
-        // dann springt auch der Listener für die Used Recipes an.
-        const updateRefDocuments = Event.addRefDocument({
-          refDocuments: state.event.refDocuments,
-          newDocumentType: EventRefDocuments.materialList,
-        });
-        Event.save({
-          firebase: firebase,
-          event: {...state.event, refDocuments: updateRefDocuments},
-          authUser: authUser,
-        });
-      }
     });
   };
   const onEventUpdate = (event: Event) => {
@@ -1224,20 +1396,32 @@ const EventPage = () => {
   };
   const onEventSave = async (event: Event) => {
     dispatch({type: ReducerActions.EVENT_SAVE_INIT, payload: {}});
-    await Event.save({
-      firebase: firebase,
-      event: event,
-      localPicture: eventDraft.localPicture,
-      authUser: authUser,
-    })
-      .then(() => {
-        setEventDraft({...eventDraft, event: event});
-        dispatch({type: ReducerActions.EVENT_SAVE_SUCCESS, payload: {}});
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
+    try {
+      // Bild hochladen, falls vorhanden
+      if (eventDraft.localPicture) {
+        const resized = await resizeImage(eventDraft.localPicture);
+        const uploadResult = await database.storage.events.upload(
+          event.uid + ".jpg",
+          resized,
+          "image/jpeg",
+        );
+        event.pictureSrc = uploadResult.publicUrl;
+      }
+
+      // Event-Kopfdaten speichern
+      const eventDomain = eventClassToDomain(event);
+      await database.events.updateEvent(eventDomain, authUser as AuthUser);
+
+      // Zeitscheiben speichern
+      const dateDomains = eventDatesToDateDomains(event.dates);
+      await database.events.saveDates(event.uid, dateDomains, authUser as AuthUser);
+
+      setEventDraft({...eventDraft, event: event, localPicture: null});
+      dispatch({type: ReducerActions.EVENT_SAVE_SUCCESS, payload: {}});
+    } catch (error) {
+      console.error(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
   const onEventPictureUpdate = (picture: File | null) => {
     setEventDraft({
@@ -1258,6 +1442,9 @@ const EventPage = () => {
     // Warnmeldung ausgeben, dass Daten allefalls gelöscht
     // werden.
 
+    // TODO: Prüfen ob diese Warnung korrekt funktioniert, sobald der Menuplan
+    // vollständig über Supabase läuft. Falls Zeitscheiben gelöscht werden, die
+    // bereits geplante Mahlzeiten/Menüs enthalten, muss die Warnung erscheinen.
     if (
       Event.checkIfDeletedDayArePlanned({
         event: eventDraft.event,
@@ -1313,31 +1500,49 @@ const EventPage = () => {
       return;
     }
     dispatch({type: ReducerActions.EVENT_DELETE_START, payload: {}});
-    await Event.delete({
-      event: state.event,
-      firebase: firebase,
-      authUser: authUser,
-    })
-      .then(() => {
-        // Kurzer Timeout, damit der Session-Storage nachmag
-        setTimeout(function () {
-          navigate(ROUTE_HOME, {
-            state: {
-              acion: Action.DELETE,
-              object: state.event.uid,
-              snackbar: {
-                open: true,
-                severity: "success",
-                message: `Anlass «${state.event.name}» wurde gelöscht.`,
-              },
+    try {
+      // Bild löschen (Fehler ignorieren, falls kein Bild vorhanden)
+      await database.storage.events
+        .remove(state.event.uid + ".jpg")
+        .catch(() => {});
+
+      // Firebase-Kinder löschen (ShoppingList, UsedRecipes, MaterialList — noch auf Firebase)
+      await Promise.all([
+        ShoppingListCollection.delete({
+          firebase: firebase,
+          eventUid: state.event.uid,
+        }).catch(() => {}),
+        UsedRecipes.delete({
+          firebase: firebase,
+          eventUid: state.event.uid,
+        }).catch(() => {}),
+        MaterialList.delete({
+          firebase: firebase,
+          eventUid: state.event.uid,
+        }).catch(() => {}),
+      ]);
+
+      // Event löschen — CASCADE entfernt alle Supabase-Kinder
+      await database.events.deleteEvent(state.event.uid);
+
+      // Kurzer Timeout, damit der Session-Storage nachmag
+      setTimeout(function () {
+        navigate(ROUTE_HOME, {
+          state: {
+            acion: Action.DELETE,
+            object: state.event.uid,
+            snackbar: {
+              open: true,
+              severity: "success",
+              message: `Anlass «${state.event.name}» wurde gelöscht.`,
             },
-          });
-        }, 500);
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
+          },
+        });
+      }, 500);
+    } catch (error) {
+      console.error(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
   const onEventConsistencyCheck = () => {
     console.debug("Starte Konsistenzprüfung für Event:");
@@ -1386,15 +1591,41 @@ const EventPage = () => {
     switch (type) {
       case FetchMissingDataType.RECIPES:
         dispatch({type: ReducerActions.RECIPE_LIST_FETCH_INIT, payload: {}});
-        RecipeShort.getShortRecipes({
-          firebase: firebase,
-          authUser: authUser,
-          eventUid: state.event.uid,
-        })
-          .then((result) => {
+        // Rezepte aus Supabase laden (öffentliche + private)
+        Promise.all([
+          database.recipes.getAllPublicRecipeShorts(),
+          database.recipes.getPrivateRecipeShortsForUser(authUser.authUid),
+        ])
+          .then(([publicRecipes, privateRecipes]) => {
+            // RecipeShortDomain → RecipeShort konvertieren
+            const toRecipeShort = (d: RecipeShortDomain): RecipeShort => {
+              const rs = new RecipeShort();
+              rs.uid = d.uid;
+              rs.name = d.name;
+              rs.source = d.source;
+              rs.pictureSrc = d.pictureSrc;
+              rs.tags = d.tags;
+              rs.menuTypes = d.menuTypes;
+              rs.dietProperties = {
+                allergens: d.dietProperties.allergens,
+                diet: d.dietProperties.diet,
+              };
+              rs.outdoorKitchenSuitable = d.outdoorKitchenSuitable;
+              rs.rating = {avgRating: d.avgRating, noRatings: d.noRatings};
+              rs.noComments = d.noComments;
+              rs.type = d.recipeType as RecipeType;
+              rs.variantName = d.variantName ?? undefined;
+              rs.created = {date: d.createdAt, fromUid: d.createdBy, fromDisplayName: ""};
+              return rs;
+            };
+            const allRecipes = [
+              ...publicRecipes.map(toRecipeShort),
+              ...privateRecipes.map(toRecipeShort),
+            ];
+            allRecipes.sort((a, b) => a.name.localeCompare(b.name));
             dispatch({
               type: ReducerActions.RECIPE_LIST_FETCH_SUCCESS,
-              payload: result,
+              payload: allRecipes,
             });
           })
           .catch((error) => {
@@ -1445,11 +1676,17 @@ const EventPage = () => {
           payload: {},
         });
 
-        Unit.getAllUnits({firebase: firebase})
-          .then((result) => {
+        database.units
+          .getAllUnits()
+          .then((unitDomains) => {
+            const units: Unit[] = unitDomains.map((d) => {
+              const u = new Unit({key: d.key, name: d.name});
+              u.dimension = d.dimension as Unit["dimension"];
+              return u;
+            });
             dispatch({
               type: ReducerActions.UNITS_FETCH_SUCCESS,
-              payload: result,
+              payload: units,
             });
           })
           .catch((error) => {
@@ -1466,15 +1703,22 @@ const EventPage = () => {
           payload: {},
         });
 
-        Product.getAllProducts({
-          firebase: firebase,
-          onlyUsable: true,
-          withDepartmentName: false,
-        })
-          .then((result) => {
+        database.products
+          .getAllProducts({onlyUsable: true, withDepartmentName: false})
+          .then((productDomains) => {
+            const products: Product[] = productDomains.map((d) => {
+              const p = new Product();
+              p.uid = d.uid;
+              p.name = d.name;
+              p.department = d.department;
+              p.shoppingUnit = d.shoppingUnit;
+              p.dietProperties = d.dietProperties;
+              p.usable = d.usable;
+              return p;
+            });
             dispatch({
               type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-              payload: result,
+              payload: products,
             });
           })
           .catch((error) => {
@@ -1491,14 +1735,20 @@ const EventPage = () => {
           payload: {},
         });
 
-        Material.getAllMaterials({
-          firebase: firebase,
-          onlyUsable: true,
-        })
-          .then((result) => {
+        database.materials
+          .getAllMaterials(true)
+          .then((materialDomains) => {
+            const materials: Material[] = materialDomains.map((d) => {
+              const m = new Material();
+              m.uid = d.uid;
+              m.name = d.name;
+              m.type = d.type;
+              m.usable = d.usable;
+              return m;
+            });
             dispatch({
               type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-              payload: result,
+              payload: materials,
             });
           })
           .catch((error) => {
@@ -1515,11 +1765,19 @@ const EventPage = () => {
           payload: {},
         });
 
-        Department.getAllDepartments({firebase: firebase})
-          .then((result) => {
+        database.departments
+          .getAllDepartments()
+          .then((deptDomains) => {
+            const departments: Department[] = deptDomains.map((d) => {
+              const dept = new Department();
+              dept.uid = d.uid;
+              dept.name = d.name;
+              dept.pos = d.pos;
+              return dept;
+            });
             dispatch({
               type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-              payload: result,
+              payload: departments,
             });
           })
           .catch((error) => {
@@ -1534,20 +1792,35 @@ const EventPage = () => {
           type: ReducerActions.UNIT_CONVERSION_FETCH_INIT,
           payload: {},
         });
-        UnitConversion.getAllConversionBasic({firebase: firebase})
-          .then((result) => {
-            const unitConversionBasic = result;
-            UnitConversion.getAllConversionProducts({firebase: firebase}).then(
-              (result) => {
-                dispatch({
-                  type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
-                  payload: {
-                    unitConversionBasic: unitConversionBasic,
-                    unitConversionProducts: result,
-                  },
-                });
-              },
-            );
+        Promise.all([
+          database.unitConversionBasic.getAllConversions(),
+          database.unitConversionProducts.getAllConversions(),
+        ])
+          .then(([basicDomains, productDomains]) => {
+            const unitConversionBasic: UnitConversionBasic = {};
+            for (const d of basicDomains) {
+              unitConversionBasic[d.uid] = {
+                fromUnit: d.fromUnit,
+                toUnit: d.toUnit,
+                numerator: d.numerator,
+                denominator: d.denominator,
+              };
+            }
+            const unitConversionProducts: UnitConversionProducts = {};
+            for (const d of productDomains) {
+              unitConversionProducts[d.uid] = {
+                fromUnit: d.fromUnit,
+                toUnit: d.toUnit,
+                numerator: d.numerator,
+                denominator: d.denominator,
+                productUid: d.productUid,
+                productName: d.productName,
+              };
+            }
+            dispatch({
+              type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
+              payload: {unitConversionBasic, unitConversionProducts},
+            });
           })
           .catch((error) => {
             dispatch({
@@ -1713,23 +1986,25 @@ const EventPage = () => {
       {!state.error && (
         <React.Fragment>
           {activeTab == EventTabs.menuplan ? (
-            <MenuplanPage
-              menuplan={state.menuplan}
-              groupConfiguration={state.groupConfig}
-              event={state.event}
-              recipeList={state.recipeList}
-              recipes={state.recipes}
-              units={state.units}
-              products={state.products}
-              materials={state.materials}
-              departments={state.departments}
-              firebase={firebase}
-              authUser={authUser}
-              onMenuplanUpdate={onMenuplanUpdate}
-              fetchMissingData={fetchMissingData}
-              onMasterdataCreate={onMasterdataCreate}
-              onRecipeUpdate={onRecipeUpdate}
-            />
+            <HighlightedMenueContext.Provider value={highlightedMenueUids}>
+              <MenuplanPage
+                menuplan={state.menuplan}
+                groupConfiguration={state.groupConfig}
+                event={state.event}
+                recipeList={state.recipeList}
+                recipes={state.recipes}
+                units={state.units}
+                products={state.products}
+                materials={state.materials}
+                departments={state.departments}
+                firebase={firebase}
+                authUser={authUser}
+                onMenuplanUpdate={onMenuplanUpdate}
+                fetchMissingData={fetchMissingData}
+                onMasterdataCreate={onMasterdataCreate}
+                onRecipeUpdate={onRecipeUpdate}
+              />
+            </HighlightedMenueContext.Provider>
           ) : activeTab == EventTabs.quantityCalculation ? (
             <Container>
               <EventGroupConfigurationPage

@@ -347,4 +347,61 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
     // Aktualisierten Zustand zurückgeben
     return this.getGroupConfig(eventId);
   }
+
+  /* =====================================================================
+  // Echtzeit-Subscription für Gruppenconfig
+  // ===================================================================== */
+  /**
+   * Abonniert Echtzeit-Änderungen der Gruppenconfig eines Events.
+   *
+   * Überwacht die drei Tabellen `event_groupconfiguration_diets`,
+   * `event_groupconfiguration_intolerances` und `event_groupconfiguration_portions`.
+   * Bei jeder Änderung wird die vollständige Gruppenconfig via getGroupConfig()
+   * neu geladen und an den onData-Callback übergeben.
+   *
+   * @param eventId - Die ID des Events
+   * @param onData - Callback, der bei jeder Änderung die aktuelle GroupConfigDomain erhält
+   * @param onError - Callback bei Fehler (z.B. Realtime-Verbindungsfehler)
+   * @returns Unsubscribe-Funktion, die alle drei Channels entfernt
+   *
+   * @example
+   * const unsubscribe = repo.subscribeToGroupConfig(
+   *   eventId,
+   *   (config) => setGroupConfig(config),
+   *   (error) => console.error(error),
+   * );
+   * // Später: unsubscribe();
+   */
+  subscribeToGroupConfig(
+    eventId: string,
+    onData: (config: GroupConfigDomain) => void,
+    onError: (error: Error) => void,
+  ): () => void {
+    const clientRef = this.client;
+
+    const reloadConfig = () => {
+      this.getGroupConfig(eventId)
+        .then((config) => onData(config))
+        .catch((err) =>
+          onError(err instanceof Error ? err : new Error(String(err))),
+        );
+    };
+
+    // Ein einziger Channel für alle 3 GroupConfig-Tabellen — spart Realtime-Connections
+    const channel = clientRef
+      .channel(`groupconfig:${eventId}`)
+      .on("postgres_changes", {event: "*", schema: "public", table: "event_groupconfiguration_diets", filter: `event_id=eq.${eventId}`}, reloadConfig)
+      .on("postgres_changes", {event: "*", schema: "public", table: "event_groupconfiguration_intolerances", filter: `event_id=eq.${eventId}`}, reloadConfig)
+      .on("postgres_changes", {event: "*", schema: "public", table: "event_groupconfiguration_portions", filter: `event_id=eq.${eventId}`}, reloadConfig)
+      .subscribe((status, err) => {
+        console.debug(`Realtime groupconfig:${eventId} status: ${status}`, err ?? "");
+        if (status === "CHANNEL_ERROR") {
+          onError(new Error(`Realtime-Fehler für groupconfig:${eventId}`));
+        }
+      });
+
+    return () => {
+      clientRef.removeChannel(channel);
+    };
+  }
 }

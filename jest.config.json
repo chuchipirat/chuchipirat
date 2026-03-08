@@ -29,7 +29,15 @@
   },
   "testMatch": ["**/__tests__/**/*.ts?(x)", "**/?(*.)+(spec|test).ts?(x)"],
   "coverageDirectory": "coverage",
-  "collectCoverageFrom": ["src/**/*.ts"],
+  "collectCoverage": true,
+  "collectCoverageFrom": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.d.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.spec.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.spec.tsx"
+  ],
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
   "moduleNameMapper": {
     "^.*/supabaseClient$": "<rootDir>/src/components/Database/__mocks__/supabaseClient.ts"

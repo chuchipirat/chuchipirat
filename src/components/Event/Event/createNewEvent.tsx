@@ -466,8 +466,8 @@ const CreateEventPage = () => {
         authUser,
       );
 
-      // 7. Menüplan initialisieren
-      await database.menuplan.initializeMenuplan(eventDomain.uid, authUser);
+      // 7. Menüplan initialisieren (Mahlzeittypen + Mahlzeiten + Menüs für jedes Datum)
+      await database.menuplan.initializeMenuplan(eventDomain.uid, dateDomains, authUser);
 
       // 8. Zum Event navigieren
       const savedEvent = {...state.event, uid: eventDomain.uid, pictureSrc};

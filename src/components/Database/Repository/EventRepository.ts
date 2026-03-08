@@ -463,25 +463,21 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
       }
     };
 
-    const channelEvents = clientRef
-      .channel(`events:${eventId}`)
+    // Ein einziger Channel für alle 3 Event-Tabellen — spart Realtime-Connections
+    const channel = clientRef
+      .channel(`event:${eventId}`)
       .on("postgres_changes", {event: "*", schema: "public", table: "events", filter: `id=eq.${eventId}`}, reloadEvent)
-      .subscribe();
-
-    const channelCooks = clientRef
-      .channel(`event_cooks:${eventId}`)
       .on("postgres_changes", {event: "*", schema: "public", table: "event_cooks", filter: `event_id=eq.${eventId}`}, reloadEvent)
-      .subscribe();
-
-    const channelDates = clientRef
-      .channel(`event_dates:${eventId}`)
       .on("postgres_changes", {event: "*", schema: "public", table: "event_dates", filter: `event_id=eq.${eventId}`}, reloadEvent)
-      .subscribe();
+      .subscribe((status, err) => {
+        console.debug(`Realtime event:${eventId} status: ${status}`, err ?? "");
+        if (status === "CHANNEL_ERROR") {
+          onError(new Error(`Realtime-Fehler für event:${eventId}`));
+        }
+      });
 
     return () => {
-      clientRef.removeChannel(channelEvents);
-      clientRef.removeChannel(channelCooks);
-      clientRef.removeChannel(channelDates);
+      clientRef.removeChannel(channel);
     };
   }
 }

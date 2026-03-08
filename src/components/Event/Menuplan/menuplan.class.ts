@@ -3,7 +3,6 @@ import * as DEFAULT_VALUES from "../../../constants/defaultValues";
 import {ChangeRecord} from "../../Shared/global.interface";
 import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Firebase from "../../Firebase/firebase.class";
 import Recipe, {RecipeType} from "../../Recipe/recipe.class";
 import Product from "../../Product/product.class";
 import Material from "../../Material/material.class";
@@ -14,8 +13,6 @@ import EventGroupConfiguration, {
 import RecipeShort from "../../Recipe/recipeShort.class";
 import Unit from "../../Unit/unit.class";
 import _ from "lodash";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
-import {logEvent} from "firebase/analytics";
 interface MenuplanObjectStructure<T> {
   entries: {[key: string]: T};
   order: string[];
@@ -164,12 +161,6 @@ interface DeleteMealType {
   products: Menuplan["products"];
   materials: Menuplan["materials"];
 }
-interface GetMenuplan {
-  firebase: Firebase;
-  uid: string;
-  callback: (menuplan: Menuplan) => void;
-  errorCallback: (error: Error) => void;
-}
 interface GetMealsOfMenues {
   menuplan: Menuplan;
   menues: Menue["uid"][];
@@ -179,15 +170,6 @@ interface GetMenuesOfMeals {
   meals: Meal["uid"][];
 }
 
-interface Save {
-  menuplan: Menuplan;
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-interface Delete {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-}
 interface FindMealOfMenu {
   menueUid: Menue["uid"];
   meals: Menuplan["meals"];
@@ -230,7 +212,6 @@ interface AddPlanToGood<T> {
 }
 
 interface RecalculatePortions {
-  firebase: Firebase;
   menuplan: Menuplan;
   groupConfig: EventGroupConfiguration;
 }
@@ -336,7 +317,7 @@ export default class Menuplan {
 
     // Mahlzeiten generieren (aus Default)
     DEFAULT_VALUES.MENUPLAN_MEALS.forEach((mealType) => {
-      const mealTypeUid = Utils.generateUid(5);
+      const mealTypeUid = crypto.randomUUID();
       mealType.uid = mealTypeUid;
       menuplan.mealTypes.order.push(mealTypeUid);
       menuplan.mealTypes.entries[mealTypeUid] = mealType;
@@ -359,72 +340,6 @@ export default class Menuplan {
   };
   // ===================================================================== */
   /**
-   * Menuplan mit Listener lesen
-   * @param param0
-   * @returns
-   */
-  static getMenuplanListener = async ({
-    firebase,
-    uid,
-    callback,
-    errorCallback,
-  }: GetMenuplan) => {
-    const menuplanCallback = (menuplan: Menuplan) => {
-      // Menüplan mit UID anreichern
-      menuplan.uid = uid;
-      callback(menuplan);
-    };
-
-    return await firebase.event.menuplan
-      .listen<Menuplan>({
-        uids: [uid],
-        callback: menuplanCallback,
-        errorCallback: errorCallback,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Save  of menuplan
-   */
-  static save = async ({menuplan, firebase, authUser}: Save) => {
-    // Set weil auch gelöschte Werte raus sollen (Update = merge:true)
-
-    menuplan.lastChange = Utils.createChangeRecord(authUser);
-
-    firebase.event.menuplan
-      .set({
-        uids: [menuplan.uid],
-        value: menuplan,
-        authUser: authUser,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Menüplan löschen (gesamtes Dokument)
-   * @param Object - Event-UID und Firebase
-   */
-  static delete = async ({eventUid, firebase}: Delete) => {
-    firebase.event.menuplan.delete({uids: [eventUid]}).catch((error) => {
-      console.error(error);
-      throw error;
-    });
-  };
-  // ===================================================================== */
-  /**
    * Neue Mahlzeit erstellen
    * alle Parameter als 1 Objekt
    * @param newMealName
@@ -433,7 +348,7 @@ export default class Menuplan {
   static createMealType = ({newMealName}: CreateMealType) => {
     return <MealType>{
       name: newMealName,
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
     };
   };
   // ===================================================================== */
@@ -551,7 +466,7 @@ export default class Menuplan {
    */
   static createEmptyNote = () => {
     return {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       text: "",
       date: Utils.dateAsString(new Date()),
       menueUid: "",
@@ -575,7 +490,7 @@ export default class Menuplan {
     }
 
     return {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       date: stringDate,
       mealType: mealType,
       menuOrder: [],
@@ -588,7 +503,7 @@ export default class Menuplan {
    */
   static createMenu = () => {
     return {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       name: "",
       mealRecipeOrder: [],
       productOrder: [],
@@ -714,7 +629,7 @@ export default class Menuplan {
       }),
     );
 
-    mealRecipe.uid = Utils.generateUid(5);
+    mealRecipe.uid = crypto.randomUUID();
 
     mealRecipe.recipe = {
       recipeUid: recipe.uid,
@@ -745,7 +660,7 @@ export default class Menuplan {
   static createMaterial = () => {
     const material = {} as MenuplanMaterial;
 
-    material.uid = Utils.generateUid(5);
+    material.uid = crypto.randomUUID();
     material.materialName = "";
     material.materialUid = "";
     material.quantity = 0;
@@ -787,7 +702,7 @@ export default class Menuplan {
   static createProduct = () => {
     const product = {} as MenuplanProduct;
 
-    product.uid = Utils.generateUid(5);
+    product.uid = crypto.randomUUID();
     product.productName = "";
     product.productUid = "";
     product.quantity = 0;
@@ -802,7 +717,6 @@ export default class Menuplan {
    * @returns Menuüplan
    */
   static recalculatePortions = ({
-    firebase,
     menuplan,
     groupConfig,
   }: RecalculatePortions) => {
@@ -850,7 +764,8 @@ export default class Menuplan {
           return plan;
         }
       });
-      product.totalQuantity = totalPortions;
+      // Gesamtmenge = Basisquantität × Summe der Portionen
+      product.totalQuantity = product.quantity * totalPortions;
       // Aus der Einplanung löschen, was es nicht mehr gibt
       product.plan = product.plan.filter(
         (plan) => plan.diet != "" && plan.intolerance != "",
@@ -876,18 +791,13 @@ export default class Menuplan {
           return plan;
         }
       });
-      material.totalQuantity = totalPortions;
+      // Gesamtmenge = Basisquantität × Summe der Portionen
+      material.totalQuantity = material.quantity * totalPortions;
       // Aus der Einplanung löschen, was es nicht mehr gibt
       material.plan = material.plan.filter(
         (plan) => plan.diet != "" && plan.intolerance != "",
       );
     });
-
-    // Analytics mitführen
-    logEvent(
-      firebase.analytics,
-      FirebaseAnalyticEvent.eventGroupConifgRecalculated,
-    );
 
     return menuplan;
   };

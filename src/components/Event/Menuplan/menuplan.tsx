@@ -1069,7 +1069,7 @@ const MenuplanPage = ({
         },
       }),
     );
-  }, [menuplan.menues]);
+  }, [menuplan.menues, menuplan.meals]);
 
   // Panning the board
   useEffect(() => {

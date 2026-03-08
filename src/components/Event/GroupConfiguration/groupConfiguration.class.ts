@@ -1,13 +1,8 @@
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
-import Firebase from "../../Firebase/firebase.class";
-
 import {
   INTOLERANCES as DEFAULT_INTOLERANCES,
   DIETS as DEFAULT_DIETS,
 } from "../../../constants/defaultValues";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Event from "../Event/event.class";
-import Stats, {StatsField} from "../../Shared/stats.class";
 
 interface GroupConfigObjectStructure<T> {
   entries: {[key: string]: T};
@@ -45,25 +40,6 @@ interface CalculateTotals {
   groupConfig: EventGroupConfiguration;
 }
 
-interface Save {
-  firebase: Firebase;
-  groupConfig: EventGroupConfiguration;
-  authUser: AuthUser;
-}
-interface Delete {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-}
-interface GetGroupConfiguration {
-  firebase: Firebase;
-  uid: EventGroupConfiguration["uid"];
-}
-interface GetGroupConfigurationListener {
-  firebase: Firebase;
-  uid: EventGroupConfiguration["uid"];
-  callback: (groupConfiguration: EventGroupConfiguration) => void;
-  errorCallback: (error: Error) => void;
-}
 interface IntolerancePortions {
   [key: Intolerance["uid"]]: number;
 }
@@ -261,129 +237,4 @@ export default class EventGroupConfiguration {
 
     return groupConfig;
   }
-  // ===================================================================== */
-  /**
-   * Gruppen-Konfig speichern
-   * @param {firebase, event, authUser}
-   */
-  static async save({firebase, groupConfig, authUser}: Save) {
-    let newDocument = false;
-    let newParticipants = 0;
-    if (!groupConfig.created.fromUid) {
-      // Wird soeben neu erstellt.
-      groupConfig.created = {
-        fromUid: authUser.uid,
-        fromDisplayName: authUser.publicProfile.displayName,
-        date: new Date(),
-      };
-      newDocument = true;
-    }
-
-    if (newDocument) {
-      newParticipants = groupConfig.totalPortions;
-    } else {
-      // Alte Grösse holen
-      await EventGroupConfiguration.getGroupConfiguration({
-        firebase: firebase,
-        uid: groupConfig.uid,
-      })
-        .then((result) => {
-          newParticipants = groupConfig.totalPortions - result.totalPortions;
-        })
-        .catch((error) => console.error(error));
-    }
-
-    await firebase.event.groupConfiguration
-      .set<EventGroupConfiguration>({
-        uids: [groupConfig.uid],
-        value: groupConfig,
-        authUser: authUser,
-      })
-      .then((result) => {
-        return result as EventGroupConfiguration;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    // Statistik aufzählen
-    Stats.incrementStat({
-      firebase: firebase,
-      field: StatsField.noParticipants,
-      value: newParticipants,
-    });
-  }
-  // ===================================================================== */
-  /**
-   * Gruppen-Konfig löschen
-   * @param Object - Event-UID und Firebase
-   */
-  static delete = async ({eventUid, firebase}: Delete) => {
-    firebase.event.groupConfiguration
-      .delete({uids: [eventUid]})
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * GruppenKonfiguration aus der DB lesen
-   * @param {firebase, uid}
-   */
-  static getGroupConfiguration = async ({
-    firebase,
-    uid,
-  }: GetGroupConfiguration) => {
-    let groupConfig = <EventGroupConfiguration>{};
-    await firebase.event.groupConfiguration
-      .read<EventGroupConfiguration>({uids: [uid]})
-      .then((result) => {
-        groupConfig = result;
-        groupConfig.uid = uid;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    return groupConfig;
-  };
-  // ===================================================================== */
-  /**
-   * GruppenKonfiguration als Listener holen
-   * @param {firebase, uid}
-   */
-  static getGroupConfigurationListener = async ({
-    firebase,
-    uid,
-    callback,
-    errorCallback,
-  }: GetGroupConfigurationListener) => {
-    let groupConfigurationListener: (() => void) | undefined;
-
-    const groupConfigurationCalback = (
-      groupConfiguration: EventGroupConfiguration
-    ) => {
-      // Menüplan mit UID anreichern
-      groupConfiguration.uid = uid;
-      callback(groupConfiguration);
-    };
-
-    await firebase.event.groupConfiguration
-      .listen<EventGroupConfiguration>({
-        uids: [uid],
-        callback: groupConfigurationCalback,
-        errorCallback: errorCallback,
-      })
-      .then((result) => {
-        groupConfigurationListener = result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    return groupConfigurationListener;
-  };
 }

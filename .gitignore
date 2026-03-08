@@ -63,3 +63,4 @@ supabase/volumes/auth/templates/*
 supabase/dev/
 supabase/.env
 supabase/.temp/
+supabase/html-report/*

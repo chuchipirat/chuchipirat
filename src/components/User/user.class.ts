@@ -378,7 +378,7 @@ export default class User {
     // Admin-Client verwenden (umgeht RLS während Übergangsphase)
     const users = database.admin?.users ?? database.users;
     const userUid = await users.findByEmail(email);
-    console.log(userUid);
+
     if (!userUid) {
       throw new Error(TEXT_NO_USER_WITH_THIS_EMAIL);
     }

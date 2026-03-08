@@ -45,6 +45,7 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260308000006_fix_multiple_permissive_policies.sql` | Performance-Fix: Mehrere permissive RLS-Policies pro Aktion zusammengeführt — `users` (SELECT/INSERT/UPDATE je auf eine Policy konsolidiert, `TO authenticated` ergänzt), `system_messages` (alle Policies gedroppt und mit `TO authenticated` neu erstellt) — behebt „Multiple Permissive Policies"-Hinweis |
 | `20260308000008_find_user_id_by_email.sql`            | SQL-Funktion `find_user_id_by_email()` zum Nachschlagen der User-ID anhand einer E-Mail-Adresse |
 | `20260308000009_media_events_policies.sql`            | Storage-Policies für Event-Bilder: INSERT/UPDATE/DELETE im `media`-Bucket unter `events/` — nur Köche des Events dürfen Bilder verwalten (via `is_event_cook()`). Erhöht Bucket-Limit von 2 MB auf 5 MB (Event-Bilder sind grösser als Profilbilder) |
+| `20260308000010_enable_realtime_events.sql`           | Aktiviert Supabase Realtime für alle 14 Event-Tabellen (`events`, `event_cooks`, `event_dates`, `event_groupconfiguration_*`, `event_meal_types`, `event_meals`, `event_menues`, `event_menue_recipes/products/materials`, `event_notes`, `event_menuplan_item_plans`) via `ALTER PUBLICATION supabase_realtime ADD TABLE` |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 

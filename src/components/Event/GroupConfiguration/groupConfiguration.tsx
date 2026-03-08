@@ -73,6 +73,8 @@ import {
   NavigationObject,
 } from "../../Navigation/navigationContext";
 import Action from "../../../constants/actions";
+import {useDatabase} from "../../Database/DatabaseContext";
+import {groupConfigClassToDomain} from "./groupConfigBridge";
 /* ===================================================================
 // ============================== Global =============================
 // =================================================================== */
@@ -232,6 +234,7 @@ const EventGroupConfigurationPage = ({
   const classes = useCustomStyles();
   const theme = useTheme();
   const {customDialog} = useCustomDialog();
+  const database = useDatabase();
   const navigationValuesContext = React.useContext(NavigationValuesContext);
 
   const [state, dispatch] = React.useReducer(
@@ -288,15 +291,12 @@ const EventGroupConfigurationPage = ({
   /* ------------------------------------------
   // Weiter // Zurück
   // ------------------------------------------ */
-  const saveEvent = async (event: React.MouseEvent<HTMLButtonElement>) => {
+  const saveEvent = async (mouseEvent: React.MouseEvent<HTMLButtonElement>) => {
     if (!deferSave) {
-      await EventGroupConfiguration.save({
-        firebase: firebase,
-        authUser: authUser,
-        groupConfig: state.groupConfig,
-      });
+      const gcDomain = groupConfigClassToDomain(state.groupConfig, event.uid);
+      await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
     }
-    onConfirm?.onClick && onConfirm.onClick(event, state.groupConfig);
+    onConfirm?.onClick && onConfirm.onClick(mouseEvent, state.groupConfig);
   };
   const cancelCreate = async (event: React.MouseEvent<HTMLButtonElement>) => {
     if (onCancel?.onClick) {
@@ -328,11 +328,8 @@ const EventGroupConfigurationPage = ({
     }
 
     try {
-      await EventGroupConfiguration.save({
-        firebase: firebase,
-        authUser: authUser,
-        groupConfig: state.groupConfig,
-      });
+      const gcDomain = groupConfigClassToDomain(state.groupConfig, event.uid);
+      await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
 
       // Neue Mengen hochgeben, damit der Menüplan neu berechnet wird
       onGroupConfigurationUpdate(state.groupConfig);

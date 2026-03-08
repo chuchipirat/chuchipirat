@@ -83,6 +83,7 @@ import Receipt from "./receipt.class";
 import EventReceiptPdf from "./eventRecipePdf";
 import {EventDate} from "./event.class";
 import {DatePicker} from "@mui/x-date-pickers";
+import {resizeImage} from "../../Shared/imageResize";
 
 /* ===================================================================
 // ============================== Global =============================
@@ -284,11 +285,14 @@ const EventInfoPage = ({
       }
 
       try {
-        await Event.deletePicture({
-          firebase: firebase,
-          event: event,
-          authUser: authUser,
+        // Bild aus Supabase Storage löschen
+        await database.storage.events.remove(event.uid + ".jpg").catch(() => {
+          // Ignorieren falls kein Bild vorhanden
         });
+        // Event-Dokument aktualisieren (Bild-URL leeren)
+        const {eventClassToDomain} = await import("./eventBridge");
+        const eventDomain = eventClassToDomain({...event, pictureSrc: ""} as Event);
+        await database.events.updateEvent(eventDomain, authUser);
         onUpdateEvent({...event, pictureSrc: ""} as Event);
       } catch (error) {
         onError?.(error as Error);
@@ -315,12 +319,23 @@ const EventInfoPage = ({
         database: database,
         uid: personUid,
       });
-      const updatedCooks = await Event.addCookToEvent({
-        firebase: firebase,
-        authUser: authUser,
-        cookPublicProfile: publicProfile,
-        event: event,
-      });
+
+      // Koch zum lokalen State hinzufügen
+      const updatedCooks = [
+        ...event.cooks,
+        {
+          uid: personUid,
+          displayName: publicProfile.displayName,
+          motto: publicProfile.motto,
+          pictureSrc: publicProfile.pictureSrc,
+        },
+      ];
+
+      if (event.uid) {
+        // Koch in Supabase hinzufügen — publicProfile.uid enthält die Auth-UUID
+        await database.events.addCook(event.uid, personUid, authUser);
+      }
+
       onUpdateEvent({...event, cooks: updatedCooks} as Event);
     } catch (error) {
       onError?.(error as Error);
@@ -334,13 +349,28 @@ const EventInfoPage = ({
     }
 
     try {
-      const result = await Event.removeCookFromEvent({
-        firebase: firebase,
-        authUser: authUser,
-        cookUidToRemove: cookUidToDelete,
-        event: event,
-      });
-      onUpdateEvent({...event, cooks: result} as Event);
+      // Koch aus dem lokalen State entfernen
+      const updatedCooks = event.cooks.filter(
+        (cook) => cook.uid !== cookUidToDelete,
+      );
+
+      if (event.uid) {
+        // Den Cook-Eintrag in Supabase finden und löschen
+        // event.cooks enthält Cook-Objekte mit uid = userId (Auth-UUID)
+        // Wir müssen die event_cooks-Zeile via Realtime/Event-Reload finden
+        // Da subscribeToEvent die Köche als EventCookDomain liefert und
+        // eventDomainToClass die userId als cook.uid setzt, können wir über
+        // die Events-Tabelle den richtigen Cook-Record ermitteln.
+        const eventDomain = await database.events.getEvent(event.uid);
+        const cookRecord = eventDomain?.cooks.find(
+          (c) => c.userId === cookUidToDelete,
+        );
+        if (cookRecord) {
+          await database.events.removeCook(cookRecord.uid);
+        }
+      }
+
+      onUpdateEvent({...event, cooks: updatedCooks} as Event);
     } catch (error) {
       onError?.(error as Error);
     }
