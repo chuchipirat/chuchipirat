@@ -97,7 +97,7 @@ import DialogProduct, {
   PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   ProductDialog,
 } from "../../Product/dialogProduct";
-import {RecipeDrawer} from "../Menuplan/menuplan";
+import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
 import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
 import ShoppingListPdf from "./shoppingListPdf";
 import {

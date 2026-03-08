@@ -14,11 +14,11 @@ export const RECIPE_DISPLAY = 3;
 export const COMMENT_DISPLAY = 3;
 export const RECIPES_SEARCH = 12;
 
-export const MENUPLAN_MEALS = [
-  {name: "Zmorgen", uid: ""},
-  {name: "Zmittag", uid: ""},
-  {name: "Znacht", uid: ""},
-];
+// export const MENUPLAN_MEALS = [
+//   {name: "Zmorgen", uid: ""},
+//   {name: "Zmittag", uid: ""},
+//   {name: "Znacht", uid: ""},
+// ];
 
 export const TWINT_PAYLINK = "https://pay.raisenow.io/jhbvj";
 

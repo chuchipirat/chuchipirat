@@ -229,16 +229,14 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
    * @returns Die Benutzer-UID oder null, falls nicht gefunden oder mehrdeutig
    */
   async findByEmail(email: string): Promise<string | null> {
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select("id")
-      .eq("email", email.toLocaleLowerCase().trim())
-      .limit(2);
+    // RPC-Aufruf über SECURITY DEFINER Funktion — umgeht die RLS-Policy,
+    // die nur die eigene Zeile sichtbar macht.
+    const {data, error} = await this.client.rpc("find_user_id_by_email", {
+      lookup_email: email.toLocaleLowerCase().trim(),
+    });
 
     if (error) throw error;
-    if (!data || data.length === 0) return null;
-    if (data.length > 1) return null; // ambiguous
-    return data[0].id;
+    return data ?? null;
   }
 
   /* =====================================================================

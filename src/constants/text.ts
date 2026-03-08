@@ -334,6 +334,9 @@ export const EVENT_COOK_ALLREADY_ADDED =
 export const EVENT_SHOW_PAST_EVENTS = "Zeige vergangene Anlässe";
 export const EVENT_PAST_EVENTS = "Deine vergangenen Anlässe";
 export const EVENT_FUTURE_EVENTS = "Deine bevorstehende Anlässe";
+export const EVENT_NO_FUTURE_EVENTS =
+  "Keine bevorstehenden Anlässe. Erstelle einen neuen Anlass!";
+export const EVENT_NO_PAST_EVENTS = "Keine vergangenen Anlässe vorhanden.";
 export const CREATE_EVENT = "Anlass erstellen";
 export const EVENT_INFO = "Informationen zum Anlass";
 export const DEFINE_BASIC_EVENT_DATA =
@@ -381,6 +384,10 @@ export const EVENT_IS_BEEING_CREATED = (eventName: string) =>
   `${eventName} wird erstellt.`;
 export const EVENT_IS_BEEING_SAVED = "Anlass wird gespeichert.";
 export const IMAGE_IS_BEEING_UPLOADED = "Bild wird hochgeladen.";
+export const IMAGE_FORMAT_NOT_SUPPORTED =
+  "Dieses Bildformat wird nicht unterstützt. Bitte verwende JPEG, PNG oder WebP.";
+export const IMAGE_TOO_LARGE =
+  "Das Bild ist zu gross. Bitte wähle ein Bild unter 10 MB.";
 export const RESUME_INTRODUCTION = (eventName: string) =>
   `Herzlichen Glückwunsch! Dein Anlass «${eventName}» wurde angelegt. Es geht gleich weiter. Gerne würden wir dich noch auf Folgendes hinweisen:`;
 export const DONATE = "Spenden";

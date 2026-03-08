@@ -58,7 +58,7 @@ import {
   RECIPE_DRAWER_DATA_INITIAL_VALUES,
   RecipeDrawer,
   RecipeDrawerData,
-} from "../Event/Menuplan/menuplan";
+} from "../Recipe/RecipeDrawer";
 import EventGroupConfiguration from "../Event/GroupConfiguration/groupConfiguration.class";
 import Recipe, {RecipeType, Recipes} from "../Recipe/recipe.class";
 import {RequestStatus, RequestType} from "./request.class";

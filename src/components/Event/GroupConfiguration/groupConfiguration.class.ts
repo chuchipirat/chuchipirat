@@ -1,5 +1,3 @@
-import Utils from "../../Shared/utils.class";
-
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 import Firebase from "../../Firebase/firebase.class";
 
@@ -109,7 +107,7 @@ export default class EventGroupConfiguration {
     const groupConfig = new EventGroupConfiguration();
 
     DEFAULT_DIETS.forEach((diet) => {
-      const dietUid = Utils.generateUid(5);
+      const dietUid = crypto.randomUUID();
       groupConfig.diets.entries[dietUid] = {
         uid: dietUid,
         name: diet,
@@ -119,7 +117,7 @@ export default class EventGroupConfiguration {
     });
 
     DEFAULT_INTOLERANCES.forEach((intolerance) => {
-      const intoleranceUid = Utils.generateUid(5);
+      const intoleranceUid = crypto.randomUUID();
       groupConfig.intolerances.entries[intoleranceUid] = {
         uid: intoleranceUid,
         name: intolerance,
@@ -147,7 +145,7 @@ export default class EventGroupConfiguration {
    */
   static addIntolerance({groupConfig, intoleranceName}: AddIntoleranceProps) {
     const newIntolerance: Intolerance = {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       name: intoleranceName,
       totalPortions: 0,
     };
@@ -196,7 +194,7 @@ export default class EventGroupConfiguration {
    */
   static addDietGroup({groupConfig, dietGroupName}: AddDietGroupProps) {
     const newDiet: Diet = {
-      uid: Utils.generateUid(5),
+      uid: crypto.randomUUID(),
       name: dietGroupName,
       totalPortions: 0,
     };

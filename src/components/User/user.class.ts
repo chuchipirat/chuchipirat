@@ -378,7 +378,7 @@ export default class User {
     // Admin-Client verwenden (umgeht RLS während Übergangsphase)
     const users = database.admin?.users ?? database.users;
     const userUid = await users.findByEmail(email);
-
+    console.log(userUid);
     if (!userUid) {
       throw new Error(TEXT_NO_USER_WITH_THIS_EMAIL);
     }
@@ -504,7 +504,7 @@ export default class User {
     const usersRead = database.admin?.users ?? database.users;
     // Alte Werte holen um zu vergleichen ob die Cloud Function gestartet werden muss
     const actualPublicProfile = await usersRead.findPublicProfile(
-      userProfile.uid
+      userProfile.uid,
     );
 
     // Bild hochladen wenn vorhanden
@@ -591,7 +591,7 @@ export default class User {
     const result = await storageUsers.upload(
       `${authUser.uid}.jpg`,
       resizedBlob,
-      "image/jpeg"
+      "image/jpeg",
     );
 
     return result.publicUrl;

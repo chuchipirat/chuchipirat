@@ -249,14 +249,21 @@ async function sendViaSmtp(
   smtpPass: string,
   fromEmail: string,
 ): Promise<void> {
+  // Port 465 = implizites TLS, Port 1025 = MailPit (plain, kein TLS)
+  const useTls = smtpPort === 465;
+  const isPlainSmtp = !useTls && !smtpUser;
+
   const smtpClient = new SMTPClient({
     connection: {
       hostname: smtpHost,
       port: smtpPort,
-      // TLS nur bei Standard-TLS-Port 465; 587/25 verwenden kein TLS (kein STARTTLS)
-      tls: smtpPort === 465,
+      tls: useTls,
       ...(smtpUser ? {auth: {username: smtpUser, password: smtpPass}} : {}),
     },
+    // MailPit (lokale Entwicklung) akzeptiert kein TLS/STARTTLS
+    debug: isPlainSmtp
+      ? {allowUnsecure: true, noStartTLS: true}
+      : undefined,
   });
 
   await smtpClient.send({

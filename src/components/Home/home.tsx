@@ -393,13 +393,10 @@ const HomePage = () => {
   const onEventClick = (raisedEvent: React.MouseEvent<HTMLButtonElement>) => {
     let event: Event | undefined;
 
-    event = state.events.find(
-      (event) => event.uid === raisedEvent.currentTarget.name.split("_")[1],
-    );
+    const uid = raisedEvent.currentTarget.dataset.eventUid;
+    event = state.events.find((event) => event.uid === uid);
     if (!event && state.passedEvents.length > 0) {
-      event = state.passedEvents.find(
-        (event) => event.uid === raisedEvent.currentTarget.name.split("_")[1],
-      );
+      event = state.passedEvents.find((event) => event.uid === uid);
     }
 
     if (!event) {

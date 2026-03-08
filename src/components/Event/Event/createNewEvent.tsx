@@ -14,7 +14,6 @@ import {
   Card,
   CardHeader,
   CardContent,
-  useMediaQuery,
   Box,
   useTheme,
 } from "@mui/material";
@@ -25,7 +24,7 @@ import {
   EVENT_INFO as TEXT_EVENT_INFO,
   QUANTITY_CALCULATION_INFO as TEXT_QUANTITY_CALCULATION_INFO,
   COMPLETION as TEXT_COMPLETION,
-  CONTINUE as TEXT_CONTIUNE,
+  CONTINUE as TEXT_CONTINUE,
   BACK_TO_OVERVIEW as TEXT_BACK_TO_OVERVIEW,
   BACK_TO_EVENT_INFO as TEXT_BACK_TO_EVENT_INFO,
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
@@ -60,7 +59,6 @@ import {
 } from "../../Navigation/navigationContext";
 import Action from "../../../constants/actions";
 import AlertMessage from "../../Shared/AlertMessage";
-import Menuplan from "../Menuplan/menuplan.class";
 import FieldValidationError, {
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
@@ -68,7 +66,12 @@ import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.cl
 import {useAuthUser} from "../../Session/authUserContext";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ImageRepository} from "../../../constants/imageRepository";
-import {TWINT_PAYLINK} from "../../../constants/defaultValues";
+import TwintButton from "../../Shared/TwintButton";
+import {resizeImage} from "../../Shared/imageResize";
+import {
+  GroupConfigDomain,
+  PortionEntryDomain,
+} from "../../Database/Repository/EventGroupConfigRepository";
 /* ===================================================================
 // ============================== Global =============================
 // =================================================================== */
@@ -228,11 +231,59 @@ const eventReducer = (state: State, action: DispatchAction): State => {
         isError: true,
         error: action.payload,
       };
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+    default: {
+      const _exhaustive: never = action;
+      throw new Error(`Unbekannter ActionType: ${_exhaustive}`);
+    }
   }
 };
+
+/* ===================================================================
+// ======================== Mapping-Funktion =========================
+// =================================================================== */
+
+/**
+ * Konvertiert die lokale EventGroupConfiguration (verschachtelte Map-Struktur)
+ * in das flache GroupConfigDomain-Format für das Supabase-Repository.
+ *
+ * @param gc Lokale Gruppenkonfiguration (diets.entries, intolerances.entries, portions[diet][int]).
+ * @param eventId ID des zugehörigen Events.
+ * @returns Flaches GroupConfigDomain für saveGroupConfig().
+ */
+function mapGroupConfigToGroupConfigDomain(
+  gc: EventGroupConfiguration,
+  eventId: string,
+): GroupConfigDomain {
+  // Lokale UIDs (z.B. "aB3xY" aus Utils.generateUid(5)) werden als
+  // Referenz für die Portionen-Zuordnung beibehalten. Das Repository
+  // erkennt anhand der Länge, dass sie keine gültigen DB-UUIDs sind,
+  // und lässt die DB eine korrekte UUID generieren.
+  const diets = gc.diets.order.map((dietUid, index) => ({
+    uid: dietUid,
+    name: gc.diets.entries[dietUid].name,
+    sortOrder: index * 10,
+  }));
+
+  const intolerances = gc.intolerances.order.map((intUid, index) => ({
+    uid: intUid,
+    name: gc.intolerances.entries[intUid].name,
+    sortOrder: index * 10,
+  }));
+
+  const portions: PortionEntryDomain[] = [];
+  gc.diets.order.forEach((dietUid) => {
+    gc.intolerances.order.forEach((intUid) => {
+      portions.push({
+        uid: "",
+        dietId: dietUid,
+        intoleranceId: intUid,
+        servings: gc.portions[dietUid]?.[intUid] ?? 0,
+      });
+    });
+  });
+
+  return {eventId, diets, intolerances, portions};
+}
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -276,44 +327,23 @@ const CreateEventPage = () => {
   /* ------------------------------------------
   // Step-Steuerung
   // ------------------------------------------ */
-  const goToStepGroup = () => {
+  const goToGroupConfigStep = () => {
     setActiveStep(WizardSteps.groupConfig);
   };
   const goToOverview = () => {
-    if (state.event.uid) {
-      // Event wieder löschen
-      Event.delete({
-        event: state.event,
-        firebase: firebase,
-        authUser: authUser,
-      });
-    }
-
     navigate(`${ROUTE_HOME}`);
   };
-  const goToStepInfo = () => {
+  const goToInfoStep = () => {
     setActiveStep(WizardSteps.info);
   };
-  const goToResume = (
+  /** Typassertion nötig, da ButtonAction generisch ist und der Wert als unknown ankommt. */
+  const goToCompletionStep = (
     _event: React.MouseEvent<HTMLButtonElement>,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    value?: {[key: string]: any},
+    value?: EventGroupConfiguration,
   ) => {
-    const groupConfig = value as EventGroupConfiguration;
-    dispatch({type: ReducerActions.SET_GROUP_CONFIG, payload: groupConfig});
+    if (!value) return;
+    dispatch({type: ReducerActions.SET_GROUP_CONFIG, payload: value});
     setActiveStep(WizardSteps.completion);
-  };
-  const goToMenuplan = async () => {
-    dispatch({type: ReducerActions.SHOW_LOADING});
-
-    // Kurz warten, dass auch alles ready ist
-    await new Promise(function (resolve) {
-      setTimeout(resolve, 1500);
-    });
-
-    navigate(`${ROUTE_EVENT}/${state.event.uid}`, {
-      state: {event: state.event, groupConfig: state.groupConfig},
-    });
   };
   /* ------------------------------------------
   // Änderungen übernehmen
@@ -331,45 +361,20 @@ const CreateEventPage = () => {
     dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
   };
   /* ------------------------------------------
-  // Event Speicherung
+  // Validierung (kein Speichern — deferred save)
   // ------------------------------------------ */
-  const onCreateEvent = async () => {
-    dispatch({type: ReducerActions.SAVE_EVENT_INIT});
-
+  const onValidateAndContinue = () => {
     try {
-      const result = await Event.save({
-        firebase: firebase,
-        event: state.event,
-        authUser: authUser,
-        localPicture: state.localPicture ? state.localPicture : ({} as File),
-      });
-
-      dispatch({type: ReducerActions.SAVE_EVENT_SUCCESS, payload: result});
-
-      // Menüplan erstellen und speichern
-      try {
-        await Menuplan.save({
-          menuplan: Menuplan.factory({
-            event: {...state.event, uid: result.uid},
-            authUser: authUser,
-          }),
-          firebase: firebase,
-          authUser: authUser,
-        });
-      } catch (error) {
-        console.error(error);
-        throw error;
-      } finally {
-        // Einen Schritt weiter
-        goToStepGroup();
-      }
+      const preparedEvent = {...state.event};
+      preparedEvent.dates = Event.deleteEmptyDates(preparedEvent.dates);
+      Event.checkEventData(preparedEvent);
+      dispatch({type: ReducerActions.SET_EVENT, payload: preparedEvent});
+      goToGroupConfigStep();
     } catch (error) {
       const fieldError = error as FieldValidationError;
-      console.error(fieldError);
 
       if (fieldError.formValidation) {
         dispatch({type: ReducerActions.FORM_FIELD_ERROR, payload: fieldError});
-        // Zum 1. Fehler-Feld scrollen
         const element = document.getElementById(
           fieldError.formValidation[0].fieldName,
         );
@@ -377,6 +382,173 @@ const CreateEventPage = () => {
         return;
       }
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: fieldError});
+      window.scrollTo({top: 0, behavior: "smooth"});
+    }
+  };
+
+  /* ------------------------------------------
+  // Alles speichern (Supabase) — beim Abschluss-Schritt
+  // ------------------------------------------ */
+  const onSaveAll = async () => {
+    dispatch({type: ReducerActions.SAVE_EVENT_INIT});
+
+    try {
+      // 1. Event erstellen (Supabase)
+      const eventDomain = await database.events.createEvent(
+        {
+          name: state.event.name,
+          motto: state.event.motto,
+          location: state.event.location,
+          pictureSrc: "",
+        },
+        authUser,
+      );
+
+      // 2. Ersteller als Koch hinzufügen (vor Bild-Upload, damit
+      //    is_event_cook() für die Storage-Policy true ergibt).
+      //    authUser.authUid ist die Supabase Auth UUID (event_cooks.user_id
+      //    erwartet UUID, nicht die Firebase UID aus authUser.uid).
+      await database.events.addCook(
+        eventDomain.uid,
+        authUser.authUid,
+        authUser,
+      );
+
+      // 3. Weitere Köche hinzufügen — cook.uid ist die Firebase UID,
+      //    muss zu Supabase Auth UUID aufgelöst werden.
+      const usersRepo = database.admin?.users ?? database.users;
+      for (const cook of state.event.cooks) {
+        if (cook.uid !== authUser.uid) {
+          const userDomain = await usersRepo.findById(cook.uid);
+          if (userDomain?.authUid) {
+            await database.events.addCook(
+              eventDomain.uid,
+              userDomain.authUid,
+              authUser,
+            );
+          }
+        }
+      }
+
+      // 4. Zeitscheiben speichern
+      const dateDomains = state.event.dates
+        .filter((dateEntry) => dateEntry.from && dateEntry.to)
+        .map((dateEntry, index) => ({
+          dateFrom: dateEntry.from,
+          dateTo: dateEntry.to,
+          sortOrder: index * 10,
+        }));
+      await database.events.saveDates(eventDomain.uid, dateDomains, authUser);
+
+      // 5. Bild hochladen (falls vorhanden)
+      let pictureSrc = "";
+      if (state.localPicture) {
+        const resizedBlob = await resizeImage(state.localPicture);
+        const result = await database.storage.events.upload(
+          `${eventDomain.uid}.jpg`,
+          resizedBlob,
+          "image/jpeg",
+        );
+        pictureSrc = result.publicUrl;
+        await database.events.updateEvent(
+          {...eventDomain, pictureSrc},
+          authUser,
+        );
+      }
+
+      // 6. Gruppenkonfiguration speichern
+      const groupConfigDomain = mapGroupConfigToGroupConfigDomain(
+        state.groupConfig,
+        eventDomain.uid,
+      );
+      await database.eventGroupConfig.saveGroupConfig(
+        groupConfigDomain,
+        authUser,
+      );
+
+      // 7. Menüplan initialisieren
+      await database.menuplan.initializeMenuplan(eventDomain.uid, authUser);
+
+      // 8. Zum Event navigieren
+      const savedEvent = {...state.event, uid: eventDomain.uid, pictureSrc};
+      dispatch({type: ReducerActions.SAVE_EVENT_SUCCESS, payload: savedEvent});
+      navigate(`${ROUTE_EVENT}/${eventDomain.uid}`);
+    } catch (error) {
+      console.error(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+      window.scrollTo({top: 0, behavior: "smooth"});
+    }
+  };
+
+  /**
+   * Rendert den Inhalt des aktuell aktiven Wizard-Schritts.
+   */
+  const renderActiveStep = () => {
+    switch (activeStep) {
+      case WizardSteps.info:
+        return (
+          <Stack spacing={2}>
+            <EventInfoPage
+              event={state.event}
+              localPicture={state.localPicture}
+              formValidation={state.eventFormValidation}
+              firebase={firebase}
+              database={database}
+              authUser={authUser}
+              onUpdateEvent={onUpdateEvent}
+              onUpdatePicture={onUpdatePicture}
+              onFormValidationUpdate={onFormValidationUpdate}
+              onError={onEventError}
+            />
+            <Box
+              component="div"
+              sx={{display: "flex", justifyContent: "flex-end"}}
+            >
+              <Button
+                variant="outlined"
+                color="primary"
+                onClick={goToOverview}
+              >
+                {TEXT_BACK_TO_OVERVIEW}
+              </Button>
+
+              <Button
+                variant="contained"
+                color="primary"
+                style={{marginLeft: "1rem"}}
+                onClick={onValidateAndContinue}
+              >
+                {TEXT_CONTINUE}
+              </Button>
+            </Box>
+          </Stack>
+        );
+      case WizardSteps.groupConfig:
+        return (
+          <EventGroupConfigurationPage
+            firebase={firebase}
+            authUser={authUser}
+            event={state.event}
+            deferSave={true}
+            onConfirm={{
+              buttonText: TEXT_CONTINUE,
+              onClick: goToCompletionStep,
+            }}
+            onCancel={{
+              buttonText: TEXT_BACK_TO_EVENT_INFO,
+              onClick: goToInfoStep,
+            }}
+          />
+        );
+      case WizardSteps.completion:
+        return (
+          <CreateEventCompletion
+            event={state.event}
+            isSaving={state.isSaving}
+            onReturn={goToGroupConfigStep}
+            onProceed={onSaveAll}
+          />
+        );
     }
   };
 
@@ -409,60 +581,7 @@ const CreateEventPage = () => {
             />
           )}
 
-          {activeStep === WizardSteps.info ? (
-            <Stack spacing={2}>
-              <EventInfoPage
-                event={state.event}
-                localPicture={state.localPicture}
-                formValidation={state.eventFormValidation}
-                firebase={firebase}
-                database={database}
-                authUser={authUser}
-                onUpdateEvent={onUpdateEvent}
-                onUpdatePicture={onUpdatePicture}
-                onFormValidationUpdate={onFormValidationUpdate}
-                onError={onEventError}
-              />
-              <Box
-                component="div"
-                sx={{display: "flex", justifyContent: "flex-end"}}
-              >
-                <Button
-                  variant="outlined"
-                  color="primary"
-                  onClick={goToOverview}
-                >
-                  {TEXT_BACK_TO_OVERVIEW}
-                </Button>
-
-                <Button
-                  variant="contained"
-                  color="primary"
-                  style={{marginLeft: "1rem"}}
-                  onClick={onCreateEvent}
-                >
-                  {TEXT_CONTIUNE}
-                </Button>
-              </Box>
-            </Stack>
-          ) : activeStep === WizardSteps.groupConfig ? (
-            <EventGroupConfigurationPage
-              firebase={firebase}
-              authUser={authUser}
-              event={state.event}
-              onConfirm={{buttonText: TEXT_CONTIUNE, onClick: goToResume}}
-              onCancel={{
-                buttonText: TEXT_BACK_TO_EVENT_INFO,
-                onClick: goToStepInfo,
-              }}
-            />
-          ) : (
-            <CreateEventCompletion
-              event={state.event}
-              onReturn={goToStepGroup}
-              onProceed={goToMenuplan}
-            />
-          )}
+          {renderActiveStep()}
         </Stack>
       </Container>
     </React.Fragment>
@@ -477,9 +596,11 @@ const CreateEventPage = () => {
 interface CreateEventCompletionProps {
   /** Das erstellte Event. */
   event: Event;
+  /** Ob gerade gespeichert wird. */
+  isSaving: boolean;
   /** Callback zum Zurückkehren zur Gruppenkonfiguration. */
   onReturn: () => void;
-  /** Callback zum Fortfahren zum Menüplan. */
+  /** Callback zum Speichern und Abschliessen. */
   onProceed: () => void;
 }
 /**
@@ -488,6 +609,7 @@ interface CreateEventCompletionProps {
  */
 const CreateEventCompletion = ({
   event,
+  isSaving,
   onProceed,
   onReturn,
 }: CreateEventCompletionProps) => {
@@ -543,52 +665,15 @@ const CreateEventCompletion = ({
             gap: theme.spacing(1),
           }}
         >
-          <Button variant="outlined" onClick={onReturn}>
+          <Button variant="outlined" onClick={onReturn} disabled={isSaving}>
             {TEXT_BACK_TO_GROUPCONFIG}
           </Button>
-          <Button variant="contained" onClick={onProceed}>
-            {TEXT_CONTIUNE}
+          <Button variant="contained" onClick={onProceed} disabled={isSaving}>
+            {TEXT_CONTINUE}
           </Button>
         </Box>
       </Stack>
     </Container>
-  );
-};
-// ===================================================================
-// ============================ Twint Button =========================
-// =================================================================== */
-/**
- * TWINT-Zahlungsbutton mit Dark-Mode-Unterstützung.
- * Öffnet den TWINT-Paylink in einem neuen Tab.
- */
-export const TwintButton = () => {
-  const classes = useCustomStyles();
-  const darkMode = useMediaQuery("(prefers-color-scheme: dark)");
-
-  return (
-    <Button
-      fullWidth
-      startIcon={
-        <Box
-          component="img"
-          src={
-            darkMode
-              ? "https://assets.raisenow.io/twint-logo-light.svg"
-              : "https://assets.raisenow.io/twint-logo-dark.svg"
-          }
-          alt="Twint-Icon"
-        />
-      }
-      onClick={() => {
-        window.open(TWINT_PAYLINK, "_blank");
-      }}
-      sx={[
-        classes.twintButton,
-        darkMode ? classes.twintButtonDarkMode : classes.twintButtonLightMode,
-      ]}
-    >
-      Mit TWINT bezahlen
-    </Button>
   );
 };
 /* ===================================================================

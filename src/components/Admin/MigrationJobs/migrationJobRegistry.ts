@@ -8,6 +8,10 @@ import {ProductMigrationJob} from "./ProductMigrationJob";
 import {UnitConversionBasicMigrationJob} from "./UnitConversionBasicMigrationJob";
 import {UnitConversionProductMigrationJob} from "./UnitConversionProductMigrationJob";
 import {RecipeMigrationJob} from "./RecipeMigrationJob";
+import {EventMigrationJob} from "./EventMigrationJob";
+import {GroupConfigMigrationJob} from "./GroupConfigMigrationJob";
+import {MenuplanMigrationJob} from "./MenuplanMigrationJob";
+import {EventPictureMigrationJob} from "./EventPictureMigrationJob";
 
 /* =====================================================================
 // Registry aller verfügbaren Migrations-Jobs
@@ -26,6 +30,10 @@ import {RecipeMigrationJob} from "./RecipeMigrationJob";
  * 5. Standard-Umrechnungen (hängt von Einheiten ab)
  * 6. Produkt-Umrechnungen (hängt von Produkten und Einheiten ab)
  * 7. Rezepte (hängt von Benutzern, Produkten und Materialien ab)
+ * 8. Events / Köche / Zeitscheiben (hängt von Benutzern ab)
+ * 9. Gruppenconfig (hängt von Events ab)
+ * 10. Menupläne (hängt von Events, Gruppenconfig, Rezepten, Produkten, Materialien ab)
+ * 11. Event-Bilder (hängt von Events ab)
  *
  * @example
  * const job = migrationJobRegistry["departments"];
@@ -41,6 +49,10 @@ export const migrationJobRegistry: Record<string, MigrationJob> = {
   unitConversionBasic: new UnitConversionBasicMigrationJob(),
   unitConversionProducts: new UnitConversionProductMigrationJob(),
   recipes: new RecipeMigrationJob(),
+  events: new EventMigrationJob(),
+  groupConfig: new GroupConfigMigrationJob(),
+  menuplan: new MenuplanMigrationJob(),
+  eventPictures: new EventPictureMigrationJob(),
 };
 
 /**

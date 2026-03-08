@@ -209,38 +209,38 @@ describe("UserRepository", () => {
   // findByEmail()
   // ------------------------------------------ */
   describe("findByEmail()", () => {
-    test("UID anhand E-Mail finden", async () => {
-      supabaseMock.queryMock.limit.mockResolvedValue({
-        data: [{id: "T02c6mxOWDstBdvwzjbs5Tfc2abc"}],
+    test("UID anhand E-Mail finden (via RPC)", async () => {
+      supabaseMock.client.rpc.mockResolvedValue({
+        data: "T02c6mxOWDstBdvwzjbs5Tfc2abc",
         error: null,
       });
 
       const result = await repo.findByEmail("test@chuchipirat.ch");
 
-      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
-        "email",
-        "test@chuchipirat.ch",
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
+        "find_user_id_by_email",
+        {lookup_email: "test@chuchipirat.ch"},
       );
       expect(result).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
     });
 
     test("E-Mail wird lowercase und trimmed", async () => {
-      supabaseMock.queryMock.limit.mockResolvedValue({
-        data: [{id: "T02c6mxOWDstBdvwzjbs5Tfc2abc"}],
+      supabaseMock.client.rpc.mockResolvedValue({
+        data: "T02c6mxOWDstBdvwzjbs5Tfc2abc",
         error: null,
       });
 
       await repo.findByEmail("  TEST@Chuchipirat.CH  ");
 
-      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
-        "email",
-        "test@chuchipirat.ch",
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
+        "find_user_id_by_email",
+        {lookup_email: "test@chuchipirat.ch"},
       );
     });
 
     test("null zurückgeben wenn E-Mail nicht gefunden", async () => {
-      supabaseMock.queryMock.limit.mockResolvedValue({
-        data: [],
+      supabaseMock.client.rpc.mockResolvedValue({
+        data: null,
         error: null,
       });
 
@@ -248,18 +248,8 @@ describe("UserRepository", () => {
       expect(result).toBeNull();
     });
 
-    test("null zurückgeben wenn mehrere User mit gleicher E-Mail", async () => {
-      supabaseMock.queryMock.limit.mockResolvedValue({
-        data: [{id: "id1"}, {id: "id2"}],
-        error: null,
-      });
-
-      const result = await repo.findByEmail("duplicate@test.ch");
-      expect(result).toBeNull();
-    });
-
     test("Fehler bei findByEmail() werfen", async () => {
-      supabaseMock.queryMock.limit.mockResolvedValue({
+      supabaseMock.client.rpc.mockResolvedValue({
         data: null,
         error: {message: "Query failed"},
       });

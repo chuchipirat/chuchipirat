@@ -69,6 +69,7 @@ const DialogAddUser = ({
         setInfoBox({visible: true, text: TEXT_YOU_CANNOT_ADD_YOURSELF});
         return;
       }
+
       //UID aus E-Mail-Adresse ermitteln
       await User.getUidByEmail({
         database: database,

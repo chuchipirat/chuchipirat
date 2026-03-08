@@ -1,6 +1,7 @@
 import {AuthService} from "./AuthService";
 import {UserRepository} from "./Repository/UserRepository";
 import {UserStorageRepository} from "./Repository/UserStorageRepository";
+import {EventStorageRepository} from "./Repository/EventStorageRepository";
 import {GlobalSettingsRepository} from "./Repository/GlobalSettingsRepository";
 import {SystemMessageRepository} from "./Repository/SystemMessageRepository";
 import {DepartmentRepository} from "./Repository/DepartmentRepository";
@@ -15,6 +16,9 @@ import {RecipePreparationStepRepository} from "./Repository/RecipePreparationSte
 import {RecipeMaterialRepository} from "./Repository/RecipeMaterialRepository";
 import {RecipeRatingRepository} from "./Repository/RecipeRatingRepository";
 import {RecipeCommentRepository} from "./Repository/RecipeCommentRepository";
+import {EventRepository} from "./Repository/EventRepository";
+import {EventGroupConfigRepository} from "./Repository/EventGroupConfigRepository";
+import {MenuplanRepository} from "./Repository/MenuplanRepository";
 import {supabaseAdmin} from "./supabaseClient";
 
 /* =====================================================================
@@ -48,6 +52,9 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property recipeMaterials - Repository für Materialpositionen
  * @property recipeRatings - Repository für Rezeptbewertungen
  * @property recipeComments - Repository für Rezeptkommentare
+ * @property events - Repository für Events (Kopfdaten, Köche, Zeitscheiben)
+ * @property eventGroupConfig - Repository für die Gruppenconfig eines Events
+ * @property menuplan - Repository für den Menuplan eines Events
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
  * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
  *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
@@ -70,7 +77,10 @@ export class DatabaseService {
   recipeMaterials: RecipeMaterialRepository;
   recipeRatings: RecipeRatingRepository;
   recipeComments: RecipeCommentRepository;
-  storage: {users: UserStorageRepository};
+  events: EventRepository;
+  eventGroupConfig: EventGroupConfigRepository;
+  menuplan: MenuplanRepository;
+  storage: {users: UserStorageRepository; events: EventStorageRepository};
   admin: {
     users: UserRepository;
     globalSettings: GlobalSettingsRepository;
@@ -87,7 +97,10 @@ export class DatabaseService {
     recipeMaterials: RecipeMaterialRepository;
     recipeRatings: RecipeRatingRepository;
     recipeComments: RecipeCommentRepository;
-    storage: {users: UserStorageRepository};
+    events: EventRepository;
+    eventGroupConfig: EventGroupConfigRepository;
+    menuplan: MenuplanRepository;
+    storage: {users: UserStorageRepository; events: EventStorageRepository};
   } | null;
 
   constructor() {
@@ -107,7 +120,10 @@ export class DatabaseService {
     this.recipeMaterials = new RecipeMaterialRepository();
     this.recipeRatings = new RecipeRatingRepository();
     this.recipeComments = new RecipeCommentRepository();
-    this.storage = {users: new UserStorageRepository()};
+    this.events = new EventRepository();
+    this.eventGroupConfig = new EventGroupConfigRepository();
+    this.menuplan = new MenuplanRepository();
+    this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
     this.admin = supabaseAdmin
       ? {
           users: new UserRepository(supabaseAdmin),
@@ -125,7 +141,10 @@ export class DatabaseService {
           recipeMaterials: new RecipeMaterialRepository(supabaseAdmin),
           recipeRatings: new RecipeRatingRepository(supabaseAdmin),
           recipeComments: new RecipeCommentRepository(supabaseAdmin),
-          storage: {users: new UserStorageRepository(supabaseAdmin)},
+          events: new EventRepository(supabaseAdmin),
+          eventGroupConfig: new EventGroupConfigRepository(supabaseAdmin),
+          menuplan: new MenuplanRepository(supabaseAdmin),
+          storage: {users: new UserStorageRepository(supabaseAdmin), events: new EventStorageRepository(supabaseAdmin)},
         }
       : null;
   }

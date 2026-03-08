@@ -10,10 +10,16 @@ export interface ChangeRecord {
   fromUid: string;
   fromDisplayName: string;
 }
-export interface ButtonAction {
+/**
+ * Generische Aktion mit Button-Text und onClick-Handler.
+ * Der Typ-Parameter T erlaubt typsichere Übergabe von Zusatzwerten.
+ *
+ * @param T Typ des optionalen Werts, der an onClick übergeben wird (Standard: unknown).
+ */
+export interface ButtonAction<T = unknown> {
   buttonText: string;
   onClick: (
     event: React.MouseEvent<HTMLButtonElement>,
-    value?: {[key: string]: any}
+    value?: T,
   ) => void;
 }

@@ -110,7 +110,7 @@ import {
   RECIPE_DRAWER_DATA_INITIAL_VALUES,
   RecipeDrawer,
   RecipeDrawerData,
-} from "../Menuplan/menuplan";
+} from "../../Recipe/RecipeDrawer";
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
 import RecipeShort from "../../Recipe/recipeShort.class";
 import MaterialListPdf from "./materialListPdf";

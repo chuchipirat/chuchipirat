@@ -22,7 +22,7 @@ import useCustomStyles from "../../constants/styles";
 import PageTitle from "../Shared/pageTitle";
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import {TwintButton} from "../Event/Event/createNewEvent";
+import TwintButton from "../Shared/TwintButton";
 import {ImageRepository} from "../../constants/imageRepository";
 
 /* ===================================================================

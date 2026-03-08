@@ -202,8 +202,10 @@ interface EventGroupConfigurationPageProps {
   event: Event;
   /** Bestehende Gruppenkonfiguration (beim Bearbeiten). */
   groupConfiguration?: EventGroupConfiguration;
+  /** Wenn true, wird die Gruppenkonfiguration nicht sofort gespeichert. */
+  deferSave?: boolean;
   /** Callback und Button-Text für die Bestätigungs-Aktion. */
-  onConfirm?: ButtonAction;
+  onConfirm?: ButtonAction<EventGroupConfiguration>;
   /** Callback und Button-Text für die Abbruch-Aktion. */
   onCancel?: ButtonAction;
   /** Callback bei Änderung der Portionen (löst Neuberechnung im Menüplan aus). */
@@ -222,6 +224,7 @@ const EventGroupConfigurationPage = ({
   authUser,
   event,
   groupConfiguration,
+  deferSave = false,
   onConfirm,
   onCancel,
   onGroupConfigurationUpdate,
@@ -286,11 +289,13 @@ const EventGroupConfigurationPage = ({
   // Weiter // Zurück
   // ------------------------------------------ */
   const saveEvent = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    await EventGroupConfiguration.save({
-      firebase: firebase,
-      authUser: authUser,
-      groupConfig: state.groupConfig,
-    });
+    if (!deferSave) {
+      await EventGroupConfiguration.save({
+        firebase: firebase,
+        authUser: authUser,
+        groupConfig: state.groupConfig,
+      });
+    }
     onConfirm?.onClick && onConfirm.onClick(event, state.groupConfig);
   };
   const cancelCreate = async (event: React.MouseEvent<HTMLButtonElement>) => {

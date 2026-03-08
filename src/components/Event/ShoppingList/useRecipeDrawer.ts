@@ -5,7 +5,7 @@ import RecipeShort from "../../Recipe/recipeShort.class";
 import {
   RECIPE_DRAWER_DATA_INITIAL_VALUES,
   RecipeDrawerData,
-} from "../Menuplan/menuplan";
+} from "../../Recipe/RecipeDrawer";
 import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
 
 interface UseRecipeDrawerProps {
