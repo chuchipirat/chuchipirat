@@ -105,7 +105,7 @@ import {
  * @param groupConfiguration Gruppenkonfiguration des Events
  * @returns Planungseinträge pro Intoleranz
  */
-function buildDietPlan(
+export function buildDietPlan(
   dietUid: string,
   groupConfiguration: EventGroupConfiguration,
 ): DialogPlanPortionsDietPlanning {
@@ -158,7 +158,7 @@ function buildDietPlan(
  * @param groupConfiguration Gruppenkonfiguration des Events
  * @returns Verschachtelte Planung: Diät → Intoleranz → PlanningInfo
  */
-function buildMenuPlan(
+export function buildMenuPlan(
   groupConfiguration: EventGroupConfiguration,
 ): DialogPlanPortionsMealPlanning {
   const menuPlan: DialogPlanPortionsMealPlanning = {};
@@ -183,7 +183,7 @@ function buildMenuPlan(
  * @param dietPlan Planungseinträge einer Diät
  * @returns Summe der Portionen
  */
-function getDietTabPortions(
+export function getDietTabPortions(
   dietPlan: DialogPlanPortionsDietPlanning | undefined,
 ): number {
   if (!dietPlan) return 0;
@@ -198,7 +198,7 @@ function getDietTabPortions(
  * @param dietPlan Planungseinträge einer Diät
  * @returns `true` wenn mindestens ein Eintrag aktiv ist
  */
-function hasDietActiveEntries(
+export function hasDietActiveEntries(
   dietPlan: DialogPlanPortionsDietPlanning | undefined,
 ): boolean {
   if (!dietPlan) return false;

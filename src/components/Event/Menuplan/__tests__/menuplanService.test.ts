@@ -1204,4 +1204,279 @@ describe("fixMenuplan", () => {
     // Original-Order bleibt erhalten
     expect(mp.menues["menue-1"].mealRecipeOrder).toContain("mr-orphan");
   });
+
+  it("sollte mehrere Orphan-Typen in einem einzelnen Menü entfernen", () => {
+    const mp = buildPopulatedMenuplan();
+    mp.menues["menue-1"].mealRecipeOrder = ["mr-orphan-1", "mr-orphan-2"];
+    mp.menues["menue-1"].materialOrder = ["mat-orphan"];
+    mp.menues["menue-1"].productOrder = ["prod-orphan"];
+
+    const {menuplan: fixed, isConsistent, report} = fixMenuplan(mp);
+
+    expect(isConsistent).toBe(false);
+    expect(report.mealRecipes).toEqual(["mr-orphan-1", "mr-orphan-2"]);
+    expect(report.materials).toEqual(["mat-orphan"]);
+    expect(report.products).toEqual(["prod-orphan"]);
+    expect(fixed.menues["menue-1"].mealRecipeOrder).toEqual([]);
+    expect(fixed.menues["menue-1"].materialOrder).toEqual([]);
+    expect(fixed.menues["menue-1"].productOrder).toEqual([]);
+  });
+});
+
+/* =====================================================================
+// recalculatePortions — Zusätzliche Randfälle
+// ===================================================================== */
+describe("recalculatePortions (Randfälle)", () => {
+  it("sollte bei leerem Menüplan (keine Rezepte/Produkte/Materialien) nichts ändern", () => {
+    const mp = buildPopulatedMenuplan();
+    const gc = buildGroupConfig();
+
+    const result = recalculatePortions({menuplan: mp, groupConfig: gc});
+
+    expect(Object.keys(result.mealRecipes)).toHaveLength(0);
+    expect(Object.keys(result.products)).toHaveLength(0);
+    expect(Object.keys(result.materials)).toHaveLength(0);
+  });
+
+  it("sollte FIX-Rezepte und dynamische Rezepte gemischt korrekt berechnen", () => {
+    const mp = buildPopulatedMenuplan();
+    const gc = buildGroupConfig();
+
+    mp.mealRecipes["mr-fix"] = {
+      uid: "mr-fix",
+      recipe: {
+        recipeUid: "r-fix",
+        name: "Fix-Rezept",
+        type: RecipeType.public,
+        createdFromUid: "u1",
+      },
+      plan: [
+        {
+          diet: PlanedDiet.FIX,
+          intolerance: PlanedIntolerances.FIX,
+          factor: 1,
+          totalPortions: 42,
+        },
+      ],
+      totalPortions: 42,
+    };
+    mp.mealRecipes["mr-dyn"] = {
+      uid: "mr-dyn",
+      recipe: {
+        recipeUid: "r-dyn",
+        name: "Dynamisches-Rezept",
+        type: RecipeType.public,
+        createdFromUid: "u1",
+      },
+      plan: [
+        {
+          diet: PlanedDiet.ALL,
+          intolerance: PlanedIntolerances.ALL,
+          factor: 2,
+          totalPortions: 0,
+        },
+      ],
+      totalPortions: 0,
+    };
+
+    const result = recalculatePortions({menuplan: mp, groupConfig: gc});
+
+    // FIX bleibt unverändert
+    expect(result.mealRecipes["mr-fix"].plan[0].totalPortions).toBe(42);
+    // Dynamisch: ALL/ALL × factor 2 = 30
+    expect(result.mealRecipes["mr-dyn"].plan[0].totalPortions).toBe(30);
+    expect(result.mealRecipes["mr-dyn"].totalPortions).toBe(30);
+  });
+
+  it("sollte Produkte mit gelöschter Intoleranz entfernen und totalQuantity=0 setzen", () => {
+    const mp = buildPopulatedMenuplan();
+    const gc = buildGroupConfig();
+
+    mp.menues["menue-1"].productOrder = ["prod-del"];
+    mp.products["prod-del"] = {
+      uid: "prod-del",
+      productName: "Milch",
+      productUid: "p-del",
+      quantity: 5,
+      unit: "L",
+      planMode: GoodsPlanMode.PER_PORTION,
+      plan: [
+        {
+          diet: "diet-1",
+          intolerance: "deleted-intolerance",
+          factor: 1,
+          totalPortions: 10,
+        },
+      ],
+      totalQuantity: 50,
+    };
+
+    const result = recalculatePortions({menuplan: mp, groupConfig: gc});
+
+    // Gelöschte Intoleranz → Plan-Eintrag gefiltert
+    expect(result.products["prod-del"].plan).toHaveLength(0);
+    expect(result.products["prod-del"].totalQuantity).toBe(0);
+  });
+
+  it("sollte Materialien mit spezifischer Diät/ALL-Intoleranz korrekt berechnen", () => {
+    const mp = buildPopulatedMenuplan();
+    const gc = buildGroupConfig();
+
+    mp.menues["menue-2"].materialOrder = ["mat-spec"];
+    mp.materials["mat-spec"] = {
+      uid: "mat-spec",
+      materialName: "Teller",
+      materialUid: "m-spec",
+      quantity: 1,
+      unit: "Stk",
+      planMode: GoodsPlanMode.PER_PORTION,
+      plan: [
+        {
+          diet: "diet-2",
+          intolerance: PlanedIntolerances.ALL,
+          factor: 1,
+          totalPortions: 0,
+        },
+      ],
+      totalQuantity: 0,
+    };
+
+    const result = recalculatePortions({menuplan: mp, groupConfig: gc});
+
+    // diet-2 × ALL = 5, quantity(1) × 5 = 5
+    expect(result.materials["mat-spec"].totalQuantity).toBe(5);
+  });
+});
+
+/* =====================================================================
+// sortSelectedMenues — Zusätzliche Randfälle
+// ===================================================================== */
+describe("sortSelectedMenues (Randfälle)", () => {
+  it("sollte bei leerer Menüliste ein leeres Array zurückgeben", () => {
+    const mp = buildPopulatedMenuplan();
+    const result = sortSelectedMenues({menueList: [], menuplan: mp});
+
+    expect(result).toEqual([]);
+  });
+
+  it("sollte nicht existierende Menü-UIDs ignorieren", () => {
+    const mp = buildPopulatedMenuplan();
+    const result = sortSelectedMenues({
+      menueList: ["nonexistent-uid"],
+      menuplan: mp,
+    });
+
+    expect(result).toEqual([]);
+  });
+
+  it("sollte gemischte existierende und nicht existierende UIDs korrekt behandeln", () => {
+    const mp = buildPopulatedMenuplan();
+    const result = sortSelectedMenues({
+      menueList: ["nonexistent", "menue-2", "menue-1"],
+      menuplan: mp,
+    });
+
+    expect(result).toHaveLength(2);
+    expect(result[0].menueUid).toBe("menue-1");
+    expect(result[1].menueUid).toBe("menue-2");
+  });
+});
+
+/* =====================================================================
+// adjustMenuplanWithNewDays — Zusätzliche Randfälle
+// ===================================================================== */
+describe("adjustMenuplanWithNewDays (Randfälle)", () => {
+  it("sollte mehrere Zeitscheiben korrekt verarbeiten", () => {
+    const mp = buildPopulatedMenuplan();
+    const existingEvent = buildEvent({
+      dates: [
+        {uid: "d1", pos: 1, from: new Date(2026, 2, 10), to: new Date(2026, 2, 11)},
+      ],
+    });
+    // Zweite Zeitscheibe hinzufügen
+    const newEvent = buildEvent({
+      dates: [
+        {uid: "d1", pos: 1, from: new Date(2026, 2, 10), to: new Date(2026, 2, 11)},
+        {uid: "d2", pos: 2, from: new Date(2026, 2, 15), to: new Date(2026, 2, 15)},
+      ],
+    });
+
+    const result = adjustMenuplanWithNewDays({
+      menuplan: mp,
+      existingEvent,
+      newEvent,
+    });
+
+    // 3 Tage: 10, 11, 15
+    expect(result.dates).toHaveLength(3);
+
+    // Neue Meals für Tag 15
+    const newMeals = Object.values(result.meals).filter(
+      (m) => m.date === "2026-03-15"
+    );
+    expect(newMeals).toHaveLength(2); // 2 MealTypes
+  });
+
+  it("sollte Notizen, die einem gelöschten Menü zugeordnet sind, entfernen", () => {
+    const mp = buildPopulatedMenuplan();
+    mp.notes["note-1"] = {
+      uid: "note-1",
+      text: "Test-Notiz",
+      date: "2026-03-11",
+      menueUid: "menue-3",
+    };
+
+    const existingEvent = buildEvent({
+      dates: [
+        {uid: "d1", pos: 1, from: new Date(2026, 2, 10), to: new Date(2026, 2, 11)},
+      ],
+    });
+    // Tag 11 entfällt → menue-3 wird gelöscht
+    const newEvent = buildEvent({
+      dates: [
+        {uid: "d1", pos: 1, from: new Date(2026, 2, 10), to: new Date(2026, 2, 10)},
+      ],
+    });
+
+    const result = adjustMenuplanWithNewDays({
+      menuplan: mp,
+      existingEvent,
+      newEvent,
+    });
+
+    expect(result.notes["note-1"]).toBeUndefined();
+  });
+});
+
+/* =====================================================================
+// createMealRecipe — Zusätzliche Randfälle
+// ===================================================================== */
+describe("createMealRecipe (Randfälle)", () => {
+  it("sollte leeren Plan korrekt verarbeiten", () => {
+    const recipe = buildRecipeShort();
+    const plan = {};
+
+    const mr = createMealRecipe({recipe, plan});
+
+    expect(mr.plan).toHaveLength(0);
+    expect(mr.totalPortions).toBe(0);
+  });
+
+  it("sollte mehrere Diäten mit mehreren Intoleranzen korrekt verarbeiten", () => {
+    const recipe = buildRecipeShort();
+    const plan = {
+      "diet-1": {
+        "intol-1": {active: true, factor: "1", portions: 8, total: 8, diet: "diet-1"},
+        "intol-2": {active: true, factor: "2", portions: 2, total: 4, diet: "diet-1"},
+      },
+      "diet-2": {
+        "intol-1": {active: true, factor: "1", portions: 4, total: 4, diet: "diet-2"},
+      },
+    };
+
+    const mr = createMealRecipe({recipe, plan});
+
+    expect(mr.plan).toHaveLength(3);
+    expect(mr.totalPortions).toBe(16); // 8 + 4 + 4
+  });
 });
