@@ -16,6 +16,7 @@ import {
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 import {supabase} from "../supabaseClient";
+import Event, {Cook, EventDate} from "../../Event/Event/event.class";
 
 /* =====================================================================
 // DB-Zeilenstrukturen (snake_case, entspricht den Postgres-Spalten)
@@ -479,6 +480,126 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     return () => {
       clientRef.removeChannel(channel);
     };
+  }
+
+  /* =====================================================================
+  // UI-ready Methoden — konvertieren Domain ↔ Event-Klasse direkt
+  // ===================================================================== */
+
+  /**
+   * Konvertiert ein EventDomain in eine Event-Klasseninstanz (UI-Format).
+   *
+   * Köche werden nur mit der userId gemappt — die öffentlichen Profildaten
+   * müssen separat geladen werden. Enthält eine leere Datumszeile am Ende
+   * für die UI-Bearbeitung.
+   *
+   * @param domain - Das EventDomain-Objekt
+   * @returns Eine befüllte Event-Instanz
+   */
+  eventDomainToUi(domain: EventDomain): Event {
+    const event = new Event();
+
+    event.uid = domain.uid;
+    event.name = domain.name;
+    event.motto = domain.motto;
+    event.location = domain.location;
+    event.pictureSrc = domain.pictureSrc;
+
+    // Köche: Nur userId ist aus dem Domain verfügbar
+    event.cooks = domain.cooks.map(
+      (cookDomain: EventCookDomain): Cook => ({
+        uid: cookDomain.userId,
+        displayName: "",
+        motto: "",
+        pictureSrc: "",
+      }),
+    );
+
+    // Zeitscheiben: sortOrder wird als index * 10 gespeichert
+    event.dates = domain.dates.map(
+      (dateDomain: EventDateDomain): EventDate => ({
+        uid: dateDomain.uid,
+        pos: dateDomain.sortOrder / 10,
+        from: dateDomain.dateFrom,
+        to: dateDomain.dateTo,
+      }),
+    );
+
+    // Leere Datumszeile anhängen (UI braucht immer eine neue Zeile zum Bearbeiten)
+    const emptyDate = Event.createDateEntry();
+    emptyDate.pos = event.dates.length + 1;
+    event.dates.push(emptyDate);
+
+    // Audit-Felder
+    event.created = {
+      date: domain.createdAt,
+      fromUid: domain.createdBy ?? "",
+      fromDisplayName: "",
+    };
+    event.lastChange = {
+      date: domain.updatedAt,
+      fromUid: domain.updatedBy ?? "",
+      fromDisplayName: "",
+    };
+
+    // Berechtigte Benutzer aus den Köchen extrahieren
+    event.authUsers = domain.cooks.map((c) => c.userId);
+
+    // maxDate aus den Zeitscheiben berechnen
+    if (event.dates.length > 0) {
+      event.maxDate = event.dates.reduce((maxDate, currentDate) => {
+        return currentDate.to > maxDate.to ? currentDate : maxDate;
+      }, event.dates[0]).to;
+      event.maxDate = new Date(event.maxDate.getTime());
+      event.maxDate.setHours(0, 0, 0, 0);
+    }
+
+    // Anzahl Tage berechnen
+    event.numberOfDays = Event.defineEventDuration(event.dates);
+
+    return event;
+  }
+
+  /**
+   * Konvertiert eine Event-Klasseninstanz in ein EventDomain für die DB.
+   *
+   * Köche und Zeitscheiben werden als leere Arrays gesetzt, da diese über
+   * separate Repository-Methoden (addCook/removeCook, saveDates) verwaltet werden.
+   *
+   * @param event - Die Event-Klasseninstanz
+   * @returns Ein EventDomain für das Repository
+   */
+  eventUiToDomain(event: Event): EventDomain {
+    return {
+      uid: event.uid,
+      name: event.name,
+      motto: event.motto,
+      location: event.location,
+      pictureSrc: event.pictureSrc,
+      cooks: [],
+      dates: [],
+      createdAt: event.created.date,
+      createdBy: event.created.fromUid || null,
+      updatedAt: event.lastChange.date,
+      updatedBy: event.lastChange.fromUid || null,
+    };
+  }
+
+  /**
+   * Konvertiert Event-Zeitscheiben in das Domain-Format für saveDates().
+   *
+   * Filtert leere Datumszeilen heraus und konvertiert die Position
+   * in sortOrder (pos × 10).
+   *
+   * @param dates - Array der Event-Zeitscheiben aus der Klassenstruktur
+   * @returns Array der Domain-Zeitscheiben ohne uid
+   */
+  eventDatesToDateDomains(dates: EventDate[]): Omit<EventDateDomain, "uid">[] {
+    return Event.deleteEmptyDates(dates).map((date) => ({
+      sortOrder: date.pos * 10,
+      dateFrom: date.from,
+      dateTo: date.to,
+    }));
   }
 }
 

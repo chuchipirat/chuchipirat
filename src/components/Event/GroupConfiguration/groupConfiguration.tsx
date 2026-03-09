@@ -74,7 +74,7 @@ import {
 } from "../../Navigation/navigationContext";
 import Action from "../../../constants/actions";
 import {useDatabase} from "../../Database/DatabaseContext";
-import {groupConfigClassToDomain} from "./groupConfigBridge";
+// Bridge-Import eliminiert — Konvertierung erfolgt direkt im Repository
 /* ===================================================================
 // ============================== Global =============================
 // =================================================================== */
@@ -293,7 +293,7 @@ const EventGroupConfigurationPage = ({
   // ------------------------------------------ */
   const saveEvent = async (mouseEvent: React.MouseEvent<HTMLButtonElement>) => {
     if (!deferSave) {
-      const gcDomain = groupConfigClassToDomain(state.groupConfig, event.uid);
+      const gcDomain = database.eventGroupConfig.groupConfigUiToDomain(state.groupConfig, event.uid);
       await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
     }
     onConfirm?.onClick && onConfirm.onClick(mouseEvent, state.groupConfig);
@@ -328,7 +328,7 @@ const EventGroupConfigurationPage = ({
     }
 
     try {
-      const gcDomain = groupConfigClassToDomain(state.groupConfig, event.uid);
+      const gcDomain = database.eventGroupConfig.groupConfigUiToDomain(state.groupConfig, event.uid);
       await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
 
       // Neue Mengen hochgeben, damit der Menüplan neu berechnet wird

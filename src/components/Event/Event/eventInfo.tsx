@@ -290,8 +290,7 @@ const EventInfoPage = ({
           // Ignorieren falls kein Bild vorhanden
         });
         // Event-Dokument aktualisieren (Bild-URL leeren)
-        const {eventClassToDomain} = await import("./eventBridge");
-        const eventDomain = eventClassToDomain({...event, pictureSrc: ""} as Event);
+        const eventDomain = database.events.eventUiToDomain({...event, pictureSrc: ""} as Event);
         await database.events.updateEvent(eventDomain, authUser);
         onUpdateEvent({...event, pictureSrc: ""} as Event);
       } catch (error) {

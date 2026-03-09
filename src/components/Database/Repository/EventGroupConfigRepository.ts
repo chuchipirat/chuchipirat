@@ -16,6 +16,10 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import EventGroupConfiguration, {
+  Diet,
+  Intolerance,
+} from "../../Event/GroupConfiguration/groupConfiguration.class";
 
 /* =====================================================================
 // DB-Zeilenstrukturen
@@ -403,5 +407,126 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
     return () => {
       clientRef.removeChannel(channel);
     };
+  }
+
+  /* =====================================================================
+  // UI-ready Methoden — konvertieren Domain ↔ EventGroupConfiguration direkt
+  // ===================================================================== */
+
+  /**
+   * Konvertiert ein GroupConfigDomain in eine EventGroupConfiguration-Instanz (UI-Format).
+   *
+   * Diäten und Unverträglichkeiten werden nach sortOrder sortiert. Die verschachtelte
+   * Portionenmatrix wird aus der flachen portions-Liste aufgebaut. Abschliessend
+   * werden die Totale via calculateTotals() berechnet.
+   *
+   * @param domain - Das GroupConfigDomain-Objekt
+   * @param eventUid - Die UID des zugehörigen Events
+   * @returns Eine vollständig befüllte EventGroupConfiguration-Instanz
+   */
+  groupConfigDomainToUi(
+    domain: GroupConfigDomain,
+    eventUid: string,
+  ): EventGroupConfiguration {
+    const groupConfig = new EventGroupConfiguration();
+    groupConfig.uid = eventUid;
+
+    // Diäten nach sortOrder sortieren und in die entries/order-Struktur überführen
+    const sortedDiets = [...domain.diets].sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    );
+    for (const diet of sortedDiets) {
+      const dietEntry: Diet = {
+        uid: diet.uid,
+        name: diet.name,
+        totalPortions: 0, // Wird durch calculateTotals() berechnet
+      };
+      groupConfig.diets.entries[diet.uid] = dietEntry;
+      groupConfig.diets.order.push(diet.uid);
+    }
+
+    // Unverträglichkeiten nach sortOrder sortieren
+    const sortedIntolerances = [...domain.intolerances].sort(
+      (a, b) => a.sortOrder - b.sortOrder,
+    );
+    for (const intolerance of sortedIntolerances) {
+      const intoleranceEntry: Intolerance = {
+        uid: intolerance.uid,
+        name: intolerance.name,
+        totalPortions: 0,
+      };
+      groupConfig.intolerances.entries[intolerance.uid] = intoleranceEntry;
+      groupConfig.intolerances.order.push(intolerance.uid);
+    }
+
+    // Verschachtelte Portionenmatrix: portions[dietId][intoleranceId] = servings
+    for (const dietUid of groupConfig.diets.order) {
+      const intolerancePortions: {[key: string]: number} = {};
+      for (const intUid of groupConfig.intolerances.order) {
+        intolerancePortions[intUid] = 0;
+      }
+      groupConfig.portions[dietUid] = intolerancePortions;
+    }
+
+    // Tatsächliche Werte einfüllen
+    for (const portion of domain.portions) {
+      if (
+        groupConfig.portions[portion.dietId] !== undefined &&
+        groupConfig.portions[portion.dietId][portion.intoleranceId] !== undefined
+      ) {
+        groupConfig.portions[portion.dietId][portion.intoleranceId] =
+          portion.servings;
+      }
+    }
+
+    // Totale berechnen
+    EventGroupConfiguration.calculateTotals({groupConfig});
+
+    return groupConfig;
+  }
+
+  /**
+   * Konvertiert eine EventGroupConfiguration-Instanz in ein GroupConfigDomain für die DB.
+   *
+   * Die order-Arrays bestimmen die Sortierreihenfolge (Index × 10 als sortOrder).
+   * Die verschachtelte Portionenmatrix wird in eine flache Liste überführt.
+   *
+   * @param gc - Die EventGroupConfiguration-Instanz
+   * @param eventId - Die ID des zugehörigen Events
+   * @returns Ein GroupConfigDomain für saveGroupConfig()
+   */
+  groupConfigUiToDomain(
+    gc: EventGroupConfiguration,
+    eventId: string,
+  ): GroupConfigDomain {
+    const diets: GroupConfigItemDomain[] = gc.diets.order.map(
+      (dietUid, index) => ({
+        uid: dietUid,
+        name: gc.diets.entries[dietUid].name,
+        sortOrder: index * 10,
+      }),
+    );
+
+    const intolerances: GroupConfigItemDomain[] = gc.intolerances.order.map(
+      (intUid, index) => ({
+        uid: gc.intolerances.entries[intUid].uid,
+        name: gc.intolerances.entries[intUid].name,
+        sortOrder: index * 10,
+      }),
+    );
+
+    const portions: PortionEntryDomain[] = [];
+    for (const dietUid of gc.diets.order) {
+      for (const intUid of gc.intolerances.order) {
+        portions.push({
+          uid: "",
+          dietId: dietUid,
+          intoleranceId: intUid,
+          servings: gc.portions[dietUid]?.[intUid] ?? 0,
+        });
+      }
+    }
+
+    return {eventId, diets, intolerances, portions};
   }
 }

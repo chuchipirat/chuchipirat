@@ -20,9 +20,7 @@ import {
 import useCustomStyles from "../../../constants/styles";
 
 import Event, {EventRefDocuments} from "./event.class";
-import {eventDomainToClass, eventClassToDomain, eventDatesToDateDomains} from "./eventBridge";
-import {groupConfigDomainToClass} from "../GroupConfiguration/groupConfigBridge";
-import {menuplanDomainToClass, menuplanClassToDomain} from "../Menuplan/menuplanBridge";
+// Bridge-Importe eliminiert — Konvertierung erfolgt direkt in den Repositories
 import {resizeImage} from "../../Shared/imageResize";
 import PageTitle from "../../Shared/pageTitle";
 
@@ -843,7 +841,7 @@ const EventPage = () => {
   const enrichEventWithCookProfiles = async (
     domain: EventDomain,
   ): Promise<Event> => {
-    const event = eventDomainToClass(domain);
+    const event = database.events.eventDomainToUi(domain);
 
     // Öffentliche Profile der Köche parallel laden
     const profilePromises = event.cooks.map(async (cook) => {
@@ -921,7 +919,7 @@ const EventPage = () => {
       .then((gcDomain) => {
         dispatch({
           type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-          payload: groupConfigDomainToClass(gcDomain, eventUid),
+          payload: database.eventGroupConfig.groupConfigDomainToUi(gcDomain, eventUid),
         });
       })
       .catch((error) => {
@@ -935,7 +933,7 @@ const EventPage = () => {
       (gcDomain) => {
         dispatch({
           type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-          payload: groupConfigDomainToClass(gcDomain, eventUid),
+          payload: database.eventGroupConfig.groupConfigDomainToUi(gcDomain, eventUid),
         });
       },
       (error) => {
@@ -954,11 +952,11 @@ const EventPage = () => {
 
       // Initialer Load
       database.menuplan
-        .getMenuplan(eventUid)
-        .then((menuplanDomain) => {
+        .getMenuplanForUi(eventUid)
+        .then((menuplanData) => {
           dispatch({
             type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
-            payload: menuplanDomainToClass(menuplanDomain, eventUid),
+            payload: menuplanData,
           });
         })
         .catch((error) => {
@@ -974,10 +972,9 @@ const EventPage = () => {
       if (menuplanSaveInProgress.current) return;
 
       database.menuplan
-        .getMenuplan(eventUid)
-        .then((menuplanDomain) => {
+        .getMenuplanForUi(eventUid)
+        .then((newMenuplan) => {
           if (menuplanSaveInProgress.current) return;
-          const newMenuplan = menuplanDomainToClass(menuplanDomain, eventUid);
 
           // Geänderte Menüs ermitteln und kurzzeitig hervorheben
           const changedUids = getChangedMenueUids(
@@ -1310,9 +1307,8 @@ const EventPage = () => {
     // mit leerem Zwischenstand (nach DELETE, vor INSERT) überschreiben.
     menuplanSaveInProgress.current = true;
 
-    const menuplanDomain = menuplanClassToDomain(menuplan, eventUid);
     database.menuplan
-      .saveMenuplan(eventUid, menuplanDomain, authUser as AuthUser)
+      .saveMenuplanFromUi(eventUid, menuplan, authUser as AuthUser)
       .then(() => {
         menuplanSaveInProgress.current = false;
       })
@@ -1409,11 +1405,11 @@ const EventPage = () => {
       }
 
       // Event-Kopfdaten speichern
-      const eventDomain = eventClassToDomain(event);
+      const eventDomain = database.events.eventUiToDomain(event);
       await database.events.updateEvent(eventDomain, authUser as AuthUser);
 
       // Zeitscheiben speichern
-      const dateDomains = eventDatesToDateDomains(event.dates);
+      const dateDomains = database.events.eventDatesToDateDomains(event.dates);
       await database.events.saveDates(event.uid, dateDomains, authUser as AuthUser);
 
       setEventDraft({...eventDraft, event: event, localPicture: null});

@@ -1,19 +1,19 @@
 /**
- * Tests für die Bridge-Funktionen zwischen Firebase-Menuplan (verschachtelte Maps)
- * und Supabase-MenuplanDomain (flache Arrays).
+ * Tests für die Konvertierung zwischen MenuplanDomain (flache Arrays)
+ * und MenuplanData (verschachtelte Maps, UI-Format).
  *
- * Reine Funktions-Tests ohne Mocks.
+ * Die Konvertierungslogik liegt jetzt im MenuplanRepository.
+ * Reine Funktions-Tests ohne Mocks — der Repository wird ohne DB-Client instanziiert.
  */
+import {MenuplanRepository} from "../../../Database/Repository/MenuplanRepository";
 import {
-  menuplanDomainToClass,
-  menuplanClassToDomain,
-} from "../menuplanBridge";
-import Menuplan, {
   MealRecipeDeletedPrefix,
   PlanedDiet,
   PlanedIntolerances,
   GoodsPlanMode,
-} from "../menuplan.class";
+} from "../menuplan.types";
+import type {MenuplanData} from "../menuplan.types";
+import {createEmptyMenuplan} from "../menuplanService";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import type {
   MenuplanDomain,
@@ -26,6 +26,9 @@ import type {
   NoteDomain,
   ItemPlanDomain,
 } from "../../../Database/Repository/MenuplanRepository";
+
+// Repository-Instanz ohne DB-Client — nur für die Konvertierungsmethoden
+const repo = new MenuplanRepository();
 
 // =====================================================================
 // Hilfsfunktionen für Test-Daten
@@ -75,10 +78,10 @@ function buildItemPlan(
 }
 
 // =====================================================================
-// menuplanDomainToClass
+// menuplanDomainToUi
 // =====================================================================
 
-describe("menuplanDomainToClass", () => {
+describe("menuplanDomainToUi", () => {
   it("konvertiert MealTypes in die entries/order-Struktur", () => {
     const mealTypes: MealTypeDomain[] = [
       {uid: "mt-2", name: "Mittagessen", sortOrder: 20},
@@ -86,7 +89,7 @@ describe("menuplanDomainToClass", () => {
     ];
     const domain = buildDomain({mealTypes});
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     // Reihenfolge muss nach sortOrder sortiert sein
     expect(result.mealTypes.order).toEqual(["mt-1", "mt-2"]);
@@ -113,7 +116,7 @@ describe("menuplanDomainToClass", () => {
     ];
     const domain = buildDomain({mealTypes, meals, menues});
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     expect(result.meals["meal-1"].menuOrder).toEqual(["menue-a", "menue-b"]);
     expect(result.meals["meal-1"].date).toBe("2026-03-08");
@@ -149,7 +152,7 @@ describe("menuplanDomainToClass", () => {
       menueRecipes,
     });
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     const mr = result.mealRecipes["mr-1"];
     expect(mr.recipe.name).toBe("Kartoffelgratin");
@@ -185,7 +188,7 @@ describe("menuplanDomainToClass", () => {
       menueRecipes,
     });
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     const mr = result.mealRecipes["mr-del"];
     // Gelöschtes Rezept: name kommt aus deletedRecipeName, recipeUid ist leer
@@ -236,7 +239,7 @@ describe("menuplanDomainToClass", () => {
       menueMaterials,
     });
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     expect(result.products["prod-1"].planMode).toBe(GoodsPlanMode.TOTAL);
     expect(result.products["prod-1"].productName).toBe("Mehl");
@@ -302,7 +305,7 @@ describe("menuplanDomainToClass", () => {
       menueRecipes,
     });
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
     const converted = result.mealRecipes["mr-1"].plan;
 
     expect(converted).toHaveLength(3);
@@ -331,7 +334,7 @@ describe("menuplanDomainToClass", () => {
     ];
     const domain = buildDomain({notes});
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     expect(result.notes["n-1"].text).toBe("Achtung!");
     expect(result.notes["n-1"].menueUid).toBe("menue-1");
@@ -346,7 +349,7 @@ describe("menuplanDomainToClass", () => {
     ];
     const domain = buildDomain({meals});
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     // Eindeutige Datumswerte, aufsteigend sortiert
     expect(result.dates).toHaveLength(2);
@@ -356,7 +359,7 @@ describe("menuplanDomainToClass", () => {
   it("setzt die UID des Menuplans auf die Event-UID", () => {
     const domain = buildDomain();
 
-    const result = menuplanDomainToClass(domain, "my-event-uid");
+    const result = repo.menuplanDomainToUi(domain, "my-event-uid");
 
     expect(result.uid).toBe("my-event-uid");
   });
@@ -388,7 +391,7 @@ describe("menuplanDomainToClass", () => {
       menueRecipes,
     });
 
-    const result = menuplanDomainToClass(domain, "event-1");
+    const result = repo.menuplanDomainToUi(domain, "event-1");
 
     expect(result.mealRecipes["mr-1"].recipe.variantName).toBe(
       "Vegane Variante"
@@ -397,15 +400,15 @@ describe("menuplanDomainToClass", () => {
 });
 
 // =====================================================================
-// menuplanClassToDomain
+// menuplanUiToDomain
 // =====================================================================
 
-describe("menuplanClassToDomain", () => {
+describe("menuplanUiToDomain", () => {
   /**
-   * Erzeugt einen Menuplan mit einer Meal, einem Menue und einem Rezept.
+   * Erzeugt ein MenuplanData mit einer Meal, einem Menue und einem Rezept.
    */
-  function buildMenuplan(): Menuplan {
-    const mp = new Menuplan();
+  function buildMenuplanData(): MenuplanData {
+    const mp = createEmptyMenuplan();
     mp.uid = "event-1";
 
     mp.mealTypes.order = ["mt-1", "mt-2"];
@@ -493,9 +496,9 @@ describe("menuplanClassToDomain", () => {
   }
 
   it("konvertiert MealTypes mit korrekten sortOrder-Werten", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
 
     expect(domain.mealTypes).toEqual([
       {uid: "mt-1", name: "Frühstück", sortOrder: 0},
@@ -504,9 +507,9 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("konvertiert Meals korrekt", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
 
     expect(domain.meals).toHaveLength(1);
     expect(domain.meals[0]).toEqual({
@@ -517,9 +520,9 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("konvertiert Menues mit mealId und sortOrder", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
 
     expect(domain.menues).toHaveLength(1);
     expect(domain.menues[0]).toEqual({
@@ -531,9 +534,9 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("konvertiert Rezepte, Produkte und Materialien", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
 
     // Rezept
     expect(domain.menueRecipes).toHaveLength(1);
@@ -555,7 +558,7 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("überspringt verwaiste Menüs (nicht in einer Meal.menuOrder)", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
 
     // Verwaistes Menü hinzufügen (nicht in meal-1.menuOrder)
     mp.menues["orphan-menue"] = {
@@ -599,7 +602,7 @@ describe("menuplanClassToDomain", () => {
 
     const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
 
     // Verwaistes Menü wird übersprungen
     expect(domain.menues).toHaveLength(1);
@@ -619,13 +622,13 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("konvertiert gelöschte Rezepte (Name beginnt mit MealRecipeDeletedPrefix)", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
 
     mp.mealRecipes["mr-1"].recipe.recipeUid = "";
     mp.mealRecipes["mr-1"].recipe.name =
       `${MealRecipeDeletedPrefix} Altes Rezept`;
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
 
     const recipe = domain.menueRecipes[0];
     expect(recipe.recipeId).toBeNull();
@@ -636,7 +639,7 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("konvertiert Plan-Zeilen zurück: ALL, FIX und group-Scope", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
 
     mp.mealRecipes["mr-1"].plan = [
       {
@@ -659,7 +662,7 @@ describe("menuplanClassToDomain", () => {
       },
     ];
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
     const plans = domain.menueRecipes[0].plans;
 
     expect(plans).toHaveLength(3);
@@ -688,7 +691,7 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("konvertiert Notizen mit optionalem menueId", () => {
-    const mp = buildMenuplan();
+    const mp = buildMenuplanData();
     mp.notes["n-2"] = {
       uid: "n-2",
       date: "2026-03-09",
@@ -696,7 +699,7 @@ describe("menuplanClassToDomain", () => {
       text: "Allgemeine Notiz",
     };
 
-    const domain = menuplanClassToDomain(mp, "event-1");
+    const domain = repo.menuplanUiToDomain(mp, "event-1");
     const noteWithMenue = domain.notes.find((n) => n.uid === "n-1")!;
     const noteWithoutMenue = domain.notes.find((n) => n.uid === "n-2")!;
 
@@ -705,9 +708,9 @@ describe("menuplanClassToDomain", () => {
   });
 
   it("setzt eventId korrekt", () => {
-    const mp = new Menuplan();
+    const mp = createEmptyMenuplan();
 
-    const domain = menuplanClassToDomain(mp, "event-xyz");
+    const domain = repo.menuplanUiToDomain(mp, "event-xyz");
 
     expect(domain.eventId).toBe("event-xyz");
   });
@@ -717,7 +720,7 @@ describe("menuplanClassToDomain", () => {
 // Round-Trip
 // =====================================================================
 
-describe("Round-Trip: domainToClass → classToDomain", () => {
+describe("Round-Trip: domainToUi → uiToDomain", () => {
   it("bewahrt wesentliche Daten (UIDs, Namen, Sortierungen)", () => {
     const originalDomain: MenuplanDomain = {
       eventId: "event-rt",
@@ -812,8 +815,8 @@ describe("Round-Trip: domainToClass → classToDomain", () => {
     };
 
     // Hin und zurück
-    const classInstance = menuplanDomainToClass(originalDomain, "event-rt");
-    const roundTripped = menuplanClassToDomain(classInstance, "event-rt");
+    const uiData = repo.menuplanDomainToUi(originalDomain, "event-rt");
+    const roundTripped = repo.menuplanUiToDomain(uiData, "event-rt");
 
     // eventId
     expect(roundTripped.eventId).toBe(originalDomain.eventId);
