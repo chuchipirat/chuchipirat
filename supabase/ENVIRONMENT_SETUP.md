@@ -48,6 +48,8 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260308000010_enable_realtime_events.sql`           | Aktiviert Supabase Realtime für alle 14 Event-Tabellen (`events`, `event_cooks`, `event_dates`, `event_groupconfiguration_*`, `event_meal_types`, `event_meals`, `event_menues`, `event_menue_recipes/products/materials`, `event_notes`, `event_menuplan_item_plans`) via `ALTER PUBLICATION supabase_realtime ADD TABLE` |
 | `20260308000011_add_recipe_variant_fks.sql`           | FK-Constraints für Varianten-Felder in `recipes`: `variant_event_uid` → `events(id)` ON DELETE CASCADE, `original_recipe_uid` → `recipes(id)` ON DELETE SET NULL |
 | `20260308000012_create_recipe_ingredient_material_views.sql` | Views `recipe_ingredients_with_names` und `recipe_materials_with_names` — LEFT JOIN auf `products`/`materials` für aufgelöste Namen, `security_invoker = true` |
+| `20260309000001_menuplan_check_constraints.sql`              | CHECK-Constraints für nicht-negative Mengen/Faktoren auf `event_menue_recipes` (`total_portions >= 0`), `event_menue_products` (`quantity >= 0`), `event_menue_materials` (`quantity >= 0`), `event_menuplan_item_plans` (`factor >= 0`, `servings >= 0`) |
+| `20260309000002_save_menuplan_rpc.sql`                       | RPC-Funktion `save_menuplan(p_event_id, p_payload)` — atomarer Full-Replace-Save für alle 8 Menuplan-Tabellen in einer einzigen Transaktion. SECURITY INVOKER (RLS bleibt aktiv), Aufruf nur für `authenticated` |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 

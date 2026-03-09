@@ -63,6 +63,8 @@ import {
   EXPLANATION_DIALOG_GOODS_TYPE_MATERIAL as TEXT_EXPLANATION_DIALOG_GOODS_TYPE_MATERIAL,
   EXPLANATION_DIALOG_GOODS_OPTION_TOTAL as TEXT_EXPLANATION_DIALOG_GOODS_OPTION_TOTAL,
   EXPLANATION_DIALOG_GOODS_OPTION_PER_PORTION as TEXT_EXPLANATION_DIALOG_GOODS_OPTION_PER_PORTION,
+  QUANTITY_MUST_BE_POSITIVE as TEXT_QUANTITY_MUST_BE_POSITIVE,
+  QUANTITY_TOO_LARGE as TEXT_QUANTITY_TOO_LARGE,
 } from "../../../constants/text";
 
 /**
@@ -366,7 +368,23 @@ export const DialogGoods = ({
       popUpOpen: false,
     });
   };
+  /**
+   * Prüft die Mengeneingabe auf Gültigkeit.
+   *
+   * @returns Fehlermeldung oder leerer String bei gültiger Eingabe.
+   */
+  const getQuantityError = (): string => {
+    const q = dialogValues.quantity;
+    if (isNaN(q) || q <= 0) return TEXT_QUANTITY_MUST_BE_POSITIVE;
+    if (q > 99999) return TEXT_QUANTITY_TOO_LARGE;
+    return "";
+  };
+  const quantityError = getQuantityError();
+
   const onOk = () => {
+    // Eingabevalidierung: ungültige Mengen abfangen
+    if (quantityError) return;
+
     onOkSuper({
       planMode: dialogValues.planMode,
       quantity: dialogValues.quantity,
@@ -489,6 +507,12 @@ export const DialogGoods = ({
                 type="number"
                 inputProps={{min: 0}}
                 onChange={onChangeField}
+                error={
+                  dialogValues.quantity !== 0 && quantityError !== ""
+                }
+                helperText={
+                  dialogValues.quantity !== 0 ? quantityError : ""
+                }
                 fullWidth
               />
             </Grid>
@@ -511,10 +535,10 @@ export const DialogGoods = ({
           </Button>
           <Button
             onClick={onOk}
-            disabled={!dialogValues.material?.uid && !dialogValues.product?.uid}
-            //   Object.keys(dialogValues.material).length == 0 &&
-            //   Object.keys(dialogValues.product).length == 0
-            // }
+            disabled={
+              (!dialogValues.material?.uid && !dialogValues.product?.uid) ||
+              quantityError !== ""
+            }
             color="primary"
             variant="contained"
           >

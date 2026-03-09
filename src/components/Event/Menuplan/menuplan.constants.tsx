@@ -20,6 +20,7 @@ import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.cl
 import Action from "../../../constants/actions";
 import {
   ALL as TEXT_ALL,
+  FIX_PORTIONS as TEXT_FIX_PORTIONS,
   PORTIONS as TEXT_PORTIONS,
   PORTION as TEXT_PORTION,
 } from "../../../constants/text";
@@ -197,7 +198,7 @@ export const generatePlanedPortionsText = ({
         plan.diet == PlanedDiet.ALL
           ? TEXT_ALL
           : plan.diet == PlanedDiet.FIX
-            ? ""
+            ? TEXT_FIX_PORTIONS
             : groupConfiguration.diets.entries[plan.diet].name
       }${
         plan.intolerance == PlanedIntolerances.ALL

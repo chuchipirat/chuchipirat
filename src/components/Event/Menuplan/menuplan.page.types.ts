@@ -43,13 +43,10 @@ import {PlanedDiet} from "./menuplan.types";
 // =================================================================== */
 
 /**
- * Generisches Update-Objekt für den Menüplan.
- * Erlaubt beliebige Felder des Menüplans zu aktualisieren.
+ * Typisiertes Update-Objekt für den Menüplan.
+ * Erlaubt nur gültige Felder des Menüplans zu aktualisieren.
  */
-export interface OnMenuplanUpdate {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  [key: string]: any;
-}
+export type OnMenuplanUpdate = Partial<MenuplanData>;
 
 /* ===================================================================
 // ========================= Page Props ==============================
@@ -228,10 +225,19 @@ export interface DialogPlanPortionsPlanningInfo {
 }
 
 /**
- * Planung für ein Menü — Map von Intoleranz-UID zu Planungsinfo.
+ * Planungseinträge pro Diät — Map von Intoleranz-UID zu Planungsinfo.
+ * Bildet die Einträge innerhalb eines Diät-Tabs ab.
+ */
+export interface DialogPlanPortionsDietPlanning {
+  [key: Intolerance["uid"]]: DialogPlanPortionsPlanningInfo;
+}
+
+/**
+ * Planung für ein Menü — Map von Diät-UID zu Intoleranz-Planung.
+ * Ermöglicht Multi-Diät-Planung: jede Diät hat eigene Intoleranz-Checkboxen.
  */
 export interface DialogPlanPortionsMealPlanning {
-  [key: Intolerance["uid"]]: DialogPlanPortionsPlanningInfo;
+  [dietUid: Diet["uid"]]: DialogPlanPortionsDietPlanning;
 }
 
 /**
@@ -245,13 +251,13 @@ export interface DialogPlanPortionsMealPlan {
  * Interner State des Portionenplan-Dialogs.
  *
  * @param keepMenuPortionsInSync - Ob Portionen über Menüs synchronisiert werden
- * @param selectedDiets - Gewählte Diät pro Menü
+ * @param activeTabs - Aktiver Tab (Diät) pro Menü — rein visuell, beeinflusst nicht den Plan
  * @param menueList - Liste der Menü-UIDs (oder SYNC-Key)
- * @param plan - Der eigentliche Portionsplan
+ * @param plan - Der eigentliche Portionsplan (mehrstufig: Menü → Diät → Intoleranz)
  */
 export interface DialogPlanPortionsDialogValues {
   keepMenuPortionsInSync: boolean;
-  selectedDiets: {[key: Menue["uid"]]: PortionPlan["diet"]} | null;
+  activeTabs: {[key: Menue["uid"]]: string} | null;
   menueList: string[] | null;
   plan: DialogPlanPortionsMealPlan | null;
 }

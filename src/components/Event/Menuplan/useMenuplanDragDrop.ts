@@ -5,7 +5,7 @@
  * sowie die Handler-Funktionen für Reihenfolgen-Updates und
  * Kontextmenü-Verschiebungen.
  */
-import {useEffect} from "react";
+import {useCallback, useEffect, useRef} from "react";
 import invariant from "tiny-invariant";
 import {monitorForElements} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {extractClosestEdge} from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
@@ -119,6 +119,14 @@ export const useMenuplanDragDrop = ({
   setDialogSelectMenueData,
   setDialogSelectMealData,
 }: UseMenuplanDragDropParams): UseMenuplanDragDropReturn => {
+  // Ref für stabile Zugriffe in DnD-Callbacks (verhindert unnötige useEffect-Neuregistrierung)
+  const menuplanRef = useRef(menuplan);
+  menuplanRef.current = menuplan;
+
+  // Ref für potenziell instabile Callbacks — ermöglicht stabile useCallback-Referenzen
+  const callbacksRef = useRef({onMenuplanUpdateSuper});
+  callbacksRef.current = {onMenuplanUpdateSuper};
+
   /* ------------------------------------------
   // Drag & Drop Handling — monitorForElements + autoScroll
   // ------------------------------------------ */
@@ -142,7 +150,7 @@ export const useMenuplanDragDrop = ({
 
           // Herausfinden wo zu Hause
           const homeMenue: Menue | undefined =
-            menuplan.menues[dragging.menueUid];
+            menuplanRef.current.menues[dragging.menueUid];
           if (!homeMenue) {
             return;
           }
@@ -182,7 +190,7 @@ export const useMenuplanDragDrop = ({
           const dropTargetData = innerMost.data;
           if (isCardListDropTargetData(dropTargetData)) {
             const destinationMenue: Menue | undefined =
-              menuplan.menues[dropTargetData.menueUid];
+              menuplanRef.current.menues[dropTargetData.menueUid];
             if (!destinationMenue) {
               return;
             }
@@ -213,10 +221,10 @@ export const useMenuplanDragDrop = ({
                 indexOfTarget: destinationListItemIndex,
                 closestEdgeOfTarget: closestEdge,
               });
-              onMenuplanUpdateSuper({
-                ...menuplan,
+              callbacksRef.current.onMenuplanUpdateSuper({
+                ...menuplanRef.current,
                 menues: {
-                  ...menuplan.menues,
+                  ...menuplanRef.current.menues,
                   [dragging.menueUid]: {
                     ...homeMenue,
                     [orderListName]: reorderedList,
@@ -262,10 +270,10 @@ export const useMenuplanDragDrop = ({
               dragging.listItem.id,
             );
 
-            onMenuplanUpdateSuper({
-              ...menuplan,
+            callbacksRef.current.onMenuplanUpdateSuper({
+              ...menuplanRef.current,
               menues: {
-                ...menuplan.menues,
+                ...menuplanRef.current.menues,
                 [dragging.menueUid]: {
                   ...homeMenue,
                   [orderListName]: homeReorderedList,
@@ -282,7 +290,7 @@ export const useMenuplanDragDrop = ({
           // Drop auf eine Karte (aber nicht Liste)
           if (isMenueCardData(dropTargetData)) {
             const destinationMenue =
-              menuplan.menues[dropTargetData.listItem.menue.uid];
+              menuplanRef.current.menues[dropTargetData.listItem.menue.uid];
             if (!destinationMenue) {
               return;
             }
@@ -296,10 +304,10 @@ export const useMenuplanDragDrop = ({
                 finishIndex: homeMenue[orderListName].length - 1,
               });
 
-              onMenuplanUpdateSuper({
-                ...menuplan,
+              callbacksRef.current.onMenuplanUpdateSuper({
+                ...menuplanRef.current,
                 menues: {
-                  ...menuplan.menues,
+                  ...menuplanRef.current.menues,
                   [dragging.menueUid]: {
                     ...homeMenue,
                     [orderListName]: reorderedList,
@@ -321,10 +329,10 @@ export const useMenuplanDragDrop = ({
               dragging.listItem.id,
             );
 
-            onMenuplanUpdateSuper({
-              ...menuplan,
+            callbacksRef.current.onMenuplanUpdateSuper({
+              ...menuplanRef.current,
               menues: {
-                ...menuplan.menues,
+                ...menuplanRef.current.menues,
                 [dragging.menueUid]: {
                   ...homeMenue,
                   [orderListName]: homeReorderedList,
@@ -339,7 +347,7 @@ export const useMenuplanDragDrop = ({
           }
           // Drop auf leere Liste
           if (isListContainerDropTargetData(dropTargetData)) {
-            const destinationMenue = menuplan.menues[dropTargetData.menueUid];
+            const destinationMenue = menuplanRef.current.menues[dropTargetData.menueUid];
 
             if (!destinationMenue || !dropTargetData.isEmpty) {
               return;
@@ -351,10 +359,10 @@ export const useMenuplanDragDrop = ({
 
             // Element in leere Ziel-Liste einfügen
             const destinationReorderedList = [dragging.listItem.id];
-            onMenuplanUpdateSuper({
-              ...menuplan,
+            callbacksRef.current.onMenuplanUpdateSuper({
+              ...menuplanRef.current,
               menues: {
-                ...menuplan.menues,
+                ...menuplanRef.current.menues,
                 [dragging.menueUid]: {
                   ...homeMenue,
                   [orderListName]: homeReorderedList,
@@ -388,8 +396,8 @@ export const useMenuplanDragDrop = ({
 
           // Drop auf leeren Container
           if (isEmptyContainerData(dropTargetData)) {
-            const homeMeal = menuplan.meals[dragging.mealUid];
-            const destinationMeal = menuplan.meals[dropTargetData.mealUid];
+            const homeMeal = menuplanRef.current.meals[dragging.mealUid];
+            const destinationMeal = menuplanRef.current.meals[dropTargetData.mealUid];
 
             if (!homeMeal || !destinationMeal) {
               return;
@@ -415,10 +423,10 @@ export const useMenuplanDragDrop = ({
             // In leere Ziel-Mahlzeit einfügen
             const destinationReorderedList = [dragging.listItem.menue.uid];
 
-            onMenuplanUpdateSuper({
-              ...menuplan,
+            callbacksRef.current.onMenuplanUpdateSuper({
+              ...menuplanRef.current,
               meals: {
-                ...menuplan.meals,
+                ...menuplanRef.current.meals,
                 [homeMeal.uid]: {
                   ...homeMeal,
                   menuOrder: homeReorderedList,
@@ -440,8 +448,8 @@ export const useMenuplanDragDrop = ({
             return;
           }
 
-          const homeMeal = menuplan.meals[dragging.mealUid];
-          const destinationMeal = menuplan.meals[dropTargetData.mealUid];
+          const homeMeal = menuplanRef.current.meals[dragging.mealUid];
+          const destinationMeal = menuplanRef.current.meals[dropTargetData.mealUid];
 
           if (!homeMeal || !destinationMeal) {
             return;
@@ -475,10 +483,10 @@ export const useMenuplanDragDrop = ({
               closestEdgeOfTarget: closestEdge,
             });
 
-            onMenuplanUpdateSuper({
-              ...menuplan,
+            callbacksRef.current.onMenuplanUpdateSuper({
+              ...menuplanRef.current,
               meals: {
-                ...menuplan.meals,
+                ...menuplanRef.current.meals,
                 [dragging.mealUid]: {
                   ...homeMeal,
                   menuOrder: reorderedList,
@@ -505,10 +513,10 @@ export const useMenuplanDragDrop = ({
             dragging.listItem.menue.uid,
           );
 
-          onMenuplanUpdateSuper({
-            ...menuplan,
+          callbacksRef.current.onMenuplanUpdateSuper({
+            ...menuplanRef.current,
             meals: {
-              ...menuplan.meals,
+              ...menuplanRef.current.meals,
               [homeMeal.uid]: {
                 ...homeMeal,
                 menuOrder: homeReorderedList,
@@ -544,7 +552,8 @@ export const useMenuplanDragDrop = ({
         },
       }),
     );
-  }, [menuplan.menues, menuplan.meals]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   /* ------------------------------------------
   // Board-Panning — horizontales Scrollen via Pointer-Events
@@ -628,22 +637,22 @@ export const useMenuplanDragDrop = ({
    * @param newOrder - Neue Reihenfolge der UIDs
    * @param dragAndDropListType - Typ der DnD-Liste
    */
-  const onDragAndDropUpdate = (
-    newOrder: string[],
-    dragAndDropListType: MenuplanDragDropTypes,
-  ) => {
-    switch (dragAndDropListType) {
-      case MenuplanDragDropTypes.MEALTYPE:
-        onMenuplanUpdateSuper({
-          ...menuplan,
-          mealTypes: {
-            entries: menuplan.mealTypes.entries,
-            order: newOrder,
-          },
-        });
-        break;
-    }
-  };
+  const onDragAndDropUpdate = useCallback(
+    (newOrder: string[], dragAndDropListType: MenuplanDragDropTypes) => {
+      switch (dragAndDropListType) {
+        case MenuplanDragDropTypes.MEALTYPE:
+          callbacksRef.current.onMenuplanUpdateSuper({
+            ...menuplanRef.current,
+            mealTypes: {
+              entries: menuplanRef.current.mealTypes.entries,
+              order: newOrder,
+            },
+          });
+          break;
+      }
+    },
+    [],
+  );
 
   /**
    * Verschiebt ein Element via Kontextmenü (hoch/runter/in anderes Menü).
@@ -654,137 +663,140 @@ export const useMenuplanDragDrop = ({
    * @param cmd - Befehl mit Kind, Richtung und UIDs
    */
   // Element mittels Kontextmenü ändern
-  const onMoveDragAndDropElement = ({
-    kind,
-    direction,
-    menueUid,
-    mealUid,
-    itemUid,
-  }: DragAndDropMoveCommand) => {
-    if (direction === "inOtherMenu") {
+  const onMoveDragAndDropElement = useCallback(
+    ({
+      kind,
+      direction,
+      menueUid,
+      mealUid,
+      itemUid,
+    }: DragAndDropMoveCommand) => {
+      if (direction === "inOtherMenu") {
+        switch (kind) {
+          case MenuplanDragDropTypes.MEALRECIPE:
+          case MenuplanDragDropTypes.PRODUCT:
+          case MenuplanDragDropTypes.MATERIAL:
+            // Dialog anzeigen um das Element zu verschieben.
+            if (!menueUid) {
+              return;
+            }
+            setDialogSelectMenueData({
+              open: true,
+              menues: {
+                [menueUid]: true,
+              } as DialogSelectMenuesForRecipeDialogValues,
+              selectedRecipe: {} as RecipeShort,
+              singleSelection: true,
+              caller: onMoveDragAndDropElement.name,
+              dragAndDropHandler: {
+                listElementUid: itemUid,
+                menuUid: menueUid,
+                dragAndDropListType: kind,
+              },
+            });
+            break;
+          case MenuplanDragDropTypes.MENU:
+            if (!mealUid) {
+              return;
+            }
+
+            setDialogSelectMealData({
+              open: true,
+              dragAndDropHandler: {menuUid: itemUid, mealUid: mealUid},
+            });
+        }
+        return;
+      }
+
+      // In welcher Liste befindet sich das Objekt?
+      const orderListName = getOrderListNameFromDragAndDropTypes(kind);
+      if (!orderListName) {
+        return;
+      }
+
+      if (
+        (kind === MenuplanDragDropTypes.MEALRECIPE ||
+          kind === MenuplanDragDropTypes.PRODUCT ||
+          kind === MenuplanDragDropTypes.MATERIAL) &&
+        !menueUid
+      ) {
+        return;
+      } else if (kind === MenuplanDragDropTypes.MENU && !mealUid) {
+        return;
+      }
+
+      const orderList = (() => {
+        switch (kind) {
+          case MenuplanDragDropTypes.MEALRECIPE:
+            return menuplanRef.current.menues[menueUid!].mealRecipeOrder;
+          case MenuplanDragDropTypes.PRODUCT:
+            return menuplanRef.current.menues[menueUid!].productOrder;
+          case MenuplanDragDropTypes.MATERIAL:
+            return menuplanRef.current.menues[menueUid!].materialOrder;
+          case MenuplanDragDropTypes.MEALTYPE:
+            return menuplanRef.current.mealTypes.order;
+          case MenuplanDragDropTypes.MENU:
+            return menuplanRef.current.meals[mealUid!].menuOrder;
+        }
+      })();
+
+      if (!orderList) {
+        return;
+      }
+
+      const index = orderList.findIndex((item) => item === itemUid);
+      if (index === -1) {
+        return;
+      }
+
+      const targetIndex = direction === "up" ? index - 1 : index + 1;
+
+      const reorderedList = [...orderList];
+      [reorderedList[index], reorderedList[targetIndex]] = [
+        reorderedList[targetIndex],
+        reorderedList[index],
+      ];
+
       switch (kind) {
         case MenuplanDragDropTypes.MEALRECIPE:
         case MenuplanDragDropTypes.PRODUCT:
         case MenuplanDragDropTypes.MATERIAL:
-          // Dialog anzeigen um das Element zu verschieben.
-          if (!menueUid) {
-            return;
-          }
-          setDialogSelectMenueData({
-            open: true,
+          callbacksRef.current.onMenuplanUpdateSuper({
+            ...menuplanRef.current,
             menues: {
-              [menueUid]: true,
-            } as DialogSelectMenuesForRecipeDialogValues,
-            selectedRecipe: {} as RecipeShort,
-            singleSelection: true,
-            caller: onMoveDragAndDropElement.name,
-            dragAndDropHandler: {
-              listElementUid: itemUid,
-              menuUid: menueUid,
-              dragAndDropListType: kind,
+              ...menuplanRef.current.menues,
+              [menueUid!]: {
+                ...menuplanRef.current.menues[menueUid!],
+                [orderListName]: reorderedList,
+              },
+            },
+          });
+          break;
+        case MenuplanDragDropTypes.MEALTYPE:
+          callbacksRef.current.onMenuplanUpdateSuper({
+            ...menuplanRef.current,
+            mealTypes: {
+              entries: menuplanRef.current.mealTypes.entries,
+              order: reorderedList,
             },
           });
           break;
         case MenuplanDragDropTypes.MENU:
-          if (!mealUid) {
-            return;
-          }
-
-          setDialogSelectMealData({
-            open: true,
-            dragAndDropHandler: {menuUid: itemUid, mealUid: mealUid},
+          callbacksRef.current.onMenuplanUpdateSuper({
+            ...menuplanRef.current,
+            meals: {
+              ...menuplanRef.current.meals,
+              [mealUid!]: {
+                ...menuplanRef.current.meals[mealUid!],
+                menuOrder: reorderedList,
+              },
+            },
           });
+          break;
       }
-      return;
-    }
-
-    // In welcher Liste befindet sich das Objekt?
-    const orderListName = getOrderListNameFromDragAndDropTypes(kind);
-    if (!orderListName) {
-      return;
-    }
-
-    if (
-      (kind === MenuplanDragDropTypes.MEALRECIPE ||
-        kind === MenuplanDragDropTypes.PRODUCT ||
-        kind === MenuplanDragDropTypes.MATERIAL) &&
-      !menueUid
-    ) {
-      return;
-    } else if (kind === MenuplanDragDropTypes.MENU && !mealUid) {
-      return;
-    }
-
-    const orderList = (() => {
-      switch (kind) {
-        case MenuplanDragDropTypes.MEALRECIPE:
-          return menuplan.menues[menueUid!].mealRecipeOrder;
-        case MenuplanDragDropTypes.PRODUCT:
-          return menuplan.menues[menueUid!].productOrder;
-        case MenuplanDragDropTypes.MATERIAL:
-          return menuplan.menues[menueUid!].materialOrder;
-        case MenuplanDragDropTypes.MEALTYPE:
-          return menuplan.mealTypes.order;
-        case MenuplanDragDropTypes.MENU:
-          return menuplan.meals[mealUid!].menuOrder;
-      }
-    })();
-
-    if (!orderList) {
-      return;
-    }
-
-    const index = orderList.findIndex((item) => item === itemUid);
-    if (index === -1) {
-      return;
-    }
-
-    const targetIndex = direction === "up" ? index - 1 : index + 1;
-
-    const reorderedList = [...orderList];
-    [reorderedList[index], reorderedList[targetIndex]] = [
-      reorderedList[targetIndex],
-      reorderedList[index],
-    ];
-
-    switch (kind) {
-      case MenuplanDragDropTypes.MEALRECIPE:
-      case MenuplanDragDropTypes.PRODUCT:
-      case MenuplanDragDropTypes.MATERIAL:
-        onMenuplanUpdateSuper({
-          ...menuplan,
-          menues: {
-            ...menuplan.menues,
-            [menueUid!]: {
-              ...menuplan.menues[menueUid!],
-              [orderListName]: reorderedList,
-            },
-          },
-        });
-        break;
-      case MenuplanDragDropTypes.MEALTYPE:
-        onMenuplanUpdateSuper({
-          ...menuplan,
-          mealTypes: {
-            entries: menuplan.mealTypes.entries,
-            order: reorderedList,
-          },
-        });
-        break;
-      case MenuplanDragDropTypes.MENU:
-        onMenuplanUpdateSuper({
-          ...menuplan,
-          meals: {
-            ...menuplan.meals,
-            [mealUid!]: {
-              ...menuplan.meals[mealUid!],
-              menuOrder: reorderedList,
-            },
-          },
-        });
-        break;
-    }
-  };
+    },
+    [],
+  );
 
   return {onDragAndDropUpdate, onMoveDragAndDropElement};
 };

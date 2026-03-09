@@ -101,30 +101,34 @@ interface GetMenuesOfMealsParams {
   meals: Meal["uid"][];
 }
 
+/**
+ * Planungseinträge für eine Diät (Intoleranz → PlanningInfo).
+ */
+interface PlanningInfoEntry {
+  active: boolean;
+  factor: string;
+  portions: number;
+  total: number;
+  diet: Diet["uid"];
+}
+
+/**
+ * Verschachtelte Multi-Diät-Planstruktur: Diät → Intoleranz → PlanningInfo.
+ */
+interface MultiDietPlan {
+  [dietUid: string]: {
+    [intoleranceUid: string]: PlanningInfoEntry;
+  };
+}
+
 interface CreateMealRecipeParams {
   recipe: RecipeShort;
-  plan: {
-    [key: Intolerance["uid"]]: {
-      active: boolean;
-      factor: string;
-      portions: number;
-      total: number;
-      diet: Diet["uid"];
-    };
-  };
+  plan: MultiDietPlan;
 }
 
 interface AddPlanToGoodParams<T> {
   good: T;
-  plan: {
-    [key: Intolerance["uid"]]: {
-      active: boolean;
-      factor: string;
-      portions: number;
-      total: number;
-      diet: Diet["uid"];
-    };
-  };
+  plan: MultiDietPlan;
 }
 
 interface RecalculatePortionsParams {
@@ -544,37 +548,38 @@ export function createMealRecipe({
   recipe,
   plan,
 }: CreateMealRecipeParams): MealRecipe {
-  const mealRecipe = {} as MealRecipe;
-  mealRecipe.plan = [];
-  Object.keys(plan).forEach((intoleranceUid) =>
-    mealRecipe.plan.push({
-      diet: plan[intoleranceUid].diet,
-      intolerance: intoleranceUid,
-      factor: parseFloat(plan[intoleranceUid].factor),
-      totalPortions: plan[intoleranceUid].total,
-    }),
+  const portionPlans: PortionPlan[] = [];
+  // Verschachtelte Struktur durchlaufen: Diät → Intoleranz
+  Object.keys(plan).forEach((dietUid) =>
+    Object.keys(plan[dietUid]).forEach((intoleranceUid) =>
+      portionPlans.push({
+        diet: plan[dietUid][intoleranceUid].diet,
+        intolerance: intoleranceUid,
+        factor: parseFloat(plan[dietUid][intoleranceUid].factor),
+        totalPortions: plan[dietUid][intoleranceUid].total,
+      }),
+    ),
   );
 
-  mealRecipe.uid = crypto.randomUUID();
-
-  mealRecipe.recipe = {
-    recipeUid: recipe.uid,
-    name: recipe.name,
-    type: recipe.type,
-    createdFromUid: recipe.created.fromUid,
-  };
-
-  if (recipe.type == RecipeType.variant) {
-    mealRecipe.recipe.variantName = recipe.variantName;
-  }
-
-  mealRecipe.totalPortions = mealRecipe.plan.reduce(
-    (runningSum, intolerance) => {
-      runningSum = runningSum + intolerance.totalPortions;
-      return runningSum;
-    },
+  const totalPortions = portionPlans.reduce(
+    (runningSum, intolerance) => runningSum + intolerance.totalPortions,
     0,
   );
+
+  const mealRecipe: MealRecipe = {
+    uid: crypto.randomUUID(),
+    recipe: {
+      recipeUid: recipe.uid,
+      name: recipe.name,
+      type: recipe.type,
+      createdFromUid: recipe.created.fromUid,
+      ...(recipe.type === RecipeType.variant && {
+        variantName: recipe.variantName,
+      }),
+    },
+    plan: portionPlans,
+    totalPortions,
+  };
 
   return mealRecipe;
 }
@@ -609,13 +614,16 @@ export function addPlanToGood<T extends MenuplanProduct | MenuplanMaterial>({
   good,
   plan,
 }: AddPlanToGoodParams<T>): T {
-  Object.keys(plan).forEach((intoleranceUid) =>
-    good.plan.push({
-      diet: plan[intoleranceUid].diet,
-      intolerance: intoleranceUid,
-      factor: parseFloat(plan[intoleranceUid].factor),
-      totalPortions: plan[intoleranceUid].total,
-    }),
+  // Verschachtelte Struktur durchlaufen: Diät → Intoleranz
+  Object.keys(plan).forEach((dietUid) =>
+    Object.keys(plan[dietUid]).forEach((intoleranceUid) =>
+      good.plan.push({
+        diet: plan[dietUid][intoleranceUid].diet,
+        intolerance: intoleranceUid,
+        factor: parseFloat(plan[dietUid][intoleranceUid].factor),
+        totalPortions: plan[dietUid][intoleranceUid].total,
+      }),
+    ),
   );
 
   good.totalQuantity = good.plan.reduce((runningSum, intolerance) => {

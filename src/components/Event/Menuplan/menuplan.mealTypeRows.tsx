@@ -6,7 +6,7 @@
  * `MealTypeRow` rendert eine einzelne Zeile mit der Mahlzeit-Typ-Karte
  * und den Datumsspalten mit den jeweiligen Menüs.
  */
-import React, {useState, useEffect, useMemo, useCallback, useRef} from "react";
+import React, {memo, useState, useEffect, useMemo, useCallback, useRef} from "react";
 
 import {Box, Container, useTheme} from "@mui/material";
 
@@ -79,6 +79,14 @@ import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.cl
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import MealTypeCard from "./menuplan.mealTypeCard";
 
+// Stabile Style-Konstante (verhindert neue Objekt-Referenz bei jedem Render)
+const STYLE_MEAL_ROW: React.CSSProperties = {
+  display: "flex",
+  flexDirection: "row",
+  flexWrap: "nowrap",
+  alignItems: "stretch",
+};
+
 /* ===================================================================
 // ========================= Mahlzeit-Reihen =========================
 // =================================================================== */
@@ -118,7 +126,7 @@ interface MealTypeRowsProps {
  *
  * @param props - Siehe {@link MealTypeRowsProps}.
  */
-const MealTypeRows = ({
+const MealTypeRows = memo(function MealTypeRows({
   mealTypes,
   dates,
   meals,
@@ -141,7 +149,7 @@ const MealTypeRows = ({
   onNoteUpdate,
   onDragAndDropUpdate,
   onMoveDragAndDropElement,
-}: MealTypeRowsProps) => {
+}: MealTypeRowsProps) {
   /* ------------------------------------------
   // Drag & Drop Handling
   // ------------------------------------------ */
@@ -296,7 +304,7 @@ const MealTypeRows = ({
       ))}
     </MealTypesRowContext.Provider>
   );
-};
+});
 
 /* ===================================================================
 // ========================== Mahlzeit-Reihe =========================
@@ -337,7 +345,7 @@ interface MealTypeRowProps {
  *
  * @param props - Siehe {@link MealTypeRowProps}.
  */
-const MealTypeRow = ({
+const MealTypeRow = memo(function MealTypeRow({
   index,
   isLastElement,
   mealType,
@@ -362,7 +370,7 @@ const MealTypeRow = ({
   onMealMaterialOpen,
   onNoteUpdate,
   onMoveDragAndDropElement,
-}: MealTypeRowProps) => {
+}: MealTypeRowProps) {
   const classes = useCustomStyles();
   const theme = useTheme();
   const {customDialog} = useCustomDialog();
@@ -566,12 +574,7 @@ const MealTypeRow = ({
       <Box
         component={"div"}
         ref={mergeRefs([mealRowRef, dragHandleRef])}
-        style={{
-          display: "flex",
-          flexDirection: "row",
-          flexWrap: "nowrap",
-          alignItems: "stretch",
-        }}
+        style={STYLE_MEAL_ROW}
       >
         <Container
           sx={classes.menuplanItem}
@@ -673,7 +676,7 @@ const MealTypeRow = ({
       )}
     </React.Fragment>
   );
-};
+});
 
 export default MealTypeRows;
 export {MealTypeRow};

@@ -2,11 +2,11 @@
  * Dialog zur Portionenplanung im Menüplan.
  *
  * Erlaubt dem Benutzer, für ausgewählte Menüs die Portionen pro Diätgruppe
- * und Unverträglichkeit festzulegen. Unterstützt synchronisierte Portionen
- * über mehrere Menüs hinweg sowie fixe Portionen.
+ * und Unverträglichkeit festzulegen. Unterstützt Multi-Diät-Planung:
+ * mehrere Diäten können gleichzeitig konfiguriert werden (z.B. Omnivore + Vegetarisch).
  *
  * Enthält drei Komponenten:
- * - `DialogPlanPortions` — Hauptdialog mit Diät-Toggle und Validierung
+ * - `DialogPlanPortions` — Hauptdialog mit Diät-Tabs und Validierung
  * - `DialogPlanPortionsMealBlock` — Block pro Mahlzeit (Fix vs. Gruppen)
  * - `DialogPlanPortionsMealBlockRow` — Einzelne Zeile mit Checkbox, Faktor und Total
  */
@@ -16,8 +16,6 @@ import {
   Container,
   Switch,
   Button,
-  ToggleButton,
-  ToggleButtonGroup,
   FormGroup,
   FormControlLabel,
   Checkbox,
@@ -31,10 +29,11 @@ import {
   useTheme,
   Tooltip,
   Divider,
+  Tabs,
+  Tab,
+  Alert,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
-
-import {alpha} from "@mui/system/colorManipulator";
 
 import {Info as InfoIcon} from "@mui/icons-material";
 
@@ -48,7 +47,9 @@ import {
 import {
   DialogPlanPortionsMealPlanning,
   DialogPlanPortionsMealPlan,
+  DialogPlanPortionsDietPlanning,
   DialogPlanPortionsDialogValues,
+  DialogPlanPortionsPlanningInfo,
 } from "./menuplan.page.types";
 import {PlanedObject} from "./menuplan.constants";
 import {MenuplanData} from "./menuplan.types";
@@ -62,7 +63,6 @@ import {
   useCustomDialog,
 } from "../../Shared/customDialogContext";
 import {DialogSelectMenuesForRecipeDialogValues} from "./dialogSelectMenues";
-import useCustomStyles from "../../../constants/styles";
 
 import {
   DIALOG_PLAN_RECIPE_PORTIONS_TITLE as TEXT_DIALOG_PLAN_RECIPE_PORTIONS_TITLE,
@@ -86,10 +86,124 @@ import {
   CANCEL as TEXT_CANCEL,
   ADD as TEXT_ADD,
   APPLY as TEXT_APPLY,
-  ATTENTION as TEXT_ATTENTION,
-  CONFIRM_DIET_SWITCH as TEXT_CONFIRM_DIET_SWITCH,
-  PROCEED as TEXT_PROCEED,
+  FACTOR_TOO_LARGE as TEXT_FACTOR_TOO_LARGE,
+  FIXED_PORTIONS_WARNING as TEXT_FIXED_PORTIONS_WARNING,
+  CONFLICT_ALLE_AND_DIETS_TITLE as TEXT_CONFLICT_ALLE_AND_DIETS_TITLE,
+  CONFLICT_ALLE_AND_DIETS_TEXT as TEXT_CONFLICT_ALLE_AND_DIETS_TEXT,
+  KEEP_ALL as TEXT_KEEP_ALL,
+  KEEP_INDIVIDUAL_DIETS as TEXT_KEEP_INDIVIDUAL_DIETS,
 } from "../../../constants/text";
+
+/* ===================================================================
+// ========================= Hilfsfunktionen =========================
+// =================================================================== */
+
+/**
+ * Erstellt die Planungseinträge für eine einzelne Diät (alle Intoleranzen).
+ *
+ * @param dietUid UID der Diät (oder PlanedDiet.ALL / PlanedDiet.FIX)
+ * @param groupConfiguration Gruppenkonfiguration des Events
+ * @returns Planungseinträge pro Intoleranz
+ */
+function buildDietPlan(
+  dietUid: string,
+  groupConfiguration: EventGroupConfiguration,
+): DialogPlanPortionsDietPlanning {
+  const dietPlan: DialogPlanPortionsDietPlanning = {};
+
+  if (dietUid === PlanedDiet.FIX) {
+    dietPlan[PlanedDiet.FIX] = {
+      active: false,
+      portions: 0,
+      factor: "1.0",
+      total: 0,
+      diet: PlanedDiet.FIX,
+    };
+    return dietPlan;
+  }
+
+  // Einzelne Intoleranzen
+  groupConfiguration.intolerances.order.forEach((intoleranceUid) => {
+    dietPlan[intoleranceUid] = {
+      active: false,
+      factor: "1.0",
+      portions:
+        dietUid === PlanedDiet.ALL
+          ? groupConfiguration.intolerances.entries[intoleranceUid]
+              .totalPortions
+          : groupConfiguration.portions[dietUid][intoleranceUid],
+      total: 0,
+      diet: dietUid,
+    };
+  });
+
+  // «Alle»-Zeile (Summe aller Intoleranzen dieser Diät)
+  dietPlan[PlanedIntolerances.ALL] = {
+    active: false,
+    factor: "1.0",
+    portions:
+      dietUid === PlanedDiet.ALL
+        ? groupConfiguration.totalPortions
+        : groupConfiguration.diets.entries[dietUid].totalPortions,
+    total: 0,
+    diet: dietUid,
+  };
+
+  return dietPlan;
+}
+
+/**
+ * Erstellt die komplette Planungsstruktur für ein Menü (alle Diäten × Intoleranzen).
+ *
+ * @param groupConfiguration Gruppenkonfiguration des Events
+ * @returns Verschachtelte Planung: Diät → Intoleranz → PlanningInfo
+ */
+function buildMenuPlan(
+  groupConfiguration: EventGroupConfiguration,
+): DialogPlanPortionsMealPlanning {
+  const menuPlan: DialogPlanPortionsMealPlanning = {};
+
+  // «Alle» Diät-Tab
+  menuPlan[PlanedDiet.ALL] = buildDietPlan(PlanedDiet.ALL, groupConfiguration);
+
+  // Individuelle Diät-Tabs
+  groupConfiguration.diets.order.forEach((dietUid) => {
+    menuPlan[dietUid] = buildDietPlan(dietUid, groupConfiguration);
+  });
+
+  // Fix-Tab
+  menuPlan[PlanedDiet.FIX] = buildDietPlan(PlanedDiet.FIX, groupConfiguration);
+
+  return menuPlan;
+}
+
+/**
+ * Berechnet die Gesamtportionen eines Diät-Tabs (Summe aller aktiven Einträge).
+ *
+ * @param dietPlan Planungseinträge einer Diät
+ * @returns Summe der Portionen
+ */
+function getDietTabPortions(
+  dietPlan: DialogPlanPortionsDietPlanning | undefined,
+): number {
+  if (!dietPlan) return 0;
+  return Object.values(dietPlan)
+    .filter((entry) => entry.active)
+    .reduce((sum, entry) => sum + entry.total, 0);
+}
+
+/**
+ * Prüft ob eine Diät aktive Einträge hat.
+ *
+ * @param dietPlan Planungseinträge einer Diät
+ * @returns `true` wenn mindestens ein Eintrag aktiv ist
+ */
+function hasDietActiveEntries(
+  dietPlan: DialogPlanPortionsDietPlanning | undefined,
+): boolean {
+  if (!dietPlan) return false;
+  return Object.values(dietPlan).some((entry) => entry.active);
+}
 
 /* ===================================================================
 // ==================== Einplanung der Portionen =====================
@@ -111,6 +225,13 @@ interface DialogPlanPortionsProps {
 }
 const KEEP_IN_SYNC_KEY = "SYNC";
 
+const DIALOG_VALUES_INITIAL_VALUES: DialogPlanPortionsDialogValues = {
+  keepMenuPortionsInSync: true,
+  activeTabs: null,
+  menueList: null,
+  plan: null,
+};
+
 const DialogPlanPortions = ({
   open,
   selectedMenues,
@@ -123,15 +244,7 @@ const DialogPlanPortions = ({
   onBackClick: onBackClickSuper,
   onAddClick: onAddClickSuper,
 }: DialogPlanPortionsProps) => {
-  const classes = useCustomStyles();
   const theme = useTheme();
-
-  const DIALOG_VALUES_INITIAL_VALUES = {
-    keepMenuPortionsInSync: true,
-    selectedDiets: null,
-    menueList: null,
-    plan: null,
-  };
 
   const {customDialog} = useCustomDialog();
   const [dialogValues, setDialogValues] =
@@ -143,134 +256,94 @@ const DialogPlanPortions = ({
   // Initialisierung
   // ------------------------------------------ */
   if (
-    (!dialogValues.plan || Object.values(dialogValues.plan).includes(null)) &&
+    !dialogValues.plan &&
     selectedMenues &&
     Object.keys(selectedMenues).length > 0
   ) {
-    let dietButtons = {} as {[key: Menue["uid"]]: PortionPlan["diet"]};
     let menueList: string[] = [];
 
-    if (!dialogValues.menueList) {
-      if (
-        Object.keys(selectedMenues).length > 1 &&
-        dialogValues.keepMenuPortionsInSync
-      ) {
-        menueList[0] = KEEP_IN_SYNC_KEY;
-      } else {
-        Object.keys(selectedMenues).forEach((menueUid) =>
-          menueList.push(menueUid),
-        );
-      }
-    } else {
-      menueList = dialogValues.menueList;
-    }
-
-    if (!dialogValues.selectedDiets && planedMealRecipe.length === 0) {
-      menueList.forEach((menueUid) => {
-        dietButtons[menueUid] = PlanedDiet.ALL;
-      });
-    } else if (
-      dialogValues.selectedDiets == null &&
-      planedMealRecipe.length > 0
+    if (
+      Object.keys(selectedMenues).length > 1 &&
+      dialogValues.keepMenuPortionsInSync
     ) {
-      dietButtons[menueList[0]] = planedMealRecipe[0].diet;
+      menueList = [KEEP_IN_SYNC_KEY];
     } else {
-      dietButtons = dialogValues.selectedDiets as {
-        [key: Menue["uid"]]: PortionPlan["diet"];
-      };
+      menueList = Object.keys(selectedMenues);
     }
 
-    let plan = {} as DialogPlanPortionsMealPlan;
-    if (!dialogValues.plan) {
-      menueList.forEach((menueUid) => (plan[menueUid] = null));
-    } else {
-      plan = dialogValues.plan;
-    }
+    // Komplettte Planstruktur für jedes Menü erstellen
+    const plan: DialogPlanPortionsMealPlan = {};
+    const activeTabs: {[key: string]: string} = {};
 
-    // Zuerst die Alle und Fix Portionen
-    Object.keys(plan).forEach((menuUid) => {
-      if (plan[menuUid] == null) {
-        const mealPlan = {} as DialogPlanPortionsMealPlanning;
-        if (dietButtons[menuUid] == PlanedDiet.FIX) {
-          // Fixe-Portionen
-          mealPlan[PlanedDiet.FIX] = {
-            active: true,
-            portions: 0,
-            factor: "1.0",
-            total: 0,
-            diet: dietButtons[menuUid],
-          };
-        } else {
-          groupConfiguration.intolerances.order.forEach((intoleranceUid) => {
-            mealPlan[intoleranceUid] = {
-              active: false,
-              portions:
-                dietButtons[menuUid] == PlanedDiet.ALL
-                  ? groupConfiguration.intolerances.entries[intoleranceUid]
-                      .totalPortions
-                  : groupConfiguration.portions[dietButtons[menuUid]][
-                      intoleranceUid
-                    ],
-              factor: "1.0",
-              total: 0,
-              diet: dietButtons[menuUid],
-            };
-          });
-          // Totalsumme einfügen
-          mealPlan[PlanedDiet.ALL] = {
-            active: false,
-            portions:
-              dietButtons[menuUid] == PlanedDiet.ALL
-                ? groupConfiguration.totalPortions
-                : groupConfiguration.diets.entries[dietButtons[menuUid]]
-                    .totalPortions,
-            factor: "1.0",
-            total: 0,
-            diet: dietButtons[menuUid],
-          };
-        }
-
-        plan[menuUid] = mealPlan;
-      }
+    menueList.forEach((menuUid) => {
+      plan[menuUid] = buildMenuPlan(groupConfiguration);
+      activeTabs[menuUid] = PlanedDiet.ALL;
     });
 
-    if (dialogValues.selectedDiets == null && planedMealRecipe.length > 0) {
-      // Vorauswahl setzen
-      dietButtons[menueList[0]] = planedMealRecipe[0].diet;
+    // Edit-Modus: bestehende Werte übernehmen
+    if (planedMealRecipe.length > 0) {
+      // Bestehende Einträge nach Diät gruppieren
+      const byDiet: {[dietUid: string]: PortionPlan[]} = {};
+      planedMealRecipe.forEach((pp) => {
+        if (!byDiet[pp.diet]) byDiet[pp.diet] = [];
+        byDiet[pp.diet].push(pp);
+      });
+
+      // Werte in die Planstruktur übernehmen
+      menueList.forEach((menuUid) => {
+        const menuPlan = plan[menuUid];
+        if (!menuPlan) return;
+
+        Object.keys(byDiet).forEach((dietUid) => {
+          if (!menuPlan[dietUid]) return;
+          byDiet[dietUid].forEach((pp) => {
+            if (menuPlan[dietUid][pp.intolerance]) {
+              menuPlan[dietUid][pp.intolerance] = {
+                ...menuPlan[dietUid][pp.intolerance],
+                active: true,
+                factor: pp.factor.toFixed(1),
+                total: pp.totalPortions,
+                portions:
+                  pp.intolerance === PlanedDiet.FIX
+                    ? pp.totalPortions
+                    : menuPlan[dietUid][pp.intolerance].portions,
+              };
+            }
+          });
+        });
+      });
+
+      // Aktiven Tab auf die erste Diät mit Einträgen setzen
+      const firstDiet = Object.keys(byDiet)[0] || PlanedDiet.ALL;
+      menueList.forEach((menuUid) => {
+        activeTabs[menuUid] = firstDiet;
+      });
     }
 
-    if (
-      planedMealRecipe.length > 0 &&
-      plan &&
-      dietButtons[menueList[0]] == planedMealRecipe[0].diet
-    ) {
-      // Werte übernehmen --> im Change Modus
-      Object.values(plan as DialogPlanPortionsMealPlan).forEach(
-        (planOfMenu) =>
-          planOfMenu &&
-          planedMealRecipe.forEach(
-            (mealPlan) =>
-              (planOfMenu[mealPlan.intolerance] = {
-                ...planOfMenu[mealPlan.intolerance],
-                active: true,
-                diet: mealPlan.diet,
-                factor: mealPlan.factor.toFixed(1),
-                total: mealPlan.totalPortions,
-                portions:
-                  mealPlan.intolerance == PlanedDiet.FIX
-                    ? mealPlan.totalPortions
-                    : planOfMenu[mealPlan.intolerance].portions,
-              }),
-          ),
-      );
-    }
     setDialogValues({
       ...dialogValues,
       plan: plan,
-      selectedDiets: dietButtons,
+      activeTabs: activeTabs,
       menueList: menueList,
     });
   }
+  /* ------------------------------------------
+  // Tab-Wechsel
+  // ------------------------------------------ */
+  /**
+   * Wechselt den aktiven Diät-Tab eines Menüs.
+   * Rein visuell — der Plan wird nicht verändert. Fix-Portionen sind
+   * additiv zu Diät-Portionen und können frei kombiniert werden.
+   *
+   * @param menuUid UID des Menüs (oder SYNC-Key)
+   * @param newTab Neuer aktiver Tab (Diät-UID oder PlanedDiet)
+   */
+  const onTabChange = (_menuUid: string, newTab: string) => {
+    setDialogValues({
+      ...dialogValues,
+      activeTabs: {...dialogValues.activeTabs, [_menuUid]: newTab},
+    });
+  };
   /* ------------------------------------------
   // Feld-Änderungen
   // ------------------------------------------ */
@@ -279,27 +352,28 @@ const DialogPlanPortions = ({
     let factor = "";
     let active = false;
     let portions = 0;
-    const [, changedField, menueUid, intoleranceUid] = updatedField;
+    // Neues Format: _${field}_${menuUid}_${dietUid}_${intoleranceUid}
+    const [, changedField, menueUid, dietUid, intoleranceUid] = updatedField;
 
     if (
       !dialogValues.plan ||
       !dialogValues.plan[menueUid] ||
-      dialogValues.plan[menueUid] === null
+      !dialogValues.plan[menueUid]![dietUid]
     ) {
       return;
     }
-    const mealPlanning = dialogValues.plan[menueUid];
-    if (!mealPlanning || mealPlanning[intoleranceUid] === null) {
+    const dietPlanning = dialogValues.plan[menueUid]![dietUid];
+    if (!dietPlanning || !dietPlanning[intoleranceUid]) {
       return;
     }
     if (changedField == "active") {
       active = event.target.checked;
-      factor = mealPlanning[intoleranceUid]?.factor;
-      portions = mealPlanning[intoleranceUid].portions;
+      factor = dietPlanning[intoleranceUid].factor;
+      portions = dietPlanning[intoleranceUid].portions;
     } else if (changedField == "factor") {
-      active = mealPlanning[intoleranceUid].active;
+      active = dietPlanning[intoleranceUid].active;
       factor = event.target.value.replace(",", ".");
-      portions = mealPlanning[intoleranceUid].portions;
+      portions = dietPlanning[intoleranceUid].portions;
     } else if (changedField == "total") {
       active = true;
       factor = "1.0";
@@ -307,41 +381,49 @@ const DialogPlanPortions = ({
     }
 
     let total = active ? Math.round(portions * parseFloat(factor)) : 0;
-
     if (isNaN(total)) {
       total = 0;
     }
 
     if (changedField == "active") {
-      const menuePlan = dialogValues.plan[menueUid];
-      if (menuePlan === null) {
-        return;
-      }
-      // Gesetzte Werte übernehmen
-      menuePlan[intoleranceUid].active = active;
-      menuePlan[intoleranceUid].factor = factor;
-      menuePlan[intoleranceUid].total = total;
+      const updatedDietPlan = {...dietPlanning};
+      updatedDietPlan[intoleranceUid] = {
+        ...updatedDietPlan[intoleranceUid],
+        active,
+        factor,
+        total,
+      };
 
       if (intoleranceUid == PlanedIntolerances.ALL) {
-        // Wenn die 'Alle' Checkbox markiert ist, die anderen demarkieren.
-        Object.keys(menuePlan).forEach((menueKey) => {
-          if (menueKey !== PlanedIntolerances.ALL) {
-            menuePlan![menueKey].active = false;
-            menuePlan![menueKey].factor = "1.0";
-            menuePlan![menueKey].total = 0;
+        // «Alle» Checkbox markiert → andere Intoleranzen demarkieren
+        Object.keys(updatedDietPlan).forEach((key) => {
+          if (key !== PlanedIntolerances.ALL) {
+            updatedDietPlan[key] = {
+              ...updatedDietPlan[key],
+              active: false,
+              factor: "1.0",
+              total: 0,
+            };
           }
         });
-      } else if (intoleranceUid != PlanedIntolerances.ALL) {
-        // Die 'Alle' Checkbox demarkieren
-        menuePlan[PlanedIntolerances.ALL].active = false;
-        menuePlan[PlanedIntolerances.ALL].factor = "1.0";
-        menuePlan[PlanedIntolerances.ALL].total = 0;
+      } else {
+        // Einzelne Intoleranz markiert → «Alle» demarkieren
+        updatedDietPlan[PlanedIntolerances.ALL] = {
+          ...updatedDietPlan[PlanedIntolerances.ALL],
+          active: false,
+          factor: "1.0",
+          total: 0,
+        };
       }
+
       setDialogValues({
         ...dialogValues,
         plan: {
           ...dialogValues.plan,
-          [menueUid]: menuePlan,
+          [menueUid]: {
+            ...dialogValues.plan[menueUid],
+            [dietUid]: updatedDietPlan,
+          },
         },
       });
     } else {
@@ -351,192 +433,206 @@ const DialogPlanPortions = ({
           ...dialogValues.plan,
           [menueUid]: {
             ...dialogValues.plan[menueUid],
-            [intoleranceUid]: {
-              ...mealPlanning[intoleranceUid],
-              portions: portions,
-              active: active,
-              factor: factor,
-              total: total,
+            [dietUid]: {
+              ...dietPlanning,
+              [intoleranceUid]: {
+                ...dietPlanning[intoleranceUid],
+                portions,
+                active,
+                factor,
+                total,
+              },
             },
           },
         },
       });
     }
   };
+
   const onSwitchSyncAllMenues = () => {
     setDialogValues({
       ...dialogValues,
-      selectedDiets: null,
+      activeTabs: null,
       keepMenuPortionsInSync: !dialogValues.keepMenuPortionsInSync,
       plan: null,
-      menueList: null, // diese muss neu aufgebaut werden
-    });
-  };
-  /* ------------------------------------------
-  // ToggleButton-Handling
-  // ------------------------------------------ */
-  /**
-   * Prüft ob der Benutzer im aktuellen Plan für ein Menü bereits
-   * Werte eingegeben hat (Checkbox aktiviert, Faktor geändert, etc.).
-   *
-   * @param menuUid UID des Menüs, dessen Plan geprüft wird.
-   * @returns `true` wenn Änderungen vorliegen.
-   */
-  const hasUserModifiedPlan = (menuUid: string): boolean => {
-    const mealPlan = dialogValues.plan?.[menuUid];
-    if (!mealPlan) {
-      return false;
-    }
-    const currentDiet = dialogValues.selectedDiets?.[menuUid];
-    if (currentDiet === PlanedDiet.FIX) {
-      // Bei Fix-Portionen: geändert, sobald Portionen eingegeben wurden
-      const fixEntry = mealPlan[PlanedDiet.FIX];
-      return fixEntry != null && fixEntry.portions > 0;
-    }
-    // Bei Diät-Modus: geändert, sobald eine Checkbox aktiviert oder
-    // ein Faktor angepasst wurde
-    return Object.values(mealPlan).some(
-      (entry) => entry.active || entry.factor !== "1.0",
-    );
-  };
-
-  const onToggleButtonClick = async (
-    event: React.MouseEvent<HTMLElement>,
-    activeButton: string | null,
-  ) => {
-    if (activeButton == null) {
-      // Etwas muss markiert sein.
-      return;
-    }
-    const [, menuUid] = event.currentTarget.id.split("_");
-
-    // Prüfen ob Benutzer bereits Werte geändert hat
-    if (hasUserModifiedPlan(menuUid)) {
-      const isConfirmed = (await customDialog({
-        dialogType: DialogType.Confirm,
-        title: `⚠️  ${TEXT_ATTENTION}`,
-        text: TEXT_CONFIRM_DIET_SWITCH,
-        buttonTextConfirm: TEXT_PROCEED,
-      })) as boolean;
-
-      if (!isConfirmed) {
-        return;
-      }
-    }
-
-    setDialogValues({
-      ...dialogValues,
-      selectedDiets: {
-        ...dialogValues.selectedDiets,
-        [menuUid]: activeButton,
-      },
-      //  Darf nur für das Menü neu aufgebaut werden, für das eine neue Diät-Gruppe gewählt wurde
-      plan: {...dialogValues.plan, [menuUid]: null},
+      menueList: null,
     });
   };
   /* ------------------------------------------
   // Dialog-Schliessen-Handling
   // ------------------------------------------ */
-  const onAddClick = () => {
-    // Prüfen ob Checkboxen markiert sind ohne Faktor!
+  /**
+   * Validiert den Plan und löst ggf. Konflikte zwischen «Alle» und
+   * einzelnen Diäten auf. Gibt den Plan an den Aufrufer zurück.
+   */
+  const onAddClick = async () => {
     if (!dialogValues.plan) {
       return;
     }
 
     const dialogValidationMessages: FormValidationFieldError[] = [];
-    //Prüfen ob es aktivierte Checkboxen ohne Faktor gibt, dass kann nicht gerechnet werden
-    Object.keys(dialogValues.plan).forEach((menueUid) => {
-      if (
-        Object.values(dialogValues.plan![menueUid]!).reduce(
-          (innerRunningCounter, intolerance) => {
-            if (intolerance.active == true && !intolerance.factor) {
-              innerRunningCounter++;
-            }
-            return innerRunningCounter;
-          },
-          0,
-        ) > 0
-      ) {
-        dialogValidationMessages.push({
-          priority: 1,
-          fieldName: menueUid,
-          errorMessage: TEXT_MISSING_FACTOR,
-        });
-      }
-    });
 
-    // Prüfen ob pro Menü überhaupt eine Checkbox aktiviert wurde
+    // Über alle Menüs und alle Diäten validieren
     Object.keys(dialogValues.plan).forEach((menueUid) => {
-      if (
-        Object.values(dialogValues.plan![menueUid]!).reduce(
-          (innerRunningCounter, intolerance) => {
-            if (intolerance.active == true) {
-              innerRunningCounter++;
-            }
-            return innerRunningCounter;
-          },
-          0,
-        ) == 0
-      ) {
+      const menuPlan = dialogValues.plan![menueUid]!;
+
+      // Alle aktiven Einträge sammeln (über alle Diäten)
+      const allActiveEntries: DialogPlanPortionsPlanningInfo[] = [];
+      Object.keys(menuPlan).forEach((dietUid) => {
+        Object.values(menuPlan[dietUid]).forEach((entry) => {
+          if (entry.active) allActiveEntries.push(entry);
+        });
+      });
+
+      // Prüfen: mindestens ein Eintrag aktiv
+      if (allActiveEntries.length === 0) {
         dialogValidationMessages.push({
           priority: 1,
           fieldName: menueUid,
           errorMessage: TEXT_NO_GROUP_SELECTED,
         });
       }
-    });
 
-    // Prüfen ob fixe Portionen eingegeben wurden
-    Object.keys(dialogValues.plan).forEach((menueUid) => {
+      // Prüfen: aktive Einträge ohne Faktor
+      if (allActiveEntries.some((e) => !e.factor)) {
+        dialogValidationMessages.push({
+          priority: 1,
+          fieldName: menueUid,
+          errorMessage: TEXT_MISSING_FACTOR,
+        });
+      }
+
+      // Prüfen: Faktor > 100
       if (
-        Object.keys(dialogValues.plan![menueUid]!).includes(PlanedDiet.FIX) &&
-        (dialogValues.plan![menueUid]![PlanedDiet.FIX].portions == 0 ||
-          !dialogValues.plan![menueUid]![PlanedDiet.FIX].portions)
+        allActiveEntries.some(
+          (e) => e.factor && parseFloat(e.factor) > 100,
+        )
       ) {
         dialogValidationMessages.push({
           priority: 1,
           fieldName: menueUid,
-          errorMessage: TEXT_NO_PORTIONS_GIVEN,
+          errorMessage: TEXT_FACTOR_TOO_LARGE,
         });
+      }
+
+      // Prüfen: Fix-Portionen eingegeben
+      const fixDiet = menuPlan[PlanedDiet.FIX];
+      if (fixDiet) {
+        const fixEntry = fixDiet[PlanedDiet.FIX];
+        if (
+          fixEntry &&
+          fixEntry.active &&
+          (!fixEntry.portions || fixEntry.portions === 0)
+        ) {
+          dialogValidationMessages.push({
+            priority: 1,
+            fieldName: menueUid,
+            errorMessage: TEXT_NO_PORTIONS_GIVEN,
+          });
+        }
       }
     });
 
-    if (dialogValidationMessages.length == 0) {
-      // Zurückmelden, was alles aktiv ist.
-      setDialogValidation([]);
-      const selectedPlans = {} as {
-        [key: Menue["uid"]]: DialogPlanPortionsMealPlanning;
-      };
+    if (dialogValidationMessages.length > 0) {
+      setDialogValidation(dialogValidationMessages);
+      return;
+    }
 
-      Object.keys(dialogValues.plan).forEach((menuUid) => {
-        const intolerances = {} as DialogPlanPortionsMealPlanning;
-        Object.keys(dialogValues.plan![menuUid]!).forEach((intoleraceUid) => {
-          if (dialogValues.plan![menuUid]![intoleraceUid].active === true) {
-            intolerances[intoleraceUid] =
-              dialogValues.plan![menuUid]![intoleraceUid];
+    // Konflikt-Prüfung: «Alle» + einzelne Diäten gleichzeitig aktiv?
+    let discardMode: "ALL" | "INDIVIDUAL" | null = null;
+
+    for (const menueUid of Object.keys(dialogValues.plan)) {
+      const menuPlan = dialogValues.plan[menueUid]!;
+      const alleHasActive = hasDietActiveEntries(menuPlan[PlanedDiet.ALL]);
+      const individualDietsHaveActive = groupConfiguration.diets.order.some(
+        (dietUid) => hasDietActiveEntries(menuPlan[dietUid]),
+      );
+
+      if (alleHasActive && individualDietsHaveActive) {
+        const result = (await customDialog({
+          dialogType: DialogType.selectOptions,
+          title: TEXT_CONFLICT_ALLE_AND_DIETS_TITLE,
+          text: TEXT_CONFLICT_ALLE_AND_DIETS_TEXT,
+          options: [
+            {key: "ALL", text: TEXT_KEEP_ALL, variant: "contained"},
+            {
+              key: "INDIVIDUAL",
+              text: TEXT_KEEP_INDIVIDUAL_DIETS,
+              variant: "contained",
+            },
+          ],
+        })) as {valid: boolean; input: string} | boolean;
+
+        if (typeof result === "boolean") {
+          // Abgebrochen (Cancel)
+          return;
+        }
+        if (!result.valid) {
+          return;
+        }
+        if (result.input === "ALL") {
+          discardMode = "INDIVIDUAL";
+        } else if (result.input === "INDIVIDUAL") {
+          discardMode = "ALL";
+        }
+        // Nur einmal fragen — gleiche Entscheidung für alle Menüs
+        break;
+      }
+    }
+
+    // Ergebnis zusammenstellen: nur aktive Einträge
+    setDialogValidation([]);
+    const selectedPlans: {
+      [key: Menue["uid"]]: DialogPlanPortionsMealPlanning;
+    } = {};
+
+    Object.keys(dialogValues.plan).forEach((menuUid) => {
+      const menuPlan = dialogValues.plan![menuUid]!;
+      const filteredMenuPlan: DialogPlanPortionsMealPlanning = {};
+
+      Object.keys(menuPlan).forEach((dietUid) => {
+        // «Alle» verwerfen wenn Einzelne gewählt
+        if (discardMode === "ALL" && dietUid === PlanedDiet.ALL) return;
+        // Einzelne verwerfen wenn «Alle» gewählt
+        if (
+          discardMode === "INDIVIDUAL" &&
+          dietUid !== PlanedDiet.ALL &&
+          dietUid !== PlanedDiet.FIX
+        ) {
+          return;
+        }
+
+        const filteredDiet: DialogPlanPortionsDietPlanning = {};
+        Object.keys(menuPlan[dietUid]).forEach((intoleranceUid) => {
+          if (menuPlan[dietUid][intoleranceUid].active) {
+            filteredDiet[intoleranceUid] = menuPlan[dietUid][intoleranceUid];
           }
         });
-        selectedPlans[menuUid] = intolerances;
+
+        if (Object.keys(filteredDiet).length > 0) {
+          filteredMenuPlan[dietUid] = filteredDiet;
+        }
       });
 
-      if (
-        Object.keys(selectedMenues!).length > 1 &&
-        dialogValues.keepMenuPortionsInSync
-      ) {
-        Object.keys(selectedMenues!).forEach((menueUid) => {
-          selectedPlans[menueUid] = selectedPlans[KEEP_IN_SYNC_KEY];
-        });
-        delete selectedPlans?.[KEEP_IN_SYNC_KEY];
-      }
+      selectedPlans[menuUid] = filteredMenuPlan;
+    });
 
-      // Wenn SYNC --> auf alles Menüs umbiegen
-      // Objekt erzeugen --> menueUid: {intolerance {factore}}
-      onAddClickSuper(selectedPlans);
-      setDialogValues(DIALOG_VALUES_INITIAL_VALUES);
-    } else {
-      setDialogValidation(dialogValidationMessages);
+    // SYNC: auf alle Menüs umbiegen
+    if (
+      Object.keys(selectedMenues!).length > 1 &&
+      dialogValues.keepMenuPortionsInSync
+    ) {
+      const syncPlan = selectedPlans[KEEP_IN_SYNC_KEY];
+      Object.keys(selectedMenues!).forEach((menueUid) => {
+        selectedPlans[menueUid] = syncPlan;
+      });
+      delete selectedPlans[KEEP_IN_SYNC_KEY];
     }
+
+    onAddClickSuper(selectedPlans);
+    setDialogValues(DIALOG_VALUES_INITIAL_VALUES);
   };
+
   const onBackClick = () => {
     setDialogValues(DIALOG_VALUES_INITIAL_VALUES);
     setDialogValidation([]);
@@ -548,10 +644,48 @@ const DialogPlanPortions = ({
     onCancelClickSuper();
   };
 
+  /* ------------------------------------------
+  // Tab-Label mit Portionenzähler
+  // ------------------------------------------ */
+  /**
+   * Erzeugt das Tab-Label mit optionalem Portionenzähler.
+   *
+   * @param name Anzeigename der Diät
+   * @param menuUid UID des Menüs
+   * @param dietUid UID der Diät
+   * @returns React-Element für das Tab-Label
+   */
+  const renderTabLabel = (
+    name: string,
+    menuUid: string,
+    dietUid: string,
+  ): React.ReactNode => {
+    const dietPlan = dialogValues.plan?.[menuUid]?.[dietUid];
+    const portions = getDietTabPortions(dietPlan);
+    const hasActive = hasDietActiveEntries(dietPlan);
+
+    return (
+      <span>
+        {name}
+        {hasActive && (
+          <span
+            style={{
+              marginLeft: "0.3em",
+              fontWeight: "bold",
+              color: theme.palette.primary.main,
+            }}
+          >
+            ({portions})
+          </span>
+        )}
+      </span>
+    );
+  };
+
   return (
     <React.Fragment>
       {selectedMenues ? (
-        <Dialog open={open} maxWidth="md">
+        <Dialog open={open} maxWidth="md" fullWidth>
           <DialogTitle>
             {planedObject == PlanedObject.RECIPE
               ? TEXT_DIALOG_PLAN_RECIPE_PORTIONS_TITLE
@@ -572,7 +706,6 @@ const DialogPlanPortions = ({
               </FormGroup>
             )}
             {dialogValues.menueList &&
-              // Für alle gewählten Menü, den Block aufbauen
               dialogValues.menueList.map((menueUid, counter) => {
                 let meal: Meal = {
                   uid: "",
@@ -587,6 +720,9 @@ const DialogPlanPortions = ({
                     meals: meals,
                   });
                 }
+                const activeTab =
+                  dialogValues.activeTabs?.[menueUid] || PlanedDiet.ALL;
+
                 return (
                   <React.Fragment
                     key={"dialogPlanPortionsDetailBlock_" + menueUid}
@@ -605,46 +741,49 @@ const DialogPlanPortions = ({
                         }}
                       />
                     )}
+                    {/* Datumsanzeige */}
                     {menueUid == KEEP_IN_SYNC_KEY ? (
                       <React.Fragment>
                         <Typography variant="subtitle1">
                           {`${TEXT_ON_DATE}: `}
                         </Typography>
-                        {Object.keys(selectedMenues).map((menueUid) => {
-                          meal = findMealOfMenu({
-                            menueUid: menueUid,
-                            meals: meals,
-                          });
-
-                          return (
-                            <Typography
-                              variant="subtitle1"
-                              key={"date_" + menueUid + counter}
-                            >
-                              <strong>
-                                {`${new Date(meal.date).toLocaleString(
-                                  "default",
-                                  {
+                        {Object.keys(selectedMenues).map(
+                          (syncMenueUid) => {
+                            const syncMeal = findMealOfMenu({
+                              menueUid: syncMenueUid,
+                              meals: meals,
+                            });
+                            return (
+                              <Typography
+                                variant="subtitle1"
+                                key={"date_" + syncMenueUid + counter}
+                              >
+                                <strong>
+                                  {new Date(
+                                    syncMeal.date,
+                                  ).toLocaleString("default", {
                                     weekday: "long",
-                                  },
-                                )}`}
-                              </strong>
-                              {` ${new Date(meal.date).toLocaleString("de-CH", {
-                                year: "numeric",
-                                month: "2-digit",
-                                day: "2-digit",
-                              })} - ${mealTypes.entries[meal.mealType].name}`}
-                            </Typography>
-                          );
-                        })}
+                                  })}
+                                </strong>
+                                {` ${new Date(
+                                  syncMeal.date,
+                                ).toLocaleString("de-CH", {
+                                  year: "numeric",
+                                  month: "2-digit",
+                                  day: "2-digit",
+                                })} - ${mealTypes.entries[syncMeal.mealType].name}`}
+                              </Typography>
+                            );
+                          },
+                        )}
                       </React.Fragment>
                     ) : (
                       <Typography variant="subtitle1">
                         {`${TEXT_ON_DATE}: `}
                         <strong>
-                          {`${new Date(meal.date).toLocaleString("default", {
+                          {new Date(meal.date).toLocaleString("default", {
                             weekday: "long",
-                          })}`}
+                          })}
                         </strong>
                         {` ${new Date(meal.date).toLocaleString("de-CH", {
                           year: "numeric",
@@ -653,119 +792,71 @@ const DialogPlanPortions = ({
                         })} - ${mealTypes.entries[meal.mealType].name}`}
                       </Typography>
                     )}
-                    <ToggleButtonGroup
-                      key={"dialogPortion_ToggleButtonGroup_" + menueUid}
-                      id={"dialogPortion_ToggleButtonGroup_" + menueUid}
-                      exclusive
-                      value={dialogValues.selectedDiets}
-                      onChange={onToggleButtonClick}
-                      aria-label="Mögliche-Gruppen"
-                      style={{
-                        display: "flex",
-                      }}
-                      sx={classes.toggleButtonGroup}
-                      color="primary"
-                    >
-                      <ToggleButton
-                        key={
-                          "dialogPlanPortionsMealBlockDietButton_" +
-                          menueUid +
-                          "_" +
-                          PlanedDiet.ALL
-                        }
-                        id={
-                          "dialogPlanPortionsMealBlockDietButton_" +
-                          menueUid +
-                          "_" +
-                          PlanedDiet.ALL
-                        }
-                        value={PlanedDiet.ALL}
-                        aria-label={TEXT_ALL}
-                        sx={classes.toggleButton}
-                        style={{
-                          ...(dialogValues.selectedDiets &&
-                            dialogValues.selectedDiets[menueUid] ===
-                              PlanedDiet.ALL && {
-                              color: theme.palette.primary.main,
-                              backgroundColor: alpha(
-                                theme.palette.primary.main,
-                                0.1,
-                              ),
-                            }),
-                        }}
-                      >
-                        {TEXT_ALL}
-                      </ToggleButton>
-                      {groupConfiguration?.diets.order.map((dietUid) => (
-                        <ToggleButton
-                          key={
-                            "dialogPlanPortionsMealBlockDietButton_" +
-                            menueUid +
-                            "_" +
-                            dietUid
-                          }
-                          id={
-                            "dialogPlanPortionsMealBlockDietButton_" +
-                            menueUid +
-                            "_" +
-                            dietUid
-                          }
-                          value={dietUid}
-                          aria-label={
-                            groupConfiguration.diets.entries[dietUid].name
-                          }
-                          sx={classes.toggleButton}
-                          style={{
-                            ...(dialogValues.selectedDiets &&
-                              dialogValues.selectedDiets[menueUid] ===
-                                dietUid && {
-                                color: theme.palette.primary.main,
-                                backgroundColor: alpha(
-                                  theme.palette.primary.main,
-                                  0.1,
-                                ),
-                              }),
-                          }}
-                        >
-                          {groupConfiguration.diets.entries[dietUid].name}
-                        </ToggleButton>
-                      ))}
-                      <ToggleButton
-                        id={
-                          "dialogPlanPortionsMealBlockDietButton_" +
-                          menueUid +
-                          "_" +
-                          PlanedDiet.FIX
-                        }
-                        value={PlanedDiet.FIX}
-                        aria-label={TEXT_FIX_PORTIONS}
-                        sx={classes.toggleButton}
-                        style={{
-                          ...(dialogValues.selectedDiets &&
-                            dialogValues.selectedDiets[menueUid] ===
-                              PlanedDiet.FIX && {
-                              color: theme.palette.primary.main,
-                              backgroundColor: alpha(
-                                theme.palette.primary.main,
-                                0.1,
-                              ),
-                            }),
-                        }}
-                      >
-                        {TEXT_FIX_PORTIONS}
-                      </ToggleButton>
-                    </ToggleButtonGroup>
 
-                    {dialogValues.selectedDiets && (
+                    {/* Diät-Tabs */}
+                    <Tabs
+                      value={activeTab}
+                      onChange={(_e, newValue) =>
+                        onTabChange(menueUid, newValue as string)
+                      }
+                      variant="scrollable"
+                      scrollButtons="auto"
+                      sx={{marginBottom: theme.spacing(2)}}
+                    >
+                      <Tab
+                        value={PlanedDiet.ALL}
+                        label={renderTabLabel(
+                          TEXT_ALL,
+                          menueUid,
+                          PlanedDiet.ALL,
+                        )}
+                      />
+                      {groupConfiguration?.diets.order.map((dietUid) => (
+                        <Tab
+                          key={"dietTab_" + menueUid + "_" + dietUid}
+                          value={dietUid}
+                          label={renderTabLabel(
+                            groupConfiguration.diets.entries[dietUid].name,
+                            menueUid,
+                            dietUid,
+                          )}
+                        />
+                      ))}
+                      <Tab
+                        value={PlanedDiet.FIX}
+                        label={renderTabLabel(
+                          TEXT_FIX_PORTIONS,
+                          menueUid,
+                          PlanedDiet.FIX,
+                        )}
+                      />
+                    </Tabs>
+
+                    {/* Fix-Warnung */}
+                    {activeTab === PlanedDiet.FIX && (
+                      <Alert
+                        severity="info"
+                        sx={{marginBottom: theme.spacing(2)}}
+                      >
+                        {TEXT_FIXED_PORTIONS_WARNING}
+                      </Alert>
+                    )}
+
+                    {/* Tab-Inhalt */}
+                    {dialogValues.plan?.[menueUid] && (
                       <DialogPlanPortionsMealBlock
                         key={"dialogPlanPortionsMealBlock_" + menueUid}
-                        selectedDietUid={dialogValues.selectedDiets[menueUid]}
-                        plan={dialogValues.plan}
+                        activeDietUid={activeTab}
+                        dietPlan={
+                          dialogValues.plan[menueUid]![activeTab]
+                        }
+                        menuPlan={dialogValues.plan[menueUid]!}
                         menueUid={menueUid}
                         groupConfiguration={groupConfiguration}
                         onFieldUpdate={onFieldUpdate}
                       />
                     )}
+
                     {/* Fehlermeldung anzeigen falls notwendig */}
                     {dialogValidation.length > 0 &&
                       dialogValidation.some(
@@ -779,9 +870,14 @@ const DialogPlanPortions = ({
                           }}
                         >
                           {dialogValidation
-                            .filter((message) => message.fieldName == menueUid)
-                            .map((errorMessage) => (
-                              <Typography color="error" key="errormessage">
+                            .filter(
+                              (message) => message.fieldName == menueUid,
+                            )
+                            .map((errorMessage, idx) => (
+                              <Typography
+                                color="error"
+                                key={"errormessage_" + idx}
+                              >
                                 {errorMessage.errorMessage}
                               </Typography>
                             ))}
@@ -792,13 +888,11 @@ const DialogPlanPortions = ({
               })}
           </DialogContent>
           <DialogActions style={{marginTop: theme.spacing(2)}}>
-            {/* Abbrechen, Bestägigen, Zurück */}
             <Button onClick={onCancelClick} color="primary" variant="outlined">
               {TEXT_CANCEL}
             </Button>
             {planedObject == PlanedObject.RECIPE &&
               planedMealRecipe.length == 0 && (
-                // Nur anzeigen, wenn neues Rezept hinzugeüfgt wird.
                 <Button
                   onClick={onBackClick}
                   color="primary"
@@ -823,27 +917,35 @@ const DialogPlanPortions = ({
 // =================================================================== */
 interface DialogPlanPortionsMealBlockProps {
   menueUid: Menue["uid"];
-  selectedDietUid: PortionPlan["diet"];
+  activeDietUid: string;
+  dietPlan: DialogPlanPortionsDietPlanning | undefined;
+  menuPlan: DialogPlanPortionsMealPlanning;
   groupConfiguration: EventGroupConfiguration;
-  plan: DialogPlanPortionsDialogValues["plan"];
   onFieldUpdate: (event: React.ChangeEvent<HTMLInputElement>) => void;
 }
 const DialogPlanPortionsMealBlock = ({
   menueUid,
-  plan,
-  selectedDietUid,
+  activeDietUid,
+  dietPlan,
+  menuPlan,
   groupConfiguration,
   onFieldUpdate,
 }: DialogPlanPortionsMealBlockProps) => {
-  return (
-    plan &&
-    (selectedDietUid == PlanedDiet.FIX ? (
+  const theme = useTheme();
+
+  if (!dietPlan) return null;
+
+  if (activeDietUid === PlanedDiet.FIX) {
+    return (
       <Grid container spacing={2}>
         <Grid size={12}>
           <TextField
+            size="small"
             id={
               "dialogPlanPortionsMealBlockIntolerance_total_" +
               menueUid +
+              "_" +
+              PlanedDiet.FIX +
               "_" +
               PlanedDiet.FIX
             }
@@ -856,106 +958,207 @@ const DialogPlanPortionsMealBlock = ({
             label={TEXT_NO_OF_SERVINGS}
             type="outlined"
             onChange={onFieldUpdate}
-            value={plan[Object.keys(plan)[0]]!.FIX.total}
+            value={dietPlan[PlanedDiet.FIX]?.total ?? 0}
             fullWidth
           />
         </Grid>
       </Grid>
-    ) : (
-      <Grid container spacing={2}>
-        <Grid size={8} />
-        <Grid size={2}>
-          <Typography>
-            <strong>{TEXT_FACTOR} </strong>
-            <Tooltip title={TEXT_FACTOR_TOOLTIP} placement="bottom" arrow>
-              <InfoIcon fontSize="small" style={{marginLeft: "0.5em"}} />
-            </Tooltip>
-          </Typography>
-        </Grid>
-        <Grid size={2}>
-          <strong>{TEXT_TOTAL_PORTIONS}</strong>
-        </Grid>
-        {/* Zuerst eine Zeile mit für das Total der gewählten Diät-Gruppe */}
+    );
+  }
+
+  // Zusammenfassung aller aktiven Diäten berechnen
+  const allDietEntries: {dietUid: string; name: string; portions: number}[] =
+    [];
+  // «Alle»-Tab
+  const allePortions = getDietTabPortions(menuPlan[PlanedDiet.ALL]);
+  if (allePortions > 0) {
+    allDietEntries.push({
+      dietUid: PlanedDiet.ALL,
+      name: TEXT_ALL,
+      portions: allePortions,
+    });
+  }
+  // Individuelle Diäten
+  const hasIndividualDiets = groupConfiguration.diets.order.some(
+    (dietUid) => getDietTabPortions(menuPlan[dietUid]) > 0,
+  );
+  groupConfiguration.diets.order.forEach((dietUid) => {
+    const portions = getDietTabPortions(menuPlan[dietUid]);
+    if (portions > 0) {
+      allDietEntries.push({
+        dietUid,
+        name: groupConfiguration.diets.entries[dietUid].name,
+        portions,
+      });
+    }
+  });
+  // Fix-Portionen
+  const fixPortions = getDietTabPortions(menuPlan[PlanedDiet.FIX]);
+  if (fixPortions > 0) {
+    allDietEntries.push({
+      dietUid: PlanedDiet.FIX,
+      name: TEXT_FIX_PORTIONS,
+      portions: fixPortions,
+    });
+  }
+  // «Alle» ausblenden wenn individuelle Diäten vorhanden — Konflikt
+  // wird erst beim Absenden gelöst, Daten bleiben erhalten
+  const dietSummary = allDietEntries.filter(
+    (e) => !(e.dietUid === PlanedDiet.ALL && hasIndividualDiets),
+  );
+  const grandTotal = dietSummary.reduce((sum, d) => sum + d.portions, 0);
+
+  return (
+    <Grid container spacing={2}>
+      <Grid size={8} />
+      <Grid size={2}>
+        <Typography>
+          <strong>{TEXT_FACTOR} </strong>
+          <Tooltip title={TEXT_FACTOR_TOOLTIP} placement="bottom" arrow>
+            <InfoIcon fontSize="small" style={{marginLeft: "0.5em"}} />
+          </Tooltip>
+        </Typography>
+      </Grid>
+      <Grid size={2}>
+        <strong>{TEXT_TOTAL_PORTIONS}</strong>
+      </Grid>
+      {/* «Alle»-Zeile innerhalb des Diät-Tabs */}
+      <DialogPlanPortionsMealBlockRow
+        key={
+          "dialogPlanPortionsMealBlockRow_" +
+          menueUid +
+          "_" +
+          activeDietUid +
+          "_" +
+          PlanedIntolerances.ALL
+        }
+        intoleranceUid={PlanedIntolerances.ALL}
+        dietUid={activeDietUid}
+        menueUid={menueUid}
+        intoleranceName={TEXT_ALL}
+        portionsOfIntolerance={
+          activeDietUid === PlanedDiet.ALL
+            ? groupConfiguration.totalPortions
+            : groupConfiguration.diets.entries[activeDietUid].totalPortions
+        }
+        active={dietPlan[PlanedIntolerances.ALL]?.active}
+        factor={dietPlan[PlanedIntolerances.ALL]?.factor}
+        totalPortions={dietPlan[PlanedIntolerances.ALL]?.total}
+        onFieldUpdate={onFieldUpdate}
+      />
+      {groupConfiguration.intolerances.order.map((intoleranceUid) => (
         <DialogPlanPortionsMealBlockRow
           key={
             "dialogPlanPortionsMealBlockRow_" +
             menueUid +
             "_" +
-            PlanedIntolerances.ALL
+            activeDietUid +
+            "_" +
+            intoleranceUid
           }
-          intoleranceUid={PlanedIntolerances.ALL}
+          intoleranceUid={intoleranceUid}
+          dietUid={activeDietUid}
           menueUid={menueUid}
-          intoleranceName={TEXT_ALL}
-          portionsOfIntolerance={
-            selectedDietUid == PlanedDiet.ALL
-              ? groupConfiguration.totalPortions
-              : groupConfiguration.diets.entries[selectedDietUid].totalPortions
+          intoleranceName={
+            groupConfiguration.intolerances.entries[intoleranceUid].name
           }
-          active={plan[menueUid]?.[PlanedIntolerances.ALL]?.active}
-          factor={plan[menueUid]?.[PlanedIntolerances.ALL]?.factor}
-          totalPortions={plan[menueUid]?.[PlanedIntolerances.ALL]?.total}
+          portionsOfIntolerance={
+            activeDietUid === PlanedDiet.ALL
+              ? groupConfiguration.intolerances.entries[intoleranceUid]
+                  .totalPortions
+              : groupConfiguration.portions[activeDietUid][intoleranceUid]
+          }
+          active={dietPlan[intoleranceUid]?.active}
+          factor={dietPlan[intoleranceUid]?.factor}
+          totalPortions={dietPlan[intoleranceUid]?.total}
           onFieldUpdate={onFieldUpdate}
         />
-        {groupConfiguration.intolerances.order.map((intoleranceUid) => (
-          <DialogPlanPortionsMealBlockRow
-            key={
-              "dialogPlanPortionsMealBlockRow_" +
-              menueUid +
-              "_" +
-              intoleranceUid
-            }
-            intoleranceUid={intoleranceUid}
-            menueUid={menueUid}
-            intoleranceName={
-              groupConfiguration.intolerances.entries[intoleranceUid].name
-            }
-            portionsOfIntolerance={
-              selectedDietUid == PlanedDiet.ALL
-                ? groupConfiguration.intolerances.entries[intoleranceUid]
-                    .totalPortions
-                : groupConfiguration.portions[selectedDietUid][intoleranceUid]
-            }
-            active={plan[menueUid]?.[intoleranceUid]?.active}
-            factor={plan[menueUid]?.[intoleranceUid]?.factor}
-            totalPortions={plan[menueUid]?.[intoleranceUid]?.total}
-            onFieldUpdate={onFieldUpdate}
-          />
-        ))}
-        <Grid size={12}>
-          <Divider />
-        </Grid>
-        <Grid size={8}>
-          <Typography>
-            <strong>{TEXT_YOUR_SELECTION_MAKES_X_SERVINGS}</strong>
-          </Typography>
-        </Grid>
-        <Grid size={2} />
-        <Grid size={2}>
-          <TextField
-            fullWidth
-            disabled
-            value={
-              plan && plan[menueUid]
-                ? Object.values(plan[menueUid]!)
-                    .filter((portion) => portion !== null && portion.active)
-                    .reduce(
-                      (runningSum, portion) => runningSum + portion.total,
-                      0,
-                    )
-                : ""
-            }
-            label={TEXT_TOTAL_PORTIONS}
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <strong>=</strong>
-                </InputAdornment>
-              ),
-            }}
-          />
-        </Grid>
+      ))}
+      <Grid size={12}>
+        <Divider />
       </Grid>
-    ))
+      <Grid size={8}>
+        <Typography>
+          <strong>{TEXT_YOUR_SELECTION_MAKES_X_SERVINGS}</strong>
+        </Typography>
+      </Grid>
+      <Grid size={2} />
+      <Grid size={2}>
+        <TextField
+          size="small"
+          fullWidth
+          disabled
+          value={getDietTabPortions(dietPlan) || ""}
+          label={TEXT_TOTAL_PORTIONS}
+          InputProps={{
+            startAdornment: (
+              <InputAdornment position="start">
+                <strong>=</strong>
+              </InputAdornment>
+            ),
+          }}
+        />
+      </Grid>
+      {/* Aufschlüsselung anderer aktiver Diäten (ohne aktiven Tab) */}
+      {dietSummary
+        .filter((entry) => entry.dietUid !== activeDietUid)
+        .map((entry) => (
+          <React.Fragment key={"dietSummary_" + entry.dietUid}>
+            <Grid size={8}>
+              <Typography
+                variant="body1"
+                style={{color: theme.palette.text.secondary}}
+              >
+                {entry.name}
+              </Typography>
+            </Grid>
+            <Grid size={2} />
+            <Grid size={2}>
+              <TextField
+                size="small"
+                fullWidth
+                disabled
+                value={entry.portions || ""}
+                label={entry.name}
+                InputProps={{
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <strong>+</strong>
+                    </InputAdornment>
+                  ),
+                }}
+              />
+            </Grid>
+          </React.Fragment>
+        ))}
+      {/* Gesamttotal über alle Diäten — nur anzeigen wenn mehrere aktiv */}
+      {dietSummary.length > 1 && (
+        <React.Fragment>
+          <Grid size={8}>
+            <Typography variant="body1">
+              <strong>{TEXT_TOTAL_PORTIONS}</strong>
+            </Typography>
+          </Grid>
+          <Grid size={2} />
+          <Grid size={2}>
+            <TextField
+              size="small"
+              fullWidth
+              disabled
+              value={grandTotal || ""}
+              label={TEXT_TOTAL_PORTIONS}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <strong>=</strong>
+                  </InputAdornment>
+                ),
+              }}
+            />
+          </Grid>
+        </React.Fragment>
+      )}
+    </Grid>
   );
 };
 /* ===================================================================
@@ -964,6 +1167,7 @@ const DialogPlanPortionsMealBlock = ({
 interface DialogPlanPortionsMealBlockRowProps {
   active: boolean | undefined;
   menueUid: Menue["uid"];
+  dietUid: string;
   intoleranceUid: PortionPlan["intolerance"];
   intoleranceName: Intolerance["name"];
   portionsOfIntolerance: number;
@@ -974,6 +1178,7 @@ interface DialogPlanPortionsMealBlockRowProps {
 export const DialogPlanPortionsMealBlockRow = ({
   active,
   menueUid,
+  dietUid,
   intoleranceUid,
   intoleranceName,
   portionsOfIntolerance,
@@ -989,6 +1194,8 @@ export const DialogPlanPortionsMealBlockRow = ({
         "dialogPlanPortionsMealBlockIntoleranceRow_" +
         menueUid +
         "_" +
+        dietUid +
+        "_" +
         intoleranceUid
       }
     >
@@ -997,6 +1204,9 @@ export const DialogPlanPortionsMealBlockRow = ({
           key={
             "dialogPlanPortionsMealBlockIntoleranceFormcontroll_" +
             menueUid +
+            "_" +
+            dietUid +
+            "_" +
             intoleranceUid
           }
           style={{width: "100%"}}
@@ -1005,6 +1215,8 @@ export const DialogPlanPortionsMealBlockRow = ({
               id={
                 "dialogPlanPortionsMealBlockIntolerance_active_" +
                 menueUid +
+                "_" +
+                dietUid +
                 "_" +
                 intoleranceUid
               }
@@ -1031,9 +1243,12 @@ export const DialogPlanPortionsMealBlockRow = ({
       </Grid>
       <Grid size={2}>
         <TextField
+          size="small"
           id={
             "dialogPlanPortionsMealBlockIntolerance_factor_" +
             menueUid +
+            "_" +
+            dietUid +
             "_" +
             intoleranceUid
           }
@@ -1057,16 +1272,18 @@ export const DialogPlanPortionsMealBlockRow = ({
       </Grid>
       <Grid size={2}>
         <TextField
+          size="small"
           id={
             "dialogPlanPortionsMealBlockIntolerance_totalPortions_" +
             menueUid +
+            "_" +
+            dietUid +
             "_" +
             intoleranceUid
           }
           fullWidth
           disabled
           value={totalPortions == 0 ? "" : totalPortions}
-          // onChange={onChangeMenueName}
           label={TEXT_TOTAL_PORTIONS}
           InputProps={{
             startAdornment: (

@@ -15,6 +15,7 @@
  * const menuplan = await repo.getMenuplan(eventId);
  */
 import {SupabaseClient} from "@supabase/supabase-js";
+import * as Sentry from "@sentry/react";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -625,6 +626,14 @@ export class MenuplanRepository extends BaseRepository<
     onError: (error: Error) => void,
   ): () => void {
     const clientRef = this.client;
+    const MAX_RETRIES = 5;
+    const BASE_DELAY_MS = 1000;
+    const MAX_DELAY_MS = 30_000;
+
+    let retryCount = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let activeChannel: ReturnType<typeof clientRef.channel> | null = null;
+    let cancelled = false;
 
     const handleChange = () => {
       try {
@@ -634,26 +643,79 @@ export class MenuplanRepository extends BaseRepository<
       }
     };
 
-    // Ein einziger Channel für alle 8 Menuplan-Tabellen — spart Realtime-Connections
-    const channel = clientRef
-      .channel(`menuplan:${eventId}`)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_meal_types", filter: `event_id=eq.${eventId}`}, handleChange)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_meals", filter: `event_id=eq.${eventId}`}, handleChange)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_menues", filter: `event_id=eq.${eventId}`}, handleChange)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_recipes", filter: `event_id=eq.${eventId}`}, handleChange)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_products", filter: `event_id=eq.${eventId}`}, handleChange)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_materials", filter: `event_id=eq.${eventId}`}, handleChange)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_notes", filter: `event_id=eq.${eventId}`}, handleChange)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_menuplan_item_plans", filter: `event_id=eq.${eventId}`}, handleChange)
-      .subscribe((status, err) => {
-        console.debug(`Realtime menuplan:${eventId} status: ${status}`, err ?? "");
-        if (status === "CHANNEL_ERROR") {
-          onError(new Error(`Realtime-Fehler für menuplan:${eventId}`));
-        }
-      });
+    /**
+     * Erstellt und abonniert einen Realtime-Channel.
+     * Bei CHANNEL_ERROR oder TIMED_OUT wird automatisch mit
+     * exponentiellem Backoff (1s, 2s, 4s, …, max 30s) erneut versucht.
+     * Nach MAX_RETRIES wird onError mit einem permanenten Fehler aufgerufen.
+     */
+    const subscribe = () => {
+      if (cancelled) return;
 
+      const channel = clientRef
+        .channel(`menuplan:${eventId}`)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_meal_types", filter: `event_id=eq.${eventId}`}, handleChange)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_meals", filter: `event_id=eq.${eventId}`}, handleChange)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_menues", filter: `event_id=eq.${eventId}`}, handleChange)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_recipes", filter: `event_id=eq.${eventId}`}, handleChange)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_products", filter: `event_id=eq.${eventId}`}, handleChange)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_materials", filter: `event_id=eq.${eventId}`}, handleChange)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_notes", filter: `event_id=eq.${eventId}`}, handleChange)
+        .on("postgres_changes", {event: "*", schema: "public", table: "event_menuplan_item_plans", filter: `event_id=eq.${eventId}`}, handleChange)
+        .subscribe((status, err) => {
+          if (cancelled) return;
+
+          if (status === "SUBSCRIBED") {
+            // Erfolgreich verbunden — Retry-Zähler zurücksetzen
+            retryCount = 0;
+            return;
+          }
+
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            Sentry.addBreadcrumb({
+              category: "realtime",
+              message: `Menuplan channel ${status} (attempt ${retryCount + 1}/${MAX_RETRIES})`,
+              level: "warning",
+              data: {eventId, status, retryCount},
+            });
+
+            // Alten Channel aufräumen
+            clientRef.removeChannel(channel);
+            activeChannel = null;
+
+            if (retryCount >= MAX_RETRIES) {
+              const permanentError = new Error(
+                `Realtime-Verbindung für menuplan:${eventId} nach ${MAX_RETRIES} Versuchen fehlgeschlagen`,
+              );
+              Sentry.captureException(permanentError, {extra: {eventId, retryCount}});
+              onError(permanentError);
+              return;
+            }
+
+            // Exponentieller Backoff: 1s, 2s, 4s, 8s, 16s (gedeckelt bei 30s)
+            const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
+            retryCount++;
+            retryTimer = setTimeout(subscribe, delay);
+          }
+        });
+
+      activeChannel = channel;
+    };
+
+    // Erste Verbindung aufbauen
+    subscribe();
+
+    // Unsubscribe-Funktion: räumt Channel UND ausstehende Retries auf
     return () => {
-      clientRef.removeChannel(channel);
+      cancelled = true;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      if (activeChannel) {
+        clientRef.removeChannel(activeChannel);
+        activeChannel = null;
+      }
     };
   }
 
@@ -771,111 +833,146 @@ export class MenuplanRepository extends BaseRepository<
     menuplan: MenuplanDomain,
     authUser: AuthUser,
   ): Promise<void> {
-    // Schritt 0: FK-Referenzen in-memory validieren, BEVOR gelöscht wird.
-    // Verhindert Datenverlust durch delete-then-fail-insert.
+    // FK-Referenzen in-memory validieren, BEVOR die RPC-Funktion aufgerufen wird.
+    // Fängt logische Fehler früh ab, ohne einen DB-Roundtrip zu verschwenden.
     this.validateMenuplanDomain(menuplan);
 
-    // Schritt 1a: Tages-Notizen löschen (menue_id IS NULL).
-    // Diese werden NICHT durch CASCADE auf event_meal_types erfasst,
-    // da ihr menue_id NULL ist und somit kein FK-Match stattfindet.
-    const {error: notesDeleteError} = await this.client
-      .from("event_notes")
-      .delete()
-      .eq("event_id", eventId)
-      .is("menue_id", null);
+    // JSONB-Payload für die atomare RPC-Funktion zusammenbauen.
+    // Jedes Array enthält die Zeilen ohne event_id — die Funktion setzt sie selbst.
+    const payload = {
+      mealTypes: menuplan.mealTypes.map((mt) => ({
+        id: mt.uid,
+        name: mt.name,
+        sort_order: mt.sortOrder,
+      })),
+      meals: menuplan.meals.map((m) => ({
+        id: m.uid,
+        meal_date: m.mealDate,
+        meal_type_id: m.mealTypeId,
+      })),
+      menues: menuplan.menues.map((m) => ({
+        id: m.uid,
+        meal_id: m.mealId,
+        name: m.name,
+        sort_order: m.sortOrder,
+      })),
+      menueRecipes: menuplan.menueRecipes.map((r) => ({
+        id: r.uid,
+        menue_id: r.menueId,
+        recipe_id: r.recipeId,
+        deleted_recipe_name: r.deletedRecipeName,
+        variant_name: r.variantName,
+        total_portions: r.totalPortions,
+        sort_order: r.sortOrder,
+      })),
+      menueProducts: menuplan.menueProducts.map((p) => ({
+        id: p.uid,
+        menue_id: p.menueId,
+        product_id: p.productId,
+        quantity: p.quantity,
+        unit: p.unit,
+        plan_mode: p.planMode,
+        total_quantity: p.totalQuantity,
+        sort_order: p.sortOrder,
+      })),
+      menueMaterials: menuplan.menueMaterials.map((m) => ({
+        id: m.uid,
+        menue_id: m.menueId,
+        material_id: m.materialId,
+        quantity: m.quantity,
+        unit: m.unit,
+        plan_mode: m.planMode,
+        total_quantity: m.totalQuantity,
+        sort_order: m.sortOrder,
+      })),
+      notes: menuplan.notes.map((n) => ({
+        id: n.uid,
+        menue_id: n.menueId,
+        text: n.text,
+        note_date: n.noteDate,
+      })),
+      itemPlans: this.collectItemPlanPayload(menuplan),
+    };
 
-    if (notesDeleteError) throw notesDeleteError;
+    // Atomarer Save via Postgres-Funktion — alles in einer Transaktion.
+    const {error} = await this.client.rpc("save_menuplan", {
+      p_event_id: eventId,
+      p_payload: payload,
+    });
 
-    // Schritt 1b: Alle bestehenden Daten löschen — CASCADE räumt Kindtabellen auf
-    // (inkl. Menü-Notizen, die über event_menues → event_notes kaskadiert werden)
-    const {error: deleteError} = await this.client
-      .from("event_meal_types")
-      .delete()
-      .eq("event_id", eventId);
+    if (error) {
+      Sentry.captureException(error, {extra: {eventId}});
+      throw error;
+    }
+  }
 
-    if (deleteError) throw deleteError;
+  /**
+   * Sammelt alle ItemPlan-Einträge aus Rezepten, Produkten und Materialien
+   * als flaches Array für den RPC-Payload (ohne event_id).
+   *
+   * @param menuplan - Das vollständige MenuplanDomain
+   * @returns Array von Plan-Objekten für den JSONB-Payload
+   */
+  private collectItemPlanPayload(
+    menuplan: MenuplanDomain,
+  ): Record<string, unknown>[] {
+    const plans: Record<string, unknown>[] = [];
 
-    // Schritt 2: Elterntabellen zuerst einfügen, dann Kindtabellen
-
-    // event_meal_types
-    if (menuplan.mealTypes.length > 0) {
-      const mealTypeRows = menuplan.mealTypes.map((mt) =>
-        this.mealTypeDomainToRow(eventId, mt),
-      );
-      const {error} = await this.client
-        .from("event_meal_types")
-        .insert(mealTypeRows);
-      if (error) throw error;
+    // Plans aus Rezepten
+    for (const recipe of menuplan.menueRecipes) {
+      for (const plan of recipe.plans) {
+        plans.push({
+          id: plan.uid || crypto.randomUUID(),
+          menue_recipe_id: recipe.uid,
+          menue_product_id: null,
+          menue_material_id: null,
+          diet_scope: plan.dietScope,
+          diet_id: plan.dietId,
+          intolerance_scope: plan.intoleranceScope,
+          intolerance_id: plan.intoleranceId,
+          factor: plan.factor,
+          servings: plan.servings,
+        });
+      }
     }
 
-    // event_meals
-    if (menuplan.meals.length > 0) {
-      const mealRows = menuplan.meals.map((m) =>
-        this.mealDomainToRow(eventId, m),
-      );
-      const {error} = await this.client.from("event_meals").insert(mealRows);
-      if (error) throw error;
+    // Plans aus Produkten
+    for (const product of menuplan.menueProducts) {
+      for (const plan of product.plans) {
+        plans.push({
+          id: plan.uid || crypto.randomUUID(),
+          menue_recipe_id: null,
+          menue_product_id: product.uid,
+          menue_material_id: null,
+          diet_scope: plan.dietScope,
+          diet_id: plan.dietId,
+          intolerance_scope: plan.intoleranceScope,
+          intolerance_id: plan.intoleranceId,
+          factor: plan.factor,
+          servings: plan.servings,
+        });
+      }
     }
 
-    // event_menues
-    if (menuplan.menues.length > 0) {
-      const menueRows = menuplan.menues.map((m) =>
-        this.menueDomainToRow(eventId, m),
-      );
-      const {error} = await this.client.from("event_menues").insert(menueRows);
-      if (error) throw error;
+    // Plans aus Materialien
+    for (const material of menuplan.menueMaterials) {
+      for (const plan of material.plans) {
+        plans.push({
+          id: plan.uid || crypto.randomUUID(),
+          menue_recipe_id: null,
+          menue_product_id: null,
+          menue_material_id: material.uid,
+          diet_scope: plan.dietScope,
+          diet_id: plan.dietId,
+          intolerance_scope: plan.intoleranceScope,
+          intolerance_id: plan.intoleranceId,
+          factor: plan.factor,
+          servings: plan.servings,
+        });
+      }
     }
 
-    // event_menue_recipes (ohne Plans)
-    if (menuplan.menueRecipes.length > 0) {
-      const recipeRows = menuplan.menueRecipes.map((r) =>
-        this.menueRecipeDomainToRow(eventId, r),
-      );
-      const {error} = await this.client
-        .from("event_menue_recipes")
-        .insert(recipeRows);
-      if (error) throw error;
-    }
-
-    // event_menue_products (ohne Plans)
-    if (menuplan.menueProducts.length > 0) {
-      const productRows = menuplan.menueProducts.map((p) =>
-        this.menueProductDomainToRow(eventId, p),
-      );
-      const {error} = await this.client
-        .from("event_menue_products")
-        .insert(productRows);
-      if (error) throw error;
-    }
-
-    // event_menue_materials (ohne Plans)
-    if (menuplan.menueMaterials.length > 0) {
-      const materialRows = menuplan.menueMaterials.map((m) =>
-        this.menueMaterialDomainToRow(eventId, m),
-      );
-      const {error} = await this.client
-        .from("event_menue_materials")
-        .insert(materialRows);
-      if (error) throw error;
-    }
-
-    // event_notes
-    if (menuplan.notes.length > 0) {
-      const noteRows = menuplan.notes.map((n) =>
-        this.noteDomainToRow(eventId, n),
-      );
-      const {error} = await this.client.from("event_notes").insert(noteRows);
-      if (error) throw error;
-    }
-
-    // event_menuplan_item_plans — aus allen Rezepten, Produkten und Materialien sammeln
-    const planRows = this.collectItemPlanRows(eventId, menuplan);
-    if (planRows.length > 0) {
-      const {error} = await this.client
-        .from("event_menuplan_item_plans")
-        .insert(planRows);
-      if (error) throw error;
-    }
+    return plans;
   }
 
   /* =====================================================================
@@ -1140,80 +1237,6 @@ export class MenuplanRepository extends BaseRepository<
       note_date: domain.noteDate,
       text: domain.text,
     };
-  }
-
-  /**
-   * Sammelt alle ItemPlan-Zeilen aus Rezepten, Produkten und Materialien
-   * und gibt sie als flaches Array von INSERT-Rows zurück.
-   *
-   * @param eventId - Die Event-ID
-   * @param menuplan - Das vollständige MenuplanDomain
-   * @returns Array von partiellen ItemPlanRow-Objekten
-   */
-  private collectItemPlanRows(
-    eventId: string,
-    menuplan: MenuplanDomain,
-  ): Partial<ItemPlanRow>[] {
-    const rows: Partial<ItemPlanRow>[] = [];
-
-    // Plans aus Rezepten
-    for (const recipe of menuplan.menueRecipes) {
-      for (const plan of recipe.plans) {
-        rows.push({
-          ...(plan.uid ? {id: plan.uid} : {}),
-          event_id: eventId,
-          menue_recipe_id: recipe.uid,
-          menue_product_id: null,
-          menue_material_id: null,
-          diet_scope: plan.dietScope,
-          diet_id: plan.dietId,
-          intolerance_scope: plan.intoleranceScope,
-          intolerance_id: plan.intoleranceId,
-          factor: plan.factor,
-          servings: plan.servings,
-        });
-      }
-    }
-
-    // Plans aus Produkten
-    for (const product of menuplan.menueProducts) {
-      for (const plan of product.plans) {
-        rows.push({
-          ...(plan.uid ? {id: plan.uid} : {}),
-          event_id: eventId,
-          menue_recipe_id: null,
-          menue_product_id: product.uid,
-          menue_material_id: null,
-          diet_scope: plan.dietScope,
-          diet_id: plan.dietId,
-          intolerance_scope: plan.intoleranceScope,
-          intolerance_id: plan.intoleranceId,
-          factor: plan.factor,
-          servings: plan.servings,
-        });
-      }
-    }
-
-    // Plans aus Materialien
-    for (const material of menuplan.menueMaterials) {
-      for (const plan of material.plans) {
-        rows.push({
-          ...(plan.uid ? {id: plan.uid} : {}),
-          event_id: eventId,
-          menue_recipe_id: null,
-          menue_product_id: null,
-          menue_material_id: material.uid,
-          diet_scope: plan.dietScope,
-          diet_id: plan.dietId,
-          intolerance_scope: plan.intoleranceScope,
-          intolerance_id: plan.intoleranceId,
-          factor: plan.factor,
-          servings: plan.servings,
-        });
-      }
-    }
-
-    return rows;
   }
 
   /* =====================================================================

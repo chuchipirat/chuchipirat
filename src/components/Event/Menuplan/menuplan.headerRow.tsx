@@ -4,7 +4,7 @@
  * Zeigt die Tage als Karten mit Kontextmenü (Notiz hinzufügen/bearbeiten/löschen),
  * sowie Schalter für Detail-Anzeige und Drag & Drop.
  */
-import React, {useState, useEffect} from "react";
+import React, {memo, useState, useEffect} from "react";
 
 import {
   Box,
@@ -95,7 +95,7 @@ const CONTEXT_MENU_INITIAL_STATE: DaysRowContextMenuState = {
  * Sticky-Kopfzeile des Menüplans.
  * Enthält Einstellungs-Schalter, Tages-Spalten mit Kontextmenü und PDF-Export-Button.
  */
-const MenuplanHeaderRow = ({
+const MenuplanHeaderRow = memo(function MenuplanHeaderRow({
   dates,
   notes,
   menuplanSettings,
@@ -104,7 +104,7 @@ const MenuplanHeaderRow = ({
   onMealTypeUpdate,
   onNoteUpdate,
   onPrint,
-}: MenuplanHeaderRowProps) => {
+}: MenuplanHeaderRowProps) {
   const classes = useCustomStyles();
   const theme = useTheme();
   const {customDialog} = useCustomDialog();
@@ -247,43 +247,47 @@ const MenuplanHeaderRow = ({
           paddingBottom: theme.spacing(2),
         }}
       >
-        <FormGroup style={{marginBottom: "1em"}}>
-          <FormControlLabel
-            control={
-              <Switch
-                checked={menuplanSettings.showDetails}
-                onChange={onSwitchShowDetails}
+        {dates.length > 0 && (
+          <React.Fragment>
+            <FormGroup style={{marginBottom: "1em"}}>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={menuplanSettings.showDetails}
+                    onChange={onSwitchShowDetails}
+                  />
+                }
+                label={TEXT_SHOW_DETAILS}
               />
-            }
-            label={TEXT_SHOW_DETAILS}
-          />
-          <FormControlLabel
-            control={
-              <Switch
-                checked={menuplanSettings.enableDragAndDrop}
-                onChange={onSwitchEnableDragAndDrop}
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={menuplanSettings.enableDragAndDrop}
+                    onChange={onSwitchEnableDragAndDrop}
+                  />
+                }
+                label={TEXT_ENABLE_DRAG_AND_DROP}
               />
-            }
-            label={TEXT_ENABLE_DRAG_AND_DROP}
-          />
-        </FormGroup>
-        <Button
-          color="primary"
-          onClick={onAddMeal}
-          variant="outlined"
-          size="small"
-          style={{marginBottom: "1em"}}
-        >
-          {TEXT_ADD_MEAL}
-        </Button>
-        <Button
-          color="primary"
-          onClick={onPrint}
-          size="small"
-          variant="outlined"
-        >
-          {TEXT_PRINTVERSION}
-        </Button>
+            </FormGroup>
+            <Button
+              color="primary"
+              onClick={onAddMeal}
+              variant="outlined"
+              size="small"
+              style={{marginBottom: "1em"}}
+            >
+              {TEXT_ADD_MEAL}
+            </Button>
+            <Button
+              color="primary"
+              onClick={onPrint}
+              size="small"
+              variant="outlined"
+            >
+              {TEXT_PRINTVERSION}
+            </Button>
+          </React.Fragment>
+        )}
       </Container>
 
       {dates.map((date) => {
@@ -374,6 +378,6 @@ const MenuplanHeaderRow = ({
       </Menu>
     </Box>
   );
-};
+});
 
 export default MenuplanHeaderRow;

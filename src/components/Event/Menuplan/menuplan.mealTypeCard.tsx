@@ -4,7 +4,7 @@
  * Zeigt den Namen des Mahlzeitentyps mit einem Kontextmenü zum Umbenennen,
  * Löschen und Verschieben (hoch/runter).
  */
-import React, {useState} from "react";
+import React, {memo, useState} from "react";
 
 import {
   Card,
@@ -67,13 +67,13 @@ interface MealTypeCardProps {
  * Karte für einen Mahlzeitentyp mit Kontextmenü.
  * Erlaubt Umbenennen, Löschen und Verschieben des Mahlzeitentyps.
  */
-const MealTypeCard = ({
+const MealTypeCard = memo(function MealTypeCard({
   mealType,
   index,
   isLastElement,
   onMealTypeUpdate,
   onMoveDragAndDropElement,
-}: MealTypeCardProps) => {
+}: MealTypeCardProps) {
   const classes = useCustomStyles();
   const {customDialog} = useCustomDialog();
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
@@ -189,6 +189,6 @@ const MealTypeCard = ({
       </Menu>
     </React.Fragment>
   );
-};
+});
 
 export default MealTypeCard;

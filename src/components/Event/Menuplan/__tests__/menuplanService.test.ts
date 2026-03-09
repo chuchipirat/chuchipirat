@@ -585,19 +585,23 @@ describe("createMealRecipe", () => {
   it("sollte ein MealRecipe mit korrektem Portionsplan erstellen", () => {
     const recipe = buildRecipeShort();
     const plan = {
-      "intol-1": {
-        active: true,
-        factor: "1",
-        portions: 10,
-        total: 10,
-        diet: PlanedDiet.ALL,
+      [PlanedDiet.ALL]: {
+        "intol-1": {
+          active: true,
+          factor: "1",
+          portions: 10,
+          total: 10,
+          diet: PlanedDiet.ALL,
+        },
       },
-      "intol-2": {
-        active: true,
-        factor: "0.5",
-        portions: 5,
-        total: 2.5,
-        diet: "diet-1",
+      "diet-1": {
+        "intol-2": {
+          active: true,
+          factor: "0.5",
+          portions: 5,
+          total: 2.5,
+          diet: "diet-1",
+        },
       },
     };
 
@@ -618,12 +622,14 @@ describe("createMealRecipe", () => {
       variantName: "Vegetarisch",
     });
     const plan = {
-      "intol-1": {
-        active: true,
-        factor: "1",
-        portions: 5,
-        total: 5,
-        diet: PlanedDiet.ALL,
+      [PlanedDiet.ALL]: {
+        "intol-1": {
+          active: true,
+          factor: "1",
+          portions: 5,
+          total: 5,
+          diet: PlanedDiet.ALL,
+        },
       },
     };
 
@@ -670,12 +676,14 @@ describe("addPlanToGood", () => {
     mat.quantity = 5;
 
     const plan = {
-      "intol-1": {
-        active: true,
-        factor: "2",
-        portions: 10,
-        total: 20,
-        diet: PlanedDiet.ALL,
+      [PlanedDiet.ALL]: {
+        "intol-1": {
+          active: true,
+          factor: "2",
+          portions: 10,
+          total: 20,
+          diet: PlanedDiet.ALL,
+        },
       },
     };
 
@@ -690,19 +698,23 @@ describe("addPlanToGood", () => {
   it("sollte mit einem Produkt funktionieren", () => {
     const prod = createProduct();
     const plan = {
-      "intol-1": {
-        active: true,
-        factor: "1",
-        portions: 5,
-        total: 5,
-        diet: "diet-1",
+      "diet-1": {
+        "intol-1": {
+          active: true,
+          factor: "1",
+          portions: 5,
+          total: 5,
+          diet: "diet-1",
+        },
       },
-      "intol-2": {
-        active: true,
-        factor: "1",
-        portions: 3,
-        total: 3,
-        diet: "diet-2",
+      "diet-2": {
+        "intol-2": {
+          active: true,
+          factor: "1",
+          portions: 3,
+          total: 3,
+          diet: "diet-2",
+        },
       },
     };
 

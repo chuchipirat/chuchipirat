@@ -21,8 +21,6 @@ import {
   Add as AddIcon,
   ShoppingCart as ShoppingCartIcon,
   Build as BuildIcon,
-  // Close as CloseIcon,
-  // Info as InfoIcon,
   Notes as NotesIcon,
   DeleteSweep as DeleteSweepIcon,
   ArrowDownward as ArrowDownwardIcon,
@@ -54,7 +52,6 @@ import {
   MenuplanProduct,
   Note,
   MenuplanData,
-  // MenueListOrderTypes,
 } from "./menuplan.types";
 import {createEmptyNote} from "./menuplanService";
 import {
@@ -174,22 +171,6 @@ export function isMenueCardType({
 }): boolean {
   return source.data.itemType == cardType;
 }
-// type TMenueCardDropState =
-//   | {
-//       type: "idle";
-//     }
-//   | {
-//       type: "is-dragging";
-//       dragging: DOMRect;
-//     }
-//   | {
-//       type: "is-over";
-//     }
-//   | {
-//       type: "preview";
-//       container: HTMLElement;
-//       dragging: DOMRect;
-//     };
 const cardDropTargetKey = Symbol("card-list-drop-target");
 export type TMenueCardDropTargetData = {
   [cardDropTargetKey]: true;
@@ -314,6 +295,9 @@ export const MenueListOfMeal = memo(function MenueListOfMeal({
 }: MenueListOfMealProps) {
   const theme = useTheme();
   const listRef = useRef<HTMLDivElement | null>(null);
+  // Ref für stabile Zugriffe in Drag-&-Drop-Callbacks
+  const mealRef = useRef(meal);
+  mealRef.current = meal;
 
   useEffect(() => {
     if (!menuplanSettings.enableDragAndDrop) {
@@ -337,12 +321,12 @@ export const MenueListOfMeal = memo(function MenueListOfMeal({
 
       getData: () =>
         getMenueCardContainerDropTargetData({
-          mealUid: meal.uid,
+          mealUid: mealRef.current.uid,
           listType: MenuplanDragDropTypes.MENU,
-          isEmpty: meal.menuOrder.length === 0,
+          isEmpty: mealRef.current.menuOrder.length === 0,
         }),
     });
-  }, [meal.menuOrder]);
+  }, [menuplanSettings.enableDragAndDrop]);
 
   return (
     <>
@@ -414,7 +398,7 @@ const menueCardStateIdle = {type: "idle"} satisfies TMenueCardState;
  * Menü-Card List-Entry: Listeneingtrag der dich Dragen lässt
  * @returns JSX
  */
-const DraggableMenueCard = ({
+const DraggableMenueCard = memo(function DraggableMenueCard({
   listItem,
   listType,
   index,
@@ -437,11 +421,17 @@ const DraggableMenueCard = ({
   onMealProductOpen,
   onMealMaterialOpen,
   onMoveDragAndDropElement,
-}: DraggableMenueCardProps) => {
+}: DraggableMenueCardProps) {
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<TMenueCardState>(menueCardStateIdle);
   const theme = useTheme();
+  // Refs für stabile Zugriffe in Drag-&-Drop-Callbacks
+  const listItemRef = useRef(listItem);
+  listItemRef.current = listItem;
+  const mealUidRef = useRef(meal.uid);
+  mealUidRef.current = meal.uid;
+
   useEffect(() => {
     if (!menuplanSettings.enableDragAndDrop) {
       // Kein DnD
@@ -456,10 +446,10 @@ const DraggableMenueCard = ({
         element: inner,
         getInitialData: ({element}) =>
           getMenueCardData({
-            listItem,
-            mealUid: meal.uid,
+            listItem: listItemRef.current,
+            mealUid: mealUidRef.current,
             rect: element.getBoundingClientRect(),
-            itemType: listItem.type,
+            itemType: listItemRef.current.type,
           }),
         onGenerateDragPreview({nativeSetDragImage, location, source}) {
           const data = source.data;
@@ -507,8 +497,8 @@ const DraggableMenueCard = ({
           ),
         getData: ({element, input}) => {
           const data = getMenueCardDropTargetData({
-            listItem,
-            mealUid: meal.uid,
+            listItem: listItemRef.current,
+            mealUid: mealUidRef.current,
             rect: element.getBoundingClientRect(),
           });
           return attachClosestEdge(data, {
@@ -521,7 +511,7 @@ const DraggableMenueCard = ({
           if (!isMenueCardData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             return;
           }
           const closestEdge = extractClosestEdge(self.data);
@@ -535,7 +525,7 @@ const DraggableMenueCard = ({
           if (!isMenueCardData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             return;
           }
           const closestEdge = extractClosestEdge(self.data);
@@ -559,7 +549,7 @@ const DraggableMenueCard = ({
           if (!isMenueCardData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             setState({type: "is-dragging-and-left-self"});
             return;
           }
@@ -578,20 +568,20 @@ const DraggableMenueCard = ({
           const itemType = source.data.itemType as MenuplanDragDropTypes;
           return (
             (itemType === MenuplanDragDropTypes.PRODUCT &&
-              listItem.menue.productOrder.length === 0) ||
+              listItemRef.current.menue.productOrder.length === 0) ||
             (itemType === MenuplanDragDropTypes.MATERIAL &&
-              listItem.menue.materialOrder.length === 0)
+              listItemRef.current.menue.materialOrder.length === 0)
           );
         },
         getData: ({source}) =>
           getListContainerDropTargetData({
-            menueUid: listItem.menue.uid,
+            menueUid: listItemRef.current.menue.uid,
             listType: source.data.itemType as MenuplanDragDropTypes,
             isEmpty: true,
           }),
       }),
     );
-  }, [listItem, meal.uid]);
+  }, [menuplanSettings.enableDragAndDrop]);
 
   return (
     <>
@@ -653,7 +643,7 @@ const DraggableMenueCard = ({
         : null}
     </>
   );
-};
+});
 
 /* ===================================================================
 // ===================== Menü-Card-Listen-Eintrag ====================
@@ -1027,8 +1017,7 @@ const MenueCard = ({
                   {TEXT_DELETE_MENUE}
                 </Typography>
               </MenuItem>
-              {/* Wenn nur ein Element, dass gibt Hoch/Runter keinen sinn */}
-              {/* //TODO: alle neuen Felder versorgen */}
+              {/* Wenn nur ein Element, gibt Hoch/Runter keinen Sinn */}
               {!(index === 0 && isLastElement) && (
                 <>
                   <MenuItem

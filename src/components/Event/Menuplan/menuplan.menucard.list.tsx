@@ -1,4 +1,4 @@
-import React, {memo, useRef, useState, useEffect} from "react";
+import React, {memo, useRef, useState, useEffect, useCallback} from "react";
 
 import {
   Box,
@@ -201,6 +201,10 @@ export function isShallowEqual(
 
 type onListElementClick = (itemUid: string) => void;
 
+// Stabile Style-Konstanten (verhindern neue Objekt-Referenzen bei jedem Render)
+const STYLE_LIST_MIN_HEIGHT: React.CSSProperties = {minHeight: "3em"};
+const STYLE_LIST_ITEM_TEXT: React.CSSProperties = {margin: 0, flex: 1};
+
 /* ===================================================================
 // ========================= Menü-Card-Liste =========================
 // =================================================================== */
@@ -237,6 +241,9 @@ export const MenueCardList = memo(function MenueCardList({
 
   const theme = useTheme();
   const listRef = useRef<HTMLDivElement | null>(null);
+  // Ref für stabile Zugriffe in Drag-&-Drop-Callbacks
+  const menueRef = useRef(menue);
+  menueRef.current = menue;
 
   switch (listType) {
     case MenuplanDragDropTypes.MEALRECIPE:
@@ -406,12 +413,12 @@ export const MenueCardList = memo(function MenueCardList({
         ),
       getData: () =>
         getListContainerDropTargetData({
-          menueUid: menue.uid,
+          menueUid: menueRef.current.uid,
           listType: listType,
-          isEmpty: menue[memberName].length === 0,
+          isEmpty: menueRef.current[memberName].length === 0,
         }),
     });
-  }, [menue, listType, memberName]);
+  }, [listType, memberName, menuplanSettings.enableDragAndDrop]);
 
   return (
     <>
@@ -419,7 +426,7 @@ export const MenueCardList = memo(function MenueCardList({
         <List
           dense
           key={"menuplanlist_" + listType + "_" + menue.uid}
-          style={{minHeight: "3em"}}
+          style={STYLE_LIST_MIN_HEIGHT}
         >
           {menue[memberName].map((uid: string, index) => {
             // Kein Rendering, solange Daten noch nicht verfügbar
@@ -478,7 +485,7 @@ const listItemIdle = {type: "idle"} satisfies TListItemState;
  * Menü-Card List-Entry: Listeneingtrag der dich Dragen lässt
  * @returns JSX
  */
-const DraggableListItem = ({
+const DraggableListItem = memo(function DraggableListItem({
   index,
   listItem,
   menueUid,
@@ -488,10 +495,13 @@ const DraggableListItem = ({
   menuplanSettings,
   onListElementClick,
   onMoveDragAndDropElement,
-}: DraggableListItemProps) => {
+}: DraggableListItemProps) {
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<TListItemState>(listItemIdle);
+  // Ref für stabile Zugriffe in Drag-&-Drop-Callbacks
+  const listItemRef = useRef(listItem);
+  listItemRef.current = listItem;
 
   useEffect(() => {
     if (!menuplanSettings.enableDragAndDrop) {
@@ -507,10 +517,10 @@ const DraggableListItem = ({
         element: inner,
         getInitialData: ({element}) =>
           getCardListItemData({
-            listItem,
+            listItem: listItemRef.current,
             menueUid,
             rect: element.getBoundingClientRect(),
-            itemType: listItem.type,
+            itemType: listItemRef.current.type,
           }),
         onGenerateDragPreview({nativeSetDragImage, location, source}) {
           const data = source.data;
@@ -547,7 +557,7 @@ const DraggableListItem = ({
           ),
         getData: ({element, input}) => {
           const data = getCardListDropTargetData({
-            listItem: listItem,
+            listItem: listItemRef.current,
             menueUid,
           });
           return attachClosestEdge(data, {
@@ -560,7 +570,7 @@ const DraggableListItem = ({
           if (!isCardListData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             return;
           }
           const closestEdge = extractClosestEdge(self.data);
@@ -574,7 +584,7 @@ const DraggableListItem = ({
           if (!isCardListData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             return;
           }
           const closestEdge = extractClosestEdge(self.data);
@@ -598,7 +608,7 @@ const DraggableListItem = ({
           if (!isCardListData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             setState({type: "is-dragging-and-left-self"});
             return;
           }
@@ -609,7 +619,7 @@ const DraggableListItem = ({
         },
       })
     );
-  }, [listItem, menueUid]);
+  }, [menueUid, menuplanSettings.enableDragAndDrop]);
 
   return (
     <>
@@ -644,7 +654,7 @@ const DraggableListItem = ({
         : null}
     </>
   );
-};
+});
 
 /* ===================================================================
 // ===================== Menü-Card-Listen-Eintrag ====================
@@ -668,7 +678,7 @@ interface MenuCardListItemProps {
  * Menü-Card List-Entry: Listeneingtrag für die Menü-Karte-Liste
  * @returns JSX
  */
-const MenuCardListItem = ({
+const MenuCardListItem = memo(function MenuCardListItem({
   index,
   listItemKey,
   primaryText,
@@ -681,7 +691,7 @@ const MenuCardListItem = ({
   innerRef,
   onListElementClick,
   onMoveDragAndDropElement,
-}: MenuCardListItemProps) => {
+}: MenuCardListItemProps) {
   const classes = useCustomStyles();
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     useState<HTMLElement | null>(null);
@@ -748,7 +758,7 @@ const MenuCardListItem = ({
               <ListItemText
                 primary={primaryText}
                 secondary={secondaryText}
-                style={{margin: 0, flex: 1}}
+                style={STYLE_LIST_ITEM_TEXT}
               />
             </ListItemButton>
             <ListItemIcon
@@ -796,7 +806,7 @@ const MenuCardListItem = ({
       </Menu>
     </>
   );
-};
+});
 
 // ===================================================================== */
 /**
