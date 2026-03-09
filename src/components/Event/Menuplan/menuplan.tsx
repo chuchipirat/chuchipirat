@@ -1,4 +1,5 @@
 import React, {useState, useEffect, useContext, useRef} from "react";
+import * as Sentry from "@sentry/react";
 
 import {Box, useTheme, useMediaQuery} from "@mui/material";
 
@@ -20,6 +21,7 @@ import RecipeSearchDrawer from "./menuplan.recipeSearchDrawer";
 import DialogPlanPortions from "./dialogPlanPortions";
 import {DialogEditMenue} from "./dialogEditMenue";
 import {DialogGoods} from "./dialogGoods";
+import DialogMenuplanPdfOptions from "./dialogMenuplanPdfOptions";
 
 import {MenuplanSettings} from "./menuplan.constants";
 import type {MenuplanPageProps} from "./menuplan.page.types";
@@ -82,6 +84,7 @@ const MenuplanPage = ({
     dialogPlanPortionsData,
     dialogEditMenue,
     dialogGoodsData,
+    dialogPdfOptionsData,
   } = dialogs;
 
   const scrollableRef = useRef<HTMLDivElement | null>(null);
@@ -95,6 +98,8 @@ const MenuplanPage = ({
       action: Action.NONE,
       object: NavigationObject.menueplan,
     });
+    // Bewusst nur beim Mount setzen — Navigation-Kontext ändert sich nicht
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /* ------------------------------------------
   // Auto-Scroll zum heutigen Tag
@@ -160,10 +165,11 @@ const MenuplanPage = ({
       // Wenn der User üebrsteuert hat, machen wir nichts mehr
       return;
     }
-    setMenuPlanSettings({
-      ...menuplanSettings,
+    setMenuPlanSettings((prev) => ({
+      ...prev,
       enableDragAndDrop: !isMobile,
-    });
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile]);
 
   const {onDragAndDropUpdate, onMoveDragAndDropElement} = useMenuplanDragDrop({
@@ -200,7 +206,10 @@ const MenuplanPage = ({
   if (
     new Set(menuplan.mealTypes.order).size !== menuplan.mealTypes.order.length
   ) {
-    console.warn("Doppelte MealTypes: ", menuplan.mealTypes.order);
+    Sentry.captureMessage("Doppelte MealTypes im Menüplan", {
+      level: "warning",
+      extra: {mealTypesOrder: menuplan.mealTypes.order},
+    });
   }
   return (
     <React.Fragment key={"test"}>
@@ -367,6 +376,12 @@ const MenuplanPage = ({
         onOk={handlers.onDialogGoodsOk}
         onMaterialCreate={handlers.onMaterialCreate}
         onProductCreate={handlers.onProductCreate}
+      />
+      {/* Dialog PDF-Exportoptionen */}
+      <DialogMenuplanPdfOptions
+        open={dialogPdfOptionsData.open}
+        onConfirm={handlers.onPrintConfirm}
+        onCancel={handlers.onPrintCancel}
       />
     </React.Fragment>
   );

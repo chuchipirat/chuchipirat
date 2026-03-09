@@ -28,6 +28,7 @@ import type {
   DialogGoodsData,
 } from "./menuplan.page.types";
 import {GoodsType} from "./menuplan.types";
+import type {MenuplanPdfOptions} from "./dialogMenuplanPdfOptions";
 import {PlanedObject} from "./menuplan.constants";
 import {
   RecipeDrawerData,
@@ -93,6 +94,20 @@ const GOODS_DATA_DIALOG_INITIAL_DATA: DialogGoodsData = {
   material: null,
 };
 
+/** Initialwerte für den PDF-Optionen-Dialog. */
+const DIALOG_PDF_OPTIONS_INITIAL_DATA: DialogPdfOptionsData = {
+  open: false,
+};
+
+/**
+ * Zustand des PDF-Optionen-Dialogs.
+ *
+ * @param open - Ob der Dialog geöffnet ist
+ */
+export interface DialogPdfOptionsData {
+  open: boolean;
+}
+
 /* ===================================================================
 // ======================== Return-Typ ===============================
 // =================================================================== */
@@ -156,6 +171,13 @@ export interface UseMenuplanDialogsReturn {
 
   /** Initialwerte für den Goods-Dialog (zum Zurücksetzen beim Schliessen). */
   GOODS_DATA_DIALOG_INITIAL_DATA: DialogGoodsData;
+
+  /** Zustand des PDF-Optionen-Dialogs. */
+  dialogPdfOptionsData: DialogPdfOptionsData;
+  /** Setter für den PDF-Optionen-Dialog. */
+  setDialogPdfOptionsData: React.Dispatch<
+    React.SetStateAction<DialogPdfOptionsData>
+  >;
 }
 
 /* ===================================================================
@@ -197,6 +219,9 @@ export function useMenuplanDialogs(): UseMenuplanDialogsReturn {
     GOODS_DATA_DIALOG_INITIAL_DATA
   );
 
+  const [dialogPdfOptionsData, setDialogPdfOptionsData] =
+    useState<DialogPdfOptionsData>(DIALOG_PDF_OPTIONS_INITIAL_DATA);
+
   return {
     recipeSearchDrawerData,
     setRecipeSearchDrawerData,
@@ -215,5 +240,7 @@ export function useMenuplanDialogs(): UseMenuplanDialogsReturn {
     dialogGoodsData,
     setDialogGoodsData,
     GOODS_DATA_DIALOG_INITIAL_DATA,
+    dialogPdfOptionsData,
+    setDialogPdfOptionsData,
   };
 }

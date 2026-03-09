@@ -1,7 +1,18 @@
 import {StyleSheet} from "@react-pdf/renderer";
 
+/**
+ * Stildefinitionen für den Menüplan-PDF-Export.
+ *
+ * Enthält Layout-, Typografie- und Rahmen-Stile für die tabellarische
+ * Darstellung des Menüplans im Querformat. Wird ausschliesslich von
+ * `menuplanPdf.tsx` verwendet.
+ */
 export default class PdfStyles {
-  // Stile für PDF Export
+  /**
+   * Erstellt die StyleSheet-Instanz für den Menüplan-PDF-Export.
+   *
+   * @returns React-PDF StyleSheet mit allen Menüplan-Stilen.
+   */
   static getPdfStyles() {
     return StyleSheet.create({
       containerBottomBorderThin: {
@@ -16,17 +27,6 @@ export default class PdfStyles {
         borderRightStyle: "solid",
         alignItems: "stretch",
       },
-      containerBottomBorderThinEmptyRow: {
-        flexDirection: "row",
-        // flexFlow: "wrap",
-        borderBottomWidth: 0.2,
-        borderBottomColor: "#112131",
-        borderBottomStyle: "solid",
-        alignItems: "stretch",
-        marginTop: 20,
-        marginBottom: 10,
-        paddingHorizontal: 10,
-      },
       title: {
         fontSize: 18,
         textAlign: "center",
@@ -35,23 +35,6 @@ export default class PdfStyles {
         fontWeight: 100,
         marginBottom: 10,
       },
-
-      section: {
-        fontSize: 11,
-        marginTop: 10,
-        marginBottom: 5,
-        fontFamily: "Roboto",
-        fontStyle: "normal",
-        fontWeight: 700,
-        textAlign: "left",
-        flexDirection: "row",
-        borderTopWidth: 0.2,
-        borderTopColor: "#112131",
-        borderTopStyle: "solid",
-        alignItems: "stretch",
-        paddingTop: 10,
-      },
-
       pageMargins: {
         paddingTop: 15,
         paddingBottom: 65,
@@ -63,59 +46,31 @@ export default class PdfStyles {
         marginTop: 10,
         marginBottom: 10,
       },
-
       tableRow: {
         margin: "auto",
         flexDirection: "row",
       },
-
       cellPadding: {
         paddingLeft: 6,
         paddingRight: 3,
         paddingTop: 3,
         paddingBottom: 3,
       },
-      tableCol100: {
-        width: "100%",
-        textAlign: "center",
-      },
-      tableCol50: {
-        width: "50%",
-        textAlign: "center",
-      },
       tableCol20: {
         width: "20%",
         textAlign: "center",
       },
-      tableCol25: {
-        width: "25%",
-        textAlign: "center",
-      },
-      tableCol75: {
-        width: "75%",
-        textAlign: "center",
-      },
-      tableCol80: {
-        width: "80%",
-        textAlign: "center",
-      },
-
       body: {
         fontSize: 10,
         fontFamily: "Roboto",
         fontStyle: "normal",
         fontWeight: 100,
       },
-
       italic: {
         fontStyle: "italic",
       },
       bold: {
-        fontStyle: "normal",
-      },
-      thinItalic: {
-        fontStyle: "italic",
-        fontWeight: 100,
+        fontWeight: 400,
       },
       marginTop6: {
         marginTop: 6,
@@ -129,14 +84,21 @@ export default class PdfStyles {
       marginLeft12: {
         marginLeft: 12,
       },
-      marginLeft18: {
-        marginLeft: 18,
-      },
       alignLeft: {
         textAlign: "left",
       },
       gray: {
         color: "gray",
+      },
+      noteBackground: {
+        backgroundColor: "#E0E0E0",
+        // Zell-Padding ausgleichen, damit der Hintergrund symmetrisch wirkt
+        marginLeft: -6,
+        marginRight: -3,
+        paddingLeft: 6,
+        paddingRight: 6,
+        paddingTop: 4,
+        paddingBottom: 4,
       },
       bodyThin: {
         fontWeight: 100,

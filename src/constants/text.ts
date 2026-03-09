@@ -607,6 +607,11 @@ export const FACTOR_TOOLTIP =
 export const YOUR_SELECTION_MAKES_X_SERVINGS = "Deine Auswahl ergibt:";
 export const BACK = "zurück";
 export const PLEASE_PROVIDE_VALID_FACTOR = "Faktor ungültig";
+export const QUANTITY_MUST_BE_POSITIVE =
+  "Die Menge muss grösser als 0 sein.";
+export const QUANTITY_TOO_LARGE =
+  "Die Menge darf höchstens 99\u2009999 betragen.";
+export const FACTOR_TOO_LARGE = "Der Faktor darf höchstens 100 betragen.";
 export const NO_MENUES_MARKED =
   "Es wurde kein Menü markiert, für welches das Rezept eingeplant werden soll.";
 export const MISSING_FACTOR =
@@ -860,6 +865,10 @@ export const MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED =
   "Konsistenzcheck erfolgreich durchgeführt. Korrekturen wurden angewendet.";
 export const MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES =
   "Konsistenzcheck erfolgreich durchgeführt. Keine Probleme gefunden.";
+export const MENUPLAN_PDF_OPTIONS_TITLE = "PDF-Exportoptionen";
+export const MENUPLAN_PDF_SHOW_PRODUCTS = "Produkte anzeigen";
+export const MENUPLAN_PDF_SHOW_MATERIALS = "Materialien anzeigen";
+export const MENUPLAN_PDF_SHOW_PORTIONS = "Portionen pro Rezept anzeigen";
 export const POSSIBLE_DUPLICATE_FOUND =
   "Bevor wir’s zweimal kochen: Wir haben ähnliche Rezepte in der Sammlung:";
 export const PRO_TIP = "💡 Pro-Tipp ";
@@ -1237,6 +1246,17 @@ export const UNSAVED_CHANGES = "Ungespeicherte Änderungen";
 export const DISCARD_CHANGES = "Änderungen verwerfen";
 export const CONFIRM_DIET_SWITCH =
   "Du hast bereits Werte eingegeben. Beim Wechsel gehen diese verloren. Möchtest du fortfahren?";
+export const FIXED_PORTIONS_WARNING =
+  "Fixe Portionen werden unabhängig der Gruppenplanung verwendet.";
+export const CONFLICT_ALLE_AND_DIETS_TITLE = "Doppelte Portionen";
+export const CONFLICT_ALLE_AND_DIETS_TEXT =
+  "Du hast sowohl «Alle» als auch einzelne Diäten gewählt. Das verdoppelt die Portionen. Welche Planung möchtest du behalten?";
+export const KEEP_ALL = "«Alle» behalten";
+export const KEEP_INDIVIDUAL_DIETS = "Einzelne Diäten behalten";
+export const FIXED_REPLACES_GROUP =
+  "Fixe Portionen ersetzen die Gruppenplanung. Fortfahren?";
+export const GROUP_REPLACES_FIXED =
+  "Gruppenplanung ersetzt die fixen Portionen. Fortfahren?";
 export const RECALCULATE_PORTIONS = "Portionen neu berechnen";
 export const PORTIONS_RECALCULATED =
   "Portionen im Menüplan neu berechnet und die neuen Einstellungen wurden gespeichert.";

@@ -1,5 +1,6 @@
 import React from "react";
-import {Document, Page, View, Text, Font} from "@react-pdf/renderer";
+import {Document, Page, View, Text} from "@react-pdf/renderer";
+import "../../Shared/pdfFontRegistration";
 // import Utils from "../Shared/utils.class";
 import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
@@ -549,29 +550,5 @@ const ShoppingListList = ({
 };
 
 export default ShoppingListPdf;
-/* ===================================================================
-// ======================== Fonts registrieren =======================
-// =================================================================== */
-//-->gist.github.com/karimnaaji/b6c9c9e819204113e9cabf290d580551
-Font.register({
-  family: "Roboto",
-  fonts: [
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/7MygqTe2zs9YkP0adA9QQQ.ttf",
-      fontStyle: "normal",
-      fontWeight: 100,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v16/zN7GBFwfMP4uA6AR0HCoLQ.ttf",
-      fontWeight: 400,
-      fontStyle: "normal",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/bdHGHleUa-ndQCOrdpfxfw.ttf",
-      fontStyle: "normal",
-      fontWeight: 700,
-    },
-  ],
-});
 
 const styles = StylesPdf.getPdfStyles();
