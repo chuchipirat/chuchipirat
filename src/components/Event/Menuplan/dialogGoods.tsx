@@ -534,7 +534,6 @@ export const DialogGoods = ({
         handleOk={onMaterialCreate}
         handleClose={onCloseDialogMaterial}
         authUser={authUser}
-        firebase={firebase}
       />
       <DialogProduct
         firebase={firebase}

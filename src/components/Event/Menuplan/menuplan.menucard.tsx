@@ -45,7 +45,7 @@ import {
   TOOLTIP_MOVE_OTHER_MEAL as TEXT_TOOLTIP_MOVE_OTHER_MEAL,
 } from "../../../constants/text";
 
-import Menuplan, {
+import {
   Meal,
   MealRecipe,
   MealRecipes,
@@ -53,8 +53,10 @@ import Menuplan, {
   MenuplanMaterial,
   MenuplanProduct,
   Note,
+  MenuplanData,
   // MenueListOrderTypes,
-} from "./menuplan.class";
+} from "./menuplan.types";
+import {createEmptyNote} from "./menuplanService";
 import {
   DragAndDropDirections,
   MenuplanDragDropTypes,
@@ -260,14 +262,14 @@ export function isShallowEqual(
 // =================================================================== */
 interface MenueListOfMealProps {
   meal: Meal;
-  menues: Menuplan["menues"];
+  menues: MenuplanData["menues"];
   mealRecipes: MealRecipes;
-  products: Menuplan["products"];
-  materials: Menuplan["materials"];
-  notes: Menuplan["notes"];
+  products: MenuplanData["products"];
+  materials: MenuplanData["materials"];
+  notes: MenuplanData["notes"];
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
-  mealTypes: Menuplan["mealTypes"];
+  mealTypes: MenuplanData["mealTypes"];
   onUpdateMenue: (menue: Menue) => void;
   onAddRecipe: (menue: Menue) => void;
   onAddProduct: (menueUid: Menue["uid"]) => void;
@@ -661,10 +663,10 @@ interface MenueCardProps {
   meal: Meal;
   index: number;
   isLastElement: boolean;
-  notes: Menuplan["notes"];
+  notes: MenuplanData["notes"];
   mealRecipes: MealRecipes;
-  products: Menuplan["products"];
-  materials: Menuplan["materials"];
+  products: MenuplanData["products"];
+  materials: MenuplanData["materials"];
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
   state: TMenueCardState;
@@ -802,7 +804,7 @@ const MenueCard = ({
     if (userInput?.valid && userInput.input != "") {
       let note: Note;
       if (!existingNote?.text) {
-        note = Menuplan.createEmptyNote();
+        note = createEmptyNote();
       } else {
         note = existingNote;
       }

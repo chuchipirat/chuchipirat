@@ -113,7 +113,7 @@ import {
   MealPlanPanel as MealPlanPanelView,
 } from "./recipe.view";
 import EventGroupConfiguration from "../Event/GroupConfiguration/groupConfiguration.class";
-import {PlanedMealsRecipe} from "../Event/Menuplan/menuplan.class";
+import {PlanedMealsRecipe} from "../Event/Menuplan/menuplan.types";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {
   attachClosestEdge,

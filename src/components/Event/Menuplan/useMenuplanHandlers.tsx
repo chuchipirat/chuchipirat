@@ -16,7 +16,7 @@ import React from "react";
 import {pdf} from "@react-pdf/renderer";
 import {saveAs} from "file-saver";
 
-import Menuplan, {
+import {
   Menue,
   Note,
   Meal,
@@ -28,8 +28,19 @@ import Menuplan, {
   MenuplanMaterial,
   MenuplanProduct,
   MealRecipes,
-} from "./menuplan.class";
-import {MenuplanData} from "./menuplan.types";
+  MenuplanData,
+} from "./menuplan.types";
+import {
+  deleteMealType,
+  addMealType,
+  createMaterial,
+  createProduct,
+  createMealRecipe,
+  addPlanToGood,
+  findMenueOfMealRecipe,
+  findMenueOfMealProduct,
+  findMenueOfMealMaterial,
+} from "./menuplanService";
 import {OnRecipeCardClickProps} from "../../Recipe/recipes";
 import {
   DELETE as TEXT_DELETE,
@@ -72,6 +83,7 @@ import type {
 } from "./menuplan.page.types";
 import type {UseMenuplanDialogsReturn} from "./useMenuplanDialogs";
 import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import EventClass from "../Event/event.class";
 import Unit from "../../Unit/unit.class";
 import Department from "../../Department/department.class";
 import Firebase from "../../Firebase/firebase.class";
@@ -108,7 +120,7 @@ import AuthUser from "../../Firebase/Authentication/authUser.class";
 export interface UseMenuplanHandlersParams {
   menuplan: MenuplanData;
   groupConfiguration: EventGroupConfiguration;
-  event: Event;
+  event: EventClass;
   recipes: Recipes;
   recipeList: RecipeShort[];
   firebase: Firebase;
@@ -306,12 +318,12 @@ export function useMenuplanHandlers({
   // ------------------------------------------ */
   const onMealTypeUpdate = async ({action, mealType}: OnMealTypeUpdate) => {
     const tempMealTypes = {...menuplan.mealTypes};
-    let mealTypes = {} as Menuplan["mealTypes"];
-    let meals = {} as Menuplan["meals"];
-    let menues = {} as Menuplan["menues"];
-    let mealRecipes = {} as Menuplan["mealRecipes"];
-    let products = {} as Menuplan["products"];
-    let materials = {} as Menuplan["materials"];
+    let mealTypes = {} as MenuplanData["mealTypes"];
+    let meals = {} as MenuplanData["meals"];
+    let menues = {} as MenuplanData["menues"];
+    let mealRecipes = {} as MenuplanData["mealRecipes"];
+    let products = {} as MenuplanData["products"];
+    let materials = {} as MenuplanData["materials"];
     let isConfirmed: boolean;
     switch (action) {
       case Action.DELETE:
@@ -326,7 +338,7 @@ export function useMenuplanHandlers({
         }
 
         ({mealTypes, meals, menues, mealRecipes, products, materials} =
-          Menuplan.deleteMealType({
+          deleteMealType({
             mealTypeToDelete: mealType,
             mealTypes: menuplan.mealTypes,
             meals: menuplan.meals,
@@ -347,7 +359,7 @@ export function useMenuplanHandlers({
 
         break;
       case Action.ADD:
-        ({mealTypes, meals, menues} = Menuplan.addMealType({
+        ({mealTypes, meals, menues} = addMealType({
           mealType: mealType,
           mealTypes: menuplan.mealTypes,
           meals: menuplan.meals,
@@ -450,7 +462,7 @@ export function useMenuplanHandlers({
       ...dialogSelectMenueData,
       open: true,
       menues: {
-        [recipeSearchDrawerData?.menue?.uid as Menuplan["uid"]]: true,
+        [recipeSearchDrawerData?.menue?.uid as MenuplanData["uid"]]: true,
       },
       selectedRecipe: recipeShort,
       singleSelection: false,
@@ -653,7 +665,7 @@ export function useMenuplanHandlers({
     if (dialogGoodsData.goodsType === GoodsType.MATERIAL && material) {
       dialogGoodsData.material
         ? (newMaterial = dialogGoodsData.material)
-        : (newMaterial = Menuplan.createMaterial());
+        : (newMaterial = createMaterial());
 
       newMaterial.quantity = quantity;
       newMaterial.unit = unit;
@@ -664,7 +676,7 @@ export function useMenuplanHandlers({
     } else if (dialogGoodsData.goodsType === GoodsType.PRODUCT && product) {
       dialogGoodsData.product
         ? (newProduct = dialogGoodsData.product)
-        : (newProduct = Menuplan.createProduct());
+        : (newProduct = createProduct());
 
       newProduct.quantity = quantity;
       newProduct.unit = unit;
@@ -785,7 +797,7 @@ export function useMenuplanHandlers({
         delete updatedNotes[uid];
         break;
       case MenueEditTypes.MEALRECIPE:
-        menue = Menuplan.findMenueOfMealRecipe({
+        menue = findMenueOfMealRecipe({
           mealRecipeUid: uid,
           menues: menuplan.menues,
         });
@@ -797,7 +809,7 @@ export function useMenuplanHandlers({
         }
         break;
       case MenueEditTypes.PRODUCT:
-        menue = Menuplan.findMenueOfMealProduct({
+        menue = findMenueOfMealProduct({
           productUid: uid,
           menues: menuplan.menues,
         });
@@ -809,7 +821,7 @@ export function useMenuplanHandlers({
         }
         break;
       case MenueEditTypes.MATERIAL:
-        menue = Menuplan.findMenueOfMealMaterial({
+        menue = findMenueOfMealMaterial({
           materialUid: uid,
           menues: menuplan.menues,
         });
@@ -1033,7 +1045,7 @@ export function useMenuplanHandlers({
       ) {
         // Neuer Eintrag
         Object.keys(plan).forEach((menuUid) => {
-          const mealRecipe = Menuplan.createMealRecipe({
+          const mealRecipe = createMealRecipe({
             recipe: dialogSelectMenueData.selectedRecipe,
             plan: plan[menuUid],
           });
@@ -1070,7 +1082,7 @@ export function useMenuplanHandlers({
     ) {
       // Plan umbiegen
       Object.keys(plan).forEach((menueUid) => {
-        const newProduct = Menuplan.addPlanToGood<MenuplanProduct>({
+        const newProduct = addPlanToGood<MenuplanProduct>({
           // plan muss rausgelöscht werden, sonst wird dieser verdoppelt
           good: {...dialogPlanPortionsData.planedProduct!, plan: []},
           plan: plan[menueUid],
@@ -1090,7 +1102,7 @@ export function useMenuplanHandlers({
     ) {
       // Plan umbiegen
       Object.keys(plan).forEach((menueUid) => {
-        const newMaterial = Menuplan.addPlanToGood<MenuplanMaterial>({
+        const newMaterial = addPlanToGood<MenuplanMaterial>({
           good: {...dialogPlanPortionsData.planedMaterial!, plan: []},
           plan: plan[menueUid],
         });
@@ -1232,7 +1244,7 @@ export function useMenuplanHandlers({
   // Handling Einplanung
   // ------------------------------------------ */
   const onEditRecipeMealPlan = (mealRecipeUid: MealRecipe["uid"]) => {
-    const menue = Menuplan.findMenueOfMealRecipe({
+    const menue = findMenueOfMealRecipe({
       mealRecipeUid: mealRecipeUid,
       menues: menuplan.menues,
     });
@@ -1251,7 +1263,7 @@ export function useMenuplanHandlers({
     });
   };
   const onEditProductPlan = (productUid: MenuplanProduct["uid"]) => {
-    const menue = Menuplan.findMenueOfMealProduct({
+    const menue = findMenueOfMealProduct({
       productUid: productUid,
       menues: menuplan.menues,
     });
@@ -1277,7 +1289,7 @@ export function useMenuplanHandlers({
     });
   };
   const onEditMaterialPlan = (materialUid: MenuplanProduct["uid"]) => {
-    const menue = Menuplan.findMenueOfMealMaterial({
+    const menue = findMenueOfMealMaterial({
       materialUid: materialUid,
       menues: menuplan.menues,
     });

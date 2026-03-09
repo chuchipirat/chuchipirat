@@ -105,6 +105,7 @@ export class RequestPublishRecipe extends Request {
     switch (request.status) {
       case RequestStatus.done:
         // Die 000_allRecipes werden auch angepasst, daher braucht es das Recipe Short
+        // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
         await Recipe.getRecipe({
           firebase: firebase,
           uid: request.requestObject.uid,

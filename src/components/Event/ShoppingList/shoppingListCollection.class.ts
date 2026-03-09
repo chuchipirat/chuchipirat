@@ -4,7 +4,8 @@ import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Firebase from "../../Firebase/firebase.class";
 import Product from "../../Product/product.class";
-import Menuplan, {Meal, Menue} from "../Menuplan/menuplan.class";
+import {Meal, Menue, MenuplanData} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 import Recipe from "../../Recipe/recipe.class";
 import ShoppingList, {ItemType, ShoppingListItem} from "./shoppingList.class";
 import {
@@ -52,7 +53,7 @@ interface CreateNewList {
   selectedMenues: Menue["uid"][];
   selectedDepartments: Department["uid"][];
   shoppingListCollection: ShoppingListCollection;
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   eventUid: Event["uid"];
   products: Product[];
   materials: Material[];
@@ -69,7 +70,7 @@ interface RefreshLists {
   shoppingList: ShoppingList;
   keepManuallyAddedItems?: boolean;
   keepManuallyEditedItems?: boolean;
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   eventUid: Event["uid"];
   products: Product[];
   materials: Material[];
@@ -312,7 +313,7 @@ export default class ShoppingListCollection {
             name: name,
             selectedMenues: selectedMenues,
             selectedDepartments: selectedDepartments,
-            selectedMeals: Menuplan.getMealsOfMenues({
+            selectedMeals: getMealsOfMenues({
               menuplan: menueplan,
               menues: selectedMenues,
             }),
@@ -460,7 +461,7 @@ export default class ShoppingListCollection {
     if (
       !Utils.areStringArraysEqual(
         listToUpdate.properties.selectedMeals,
-        Menuplan.getMealsOfMenues({
+        getMealsOfMenues({
           menuplan: menueplan,
           menues: listToUpdate.properties.selectedMenues,
         }),
@@ -468,14 +469,14 @@ export default class ShoppingListCollection {
       // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
       // Auswahl entfernt
       listToUpdate.properties.selectedMenues.length !==
-        Menuplan.getMenuesOfMeals({
+        getMenuesOfMeals({
           menuplan: menueplan,
           meals: listToUpdate.properties.selectedMeals,
         }).length
     ) {
       // Die Menüs wurden geändert. Daher müssen wir jetzt
       // die Menüs neu bestimmen anhand der Mahlzeiten
-      listToUpdate.properties.selectedMenues = Menuplan.getMenuesOfMeals({
+      listToUpdate.properties.selectedMenues = getMenuesOfMeals({
         menuplan: menueplan,
         meals: listToUpdate.properties.selectedMeals,
       });

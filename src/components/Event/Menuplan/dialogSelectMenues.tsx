@@ -19,7 +19,7 @@ import {
   useTheme,
 } from "@mui/material";
 
-import Menuplan, {Menue, Meal, MealType} from "./menuplan.class";
+import {Menue, Meal, MealType, MenuplanData} from "./menuplan.types";
 import Utils from "../../Shared/utils.class";
 import useCustomStyles from "../../../constants/styles";
 import {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
@@ -39,7 +39,7 @@ import {
 // =================================================================== */
 interface DecodeSeletedMenues {
   selectedMeals: string[];
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
 }
 
 interface TimeSlice {
@@ -140,7 +140,7 @@ export const decodeSelectedMeals = ({
   return displayText;
 };
 export const getMealForMealTypeAndDate = (
-  meals: Menuplan["meals"],
+  meals: MenuplanData["meals"],
   mealTypeUid: MealType["uid"],
   date: Date,
 ): Meal | null => {
@@ -158,11 +158,11 @@ export const getMealForMealTypeAndDate = (
 interface DialogSelectMenuesProps {
   open: boolean;
   title: string;
-  dates: Menuplan["dates"];
+  dates: MenuplanData["dates"];
   preSelectedMenue: DialogSelectMenuesForRecipeDialogValues;
-  mealTypes: Menuplan["mealTypes"];
-  meals: Menuplan["meals"];
-  menues: Menuplan["menues"];
+  mealTypes: MenuplanData["mealTypes"];
+  meals: MenuplanData["meals"];
+  menues: MenuplanData["menues"];
   showSelectAll?: boolean;
   singleSelection?: boolean;
   onClose: () => void;

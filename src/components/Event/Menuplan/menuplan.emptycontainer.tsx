@@ -4,7 +4,7 @@ import {dropTargetForElements} from "@atlaskit/pragmatic-drag-and-drop/element/a
 import {combine} from "@atlaskit/pragmatic-drag-and-drop/combine";
 import invariant from "tiny-invariant";
 import useCustomStyles from "../../../constants/styles";
-import {Meal} from "./menuplan.class";
+import {Meal} from "./menuplan.types";
 
 /* ===================================================================
 // ===================== Type Guards & Data ==========================

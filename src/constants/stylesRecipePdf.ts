@@ -93,13 +93,13 @@ export default class PdfStyles {
         paddingHorizontal: 35,
       },
       table: {
-        display: "table",
+        display: "table" as any,
         width: "auto",
         marginTop: 10,
         marginBottom: 10,
       },
       tableNoMargin: {
-        display: "table",
+        display: "table" as any,
         width: "auto",
       },
       // Zweispaltige Zeile ohne vertikale Margins — minimiert den vertikalen

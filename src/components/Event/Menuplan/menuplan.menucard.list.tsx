@@ -12,13 +12,14 @@ import {
   Typography,
   useTheme,
 } from "@mui/material";
-import Menuplan, {
+import {
   GoodsPlanMode,
   MealRecipeDeletedPrefix,
   MealRecipes,
   Menue,
   MenueListOrderTypes,
-} from "./menuplan.class";
+  MenuplanData,
+} from "./menuplan.types";
 import {
   DragAndDropDirections,
   generatePlanedPortionsText,
@@ -206,8 +207,8 @@ type onListElementClick = (itemUid: string) => void;
 interface MenucardListProps {
   menue: Menue;
   mealRecipes?: MealRecipes;
-  products?: Menuplan["products"];
-  materials?: Menuplan["materials"];
+  products?: MenuplanData["products"];
+  materials?: MenuplanData["materials"];
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
   listType: MenuplanDragDropTypes;

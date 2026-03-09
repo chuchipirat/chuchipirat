@@ -19,10 +19,11 @@ import {
   RecipeVariantNote,
 } from "../../Recipe/recipePdf";
 
-import Menuplan, {
+import {
   MealRecipe,
   MenueCoordinates,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
 import Recipe, {RecipeType} from "../../Recipe/recipe.class";
 import Product from "../../Product/product.class";
 import {
@@ -35,7 +36,7 @@ import Unit from "../../Unit/unit.class";
 interface UsedRecipesPdfProps {
   list: UsedRecipeListEntry;
   sortedMenueList: MenueCoordinates[];
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   eventName: Event["name"];
   products: Product[];
   units: Unit[] | null;

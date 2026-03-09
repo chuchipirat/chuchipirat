@@ -64,11 +64,13 @@ import {
   DialogSelectMenuesForRecipeDialogValues,
   decodeSelectedMeals,
 } from "../Menuplan/dialogSelectMenues";
-import Menuplan, {
+import {
   MealRecipe,
   Menue,
   MenueCoordinates,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals, sortSelectedMenues} from "../Menuplan/menuplanService";
 import {
   DialogType,
   SingleTextInputResult,
@@ -260,7 +262,7 @@ interface EventMaterialListPageProps {
   materialList: MaterialList;
   event: Event;
   groupConfiguration: EventGroupConfiguration;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   materials: Material[];
   recipes: Recipes;
   unitConversionBasic: UnitConversionBasic | null;
@@ -511,7 +513,7 @@ const EventMaterialListPage = ({
         case Action.TRACE:
           setTraceItemDialogValues({
             open: true,
-            sortedMenues: Menuplan.sortSelectedMenues({
+            sortedMenues: sortSelectedMenues({
               menueList:
                 materialList.lists[state.selectedListItem!].properties
                   .selectedMenues,
@@ -677,7 +679,7 @@ const EventMaterialListPage = ({
 
       materialListToReferesh.lists[
         dialogSelectMenueData.selectedListUid
-      ].properties.selectedMeals = Menuplan.getMealsOfMenues({
+      ].properties.selectedMeals = getMealsOfMenues({
         menuplan: menuplan,
         menues: selectedMenues!,
       });
@@ -763,19 +765,19 @@ const EventMaterialListPage = ({
       if (
         !Utils.areStringArraysEqual(
           materialList.lists[selectedListUid].properties.selectedMeals,
-          Menuplan.getMealsOfMenues({
+          getMealsOfMenues({
             menuplan: menuplan,
             menues:
               materialList.lists[selectedListUid].properties.selectedMenues,
           }),
         ) ||
         materialList.lists[selectedListUid].properties.selectedMenues.length !==
-          Menuplan.getMenuesOfMeals({
+          getMenuesOfMeals({
             menuplan: menuplan,
             meals: materialList.lists[selectedListUid].properties.selectedMeals,
           }).length
       ) {
-        selectedMenues = Menuplan.getMenuesOfMeals({
+        selectedMenues = getMenuesOfMeals({
           menuplan: menuplan,
           meals: materialList.lists[selectedListUid].properties.selectedMeals,
         });
@@ -1102,7 +1104,7 @@ QuantityField.displayName = "QuantityField";
 interface EventMaterialListListProps {
   materialList: MaterialListEntry;
   materials: Material[];
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   groupConfiguration: EventGroupConfiguration;
   unitConversionBasic: UnitConversionBasic | null;
   unitConversionProducts: UnitConversionProducts | null;
@@ -1458,7 +1460,6 @@ const DialogHandleMaterial = ({
         handleOk={onMaterialCreate}
         handleClose={onCloseDialogMaterial}
         authUser={authUser}
-        firebase={firebase}
       />
     </React.Fragment>
   );

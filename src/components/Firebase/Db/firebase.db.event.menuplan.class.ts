@@ -14,7 +14,7 @@ import {
 import {
   MealRecipeDeletedPrefix,
   MealRecipes,
-} from "../../Event/Menuplan/menuplan.class";
+} from "../../Event/Menuplan/menuplan.types";
 import Product from "../../Product/product.class";
 import Material from "../../Material/material.class";
 import {collection, collectionGroup, doc, Timestamp} from "firebase/firestore";

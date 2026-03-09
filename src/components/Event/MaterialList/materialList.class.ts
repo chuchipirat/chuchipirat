@@ -4,11 +4,13 @@ import Material, {MaterialType} from "../../Material/material.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import Utils from "../../Shared/utils.class";
 import Event from "../Event/event.class";
-import Menuplan, {
+import {
   Meal,
   MealRecipeDeletedPrefix,
   Menue,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 import _ from "lodash";
 
 import UsedRecipes from "../UsedRecipes/usedRecipes.class";
@@ -67,7 +69,7 @@ interface Factory {
 interface CreateNewList {
   name: string;
   selectedMenues: Menue["uid"][];
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   materials: Material[];
   firebase: Firebase;
   authUser: AuthUser;
@@ -101,7 +103,7 @@ interface RefreshLists {
   listUidToRefresh: string;
   materialList: MaterialList;
   keepManuallyAddedItems?: boolean;
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   materials: Material[];
   firebase: Firebase;
   authUser: AuthUser;
@@ -236,7 +238,7 @@ export default class MaterialList {
       properties: {
         uid: Utils.generateUid(5),
         name: name,
-        selectedMeals: Menuplan.getMealsOfMenues({
+        selectedMeals: getMealsOfMenues({
           menuplan: menueplan,
           menues: selectedMenues,
         }),
@@ -257,6 +259,7 @@ export default class MaterialList {
     }
 
     // Alle Rezepte holen
+    // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
     await Recipe.getMultipleRecipes({
       firebase: firebase,
       recipes: recipeList,
@@ -499,7 +502,7 @@ export default class MaterialList {
     if (
       !Utils.areStringArraysEqual(
         listToUpdate.properties.selectedMeals,
-        Menuplan.getMealsOfMenues({
+        getMealsOfMenues({
           menuplan: menueplan,
           menues: listToUpdate.properties.selectedMenues,
         })
@@ -507,14 +510,14 @@ export default class MaterialList {
       // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
       // Auswahl entfernt
       listToUpdate.properties.selectedMenues.length !==
-        Menuplan.getMenuesOfMeals({
+        getMenuesOfMeals({
           menuplan: menueplan,
           meals: listToUpdate.properties.selectedMeals,
         }).length
     ) {
       // Die Menüs wurden geändert. Daher müssen wir jetzt
       // die Menüs neu bestimmen anhand der Mahlzeiten
-      listToUpdate.properties.selectedMenues = Menuplan.getMenuesOfMeals({
+      listToUpdate.properties.selectedMenues = getMenuesOfMeals({
         menuplan: menueplan,
         meals: listToUpdate.properties.selectedMeals,
       });

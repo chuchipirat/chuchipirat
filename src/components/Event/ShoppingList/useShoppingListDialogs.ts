@@ -13,10 +13,12 @@ import Material from "../../Material/material.class";
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Event from "../Event/event.class";
-import Menuplan, {
+import {
   Menue,
   MenueCoordinates,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals, sortSelectedMenues} from "../Menuplan/menuplanService";
 import ShoppingListCollection, {
   ShoppingListTrace,
 } from "./shoppingListCollection.class";
@@ -129,7 +131,7 @@ interface UseShoppingListDialogsProps {
   firebase: Firebase;
   authUser: AuthUser;
   event: Event;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   products: Product[];
   materials: Material[];
   departments: Department[];
@@ -335,7 +337,7 @@ const useShoppingListDialogs = ({
 
         shoppingListCollectionToRefresh.lists[
           dialogSelectMenueData.selectedListUid
-        ].properties.selectedMeals = Menuplan.getMealsOfMenues({
+        ].properties.selectedMeals = getMealsOfMenues({
           menuplan: menuplan,
           menues: selectedMenues!,
         });
@@ -611,7 +613,7 @@ const useShoppingListDialogs = ({
         !Utils.areStringArraysEqual(
           shoppingListCollection.lists[selectedListUid].properties
             .selectedMeals,
-          Menuplan.getMealsOfMenues({
+          getMealsOfMenues({
             menuplan: menuplan,
             menues:
               shoppingListCollection.lists[selectedListUid].properties
@@ -620,14 +622,14 @@ const useShoppingListDialogs = ({
         ) ||
         shoppingListCollection.lists[selectedListUid].properties.selectedMenues
           .length !==
-          Menuplan.getMenuesOfMeals({
+          getMenuesOfMeals({
             menuplan: menuplan,
             meals:
               shoppingListCollection.lists[selectedListUid].properties
                 .selectedMeals,
           }).length
       ) {
-        selectedMenuesArray = Menuplan.getMenuesOfMeals({
+        selectedMenuesArray = getMenuesOfMeals({
           menuplan: menuplan,
           meals:
             shoppingListCollection.lists[selectedListUid].properties
@@ -754,7 +756,7 @@ const useShoppingListDialogs = ({
         case Action.TRACE:
           setTraceItemDialogValues({
             open: true,
-            sortedMenues: Menuplan.sortSelectedMenues({
+            sortedMenues: sortSelectedMenues({
               menueList:
                 shoppingListCollection.lists[selectedListItem!].properties
                   .selectedMenues,

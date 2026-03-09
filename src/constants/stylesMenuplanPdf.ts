@@ -58,7 +58,7 @@ export default class PdfStyles {
         paddingHorizontal: 35,
       },
       table: {
-        display: "table",
+        display: "table" as any,
         width: "auto",
         marginTop: 10,
         marginBottom: 10,
@@ -137,6 +137,12 @@ export default class PdfStyles {
       },
       gray: {
         color: "gray",
+      },
+      bodyThin: {
+        fontWeight: 100,
+      },
+      bodyFontSmall: {
+        fontSize: 8,
       },
     });
   }

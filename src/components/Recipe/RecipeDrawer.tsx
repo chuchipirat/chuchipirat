@@ -26,7 +26,7 @@ import type {OnAddToEvent} from "./recipe.view";
 import RecipeEdit from "./recipe.edit";
 import Recipe from "./recipe.class";
 import EventGroupConfiguration from "../Event/GroupConfiguration/groupConfiguration.class";
-import type {PlanedMealsRecipe, MealRecipe} from "../Event/Menuplan/menuplan.class";
+import type {PlanedMealsRecipe, MealRecipe} from "../Event/Menuplan/menuplan.types";
 import Firebase from "../Firebase/firebase.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 

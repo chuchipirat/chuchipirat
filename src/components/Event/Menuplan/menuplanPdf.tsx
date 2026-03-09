@@ -8,7 +8,7 @@ import {
 } from "../../../constants/text";
 
 import StylesPdf from "../../../constants/stylesMenuplanPdf";
-import Menuplan, {MealType, Meal, Note} from "./menuplan.class";
+import {MealType, Meal, Note, MenuplanData} from "./menuplan.types";
 import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {RecipeType} from "../../Recipe/recipe.class";
@@ -19,7 +19,7 @@ import {Footer, Header} from "../../Shared/pdfComponents";
 // =================================================================== */
 interface MenuplanPdfProps {
   event: Event;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   authUser: AuthUser;
 }
 
@@ -80,7 +80,7 @@ const MenuplanPdf = ({event, menuplan, authUser}: MenuplanPdfProps) => {
 // =================================================================== */
 interface MenuplanPageProps {
   event: Event;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   datesOfPage: (Date | null)[];
   pageCounter: number;
   actualDate: Date;
@@ -148,7 +148,7 @@ const MenuplanTitle = () => {
 interface MenuplanDateRowProps {
   datesOfPage: (Date | null)[];
   pageCounter: number;
-  notes: Menuplan["notes"];
+  notes: MenuplanData["notes"];
 }
 const MenuplanDateRow = ({
   datesOfPage,
@@ -254,12 +254,12 @@ const MenuplanDateRow = ({
 // =================================================================== */
 interface MenuplanMealRowProps {
   mealType: MealType;
-  meals: Menuplan["meals"];
-  menues: Menuplan["menues"];
-  mealRecipes: Menuplan["mealRecipes"];
+  meals: MenuplanData["meals"];
+  menues: MenuplanData["menues"];
+  mealRecipes: MenuplanData["mealRecipes"];
   datesOfPage: (Date | null)[];
   pageCounter: number;
-  notes: Menuplan["notes"];
+  notes: MenuplanData["notes"];
   isLastRow: boolean;
 }
 const MenuplanMealRow = ({

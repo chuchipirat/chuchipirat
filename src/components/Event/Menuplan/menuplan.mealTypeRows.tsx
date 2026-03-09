@@ -43,7 +43,6 @@ import {
   ALL_RECIPES_AND_VALUES_WILL_BE_DELETED as TEXT_ALL_RECIPES_AND_VALUES_WILL_BE_DELETED,
 } from "../../../constants/text";
 import Utils from "../../Shared/utils.class";
-import Menuplan from "./menuplan.class";
 import {
   MealType,
   Meal,
@@ -57,6 +56,7 @@ import {
   Materials,
   MenuplanData,
 } from "./menuplan.types";
+import {createMenu} from "./menuplanService";
 import {
   MenuplanSettings,
   MenuplanDragDropTypes,
@@ -86,14 +86,14 @@ import MealTypeCard from "./menuplan.mealTypeCard";
  * Props für die MealTypeRows-Komponente.
  */
 interface MealTypeRowsProps {
-  mealTypes: Menuplan["mealTypes"];
-  dates: Menuplan["dates"];
-  meals: Menuplan["meals"];
-  menues: Menuplan["menues"];
-  notes: Menuplan["notes"];
-  products: Menuplan["products"];
-  materials: Menuplan["materials"];
-  mealRecipes: Menuplan["mealRecipes"];
+  mealTypes: MenuplanData["mealTypes"];
+  dates: MenuplanData["dates"];
+  meals: MenuplanData["meals"];
+  menues: MenuplanData["menues"];
+  notes: MenuplanData["notes"];
+  products: MenuplanData["products"];
+  materials: MenuplanData["materials"];
+  mealRecipes: MenuplanData["mealRecipes"];
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
   onMealTypeUpdate: ({action, mealType}: OnMealTypeUpdate) => void;
@@ -308,16 +308,16 @@ interface MealTypeRowProps {
   index: number;
   isLastElement: boolean;
   mealType: MealType;
-  dates: Menuplan["dates"];
-  meals: Menuplan["meals"];
-  menues: Menuplan["menues"];
-  notes: Menuplan["notes"];
-  products: Menuplan["products"];
-  materials: Menuplan["materials"];
-  mealRecipes: Menuplan["mealRecipes"];
+  dates: MenuplanData["dates"];
+  meals: MenuplanData["meals"];
+  menues: MenuplanData["menues"];
+  notes: MenuplanData["notes"];
+  products: MenuplanData["products"];
+  materials: MenuplanData["materials"];
+  mealRecipes: MenuplanData["mealRecipes"];
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
-  mealTypes: Menuplan["mealTypes"];
+  mealTypes: MenuplanData["mealTypes"];
   onMealTypeUpdate: ({action, mealType}: OnMealTypeUpdate) => void;
   onMenuplanUpdate: (updatedValues: OnMenuplanUpdate) => void;
   onAddRecipe: (menue: Menue) => void;
@@ -466,7 +466,7 @@ const MealTypeRow = ({
   // Menü-Handling
   // ------------------------------------------ */
   const onCreateMenu = (event: React.MouseEvent<HTMLButtonElement>) => {
-    const newMenu = Menuplan.createMenu();
+    const newMenu = createMenu();
     const mealsToUpdate = {...meals};
     const mealToUpdate = Object.values(mealsToUpdate).find(
       (meal) => meal.uid == event.currentTarget.id.split("_")[1],

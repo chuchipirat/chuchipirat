@@ -49,11 +49,13 @@ import {
   DialogSelectMenues,
   DialogSelectMenuesForRecipeDialogValues,
 } from "../Menuplan/dialogSelectMenues";
-import Menuplan, {
+import {
   MealRecipe,
   Menue,
   MenueCoordinates,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals, sortSelectedMenues} from "../Menuplan/menuplanService";
 import {generatePlanedPortionsText} from "../Menuplan/menuplan";
 import UsedRecipes, {UsedRecipeListEntry} from "./usedRecipes.class";
 import {
@@ -172,7 +174,7 @@ interface EventUsedRecipesPageProps {
   authUser: AuthUser;
   event: Event;
   groupConfiguration: EventGroupConfiguration;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   usedRecipes: UsedRecipes;
   products: Product[];
   units: Unit[] | null;
@@ -327,7 +329,7 @@ const EventUsedRecipesPage = ({
       ].properties.selectedMenues = selectedMenues!;
       usedRecipesToRefresh.lists[
         dialogSelectMenueData.selectedListUid
-      ].properties.selectedMeals = Menuplan.getMealsOfMenues({
+      ].properties.selectedMeals = getMealsOfMenues({
         menuplan: menuplan,
         menues: selectedMenues!,
       });
@@ -365,7 +367,7 @@ const EventUsedRecipesPage = ({
       type: ReducerActions.SET_SELECTED_LIST_ITEM,
       payload: {
         uid: selectedListItem,
-        sortedMenueList: Menuplan.sortSelectedMenues({
+        sortedMenueList: sortSelectedMenues({
           menueList:
             usedRecipes.lists[selectedListItem!].properties.selectedMenues,
           menuplan: menuplan,
@@ -408,7 +410,7 @@ const EventUsedRecipesPage = ({
     if (
       !Utils.areStringArraysEqual(
         usedRecipes.lists[selectedListUid].properties.selectedMeals,
-        Menuplan.getMealsOfMenues({
+        getMealsOfMenues({
           menuplan: menuplan,
           menues: usedRecipes.lists[selectedListUid].properties.selectedMenues,
         }),
@@ -416,19 +418,19 @@ const EventUsedRecipesPage = ({
       // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
       // Auswahl entfernt
       usedRecipes.lists[selectedListUid].properties.selectedMenues.length !==
-        Menuplan.getMenuesOfMeals({
+        getMenuesOfMeals({
           menuplan: menuplan,
           meals: usedRecipes.lists[selectedListUid].properties.selectedMeals,
         }).length
     ) {
-      selectedMenues = Menuplan.getMenuesOfMeals({
+      selectedMenues = getMenuesOfMeals({
         menuplan: menuplan,
         meals: usedRecipes.lists[selectedListUid].properties.selectedMeals,
       });
     }
 
     // Menues der Mahlzeiten holen und Objekt umwandeln
-    // Menuplan.getMealsOfMenues({
+    // getMealsOfMenues({
     //   menuplan: menuplan,
     //   menues: usedRecipes.lists[selectedListUid].properties.selectedMeals,
     // }).forEach((menueUid) => (selectedMenues[menueUid] = true));
@@ -540,7 +542,7 @@ const EventUsedRecipesPage = ({
 interface EventUsedRecipesProps {
   sortedMenueList: MenueCoordinates[];
   usedRecipes: UsedRecipeListEntry["recipes"];
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   groupConfiguration: EventGroupConfiguration;
   products: Product[];
   units: Unit[] | null;

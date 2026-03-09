@@ -35,6 +35,7 @@ import {
   FetchMissingDataProps,
   OnMasterdataCreateProps,
 } from "../Event/event";
+import EventClass from "../Event/event.class";
 import {PlanedDiet} from "./menuplan.types";
 
 /* ===================================================================
@@ -78,7 +79,7 @@ export interface MenuplanPageProps {
   recipes: Recipes;
   recipeList: RecipeShort[];
   groupConfiguration: EventGroupConfiguration;
-  event: Event;
+  event: EventClass;
   units: Unit[];
   products: Product[];
   materials: Material[];

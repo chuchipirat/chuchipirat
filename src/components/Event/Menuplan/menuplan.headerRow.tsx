@@ -43,8 +43,8 @@ import {
 } from "../../../constants/text";
 import Action from "../../../constants/actions";
 import Utils from "../../Shared/utils.class";
-import Menuplan from "./menuplan.class";
 import {Note, MenuplanData} from "./menuplan.types";
+import {createMealType, createEmptyNote} from "./menuplanService";
 import {MenuplanSettings, OnNoteUpdate, OnMealTypeUpdate} from "./menuplan.constants";
 import {
   DialogType,
@@ -131,7 +131,7 @@ const MenuplanHeaderRow = ({
     })) as SingleTextInputResult;
 
     if (userInput?.valid && userInput.input != "") {
-      const newMealType = Menuplan.createMealType({
+      const newMealType = createMealType({
         newMealName: userInput.input,
       });
       onMealTypeUpdate({action: Action.ADD, mealType: newMealType});
@@ -198,7 +198,7 @@ const MenuplanHeaderRow = ({
       // Notiz anlegen resp. ändern
       let note: Note;
       if (!contextMenuState.note?.uid) {
-        note = Menuplan.createEmptyNote();
+        note = createEmptyNote();
         note.date = contextMenuState.date as string;
       } else {
         note = contextMenuState.note;

@@ -5,11 +5,13 @@ import {ChangeRecord} from "../../Shared/global.interface";
 import Utils from "../../Shared/utils.class";
 import Event from "../Event/event.class";
 import _ from "lodash";
-import Menuplan, {
+import {
   Meal,
   MealRecipeDeletedPrefix,
   Menue,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 
 import {ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND} from "../../../constants/text";
 
@@ -37,13 +39,13 @@ interface GetUsedRecipesListener {
 interface CreateNewList {
   name: string;
   selectedMenues: Menue["uid"][];
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   firebase: Firebase;
   authUser: AuthUser;
 }
 interface RefreshLists {
   usedRecipes: UsedRecipes;
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   firebase: Firebase;
   authUser: AuthUser;
 }
@@ -66,7 +68,7 @@ interface ListProperties {
   generated: ChangeRecord;
 }
 interface _DefineSelectedRecipes {
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   selectedMenues: string[];
 }
 export interface UsedRecipeListEntry {
@@ -185,7 +187,7 @@ export default class UsedRecipes {
     listEntry.properties = {
       uid: Utils.generateUid(5),
       name: name,
-      selectedMeals: Menuplan.getMealsOfMenues({
+      selectedMeals: getMealsOfMenues({
         menuplan: menueplan,
         menues: selectedMenues,
       }),
@@ -202,6 +204,7 @@ export default class UsedRecipes {
       throw new Error(TEXT_ERROR_NO_RECIPES_FOUND);
     }
 
+    // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
     await Recipe.getMultipleRecipes({
       firebase: firebase,
       recipes: recipeList,
@@ -247,7 +250,7 @@ export default class UsedRecipes {
       if (
         !Utils.areStringArraysEqual(
           list.properties.selectedMeals,
-          Menuplan.getMealsOfMenues({
+          getMealsOfMenues({
             menuplan: menueplan,
             menues: list.properties.selectedMenues,
           })
@@ -255,14 +258,14 @@ export default class UsedRecipes {
         // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
         // Auswahl entfernt
         list.properties.selectedMenues.length !==
-          Menuplan.getMenuesOfMeals({
+          getMenuesOfMeals({
             menuplan: menueplan,
             meals: list.properties.selectedMeals,
           }).length
       ) {
         // Die Menüs wurden geändert. Daher müssen wir jetzt
         // die Menüs neu bestimmen anhand der Mahlzeiten
-        list.properties.selectedMenues = Menuplan.getMenuesOfMeals({
+        list.properties.selectedMenues = getMenuesOfMeals({
           menuplan: menueplan,
           meals: list.properties.selectedMeals,
         });
@@ -285,6 +288,7 @@ export default class UsedRecipes {
       throw new Error(TEXT_ERROR_NO_RECIPES_FOUND);
     }
 
+    // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
     await Recipe.getMultipleRecipes({
       firebase: firebase,
       recipes: recipeList,

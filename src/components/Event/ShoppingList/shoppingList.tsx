@@ -60,7 +60,7 @@ import useCustomStyles from "../../../constants/styles";
 
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Menuplan from "../Menuplan/menuplan.class";
+import {MenuplanData} from "../Menuplan/menuplan.types";
 import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
 import {
   DialogType,
@@ -206,7 +206,7 @@ const shoppingListReducer = (state: State, action: DispatchAction): State => {
 interface EventShoppingListPageProps {
   firebase: Firebase;
   authUser: AuthUser;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   event: Event;
   products: Product[];
   materials: Material[];
@@ -1278,7 +1278,6 @@ const DialogHandleItem = ({
         dialogOpen={materialAddPopupValues.popUpOpen}
         handleOk={onMaterialCreate}
         handleClose={onCloseDialogMaterial}
-        firebase={firebase}
         authUser={authUser}
       />
       <DialogProduct

@@ -51,7 +51,8 @@ import {
   DialogPlanPortionsDialogValues,
 } from "./menuplan.page.types";
 import {PlanedObject} from "./menuplan.constants";
-import Menuplan from "./menuplan.class";
+import {MenuplanData} from "./menuplan.types";
+import {findMealOfMenu} from "./menuplanService";
 import EventGroupConfiguration, {
   Intolerance,
 } from "../GroupConfiguration/groupConfiguration.class";
@@ -96,9 +97,9 @@ import {
 interface DialogPlanPortionsProps {
   open: boolean;
   selectedMenues: DialogSelectMenuesForRecipeDialogValues | null;
-  meals: Menuplan["meals"];
-  menues: Menuplan["menues"];
-  mealTypes: Menuplan["mealTypes"];
+  meals: MenuplanData["meals"];
+  menues: MenuplanData["menues"];
+  mealTypes: MenuplanData["mealTypes"];
   groupConfiguration: EventGroupConfiguration;
   planedMealRecipe: PortionPlan[];
   planedObject: PlanedObject;
@@ -581,7 +582,7 @@ const DialogPlanPortions = ({
                   menuOrder: [],
                 };
                 if (menueUid !== KEEP_IN_SYNC_KEY) {
-                  meal = Menuplan.findMealOfMenu({
+                  meal = findMealOfMenu({
                     menueUid: menueUid,
                     meals: meals,
                   });
@@ -610,7 +611,7 @@ const DialogPlanPortions = ({
                           {`${TEXT_ON_DATE}: `}
                         </Typography>
                         {Object.keys(selectedMenues).map((menueUid) => {
-                          meal = Menuplan.findMealOfMenu({
+                          meal = findMealOfMenu({
                             menueUid: menueUid,
                             meals: meals,
                           });

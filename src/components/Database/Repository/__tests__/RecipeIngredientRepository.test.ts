@@ -11,7 +11,7 @@ import {
   RecipeIngredientRow,
 } from "../RecipeIngredientRepository";
 import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
-import {createSupabaseMock} from "../__mocks__/supabaseMock";
+import {createSupabaseMock, createQueryMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
@@ -227,7 +227,6 @@ describe("RecipeIngredientRepository", () => {
       // da der delete-Pfad die Kette ohne single() beendet.
       // Durch mockReturnValueOnce auf client.from() wird für den zweiten Aufruf
       // (delete) ein eigenes Mock-Objekt zurückgegeben.
-      const {createQueryMock} = require("../__mocks__/supabaseMock");
       const deleteMock = createQueryMock();
       deleteMock.eq = jest.fn().mockResolvedValue({data: null, error: null});
       supabaseMock.client.from.mockReturnValueOnce(supabaseMock.queryMock) // findMany

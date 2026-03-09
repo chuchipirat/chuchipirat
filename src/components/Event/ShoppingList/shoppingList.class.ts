@@ -2,10 +2,11 @@ import Department from "../../Department/department.class";
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Unit from "../../Unit/unit.class";
-import Menuplan, {
+import {
   MealRecipeDeletedPrefix,
   Menue,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
 import UsedRecipes from "../UsedRecipes/usedRecipes.class";
 import {
   ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND as TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND,
@@ -59,7 +60,7 @@ export interface ShoppingListDepartment {
 interface CreateNewList {
   selectedMenues: Menue["uid"][];
   selectedDepartments: Department["uid"][];
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   products: Product[];
   materials: Material[];
   departments: Department[];
@@ -161,6 +162,7 @@ export default class ShoppingList {
     let itemCounter = 0;
     // Alle Rezepte holen
     if (recipeList.length !== 0) {
+      // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
       await Recipe.getMultipleRecipes({
         firebase: firebase,
         recipes: recipeList,

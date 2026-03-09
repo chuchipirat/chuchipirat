@@ -11,6 +11,7 @@ export async function rebuildFile000AllEvents(
   const allEvents: ValueObject = {};
   let counter = 0;
 
+  // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
   const events = await Event.getAllEvents({firebase: firebase});
 
   events.forEach((event) => {

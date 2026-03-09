@@ -26,7 +26,7 @@ const authUser = {uid: "user-123", authUid: "auth-uuid-123"} as AuthUser;
 
 /** Minimaler Firebase-Rezept-Datensatz für die Migration */
 const makeFirebaseRecord = (
-  overrides: Partial<{recipeType: "public" | "private"; ingredients: any; steps: any; materials: any}> = {},
+  overrides: Partial<{recipeType: "public" | "private"; ingredients: any; steps: any; materials: any; preparationSteps: any}> = {},
 ): SourceRecord<any> => ({
   id: "fb-recipe-001",
   label: "Spaghetti Bolognese",

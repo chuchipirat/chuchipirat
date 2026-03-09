@@ -47,6 +47,7 @@ export default class Receipt {
       authUser: authUser,
     });
 
+    // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
     await Event.getEvent({firebase: firebase, uid: receipt.eventUid}).then(
       (result) => {
         if (!result.refDocuments?.includes(EventRefDocuments.receipt)) {
@@ -55,6 +56,7 @@ export default class Receipt {
             newDocumentType: EventRefDocuments.receipt,
           });
 
+          // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
           Event.save({
             firebase: firebase,
             event: result,

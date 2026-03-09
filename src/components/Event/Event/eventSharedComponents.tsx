@@ -1,5 +1,5 @@
 import React from "react";
-import Menuplan, {Menue, MenueCoordinates} from "../Menuplan/menuplan.class";
+import {Menue, MenueCoordinates, MenuplanData} from "../Menuplan/menuplan.types";
 
 import {
   Button,
@@ -81,7 +81,7 @@ interface EventListCardProps {
     | UsedRecipes["lists"]
     | MaterialList["lists"];
   noOfLists: number;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   onCreateList: () => void;
   onListElementSelect: (
     event: React.MouseEvent<HTMLElement, MouseEvent>,

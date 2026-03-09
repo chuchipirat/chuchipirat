@@ -18,7 +18,8 @@ import {ChangeRecord} from "../../Shared/global.interface";
 import FieldValidationError, {
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
-import Menuplan, {Menue} from "../Menuplan/menuplan.class";
+import {Menue, MenuplanData} from "../Menuplan/menuplan.types";
+import {getEventDateList} from "../Menuplan/menuplanService";
 
 /**
  * Typ eines Events – unterscheidet zwischen aktuellem und historischem Anlass.
@@ -68,7 +69,7 @@ interface AddRefDocument {
 }
 interface CheckIfDeletedDayArePlanned {
   event: Event;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
 }
 
 /**
@@ -414,7 +415,7 @@ export default class Event {
     event,
     menuplan,
   }: CheckIfDeletedDayArePlanned) {
-    const newDayList = Menuplan.getEventDateList({event: event}).map((date) =>
+    const newDayList = getEventDateList({event: event}).map((date) =>
       Utils.dateAsString(date),
     );
     const menuplanDates = menuplan.dates.map((date) =>

@@ -7,6 +7,7 @@ export async function rebuildFile000AllRecipes(firebase: Firebase) {
   const allRecipes: ValueObject = {};
   let counter = 0;
 
+  // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
   await Recipe.getAllRecipes({
     firebase: firebase,
   })

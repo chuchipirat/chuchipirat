@@ -64,7 +64,8 @@ import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.cl
 import MenuplanPage from "../Menuplan/menuplan";
 import EventGroupConfigurationPage from "../GroupConfiguration/groupConfiguration";
 import EventUsedRecipesPage from "../UsedRecipes/usedRecipes";
-import Menuplan from "../Menuplan/menuplan.class";
+import {MenuplanData} from "../Menuplan/menuplan.types";
+import {createEmptyMenuplan, recalculatePortions, adjustMenuplanWithNewDays, fixMenuplan} from "../Menuplan/menuplanService";
 import UsedRecipes from "../UsedRecipes/usedRecipes.class";
 import Utils from "../../Shared/utils.class";
 import RecipeShort from "../../Recipe/recipeShort.class";
@@ -135,8 +136,8 @@ const deriveEventUid = ({event, pathname}: DeriveEventUid) => {
  * @returns Set mit den UIDs der geänderten Menüs
  */
 function getChangedMenueUids(
-  oldMenuplan: Menuplan,
-  newMenuplan: Menuplan,
+  oldMenuplan: MenuplanData,
+  newMenuplan: MenuplanData,
 ): Set<string> {
   const changed = new Set<string>();
   const allUids = new Set([
@@ -273,7 +274,7 @@ type DispatchAction =
       type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS;
       payload: EventGroupConfiguration;
     }
-  | {type: ReducerActions.MENUPLAN_FETCH_SUCCESS; payload: Menuplan}
+  | {type: ReducerActions.MENUPLAN_FETCH_SUCCESS; payload: MenuplanData}
   | {type: ReducerActions.USED_RECIPES_FETCH_SUCCESS; payload: UsedRecipes}
   | {
       type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS;
@@ -316,7 +317,7 @@ type DispatchAction =
 
 type State = {
   event: Event;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   groupConfig: EventGroupConfiguration;
   usedRecipes: UsedRecipes;
   shoppingListCollection: ShoppingListCollection;
@@ -420,7 +421,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.MENUPLAN_FETCH_SUCCESS:
       return {
         ...state,
-        menuplan: action.payload as Menuplan,
+        menuplan: action.payload as MenuplanData,
         isLoading: Utils.deriveIsLoading({
           ...state.loadingComponents,
           menuplan: false,
@@ -737,7 +738,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
 
 const INITITIAL_STATE: State = {
   event: new Event(),
-  menuplan: new Menuplan(),
+  menuplan: createEmptyMenuplan(),
   groupConfig: new EventGroupConfiguration(),
   usedRecipes: new UsedRecipes(),
   shoppingListCollection: new ShoppingListCollection(),
@@ -822,7 +823,7 @@ const EventPage = () => {
   const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
   // Ref für den aktuellen Menuplan, damit der Debounce-Callback (der in einem
   // useEffect mit [] lebt) immer Zugriff auf den neuesten Stand hat.
-  const menuplanRef = React.useRef<Menuplan>(state.menuplan);
+  const menuplanRef = React.useRef<MenuplanData>(state.menuplan);
   React.useEffect(() => {
     menuplanRef.current = state.menuplan;
   }, [state.menuplan]);
@@ -1293,7 +1294,7 @@ const EventPage = () => {
   /* ------------------------------------------
   // Change-Handling
   // ------------------------------------------ */
-  const onMenuplanUpdate = (menuplan: Menuplan) => {
+  const onMenuplanUpdate = (menuplan: MenuplanData) => {
     // Vorherigen Zustand sichern für Rollback bei Fehler
     const previousMenuplan = state.menuplan;
 
@@ -1334,7 +1335,7 @@ const EventPage = () => {
     // Alle Portionen im Menüplan neu berechnen und update
     groupConfiguration: EventGroupConfiguration,
   ) => {
-    const menuplan = Menuplan.recalculatePortions({
+    const menuplan = recalculatePortions({
       menuplan: state.menuplan,
       groupConfig: groupConfiguration,
     });
@@ -1459,7 +1460,7 @@ const EventPage = () => {
         return;
       }
     }
-    const updatedMenuplan = Menuplan.adjustMenuplanWithNewDays({
+    const updatedMenuplan = adjustMenuplanWithNewDays({
       menuplan: state.menuplan,
       newEvent: eventDraft.event,
       existingEvent: state.event,
@@ -1542,7 +1543,7 @@ const EventPage = () => {
   };
   const onEventConsistencyCheck = () => {
     console.debug("Starte Konsistenzprüfung für Event:");
-    const fixedMenuplan = Menuplan.fixMenuplan(state.menuplan);
+    const fixedMenuplan = fixMenuplan(state.menuplan);
 
     if (!fixedMenuplan.isConsistent) {
       // Neuer Menüplan speichern
