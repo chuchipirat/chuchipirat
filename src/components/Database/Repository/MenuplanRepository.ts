@@ -775,7 +775,19 @@ export class MenuplanRepository extends BaseRepository<
     // Verhindert Datenverlust durch delete-then-fail-insert.
     this.validateMenuplanDomain(menuplan);
 
-    // Schritt 1: Alle bestehenden Daten löschen — CASCADE räumt Kindtabellen auf
+    // Schritt 1a: Tages-Notizen löschen (menue_id IS NULL).
+    // Diese werden NICHT durch CASCADE auf event_meal_types erfasst,
+    // da ihr menue_id NULL ist und somit kein FK-Match stattfindet.
+    const {error: notesDeleteError} = await this.client
+      .from("event_notes")
+      .delete()
+      .eq("event_id", eventId)
+      .is("menue_id", null);
+
+    if (notesDeleteError) throw notesDeleteError;
+
+    // Schritt 1b: Alle bestehenden Daten löschen — CASCADE räumt Kindtabellen auf
+    // (inkl. Menü-Notizen, die über event_menues → event_notes kaskadiert werden)
     const {error: deleteError} = await this.client
       .from("event_meal_types")
       .delete()
@@ -945,6 +957,33 @@ export class MenuplanRepository extends BaseRepository<
       if (!menueIds.has(material.menueId)) {
         throw new Error(
           `Menuplan-Validierung: Material ${material.uid} referenziert ungültiges Menue ${material.menueId}`,
+        );
+      }
+    }
+
+    // Notes → Menues (wenn menueId gesetzt)
+    for (const note of menuplan.notes) {
+      if (note.menueId && !menueIds.has(note.menueId)) {
+        throw new Error(
+          `Menuplan-Validierung: Note ${note.uid} referenziert ungültiges Menue ${note.menueId}`,
+        );
+      }
+    }
+
+    // Notes: noteDate darf nicht leer sein (DB-Spalte ist DATE NOT NULL)
+    for (const note of menuplan.notes) {
+      if (!note.noteDate || note.noteDate.trim() === "") {
+        throw new Error(
+          `Menuplan-Validierung: Note ${note.uid} hat kein gültiges Datum (noteDate ist leer)`,
+        );
+      }
+    }
+
+    // Meals: mealDate darf nicht leer sein
+    for (const meal of menuplan.meals) {
+      if (!meal.mealDate || meal.mealDate.trim() === "") {
+        throw new Error(
+          `Menuplan-Validierung: Meal ${meal.uid} hat kein gültiges Datum (mealDate ist leer)`,
         );
       }
     }

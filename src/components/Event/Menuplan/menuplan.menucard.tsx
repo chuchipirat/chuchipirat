@@ -808,7 +808,8 @@ const MenueCard = ({
       }
       note.text = userInput.input;
       note.menueUid = menue.uid;
-      note.date = "";
+      // Menü-Notizen erhalten das Datum der zugehörigen Mahlzeit
+      note.date = meal.date;
       onNoteUpdate({
         action: existingNote?.text ? Action.EDIT : Action.ADD,
         note: note,
