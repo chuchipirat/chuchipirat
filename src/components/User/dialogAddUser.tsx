@@ -26,14 +26,12 @@ import {
 } from "../../constants/text";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Firebase from "../Firebase/firebase.class";
 import DatabaseService from "../Database/DatabaseService";
 
 /* ===================================================================
 // ====================== Pop Up User hinzufügen =====================
 // =================================================================== */
 interface DialogAddUserProps {
-  firebase: Firebase;
   database: DatabaseService;
   authUser: AuthUser;
   dialogOpen: boolean;

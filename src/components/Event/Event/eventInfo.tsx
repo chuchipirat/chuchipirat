@@ -422,7 +422,6 @@ const EventInfoPage = ({
         />
       </Stack>
       <DialogAddUser
-        firebase={firebase}
         database={database}
         authUser={authUser}
         dialogOpen={dialogAddUserOpen}

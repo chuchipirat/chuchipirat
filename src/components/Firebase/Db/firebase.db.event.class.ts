@@ -7,8 +7,6 @@ import {
 } from "./firebase.db.super.class";
 // import { AuthUser } from "../firebase.class.temp";
 import {ERROR_NOT_IMPLEMENTED_YET} from "../../../constants/text";
-import FirebaseDbEventGroupConfiguration from "./firebase.db.event.groupConfig.class";
-import FirebaseDbEventMenuplan from "./firebase.db.event.menuplan.class";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
@@ -22,8 +20,6 @@ import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export class FirebaseDbEvent extends FirebaseDbSuper {
   firebase: Firebase;
-  groupConfiguration: FirebaseDbEventGroupConfiguration;
-  menuplan: FirebaseDbEventMenuplan;
   usedRecipes: FirebaseDbEventUsedRecipes;
   shoppingList: FirebaseDbEventShoppingList;
   shoppingListCollection: FirebaseDbEventShoppingListCollection;
@@ -35,8 +31,6 @@ export class FirebaseDbEvent extends FirebaseDbSuper {
   constructor(firebase: Firebase) {
     super();
     this.firebase = firebase;
-    this.groupConfiguration = new FirebaseDbEventGroupConfiguration(firebase);
-    this.menuplan = new FirebaseDbEventMenuplan(firebase);
     this.usedRecipes = new FirebaseDbEventUsedRecipes(firebase);
     this.shoppingList = new FirebaseDbEventShoppingList(firebase);
     this.shoppingListCollection = new FirebaseDbEventShoppingListCollection(

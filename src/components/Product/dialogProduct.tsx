@@ -61,7 +61,6 @@ import Unit, {UnitDimension} from "../Unit/unit.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import UnitAutocomplete from "../Unit/unitAutocomplete";
 
-import Firebase from "../Firebase/firebase.class";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 import DepartmentAutocomplete from "../Department/departmentAutocomplete";
 import {useDatabase} from "../Database/DatabaseContext";
@@ -132,11 +131,6 @@ export const PRODUCT_DIALOG_TYPE = {
  * @param authUser - Angemeldeter Benutzer
  */
 interface DialogProductProps {
-  /**
-   * @deprecated Wird nicht mehr verwendet. Das CREATE-Verfahren nutzt Supabase.
-   * Kann entfernt werden, sobald alle Aufrufer migriert sind.
-   */
-  firebase?: Firebase;
   dialogType: ProductDialog;
   productName: Product["name"];
   productUid: Product["uid"];
@@ -162,7 +156,6 @@ interface DialogProductProps {
  * Im EDIT-Modus werden die Änderungen an den Aufrufer zurückgegeben.
  */
 const DialogProduct = ({
-  firebase: _firebase,
   dialogType,
   productName = "",
   productUid = "",

@@ -536,7 +536,6 @@ export const DialogGoods = ({
         authUser={authUser}
       />
       <DialogProduct
-        firebase={firebase}
         productName={productAddPopupValues.name}
         productUid={productAddPopupValues.uid}
         productDietProperties={productAddPopupValues.dietProperties}

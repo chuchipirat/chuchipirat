@@ -14,25 +14,19 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "./sessionStorageHandler.class";
-import {FirebaseDbConfigurationGlobalSettings} from "./firebase.db.configuration.globalSettings.class";
 import FirebaseDbConfigurationVersion from "./firebase.db.configuration.version.class";
-import FirebaseDbConfigurationSystemMessage from "./firebase.db.configuration.systemMessage.class";
 import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export class FirebaseDbConfiguration extends FirebaseDbSuper {
   firebase: Firebase;
-  globalSettings: FirebaseDbConfigurationGlobalSettings;
   version: FirebaseDbConfigurationVersion;
-  systemMessage: FirebaseDbConfigurationSystemMessage;
   /* =====================================================================
   // Constructor
   // ===================================================================== */
   constructor(firebase: Firebase) {
     super();
     this.firebase = firebase;
-    this.globalSettings = new FirebaseDbConfigurationGlobalSettings(firebase);
     this.version = new FirebaseDbConfigurationVersion(firebase);
-    this.systemMessage = new FirebaseDbConfigurationSystemMessage(firebase);
   }
   /* =====================================================================
   // Collection holen

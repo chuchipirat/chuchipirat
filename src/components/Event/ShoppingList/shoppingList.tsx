@@ -1281,7 +1281,6 @@ const DialogHandleItem = ({
         authUser={authUser}
       />
       <DialogProduct
-        firebase={firebase}
         productName={productAddPopupValues.name}
         productUid={productAddPopupValues.uid}
         productUsable={productAddPopupValues.usable}
