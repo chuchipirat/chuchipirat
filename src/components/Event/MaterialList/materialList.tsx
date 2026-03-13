@@ -83,10 +83,6 @@ import {
 } from "../../Navigation/navigationContext";
 import Action from "../../../constants/actions";
 import {
-  UnitConversionBasic,
-  UnitConversionProducts,
-} from "../../Unit/unitConversion.class";
-import {
   FetchMissingDataProps,
   FetchMissingDataType,
   MasterDataCreateType,
@@ -120,6 +116,7 @@ import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
 import {logEvent} from "firebase/analytics";
 import {TextFieldSize} from "../../../constants/defaultValues";
 import {ItemType} from "../ShoppingList/shoppingList.class";
+import {useEventMasterData} from "../Event/eventMasterDataContext";
 
 /* ===================================================================
 // ============================ Dispatcher ===========================
@@ -265,8 +262,6 @@ interface EventMaterialListPageProps {
   menuplan: MenuplanData;
   materials: Material[];
   recipes: Recipes;
-  unitConversionBasic: UnitConversionBasic | null;
-  unitConversionProducts: UnitConversionProducts | null;
   fetchMissingData: ({type, recipeShort}: FetchMissingDataProps) => void;
   onMaterialListUpdate: (materialList: MaterialList) => void;
   onMasterdataCreate: ({type, value}: OnMasterdataCreateProps) => void;
@@ -280,13 +275,12 @@ const EventMaterialListPage = ({
   menuplan,
   materials,
   recipes,
-  unitConversionBasic,
-  unitConversionProducts,
   fetchMissingData,
   onMaterialListUpdate,
   onMasterdataCreate,
 }: EventMaterialListPageProps) => {
   const classes = useCustomStyles();
+  const {unitConversionBasic, unitConversionProducts} = useEventMasterData();
 
   const navigationValuesContext = React.useContext(NavigationValuesContext);
   const {customDialog} = useCustomDialog();
@@ -462,10 +456,10 @@ const EventMaterialListPage = ({
 
   const onContextMenuClick = React.useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
-      const pressedButton = event.currentTarget.id.split("_");
+      const action = event.currentTarget.dataset.action;
       let material: Material | undefined;
       let quantity: number | undefined;
-      switch (pressedButton[1]) {
+      switch (action) {
         case Action.EDIT:
           material = materials.find(
             (material) => material.uid == contextMenuSelectedItem.materialUid,
@@ -711,8 +705,8 @@ const EventMaterialListPage = ({
   };
   const onListElementSelect = React.useCallback(
     async (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
-      const selectedListItem = event.currentTarget.id.split("_")[1];
-      if (state.selectedListItem == selectedListItem) {
+      const selectedListItem = event.currentTarget.dataset.uid;
+      if (!selectedListItem || state.selectedListItem == selectedListItem) {
         return;
       }
 
@@ -728,7 +722,7 @@ const EventMaterialListPage = ({
 
   const onListElementDelete = React.useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
-      const selectedList = event.currentTarget.id.split("_")[1];
+      const selectedList = event.currentTarget.dataset.uid;
       if (!selectedList) {
         return;
       }
@@ -752,7 +746,7 @@ const EventMaterialListPage = ({
 
   const onListElementEdit = React.useCallback(
     async (event: React.MouseEvent<HTMLElement>) => {
-      const selectedListUid = event.currentTarget.id.split("_")[1];
+      const selectedListUid = event.currentTarget.dataset.uid;
       if (!selectedListUid) {
         return;
       }
@@ -973,10 +967,6 @@ const EventMaterialListPage = ({
           <EventMaterialListList
             materialList={materialList.lists[state.selectedListItem]}
             materials={materials}
-            menuplan={menuplan}
-            groupConfiguration={groupConfiguration}
-            unitConversionBasic={unitConversionBasic}
-            unitConversionProducts={unitConversionProducts}
             onCheckboxClick={onCheckboxClick}
             onOpenContexMenü={onOpenContextMenu}
             onChangeItem={onChangeItem}
@@ -1104,10 +1094,6 @@ QuantityField.displayName = "QuantityField";
 interface EventMaterialListListProps {
   materialList: MaterialListEntry;
   materials: Material[];
-  menuplan: MenuplanData;
-  groupConfiguration: EventGroupConfiguration;
-  unitConversionBasic: UnitConversionBasic | null;
-  unitConversionProducts: UnitConversionProducts | null;
   onCheckboxClick: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onOpenContexMenü: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onChangeItem: (change: MaterialItemChange) => void;

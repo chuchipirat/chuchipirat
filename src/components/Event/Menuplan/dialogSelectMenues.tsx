@@ -37,6 +37,13 @@ import {
 // ===================================================================
 // ============================== Global =============================
 // =================================================================== */
+
+/**
+ * Parameter für `decodeSelectedMeals`.
+ *
+ * @param selectedMeals - UIDs der selektierten Meals
+ * @param menuplan - Vollständiger Menüplan (für Datums- und Mahlzeit-Reihenfolge)
+ */
 interface DecodeSeletedMenues {
   selectedMeals: string[];
   menuplan: MenuplanData;
@@ -46,6 +53,16 @@ interface TimeSlice {
   from: {date: Date | null; mealType: MealType["uid"]};
   to: {date: Date | null; mealType: MealType["uid"]};
 }
+
+/**
+ * Dekodiert die selektierten Meals in einen lesbaren Zeitbereich-String.
+ *
+ * Fasst aufeinanderfolgende Meals zu Von-Bis-Bereichen zusammen
+ * (z.B. «01.01.2026 Frühstück - 03.01.2026 Abendessen»).
+ *
+ * @param params - SelectedMeals und Menüplan
+ * @returns Formatierter Anzeigetext der selektierten Zeitbereiche
+ */
 export const decodeSelectedMeals = ({
   selectedMeals,
   menuplan,
@@ -139,6 +156,14 @@ export const decodeSelectedMeals = ({
   });
   return displayText;
 };
+/**
+ * Sucht das Meal für eine bestimmte Mahlzeitart und ein Datum.
+ *
+ * @param meals - Alle Meals des Menüplans
+ * @param mealTypeUid - UID der Mahlzeitart
+ * @param date - Datum
+ * @returns Das gefundene Meal oder `null`
+ */
 export const getMealForMealTypeAndDate = (
   meals: MenuplanData["meals"],
   mealTypeUid: MealType["uid"],
@@ -155,6 +180,22 @@ export const getMealForMealTypeAndDate = (
 /* ===================================================================
    Dialog-Datums-Wahl-Einplanung
 =================================================================== */
+
+/**
+ * Props für den Menü-Auswahldialog.
+ *
+ * @param open - Dialog sichtbar
+ * @param title - Dialogtitel
+ * @param dates - Alle Datum-Einträge des Menüplans
+ * @param preSelectedMenue - Vorausgewählte Menüs (z.B. beim Bearbeiten)
+ * @param mealTypes - Mahlzeitarten mit Reihenfolge
+ * @param meals - Alle Meals
+ * @param menues - Alle Menüs
+ * @param showSelectAll - «Alle auswählen»-Button anzeigen
+ * @param singleSelection - Nur ein Menü auswählbar (Radio statt Checkbox)
+ * @param onClose - Callback beim Abbrechen
+ * @param onConfirm - Callback bei Bestätigung mit selektierten Menüs
+ */
 interface DialogSelectMenuesProps {
   open: boolean;
   title: string;
@@ -173,6 +214,14 @@ export interface DialogSelectMenuesForRecipeDialogValues {
   [key: Menue["uid"]]: boolean;
 }
 
+/**
+ * Dialog zur Auswahl von Menüs aus dem Menüplan.
+ *
+ * Zeigt ein Datums-×-Mahlzeitart-Raster mit Checkboxen (oder Radios bei
+ * `singleSelection`). Unterstützt Tages- und Gesamt-Auswahl.
+ *
+ * @param props - Dialog-Konfiguration und Callbacks
+ */
 export const DialogSelectMenues = ({
   open,
   title,
@@ -188,6 +237,15 @@ export const DialogSelectMenues = ({
 }: DialogSelectMenuesProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
+
+  // Lookup-Map für schnellen Zugriff: `${mealTypeUid}_${dateStr}` → Meal
+  const mealLookup = React.useMemo(() => {
+    const map = new Map<string, Meal>();
+    for (const meal of Object.values(meals)) {
+      map.set(`${meal.mealType}_${meal.date}`, meal);
+    }
+    return map;
+  }, [meals]);
 
   const [dialogValues, setDialogValues] =
     React.useState<DialogSelectMenuesForRecipeDialogValues | null>(null);
@@ -419,11 +477,9 @@ export const DialogSelectMenues = ({
                 sx={rowContentsStyle}
               >
                 {dates.map((date) => {
-                  const actualMeal = getMealForMealTypeAndDate(
-                    meals,
-                    mealTypeUid,
-                    date,
-                  );
+                  const actualMeal = mealLookup.get(
+                    `${mealTypeUid}_${Utils.dateAsString(date)}`,
+                  ) ?? null;
 
                   return (
                     <Container
@@ -452,11 +508,9 @@ export const DialogSelectMenues = ({
             ) : (
               <>
                 {dates.map((date) => {
-                  const actualMeal = getMealForMealTypeAndDate(
-                    meals,
-                    mealTypeUid,
-                    date,
-                  );
+                  const actualMeal = mealLookup.get(
+                    `${mealTypeUid}_${Utils.dateAsString(date)}`,
+                  ) ?? null;
 
                   return (
                     <Container

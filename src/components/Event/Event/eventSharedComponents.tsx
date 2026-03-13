@@ -119,7 +119,7 @@ export const EventListCard = ({
             {Object.values(lists).map((list) => (
               <ListItemButton
                 key={"listItem_" + list?.properties.uid}
-                id={"listItem_" + list?.properties.uid}
+                data-uid={list?.properties.uid}
                 selected={selectedListItem == list?.properties.uid}
                 onClick={onListElementSelect}
               >
@@ -132,14 +132,14 @@ export const EventListCard = ({
                 />
                 <ListItemSecondaryAction>
                   <IconButton
-                    id={"EditBtn_" + list?.properties.uid}
+                    data-uid={list?.properties.uid}
                     onClick={onListElementEdit}
                     size="large"
                   >
                     <EditIcon />
                   </IconButton>
                   <IconButton
-                    id={"DeleteBtn_" + list?.properties.uid}
+                    data-uid={list?.properties.uid}
                     onClick={onListElementDelete}
                     size="large"
                   >
@@ -228,7 +228,7 @@ export const PositionContextMenu = ({
     >
       {(listMode == ListMode.VIEW || listMode == undefined) && (
         <MenuItem
-          id={"ContextMenuItem_" + Action.EDIT}
+          data-action={Action.EDIT}
           onClick={handleMenuClick}
         >
           <ListItemIcon>
@@ -238,7 +238,7 @@ export const PositionContextMenu = ({
         </MenuItem>
       )}
       <MenuItem
-        id={"ContextMenuItem_" + Action.TRACE}
+        data-action={Action.TRACE}
         onClick={handleMenuClick}
       >
         <ListItemIcon>
@@ -249,7 +249,7 @@ export const PositionContextMenu = ({
         </Typography>
       </MenuItem>
       <MenuItem
-        id={"ContextMenuItem_" + Action.DELETE}
+        data-action={Action.DELETE}
         onClick={handleMenuClick}
       >
         <ListItemIcon>
@@ -289,10 +289,10 @@ export const DialogTraceItem = ({
   const onListItemClick = (
     event: React.MouseEvent<HTMLElement, MouseEvent>,
   ) => {
-    const pressedButton = event.currentTarget.id.split("_");
+    const {menueUid, recipeUid} = event.currentTarget.dataset;
 
-    if (pressedButton.length == 4 && pressedButton[3] != "undefined") {
-      onShowRecipe(pressedButton[1], pressedButton[3]);
+    if (menueUid && recipeUid && recipeUid !== "undefined") {
+      onShowRecipe(menueUid, recipeUid);
     }
   };
 
@@ -338,7 +338,8 @@ export const DialogTraceItem = ({
                               // List-Item nur mit Button, wenn auch ein Rezept dahinter steckt
                               <ListItemButton
                                 onClick={onListItemClick}
-                                id={`listItemButton_${menue.menueUid}_${counter}_${item.recipe.uid}`}
+                                data-menue-uid={menue.menueUid}
+                                data-recipe-uid={item.recipe.uid}
                                 key={`listItemButton_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                               >
                                 <ListItemText
@@ -351,7 +352,6 @@ export const DialogTraceItem = ({
                                     item?.planedPortions &&
                                     `${item.planedPortions} Portionen`
                                   }
-                                  id={`listItemTextItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                   key={`listItemTextItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                 />
                                 <ListItemText
@@ -364,13 +364,11 @@ export const DialogTraceItem = ({
                                         }).format(item.quantity)
                                   } ${item.unit}`}
                                   sx={classes.textAlignRight}
-                                  id={`listItemTextQuantity_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                   key={`listItemTextQuantity_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                 />
                               </ListItemButton>
                             ) : (
                               <ListItem
-                                id={`listItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                 key={`listItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                               >
                                 <ListItemText
@@ -383,7 +381,6 @@ export const DialogTraceItem = ({
                                     item?.planedPortions &&
                                     `${item.planedPortions} Portionen`
                                   }
-                                  id={`listItemTextItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                   key={`listItemTextItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                 />
                                 <ListItemText
@@ -396,7 +393,6 @@ export const DialogTraceItem = ({
                                         }).format(item.quantity)
                                   } ${item.unit}`}
                                   sx={classes.textAlignRight}
-                                  id={`listItemTextQuantity_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                   key={`listItemTextQuantity_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                 />
                               </ListItem>

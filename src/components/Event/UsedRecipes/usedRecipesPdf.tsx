@@ -1,3 +1,16 @@
+/**
+ * PDF-Dokument für die geplanten Rezepte eines Events.
+ *
+ * Erzeugt pro Rezept eine Seite mit Header, Zutaten (skaliert),
+ * Zubereitung, Material und optionalen Notizen. Wird über
+ * `@react-pdf/renderer` gerendert und als Blob exportiert.
+ *
+ * Hinweis: React-PDF nutzt einen eigenen Reconciler — React Context
+ * (z.B. EventMasterDataContext) funktioniert hier nicht. Stammdaten
+ * werden deshalb weiterhin als Props übergeben.
+ *
+ * @param props - Liste, Menüplan-Koordinaten, Stammdaten und Autor
+ */
 import React from "react";
 import {Document, Page, View} from "@react-pdf/renderer";
 import "../../Shared/pdfFontRegistration";
@@ -7,7 +20,7 @@ import StylesPdf from "../../../constants/stylesRecipePdf";
 
 import {
   APP_NAME as TEXT_APP_NAME,
-  SHOPPING_LIST as TEXT_SHOPPING_LIST,
+  QUANTITY_CALCULATION as TEXT_QUANTITY_CALCULATION,
 } from "../../../constants/text";
 import {UsedRecipeListEntry} from "./usedRecipes.class";
 
@@ -34,6 +47,19 @@ import {
 import {Footer, Header} from "../../Shared/pdfComponents";
 import Unit from "../../Unit/unit.class";
 
+/**
+ * Props für das UsedRecipes-PDF-Dokument.
+ *
+ * @param list - Rezeptliste mit Properties und geladenen Rezepten
+ * @param sortedMenueList - Sortierte Menü-Koordinaten
+ * @param menueplan - Vollständiger Menüplan
+ * @param eventName - Name des Events (für Titel und Header)
+ * @param products - Alle Produkte (für Einheitenumrechnung)
+ * @param units - Alle Einheiten
+ * @param unitConversionBasic - Basis-Einheitenumrechnungen
+ * @param unitConversionProducts - Produktspezifische Einheitenumrechnungen
+ * @param authUser - Aktueller Benutzer (für Footer und Autor-Metadaten)
+ */
 interface UsedRecipesPdfProps {
   list: UsedRecipeListEntry;
   sortedMenueList: MenueCoordinates[];
@@ -63,16 +89,19 @@ const UsedRecipesPdf = ({
     <Document
       author={authUser.publicProfile.displayName}
       creator={TEXT_APP_NAME}
-      keywords={eventName + " " + TEXT_SHOPPING_LIST}
-      subject={TEXT_SHOPPING_LIST + " " + eventName}
-      title={TEXT_SHOPPING_LIST + " " + eventName}
+      keywords={eventName + " " + TEXT_QUANTITY_CALCULATION}
+      subject={TEXT_QUANTITY_CALCULATION + " " + eventName}
+      title={TEXT_QUANTITY_CALCULATION + " " + eventName}
     >
       {sortedMenueList.map((menueCoordinate) => {
-        return menueplan.menues[menueCoordinate.menueUid].mealRecipeOrder
+        const menue = menueplan.menues[menueCoordinate.menueUid];
+        if (!menue) return null;
+
+        return menue.mealRecipeOrder
           .filter((mealRecipeUid) => {
             const mealRecipe = menueplan.mealRecipes[mealRecipeUid];
             return (
-              mealRecipe &&
+              mealRecipe?.recipe &&
               list.recipes[mealRecipe.recipe.recipeUid]
             );
           })
@@ -103,6 +132,15 @@ const UsedRecipesPdf = ({
 /* ===================================================================
 // =========================== Rezept-Seite ==========================
 // =================================================================== */
+
+/**
+ * Einzelne PDF-Seite für ein Rezept.
+ *
+ * Rendert Header, skalierte Zutaten, Zubereitung, Material und Notizen.
+ * Zutaten und Material werden anhand der geplanten Portionen hochgerechnet.
+ *
+ * @param props - Rezeptdaten, Menü-Koordinaten und Stammdaten
+ */
 interface RecipePageProps {
   eventName: Event["name"];
   mealRecipe: MealRecipe;
@@ -127,7 +165,7 @@ const RecipePage = ({
   actualDate,
   authUser,
 }: RecipePageProps) => {
-  // Hochrechnen
+  // Zutaten und Material auf geplante Portionen hochrechnen
   const scaledIngredients = Recipe.scaleIngredients({
     recipe: recipe,
     portionsToScale: mealRecipe.totalPortions,
@@ -163,8 +201,8 @@ const RecipePage = ({
                   scaledPortions={mealRecipe.totalPortions}
                 />
               </View>
-              {recipe.materials?.order.length > 0 &&
-              recipe.materials.entries[recipe.materials.order[0]].uid !== "" ? (
+              {recipe.materials?.order?.length > 0 &&
+              recipe.materials?.entries?.[recipe.materials.order[0]]?.uid !== "" ? (
                 <View style={styles.tableCol100}>
                   <RecipeMaterial
                     materials={recipe.materials}
@@ -195,7 +233,7 @@ const RecipePage = ({
         </React.Fragment>
       ) : null}
       {recipe.type == RecipeType.variant &&
-      recipe.variantProperties?.note !== "" ? (
+      recipe.variantProperties?.note ? (
         <React.Fragment>
           <View style={styles.containerBottomBorder} />
           <RecipeVariantNote recipe={recipe} />

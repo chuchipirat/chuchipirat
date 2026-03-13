@@ -77,16 +77,12 @@ import ShoppingListCollection from "./shoppingListCollection.class";
 import ShoppingList, {ItemType, ShoppingListItem} from "./shoppingList.class";
 
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
-import Product from "../../Product/product.class";
-import {
-  UnitConversionBasic,
-  UnitConversionProducts,
-} from "../../Unit/unitConversion.class";
-import Department from "../../Department/department.class";
 import Event from "../Event/event.class";
 import UnitAutocomplete from "../../Unit/unitAutocomplete";
 import ItemAutocomplete, {MaterialItem, ProductItem} from "./itemAutocomplete";
 import Unit from "../../Unit/unit.class";
+import Product from "../../Product/product.class";
+import Department from "../../Department/department.class";
 import {Recipes} from "../../Recipe/recipe.class";
 import DialogMaterial, {
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
@@ -109,6 +105,8 @@ import {
 import Material from "../../Material/material.class";
 import {TextFieldSize} from "../../../constants/defaultValues";
 import {DialogSelectDepartments} from "./dialogSelectDepartments";
+
+import {useEventMasterData} from "../Event/eventMasterDataContext";
 
 // Custom hooks
 import useRecipeDrawer from "./useRecipeDrawer";
@@ -208,13 +206,8 @@ interface EventShoppingListPageProps {
   authUser: AuthUser;
   menuplan: MenuplanData;
   event: Event;
-  products: Product[];
   materials: Material[];
-  units: Unit[];
   recipes: Recipes;
-  departments: Department[];
-  unitConversionBasic: UnitConversionBasic | null;
-  unitConversionProducts: UnitConversionProducts | null;
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
   fetchMissingData: (props: FetchMissingDataProps) => void;
@@ -229,13 +222,8 @@ const EventShoppingListPage = ({
   authUser,
   menuplan,
   event,
-  products,
   materials,
-  units,
   recipes,
-  departments,
-  unitConversionBasic,
-  unitConversionProducts,
   shoppingListCollection,
   shoppingList,
   fetchMissingData,
@@ -244,6 +232,8 @@ const EventShoppingListPage = ({
 }: EventShoppingListPageProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
+  const {products, units, departments, unitConversionBasic, unitConversionProducts} =
+    useEventMasterData();
 
   const navigationValuesContext = React.useContext(NavigationValuesContext);
 
@@ -311,7 +301,7 @@ const EventShoppingListPage = ({
     products,
     materials,
     departments,
-    units,
+    units: units ?? [],
     unitConversionBasic,
     unitConversionProducts,
     shoppingListCollection,
@@ -496,7 +486,7 @@ const EventShoppingListPage = ({
               shoppingList={shoppingList}
               products={products}
               materials={materials}
-              units={units}
+              units={units ?? []}
               shoppingListModus={shoppingListModus}
               onCheckboxClick={onCheckboxClick}
               onChangeItem={onChangeItem}
@@ -542,7 +532,7 @@ const EventShoppingListPage = ({
         quantity={handleItemDialogValues.quantity}
         products={products}
         materials={materials}
-        units={units}
+        units={units ?? []}
         departments={departments}
         editMode={handleItemDialogValues.item.uid ? true : false}
         firebase={firebase}

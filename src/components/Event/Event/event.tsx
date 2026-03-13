@@ -102,6 +102,7 @@ import {logEvent} from "firebase/analytics";
 import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
 import {EventDomain} from "../../Database/Repository/EventRepository";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
+import EventMasterDataContext, {EventMasterData} from "./eventMasterDataContext";
 
 /* ===================================================================
 // ============================== Global =============================
@@ -827,6 +828,24 @@ const EventPage = () => {
     menuplanRef.current = state.menuplan;
   }, [state.menuplan]);
 
+  // Memoized Stammdaten für Sub-Pages (eliminiert Prop-Drilling)
+  const masterData = React.useMemo<EventMasterData>(
+    () => ({
+      products: state.products,
+      units: state.units,
+      departments: state.departments,
+      unitConversionBasic: state.unitConversionBasic,
+      unitConversionProducts: state.unitConversionProducts,
+    }),
+    [
+      state.products,
+      state.units,
+      state.departments,
+      state.unitConversionBasic,
+      state.unitConversionProducts,
+    ],
+  );
+
   /* ------------------------------------------
   // Daten aus der DB lesen
   // ------------------------------------------ */
@@ -1189,29 +1208,48 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Verwendete Rezepte (noch auf Firebase)
+    // Verwendete Rezepte (Supabase)
     if (activeTab == EventTabs.usedRecipes) {
-      let unsubscribe: () => void;
       dispatch({type: ReducerActions.USED_RECIPES_FETCH_INIT, payload: {}});
-      UsedRecipes.getUsedRecipesListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (usedRecipes) => {
+
+      // Initialer Load
+      database.usedRecipeLists
+        .getListsForEvent(eventUid)
+        .then((lists) => {
           dispatch({
             type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
-            payload: usedRecipes,
+            payload: UsedRecipes.fromDomainLists({
+              lists,
+              eventUid,
+              menuplan: menuplanRef.current,
+            }),
           });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
+
+      // Realtime-Subscription — bei jeder Änderung Listen neu laden
+      const unsubscribe = database.usedRecipeLists.subscribeToLists(
+        eventUid,
+        (lists) => {
+          dispatch({
+            type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
+            payload: UsedRecipes.fromDomainLists({
+              lists,
+              eventUid,
+              menuplan: menuplanRef.current,
+            }),
+          });
+        },
+        (error) => {
+          console.warn(
+            "Realtime usedrecipelists subscription error:",
+            error.message,
+          );
+        },
+      );
+
       return function cleanup() {
         unsubscribe();
       };
@@ -1334,10 +1372,11 @@ const EventPage = () => {
     });
   };
   const onUsedRecipesUpdate = (usedRecipes: UsedRecipes) => {
-    UsedRecipes.save({
-      firebase: firebase,
-      usedRecipes: usedRecipes,
-      authUser: authUser,
+    // Optimistisches State-Update — Persistenz erfolgt direkt in usedRecipes.tsx
+    // via Repository. Die Realtime-Subscription synchronisiert den Zustand.
+    dispatch({
+      type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
+      payload: usedRecipes,
     });
   };
   const onMaterialListUpdate = (materialList: MaterialList) => {
@@ -1496,13 +1535,10 @@ const EventPage = () => {
         .remove(state.event.uid + ".jpg")
         .catch(() => {});
 
-      // Firebase-Kinder löschen (ShoppingList, UsedRecipes, MaterialList — noch auf Firebase)
+      // Firebase-Kinder löschen (ShoppingList, MaterialList — noch auf Firebase)
+      // UsedRecipes werden über CASCADE beim Event-Delete in Supabase entfernt.
       await Promise.all([
         ShoppingListCollection.delete({
-          firebase: firebase,
-          eventUid: state.event.uid,
-        }).catch(() => {}),
-        UsedRecipes.delete({
           firebase: firebase,
           eventUid: state.event.uid,
         }).catch(() => {}),
@@ -1983,7 +2019,7 @@ const EventPage = () => {
         )}
       </Container>
       {!state.error && (
-        <React.Fragment>
+        <EventMasterDataContext.Provider value={masterData}>
           {activeTab == EventTabs.menuplan ? (
             <HighlightedMenueContext.Provider value={highlightedMenueUids}>
               <MenuplanPage
@@ -2019,16 +2055,11 @@ const EventPage = () => {
           ) : activeTab == EventTabs.usedRecipes ? (
             <Container>
               <EventUsedRecipesPage
-                firebase={firebase}
                 authUser={authUser}
                 event={state.event}
                 groupConfiguration={state.groupConfig}
                 menuplan={state.menuplan}
                 usedRecipes={state.usedRecipes}
-                products={state.products}
-                units={state.units}
-                unitConversionBasic={state.unitConversionBasic}
-                unitConversionProducts={state.unitConversionProducts}
                 fetchMissingData={fetchMissingData}
                 onUsedRecipesUpdate={onUsedRecipesUpdate}
               />
@@ -2040,19 +2071,13 @@ const EventPage = () => {
                 authUser={authUser}
                 menuplan={state.menuplan}
                 event={state.event}
-                products={state.products}
                 materials={state.materials}
-                units={state.units}
-                departments={state.departments}
                 recipes={state.recipes}
-                unitConversionBasic={state.unitConversionBasic}
-                unitConversionProducts={state.unitConversionProducts}
                 shoppingListCollection={state.shoppingListCollection}
                 shoppingList={state.shoppingList.value}
                 fetchMissingData={fetchMissingData}
                 onShoppingListUpdate={onShoppingListUpdate}
                 onShoppingCollectionUpdate={onShoppingCollectionUpdate}
-                // onMasterdataCreate={onMasterdataCreate}
               />
             </Container>
           ) : activeTab == EventTabs.materialList ? (
@@ -2066,8 +2091,6 @@ const EventPage = () => {
                 menuplan={state.menuplan}
                 materials={state.materials}
                 recipes={state.recipes}
-                unitConversionBasic={state.unitConversionBasic}
-                unitConversionProducts={state.unitConversionProducts}
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}
@@ -2138,7 +2161,7 @@ const EventPage = () => {
               </Stack>
             </Container>
           )}
-        </React.Fragment>
+        </EventMasterDataContext.Provider>
       )}
       <CustomSnackbar
         message={state.snackbar.message}

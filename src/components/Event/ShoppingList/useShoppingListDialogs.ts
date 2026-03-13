@@ -534,9 +534,9 @@ const useShoppingListDialogs = ({
   // ------------------------------------------ */
   const onListElementSelect = React.useCallback(
     async (event: React.MouseEvent<HTMLElement, MouseEvent>) => {
-      const pressedElementId = event.currentTarget.id.split("_")[1];
+      const pressedElementId = event.currentTarget.dataset.uid;
 
-      if (selectedListItem == pressedElementId) {
+      if (!pressedElementId || selectedListItem == pressedElementId) {
         return;
       }
 
@@ -552,7 +552,7 @@ const useShoppingListDialogs = ({
 
   const onListElementDelete = React.useCallback(
     async (actionEvent: React.MouseEvent<HTMLElement>) => {
-      const selectedList = actionEvent.currentTarget.id.split("_")[1];
+      const selectedList = actionEvent.currentTarget.dataset.uid;
 
       if (!selectedList) {
         return;
@@ -590,7 +590,7 @@ const useShoppingListDialogs = ({
 
   const onListElementEdit = React.useCallback(
     async (actionEvent: React.MouseEvent<HTMLElement>) => {
-      const selectedListUid = actionEvent.currentTarget.id.split("_")[1];
+      const selectedListUid = actionEvent.currentTarget.dataset.uid;
       if (!selectedListUid) {
         return;
       }
@@ -690,14 +690,14 @@ const useShoppingListDialogs = ({
 
   const onContextMenuClick = React.useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
-      const pressedButton = event.currentTarget.id.split("_");
+      const action = event.currentTarget.dataset.action;
       let quantity: number | undefined;
       let item = {} as ProductItem | MaterialItem | undefined;
       let updatedShoppingList: ShoppingList;
       let updatedTrace: ShoppingListTrace;
       let updatedShoppingListCollection: ShoppingListCollection;
 
-      switch (pressedButton[1]) {
+      switch (action) {
         case Action.EDIT:
           quantity = shoppingList?.list[
             contextMenuSelectedItem.departmentKey

@@ -11,7 +11,6 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "./sessionStorageHandler.class";
-import FirebaseDbEventUsedRecipes from "./firebase.db.event.usedRecipes.class";
 import FirebaseDbEventShoppingList from "./firebase.db.event.shoppingList";
 import FirebaseDbEventShoppingListCollection from "./firebase.db.event.shoppingListCollection.class";
 import FirebaseDbEventMaterialList from "./firebase.db.event.materialList.class";
@@ -20,7 +19,6 @@ import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export class FirebaseDbEvent extends FirebaseDbSuper {
   firebase: Firebase;
-  usedRecipes: FirebaseDbEventUsedRecipes;
   shoppingList: FirebaseDbEventShoppingList;
   shoppingListCollection: FirebaseDbEventShoppingListCollection;
   materialList: FirebaseDbEventMaterialList;
@@ -31,7 +29,6 @@ export class FirebaseDbEvent extends FirebaseDbSuper {
   constructor(firebase: Firebase) {
     super();
     this.firebase = firebase;
-    this.usedRecipes = new FirebaseDbEventUsedRecipes(firebase);
     this.shoppingList = new FirebaseDbEventShoppingList(firebase);
     this.shoppingListCollection = new FirebaseDbEventShoppingListCollection(
       firebase
