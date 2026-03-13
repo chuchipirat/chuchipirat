@@ -85,7 +85,7 @@ import ShoppingList from "../ShoppingList/shoppingList.class";
 import EventMaterialListPage from "../MaterialList/materialList";
 import MaterialList from "../MaterialList/materialList.class";
 import EventInfoPage from "./eventInfo";
-import {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
+import FieldValidationError, {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
 import {
   DialogType,
   SingleTextInputResult,
@@ -100,7 +100,6 @@ import AlertMessage from "../../Shared/AlertMessage";
 import Stats, {StatsField} from "../../Shared/stats.class";
 import {logEvent} from "firebase/analytics";
 import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
-import User from "../../User/user.class";
 import {EventDomain} from "../../Database/Repository/EventRepository";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 
@@ -838,46 +837,17 @@ const EventPage = () => {
     });
   }
 
-  // Konvertiert EventDomain → Event-Klasse und reichert die Köche mit öffentlichen Profildaten an
-  const enrichEventWithCookProfiles = async (
-    domain: EventDomain,
-  ): Promise<Event> => {
-    const event = database.events.eventDomainToUi(domain);
-
-    // Öffentliche Profile der Köche parallel laden
-    const profilePromises = event.cooks.map(async (cook) => {
-      try {
-        const profile = await User.getPublicProfile({
-          database,
-          uid: cook.uid,
-        });
-        return {
-          ...cook,
-          displayName: profile.displayName,
-          motto: profile.motto,
-          pictureSrc: profile.pictureSrc,
-        };
-      } catch {
-        // Profil nicht gefunden — Fallback auf leere Werte
-        return cook;
-      }
-    });
-
-    event.cooks = await Promise.all(profilePromises);
-    return event;
-  };
-
   React.useEffect(() => {
     // Event — Supabase Realtime Subscription
     if (!state.event.uid) {
       dispatch({type: ReducerActions.EVENT_FETCH_INIT, payload: {}});
 
-      // Initialer Load
+      // Initialer Load — Köche-Profile werden direkt via RPC geladen
       database.events
         .getEvent(eventUid)
-        .then(async (eventDomain) => {
+        .then((eventDomain) => {
           if (eventDomain) {
-            const event = await enrichEventWithCookProfiles(eventDomain);
+            const event = database.events.eventDomainToUi(eventDomain);
             dispatch({
               type: ReducerActions.EVENT_FETCH_SUCCESS,
               payload: event,
@@ -894,11 +864,10 @@ const EventPage = () => {
     const unsubscribe = database.events.subscribeToEvent(
       eventUid,
       (eventDomain) => {
-        enrichEventWithCookProfiles(eventDomain).then((event) => {
-          dispatch({
-            type: ReducerActions.EVENT_FETCH_SUCCESS,
-            payload: event,
-          });
+        const event = database.events.eventDomainToUi(eventDomain);
+        dispatch({
+          type: ReducerActions.EVENT_FETCH_SUCCESS,
+          payload: event,
         });
       },
       (error) => {
@@ -1413,7 +1382,7 @@ const EventPage = () => {
       const dateDomains = database.events.eventDatesToDateDomains(event.dates);
       await database.events.saveDates(event.uid, dateDomains, authUser as AuthUser);
 
-      setEventDraft({...eventDraft, event: event, localPicture: null});
+      setEventDraft((prev) => ({...prev, event: event, localPicture: null, formValidation: []}));
       dispatch({type: ReducerActions.EVENT_SAVE_SUCCESS, payload: {}});
     } catch (error) {
       console.error(error);
@@ -1433,6 +1402,30 @@ const EventPage = () => {
     setEventDraft(_.cloneDeep({...eventDraft, event: state.event}));
   };
   const onEventSaveChanges = async () => {
+    // Leere Datumszeilen entfernen und Pflichtfelder validieren
+    const preparedEvent = {...eventDraft.event};
+    preparedEvent.dates = Event.deleteEmptyDates(preparedEvent.dates);
+    try {
+      Event.checkEventData(preparedEvent);
+    } catch (error) {
+      if (error instanceof FieldValidationError) {
+        setEventDraft((prev) => ({
+          ...prev,
+          event: preparedEvent,
+          formValidation: error.formValidation,
+        }));
+        // Zum ersten fehlerhaften Feld scrollen
+        const firstField = error.formValidation[0]?.fieldName;
+        if (firstField) {
+          document.getElementById(firstField)?.scrollIntoView({behavior: "smooth"});
+        }
+        return;
+      }
+      throw error;
+    }
+    // Validierung bestanden → formValidation zurücksetzen
+    setEventDraft((prev) => ({...prev, event: preparedEvent, formValidation: []}));
+
     // Prüfen ob die Anzahl Tage unterschiedlich sind,
     // wenn durch die Änderung Tage gelöscht wurden und
     // im Menüplan in diesen Tage in den Menüs etwas steht
@@ -1444,7 +1437,7 @@ const EventPage = () => {
     // bereits geplante Mahlzeiten/Menüs enthalten, muss die Warnung erscheinen.
     if (
       Event.checkIfDeletedDayArePlanned({
-        event: eventDraft.event,
+        event: preparedEvent,
         menuplan: state.menuplan,
       })
     ) {
@@ -1462,7 +1455,7 @@ const EventPage = () => {
     }
     const updatedMenuplan = adjustMenuplanWithNewDays({
       menuplan: state.menuplan,
-      newEvent: eventDraft.event,
+      newEvent: preparedEvent,
       existingEvent: state.event,
     });
 
@@ -1470,16 +1463,16 @@ const EventPage = () => {
     Stats.incrementStat({
       firebase: firebase,
       field: StatsField.noPlanedDays,
-      value: eventDraft.event.numberOfDays - state.event.numberOfDays,
+      value: preparedEvent.numberOfDays - state.event.numberOfDays,
     });
 
     onMenuplanUpdate(updatedMenuplan);
-    onEventSave(eventDraft.event);
+    onEventSave(preparedEvent);
     dispatch({
       type: ReducerActions.SNACKBAR_SHOW,
       payload: {
         severity: "success",
-        message: TEXT_EVENT_SAVE_SUCCESS(state.event.name),
+        message: TEXT_EVENT_SAVE_SUCCESS(preparedEvent.name),
       },
     });
   };

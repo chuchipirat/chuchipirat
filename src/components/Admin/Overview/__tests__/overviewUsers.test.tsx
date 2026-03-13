@@ -22,6 +22,12 @@ import {DatabaseContext} from "../../../Database/DatabaseContext";
 // ======================== Mocks =====================================
 // =================================================================== */
 
+const mockNavigate = jest.fn();
+jest.mock("react-router", () => ({
+  ...jest.requireActual("react-router"),
+  useNavigate: () => mockNavigate,
+}));
+
 jest.mock("../../../Session/authUserContext", () => ({
   useAuthUser: () => ({
     uid: "admin-firebase-uid",
@@ -79,6 +85,8 @@ const userDomainMock = {
   pictureSrc: "",
 };
 
+const mockGetAllEventsForUser = jest.fn();
+
 /** Mock-DatabaseService */
 const mockDatabase: any = {
   admin: {
@@ -101,6 +109,9 @@ const mockDatabase: any = {
   recipes: {
     findRecipeCountsByCreator: mockFindRecipeCountsByCreator,
   },
+  events: {
+    getAllEventsForUser: mockGetAllEventsForUser,
+  },
 };
 
 /** Hilfs-Render mit DatabaseContext */
@@ -119,6 +130,7 @@ beforeEach(() => {
     noRecipesPublic: 5,
     noRecipesPrivate: 1,
   });
+  mockGetAllEventsForUser.mockResolvedValue([]);
 });
 
 /* ===================================================================
@@ -233,7 +245,8 @@ test("6 – Klick auf + ruft incrementFoundBugs auf und aktualisiert den Wert", 
   });
 });
 
-test("7 – Anlässe-Tab zeigt Platzhaltertext", async () => {
+test("7 – Anlässe-Tab zeigt 'Keine Anlässe' wenn keine Events vorhanden", async () => {
+  mockGetAllEventsForUser.mockResolvedValue([]);
   renderPage();
   await screen.findByText("AnnaM");
 
@@ -245,8 +258,42 @@ test("7 – Anlässe-Tab zeigt Platzhaltertext", async () => {
 
   await waitFor(() => {
     expect(
-      screen.getByText(/noch nicht.*migri/i)
+      screen.getByText(/keine anlässe vorhanden/i)
     ).toBeInTheDocument();
+  });
+});
+
+test("7b – Anlässe-Tab zeigt Events des Benutzers", async () => {
+  mockGetAllEventsForUser.mockResolvedValue([
+    {
+      uid: "event-uuid-1",
+      name: "Sommerlager 2025",
+      motto: "Abenteuer",
+      location: "Zürich",
+      pictureSrc: "",
+      cooks: [],
+      dates: [
+        {uid: "d1", sortOrder: 0, dateFrom: new Date("2025-07-01"), dateTo: new Date("2025-07-05")},
+      ],
+      createdAt: new Date("2025-06-01"),
+      createdBy: null,
+      updatedAt: new Date("2025-06-01"),
+      updatedBy: null,
+    },
+  ]);
+
+  renderPage();
+  await screen.findByText("AnnaM");
+
+  const openButtons = screen.getAllByRole("button", {name: /open user/i});
+  await userEvent.click(openButtons[0]);
+
+  const eventsTab = await screen.findByRole("tab", {name: /anlässe/i});
+  await userEvent.click(eventsTab);
+
+  await waitFor(() => {
+    expect(screen.getByText("Sommerlager 2025")).toBeInTheDocument();
+    expect(screen.getByText("1 Anlass")).toBeInTheDocument();
   });
 });
 

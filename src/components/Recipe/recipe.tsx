@@ -265,16 +265,12 @@ const RecipePage = () => {
           database.recipeIngredients.getIngredientsForRecipe(recipeUid),
           database.recipePreparationSteps.getStepsForRecipe(recipeUid),
           database.recipeMaterials.getMaterialsForRecipe(recipeUid),
-          // Produkte und Materialien mitladen, um Namen zu befüllen
-          // (fromRepositoryData setzt name="" — Auflösung via Postgres-UUID)
-          database.products.getAllProducts(),
-          database.materials.getAllMaterials(),
           // Eigene Bewertung laden (authUser.authUid = Supabase-UUID)
           authUser
             ? database.recipeRatings.getRatingForUser(recipeUid, authUser.authUid)
             : Promise.resolve(null),
         ])
-          .then(async ([header, ingredients, steps, materials, products, allMaterials, myRatingDomain]) => {
+          .then(async ([header, ingredients, steps, materials, myRatingDomain]) => {
             if (!header) {
               throw new Error(`Rezept ${recipeUid} nicht gefunden.`);
             }

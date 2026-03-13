@@ -173,35 +173,33 @@ export class RecipeMaterialRepository extends BaseRepository<
   }
 
   /**
-   * Speichert alle Materialpositionen eines Rezepts (Upsert mit Löschung entfernter Zeilen).
+   * Speichert alle Materialpositionen eines Rezepts (Batch-Upsert mit
+   * Batch-Löschung entfernter Zeilen). Gibt die gespeicherten Materialien
+   * mit aufgelösten Materialnamen zurück (via View).
    *
    * @param recipeId - Die ID des Rezepts
    * @param materials - Neue vollständige Liste der Materialpositionen
-   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @returns Gespeicherte Materialien mit aufgelösten Materialnamen
    */
   async saveAllForRecipe(
     recipeId: string,
     materials: RecipeMaterialDomain[],
-    authUser: AuthUser,
-  ): Promise<void> {
+    _authUser: AuthUser,
+  ): Promise<RecipeMaterialDomain[]> {
+    // Bestehende IDs laden für Diff-Berechnung
     const existing = await this.getMaterialsForRecipe(recipeId);
-    const existingIds = new Set(existing.map((material) => material.uid));
-    const newIds = new Set(materials.map((material) => material.uid));
+    const existingIds = new Set(existing.map((m) => m.uid));
+    const newIds = new Set(materials.map((m) => m.uid));
 
-    // Entfernte Zeilen löschen
-    for (const existingId of existingIds) {
-      if (!newIds.has(existingId)) {
-        await this.remove(existingId);
-      }
-    }
+    // Entfernte Zeilen in einem Batch löschen
+    const idsToDelete = [...existingIds].filter((id) => !newIds.has(id));
+    await this.batchRemove(idsToDelete);
 
-    // Neue/geänderte Zeilen upserten
-    for (const material of materials) {
-      await this.upsert({
-        id: material.uid,
-        value: material,
-        authUser,
-      });
-    }
+    // Neue/geänderte Zeilen in einem Batch upserten
+    await this.batchUpsert(materials, (m) => m.uid);
+
+    // Via View neu laden, um aufgelöste Materialnamen zu erhalten
+    return this.getMaterialsForRecipe(recipeId);
   }
 }

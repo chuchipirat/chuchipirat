@@ -124,7 +124,10 @@ type DispatchAction =
   | {type: ReducerActions.FETCH_INIT}
   | {
       type: ReducerActions.FETCH_SUCCESS;
-      payload: {recipes: RecipeShortDomain[]; creatorNames: Map<string, string>};
+      payload: {
+        recipes: RecipeShortDomain[];
+        creatorNames: Map<string, string>;
+      };
     }
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -191,7 +194,11 @@ interface RecipeCardAdminProps {
  * Zeigt: Rezeptbild (16:9), Ribbon (rot = privat, lila = Variante),
  * Rezeptname, UID als Chip, Typ-Icon und Ersteller-Name.
  */
-const RecipeCardAdmin = ({domain, creatorName, onClick}: RecipeCardAdminProps) => {
+const RecipeCardAdmin = ({
+  domain,
+  creatorName,
+  onClick,
+}: RecipeCardAdminProps) => {
   const classes = useCustomStyles();
   const isPublic = domain.recipeType === "public";
   const isVariant = domain.variantName !== null;
@@ -219,7 +226,11 @@ const RecipeCardAdmin = ({domain, creatorName, onClick}: RecipeCardAdminProps) =
       <CardActionArea onClick={() => onClick(domain)}>
         <Box sx={{overflow: "hidden", position: "relative"}}>
           {ribbon && <CardRibbon {...ribbon} />}
-          <CardMedia sx={classes.cardMedia} image={imageSrc} title={domain.name} />
+          <CardMedia
+            sx={classes.cardMedia}
+            image={imageSrc}
+            title={domain.name}
+          />
         </Box>
         <CardContent sx={{pb: "8px !important"}}>
           <Typography variant="subtitle1" fontWeight="bold" noWrap>
@@ -228,11 +239,20 @@ const RecipeCardAdmin = ({domain, creatorName, onClick}: RecipeCardAdminProps) =
           <Chip
             label={domain.uid.slice(0, 8) + "…" + domain.uid.slice(-4)}
             size="small"
-            sx={{fontFamily: "monospace", fontSize: "0.7rem", mb: 0.5}}
+            sx={{
+              fontFamily: "monospace",
+              fontSize: "0.65rem",
+              mb: 0.5,
+              maxWidth: "100%",
+            }}
           />
           <Stack direction="row" spacing={0.5} alignItems="center" mt={0.5}>
             {isPublic ? (
-              <PublicIcon fontSize="small" color="action" titleAccess="öffentlich" />
+              <PublicIcon
+                fontSize="small"
+                color="action"
+                titleAccess="öffentlich"
+              />
             ) : (
               <LockIcon fontSize="small" color="action" titleAccess="privat" />
             )}
@@ -420,10 +440,15 @@ const OverviewRecipePage = () => {
   const [state, dispatch] = React.useReducer(overviewReducer, initialState);
 
   const [searchTerm, setSearchTerm] = React.useState<string>("");
-  const [searchMode, setSearchMode] = React.useState<SearchMode>(SearchMode.name);
-  const [typeFilter, setTypeFilter] = React.useState<TypeFilter>(TypeFilter.all);
+  const [searchMode, setSearchMode] = React.useState<SearchMode>(
+    SearchMode.name,
+  );
+  const [typeFilter, setTypeFilter] = React.useState<TypeFilter>(
+    TypeFilter.all,
+  );
 
-  const [selectedDomain, setSelectedDomain] = React.useState<RecipeShortDomain | null>(null);
+  const [selectedDomain, setSelectedDomain] =
+    React.useState<RecipeShortDomain | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState<boolean>(false);
 
   const [drawerOpen, setDrawerOpen] = React.useState<boolean>(false);
@@ -447,18 +472,26 @@ const OverviewRecipePage = () => {
 
       switch (searchMode) {
         case SearchMode.name:
-          domains = await database.recipes.searchByName(searchTerm.trim(), typeFilter);
+          domains = await database.recipes.searchByName(
+            searchTerm.trim(),
+            typeFilter,
+          );
           break;
         case SearchMode.recipeId:
           domains = await database.recipes.searchByRecipeId(searchTerm.trim());
           break;
         case SearchMode.creatorId:
-          domains = await database.recipes.searchByCreatorId(searchTerm.trim(), typeFilter);
+          domains = await database.recipes.searchByCreatorId(
+            searchTerm.trim(),
+            typeFilter,
+          );
           break;
         case SearchMode.creatorName: {
           // Zweistufige Suche: zuerst Auth-UUIDs via Display-Name, dann Rezepte
           // database.users ist für Community-Leader und Admins via RLS zugänglich.
-          const uids = await database.users.findAuthUidsByDisplayName(searchTerm.trim());
+          const uids = await database.users.findAuthUidsByDisplayName(
+            searchTerm.trim(),
+          );
           domains =
             uids.length > 0
               ? await database.recipes.searchByCreatorIds(uids, typeFilter)
@@ -532,7 +565,12 @@ const OverviewRecipePage = () => {
         throw new Error(`Rezept ${domain.uid} nicht gefunden.`);
       }
 
-      const recipe = Recipe.fromRepositoryData(header, ingredients, steps, materials);
+      const recipe = Recipe.fromRepositoryData(
+        header,
+        ingredients,
+        steps,
+        materials,
+      );
 
       setDrawerRecipe(recipe);
       setDrawerOpen(true);
@@ -588,13 +626,18 @@ const OverviewRecipePage = () => {
                 />
 
                 <FormControl component="fieldset">
-                  <FormLabel component="legend" sx={{mb: 0.5, fontSize: "0.875rem"}}>
+                  <FormLabel
+                    component="legend"
+                    sx={{mb: 0.5, fontSize: "0.875rem"}}
+                  >
                     Suche nach:
                   </FormLabel>
                   <RadioGroup
                     row
                     value={searchMode}
-                    onChange={(e) => setSearchMode(e.target.value as SearchMode)}
+                    onChange={(e) =>
+                      setSearchMode(e.target.value as SearchMode)
+                    }
                   >
                     <FormControlLabel
                       value={SearchMode.name}
@@ -620,13 +663,18 @@ const OverviewRecipePage = () => {
                 </FormControl>
 
                 <FormControl component="fieldset" disabled={typeFilterDisabled}>
-                  <FormLabel component="legend" sx={{mb: 0.5, fontSize: "0.875rem"}}>
+                  <FormLabel
+                    component="legend"
+                    sx={{mb: 0.5, fontSize: "0.875rem"}}
+                  >
                     {TEXT_RECIPETYPE}:
                   </FormLabel>
                   <RadioGroup
                     row
                     value={typeFilter}
-                    onChange={(e) => setTypeFilter(e.target.value as TypeFilter)}
+                    onChange={(e) =>
+                      setTypeFilter(e.target.value as TypeFilter)
+                    }
                   >
                     <FormControlLabel
                       value={TypeFilter.all}
@@ -663,7 +711,11 @@ const OverviewRecipePage = () => {
 
           {/* Ergebnisse */}
           {!state.hasSearched && !state.isLoading && (
-            <Typography variant="body2" color="text.secondary" textAlign="center">
+            <Typography
+              variant="body2"
+              color="text.secondary"
+              textAlign="center"
+            >
               Suchbegriff eingeben und auf «{TEXT_BUTTON_SEARCH}» klicken…
             </Typography>
           )}
@@ -675,7 +727,11 @@ const OverviewRecipePage = () => {
               </Typography>
 
               {state.recipes.length === 0 && (
-                <Typography variant="body2" color="text.secondary" textAlign="center">
+                <Typography
+                  variant="body2"
+                  color="text.secondary"
+                  textAlign="center"
+                >
                   Keine Rezepte gefunden.
                 </Typography>
               )}

@@ -147,32 +147,23 @@ export class UnitConversionBasicRepository extends BaseRepository<
    * Einträge, die nicht mehr in der Liste enthalten sind.
    *
    * @param conversions - Array der zu speichernden Umrechnungen
-   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke, wird von DB-Triggern gesetzt)
    */
   async saveAllConversions(
     conversions: UnitConversionBasicDomain[],
-    authUser: AuthUser
+    _authUser: AuthUser
   ): Promise<void> {
-    // Bestehende IDs laden
+    // Bestehende IDs laden für Diff-Berechnung
     const existing = await this.getAllConversions();
-    const existingIds = new Set(existing.map((conversion) => conversion.uid));
-    const newIds = new Set(conversions.map((conversion) => conversion.uid));
+    const existingIds = new Set(existing.map((c) => c.uid));
+    const newIds = new Set(conversions.map((c) => c.uid));
 
-    // Gelöschte Einträge entfernen
-    for (const id of existingIds) {
-      if (!newIds.has(id)) {
-        await this.remove(id);
-      }
-    }
+    // Gelöschte Einträge in einem Batch entfernen
+    const idsToDelete = [...existingIds].filter((id) => !newIds.has(id));
+    await this.batchRemove(idsToDelete);
 
-    // Neue/geänderte Einträge upserten
-    for (const conversion of conversions) {
-      await this.upsert({
-        id: conversion.uid,
-        value: conversion,
-        authUser,
-      });
-    }
+    // Neue/geänderte Einträge in einem Batch upserten
+    await this.batchUpsert(conversions, (c) => c.uid);
   }
 
   /**

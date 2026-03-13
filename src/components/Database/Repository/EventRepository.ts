@@ -76,14 +76,20 @@ export interface EventDateRow {
 // ===================================================================== */
 
 /**
- * Koch/Teammitglied eines Events.
+ * Koch/Teammitglied eines Events mit öffentlichen Profildaten.
  *
  * @param uid - Eindeutige ID des Cook-Eintrags (event_cooks.id)
  * @param userId - Supabase Auth UUID des Benutzers
+ * @param displayName - Anzeigename des Kochs (aus users-Tabelle)
+ * @param motto - Motto des Kochs (aus users-Tabelle)
+ * @param pictureSrc - Profilbild-URL des Kochs (aus users-Tabelle)
  */
 export interface EventCookDomain {
   uid: string;
   userId: string;
+  displayName: string;
+  motto: string;
+  pictureSrc: string;
 }
 
 /**
@@ -216,6 +222,31 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     return {
       uid: row.id,
       userId: row.user_id,
+      displayName: "",
+      motto: "",
+      pictureSrc: "",
+    };
+  }
+
+  /**
+   * Konvertiert eine Zeile aus get_event_cook_profiles() RPC in ein EventCookDomain.
+   *
+   * @param row - Die RPC-Ergebniszeile
+   * @returns EventCookDomain mit Profildaten
+   */
+  private cookProfileRowToDomain(row: {
+    id: string;
+    user_id: string;
+    display_name: string;
+    motto: string;
+    picture_src: string;
+  }): EventCookDomain {
+    return {
+      uid: row.id,
+      userId: row.user_id,
+      displayName: row.display_name ?? "",
+      motto: row.motto ?? "",
+      pictureSrc: row.picture_src ?? "",
     };
   }
 
@@ -244,10 +275,10 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
    * @returns Das vollständige EventDomain oder null, falls nicht gefunden
    */
   async getEvent(eventId: string): Promise<EventDomain | null> {
-    // Alle drei Tabellen parallel laden für optimale Performance
+    // Event-Kopfdaten, Köche (mit Profil via RPC) und Zeitscheiben parallel laden
     const [eventResult, cooksResult, datesResult] = await Promise.all([
       this.client.from("events").select("*").eq("id", eventId).single(),
-      this.client.from("event_cooks").select("*").eq("event_id", eventId),
+      this.client.rpc("get_event_cook_profiles", {p_event_id: eventId}),
       this.client.from("event_dates").select("*").eq("event_id", eventId).order("sort_order"),
     ]);
 
@@ -259,32 +290,68 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     if (datesResult.error) throw datesResult.error;
 
     const eventDomain = this.toDomain(eventResult.data as EventRow);
-    eventDomain.cooks = ((cooksResult.data ?? []) as EventCookRow[]).map((row) =>
-      this.cookRowToDomain(row)
+    eventDomain.cooks = (cooksResult.data ?? []).map((row: any) =>
+      this.cookProfileRowToDomain(row),
     );
     eventDomain.dates = ((datesResult.data ?? []) as EventDateRow[]).map((row) =>
-      this.dateRowToDomain(row)
+      this.dateRowToDomain(row),
     );
 
     return eventDomain;
   }
 
   /* =====================================================================
+  // Alle Events laden (Admin-Übersicht)
+  // ===================================================================== */
+  /**
+   * Lädt alle Events mit Köche-Anzahl und Zeitscheiben (für die Admin-Übersicht).
+   * RLS-geschützt: nur Admins sehen alle Events (via is_admin() Policy).
+   *
+   * @returns Array aller Events inkl. Köche-Anzahl und Zeitscheiben
+   */
+  async getAllEventsShort(): Promise<EventDomain[]> {
+    const {data, error} = await this.client
+      .from("events")
+      .select("*, event_cooks(user_id), event_dates(id, sort_order, date_from, date_to)")
+      .order("created_at", {ascending: false});
+
+    if (error) throw error;
+
+    return (data ?? []).map((row) => {
+      const event = this.toDomain(row as EventRow);
+      // Köche: nur Anzahl relevant, userId wird für die Zählung gebraucht
+      const cookRows = (row as any).event_cooks as EventCookRow[] | undefined;
+      event.cooks = (cookRows ?? []).map((cookRow) => this.cookRowToDomain(cookRow));
+      // Zeitscheiben laden
+      const dateRows = (row as any).event_dates as EventDateRow[] | undefined;
+      event.dates = (dateRows ?? []).map((dateRow) => this.dateRowToDomain(dateRow));
+      return event;
+    });
+  }
+
+  /* =====================================================================
   // Alle Events des angemeldeten Benutzers laden
   // ===================================================================== */
   /**
-   * Lädt alle Events, bei denen der angemeldete Benutzer als Koch eingetragen ist.
-   * Die RLS-Policy auf event_cooks filtert automatisch nach auth.uid().
+   * Lädt alle Events, bei denen ein Benutzer als Koch eingetragen ist.
+   * Ohne Parameter wird der angemeldete Benutzer verwendet. Mit userId
+   * können Admins die Anlässe eines beliebigen Benutzers laden (RLS
+   * steuert den Zugriff via is_admin() Policy).
    *
-   * @returns Array aller Events des Benutzers (ohne Köche/Zeitscheiben)
+   * @param userId - Optionale Supabase Auth UUID. Falls nicht angegeben,
+   *                 wird die ID des angemeldeten Benutzers verwendet.
+   * @returns Array aller Events des Benutzers inkl. Zeitscheiben
    */
-  async getAllEventsForUser(): Promise<EventDomain[]> {
-    // Über event_cooks joinen, um nur Events des aktuellen Benutzers zu erhalten.
-    // event_dates werden mitgeladen, damit maxDate berechnet werden kann.
+  async getAllEventsForUser(userId?: string): Promise<EventDomain[]> {
+    // Falls keine userId übergeben, die des aktuell angemeldeten Benutzers verwenden
+    const effectiveUserId = userId
+      ?? (await this.client.auth.getUser()).data.user?.id
+      ?? "";
+
     const {data, error} = await this.client
       .from("events")
       .select("*, event_cooks!inner(user_id), event_dates(id, sort_order, date_from, date_to)")
-      .eq("event_cooks.user_id", (await this.client.auth.getUser()).data.user?.id ?? "")
+      .eq("event_cooks.user_id", effectiveUserId)
       .order("name");
 
     if (error) throw error;
@@ -505,13 +572,13 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     event.location = domain.location;
     event.pictureSrc = domain.pictureSrc;
 
-    // Köche: Nur userId ist aus dem Domain verfügbar
+    // Köche: Profildaten werden via get_event_cook_profiles() geladen
     event.cooks = domain.cooks.map(
       (cookDomain: EventCookDomain): Cook => ({
         uid: cookDomain.userId,
-        displayName: "",
-        motto: "",
-        pictureSrc: "",
+        displayName: cookDomain.displayName,
+        motto: cookDomain.motto,
+        pictureSrc: cookDomain.pictureSrc,
       }),
     );
 

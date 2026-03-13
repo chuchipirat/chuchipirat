@@ -15,42 +15,12 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
-
-/* =====================================================================
-// Enum-Mapping: DB-Strings ↔ numerische Allergen / Diet-Werte
-// =====================================================================
-// Die DB speichert allergens als Postgres-ENUM-Array ('lactose', 'gluten')
-// und diet als Postgres-ENUM ('meat', 'vegetarian', 'vegan').
-// Die App verwendet die numerischen Werte aus Allergen / Diet in
-// product.class.ts. Das Mapping findet ausschliesslich im Repository statt.
-// Allergen.None (0) bedeutet leeres Array und erscheint nie in der DB.
-// ===================================================================== */
-
-/** Zuordnung DB-ENUM-String → numerischer Allergen-Wert. */
-const ALLERGEN_FROM_DB: Record<string, number> = {
-  lactose: 1,
-  gluten: 2,
-};
-
-/** Zuordnung numerischer Allergen-Wert → DB-ENUM-String. */
-const ALLERGEN_TO_DB: Record<number, string> = {
-  1: "lactose",
-  2: "gluten",
-};
-
-/** Zuordnung DB-ENUM-String → numerischer Diet-Wert. */
-const DIET_FROM_DB: Record<string, number> = {
-  meat: 1,
-  vegetarian: 2,
-  vegan: 3,
-};
-
-/** Zuordnung numerischer Diet-Wert → DB-ENUM-String. */
-const DIET_TO_DB: Record<number, string> = {
-  1: "meat",
-  2: "vegetarian",
-  3: "vegan",
-};
+import {
+  ALLERGEN_FROM_DB,
+  ALLERGEN_TO_DB,
+  DIET_FROM_DB,
+  DIET_TO_DB,
+} from "../../../constants/enumMappings";
 
 /* =====================================================================
 // DB-Zeilenstruktur (snake_case, entspricht den Postgres-Spalten)
@@ -309,18 +279,12 @@ export class ProductRepository extends BaseRepository<
    * Speichert alle Produkte per Upsert.
    *
    * @param products - Array der zu speichernden Produkte
-   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke, wird von DB-Triggern gesetzt)
    */
   async saveAllProducts(
     products: ProductDomain[],
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
-    for (const product of products) {
-      await this.upsert({
-        id: product.uid,
-        value: product,
-        authUser,
-      });
-    }
+    await this.batchUpsert(products, (p) => p.uid);
   }
 }

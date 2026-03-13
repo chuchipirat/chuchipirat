@@ -80,7 +80,7 @@ const ConvertItem = lazy(() => import("../Admin/convertItem"));
 const Jobs = lazy(() => import("../Admin/executeJob"));
 const BuildDbIndices = lazy(() => import("../Admin/buildDbIndex"));
 const OverviewRecipes = lazy(() => import("../Admin/Overview/overviewRecipes"));
-const OverviewEvents = lazy(() => import("../Admin/overviewEvents"));
+const OverviewEvents = lazy(() => import("../Admin/Overview/overviewEvents"));
 const OverviewUsers = lazy(() => import("../Admin/Overview/overviewUsers"));
 const OverviewMailbox = lazy(() => import("../Admin/overviewMailbox"));
 const OverviewCloudFx = lazy(() => import("../Admin/overviewCloudFunctions"));

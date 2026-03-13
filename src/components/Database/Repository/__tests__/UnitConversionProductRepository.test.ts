@@ -11,7 +11,7 @@ import {
   UnitConversionProductRow,
 } from "../UnitConversionProductRepository";
 import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
-import {createSupabaseMock} from "../__mocks__/supabaseMock";
+import {createSupabaseMock, createQueryMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
@@ -209,43 +209,60 @@ describe("UnitConversionProductRepository", () => {
   // saveAllConversions()
   // ------------------------------------------ */
   describe("saveAllConversions()", () => {
-    test("Löscht entfernte Einträge und upserted neue", async () => {
-      // getAllConversions() wird intern aufgerufen — liefert bestehende Einträge
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+    test("Löscht entfernte Einträge per batchRemove und upserted neue per batchUpsert", async () => {
+      // saveAllConversions ruft from() 3× auf:
+      // 1. getAllConversions — select().order()
+      // 2. batchRemove — delete().in()
+      // 3. batchUpsert — upsert().select()
+      const loadMock = createQueryMock();
+      loadMock.order = jest.fn().mockResolvedValue({
         data: [testRowWithProduct, testRowWithProduct2],
         error: null,
       });
 
-      // delete().eq() für das Löschen des entfernten Eintrags
-      supabaseMock.queryMock.eq = jest.fn().mockReturnValue(supabaseMock.queryMock);
-      (supabaseMock.queryMock as any).then = undefined;
+      const deleteMock = createQueryMock();
+      deleteMock.in = jest.fn().mockResolvedValue({error: null});
 
-      // upsert().select().single() für den verbleibenden Eintrag
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRowWithProduct,
+      const upsertMock = createQueryMock();
+      upsertMock.select = jest.fn().mockResolvedValue({
+        data: [testRowWithProduct],
         error: null,
       });
+
+      supabaseMock.client.from
+        .mockReturnValueOnce(loadMock)    // 1. getAllConversions
+        .mockReturnValueOnce(deleteMock)  // 2. batchRemove
+        .mockReturnValueOnce(upsertMock); // 3. batchUpsert
 
       // Nur testDomain übergeben — testRow2 (pconv-uuid-002) soll gelöscht werden
       await repo.saveAllConversions([testDomain], authUser);
 
-      // Delete wurde für den entfernten Eintrag aufgerufen
-      expect(supabaseMock.queryMock.delete).toHaveBeenCalled();
-      // Upsert wurde für den verbleibenden Eintrag aufgerufen
-      expect(supabaseMock.queryMock.upsert).toHaveBeenCalled();
+      // batchRemove: delete().in() für den entfernten Eintrag
+      expect(deleteMock.delete).toHaveBeenCalled();
+      expect(deleteMock.in).toHaveBeenCalledWith(
+        "id",
+        ["pconv-uuid-002"],
+      );
+      // batchUpsert: upsert(rows).select() für den verbleibenden Eintrag
+      expect(upsertMock.upsert).toHaveBeenCalledTimes(1);
     });
 
-    test("Upserted alle Einträge ohne Löschung wenn keine bestehenden", async () => {
-      // getAllConversions() liefert leeres Array
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
-        data: [],
+    test("Upserted alle Einträge in einem Batch ohne Löschung", async () => {
+      // saveAllConversions ruft from() 2× auf:
+      // 1. getAllConversions — select().order()
+      // 2. batchUpsert — upsert().select()
+      const loadMock = createQueryMock();
+      loadMock.order = jest.fn().mockResolvedValue({data: [], error: null});
+
+      const upsertMock = createQueryMock();
+      upsertMock.select = jest.fn().mockResolvedValue({
+        data: [testRowWithProduct, testRowWithProduct2],
         error: null,
       });
 
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRowWithProduct,
-        error: null,
-      });
+      supabaseMock.client.from
+        .mockReturnValueOnce(loadMock)    // 1. getAllConversions
+        .mockReturnValueOnce(upsertMock); // 2. batchUpsert
 
       const conversions: UnitConversionProductDomain[] = [
         testDomain,
@@ -261,10 +278,11 @@ describe("UnitConversionProductRepository", () => {
       ];
       await repo.saveAllConversions(conversions, authUser);
 
-      // Kein Delete
-      expect(supabaseMock.queryMock.delete).not.toHaveBeenCalled();
-      // Zwei Upserts
-      expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(2);
+      // Kein Delete (batchRemove mit leerem Array aufgerufen)
+      // Ein Batch-Upsert mit allen Einträgen
+      expect(upsertMock.upsert).toHaveBeenCalledTimes(1);
+      const upsertArg = upsertMock.upsert.mock.calls[0][0];
+      expect(upsertArg).toHaveLength(2);
     });
   });
 

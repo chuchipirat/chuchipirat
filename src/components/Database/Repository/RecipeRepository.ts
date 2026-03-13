@@ -16,6 +16,12 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {
+  ALLERGEN_FROM_DB,
+  ALLERGEN_TO_DB,
+  DIET_FROM_DB,
+  DIET_TO_DB,
+} from "../../../constants/enumMappings";
 
 /* =====================================================================
 // Enum-Mapping: DB-Strings ↔ numerische MenuType-Werte
@@ -47,32 +53,6 @@ const MENU_TYPE_TO_DB: Record<number, string> = {
   6: "snack",
   7: "apero",
   8: "beverage",
-};
-
-/** Zuordnung DB-ENUM-String → numerischer Allergen-Wert (gleich wie in ProductRepository). */
-const ALLERGEN_FROM_DB: Record<string, number> = {
-  lactose: 1,
-  gluten: 2,
-};
-
-/** Zuordnung numerischer Allergen-Wert → DB-ENUM-String. */
-const ALLERGEN_TO_DB: Record<number, string> = {
-  1: "lactose",
-  2: "gluten",
-};
-
-/** Zuordnung DB-ENUM-String → numerischer Diet-Wert. */
-const DIET_FROM_DB: Record<string, number> = {
-  meat: 1,
-  vegetarian: 2,
-  vegan: 3,
-};
-
-/** Zuordnung numerischer Diet-Wert → DB-ENUM-String. */
-const DIET_TO_DB: Record<number, string> = {
-  1: "meat",
-  2: "vegetarian",
-  3: "vegan",
 };
 
 /* =====================================================================
@@ -711,16 +691,26 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   async findRecipeCountsByCreator(
     creatorAuthUid: string,
   ): Promise<{noRecipesPublic: number; noRecipesPrivate: number}> {
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select("recipe_type")
-      .eq("created_by", creatorAuthUid);
+    // Zwei COUNT-Queries parallel statt alle Zeilen laden + in JS filtern
+    const [publicResult, privateResult] = await Promise.all([
+      this.client
+        .from(this.tableName)
+        .select("*", {count: "exact", head: true})
+        .eq("created_by", creatorAuthUid)
+        .eq("recipe_type", "public"),
+      this.client
+        .from(this.tableName)
+        .select("*", {count: "exact", head: true})
+        .eq("created_by", creatorAuthUid)
+        .eq("recipe_type", "private"),
+    ]);
 
-    if (error) throw error;
-    const rows = (data ?? []) as {recipe_type: string}[];
+    if (publicResult.error) throw publicResult.error;
+    if (privateResult.error) throw privateResult.error;
+
     return {
-      noRecipesPublic: rows.filter((r) => r.recipe_type === "public").length,
-      noRecipesPrivate: rows.filter((r) => r.recipe_type === "private").length,
+      noRecipesPublic: publicResult.count ?? 0,
+      noRecipesPrivate: privateResult.count ?? 0,
     };
   }
 

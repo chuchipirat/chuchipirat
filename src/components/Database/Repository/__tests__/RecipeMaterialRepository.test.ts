@@ -160,49 +160,82 @@ describe("RecipeMaterialRepository", () => {
   // saveAllForRecipe()
   // ------------------------------------------ */
   describe("saveAllForRecipe()", () => {
-    test("Ruft upsert für jede Materialposition auf", async () => {
-      // getMaterialsForRecipe (findMany → order) gibt leere Liste zurück
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      });
-      // upsert → select → single
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRow,
+    test("Ruft batchUpsert auf und gibt neu geladene Daten zurück", async () => {
+      // saveAllForRecipe ruft from() 3× auf:
+      // 1. getMaterialsForRecipe (View) — Bestehende laden
+      // 2. batchUpsert (Tabelle) — upsert().select()
+      // 3. getMaterialsForRecipe (View) — Reload
+      const loadMock1 = createQueryMock();
+      loadMock1.order = jest.fn().mockResolvedValue({data: [], error: null});
+
+      const upsertMock = createQueryMock();
+      upsertMock.select = jest.fn().mockResolvedValue({
+        data: [testRow],
         error: null,
       });
 
-      await repo.saveAllForRecipe("recipe-uuid-001", [testDomain], authUser);
+      const loadMock2 = createQueryMock();
+      loadMock2.order = jest.fn().mockResolvedValue({data: [testRow], error: null});
 
-      expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(1);
-      const upsertArg = supabaseMock.queryMock.upsert.mock.calls[0][0];
-      expect(upsertArg.recipe_id).toBe("recipe-uuid-001");
-      expect(upsertArg.material_id).toBe("material-uuid-001");
-      expect(upsertArg.id).toBe(testDomain.uid);
+      supabaseMock.client.from
+        .mockReturnValueOnce(loadMock1)   // 1. getMaterialsForRecipe
+        .mockReturnValueOnce(upsertMock)  // 2. batchUpsert
+        .mockReturnValueOnce(loadMock2);  // 3. getMaterialsForRecipe (Reload)
+
+      const result = await repo.saveAllForRecipe("recipe-uuid-001", [testDomain], authUser);
+
+      expect(upsertMock.upsert).toHaveBeenCalledTimes(1);
+      const upsertArg = upsertMock.upsert.mock.calls[0][0];
+      expect(upsertArg).toHaveLength(1);
+      expect(upsertArg[0].recipe_id).toBe("recipe-uuid-001");
+      expect(upsertArg[0].material_id).toBe("material-uuid-001");
+      expect(upsertArg[0].id).toBe(testDomain.uid);
+      // Gibt die neu geladenen Domain-Objekte zurück
+      expect(result).toHaveLength(1);
+      expect(result[0].uid).toBe(testRow.id);
     });
 
-    test("Löscht entfernte Materialpositionen und upsert neue", async () => {
-      // getMaterialsForRecipe (findMany → eq → order) liefert eine alte Position
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+    test("Löscht entfernte Materialpositionen per batchRemove und upserted neue", async () => {
+      // saveAllForRecipe ruft from() 4× auf:
+      // 1. getMaterialsForRecipe (View) — Bestehende laden
+      // 2. batchRemove (Tabelle) — delete().in()
+      // 3. batchUpsert (Tabelle) — upsert().select()
+      // 4. getMaterialsForRecipe (View) — Reload
+      const loadMock1 = createQueryMock();
+      loadMock1.order = jest.fn().mockResolvedValue({
         data: [{...testRow, id: "mat-uuid-old"}],
         error: null,
       });
-      // remove() → delete().eq() benötigt ein separates thenable Mock-Objekt,
-      // da der delete-Pfad die Kette ohne single() beendet.
+
       const deleteMock = createQueryMock();
-      deleteMock.eq = jest.fn().mockResolvedValue({data: null, error: null});
-      supabaseMock.client.from.mockReturnValueOnce(supabaseMock.queryMock) // findMany
-        .mockReturnValueOnce(deleteMock); // remove
-      // upsert → select → single
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRow,
+      deleteMock.in = jest.fn().mockResolvedValue({error: null});
+
+      const upsertMock = createQueryMock();
+      upsertMock.select = jest.fn().mockResolvedValue({
+        data: [testRow],
         error: null,
       });
 
-      await repo.saveAllForRecipe("recipe-uuid-001", [testDomain], authUser);
+      const loadMock2 = createQueryMock();
+      loadMock2.order = jest.fn().mockResolvedValue({data: [testRow], error: null});
 
+      supabaseMock.client.from
+        .mockReturnValueOnce(loadMock1)   // 1. getMaterialsForRecipe
+        .mockReturnValueOnce(deleteMock)  // 2. batchRemove
+        .mockReturnValueOnce(upsertMock)  // 3. batchUpsert
+        .mockReturnValueOnce(loadMock2);  // 4. getMaterialsForRecipe (Reload)
+
+      const result = await repo.saveAllForRecipe("recipe-uuid-001", [testDomain], authUser);
+
+      // batchRemove: delete().in() für die entfernte Position
       expect(deleteMock.delete).toHaveBeenCalled();
-      expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(1);
+      expect(deleteMock.in).toHaveBeenCalledWith(
+        "id",
+        ["mat-uuid-old"],
+      );
+      // batchUpsert: ein Aufruf mit allen Zeilen
+      expect(upsertMock.upsert).toHaveBeenCalledTimes(1);
+      expect(result).toHaveLength(1);
     });
   });
 });

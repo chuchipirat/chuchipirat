@@ -50,6 +50,7 @@ import {
   OpenInNew as OpenInNewIcon,
   Add as AddIcon,
   Remove as RemoveIcon,
+  Event as EventIcon,
 } from "@mui/icons-material";
 
 import PageTitle from "../../Shared/pageTitle";
@@ -63,11 +64,15 @@ import {FormListItem} from "../../Shared/formListItem";
 
 import User, {UserOverviewStructure} from "../../User/user.class";
 import {UserDomain} from "../../Database/Repository/UserRepository";
+import {EventDomain} from "../../Database/Repository/EventRepository";
 import Role from "../../../constants/roles";
+import {EVENT as ROUTE_EVENT} from "../../../constants/routes";
+import Action from "../../../constants/actions";
 import useCustomStyles from "../../../constants/styles";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 
+import {useNavigate} from "react-router";
 import {useAuthUser} from "../../Session/authUserContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 
@@ -171,6 +176,7 @@ const usersReducer = (state: State, action: DispatchAction): State => {
 const OverviewUsersPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
+  const navigate = useNavigate();
   const classes = useCustomStyles();
 
   const [state, dispatch] = useReducer(usersReducer, initialState);
@@ -183,6 +189,7 @@ const OverviewUsersPage = () => {
     noRecipesPublic: number;
     noRecipesPrivate: number;
   } | null>(null);
+  const [userEvents, setUserEvents] = useState<EventDomain[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [dialogLoading, setDialogLoading] = useState(false);
 
@@ -221,20 +228,25 @@ const OverviewUsersPage = () => {
     setDialogLoading(true);
     setUserDomain(null);
     setRecipeCounts(null);
+    setUserEvents([]);
 
     try {
       const repo = database.admin?.users ?? database.users;
       const recipeRepo = database.admin?.recipes ?? database.recipes;
 
-      const [domain, counts] = await Promise.all([
+      const [domain, counts, events] = await Promise.all([
         repo.findById(user.uid ?? ""),
         user.authUid
           ? recipeRepo.findRecipeCountsByCreator(user.authUid)
           : Promise.resolve({noRecipesPublic: 0, noRecipesPrivate: 0}),
+        user.authUid
+          ? database.events.getAllEventsForUser(user.authUid)
+          : Promise.resolve([]),
       ]);
 
       setUserDomain(domain);
       setRecipeCounts(counts);
+      setUserEvents(events);
     } catch (error) {
       console.error(error);
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Record<string, unknown>});
@@ -248,6 +260,7 @@ const OverviewUsersPage = () => {
     setSelectedUser(null);
     setUserDomain(null);
     setRecipeCounts(null);
+    setUserEvents([]);
   };
 
   /* ------------------------------------------
@@ -353,11 +366,17 @@ const OverviewUsersPage = () => {
           user={selectedUser}
           userDomain={userDomain}
           recipeCounts={recipeCounts}
+          userEvents={userEvents}
           handleClose={onCloseDialog}
           onEditRoles={() =>
             setRoleDialog({open: true, userUid: selectedUser.uid ?? ""})
           }
           onChangeFoundBugs={onChangeFoundBugs}
+          onOpenEvent={(eventUid) => {
+            navigate(`${ROUTE_EVENT}/${eventUid}`, {
+              state: {action: Action.VIEW},
+            });
+          }}
         />
       )}
     </React.Fragment>
@@ -537,9 +556,11 @@ interface DialogUserProps {
   user: UserOverviewStructure;
   userDomain: UserDomain | null;
   recipeCounts: {noRecipesPublic: number; noRecipesPrivate: number} | null;
+  userEvents: EventDomain[];
   handleClose: () => void;
   onEditRoles: () => void;
   onChangeFoundBugs: (delta: number) => void;
+  onOpenEvent: (eventUid: string) => void;
 }
 
 const DialogUser = ({
@@ -548,9 +569,11 @@ const DialogUser = ({
   user,
   userDomain,
   recipeCounts,
+  userEvents,
   handleClose,
   onEditRoles,
   onChangeFoundBugs,
+  onOpenEvent,
 }: DialogUserProps) => {
   const [activeTab, setActiveTab] = useState(0);
   const classes = useCustomStyles();
@@ -719,12 +742,53 @@ const DialogUser = ({
 
             {/* Tab 2: Anlässe */}
             {activeTab === 2 && (
-              <Box py={2}>
-                <Alert severity="info">
-                  Anlässe sind noch nicht migriert. Dieser Bereich wird
-                  angezeigt, sobald die Anlässe vollständig auf Supabase
-                  migriert sind.
-                </Alert>
+              <Box py={1}>
+                {userEvents.length === 0 ? (
+                  <Typography variant="body2" color="textSecondary" sx={{py: 2}}>
+                    Keine Anlässe vorhanden.
+                  </Typography>
+                ) : (
+                  <React.Fragment>
+                    <Typography variant="body2" color="textSecondary" sx={{mb: 1}}>
+                      {userEvents.length} {userEvents.length === 1 ? "Anlass" : "Anlässe"}
+                    </Typography>
+                    <List dense>
+                      {userEvents.map((event) => {
+                        // Datumsbereich berechnen
+                        const startDate = event.dates.length > 0
+                          ? event.dates.reduce((min, d) => d.dateFrom < min ? d.dateFrom : min, event.dates[0].dateFrom)
+                          : null;
+                        const endDate = event.dates.length > 0
+                          ? event.dates.reduce((max, d) => d.dateTo > max ? d.dateTo : max, event.dates[0].dateTo)
+                          : null;
+                        const dateStr = startDate && endDate
+                          ? startDate.toLocaleDateString("de-CH", {dateStyle: "medium"}) +
+                            " – " +
+                            endDate.toLocaleDateString("de-CH", {dateStyle: "medium"})
+                          : "";
+
+                        return (
+                          <FormListItem
+                            key={event.uid}
+                            id={event.uid}
+                            value={event.name}
+                            label={dateStr || "Kein Datum"}
+                            icon={<EventIcon />}
+                            secondaryAction={
+                              <IconButton
+                                size="small"
+                                aria-label={`${event.name} öffnen`}
+                                onClick={() => onOpenEvent(event.uid)}
+                              >
+                                <OpenInNewIcon fontSize="small" />
+                              </IconButton>
+                            }
+                          />
+                        );
+                      })}
+                    </List>
+                  </React.Fragment>
+                )}
               </Box>
             )}
           </React.Fragment>

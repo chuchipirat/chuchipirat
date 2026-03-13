@@ -334,6 +334,24 @@ const CreateEventPage = () => {
     navigate(`${ROUTE_HOME}`);
   };
   const goToInfoStep = () => {
+    // Leere Datumszeile anhängen, falls die letzte Zeile bereits
+    // befüllt ist (deleteEmptyDates entfernt sie vor dem Weitergehen).
+    const dates = [...state.event.dates];
+    const last = dates[dates.length - 1];
+    const epoch = new Date(0).getTime();
+    if (
+      !last ||
+      last.from.getTime() !== epoch ||
+      last.to.getTime() !== epoch
+    ) {
+      const newDate = Event.createDateEntry();
+      newDate.pos = dates.length + 1;
+      dates.push(newDate);
+      dispatch({
+        type: ReducerActions.SET_EVENT,
+        payload: {...state.event, dates} as Event,
+      });
+    }
     setActiveStep(WizardSteps.info);
   };
   /** Typassertion nötig, da ButtonAction generisch ist und der Wert als unknown ankommt. */

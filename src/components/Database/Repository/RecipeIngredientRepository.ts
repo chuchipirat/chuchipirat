@@ -209,36 +209,33 @@ export class RecipeIngredientRepository extends BaseRepository<
   }
 
   /**
-   * Speichert alle Zutaten eines Rezepts (Upsert mit Löschung entfernter Zeilen).
-   * Vergleicht die übergebene Liste mit dem aktuellen DB-Stand.
+   * Speichert alle Zutaten eines Rezepts (Batch-Upsert mit Batch-Löschung
+   * entfernter Zeilen). Gibt die gespeicherten Zutaten mit aufgelösten
+   * Produktnamen zurück (via View), sodass kein separater Reload nötig ist.
    *
    * @param recipeId - Die ID des Rezepts
    * @param ingredients - Neue vollständige Liste der Zutaten
-   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @returns Gespeicherte Zutaten mit aufgelösten Produktnamen
    */
   async saveAllForRecipe(
     recipeId: string,
     ingredients: RecipeIngredientDomain[],
-    authUser: AuthUser,
-  ): Promise<void> {
+    _authUser: AuthUser,
+  ): Promise<RecipeIngredientDomain[]> {
+    // Bestehende IDs laden für Diff-Berechnung
     const existing = await this.getIngredientsForRecipe(recipeId);
-    const existingIds = new Set(existing.map((ingredient) => ingredient.uid));
-    const newIds = new Set(ingredients.map((ingredient) => ingredient.uid));
+    const existingIds = new Set(existing.map((i) => i.uid));
+    const newIds = new Set(ingredients.map((i) => i.uid));
 
-    // Entfernte Zeilen löschen
-    for (const existingId of existingIds) {
-      if (!newIds.has(existingId)) {
-        await this.remove(existingId);
-      }
-    }
+    // Entfernte Zeilen in einem Batch löschen
+    const idsToDelete = [...existingIds].filter((id) => !newIds.has(id));
+    await this.batchRemove(idsToDelete);
 
-    // Neue/geänderte Zeilen upserten
-    for (const ingredient of ingredients) {
-      await this.upsert({
-        id: ingredient.uid,
-        value: ingredient,
-        authUser,
-      });
-    }
+    // Neue/geänderte Zeilen in einem Batch upserten
+    await this.batchUpsert(ingredients, (i) => i.uid);
+
+    // Via View neu laden, um aufgelöste Produktnamen zu erhalten
+    return this.getIngredientsForRecipe(recipeId);
   }
 }

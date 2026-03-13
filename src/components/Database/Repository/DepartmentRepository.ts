@@ -161,18 +161,12 @@ export class DepartmentRepository extends BaseRepository<
    * Speichert alle Abteilungen per Upsert.
    *
    * @param departments - Array der zu speichernden Abteilungen
-   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke, wird von DB-Triggern gesetzt)
    */
   async saveAllDepartments(
     departments: DepartmentDomain[],
-    authUser: AuthUser
+    _authUser: AuthUser
   ): Promise<void> {
-    for (const department of departments) {
-      await this.upsert({
-        id: department.uid,
-        value: department,
-        authUser,
-      });
-    }
+    await this.batchUpsert(departments, (d) => d.uid);
   }
 }

@@ -219,10 +219,6 @@ const EventInfoPage = ({
     dateUid: string,
     fieldName: "from" | "to",
   ) => {
-    if (!date) {
-      return;
-    }
-
     let updatedDates = [...event.dates];
     const eventDate = updatedDates.find(
       (eventDate) => eventDate.uid === dateUid,
@@ -231,11 +227,17 @@ const EventInfoPage = ({
       return;
     }
 
-    const normalizedDate = normalizeDateHours(date, fieldName);
-    eventDate[fieldName] = normalizedDate;
+    // Null = Benutzer hat das Feld geleert → auf Epoch zurücksetzen,
+    // damit die Validierung erkennt, dass kein Datum gesetzt ist.
+    if (!date) {
+      eventDate[fieldName] = new Date(0);
+    } else {
+      const normalizedDate = normalizeDateHours(date, fieldName);
+      eventDate[fieldName] = normalizedDate;
 
-    if (fieldName === "from") {
-      autoFillToDate(eventDate, normalizedDate);
+      if (fieldName === "from") {
+        autoFillToDate(eventDate, normalizedDate);
+      }
     }
 
     updatedDates = autoAppendDateRow(
@@ -642,6 +644,10 @@ const EventDatesSection = ({
                     "dateFrom_" + eventDate.uid,
                     "",
                   ),
+                  error: FormValidatorUtil.isFieldErroneous(
+                    formValidation,
+                    "dateFrom_" + eventDate.uid,
+                  ),
                 },
               }}
             />
@@ -664,6 +670,10 @@ const EventDatesSection = ({
                     formValidation,
                     "dateTo_" + eventDate.uid,
                     "",
+                  ),
+                  error: FormValidatorUtil.isFieldErroneous(
+                    formValidation,
+                    "dateTo_" + eventDate.uid,
                   ),
                 },
               }}

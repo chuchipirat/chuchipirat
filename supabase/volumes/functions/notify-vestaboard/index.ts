@@ -117,7 +117,7 @@ function encodeRow(text: string): number[] {
 function buildMessage(firstName: string, memberId: number): number[][] {
   return [
     encodeRow(` --  chuchipirat  -- `),
-    encodeRow(` Neuer User an Board `),
+    encodeRow(` Neuer User an Bord `),
     encodeRow(`                     `),
     encodeRow(` Welcome: ${firstName} `),
     encodeRow(` cook: #${memberId} `),
@@ -151,7 +151,7 @@ serve(async (req: Request) => {
     console.error("VESTABOARD_READ_WRITE_KEY is not set");
     return new Response(
       JSON.stringify({error: "Vestaboard API key not configured"}),
-      {status: 500, headers: {"Content-Type": "application/json"}}
+      {status: 500, headers: {"Content-Type": "application/json"}},
     );
   }
 
@@ -161,15 +161,13 @@ serve(async (req: Request) => {
     if (!firstName || memberId === undefined) {
       return new Response(
         JSON.stringify({error: "Missing firstName or memberId"}),
-        {status: 400, headers: {"Content-Type": "application/json"}}
+        {status: 400, headers: {"Content-Type": "application/json"}},
       );
     }
 
     const message = buildMessage(firstName, memberId);
 
-    console.log(
-      `Vestaboard update — Welcome ${firstName}, cook #${memberId}`
-    );
+    console.log(`Vestaboard update — Welcome ${firstName}, cook #${memberId}`);
 
     const vestaResponse = await fetch("https://rw.vestaboard.com/", {
       method: "POST",
@@ -182,13 +180,15 @@ serve(async (req: Request) => {
 
     if (!vestaResponse.ok) {
       const errorText = await vestaResponse.text();
-      console.error(`Vestaboard API error: ${vestaResponse.status} ${errorText}`);
+      console.error(
+        `Vestaboard API error: ${vestaResponse.status} ${errorText}`,
+      );
       return new Response(
         JSON.stringify({
           error: "Vestaboard API error",
           status: vestaResponse.status,
         }),
-        {status: 502, headers: {"Content-Type": "application/json"}}
+        {status: 502, headers: {"Content-Type": "application/json"}},
       );
     }
 

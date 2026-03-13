@@ -203,18 +203,12 @@ export class MaterialRepository extends BaseRepository<
    * Speichert alle Materialien per Upsert.
    *
    * @param materials - Array der zu speichernden Materialien
-   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke, wird von DB-Triggern gesetzt)
    */
   async saveAllMaterials(
     materials: MaterialDomain[],
-    authUser: AuthUser
+    _authUser: AuthUser
   ): Promise<void> {
-    for (const material of materials) {
-      await this.upsert({
-        id: material.uid,
-        value: material,
-        authUser,
-      });
-    }
+    await this.batchUpsert(materials, (m) => m.uid);
   }
 }

@@ -50,6 +50,7 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260308000012_create_recipe_ingredient_material_views.sql` | Views `recipe_ingredients_with_names` und `recipe_materials_with_names` — LEFT JOIN auf `products`/`materials` für aufgelöste Namen, `security_invoker = true` |
 | `20260309000001_menuplan_check_constraints.sql`              | CHECK-Constraints für nicht-negative Mengen/Faktoren auf `event_menue_recipes` (`total_portions >= 0`), `event_menue_products` (`quantity >= 0`), `event_menue_materials` (`quantity >= 0`), `event_menuplan_item_plans` (`factor >= 0`, `servings >= 0`) |
 | `20260309000002_save_menuplan_rpc.sql`                       | RPC-Funktion `save_menuplan(p_event_id, p_payload)` — atomarer Full-Replace-Save für alle 8 Menuplan-Tabellen in einer einzigen Transaktion. SECURITY INVOKER (RLS bleibt aktiv), Aufruf nur für `authenticated` |
+| `20260309000003_create_event_cook_profiles_function.sql`     | SECURITY DEFINER Funktion `get_event_cook_profiles(p_event_id TEXT)`: gibt Köche eines Events mit öffentlichen Profildaten (display_name, motto, picture_src) zurück. Umgeht RLS auf `users` (nur öffentliche Felder), Zugriff geschützt via `is_event_cook()` / `is_admin()`. Löst das N+1-Problem bei Cook-Profil-Laden |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 

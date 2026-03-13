@@ -1281,7 +1281,9 @@ const RecipeEdit = ({
         preparedRecipe,
         savedHeader.uid,
       );
-      await Promise.all([
+      // saveAllForRecipe gibt die gespeicherten Daten mit aufgelösten
+      // Produkt-/Materialnamen zurück — kein separater Reload nötig.
+      const [savedIngredients, savedSteps, savedMaterials] = await Promise.all([
         database.recipeIngredients.saveAllForRecipe(
           savedHeader.uid,
           ingredientRows,
@@ -1297,14 +1299,6 @@ const RecipeEdit = ({
           materialRows,
           authUser,
         ),
-      ]);
-
-      // Nach dem Speichern die Daten via View neu laden, damit die
-      // aufgelösten Produkt-/Materialnamen enthalten sind.
-      const [savedIngredients, savedSteps, savedMaterials] = await Promise.all([
-        database.recipeIngredients.getIngredientsForRecipe(savedHeader.uid),
-        database.recipePreparationSteps.getStepsForRecipe(savedHeader.uid),
-        database.recipeMaterials.getMaterialsForRecipe(savedHeader.uid),
       ]);
 
       const result = Recipe.fromRepositoryData(

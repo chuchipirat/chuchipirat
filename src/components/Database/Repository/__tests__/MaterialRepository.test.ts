@@ -175,9 +175,10 @@ describe("MaterialRepository", () => {
   // saveAllMaterials()
   // ------------------------------------------ */
   describe("saveAllMaterials()", () => {
-    test("Speichert alle Materialien per Upsert", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRow,
+    test("Speichert alle Materialien per Batch-Upsert", async () => {
+      // batchUpsert ruft upsert(rows).select() auf — select muss resolven
+      supabaseMock.queryMock.select.mockResolvedValue({
+        data: [testRow],
         error: null,
       });
 
@@ -186,13 +187,15 @@ describe("MaterialRepository", () => {
 
       expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(1);
       const upsertArg = supabaseMock.queryMock.upsert.mock.calls[0][0];
-      expect(upsertArg.name).toBe("Pfanne");
-      expect(upsertArg.id).toBe(testDomain.uid);
+      // batchUpsert sendet ein Array aller Zeilen
+      expect(upsertArg).toHaveLength(1);
+      expect(upsertArg[0].name).toBe("Pfanne");
+      expect(upsertArg[0].id).toBe(testDomain.uid);
     });
 
-    test("Ruft upsert für jedes Material einzeln auf", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRow,
+    test("Sendet alle Materialien in einem einzelnen Batch-Upsert", async () => {
+      supabaseMock.queryMock.select.mockResolvedValue({
+        data: [testRow, testRow2],
         error: null,
       });
 
@@ -202,7 +205,10 @@ describe("MaterialRepository", () => {
       ];
       await repo.saveAllMaterials(materials, authUser);
 
-      expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(2);
+      // Nur ein Aufruf mit allen Zeilen
+      expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(1);
+      const upsertArg = supabaseMock.queryMock.upsert.mock.calls[0][0];
+      expect(upsertArg).toHaveLength(2);
     });
   });
 });

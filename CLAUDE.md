@@ -91,3 +91,4 @@ Topic-specific guidelines are in `docs/claude/`. Consult them when working on th
 - **Email Templates**: `docs/claude/email-templates.md` — Font, colors, logo, footer conventions for Supabase auth emails
 - **Post-Migration Tasks**: `docs/claude/post-migration-tasks.md` — Cleanup tasks to complete once Firebase is fully removed (enum type changes, lookup map removal, etc.)
 - **Security Guidelines**: `docs/claude/security-guidelines.md` — Input validation conventions, SQL injection protection, XSS, file uploads, RLS checklist. Consult when implementing forms, repositories, or file uploads.
+- **Testcases**: `docs/claude/manual-testcases.md`- How to generate manual testcases. Conventions, rules, filepath. Consult this when creating manual Testcases for in the Obsidian Vault.

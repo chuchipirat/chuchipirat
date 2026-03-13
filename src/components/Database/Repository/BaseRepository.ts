@@ -429,6 +429,68 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
   }
 
   /* =====================================================================
+  // Mehrere Datensätze per Upsert speichern (Batch)
+  // ===================================================================== */
+  /**
+   * Fügt mehrere Datensätze in einem einzelnen DB-Roundtrip ein oder
+   * aktualisiert sie. Verwendet Supabase `.upsert()` mit onConflict
+   * auf dem Primärschlüssel.
+   *
+   * @param items - Array der Domain-Objekte mit gesetzter ID
+   * @param getIdFn - Funktion, die die ID eines Domain-Objekts zurückgibt
+   * @returns Array der gespeicherten Domain-Objekte
+   */
+  async batchUpsert(
+    items: TDomain[],
+    getIdFn: (item: TDomain) => string,
+  ): Promise<TDomain[]> {
+    if (items.length === 0) return [];
+
+    const rows = items.map((item) => {
+      const row = this.toRow(item);
+      (row as Record<string, unknown>)[this.primaryKeyColumn] = getIdFn(item);
+      return row;
+    });
+
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .upsert(rows, {onConflict: this.primaryKeyColumn})
+      .select();
+
+    if (error) throw error;
+
+    return (data as TRow[]).map((row) => this.toDomain(row));
+  }
+
+  /* =====================================================================
+  // Mehrere Datensätze per ID löschen (Batch)
+  // ===================================================================== */
+  /**
+   * Löscht mehrere Datensätze in einem einzelnen DB-Roundtrip.
+   * Verwendet `.delete().in()` statt einzelner remove()-Aufrufe.
+   *
+   * @param ids - Array der Primärschlüssel der zu löschenden Datensätze
+   */
+  async batchRemove(ids: string[]): Promise<void> {
+    if (ids.length === 0) return;
+
+    const {error} = await this.client
+      .from(this.tableName)
+      .delete()
+      .in(this.primaryKeyColumn, ids);
+
+    if (error) throw error;
+
+    for (const id of ids) {
+      SessionStorageHandler.deleteDocument({
+        storageObjectProperty: this.getCacheConfig(),
+        documentUid: id,
+        prefix: "",
+      });
+    }
+  }
+
+  /* =====================================================================
   // Datensatz löschen
   // ===================================================================== */
   /**

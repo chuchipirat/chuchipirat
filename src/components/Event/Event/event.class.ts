@@ -3,6 +3,7 @@ import Utils from "../../Shared/utils.class";
 import {
   ERROR_EVENT_NAME_CANT_BE_EMPTY as TEXT_ERROR_EVENT_NAME_CANT_BE_EMPTY,
   ERROR_EVENT_MUST_HAVE_MIN_ONE_COOK as TEXT_ERROR_EVENT_MUST_HAVE_MIN_ONE_COOK,
+  ERROR_EVENT_MUST_HAVE_MIN_ONE_DATE as TEXT_ERROR_EVENT_MUST_HAVE_MIN_ONE_DATE,
   ERROR_FROM_DATE_EMPTY as TEXT_ERROR_FROM_DATE_EMPTY,
   ERROR_TO_DATE_EMPTY as TEXT_ERROR_TO_DATE_EMPTY,
   ERROR_FORM_VALIDATION as TEXT_ERROR_FORM_VALIDATION,
@@ -215,7 +216,7 @@ export default class Event {
 
     // Prüfen ob Zeitscheiben überlappend (leere Zeilen ignorieren)
     const nonEmptyDates = dates.filter(
-      (d) => d.from.getTime() !== epoch || d.to.getTime() !== epoch,
+      (dates) => dates.from.getTime() !== epoch || dates.to.getTime() !== epoch,
     );
     nonEmptyDates.forEach((outerDate, outerCounter) => {
       nonEmptyDates.forEach((innerDate, innerCounter) => {
@@ -284,7 +285,20 @@ export default class Event {
       });
     }
 
-    // Datumsvalidierung delegieren
+    // Mindestens eine nicht-leere Zeitscheibe erforderlich
+    const epoch = new Date(0).getTime();
+    const hasNonEmptyDate = event.dates.some(
+      (d) => d.from.getTime() !== epoch || d.to.getTime() !== epoch,
+    );
+    if (!hasNonEmptyDate) {
+      formValidation.push({
+        priority: 2,
+        fieldName: "dateFrom_" + event.dates[0]?.uid,
+        errorMessage: TEXT_ERROR_EVENT_MUST_HAVE_MIN_ONE_DATE,
+      });
+    }
+
+    // Datumsvalidierung delegieren (Konsistenz und Überlappungen)
     formValidation.push(...Event.validateDates(event.dates));
 
     if (formValidation.length !== 0) {

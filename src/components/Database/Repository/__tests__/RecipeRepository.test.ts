@@ -13,7 +13,7 @@ import {
   RecipeRow,
 } from "../RecipeRepository";
 import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
-import {createSupabaseMock} from "../__mocks__/supabaseMock";
+import {createSupabaseMock, createQueryMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
@@ -413,32 +413,45 @@ describe("RecipeRepository", () => {
   // findRecipeCountsByCreator()
   // ------------------------------------------ */
   describe("findRecipeCountsByCreator()", () => {
-    test("Zählt öffentliche und private Rezepte korrekt", async () => {
-      supabaseMock.queryMock.eq = jest.fn().mockResolvedValue({
-        data: [
-          {recipe_type: "public"},
-          {recipe_type: "private"},
-          {recipe_type: "public"},
-        ],
-        error: null,
-      });
+    test("Zählt öffentliche und private Rezepte per COUNT-Query", async () => {
+      // Zwei parallele COUNT-Queries: select("*", {count, head}).eq().eq()
+      // Jede Query braucht ein eigenes Mock, da sie parallel laufen
+      const publicMock = createQueryMock();
+      publicMock.eq = jest.fn()
+        .mockReturnValueOnce(publicMock) // eq("created_by", ...)
+        .mockResolvedValueOnce({count: 2, error: null}); // eq("recipe_type", "public")
+
+      const privateMock = createQueryMock();
+      privateMock.eq = jest.fn()
+        .mockReturnValueOnce(privateMock) // eq("created_by", ...)
+        .mockResolvedValueOnce({count: 1, error: null}); // eq("recipe_type", "private")
+
+      supabaseMock.client.from
+        .mockReturnValueOnce(publicMock)
+        .mockReturnValueOnce(privateMock);
 
       const result = await repo.findRecipeCountsByCreator("auth-uuid-1");
 
-      expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("recipe_type");
-      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
-        "created_by",
-        "auth-uuid-1",
-      );
+      expect(publicMock.select).toHaveBeenCalledWith("*", {count: "exact", head: true});
+      expect(privateMock.select).toHaveBeenCalledWith("*", {count: "exact", head: true});
       expect(result.noRecipesPublic).toBe(2);
       expect(result.noRecipesPrivate).toBe(1);
     });
 
     test("Gibt {0, 0} zurück wenn keine Rezepte vorhanden", async () => {
-      supabaseMock.queryMock.eq = jest.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      });
+      const publicMock = createQueryMock();
+      publicMock.eq = jest.fn()
+        .mockReturnValueOnce(publicMock)
+        .mockResolvedValueOnce({count: 0, error: null});
+
+      const privateMock = createQueryMock();
+      privateMock.eq = jest.fn()
+        .mockReturnValueOnce(privateMock)
+        .mockResolvedValueOnce({count: 0, error: null});
+
+      supabaseMock.client.from
+        .mockReturnValueOnce(publicMock)
+        .mockReturnValueOnce(privateMock);
 
       const result = await repo.findRecipeCountsByCreator("auth-uuid-no-recipes");
 
@@ -448,10 +461,20 @@ describe("RecipeRepository", () => {
 
     test("Wirft Fehler bei DB-Error", async () => {
       const dbError = {message: "Query failed", code: "42000"};
-      supabaseMock.queryMock.eq = jest.fn().mockResolvedValue({
-        data: null,
-        error: dbError,
-      });
+
+      const publicMock = createQueryMock();
+      publicMock.eq = jest.fn()
+        .mockReturnValueOnce(publicMock)
+        .mockResolvedValueOnce({count: null, error: dbError});
+
+      const privateMock = createQueryMock();
+      privateMock.eq = jest.fn()
+        .mockReturnValueOnce(privateMock)
+        .mockResolvedValueOnce({count: 0, error: null});
+
+      supabaseMock.client.from
+        .mockReturnValueOnce(publicMock)
+        .mockReturnValueOnce(privateMock);
 
       await expect(
         repo.findRecipeCountsByCreator("auth-uuid-1"),

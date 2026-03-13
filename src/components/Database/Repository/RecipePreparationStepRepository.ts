@@ -172,35 +172,32 @@ export class RecipePreparationStepRepository extends BaseRepository<
   }
 
   /**
-   * Speichert alle Zubereitungsschritte eines Rezepts (Upsert mit Löschung entfernter Zeilen).
+   * Speichert alle Zubereitungsschritte eines Rezepts (Batch-Upsert mit
+   * Batch-Löschung entfernter Zeilen). Gibt die gespeicherten Schritte zurück.
    *
    * @param recipeId - Die ID des Rezepts
    * @param steps - Neue vollständige Liste der Schritte
-   * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke)
+   * @returns Gespeicherte Zubereitungsschritte
    */
   async saveAllForRecipe(
     recipeId: string,
     steps: RecipePreparationStepDomain[],
-    authUser: AuthUser,
-  ): Promise<void> {
+    _authUser: AuthUser,
+  ): Promise<RecipePreparationStepDomain[]> {
+    // Bestehende IDs laden für Diff-Berechnung
     const existing = await this.getStepsForRecipe(recipeId);
-    const existingIds = new Set(existing.map((step) => step.uid));
-    const newIds = new Set(steps.map((step) => step.uid));
+    const existingIds = new Set(existing.map((s) => s.uid));
+    const newIds = new Set(steps.map((s) => s.uid));
 
-    // Entfernte Zeilen löschen
-    for (const existingId of existingIds) {
-      if (!newIds.has(existingId)) {
-        await this.remove(existingId);
-      }
-    }
+    // Entfernte Zeilen in einem Batch löschen
+    const idsToDelete = [...existingIds].filter((id) => !newIds.has(id));
+    await this.batchRemove(idsToDelete);
 
-    // Neue/geänderte Zeilen upserten
-    for (const step of steps) {
-      await this.upsert({
-        id: step.uid,
-        value: step,
-        authUser,
-      });
-    }
+    // Neue/geänderte Zeilen in einem Batch upserten
+    await this.batchUpsert(steps, (s) => s.uid);
+
+    // Neu laden (Konsistenz mit Ingredient/Material-Pattern)
+    return this.getStepsForRecipe(recipeId);
   }
 }

@@ -79,6 +79,20 @@ AS $$
   );
 $$;
 
+-- Hilfsfunktion: Prüft ob ein Event bereits Köche hat.
+-- SECURITY DEFINER nötig, da inline-Subqueries in RLS-Policies als
+-- aktueller User laufen und event_cooks eigene RLS hat — ohne DEFINER
+-- würde NOT EXISTS immer true ergeben (RLS blendet fremde Köche aus).
+CREATE OR REPLACE FUNCTION public.event_has_cooks(p_event_id TEXT)
+RETURNS BOOLEAN LANGUAGE sql SECURITY DEFINER STABLE
+SET search_path = public
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.event_cooks
+    WHERE event_id = p_event_id
+  );
+$$;
+
 -- ============================================================
 -- RLS, Policies, Grants, Indexes, Trigger für events
 -- ============================================================
@@ -86,24 +100,43 @@ $$;
 ALTER TABLE public.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.events REPLICA IDENTITY FULL;
 
--- Sichtbarkeit: nur Köche des Events oder Admins
+-- Sichtbarkeit: Köche des Events oder Admins.
+-- Zusätzlich: Der Ersteller darf das Event sehen, solange noch keine Köche
+-- eingetragen sind. Das ist nötig, damit INSERT ... RETURNING funktioniert
+-- (event_cooks wird erst NACH dem INSERT befüllt). Sobald Köche vorhanden
+-- sind, greift ausschliesslich is_event_cook() — ein Ersteller, der die
+-- Koch-Gruppe verlassen hat, verliert damit den Zugriff.
 CREATE POLICY events_select ON public.events
   FOR SELECT TO authenticated
-  USING (is_event_cook(id) OR is_admin());
+  USING (
+    is_event_cook(id)
+    OR (created_by = auth.uid() AND NOT event_has_cooks(id))
+    OR is_admin()
+  );
 
 -- Jeder authentifizierte User darf ein Event anlegen
 CREATE POLICY events_insert ON public.events
   FOR INSERT TO authenticated WITH CHECK (true);
 
--- Nur Köche oder Admins dürfen ein Event bearbeiten
+-- Köche oder Admins dürfen ein Event bearbeiten.
+-- Ersteller-Fallback wie bei SELECT (für den Zeitraum zwischen INSERT und addCook).
 CREATE POLICY events_update ON public.events
   FOR UPDATE TO authenticated
-  USING (is_event_cook(id) OR is_admin());
+  USING (
+    is_event_cook(id)
+    OR (created_by = auth.uid() AND NOT event_has_cooks(id))
+    OR is_admin()
+  );
 
--- Nur Köche oder Admins dürfen ein Event löschen
+-- Köche oder Admins dürfen ein Event löschen.
+-- Ersteller-Fallback wie bei SELECT.
 CREATE POLICY events_delete ON public.events
   FOR DELETE TO authenticated
-  USING (is_event_cook(id) OR is_admin());
+  USING (
+    is_event_cook(id)
+    OR (created_by = auth.uid() AND NOT event_has_cooks(id))
+    OR is_admin()
+  );
 
 GRANT SELECT, INSERT, UPDATE, DELETE ON public.events TO authenticated;
 
@@ -125,9 +158,14 @@ CREATE TRIGGER trg_events_updated_by
 ALTER TABLE public.event_cooks ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.event_cooks REPLICA IDENTITY FULL;
 
+-- Sichtbarkeit: Köche des Events, der eigene Eintrag oder Admins.
+-- user_id = auth.uid() nötig, damit INSERT ... RETURNING funktioniert:
+-- Beim Hinzufügen des ersten Kochs existiert noch kein Eintrag, den
+-- is_event_cook() finden könnte. Der gerade eingefügte eigene Eintrag
+-- muss aber per RETURNING lesbar sein.
 CREATE POLICY event_cooks_select ON public.event_cooks
   FOR SELECT TO authenticated
-  USING (is_event_cook(event_id) OR is_admin());
+  USING (is_event_cook(event_id) OR user_id = auth.uid() OR is_admin());
 
 -- Bootstrap-Regel: der Event-Ersteller darf unmittelbar nach dem Event-INSERT
 -- den ersten Koch eintragen, bevor er selbst in event_cooks steht.

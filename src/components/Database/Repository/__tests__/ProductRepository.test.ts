@@ -376,9 +376,10 @@ describe("ProductRepository", () => {
   // saveAllProducts()
   // ------------------------------------------ */
   describe("saveAllProducts()", () => {
-    test("Speichert alle Produkte per Upsert", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRow,
+    test("Speichert alle Produkte per Batch-Upsert", async () => {
+      // batchUpsert ruft upsert(rows).select() auf — select muss resolven
+      supabaseMock.queryMock.select.mockResolvedValue({
+        data: [testRow],
         error: null,
       });
 
@@ -387,13 +388,15 @@ describe("ProductRepository", () => {
 
       expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(1);
       const upsertArg = supabaseMock.queryMock.upsert.mock.calls[0][0];
-      expect(upsertArg.name).toBe("Tomaten");
-      expect(upsertArg.id).toBe(testDomain.uid);
+      // batchUpsert sendet ein Array aller Zeilen
+      expect(upsertArg).toHaveLength(1);
+      expect(upsertArg[0].name).toBe("Tomaten");
+      expect(upsertArg[0].id).toBe(testDomain.uid);
     });
 
-    test("Ruft upsert für jedes Produkt einzeln auf", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: testRow,
+    test("Sendet alle Produkte in einem einzelnen Batch-Upsert", async () => {
+      supabaseMock.queryMock.select.mockResolvedValue({
+        data: [testRow, testRow2],
         error: null,
       });
 
@@ -411,7 +414,10 @@ describe("ProductRepository", () => {
       ];
       await repo.saveAllProducts(products, authUser);
 
-      expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(2);
+      // Nur ein Aufruf mit allen Zeilen
+      expect(supabaseMock.queryMock.upsert).toHaveBeenCalledTimes(1);
+      const upsertArg = supabaseMock.queryMock.upsert.mock.calls[0][0];
+      expect(upsertArg).toHaveLength(2);
     });
   });
 });
