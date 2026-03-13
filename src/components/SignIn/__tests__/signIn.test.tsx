@@ -8,7 +8,7 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation} from "react-router";
 
-import SignInPage, {AlertMaintenanceMode} from "../signIn";
+import SignInPage, {AlertMaintenanceMode, EmailNotConfirmedAlert} from "../signIn";
 import {SignUpLink} from "../../SignUp/signUp";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
@@ -20,6 +20,7 @@ import {SIGN_UP as ROUTE_SIGN_UP} from "../../../constants/routes";
 
 /** Mock für den AuthService (database.auth) */
 const mockSignInWithPassword = jest.fn();
+const mockResendConfirmationEmail = jest.fn();
 
 /** Mock für Firebase Auth (Fallback-Login) */
 const mockFirebaseSignIn = jest.fn();
@@ -32,6 +33,7 @@ const mockFindByAuthUid = jest.fn();
 const mockDatabase = {
   auth: {
     signInWithPassword: mockSignInWithPassword,
+    resendConfirmationEmail: mockResendConfirmationEmail,
     signUp: jest.fn(),
     signOut: jest.fn(),
     resetPassword: jest.fn(),
@@ -341,6 +343,141 @@ describe("AlertMaintenanceMode", () => {
     render(<AlertMaintenanceMode />);
 
     expect(screen.getByText(/Wartungsmodus/i)).toBeInTheDocument();
+  });
+});
+
+describe("Unbestätigte E-Mail-Adresse", () => {
+  /** Hilfsfunktion: Login auslösen, der mit email_not_confirmed fehlschlägt */
+  const triggerEmailNotConfirmedError = async () => {
+    const supabaseError = new Error("Email not confirmed") as Error & {
+      code: string;
+    };
+    supabaseError.code = "email_not_confirmed";
+    mockSignInWithPassword.mockRejectedValueOnce(supabaseError);
+    // Firebase schlägt ebenfalls fehl
+    mockFirebaseSignIn.mockRejectedValueOnce(
+      new Error("auth/user-not-found"),
+    );
+    renderSignInPage();
+
+    await userEvent.type(
+      screen.getByLabelText(/e-mail/i),
+      "unbestaetigt@example.com",
+    );
+    await userEvent.type(getPasswordField(), "passwort123");
+    await userEvent.click(screen.getByRole("button", {name: /anmelden/i}));
+  };
+
+  test("Zeigt Warnmeldung bei email_not_confirmed Fehler", async () => {
+    await triggerEmailNotConfirmedError();
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/E-Mail-Adresse nicht bestätigt/i),
+      ).toBeInTheDocument();
+    });
+
+    // Prüfen, dass der Hinweis auf Spam-Ordner vorhanden ist
+    expect(screen.getByText(/Spam-Ordner/i)).toBeInTheDocument();
+  });
+
+  test("Zeigt Resend-Button bei email_not_confirmed", async () => {
+    await triggerEmailNotConfirmedError();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: /Bestätigungs-E-Mail erneut senden/i,
+        }),
+      ).toBeInTheDocument();
+    });
+  });
+
+  test("Resend-Button sendet Bestätigungs-E-Mail", async () => {
+    mockResendConfirmationEmail.mockResolvedValueOnce(undefined);
+    await triggerEmailNotConfirmedError();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: /Bestätigungs-E-Mail erneut senden/i,
+        }),
+      ).toBeInTheDocument();
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /Bestätigungs-E-Mail erneut senden/i,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(mockResendConfirmationEmail).toHaveBeenCalledWith(
+        "unbestaetigt@example.com",
+      );
+    });
+  });
+
+  test("Erfolgsmeldung nach erneutem Senden", async () => {
+    mockResendConfirmationEmail.mockResolvedValueOnce(undefined);
+    await triggerEmailNotConfirmedError();
+
+    await waitFor(() => {
+      expect(
+        screen.getByRole("button", {
+          name: /Bestätigungs-E-Mail erneut senden/i,
+        }),
+      ).toBeInTheDocument();
+    });
+
+    await userEvent.click(
+      screen.getByRole("button", {
+        name: /Bestätigungs-E-Mail erneut senden/i,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(
+        screen.getByText(/erneut gesendet/i),
+      ).toBeInTheDocument();
+    });
+
+    // Resend-Button verschwindet nach Erfolg
+    expect(
+      screen.queryByRole("button", {
+        name: /Bestätigungs-E-Mail erneut senden/i,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Generischer Fehler wird NICHT als email_not_confirmed angezeigt", async () => {
+    const supabaseError = new Error("Invalid login credentials") as Error & {
+      code: string;
+    };
+    supabaseError.code = "invalid_credentials";
+    mockSignInWithPassword.mockRejectedValueOnce(supabaseError);
+    mockFirebaseSignIn.mockRejectedValueOnce(
+      new Error("auth/user-not-found"),
+    );
+    renderSignInPage();
+
+    await userEvent.type(
+      screen.getByLabelText(/e-mail/i),
+      "test@example.com",
+    );
+    await userEvent.type(getPasswordField(), "falsch");
+    await userEvent.click(screen.getByRole("button", {name: /anmelden/i}));
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+
+    // Kein Resend-Button bei generischem Fehler
+    expect(
+      screen.queryByRole("button", {
+        name: /Bestätigungs-E-Mail erneut senden/i,
+      }),
+    ).not.toBeInTheDocument();
   });
 });
 

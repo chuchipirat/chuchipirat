@@ -89,6 +89,7 @@ const MenuplanPage = ({
 
   const scrollableRef = useRef<HTMLDivElement | null>(null);
   const headerScrollRef = useRef<HTMLDivElement | null>(null);
+  const hasScrolledToToday = useRef(false);
 
   /* ------------------------------------------
   // Navigation-Handler
@@ -105,6 +106,7 @@ const MenuplanPage = ({
   // Auto-Scroll zum heutigen Tag
   // ------------------------------------------ */
   useEffect(() => {
+    if (hasScrolledToToday.current) return;
     if (!headerScrollRef.current || !scrollableRef.current || menuplan.dates.length === 0) return;
 
     const today = Utils.dateAsString(new Date());
@@ -113,6 +115,7 @@ const MenuplanPage = ({
     );
 
     if (todayColumn) {
+      hasScrolledToToday.current = true;
       requestAnimationFrame(() => {
         const columnEl = todayColumn as HTMLElement;
         const scrollTarget = columnEl.offsetLeft - parseInt(theme.spacing(4));

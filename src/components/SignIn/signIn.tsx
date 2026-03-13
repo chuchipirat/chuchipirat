@@ -1,6 +1,7 @@
 import React from "react";
 
 import {
+  Alert,
   Backdrop,
   Button,
   Card,
@@ -34,6 +35,10 @@ import {
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED as TEXT_MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED,
   MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED_TEXT as TEXT_MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED_TEXT,
+  SIGN_IN_EMAIL_NOT_CONFIRMED_TITLE as TEXT_SIGN_IN_EMAIL_NOT_CONFIRMED_TITLE,
+  SIGN_IN_EMAIL_NOT_CONFIRMED_TEXT as TEXT_SIGN_IN_EMAIL_NOT_CONFIRMED_TEXT,
+  RESEND_CONFIRMATION_EMAIL as TEXT_RESEND_CONFIRMATION_EMAIL,
+  RESEND_CONFIRMATION_EMAIL_SUCCESS as TEXT_RESEND_CONFIRMATION_EMAIL_SUCCESS,
 } from "../../constants/text";
 import {AuthMessages} from "../../constants/firebaseMessages";
 import {HOME as ROUTE_HOME} from "../../constants/routes";
@@ -59,6 +64,8 @@ enum ReducerActions {
   GENERIC_ERROR,
   SHOW_MIGRATION_DIALOG,
   HIDE_MIGRATION_DIALOG,
+  RESEND_EMAIL_SENT,
+  RESEND_EMAIL_ERROR,
 }
 
 /**
@@ -95,6 +102,7 @@ type MigrationDialogState = {
  * @param error - Fehlerobjekt bei gescheitertem Login
  * @param isSigningIn - Ob gerade ein Login-Request läuft
  * @param migrationDialog - State des Passwort-Migrations-Dialogs
+ * @param resendEmailSent - Ob die Bestätigungs-E-Mail erneut gesendet wurde
  */
 type State = {
   signInData: SignInData;
@@ -102,6 +110,7 @@ type State = {
   error: AuthErrorLike | null;
   isSigningIn: boolean;
   migrationDialog: MigrationDialogState;
+  resendEmailSent: boolean;
 };
 
 /** Diskriminierte Union für typsichere Reducer-Actions */
@@ -115,7 +124,9 @@ type DispatchAction =
       type: ReducerActions.SHOW_MIGRATION_DIALOG;
       payload: {firebaseUid: string; displayName: string};
     }
-  | {type: ReducerActions.HIDE_MIGRATION_DIALOG};
+  | {type: ReducerActions.HIDE_MIGRATION_DIALOG}
+  | {type: ReducerActions.RESEND_EMAIL_SENT}
+  | {type: ReducerActions.RESEND_EMAIL_ERROR; payload: Error};
 
 const initialState: State = {
   signInData: {
@@ -126,6 +137,7 @@ const initialState: State = {
   isSigningIn: false,
   error: null,
   migrationDialog: {open: false, firebaseUid: "", displayName: ""},
+  resendEmailSent: false,
 };
 
 /**
@@ -160,6 +172,7 @@ const signInReducer = (state: State, action: DispatchAction): State => {
         ...state,
         error: action.payload,
         isSigningIn: false,
+        resendEmailSent: false,
       };
     case ReducerActions.SHOW_MIGRATION_DIALOG:
       return {
@@ -176,6 +189,10 @@ const signInReducer = (state: State, action: DispatchAction): State => {
         ...state,
         migrationDialog: {open: false, firebaseUid: "", displayName: ""},
       };
+    case ReducerActions.RESEND_EMAIL_SENT:
+      return {...state, resendEmailSent: true};
+    case ReducerActions.RESEND_EMAIL_ERROR:
+      return {...state, error: action.payload, resendEmailSent: false};
   }
 };
 
@@ -420,6 +437,21 @@ const SignInPage = () => {
     navigate(ROUTE_HOME);
   };
 
+  /* ------------------------------------------
+  // Bestätigungs-E-Mail erneut senden
+  // ------------------------------------------ */
+  const onResendConfirmationEmail = async () => {
+    try {
+      await database.auth.resendConfirmationEmail(state.signInData.email);
+      dispatch({type: ReducerActions.RESEND_EMAIL_SENT});
+    } catch (error) {
+      dispatch({
+        type: ReducerActions.RESEND_EMAIL_ERROR,
+        payload: error as Error,
+      });
+    }
+  };
+
   const onMigrationClose = () => {
     // Dialog schliessen, Firebase abmelden und Passwort-Feld leeren
     firebase.signOut();
@@ -455,21 +487,27 @@ const SignInPage = () => {
                 onSignIn={onSignIn}
                 maintenanceMode={state.maintenanceMode}
               />
-              {state.error && (
-                <AlertMessage
-                  error={state.error}
-                  severity={"error"}
-                  messageTitle={TEXT_ALERT_TITLE_UUPS}
-                  body={
-                    state.error.code === AuthMessages.WRONG_PASSWORD ||
-                    state.error.code === AuthMessages.INVALID_CREDENTIALS ? (
-                      <ForgotPasswordLink email={state.signInData.email} />
-                    ) : (
-                      ""
-                    )
-                  }
-                />
-              )}
+              {state.error &&
+                (state.error.code === AuthMessages.EMAIL_NOT_CONFIRMED ? (
+                  <EmailNotConfirmedAlert
+                    resendEmailSent={state.resendEmailSent}
+                    onResend={onResendConfirmationEmail}
+                  />
+                ) : (
+                  <AlertMessage
+                    error={state.error}
+                    severity={"error"}
+                    messageTitle={TEXT_ALERT_TITLE_UUPS}
+                    body={
+                      state.error.code === AuthMessages.WRONG_PASSWORD ||
+                      state.error.code === AuthMessages.INVALID_CREDENTIALS ? (
+                        <ForgotPasswordLink email={state.signInData.email} />
+                      ) : (
+                        ""
+                      )
+                    }
+                  />
+                ))}
               {!state.maintenanceMode && <SignUpLink />}
             </CardContent>
           </Card>
@@ -623,6 +661,56 @@ export const AlertMaintenanceMode = () => {
       messageTitle={TEXT_MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED}
       body={TEXT_MAINTENANCE_MODE_SIGN_UP_NOT_ALLOWED_TEXT}
     />
+  );
+};
+
+/* ===================================================================
+// =============== Warnung: E-Mail nicht bestätigt ====================
+// =================================================================== */
+
+/**
+ * Props für die EmailNotConfirmedAlert-Komponente.
+ *
+ * @param resendEmailSent - Ob die E-Mail bereits erneut gesendet wurde
+ * @param onResend - Handler zum erneuten Senden der Bestätigungs-E-Mail
+ */
+interface EmailNotConfirmedAlertProps {
+  resendEmailSent: boolean;
+  onResend: () => void;
+}
+
+/**
+ * Warnmeldung bei nicht bestätigter E-Mail-Adresse.
+ * Zeigt eine Erklärung mit Hinweis auf Spam-Ordner und einen Button
+ * zum erneuten Senden der Bestätigungs-E-Mail.
+ */
+export const EmailNotConfirmedAlert = ({
+  resendEmailSent,
+  onResend,
+}: EmailNotConfirmedAlertProps) => {
+  return (
+    <Stack spacing={1}>
+      <AlertMessage
+        error={null}
+        severity={"warning"}
+        messageTitle={TEXT_SIGN_IN_EMAIL_NOT_CONFIRMED_TITLE}
+        body={TEXT_SIGN_IN_EMAIL_NOT_CONFIRMED_TEXT}
+      />
+      {resendEmailSent ? (
+        <Alert severity="success">
+          {TEXT_RESEND_CONFIRMATION_EMAIL_SUCCESS}
+        </Alert>
+      ) : (
+        <Button
+          variant="outlined"
+          color="warning"
+          fullWidth
+          onClick={onResend}
+        >
+          {TEXT_RESEND_CONFIRMATION_EMAIL}
+        </Button>
+      )}
+    </Stack>
   );
 };
 

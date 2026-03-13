@@ -372,6 +372,8 @@ export const ERROR_EVENT_NAME_CANT_BE_EMPTY =
   "Der Name des Anlasses darf nicht leer sein.";
 export const ERROR_EVENT_MUST_HAVE_MIN_ONE_COOK =
   "Der Anlass muss mindestens eine Person in der Küchen-Crew haben.";
+export const ERROR_EVENT_MUST_HAVE_MIN_ONE_DATE =
+  "Der Anlass muss mindestens eine Zeitscheibe (Von-/Bis-Datum) haben.";
 export const ERROR_FROM_DATE_EMPTY = "Von-Datum darf nicht leer sein";
 export const ERROR_TO_DATE_EMPTY = "Bis-Datum darf nicht leer sein";
 export const ERROR_FROM_DATE_BIGGER_THAN_TO_DATE =
@@ -734,6 +736,14 @@ export const VERIFICATION_EMAIL_SENT =
 export const SIGN_UP_SUCCESS_TITLE = "Fast geschafft!";
 export const SIGN_UP_SUCCESS_TEXT =
   "Wir haben dir eine Bestätigungs-E-Mail gesendet. Bitte prüfe dein Postfach (auch den Spam-Ordner) und klicke auf den Link in der E-Mail, um deine Registrierung abzuschliessen. Danach kannst du dich anmelden.";
+export const SIGN_IN_EMAIL_NOT_CONFIRMED_TITLE =
+  "E-Mail-Adresse nicht bestätigt";
+export const SIGN_IN_EMAIL_NOT_CONFIRMED_TEXT =
+  "Deine E-Mail-Adresse wurde noch nicht bestätigt. Bitte prüfe dein Postfach (auch den Spam-Ordner) und klicke auf den Bestätigungslink.";
+export const RESEND_CONFIRMATION_EMAIL =
+  "Bestätigungs-E-Mail erneut senden";
+export const RESEND_CONFIRMATION_EMAIL_SUCCESS =
+  "Die Bestätigungs-E-Mail wurde erneut gesendet. Bitte prüfe dein Postfach (auch den Spam-Ordner).";
 export const NO_AUTH_REDIRECT_TO_HOME =
   "Für die angeforderte Seite hast du keine Berechtigung. Du wirst automatisch umgeleitet.";
 export const NOT_REGISTERED_YET_SIGN_UP = "Noch keinen Account? Melde dich an!";
@@ -1090,8 +1100,9 @@ export const SUPABASE_MESSAGES: Record<string, string> = {
     "Es besteht bereits ein Account mit dieser Adresse.",
   "Password should be at least 6 characters.":
     "Passwort zu schwach: Passwort muss aus mindestens 6 Zeichen bestehen.",
-  "For security purposes, you can only request this after 10 seconds.":
-    "Aus Sicherheitsgründen kannst du dies erst nach 10 Sekunden erneut anfordern.",
+  // "For security purposes, you can only request this after X seconds."
+  // → Wird pattern-basiert in SupabaseMessageHandler übersetzt (variable Sekundenanzahl)
+  "Email not confirmed": "E-Mail-Adresse noch nicht bestätigt.",
 };
 /* =====================================================================
 // Texte zum Admin-Bereich
@@ -1179,7 +1190,15 @@ export const DIALOG_DELETION_CONFIRMATION_STRING_DOES_NOT_MATCH =
   "Die angegebene ID ist nicht korrekt";
 export const VERSION = "Version";
 export const AUTH_SERVICE_HANLDER_NO_MODE =
-  "Sorry. Wir wissen gerade nicht was zu tun ist. Bitte prüfe, ob du die richtige URL gewählt hast.";
+  "Bitte prüfe, ob du die richtige URL gewählt hast. Falls du einen Link aus einer E-Mail verwendet hast, versuche den Vorgang erneut zu starten.";
+export const AUTH_SERVICE_HANLDER_NO_MODE_TITLE = "Link nicht erkannt";
+export const AUTH_SERVICE_HANLDER_NO_MODE_SUBTITLE =
+  "Hmmm, was ist denn hier los?";
+export const AUTH_SERVICE_HANDLER_EXPIRED_LINK_TITLE = "Link abgelaufen";
+export const AUTH_SERVICE_HANDLER_EXPIRED_LINK_SUBTITLE =
+  "Ups, zu spät dran!";
+export const AUTH_SERVICE_HANDLER_EXPIRED_LINK_TEXT =
+  "Der Link ist abgelaufen oder wurde bereits verwendet. Bitte fordere über die Anmeldeseite einen neuen Link an.";
 export const LOG = "Log";
 export const X_FEEDS_DELETED = (no_of_deleted_feeds: string) =>
   `${no_of_deleted_feeds} Feed-Einträge gelöscht.`;

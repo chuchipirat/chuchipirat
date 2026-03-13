@@ -33,7 +33,8 @@ import AlertMessage from "../Shared/AlertMessage";
 
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {SIGN_UP as ROUTE_SIGN_UP} from "../../constants/routes";
+import {useAuthUser} from "../Session/authUserContext";
+import {HOME as ROUTE_HOME, SIGN_UP as ROUTE_SIGN_UP} from "../../constants/routes";
 import {AuthMessages} from "../../constants/firebaseMessages";
 import {NOT_REGISTERED_YET_SIGN_UP as TEXT_NOT_REGISTERED_YET_SIGN_UP} from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
@@ -177,9 +178,18 @@ const signUpReducer = (state: State, action: DispatchAction): State => {
 const SignUpPage = () => {
   const firebase = useFirebase();
   const database = useDatabase();
+  const authUser = useAuthUser();
+  const navigate = useNavigate();
 
   const classes = useCustomStyles();
   const [state, dispatch] = React.useReducer(signUpReducer, initialState);
+
+  // Eingeloggte Benutzer zur Startseite weiterleiten
+  React.useEffect(() => {
+    if (authUser) {
+      navigate(ROUTE_HOME);
+    }
+  }, [authUser, navigate]);
 
   const [smallPrintDialogs, setSmallPrintDialogs] = React.useState({
     termOfUse: false,

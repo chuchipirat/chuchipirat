@@ -49,14 +49,18 @@ jest.mock("../recoverEmail", () => ({
   ),
 }));
 
-/**
- * Mock: AlertMessage — zeigt den body-Text als Inhalt an.
- */
-jest.mock("../../Shared/AlertMessage", () => ({
+/** Mock: PageTitle — vereinfacht für Tests */
+jest.mock("../../Shared/pageTitle", () => ({
   __esModule: true,
-  default: ({body}: {body: string}) => (
-    <div data-testid="alert-no-mode">{body}</div>
+  default: ({subTitle}: {subTitle?: string}) => (
+    <div data-testid="page-title">{subTitle}</div>
   ),
+}));
+
+/** Mock: useCustomStyles — leere Styles */
+jest.mock("../../../constants/styles", () => ({
+  __esModule: true,
+  default: () => ({container: {}}),
 }));
 
 /* ===================================================================
@@ -95,7 +99,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(
         screen.queryByTestId("confirm-email-change")
       ).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Hash #type=signup rendert VerifyEmail", () => {
@@ -106,7 +110,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(
         screen.queryByTestId("confirm-email-change")
       ).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Hash #type=email_change rendert ConfirmEmailChange", () => {
@@ -117,7 +121,7 @@ describe("AuthServiceHandlerPage", () => {
       ).toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
   });
 
@@ -130,7 +134,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(
         screen.queryByTestId("confirm-email-change")
       ).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Query ?code=abc123&type=email_change rendert ConfirmEmailChange", () => {
@@ -141,7 +145,7 @@ describe("AuthServiceHandlerPage", () => {
       ).toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
   });
 
@@ -152,7 +156,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(screen.getByTestId("reset-password")).toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("recover-email")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Query ?mode=recoverEmail&oobCode=xyz rendert RecoverEmail mit oobCode", () => {
@@ -164,7 +168,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(recoverEmail).toHaveAttribute("data-oobcode", "xyz");
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Query ?mode=verifyEmail&oobCode=abc rendert VerifyEmail", () => {
@@ -173,17 +177,16 @@ describe("AuthServiceHandlerPage", () => {
       expect(screen.getByTestId("verify-email")).toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
       expect(screen.queryByTestId("recover-email")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("alert-no-mode")).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
   });
 
   describe("Fehlende oder unbekannte Parameter", () => {
-    test("Keine Parameter rendert AlertMessage mit Hinweistext", () => {
+    test("Keine Parameter zeigt generische Fehlermeldung", () => {
       renderWithUrl("/action");
 
-      const alert = screen.getByTestId("alert-no-mode");
-      expect(alert).toBeInTheDocument();
-      expect(alert).toHaveTextContent(TEXT.AUTH_SERVICE_HANLDER_NO_MODE);
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).toBeInTheDocument();
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE)).toBeInTheDocument();
       // Keine Auth-Komponente darf angezeigt werden
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
@@ -193,13 +196,52 @@ describe("AuthServiceHandlerPage", () => {
       expect(screen.queryByTestId("recover-email")).not.toBeInTheDocument();
     });
 
-    test("Unbekannter Hash-Typ fällt auf AlertMessage zurück", () => {
-      // Ein unbekannter type im Hash wird nicht erkannt und fällt durch
+    test("Unbekannter Hash-Typ zeigt generische Fehlermeldung", () => {
       renderWithUrl("/action#type=unknown_type");
 
-      const alert = screen.getByTestId("alert-no-mode");
-      expect(alert).toBeInTheDocument();
-      expect(alert).toHaveTextContent(TEXT.AUTH_SERVICE_HANLDER_NO_MODE);
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).toBeInTheDocument();
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE)).toBeInTheDocument();
+    });
+  });
+
+  describe("Abgelaufene oder ungültige Links", () => {
+    test("Query ?error=access_denied zeigt Expired-Link-Meldung", () => {
+      renderWithUrl(
+        "/action?error=access_denied&error_description=Email+link+is+invalid+or+has+expired&error_code=otp_expired"
+      );
+
+      expect(
+        screen.getByText(TEXT.AUTH_SERVICE_HANDLER_EXPIRED_LINK_TITLE)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(TEXT.AUTH_SERVICE_HANDLER_EXPIRED_LINK_TEXT)
+      ).toBeInTheDocument();
+      // Keine Auth-Komponente darf angezeigt werden
+      expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
+    });
+
+    test("Hash #error=access_denied zeigt Expired-Link-Meldung", () => {
+      renderWithUrl(
+        "/action#error=access_denied&error_description=Email+link+is+invalid+or+has+expired"
+      );
+
+      expect(
+        screen.getByText(TEXT.AUTH_SERVICE_HANDLER_EXPIRED_LINK_TITLE)
+      ).toBeInTheDocument();
+      expect(
+        screen.getByText(TEXT.AUTH_SERVICE_HANDLER_EXPIRED_LINK_TEXT)
+      ).toBeInTheDocument();
+    });
+
+    test("Expired-Link zeigt NICHT die generische Fehlermeldung", () => {
+      renderWithUrl(
+        "/action?error=access_denied&error_description=Email+link+is+invalid+or+has+expired"
+      );
+
+      expect(
+        screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)
+      ).not.toBeInTheDocument();
     });
   });
 });

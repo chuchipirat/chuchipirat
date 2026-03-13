@@ -54,7 +54,7 @@ describe("SupabaseMessageHandler", () => {
       );
     });
 
-    test("Übersetzt Rate-Limit-Meldung ins Deutsche", () => {
+    test("Übersetzt Rate-Limit-Meldung mit 10 Sekunden ins Deutsche", () => {
       const error = {
         message:
           "For security purposes, you can only request this after 10 seconds.",
@@ -64,6 +64,19 @@ describe("SupabaseMessageHandler", () => {
 
       expect(result).toBe(
         "Aus Sicherheitsgründen kannst du dies erst nach 10 Sekunden erneut anfordern."
+      );
+    });
+
+    test("Übersetzt Rate-Limit-Meldung mit variabler Sekundenanzahl", () => {
+      const error = {
+        message:
+          "For security purposes, you can only request this after 27 seconds.",
+      };
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(
+        "Aus Sicherheitsgründen kannst du dies erst nach 27 Sekunden erneut anfordern."
       );
     });
   });

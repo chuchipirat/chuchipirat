@@ -14,6 +14,7 @@ export enum AuthMessages {
   // Supabase Auth Codes
   USER_ALREADY_EXISTS = "user_already_exists",
   INVALID_CREDENTIALS = "invalid_credentials",
+  EMAIL_NOT_CONFIRMED = "email_not_confirmed",
 }
 
 export enum General {

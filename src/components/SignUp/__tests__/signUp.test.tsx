@@ -15,11 +15,20 @@ import SignUpPage, {
 } from "../signUp";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
-import {SIGN_UP as ROUTE_SIGN_UP} from "../../../constants/routes";
+import {
+  SIGN_UP as ROUTE_SIGN_UP,
+  HOME as ROUTE_HOME,
+} from "../../../constants/routes";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================
 // =================================================================== */
+
+/** Mock für AuthUser-Context — standardmässig nicht eingeloggt */
+let mockAuthUser: any = null;
+jest.mock("../../Session/authUserContext", () => ({
+  useAuthUser: () => mockAuthUser,
+}));
 
 /** Mock für den AuthService (database.auth) */
 const mockAuthSignUp = jest.fn();
@@ -146,6 +155,7 @@ const getPasswordField = () => {
 
 beforeEach(() => {
   jest.clearAllMocks();
+  mockAuthUser = null;
   mockGetSettings.mockResolvedValue({
     maintenanceMode: false,
     allowSignUp: true,
@@ -333,6 +343,17 @@ describe("SignUpPage", () => {
         expect(
           screen.getByText(/keine Neuanmeldungen möglich/i),
         ).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Redirect bei eingeloggtem Benutzer", () => {
+    test("Eingeloggter Benutzer wird zur Startseite weitergeleitet", async () => {
+      mockAuthUser = {uid: "user-123", email: "test@example.com"};
+      renderSignUpPage();
+
+      await waitFor(() => {
+        expect(testLocation.pathname).toBe(ROUTE_HOME);
       });
     });
   });
