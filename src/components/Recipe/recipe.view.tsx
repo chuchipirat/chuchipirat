@@ -641,6 +641,13 @@ const RecipeView = ({
       .toBlob()
       .then((result) => {
         fileSaver.saveAs(result, recipe.name + TEXT_SUFFIX_PDF);
+      })
+      .catch((error) => {
+        console.error("PDF generation failed:", error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   };
   /* ------------------------------------------

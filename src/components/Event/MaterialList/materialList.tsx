@@ -722,6 +722,10 @@ const EventMaterialListPage = ({
 
   const onListElementDelete = React.useCallback(
     (event: React.MouseEvent<HTMLElement>) => {
+      // Propagation stoppen, damit der Klick nicht zum ListItemButton
+      // durchblubbered und onListElementSelect auslöst.
+      event.stopPropagation();
+
       const selectedList = event.currentTarget.dataset.uid;
       if (!selectedList) {
         return;
@@ -746,6 +750,9 @@ const EventMaterialListPage = ({
 
   const onListElementEdit = React.useCallback(
     async (event: React.MouseEvent<HTMLElement>) => {
+      // Propagation stoppen (gleicher Grund wie bei onListElementDelete).
+      event.stopPropagation();
+
       const selectedListUid = event.currentTarget.dataset.uid;
       if (!selectedListUid) {
         return;
@@ -931,6 +938,13 @@ const EventMaterialListPage = ({
           result,
           event.name + " " + TEXT_MATERIAL_LIST + TEXT_SUFFIX_PDF,
         );
+      })
+      .catch((error) => {
+        console.error("PDF generation failed:", error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   }, [materialList, state.selectedListItem, menuplan, event.name, authUser]);
 

@@ -5,8 +5,9 @@
  * Pro Liste wird ein `event_used_recipe_lists`-Eintrag angelegt, plus
  * Junction-Einträge in `event_used_recipe_list_menues` für die Menü-Auswahl.
  *
- * `selectedMeals` aus Firebase wird ignoriert — mit stabilen Supabase-UUIDs
- * ist der Resilience-Mechanismus (Mahlzeiten als Anker) nicht mehr nötig.
+ * `selectedMeals` aus Firebase wird nun ebenfalls migriert — in die
+ * Junction-Tabelle `event_used_recipe_list_meals`, damit die Drift-Erkennung
+ * bei verschobenen Menüs funktioniert.
  *
  * FK-Auflösungen:
  * - Event-Firebase-UID → events.firebase_uid → events.id
@@ -71,6 +72,8 @@ export class UsedRecipesMigrationJob
   private eventIdByFirebaseUid: Map<string, string> = new Map();
   /** firebase_uid → Postgres-ID für Menüs (event-übergreifend) */
   private menueIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Postgres-ID für Meals (event-übergreifend) */
+  private mealIdByFirebaseUid: Map<string, string> = new Map();
 
   /* =====================================================================
   // Alle UsedRecipes aus Firebase lesen
@@ -169,7 +172,7 @@ export class UsedRecipesMigrationJob
    * Pro Liste:
    * 1. Kopfzeile in event_used_recipe_lists einfügen
    * 2. selectedMenues → event_used_recipe_list_menues (nach firebase_uid → id Auflösung)
-   * 3. selectedMeals wird ignoriert (nicht mehr benötigt)
+   * 3. selectedMeals → event_used_recipe_list_meals (nach firebase_uid → id Auflösung)
    *
    * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
@@ -239,6 +242,32 @@ export class UsedRecipesMigrationJob
 
         if (menueError) throw menueError;
       }
+
+      // Meal-Zuordnungen einfügen (selectedMeals → firebase_uid Auflösung)
+      const mealIds: string[] = [];
+      for (const mealFirebaseUid of props.selectedMeals ?? []) {
+        const mealId = this.mealIdByFirebaseUid.get(mealFirebaseUid);
+        if (mealId) {
+          mealIds.push(mealId);
+        } else {
+          console.warn(
+            `UsedRecipesMigrationJob: Meal ${mealFirebaseUid} nicht gefunden, ` +
+              `wird aus Liste "${props.name}" (Event ${record.data.eventFirebaseUid}) übersprungen.`,
+          );
+        }
+      }
+
+      if (mealIds.length > 0) {
+        const mealRows = mealIds.map((mealId) => ({
+          list_id: listId,
+          meal_id: mealId,
+        }));
+        const {error: mealError} = await client
+          .from("event_used_recipe_list_meals")
+          .insert(mealRows);
+
+        if (mealError) throw mealError;
+      }
     }
   }
 
@@ -253,13 +282,15 @@ export class UsedRecipesMigrationJob
   private async buildLookupMaps(): Promise<void> {
     const client: SupabaseClient = supabaseAdmin ?? supabase;
 
-    const [eventRows, menueRows] = await Promise.all([
+    const [eventRows, menueRows, mealRows] = await Promise.all([
       client.from("events").select("id, firebase_uid"),
       client.from("event_menues").select("id, firebase_uid"),
+      client.from("event_meals").select("id, firebase_uid"),
     ]);
 
     if (eventRows.error) throw eventRows.error;
     if (menueRows.error) throw menueRows.error;
+    if (mealRows.error) throw mealRows.error;
 
     for (const row of eventRows.data ?? []) {
       if (row.firebase_uid)
@@ -271,6 +302,13 @@ export class UsedRecipesMigrationJob
     for (const row of menueRows.data ?? []) {
       if (row.firebase_uid)
         this.menueIdByFirebaseUid.set(
+          row.firebase_uid as string,
+          row.id as string,
+        );
+    }
+    for (const row of mealRows.data ?? []) {
+      if (row.firebase_uid)
+        this.mealIdByFirebaseUid.set(
           row.firebase_uid as string,
           row.id as string,
         );

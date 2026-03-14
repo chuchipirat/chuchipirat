@@ -614,6 +614,13 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
 
       if (noteError) throw noteError;
     }
+
+    // Tracking-Zeile für den Menuplan erstellen
+    const {error: trackingError} = await client
+      .from("event_menuplan_tracking")
+      .insert({event_id: eventId});
+
+    if (trackingError) throw trackingError;
   }
 
   /* =====================================================================

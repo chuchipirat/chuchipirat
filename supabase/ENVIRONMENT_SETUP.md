@@ -51,6 +51,10 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260309000001_menuplan_check_constraints.sql`              | CHECK-Constraints für nicht-negative Mengen/Faktoren auf `event_menue_recipes` (`total_portions >= 0`), `event_menue_products` (`quantity >= 0`), `event_menue_materials` (`quantity >= 0`), `event_menuplan_item_plans` (`factor >= 0`, `servings >= 0`) |
 | `20260309000002_save_menuplan_rpc.sql`                       | RPC-Funktion `save_menuplan(p_event_id, p_payload)` — atomarer Full-Replace-Save für alle 8 Menuplan-Tabellen in einer einzigen Transaktion. SECURITY INVOKER (RLS bleibt aktiv), Aufruf nur für `authenticated` |
 | `20260309000003_create_event_cook_profiles_function.sql`     | SECURITY DEFINER Funktion `get_event_cook_profiles(p_event_id TEXT)`: gibt Köche eines Events mit öffentlichen Profildaten (display_name, motto, picture_src) zurück. Umgeht RLS auf `users` (nur öffentliche Felder), Zugriff geschützt via `is_event_cook()` / `is_admin()`. Löst das N+1-Problem bei Cook-Profil-Laden |
+| `20260313000001_create_used_recipe_lists.sql`                | UsedRecipeLists: Kopftabelle `event_used_recipe_lists`, Junction `event_used_recipe_list_menues`, RPC `get_used_recipe_list_recipes` |
+| `20260313000002_add_used_recipe_list_meals.sql`              | Junction-Tabelle `event_used_recipe_list_meals` für Drift-Erkennung bei verschobenen Menüs |
+| `20260313000003_fix_save_menuplan_preserve_junctions.sql`    | Fix: `save_menuplan` sichert Junction-Daten der UsedRecipeLists vor CASCADE-Delete und stellt sie nach dem Re-Insert wieder her |
+| `20260315000001_simplify_menuplan_audit.sql`                | Menuplan-Audit vereinfachen: `event_menuplan_tracking`-Tabelle erstellen, Audit-Spalten und Triggers von 10 Menuplan-/Junction-Tabellen entfernen, `save_menuplan` RPC vereinfachen |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -152,6 +156,7 @@ Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) 
 12. **Menuplan** migrieren (Menupläne: Mahlzeiten, Menüs, Rezepte, Produkte, Materialien — hängt von Events, GroupConfig, Recipes, Products, Materials ab)
 13. **EventPictures** migrieren (kopiert Event-Bilder von Firebase Storage nach Supabase Storage — hängt von Events ab)
 14. **RecipeVariants** migrieren (Varianten-Rezepte — hängt von Events, Recipes, Users, Products, Materials ab)
+15. **UsedRecipeListMeals** migrieren (Meal-Zuordnungen für Mengenberechnungs-Listen — hängt von Events, Menuplan ab)
 
 ---
 

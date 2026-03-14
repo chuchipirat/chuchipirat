@@ -16,7 +16,7 @@ import {Document, Page, View} from "@react-pdf/renderer";
 import "../../Shared/pdfFontRegistration";
 import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import StylesPdf from "../../../constants/stylesRecipePdf";
+import {pdfStyles} from "../../../constants/stylesRecipePdf";
 
 import {
   APP_NAME as TEXT_APP_NAME,
@@ -250,4 +250,4 @@ const RecipePage = ({
 };
 export default UsedRecipesPdf;
 
-const styles = StylesPdf.getPdfStyles();
+const styles = pdfStyles;

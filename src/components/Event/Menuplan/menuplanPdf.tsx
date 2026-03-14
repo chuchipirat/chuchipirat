@@ -15,7 +15,7 @@ import {
   APP_NAME as TEXT_APP_NAME,
 } from "../../../constants/text";
 
-import StylesPdf from "../../../constants/stylesMenuplanPdf";
+import {pdfStyles} from "../../../constants/stylesMenuplanPdf";
 import {
   MealType,
   Meal,
@@ -809,4 +809,4 @@ export {
   findNoteForMenu,
 };
 
-const styles = StylesPdf.getPdfStyles();
+const styles = pdfStyles;

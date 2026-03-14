@@ -3,7 +3,7 @@ import {Document, Page, View, Text, Link} from "@react-pdf/renderer";
 import Utils from "../Shared/utils.class";
 import "../Shared/pdfFontRegistration";
 
-import StylesPdf from "../../constants/stylesRecipePdf";
+import {pdfStyles} from "../../constants/stylesRecipePdf";
 import * as TEXT from "../../constants/text";
 import Recipe, {
   Ingredient,
@@ -21,6 +21,15 @@ import {Footer} from "../Shared/pdfComponents";
 /* ===================================================================
 // ============================ Rezept PDF ===========================
 // =================================================================== */
+/**
+ * PDF-Dokument für ein einzelnes Rezept.
+ *
+ * Rendert ein einseitiges PDF mit Kopfzeile, zweispaltigem Layout
+ * (Zutaten/Material links, Zubereitung rechts), optionalen Notizen
+ * und Fusszeile. Unterstützt skalierte Portionen.
+ *
+ * @param props - Rezeptdaten, Skalierungsinformationen und Autoreninfo.
+ */
 interface RecipePdfProps {
   recipe: Recipe;
   scaledPortions: number | null;
@@ -59,6 +68,11 @@ const RecipePdf = ({
 /* ===================================================================
 // =========================== Rezept-Seite ==========================
 // =================================================================== */
+/**
+ * Einzelne Seite des Rezept-PDFs mit allen Sektionen.
+ *
+ * @param props - Rezeptdaten, Skalierung, Zeitstempel und Autoreninfo.
+ */
 interface RecipePageProps {
   recipe: Recipe;
   scaledPortions: number | null;
@@ -140,6 +154,14 @@ const RecipePage = ({
 /* ===================================================================
 // ===================== Titel und oberste Infos =====================
 // =================================================================== */
+/**
+ * Kopfbereich des Rezept-PDFs mit Name, Quelle, Portionen und Zeiten.
+ *
+ * Zeigt bei Varianten den Variantennamen an. Bei Einplanung im Menüplan
+ * werden Datum und Mahlzeittyp statt der Zubereitungszeiten angezeigt.
+ *
+ * @param props - Rezept, skalierte Portionen, optionale Menüplan-Koordinaten.
+ */
 interface RecipeHeaderProps {
   recipe: Recipe;
   scaledPortions: number | null;
@@ -287,6 +309,14 @@ export const RecipeHeader = ({
 /* ===================================================================
 // ============================== Zutaten ============================
 // =================================================================== */
+/**
+ * Zutatentabelle des Rezept-PDFs.
+ *
+ * Zeigt Original- und skalierte Mengen nebeneinander an, falls Skalierung
+ * aktiv ist. Unterstützt Abschnitts-Trennzeilen ({@link Section}).
+ *
+ * @param props - Zutaten, skalierte Werte und Portionsinformation.
+ */
 interface RecipeIngredientsProps {
   ingredients: Recipe["ingredients"];
   scaledPortions?: number | null;
@@ -474,6 +504,13 @@ export const RecipeIngredients = ({
 /* ===================================================================
 // ============================ Zubereitung ==========================
 // =================================================================== */
+/**
+ * Zubereitungsschritte des Rezept-PDFs.
+ *
+ * Nummerierte Liste aller Schritte mit optionalen Abschnitts-Trennzeilen.
+ *
+ * @param props - Rezept mit Zubereitungsschritten.
+ */
 interface RecipePreparationProps {
   recipe: Recipe;
 }
@@ -536,11 +573,16 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
   );
 };
 
+/**
+ * Abschnitts-Trennzeile in Zutaten oder Zubereitung.
+ *
+ * @param props - Abschnittsdaten mit Name.
+ */
 interface RecipeSectionProps {
   section: Section;
 }
 /* ===================================================================
-// =0=========================== Abschnitt ===========================
+// ============================== Abschnitt ==========================
 // =================================================================== */
 const RecipeSection = ({section}: RecipeSectionProps) => {
   return (
@@ -554,6 +596,13 @@ const RecipeSection = ({section}: RecipeSectionProps) => {
 /* ===================================================================
 // ============================== Material ===========================
 // =================================================================== */
+/**
+ * Materialtabelle des Rezept-PDFs (z.B. Backpapier, Alufolie).
+ *
+ * Analoger Aufbau zur Zutatentabelle mit Original-/skalierter Menge.
+ *
+ * @param props - Materialpositionen, Skalierung und Portionsinformation.
+ */
 interface RecipeMaterialProps {
   materials: Recipe["materials"];
   scaledPortions?: number | null;
@@ -666,6 +715,11 @@ export const RecipeMaterial = ({
 /* ===================================================================
 // ========================== Hinweis Rezept =========================
 // =================================================================== */
+/**
+ * Notizblock des Rezepts im PDF.
+ *
+ * @param props - Rezept mit optionalem Notiztext.
+ */
 interface RecipeNoteProps {
   recipe: Recipe;
 }
@@ -691,6 +745,11 @@ export const RecipeNote = ({recipe}: RecipeNoteProps) => {
 /* ===================================================================
 // ========================= Varianten Notiz  ========================
 // =================================================================== */
+/**
+ * Notizblock für Rezeptvarianten im PDF.
+ *
+ * @param props - Rezept mit Varianten-Notiztext.
+ */
 interface RecipeVariantNoteProps {
   recipe: Recipe;
 }
@@ -718,4 +777,4 @@ export const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
 
 export default RecipePdf;
 
-const styles = StylesPdf.getPdfStyles();
+const styles = pdfStyles;

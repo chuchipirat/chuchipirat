@@ -3,7 +3,7 @@ import {Document, Page, View, Text, Image} from "@react-pdf/renderer";
 import "../../Shared/pdfFontRegistration";
 
 import Receipt from "./receipt.class";
-import StylesPdf from "../../../constants/stylesEventReceiptPdf";
+import {pdfStyles} from "../../../constants/stylesEventReceiptPdf";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
 import {
@@ -23,6 +23,15 @@ import Utils from "../../Shared/utils.class";
 /* ===================================================================
 // =========================== Quittung PDF ==========================
 // =================================================================== */
+/**
+ * PDF-Dokument für eine Event-Quittung (Spendenbeleg).
+ *
+ * Rendert eine A5-Querformat-Quittung mit Event-Bild, Spenderangaben
+ * und Betrag. Bei Neugenerierung einer bereits erstellten Quittung
+ * wird das Originaldatum beibehalten.
+ *
+ * @param props - Autoreninfo und Quittungsdaten.
+ */
 interface EventRecipePdfProps {
   authUser: AuthUser;
   receiptData: Receipt;
@@ -58,6 +67,11 @@ const EventReceiptPdf = ({receiptData, authUser}: EventRecipePdfProps) => {
 /* ===================================================================
 // ========================== Quittung Page ==========================
 // =================================================================== */
+/**
+ * Einzelne Seite der Quittung im A5-Querformat.
+ *
+ * @param props - Quittungsdaten, Zeitstempel und Autoreninfo.
+ */
 interface EventReceiptPdfPageProps {
   receiptData: Receipt;
   actualDate: Date;
@@ -108,6 +122,11 @@ const EventReceiptPdfPage = ({
 /* ===================================================================
 // =========================== Daten Block ===========================
 // =================================================================== */
+/**
+ * Datenblock der Quittung mit Event-Name, Datum, Spender und Betrag.
+ *
+ * @param props - Quittungsdaten.
+ */
 interface DataBlockProps {
   receiptData: Receipt;
 }
@@ -198,5 +217,5 @@ const DataBlock = ({receiptData}: DataBlockProps) => {
   );
 };
 
-const styles = StylesPdf.getPdfStyles();
+const styles = pdfStyles;
 export default EventReceiptPdf;

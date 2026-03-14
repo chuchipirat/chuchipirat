@@ -1,10 +1,9 @@
 import React from "react";
 import {Document, Page, View, Text} from "@react-pdf/renderer";
 import "../../Shared/pdfFontRegistration";
-// import Utils from "../Shared/utils.class";
 import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import StylesPdf from "../../../constants/stylesShoppingListPdf";
+import {pdfStyles} from "../../../constants/stylesShoppingListPdf";
 
 import {
   APP_NAME as TEXT_APP_NAME,
@@ -17,6 +16,12 @@ import {ShoppingListProperties} from "./shoppingListCollection.class";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
+
+/** Zahlenformat für Mengenangaben (Schweizer Locale, max. 3 signifikante Stellen). */
+const QUANTITY_FORMAT = new Intl.NumberFormat("de-CH", {
+  maximumSignificantDigits: 3,
+});
+
 // Anzahl Zeilen, die pro Seite platz haben
 const LINES_PER_PAGE = {
   FIRST: 31,
@@ -32,24 +37,28 @@ enum LineType {
   ITEM,
 }
 
-interface FormatedShoppingListPage {
+/** Seite der formatierten Einkaufsliste mit Steuerungsinformationen. */
+interface FormattedShoppingListPage {
   pageControl: PageControl;
-  list: FormatedShoppingListLine[];
+  list: FormattedShoppingListLine[];
 }
 
-interface FormatedShoppingListLine {
-  left: FormatedShoppingListItem | FormatedShoppingListDepartment | null;
-  right: FormatedShoppingListItem | FormatedShoppingListDepartment | null;
+/** Zeile der formatierten Einkaufsliste (linke + rechte Spalte). */
+interface FormattedShoppingListLine {
+  left: FormattedShoppingListItem | FormattedShoppingListDepartment | null;
+  right: FormattedShoppingListItem | FormattedShoppingListDepartment | null;
 }
 
-interface FormatedShoppingListItem {
+/** Einzelnes Produkt in der formatierten Einkaufsliste. */
+interface FormattedShoppingListItem {
   type: LineType.ITEM;
   checked: boolean;
   quantity: ShoppingListItem["quantity"];
   unit: ShoppingListItem["unit"];
   name: string;
 }
-interface FormatedShoppingListDepartment {
+/** Abteilungsüberschrift in der formatierten Einkaufsliste. */
+interface FormattedShoppingListDepartment {
   type: LineType.DEPARTMENT;
   name: string;
 }
@@ -62,8 +71,8 @@ interface FormatedShoppingListDepartment {
  * in der Render-Methode korrekt nebeneinander angezeigt werden, auch wenn
  * die Lese Richtung von unten-nach-oben ist.
  */
-class FormatedShoppingList {
-  pages: FormatedShoppingListPage[];
+class FormattedShoppingList {
+  pages: FormattedShoppingListPage[];
   actualPage: number;
 
   constructor(shoppingList: ShoppingList) {
@@ -142,7 +151,7 @@ class FormatedShoppingList {
       this.updatePageControl(pageControl);
       department.items.forEach((item) => {
         pageControl = this.pages[this.actualPage].pageControl;
-        let lineItem: FormatedShoppingListLine;
+        let lineItem: FormattedShoppingListLine;
         switch (pageControl.actualColum) {
           case Column.LEFT:
             this.pages[this.actualPage].list.push({
@@ -258,6 +267,15 @@ class PageControl {
 /* ===================================================================
 // ========================= PDF Einkaufsliste =======================
 // =================================================================== */
+/**
+ * PDF-Dokument für die Einkaufsliste.
+ *
+ * Rendert die Einkaufsliste als zweispaltiges, mehrseitiges PDF-Dokument.
+ * Die Einträge werden mit {@link FormattedShoppingList} für das zweispaltige
+ * Layout vorformatiert.
+ *
+ * @param props - Einkaufslistendaten, Event-Name und Autoreninfo.
+ */
 interface ShoppingListPdfProps {
   shoppingList: ShoppingList;
   shoppingListName: ShoppingListProperties["name"];
@@ -273,7 +291,7 @@ const ShoppingListPdf = ({
   authUser,
 }: ShoppingListPdfProps) => {
   const actualDate = new Date();
-  const formatedShoppingList = new FormatedShoppingList(shoppingList);
+  const formatedShoppingList = new FormattedShoppingList(shoppingList);
 
   return (
     <Document
@@ -300,10 +318,15 @@ const ShoppingListPdf = ({
 };
 
 /* ===================================================================
-// =========================== Rezept-Seite ==========================
+// =========================== Einkaufsliste-Seite ===================
 // =================================================================== */
+/**
+ * Einzelne Seite der Einkaufsliste im PDF.
+ *
+ * @param props - Formatierte Listenzeilen, Seitenmetadaten und Autoreninfo.
+ */
 interface ShoppingListPageProps {
-  shoppingList: FormatedShoppingListLine[];
+  shoppingList: FormattedShoppingListLine[];
   shoppingListName: ShoppingListProperties["name"];
   shoppingListSelectedTimeSlice: string;
   eventName: Event["name"];
@@ -340,6 +363,11 @@ const ShoppingListPage = ({
 /* ===================================================================
 // ============================== Titel ==============================
 // =================================================================== */
+/**
+ * Titelbereich der Einkaufsliste mit Name und Zeitraum.
+ *
+ * @param props - Listenname und ausgewählter Zeitabschnitt.
+ */
 interface ShoppingListTitleProps {
   shoppingListName: ShoppingListProperties["name"];
   shoppingListSelectedTimeSlice: string;
@@ -364,8 +392,13 @@ const ShoppingListTitle = ({
 /* ===================================================================
 // ============================ Item-Liste ===========================
 // =================================================================== */
+/**
+ * Zweispaltige Tabelle mit den Einkaufslistenpositionen.
+ *
+ * @param props - Formatierte Listenzeilen und Seitennummer.
+ */
 interface ShoppingListListProps {
-  shoppingList: FormatedShoppingListLine[];
+  shoppingList: FormattedShoppingListLine[];
   pageNumber: number;
 }
 const ShoppingListList = ({
@@ -418,9 +451,7 @@ const ShoppingListList = ({
                 >
                   {Number.isNaN(item.left?.quantity) || !item.left?.quantity
                     ? ""
-                    : new Intl.NumberFormat("de-CH", {
-                        maximumSignificantDigits: 3,
-                      }).format(item.left.quantity)}
+                    : QUANTITY_FORMAT.format(item.left.quantity)}
                 </Text>
               </View>
               <View
@@ -500,9 +531,7 @@ const ShoppingListList = ({
                 >
                   {Number.isNaN(item.right?.quantity) || !item.right?.quantity
                     ? ""
-                    : new Intl.NumberFormat("de-CH", {
-                        maximumSignificantDigits: 3,
-                      }).format(item.right?.quantity)}
+                    : QUANTITY_FORMAT.format(item.right?.quantity)}
                 </Text>
               </View>
               <View
@@ -551,4 +580,4 @@ const ShoppingListList = ({
 
 export default ShoppingListPdf;
 
-const styles = StylesPdf.getPdfStyles();
+const styles = pdfStyles;

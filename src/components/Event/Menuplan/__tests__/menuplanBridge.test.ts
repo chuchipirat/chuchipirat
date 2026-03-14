@@ -52,6 +52,7 @@ function buildDomain(
     menueProducts: [],
     menueMaterials: [],
     notes: [],
+    lastSavedAt: new Date(0),
     ...overrides,
   };
 }
@@ -812,6 +813,7 @@ describe("Round-Trip: domainToUi → uiToDomain", () => {
       notes: [
         {uid: "note-1", menueId: "menue-1", noteDate: "2026-03-08", text: "Tipp"},
       ],
+      lastSavedAt: new Date("2026-03-08T12:00:00Z"),
     };
 
     // Hin und zurück

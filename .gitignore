@@ -46,6 +46,7 @@ imageRepository.js
 .firebaserc
 
 # Testing
+docs/claude/manual-testcases.md
 jest_html_reporters.html
 /html-report
 mailTemplates/

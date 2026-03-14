@@ -1,10 +1,9 @@
 import React from "react";
 import {Document, Page, View, Text} from "@react-pdf/renderer";
 import "../../Shared/pdfFontRegistration";
-// import Utils from "../Shared/utils.class";
 import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import StylesPdf from "../../../constants/stylesMaterialListPdf";
+import {pdfStyles} from "../../../constants/stylesMaterialListPdf";
 
 import {
   APP_NAME as TEXT_APP_NAME,
@@ -14,9 +13,22 @@ import {
 import {Footer, Header} from "../../Shared/pdfComponents";
 import {MaterialListEntry, MaterialListMaterial} from "./materialList.class";
 import Utils from "../../Shared/utils.class";
+
+/** Zahlenformat für Mengenangaben (Schweizer Locale, max. 3 signifikante Stellen). */
+const QUANTITY_FORMAT = new Intl.NumberFormat("de-CH", {
+  maximumSignificantDigits: 3,
+});
 /* ===================================================================
-// ========================= PDF Einkaufsliste =======================
+// ========================= PDF Materialliste =======================
 // =================================================================== */
+/**
+ * PDF-Dokument für die Materialliste eines Events.
+ *
+ * Rendert eine einseitige Materialliste mit Mengenangaben, alphabetisch
+ * sortiert. Bereits abgehakte Positionen werden durchgestrichen dargestellt.
+ *
+ * @param props - Materiallistendaten, Zeitabschnitt, Event-Name und Autoreninfo.
+ */
 interface MaterialListPdfProps {
   materialList: MaterialListEntry;
   materialListSelectedTimeSlice: string;
@@ -51,8 +63,13 @@ const MaterialListPdf = ({
 };
 
 /* ===================================================================
-// =========================== Rezept-Seite ==========================
+// ========================= Materialliste-Seite =====================
 // =================================================================== */
+/**
+ * Einzelne Seite der Materialliste im PDF.
+ *
+ * @param props - Materiallistendaten, Zeitabschnitt, Zeitstempel und Autoreninfo.
+ */
 interface MaterialListPageProps {
   materialList: MaterialListEntry;
   materialListSelectedTimeSlice: string;
@@ -69,7 +86,7 @@ const MaterialListPage = ({
 }: MaterialListPageProps) => {
   return (
     <Page key={"page_" + materialList.properties.uid} style={styles.body}>
-      <Header text={eventName} uid={"mealRecipe.uid"} />
+      <Header text={eventName} uid={materialList.properties.uid} />
       <MaterialListTitle
         materialListName={materialList.properties.name}
         materialListSelectedTimeSlice={materialListSelectedTimeSlice}
@@ -87,6 +104,11 @@ const MaterialListPage = ({
 /* ===================================================================
 // ============================== Titel ==============================
 // =================================================================== */
+/**
+ * Titelbereich der Materialliste mit Name und Zeitraum.
+ *
+ * @param props - Listenname und ausgewählter Zeitabschnitt.
+ */
 interface MaterialListTitleProps {
   materialListName: MaterialListMaterial["name"];
   materialListSelectedTimeSlice: string;
@@ -111,6 +133,11 @@ const MaterialListTitle = ({
 /* ===================================================================
 // ============================ Item-Liste ===========================
 // =================================================================== */
+/**
+ * Tabelle mit den Materiallistenpositionen, alphabetisch sortiert.
+ *
+ * @param props - Materiallistendaten mit Positionen.
+ */
 interface MaterialListListProps {
   materialList: MaterialListEntry;
 }
@@ -137,9 +164,7 @@ const MaterialListList = ({materialList}: MaterialListListProps) => {
               >
                 {Number.isNaN(material.quantity) || !material.quantity
                   ? ""
-                  : new Intl.NumberFormat("de-CH", {
-                      maximumSignificantDigits: 3,
-                    }).format(material.quantity)}
+                  : QUANTITY_FORMAT.format(material.quantity)}
               </Text>
             </View>
             <View style={styles.tableCol5} key={"materialBlockSpacer" + line} />
@@ -168,4 +193,4 @@ const MaterialListList = ({materialList}: MaterialListListProps) => {
 
 export default MaterialListPdf;
 
-const styles = StylesPdf.getPdfStyles();
+const styles = pdfStyles;

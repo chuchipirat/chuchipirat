@@ -552,6 +552,10 @@ const useShoppingListDialogs = ({
 
   const onListElementDelete = React.useCallback(
     async (actionEvent: React.MouseEvent<HTMLElement>) => {
+      // Propagation stoppen, damit der Klick nicht zum ListItemButton
+      // durchblubbered und onListElementSelect auslöst.
+      actionEvent.stopPropagation();
+
       const selectedList = actionEvent.currentTarget.dataset.uid;
 
       if (!selectedList) {
@@ -590,6 +594,9 @@ const useShoppingListDialogs = ({
 
   const onListElementEdit = React.useCallback(
     async (actionEvent: React.MouseEvent<HTMLElement>) => {
+      // Propagation stoppen (gleicher Grund wie bei onListElementDelete).
+      actionEvent.stopPropagation();
+
       const selectedListUid = actionEvent.currentTarget.dataset.uid;
       if (!selectedListUid) {
         return;

@@ -525,7 +525,8 @@ export const DIALOG_INFO_DIET_PROPERTIES =
 export const UNIT_CREATED = (unit: string) => {
   return `Einheit «${unit}» wurde angelegt.`;
 };
-export const UNIT_DELETED = (unit: string) => `Einheit «${unit}» wurde gelöscht.`;
+export const UNIT_DELETED = (unit: string) =>
+  `Einheit «${unit}» wurde gelöscht.`;
 export const UNIT_CONVERSION_BASIC_CREATED =
   "Basic-Einheit Umrechnung wurde angelegt.";
 export const UNIT_CONVERSION_PRODUCT_CREATED = (product: string) => {
@@ -609,8 +610,7 @@ export const FACTOR_TOOLTIP =
 export const YOUR_SELECTION_MAKES_X_SERVINGS = "Deine Auswahl ergibt:";
 export const BACK = "zurück";
 export const PLEASE_PROVIDE_VALID_FACTOR = "Faktor ungültig";
-export const QUANTITY_MUST_BE_POSITIVE =
-  "Die Menge muss grösser als 0 sein.";
+export const QUANTITY_MUST_BE_POSITIVE = "Die Menge muss grösser als 0 sein.";
 export const QUANTITY_TOO_LARGE =
   "Die Menge darf höchstens 99\u2009999 betragen.";
 export const FACTOR_TOO_LARGE = "Der Faktor darf höchstens 100 betragen.";
@@ -740,8 +740,7 @@ export const SIGN_IN_EMAIL_NOT_CONFIRMED_TITLE =
   "E-Mail-Adresse nicht bestätigt";
 export const SIGN_IN_EMAIL_NOT_CONFIRMED_TEXT =
   "Deine E-Mail-Adresse wurde noch nicht bestätigt. Bitte prüfe dein Postfach (auch den Spam-Ordner) und klicke auf den Bestätigungslink.";
-export const RESEND_CONFIRMATION_EMAIL =
-  "Bestätigungs-E-Mail erneut senden";
+export const RESEND_CONFIRMATION_EMAIL = "Bestätigungs-E-Mail erneut senden";
 export const RESEND_CONFIRMATION_EMAIL_SUCCESS =
   "Die Bestätigungs-E-Mail wurde erneut gesendet. Bitte prüfe dein Postfach (auch den Spam-Ordner).";
 export const NO_AUTH_REDIRECT_TO_HOME =
@@ -1195,8 +1194,7 @@ export const AUTH_SERVICE_HANLDER_NO_MODE_TITLE = "Link nicht erkannt";
 export const AUTH_SERVICE_HANLDER_NO_MODE_SUBTITLE =
   "Hmmm, was ist denn hier los?";
 export const AUTH_SERVICE_HANDLER_EXPIRED_LINK_TITLE = "Link abgelaufen";
-export const AUTH_SERVICE_HANDLER_EXPIRED_LINK_SUBTITLE =
-  "Ups, zu spät dran!";
+export const AUTH_SERVICE_HANDLER_EXPIRED_LINK_SUBTITLE = "Ups, zu spät dran!";
 export const AUTH_SERVICE_HANDLER_EXPIRED_LINK_TEXT =
   "Der Link ist abgelaufen oder wurde bereits verwendet. Bitte fordere über die Anmeldeseite einen neuen Link an.";
 export const LOG = "Log";
@@ -1323,6 +1321,12 @@ export const UNIT_FROM = "Einheit Von";
 export const UNIT_TO = "Einheit Nach";
 export const NEW_LIST = "Neue Liste";
 export const GIVE_THE_NEW_LIST_A_NAME = "Gib dieser Liste einen Namen.";
+export const DRIFT_DETECTED_TITLE = "Menüplan-Änderung erkannt";
+export const DRIFT_DETECTED_DESCRIPTION =
+  "Die ausgewählten Menüs wurden im Menüplan auf andere Tage/Mahlzeiten verschoben. " +
+  "Möchtest du die ursprünglichen Tage beibehalten oder die aktuellen Menüpositionen übernehmen?";
+export const KEEP_ORIGINAL_DAYS = "Ursprüngliche Tage";
+export const FOLLOW_CURRENT_MENUES = "Gewählte Menüs";
 export const GIVE_THE_NEW_SHOPPINGLIST_A_NAME =
   "Gib dieser Einkaufsliste einen Namen.";
 export const CHANGE = "Ändern";

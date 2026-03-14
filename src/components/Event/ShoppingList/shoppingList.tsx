@@ -358,6 +358,13 @@ const EventShoppingListPage = ({
           result,
           event.name + " " + TEXT_SHOPPING_LIST + TEXT_SUFFIX_PDF,
         );
+      })
+      .catch((error) => {
+        console.error("PDF generation failed:", error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   }, [onGeneratePrintVersion, shoppingList, event.name, authUser]);
 

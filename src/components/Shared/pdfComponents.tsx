@@ -1,6 +1,6 @@
 import React from "react";
 
-import StylesPdf from "../../constants/stylesGeneralPdf";
+import {pdfStyles} from "../../constants/stylesGeneralPdf";
 
 import {Text, Image} from "@react-pdf/renderer";
 import AuthUser from "../Firebase/Authentication/authUser.class";
@@ -15,12 +15,20 @@ import {ImageRepository} from "../../constants/imageRepository";
 /* ===================================================================
 // ============================ Kopfzeile ============================
 // =================================================================== */
+/**
+ * Gemeinsame Kopfzeile für alle PDF-Dokumente.
+ *
+ * Zeigt den Event- oder Dokumentnamen zentriert am oberen Seitenrand an.
+ *
+ * @param props.text - Anzeigetext (z.B. Event-Name).
+ * @param props.uid - Eindeutiger Key-Suffix für React-Elemente.
+ */
 interface HeaderProps {
   text: string;
   uid: string;
 }
 export const Header = ({text, uid}: HeaderProps) => {
-  const styles = StylesPdf.getPdfStyles();
+  const styles = pdfStyles;
 
   return (
     <Text key={"pageHeader_" + uid} style={styles.header} fixed>
@@ -33,6 +41,17 @@ export const Header = ({text, uid}: HeaderProps) => {
 /* ===================================================================
 // ============================ Fusszeile ============================
 // =================================================================== */
+/**
+ * Gemeinsame Fusszeile für alle PDF-Dokumente.
+ *
+ * Enthält Generierungsdatum, Autorenname, Seitenzahlen, App-Name
+ * und optional das Chuchipirat-Logo.
+ *
+ * @param props.uid - Eindeutiger Key-Suffix für React-Elemente.
+ * @param props.actualDate - Zeitstempel der PDF-Generierung.
+ * @param props.authUser - Aktueller Benutzer (für Anzeigename).
+ * @param props.showLogo - Logo in der Fusszeile anzeigen (Standard: true).
+ */
 interface FooterProps {
   uid: string;
   actualDate: Date;
@@ -45,7 +64,7 @@ export const Footer = ({
   authUser,
   showLogo = true,
 }: FooterProps) => {
-  const styles = StylesPdf.getPdfStyles();
+  const styles = pdfStyles;
   return (
     <React.Fragment>
       <Text
@@ -73,7 +92,9 @@ export const Footer = ({
       <Text
         key={"pageFooter_pages_" + uid}
         style={styles.pageNumber}
-        render={({pageNumber, totalPages}) => `${pageNumber} / ${totalPages}`}
+        render={(renderProps) =>
+          `${renderProps?.pageNumber ?? 0} / ${renderProps?.totalPages ?? 0}`
+        }
         fixed
       />
       <Text key={"pageFooter_appName_" + uid} style={styles.chuchipirat} fixed>

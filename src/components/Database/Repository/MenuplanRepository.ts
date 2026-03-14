@@ -362,6 +362,8 @@ export interface MenuplanDomain {
   menueProducts: MenueProductDomain[];
   menueMaterials: MenueMaterialDomain[];
   notes: NoteDomain[];
+  /** Zeitpunkt der letzten Menuplan-Speicherung (MAX created_at aus event_meal_types). */
+  lastSavedAt: Date;
 }
 
 /* =====================================================================
@@ -414,6 +416,7 @@ export class MenuplanRepository extends BaseRepository<
       menueProducts: [],
       menueMaterials: [],
       notes: [],
+      lastSavedAt: new Date(0),
     };
   }
 
@@ -460,6 +463,7 @@ export class MenuplanRepository extends BaseRepository<
       menueMaterialsResult,
       notesResult,
       plansResult,
+      trackingResult,
     ] = await Promise.all([
       this.client
         .from("event_meal_types")
@@ -496,6 +500,11 @@ export class MenuplanRepository extends BaseRepository<
         .from("event_menuplan_item_plans")
         .select("*")
         .eq("event_id", eventId),
+      this.client
+        .from("event_menuplan_tracking")
+        .select("updated_at")
+        .eq("event_id", eventId)
+        .maybeSingle(),
     ]);
 
     if (mealTypesResult.error) throw mealTypesResult.error;
@@ -506,6 +515,7 @@ export class MenuplanRepository extends BaseRepository<
     if (menueMaterialsResult.error) throw menueMaterialsResult.error;
     if (notesResult.error) throw notesResult.error;
     if (plansResult.error) throw plansResult.error;
+    if (trackingResult.error) throw trackingResult.error;
 
     // Plan-Zeilen nach Item-Typ gruppieren für effizientes Lookup
     const allPlanRows = (plansResult.data ?? []) as ItemPlanRow[];
@@ -577,9 +587,16 @@ export class MenuplanRepository extends BaseRepository<
       plans: plansByMaterialId.get(row.id) ?? [],
     }));
 
+    // lastSavedAt aus der event_menuplan_tracking-Tabelle lesen.
+    const trackingRow = trackingResult.data as {updated_at: string} | null;
+    const lastSavedAt = trackingRow
+      ? new Date(trackingRow.updated_at)
+      : new Date(0);
+    const mealTypeRows = (mealTypesResult.data ?? []) as MealTypeRow[];
+
     return {
       eventId,
-      mealTypes: ((mealTypesResult.data ?? []) as MealTypeRow[]).map((row) => ({
+      mealTypes: mealTypeRows.map((row) => ({
         uid: row.id,
         name: row.name,
         sortOrder: row.sort_order,
@@ -604,6 +621,7 @@ export class MenuplanRepository extends BaseRepository<
         noteDate: row.note_date,
         text: row.text,
       })),
+      lastSavedAt,
     };
   }
 
@@ -808,6 +826,13 @@ export class MenuplanRepository extends BaseRepository<
       .insert(menueRows);
 
     if (menueError) throw menueError;
+
+    // Tracking-Zeile für den Menuplan erstellen
+    const {error: trackingError} = await this.client
+      .from("event_menuplan_tracking")
+      .insert({event_id: eventId});
+
+    if (trackingError) throw trackingError;
 
     return mealTypeIds;
   }
@@ -1374,6 +1399,11 @@ export class MenuplanRepository extends BaseRepository<
   menuplanDomainToUi(domain: MenuplanDomain, eventUid: string): MenuplanData {
     const menuplan = createEmptyMenuplan();
     menuplan.uid = eventUid;
+    menuplan.lastChange = {
+      date: domain.lastSavedAt,
+      fromUid: "",
+      fromDisplayName: "",
+    };
 
     // MealTypes: sortiert nach sortOrder in entries-Map und order-Array
     const sortedMealTypes = [...domain.mealTypes].sort(
@@ -1679,6 +1709,7 @@ export class MenuplanRepository extends BaseRepository<
       menueProducts,
       menueMaterials,
       notes,
+      lastSavedAt: menuplan.lastChange.date,
     };
   }
 }

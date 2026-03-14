@@ -20,7 +20,7 @@ import {
   Menue,
   MenuplanData,
 } from "../Menuplan/menuplan.types";
-import {getMealsOfMenues} from "../Menuplan/menuplanService";
+import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 import {UsedRecipeListDomain} from "../../Database/Repository/UsedRecipeListRepository";
 
 import {ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND} from "../../../constants/text";
@@ -72,6 +72,19 @@ export interface ListProperties {
 interface _DefineSelectedRecipes {
   menueplan: MenuplanData;
   selectedMenues: string[];
+}
+
+/**
+ * Ergebnis der Drift-Erkennung.
+ *
+ * @param hasDrift - true, wenn Menüs im Menüplan verschoben wurden
+ * @param currentMealsFromMenues - Aktuelle Meals, abgeleitet aus den gespeicherten Menüs
+ * @param currentMenuesFromMeals - Aktuelle Menüs, abgeleitet aus den gespeicherten Meals
+ */
+export interface DriftDetectionResult {
+  hasDrift: boolean;
+  currentMealsFromMenues: string[];
+  currentMenuesFromMeals: string[];
 }
 
 /**
@@ -134,14 +147,15 @@ export default class UsedRecipes {
    * Erstellt ein UsedRecipes-Objekt aus Supabase-Domain-Listen.
    *
    * Konvertiert `UsedRecipeListDomain[]` in die UI-erwartete Struktur.
-   * `selectedMeals` wird aus `selectedMenues` abgeleitet, damit
-   * `EventListCard.decodeSelectedMeals()` korrekt funktioniert.
+   * `selectedMeals` wird aus der persistierten Meal-Auswahl übernommen.
+   * Fallback: Wenn `selectedMeals` leer ist (Pre-Migration-Listen), werden
+   * die Meals aus den Menüs abgeleitet (Backfill-Pfad).
    * Rezepte (`recipes`) bleiben leer — sie werden bei Bedarf per
    * Repository + RPC geladen.
    *
    * @param lists - Array der Domain-Listen aus dem Repository
    * @param eventUid - UID des Events
-   * @param menuplan - Menüplan-Daten (für selectedMeals-Ableitung)
+   * @param menuplan - Menüplan-Daten (für Backfill-Ableitung)
    * @returns UsedRecipes-Instanz mit allen Listen (ohne Rezepte)
    */
   static fromDomainLists({
@@ -158,14 +172,17 @@ export default class UsedRecipes {
     usedRecipes.noOfLists = lists.length;
 
     for (const list of lists) {
+      // Persistierte Meals verwenden; Fallback auf Ableitung für Pre-Migration-Listen
+      const selectedMeals =
+        list.selectedMeals.length > 0
+          ? list.selectedMeals
+          : getMealsOfMenues({menuplan, menues: list.selectedMenues});
+
       usedRecipes.lists[list.id] = {
         properties: {
           uid: list.id,
           name: list.name,
-          selectedMeals: getMealsOfMenues({
-            menuplan,
-            menues: list.selectedMenues,
-          }),
+          selectedMeals,
           selectedMenues: list.selectedMenues,
           generated: {
             date: list.updatedAt,
@@ -178,6 +195,43 @@ export default class UsedRecipes {
     }
 
     return usedRecipes;
+  }
+
+  /* =====================================================================
+  // Drift-Erkennung
+  // ===================================================================== */
+  /**
+   * Erkennt, ob Menüs im Menüplan zwischen Tagen/Mahlzeiten verschoben wurden.
+   *
+   * Vergleicht die gespeicherten Meals mit den aktuell aus den Menüs abgeleiteten
+   * Meals. Drift liegt vor, wenn:
+   * 1. Die Meals nicht mehr übereinstimmen (Menüs wurden verschoben)
+   * 2. Die Anzahl Menüs sich ändert (neue Menüs in den Meals oder Menüs entfernt)
+   *
+   * @param selectedMeals - Gespeicherte Meal-IDs
+   * @param selectedMenues - Gespeicherte Menü-IDs
+   * @param menuplan - Aktueller Menüplan
+   * @returns Ergebnis der Drift-Erkennung
+   */
+  static detectDrift(
+    selectedMeals: Meal["uid"][],
+    selectedMenues: Menue["uid"][],
+    menuplan: MenuplanData,
+  ): DriftDetectionResult {
+    const currentMealsFromMenues = getMealsOfMenues({
+      menuplan,
+      menues: selectedMenues,
+    });
+    const currentMenuesFromMeals = getMenuesOfMeals({
+      menuplan,
+      meals: selectedMeals,
+    });
+
+    const hasDrift =
+      !Utils.areStringArraysEqual(selectedMeals, currentMealsFromMenues) ||
+      selectedMenues.length !== currentMenuesFromMeals.length;
+
+    return {hasDrift, currentMealsFromMenues, currentMenuesFromMeals};
   }
 
   /* =====================================================================

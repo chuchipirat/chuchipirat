@@ -10,6 +10,7 @@
 import UsedRecipes from "../usedRecipes.class";
 import {MenuplanData, MealRecipeDeletedPrefix} from "../../Menuplan/menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
+import {UsedRecipeListDomain} from "../../../Database/Repository/UsedRecipeListRepository";
 
 /* =====================================================================
 // Test-Daten
@@ -22,9 +23,25 @@ import {RecipeType} from "../../../Recipe/recipe.class";
 const createTestMenuplan = (): MenuplanData => {
   return {
     uid: "event-001",
-    dates: [new Date("2026-03-15")],
+    dates: [new Date("2026-03-15"), new Date("2026-03-16")],
     mealTypes: {entries: {}, order: []},
-    meals: {},
+    meals: {
+      "meal-001": {
+        uid: "meal-001",
+        mealDate: new Date("2026-03-15"),
+        menuOrder: ["menue-001"],
+      },
+      "meal-002": {
+        uid: "meal-002",
+        mealDate: new Date("2026-03-16"),
+        menuOrder: ["menue-002"],
+      },
+      "meal-003": {
+        uid: "meal-003",
+        mealDate: new Date("2026-03-15"),
+        menuOrder: ["menue-empty"],
+      },
+    } as any,
     menues: {
       "menue-001": {
         uid: "menue-001",
@@ -270,6 +287,157 @@ describe("UsedRecipes", () => {
 
       expect(result.lists["list-1"].properties.name).toBe("Neuer Name");
       expect(usedRecipes.lists["list-1"].properties.name).toBe("Alter Name");
+    });
+  });
+
+  /* =====================================================================
+  // detectDrift
+  // ===================================================================== */
+  describe("detectDrift", () => {
+    it("should report no drift when meals match derived meals", () => {
+      const menuplan = createTestMenuplan();
+
+      // menue-001 gehört zu meal-001 → korrekte Zuordnung
+      const result = UsedRecipes.detectDrift(
+        ["meal-001"],
+        ["menue-001"],
+        menuplan,
+      );
+
+      expect(result.hasDrift).toBe(false);
+    });
+
+    it("should detect drift when menues moved to different meals", () => {
+      const menuplan = createTestMenuplan();
+
+      // Gespeichert: menue-001 war in meal-002
+      // Aktuell: menue-001 ist in meal-001 → Meals stimmen nicht überein
+      const result = UsedRecipes.detectDrift(
+        ["meal-002"],
+        ["menue-001"],
+        menuplan,
+      );
+
+      expect(result.hasDrift).toBe(true);
+      expect(result.currentMealsFromMenues).toEqual(["meal-001"]);
+      expect(result.currentMenuesFromMeals).toEqual(["menue-002"]);
+    });
+
+    it("should detect drift when menue count changes after re-derivation", () => {
+      const menuplan = createTestMenuplan();
+
+      // Meal-001 hat jetzt 2 Menüs, aber wir haben nur 1 gespeichert
+      (menuplan.meals as any)["meal-001"].menuOrder = [
+        "menue-001",
+        "menue-002",
+      ];
+
+      const result = UsedRecipes.detectDrift(
+        ["meal-001"],
+        ["menue-001"],
+        menuplan,
+      );
+
+      // selectedMenues.length (1) !== getMenuesOfMeals(["meal-001"]).length (2)
+      expect(result.hasDrift).toBe(true);
+    });
+
+    it("should report no drift for multiple menues in correct meals", () => {
+      const menuplan = createTestMenuplan();
+
+      const result = UsedRecipes.detectDrift(
+        ["meal-001", "meal-002"],
+        ["menue-001", "menue-002"],
+        menuplan,
+      );
+
+      expect(result.hasDrift).toBe(false);
+    });
+  });
+
+  /* =====================================================================
+  // fromDomainLists
+  // ===================================================================== */
+  describe("fromDomainLists", () => {
+    it("should use persisted selectedMeals when available", () => {
+      const menuplan = createTestMenuplan();
+      const lists: UsedRecipeListDomain[] = [
+        {
+          id: "list-001",
+          eventId: "event-001",
+          name: "Test",
+          selectedMenues: ["menue-001"],
+          selectedMeals: ["meal-099"], // Absichtlich abweichend
+          updatedAt: new Date(),
+        },
+      ];
+
+      const result = UsedRecipes.fromDomainLists({
+        lists,
+        eventUid: "event-001",
+        menuplan,
+      });
+
+      // Persistierte Meals sollen verwendet werden (nicht abgeleitet)
+      expect(result.lists["list-001"].properties.selectedMeals).toEqual([
+        "meal-099",
+      ]);
+    });
+
+    it("should fall back to derivation when selectedMeals is empty", () => {
+      const menuplan = createTestMenuplan();
+      const lists: UsedRecipeListDomain[] = [
+        {
+          id: "list-001",
+          eventId: "event-001",
+          name: "Test",
+          selectedMenues: ["menue-001"],
+          selectedMeals: [], // Leer → Pre-Migration-Liste
+          updatedAt: new Date(),
+        },
+      ];
+
+      const result = UsedRecipes.fromDomainLists({
+        lists,
+        eventUid: "event-001",
+        menuplan,
+      });
+
+      // Meals aus Menüs abgeleitet: menue-001 → meal-001
+      expect(result.lists["list-001"].properties.selectedMeals).toEqual([
+        "meal-001",
+      ]);
+    });
+
+    it("should set correct noOfLists and uid", () => {
+      const menuplan = createTestMenuplan();
+      const lists: UsedRecipeListDomain[] = [
+        {
+          id: "list-001",
+          eventId: "event-001",
+          name: "A",
+          selectedMenues: [],
+          selectedMeals: [],
+          updatedAt: new Date(),
+        },
+        {
+          id: "list-002",
+          eventId: "event-001",
+          name: "B",
+          selectedMenues: [],
+          selectedMeals: [],
+          updatedAt: new Date(),
+        },
+      ];
+
+      const result = UsedRecipes.fromDomainLists({
+        lists,
+        eventUid: "event-001",
+        menuplan,
+      });
+
+      expect(result.uid).toBe("event-001");
+      expect(result.noOfLists).toBe(2);
     });
   });
 
