@@ -20,6 +20,7 @@ import {EventRepository} from "./Repository/EventRepository";
 import {EventGroupConfigRepository} from "./Repository/EventGroupConfigRepository";
 import {MenuplanRepository} from "./Repository/MenuplanRepository";
 import {UsedRecipeListRepository} from "./Repository/UsedRecipeListRepository";
+import {ShoppingListRepository} from "./Repository/ShoppingListRepository";
 import {supabaseAdmin} from "./supabaseClient";
 
 /* =====================================================================
@@ -57,6 +58,7 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property eventGroupConfig - Repository für die Gruppenconfig eines Events
  * @property menuplan - Repository für den Menuplan eines Events
  * @property usedRecipeLists - Repository für benannte Rezeptlisten eines Events
+ * @property shoppingLists - Repository für Einkaufslisten eines Events
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
  * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
  *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
@@ -83,6 +85,7 @@ export class DatabaseService {
   eventGroupConfig: EventGroupConfigRepository;
   menuplan: MenuplanRepository;
   usedRecipeLists: UsedRecipeListRepository;
+  shoppingLists: ShoppingListRepository;
   storage: {users: UserStorageRepository; events: EventStorageRepository};
   admin: {
     users: UserRepository;
@@ -104,6 +107,7 @@ export class DatabaseService {
     eventGroupConfig: EventGroupConfigRepository;
     menuplan: MenuplanRepository;
     usedRecipeLists: UsedRecipeListRepository;
+    shoppingLists: ShoppingListRepository;
     storage: {users: UserStorageRepository; events: EventStorageRepository};
   } | null;
 
@@ -128,6 +132,7 @@ export class DatabaseService {
     this.eventGroupConfig = new EventGroupConfigRepository();
     this.menuplan = new MenuplanRepository();
     this.usedRecipeLists = new UsedRecipeListRepository();
+    this.shoppingLists = new ShoppingListRepository();
     this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
     this.admin = supabaseAdmin
       ? {
@@ -150,6 +155,7 @@ export class DatabaseService {
           eventGroupConfig: new EventGroupConfigRepository(supabaseAdmin),
           menuplan: new MenuplanRepository(supabaseAdmin),
           usedRecipeLists: new UsedRecipeListRepository(supabaseAdmin),
+          shoppingLists: new ShoppingListRepository(supabaseAdmin),
           storage: {users: new UserStorageRepository(supabaseAdmin), events: new EventStorageRepository(supabaseAdmin)},
         }
       : null;

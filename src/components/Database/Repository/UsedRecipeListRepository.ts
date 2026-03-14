@@ -1,8 +1,8 @@
 /**
  * UsedRecipeListRepository — Repository für benannte Rezeptlisten eines Events.
  *
- * Verwaltet die Tabellen `event_used_recipe_lists` (Kopfdaten) und
- * `event_used_recipe_list_menues` (Menü-Auswahl). Rezepte werden nicht
+ * Verwaltet die Tabelle `event_used_recipe_lists` mit TEXT[]-Spalten für
+ * Menü- und Meal-Auswahl (keine Junction-Tabellen). Rezepte werden nicht
  * gespeichert, sondern per RPC-Funktion `get_used_recipe_list_recipes`
  * aus dem Menuplan abgeleitet.
  *
@@ -23,39 +23,30 @@ import {
 
 /**
  * Datenbank-Zeilentyp für event_used_recipe_lists.
+ *
+ * @param id - Primärschlüssel
+ * @param event_id - FK auf events
+ * @param name - Anzeigename der Liste
+ * @param selected_menue_ids - Ausgewählte Menü-IDs als TEXT[]
+ * @param selected_meal_ids - Ausgewählte Meal-IDs als TEXT[] (Drift-Erkennung)
+ * @param firebase_uid - Firebase-UID (nur für Migration)
+ * @param created_at - Erstellungszeitpunkt
+ * @param created_by - Ersteller (UUID)
+ * @param updated_at - Letzter Änderungszeitpunkt
+ * @param updated_by - Letzter Änderer (UUID)
  */
 export interface UsedRecipeListRow {
   [key: string]: unknown;
   id: string;
   event_id: string;
   name: string;
+  selected_menue_ids: string[];
+  selected_meal_ids: string[];
   firebase_uid: string | null;
   created_at: string;
   created_by: string | null;
   updated_at: string;
   updated_by: string | null;
-}
-
-/**
- * Datenbank-Zeilentyp für event_used_recipe_list_menues.
- * Audit-Spalten entfernt — Tracking erfolgt über event_menuplan_tracking.
- */
-export interface UsedRecipeListMenueRow {
-  [key: string]: unknown;
-  id: string;
-  list_id: string;
-  menue_id: string;
-}
-
-/**
- * Datenbank-Zeilentyp für event_used_recipe_list_meals.
- * Audit-Spalten entfernt — Tracking erfolgt über event_menuplan_tracking.
- */
-export interface UsedRecipeListMealRow {
-  [key: string]: unknown;
-  id: string;
-  list_id: string;
-  meal_id: string;
 }
 
 /**
@@ -82,6 +73,7 @@ export interface UsedRecipeListRecipeRow {
  * @param name - Anzeigename der Liste (z.B. "Samstagsrezepte")
  * @param selectedMenues - Array der ausgewählten Menü-IDs
  * @param selectedMeals - Array der ausgewählten Meal-IDs (für Drift-Erkennung)
+ * @param updatedAt - Zeitstempel der letzten Aktualisierung
  */
 export interface UsedRecipeListDomain {
   id: string;
@@ -118,8 +110,7 @@ export interface UsedRecipeListRecipe {
 // ===================================================================== */
 
 /**
- * Dummy-Zeilentyp — UsedRecipeListRepository verwaltet zwei Tabellen,
- * daher ist der generische TRow-Parameter nicht direkt nutzbar.
+ * Dummy-Zeilentyp — UsedRecipeListRepository verwendet eigene Query-Methoden.
  */
 interface UsedRecipeListDummyRow {
   [key: string]: unknown;
@@ -133,9 +124,9 @@ interface UsedRecipeListDummyRow {
 /**
  * Repository für benannte Rezeptlisten eines Events.
  *
- * Verwaltet `event_used_recipe_lists` und `event_used_recipe_list_menues`.
- * Die Rezepte werden per RPC-Funktion aus dem Menuplan abgeleitet und
- * nicht redundant gespeichert.
+ * Verwaltet `event_used_recipe_lists` mit TEXT[]-Arrays für die Menü-
+ * und Meal-Auswahl. Die Rezepte werden per RPC-Funktion aus dem
+ * Menuplan abgeleitet und nicht redundant gespeichert.
  */
 export class UsedRecipeListRepository extends BaseRepository<
   UsedRecipeListDomain,
@@ -173,61 +164,28 @@ export class UsedRecipeListRepository extends BaseRepository<
   // Listen für ein Event laden
   // ===================================================================== */
   /**
-   * Lädt alle Rezeptlisten eines Events inklusive der Menü-Auswahl.
+   * Lädt alle Rezeptlisten eines Events inklusive Menü- und Meal-Auswahl.
+   * Menüs und Meals werden direkt aus den TEXT[]-Spalten gelesen.
    *
    * @param eventId - Die ID des Events
-   * @returns Array aller Listen mit ihren ausgewählten Menüs
+   * @returns Array aller Listen mit ihren ausgewählten Menüs und Meals
    */
   async getListsForEvent(eventId: string): Promise<UsedRecipeListDomain[]> {
-    // Listen laden
-    const {data: listRows, error: listError} = await this.client
+    const {data: listRows, error} = await this.client
       .from("event_used_recipe_lists")
       .select("*")
       .eq("event_id", eventId)
       .order("created_at");
 
-    if (listError) throw listError;
+    if (error) throw error;
     if (!listRows || listRows.length === 0) return [];
-
-    const listIds = (listRows as UsedRecipeListRow[]).map((row) => row.id);
-
-    // Menü- und Meal-Zuordnungen parallel laden
-    const [menueResult, mealResult] = await Promise.all([
-      this.client
-        .from("event_used_recipe_list_menues")
-        .select("*")
-        .in("list_id", listIds),
-      this.client
-        .from("event_used_recipe_list_meals")
-        .select("*")
-        .in("list_id", listIds),
-    ]);
-
-    if (menueResult.error) throw menueResult.error;
-    if (mealResult.error) throw mealResult.error;
-
-    // Menüs nach list_id gruppieren
-    const menuesByListId = new Map<string, string[]>();
-    for (const row of (menueResult.data ?? []) as UsedRecipeListMenueRow[]) {
-      const existing = menuesByListId.get(row.list_id) ?? [];
-      existing.push(row.menue_id);
-      menuesByListId.set(row.list_id, existing);
-    }
-
-    // Meals nach list_id gruppieren
-    const mealsByListId = new Map<string, string[]>();
-    for (const row of (mealResult.data ?? []) as UsedRecipeListMealRow[]) {
-      const existing = mealsByListId.get(row.list_id) ?? [];
-      existing.push(row.meal_id);
-      mealsByListId.set(row.list_id, existing);
-    }
 
     return (listRows as UsedRecipeListRow[]).map((row) => ({
       id: row.id,
       eventId: row.event_id,
       name: row.name,
-      selectedMenues: menuesByListId.get(row.id) ?? [],
-      selectedMeals: mealsByListId.get(row.id) ?? [],
+      selectedMenues: row.selected_menue_ids ?? [],
+      selectedMeals: row.selected_meal_ids ?? [],
       updatedAt: new Date(row.updated_at),
     }));
   }
@@ -236,7 +194,7 @@ export class UsedRecipeListRepository extends BaseRepository<
   // Neue Liste erstellen
   // ===================================================================== */
   /**
-   * Erstellt eine neue Rezeptliste mit Menü- und Meal-Auswahl.
+   * Erstellt eine neue Rezeptliste mit Menü- und Meal-Auswahl als TEXT[].
    *
    * @param eventId - Die ID des Events
    * @param name - Anzeigename der Liste
@@ -250,48 +208,26 @@ export class UsedRecipeListRepository extends BaseRepository<
     menueIds: string[],
     mealIds: string[] = [],
   ): Promise<UsedRecipeListDomain> {
-    // Kopfzeile einfügen
-    const {data: listRow, error: listError} = await this.client
+    const {data: listRow, error} = await this.client
       .from("event_used_recipe_lists")
-      .insert({event_id: eventId, name})
+      .insert({
+        event_id: eventId,
+        name,
+        selected_menue_ids: menueIds,
+        selected_meal_ids: mealIds,
+      })
       .select("*")
       .single();
 
-    if (listError) throw listError;
+    if (error) throw error;
     const list = listRow as UsedRecipeListRow;
-
-    // Menü-Zuordnungen einfügen
-    if (menueIds.length > 0) {
-      const menueRows = menueIds.map((menueId) => ({
-        list_id: list.id,
-        menue_id: menueId,
-      }));
-      const {error: menueError} = await this.client
-        .from("event_used_recipe_list_menues")
-        .insert(menueRows);
-
-      if (menueError) throw menueError;
-    }
-
-    // Meal-Zuordnungen einfügen
-    if (mealIds.length > 0) {
-      const mealRows = mealIds.map((mealId) => ({
-        list_id: list.id,
-        meal_id: mealId,
-      }));
-      const {error: mealError} = await this.client
-        .from("event_used_recipe_list_meals")
-        .insert(mealRows);
-
-      if (mealError) throw mealError;
-    }
 
     return {
       id: list.id,
       eventId: list.event_id,
       name: list.name,
-      selectedMenues: menueIds,
-      selectedMeals: mealIds,
+      selectedMenues: list.selected_menue_ids ?? [],
+      selectedMeals: list.selected_meal_ids ?? [],
       updatedAt: new Date(list.updated_at),
     };
   }
@@ -315,10 +251,10 @@ export class UsedRecipeListRepository extends BaseRepository<
   }
 
   /* =====================================================================
-  // Menü-Auswahl aktualisieren (vollständiger Ersatz)
+  // Menü-Auswahl aktualisieren
   // ===================================================================== */
   /**
-   * Ersetzt die Menü-Auswahl einer Liste komplett (delete-all + re-insert).
+   * Aktualisiert die Menü-Auswahl einer Liste (einfacher Array-Update).
    *
    * @param listId - Die ID der Liste
    * @param menueIds - Die neuen Menü-IDs
@@ -327,33 +263,19 @@ export class UsedRecipeListRepository extends BaseRepository<
     listId: string,
     menueIds: string[],
   ): Promise<void> {
-    // Alle bestehenden Zuordnungen löschen
-    const {error: deleteError} = await this.client
-      .from("event_used_recipe_list_menues")
-      .delete()
-      .eq("list_id", listId);
+    const {error} = await this.client
+      .from("event_used_recipe_lists")
+      .update({selected_menue_ids: menueIds})
+      .eq("id", listId);
 
-    if (deleteError) throw deleteError;
-
-    // Neue Zuordnungen einfügen
-    if (menueIds.length > 0) {
-      const menueRows = menueIds.map((menueId) => ({
-        list_id: listId,
-        menue_id: menueId,
-      }));
-      const {error: insertError} = await this.client
-        .from("event_used_recipe_list_menues")
-        .insert(menueRows);
-
-      if (insertError) throw insertError;
-    }
+    if (error) throw error;
   }
 
   /* =====================================================================
-  // Meal-Auswahl aktualisieren (vollständiger Ersatz)
+  // Meal-Auswahl aktualisieren
   // ===================================================================== */
   /**
-   * Ersetzt die Meal-Auswahl einer Liste komplett (delete-all + re-insert).
+   * Aktualisiert die Meal-Auswahl einer Liste (einfacher Array-Update).
    *
    * @param listId - Die ID der Liste
    * @param mealIds - Die neuen Meal-IDs
@@ -362,33 +284,21 @@ export class UsedRecipeListRepository extends BaseRepository<
     listId: string,
     mealIds: string[],
   ): Promise<void> {
-    const {error: deleteError} = await this.client
-      .from("event_used_recipe_list_meals")
-      .delete()
-      .eq("list_id", listId);
+    const {error} = await this.client
+      .from("event_used_recipe_lists")
+      .update({selected_meal_ids: mealIds})
+      .eq("id", listId);
 
-    if (deleteError) throw deleteError;
-
-    if (mealIds.length > 0) {
-      const mealRows = mealIds.map((mealId) => ({
-        list_id: listId,
-        meal_id: mealId,
-      }));
-      const {error: insertError} = await this.client
-        .from("event_used_recipe_list_meals")
-        .insert(mealRows);
-
-      if (insertError) throw insertError;
-    }
+    if (error) throw error;
   }
 
   /* =====================================================================
   // Menü- und Meal-Auswahl gleichzeitig aktualisieren (Drift-Auflösung)
   // ===================================================================== */
   /**
-   * Aktualisiert Menü- und Meal-Auswahl einer Liste in einem Vorgang.
-   * Wird bei der Drift-Auflösung verwendet, wenn beide Junction-Tabellen
-   * konsistent aktualisiert werden müssen.
+   * Aktualisiert Menü- und Meal-Auswahl einer Liste in einem einzigen
+   * UPDATE-Statement. Wird bei der Drift-Auflösung verwendet.
+   * Der update_updated_at-Trigger aktualisiert updated_at automatisch.
    *
    * @param listId - Die ID der Liste
    * @param menueIds - Die neuen Menü-IDs
@@ -399,39 +309,22 @@ export class UsedRecipeListRepository extends BaseRepository<
     menueIds: string[],
     mealIds: string[],
   ): Promise<void> {
-    await Promise.all([
-      this.updateListMenues(listId, menueIds),
-      this.updateListMeals(listId, mealIds),
-    ]);
-
-    // updated_at der Kopfzeile aktualisieren
-    await this.touchListUpdatedAt(listId);
-  }
-
-  /* =====================================================================
-  // updated_at der Kopfzeile aktualisieren (Touch)
-  // ===================================================================== */
-  /**
-   * Setzt updated_at der Kopfzeile auf NOW(), damit generated.date beim
-   * nächsten Laden aus der DB den aktuellen Wert widerspiegelt.
-   * Der update_updated_at-Trigger übernimmt das Setzen.
-   *
-   * @param listId - Die ID der Liste
-   */
-  async touchListUpdatedAt(listId: string): Promise<void> {
     const {error} = await this.client
       .from("event_used_recipe_lists")
-      .update({updated_at: new Date().toISOString()})
+      .update({
+        selected_menue_ids: menueIds,
+        selected_meal_ids: mealIds,
+      })
       .eq("id", listId);
 
     if (error) throw error;
   }
 
   /* =====================================================================
-  // Liste löschen (CASCADE entfernt Menü-Zuordnungen)
+  // Liste löschen (CASCADE entfernt zugehörige Daten)
   // ===================================================================== */
   /**
-   * Löscht eine Rezeptliste. CASCADE entfernt automatisch alle Menü-Zuordnungen.
+   * Löscht eine Rezeptliste.
    *
    * @param listId - Die ID der zu löschenden Liste
    */
@@ -509,8 +402,6 @@ export class UsedRecipeListRepository extends BaseRepository<
         );
     };
 
-    // Einen Channel für die Kopftabelle — Menü-Änderungen lösen ebenfalls
-    // ein Update auf der Kopftabelle aus (updated_at Trigger)
     const channel = clientRef
       .channel(`usedrecipelists:${eventId}`)
       .on(

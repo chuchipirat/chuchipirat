@@ -1,6 +1,13 @@
+/**
+ * ShoppingList — Domain-Service für Einkaufslisten.
+ *
+ * Reine Geschäftslogik ohne Persistenz-Code. Die Klasse generiert
+ * Einkaufslisten aus dem Menüplan, verwaltet Positionen (hinzufügen,
+ * löschen, Checkbox-Status) und bietet Hilfsmethoden für die UI.
+ *
+ * Persistenz erfolgt über das ShoppingListRepository.
+ */
 import Department from "../../Department/department.class";
-import Firebase from "../../Firebase/firebase.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Unit from "../../Unit/unit.class";
 import {
   MealRecipeDeletedPrefix,
@@ -10,7 +17,6 @@ import {
 import UsedRecipes from "../UsedRecipes/usedRecipes.class";
 import {
   ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND as TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND,
-  ERROR_PARAMETER_NOT_PASSED as TEXT_ERROR_PARAMETER_NOT_PASSED,
 } from "../../../constants/text";
 import Recipe, {
   Ingredient,
@@ -21,19 +27,30 @@ import {
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
-import ShoppingListCollection, {
-  ShoppingListTrace,
-} from "./shoppingListCollection.class";
 import Material, {MaterialType} from "../../Material/material.class";
-import Event from "../Event/event.class";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
-import Stats, {StatsField} from "../../Shared/stats.class";
-import Feed, {FeedType} from "../../Shared/feed.class";
-import Role from "../../../constants/roles";
 import _ from "lodash";
-import {logEvent} from "firebase/analytics";
 import Utils from "../../Shared/utils.class";
 
+/* =====================================================================
+// Konstanten
+// ===================================================================== */
+
+/** Abteilungsname für Non-Food-Artikel (Materialien). */
+const NON_FOOD_DEPARTMENT_NAME = "NON FOOD";
+
+/** Platzhalter-Abteilung für Items ohne zuweisbare Abteilung. */
+const UNASSIGNED_DEPARTMENT: Department = {
+  uid: "NotIdentifiable",
+  name: "Keine Zuordnung möglich",
+  pos: 99,
+  usable: true,
+};
+
+/* =====================================================================
+// Enums & Interfaces
+// ===================================================================== */
+
+/** Art einer Einkaufslistenposition. */
 export enum ItemType {
   none = 0,
   food,
@@ -41,6 +58,18 @@ export enum ItemType {
   custom,
 }
 
+/**
+ * Einzelne Position in einer Einkaufsliste.
+ *
+ * @param checked - Abgehakt-Status
+ * @param quantity - Menge
+ * @param unit - Einheiten-Key
+ * @param item - Produkt-/Material-Referenz mit UID und Name
+ * @param type - Art der Position (food, material, custom)
+ * @param manualEdit - Wurde die Position manuell bearbeitet
+ * @param manualAdd - Wurde die Position manuell hinzugefügt
+ * @param supabaseId - Supabase-Zeilen-ID für granulare Updates (z.B. Checkbox)
+ */
 export interface ShoppingListItem {
   checked: boolean;
   quantity: number;
@@ -49,28 +78,73 @@ export interface ShoppingListItem {
   type: ItemType;
   manualEdit?: boolean;
   manualAdd?: boolean;
+  supabaseId?: string;
 }
 
+/**
+ * Abteilung in einer Einkaufsliste mit ihren Positionen.
+ *
+ * @param departmentUid - UID der Abteilung
+ * @param departmentName - Anzeigename der Abteilung
+ * @param items - Positionen in dieser Abteilung
+ */
 export interface ShoppingListDepartment {
   departmentUid: Department["uid"];
   departmentName: Department["name"];
   items: ShoppingListItem[];
 }
 
-interface CreateNewList {
+/**
+ * Trace-Eintrag für eine einzelne Position — zeigt, aus welchem
+ * Rezept/Menü die Menge stammt.
+ *
+ * @param menueUid - UID des Menüs
+ * @param recipe - Rezept-Referenz (UID + Name)
+ * @param planedPortions - Geplante Portionen
+ * @param quantity - Menge aus diesem Rezept
+ * @param unit - Einheiten-Key
+ * @param manualAdd - Manuell hinzugefügt
+ * @param manualEdit - Menge wurde manuell geändert
+ * @param itemType - Art der Position
+ */
+export interface ProductTrace {
+  menueUid: Menue["uid"];
+  recipe: {uid: Recipe["uid"]; name: Recipe["name"]};
+  planedPortions?: number;
+  quantity: number;
+  unit: Unit["key"];
+  manualAdd?: boolean;
+  manualEdit?: boolean;
+  itemType: ItemType;
+}
+
+/**
+ * Trace-Map: Item-UID → Array von Trace-Einträgen.
+ * Zeigt für jede Position, wie sich deren Gesamtmenge zusammensetzt.
+ */
+export interface ShoppingListTrace {
+  [key: Product["uid"]]: ProductTrace[];
+}
+
+/* =====================================================================
+// Interfaces für Methoden-Parameter
+// ===================================================================== */
+
+interface CreateNewListParams {
   selectedMenues: Menue["uid"][];
   selectedDepartments: Department["uid"][];
   menueplan: MenuplanData;
+  /** Vorgeladene Rezepte — Key: recipeUid, Value: Recipe-Objekt */
+  recipes: {[key: string]: Recipe};
   products: Product[];
   materials: Material[];
   departments: Department[];
   units: Unit[];
   unitConversionBasic: UnitConversionBasic;
   unitConversionProducts: UnitConversionProducts;
-  firebase: Firebase;
 }
 
-interface AddItem {
+interface AddItemParams {
   shoppingListReference: ShoppingList;
   item: Product | Material;
   quantity: number;
@@ -79,305 +153,345 @@ interface AddItem {
   addedManually?: boolean;
   itemType: ItemType;
 }
-interface DeleteItem {
+
+interface DeleteItemParams {
   shoppingListReference: ShoppingList;
   itemUid: Product["uid"] | Material["uid"];
   unit: Unit["key"];
   departmentKey: Department["pos"];
 }
-interface RestoreCheckedItems {
-  shoppingList: ShoppingList;
-  checkedItems: ShoppingList["list"];
-}
-interface Save {
-  firebase: Firebase;
-  eventUid: Event["uid"];
-  shoppingList: ShoppingList;
-  authUser: AuthUser;
+
+interface AddTraceEntryParams {
+  trace: ShoppingListTrace;
+  item: Product | Material;
+  menueUid: Menue["uid"];
+  recipe: {uid: Recipe["uid"]; name: Recipe["name"]};
+  planedPortions?: number;
+  quantity: number;
+  unit: Unit["key"];
+  addedManually?: boolean;
+  itemType: ItemType;
 }
 
-interface GetShoppingListListener {
-  firebase: Firebase;
-  eventUid: Event["uid"];
-  shoppingListUid: ShoppingList["uid"];
-  callback: (shoppingList: ShoppingList) => void;
-  errorCallback: (error: Error) => void;
-}
+/* =====================================================================
+// ShoppingList
+// ===================================================================== */
 
-interface GetShoppingList {
-  eventUid: Event["uid"];
-  shoppingListUid: ShoppingList["uid"];
-  firebase: Firebase;
-}
-
-interface Delete {
-  firebase: Firebase;
-  eventUid: Event["uid"];
-  listUidToDelete: ShoppingList["uid"];
-}
-interface CountItems {
-  shoppingList: ShoppingList;
-}
+/**
+ * Domain-Service für Einkaufslisten.
+ *
+ * Generiert Listen aus dem Menüplan, verwaltet Positionen und bietet
+ * Hilfsmethoden für die UI. Keine Persistenz-Logik enthalten.
+ */
 export default class ShoppingList {
   uid: string;
   list: {
     [key: Department["pos"]]: ShoppingListDepartment;
   };
 
-  /* =====================================================================
-  // Konstruktor
-  // ===================================================================== */
   constructor() {
     this.uid = "";
     this.list = {0: {departmentUid: "", departmentName: "", items: []}};
   }
-  // ===================================================================== */
-  /**
-   * Neue Liste erstellen
-   * Anhand der gewählten Menües, die Rezepte suchen und eine neue Liste
-   * erstellen.
-   * @param object - Objekt Name der Liste, ausgewählte Menües [menueUid],
-   *                 Firebase und Authuser
-   * @returns Generierte Liste als Objekt
-   */
-  static createNewList = async ({
-    selectedMenues,
-    selectedDepartments,
-    menueplan,
-    products,
-    materials,
-    departments,
-    units,
-    unitConversionBasic,
-    unitConversionProducts,
-    firebase,
-  }: CreateNewList) => {
-    const recipeList = UsedRecipes.defineSelectedRecipes({
-      selectedMenues: selectedMenues,
-      menueplan: menueplan,
-    });
 
+  /* =====================================================================
+  // Neue Liste aus Menüplan generieren
+  // ===================================================================== */
+
+  /**
+   * Generiert eine neue Einkaufsliste aus dem Menüplan.
+   *
+   * Skaliert Rezept-Zutaten auf die geplanten Portionen, fügt
+   * Menüplan-Produkte und -Materialien hinzu, und baut parallel
+   * eine Trace-Map auf.
+   *
+   * @param params - Ausgewählte Menüs, vorgeladene Rezepte, Stammdaten
+   * @returns Generierte ShoppingList und Trace-Map
+   * @throws {Error} Wenn keine Produkte/Materialien gefunden wurden
+   */
+  static createNewList(params: CreateNewListParams): {
+    shoppingList: ShoppingList;
+    trace: ShoppingListTrace;
+  } {
     const shoppingList = {list: {}, uid: ""} as ShoppingList;
     let trace = {} as ShoppingListTrace;
     let itemCounter = 0;
-    // Alle Rezepte holen
-    if (recipeList.length !== 0) {
-      // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
-      await Recipe.getMultipleRecipes({
-        firebase: firebase,
-        recipes: recipeList,
-      })
-        .then((result) => {
-          // Über gewählte Menüs loopen
-          selectedMenues.forEach((menueUid) => {
-            // Über alle Rezepte dieses Menü loopen
-            menueplan.menues[menueUid].mealRecipeOrder.forEach(
-              (mealRecipeUid) => {
-                if (
-                  menueplan.mealRecipes[
-                    mealRecipeUid
-                  ].recipe.recipeUid.includes(MealRecipeDeletedPrefix)
-                ) {
-                  return;
-                }
 
-                // Alle Zutaten und Materiale holen
-                const scaledIngredients = Recipe.scaleIngredients({
-                  recipe:
-                    result[
-                      menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid
-                    ],
-                  portionsToScale:
-                    menueplan.mealRecipes[mealRecipeUid].totalPortions,
-                  scalingOptions: {convertUnits: true},
-                  units: units,
-                  unitConversionBasic: unitConversionBasic,
-                  unitConversionProducts: unitConversionProducts,
-                  products: products,
-                });
-                const scaledMaterials = Recipe.scaleMaterials({
-                  recipe:
-                    result[
-                      menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid
-                    ],
-                  portionsToScale:
-                    menueplan.mealRecipes[mealRecipeUid].totalPortions,
-                });
+    // 1. Zutaten aus Rezepten hinzufügen
+    const ingredientResult = ShoppingList.addIngredientsFromRecipes({
+      shoppingList,
+      trace,
+      ...params,
+    });
+    trace = ingredientResult.trace;
+    itemCounter += ingredientResult.itemCount;
 
-                // Alle skalierten Zutaten hinzufügen
-                Object.values(scaledIngredients).forEach(
-                  (ingredient: Ingredient) => {
-                    const product = products.find(
-                      (product) => product.uid == ingredient.product.uid,
-                    );
-                    const department = departments.find(
-                      (department) => department.uid == product?.department.uid,
-                    );
+    // 2. Produkte direkt aus dem Menüplan hinzufügen
+    const productResult = ShoppingList.addProductsFromMenuplan({
+      shoppingList,
+      trace,
+      ...params,
+    });
+    trace = productResult.trace;
+    itemCounter += productResult.itemCount;
 
-                    if (
-                      !department ||
-                      !selectedDepartments ||
-                      selectedDepartments.includes(department!.uid)
-                    ) {
-                      // Nur hinzufügen, wenn die Abteilung ausgewählt wurde
-                      // oder die Abteilung nicht identifiziert werden konnte.
-                      // Better Save than sorry
-                      ShoppingList.addItem({
-                        shoppingListReference: shoppingList,
-                        item: product!,
-                        quantity: ingredient.quantity,
-                        unit: ingredient.unit,
-                        department: department!,
-                        itemType: ItemType.food,
-                      });
-                      itemCounter++;
+    // 3. Materialien direkt aus dem Menüplan hinzufügen
+    const materialResult = ShoppingList.addMaterialsFromMenuplan({
+      shoppingList,
+      trace,
+      ...params,
+    });
+    trace = materialResult.trace;
+    itemCounter += materialResult.itemCount;
 
-                      trace = ShoppingListCollection.addTraceEntry({
-                        trace: trace,
-                        item: product!,
-                        menueUid: menueUid,
-                        recipe: {
-                          uid: menueplan.mealRecipes[mealRecipeUid].recipe
-                            .recipeUid,
-                          name: menueplan.mealRecipes[mealRecipeUid].recipe
-                            .name,
-                        },
-                        planedPortions:
-                          menueplan.mealRecipes[mealRecipeUid].totalPortions,
-                        quantity: ingredient.quantity,
-                        unit: ingredient.unit,
-                        itemType: ItemType.food,
-                      });
-                    }
-                  },
-                );
-                // Alle skalierten Materialien hinzufügen
-                Object.values(scaledMaterials).forEach(
-                  (recipeMaterial: RecipeMaterialPosition) => {
-                    // Prüfen ob ein Verbauchsmaterial
-                    const material = materials.find(
-                      (materialRecord) =>
-                        materialRecord.uid == recipeMaterial.material.uid,
-                    );
-
-                    const department = departments.find(
-                      // Material geht fix in die Non-Food Abteilung
-                      (department) =>
-                        department.name.toUpperCase() == "NON FOOD",
-                    );
-
-                    if (
-                      !department ||
-                      !selectedDepartments ||
-                      (material?.type == MaterialType.consumable &&
-                        selectedDepartments.includes(department!.uid))
-                    ) {
-                      // Nur hinzufügen, wenn die Abteilung ausgewählt wurde
-                      ShoppingList.addItem({
-                        shoppingListReference: shoppingList,
-                        item: material!,
-                        quantity: recipeMaterial.quantity,
-                        unit: "",
-                        // materials: materials,
-                        department: department,
-                        itemType: ItemType.material,
-                      });
-                      itemCounter++;
-
-                      ShoppingListCollection.addTraceEntry({
-                        trace: trace,
-                        item: material!,
-                        menueUid: menueUid,
-                        recipe: {
-                          uid: menueplan.mealRecipes[mealRecipeUid].recipe
-                            .recipeUid,
-                          name: menueplan.mealRecipes[mealRecipeUid].recipe
-                            .name,
-                        },
-                        planedPortions:
-                          menueplan.mealRecipes[mealRecipeUid].totalPortions,
-                        quantity: recipeMaterial.quantity,
-                        unit: "",
-                        itemType: ItemType.material,
-                      });
-                    }
-                  },
-                );
-              },
-            );
-          });
-        })
-        .catch((error) => {
-          console.error(error);
-          throw error;
-        });
+    if (itemCounter === 0) {
+      throw new Error(TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND);
     }
-    // alle Produkte und Materialien holen
-    // Produkte // Material aus dem Menü ebenefalls hinzufügen
+
+    return {shoppingList, trace};
+  }
+
+  /* =====================================================================
+  // Zutaten aus Rezepten hinzufügen (Teilschritt von createNewList)
+  // ===================================================================== */
+
+  /**
+   * Skaliert Rezept-Zutaten auf geplante Portionen und fügt sie zur Liste hinzu.
+   */
+  private static addIngredientsFromRecipes(params: {
+    shoppingList: ShoppingList;
+    trace: ShoppingListTrace;
+    selectedMenues: Menue["uid"][];
+    selectedDepartments: Department["uid"][];
+    menueplan: MenuplanData;
+    recipes: {[key: string]: Recipe};
+    products: Product[];
+    materials: Material[];
+    departments: Department[];
+    units: Unit[];
+    unitConversionBasic: UnitConversionBasic;
+    unitConversionProducts: UnitConversionProducts;
+  }): {trace: ShoppingListTrace; itemCount: number} {
+    const {
+      shoppingList, selectedMenues, selectedDepartments, menueplan,
+      recipes, products, materials, departments, units,
+      unitConversionBasic, unitConversionProducts,
+    } = params;
+    let {trace} = params;
+    let itemCount = 0;
+
+    // Rezept-UIDs aus den ausgewählten Menüs ableiten
+    const recipeList = UsedRecipes.defineSelectedRecipes({
+      selectedMenues,
+      menueplan,
+    });
+
+    if (recipeList.length === 0) return {trace, itemCount};
+
+    selectedMenues.forEach((menueUid) => {
+      menueplan.menues[menueUid].mealRecipeOrder.forEach((mealRecipeUid) => {
+        const mealRecipe = menueplan.mealRecipes[mealRecipeUid];
+        if (mealRecipe.recipe.recipeUid.includes(MealRecipeDeletedPrefix)) {
+          return;
+        }
+
+        const recipe = recipes[mealRecipe.recipe.recipeUid];
+        if (!recipe) return;
+
+        // Zutaten skalieren
+        const scaledIngredients = Recipe.scaleIngredients({
+          recipe,
+          portionsToScale: mealRecipe.totalPortions,
+          scalingOptions: {convertUnits: true},
+          units,
+          unitConversionBasic,
+          unitConversionProducts,
+          products,
+        });
+
+        // Skalierte Zutaten zur Liste hinzufügen
+        Object.values(scaledIngredients).forEach((ingredient: Ingredient) => {
+          const product = products.find((p) => p.uid === ingredient.product.uid);
+          const department = departments.find(
+            (d) => d.uid === product?.department.uid,
+          );
+
+          if (
+            !department ||
+            !selectedDepartments ||
+            selectedDepartments.includes(department.uid)
+          ) {
+            ShoppingList.addItem({
+              shoppingListReference: shoppingList,
+              item: product!,
+              quantity: ingredient.quantity,
+              unit: ingredient.unit,
+              department,
+              itemType: ItemType.food,
+            });
+            itemCount++;
+
+            trace = ShoppingList.addTraceEntry({
+              trace,
+              item: product!,
+              menueUid,
+              recipe: {uid: mealRecipe.recipe.recipeUid, name: mealRecipe.recipe.name},
+              planedPortions: mealRecipe.totalPortions,
+              quantity: ingredient.quantity,
+              unit: ingredient.unit,
+              itemType: ItemType.food,
+            });
+          }
+        });
+
+        // Materialien aus dem Rezept skalieren und hinzufügen
+        const scaledMaterials = Recipe.scaleMaterials({
+          recipe,
+          portionsToScale: mealRecipe.totalPortions,
+        });
+
+        Object.values(scaledMaterials).forEach((recipeMaterial: RecipeMaterialPosition) => {
+          const material = materials.find(
+            (m) => m.uid === recipeMaterial.material.uid,
+          );
+          const department = departments.find(
+            (d) => d.name.toUpperCase() === NON_FOOD_DEPARTMENT_NAME,
+          );
+
+          if (
+            !department ||
+            !selectedDepartments ||
+            (material?.type === MaterialType.consumable &&
+              selectedDepartments.includes(department.uid))
+          ) {
+            ShoppingList.addItem({
+              shoppingListReference: shoppingList,
+              item: material!,
+              quantity: recipeMaterial.quantity,
+              unit: "",
+              department,
+              itemType: ItemType.material,
+            });
+            itemCount++;
+
+            trace = ShoppingList.addTraceEntry({
+              trace,
+              item: material!,
+              menueUid,
+              recipe: {uid: mealRecipe.recipe.recipeUid, name: mealRecipe.recipe.name},
+              planedPortions: mealRecipe.totalPortions,
+              quantity: recipeMaterial.quantity,
+              unit: "",
+              itemType: ItemType.material,
+            });
+          }
+        });
+      });
+    });
+
+    return {trace, itemCount};
+  }
+
+  /* =====================================================================
+  // Produkte aus dem Menüplan hinzufügen (Teilschritt von createNewList)
+  // ===================================================================== */
+
+  /**
+   * Fügt Produkte, die direkt im Menüplan eingetragen sind, zur Liste hinzu.
+   */
+  private static addProductsFromMenuplan(params: {
+    shoppingList: ShoppingList;
+    trace: ShoppingListTrace;
+    selectedMenues: Menue["uid"][];
+    selectedDepartments: Department["uid"][];
+    menueplan: MenuplanData;
+    products: Product[];
+    departments: Department[];
+  }): {trace: ShoppingListTrace; itemCount: number} {
+    const {shoppingList, selectedMenues, selectedDepartments, menueplan, products, departments} = params;
+    let {trace} = params;
+    let itemCount = 0;
+
     selectedMenues.forEach((menueUid) => {
       menueplan.menues[menueUid].productOrder.forEach((productMenuUid) => {
         const menuPlanProductEntry = menueplan.products[productMenuUid];
+        const product = products.find((p) => p.uid === menuPlanProductEntry.productUid);
+        const department = departments.find((d) => d.uid === product?.department.uid);
 
-        const product = products.find(
-          (product) => product.uid == menuPlanProductEntry.productUid,
-        );
-        const department = departments.find(
-          (department) => department.uid == product?.department.uid,
-        );
-        if (!department || selectedDepartments.includes(department!.uid)) {
-          // Nur hinzufügen, wenn die Abteilung ausgewählt wurde
+        if (!department || selectedDepartments.includes(department.uid)) {
           ShoppingList.addItem({
             shoppingListReference: shoppingList,
             item: product!,
             quantity: menuPlanProductEntry.totalQuantity,
             unit: menuPlanProductEntry.unit,
-            department: department!,
+            department,
             itemType: ItemType.food,
           });
-          itemCounter++;
+          itemCount++;
 
-          // Trace nachführen
-          trace = ShoppingListCollection.addTraceEntry({
-            trace: trace,
+          trace = ShoppingList.addTraceEntry({
+            trace,
             item: product!,
-            menueUid: menueUid,
-            recipe: {} as Recipe,
+            menueUid,
+            recipe: {} as {uid: string; name: string},
             quantity: menuPlanProductEntry.totalQuantity,
             unit: menuPlanProductEntry.unit,
             itemType: ItemType.food,
           });
         }
       });
+    });
 
+    return {trace, itemCount};
+  }
+
+  /* =====================================================================
+  // Materialien aus dem Menüplan hinzufügen (Teilschritt von createNewList)
+  // ===================================================================== */
+
+  /**
+   * Fügt Materialien, die direkt im Menüplan eingetragen sind, zur Liste hinzu.
+   */
+  private static addMaterialsFromMenuplan(params: {
+    shoppingList: ShoppingList;
+    trace: ShoppingListTrace;
+    selectedMenues: Menue["uid"][];
+    selectedDepartments: Department["uid"][];
+    menueplan: MenuplanData;
+    materials: Material[];
+    departments: Department[];
+  }): {trace: ShoppingListTrace; itemCount: number} {
+    const {shoppingList, selectedMenues, selectedDepartments, menueplan, materials, departments} = params;
+    let {trace} = params;
+    let itemCount = 0;
+
+    selectedMenues.forEach((menueUid) => {
       menueplan.menues[menueUid].materialOrder.forEach((materialMenuUid) => {
         const menuPlanMaterialEntry = menueplan.materials[materialMenuUid];
-
-        const material = materials.find(
-          (material) => material.uid == menuPlanMaterialEntry.materialUid,
-        );
+        const material = materials.find((m) => m.uid === menuPlanMaterialEntry.materialUid);
         const department = departments.find(
-          (department) => department.name.toUpperCase() == "NON FOOD",
+          (d) => d.name.toUpperCase() === NON_FOOD_DEPARTMENT_NAME,
         );
 
         if (
-          (!department || selectedDepartments.includes(department!.uid)) &&
-          material?.type == MaterialType.consumable
+          (!department || selectedDepartments.includes(department.uid)) &&
+          material?.type === MaterialType.consumable
         ) {
           ShoppingList.addItem({
             shoppingListReference: shoppingList,
             item: material!,
             quantity: menuPlanMaterialEntry.totalQuantity,
             unit: menuPlanMaterialEntry.unit,
-            department: department,
+            department,
             itemType: ItemType.material,
           });
-          itemCounter++;
+          itemCount++;
 
-          ShoppingListCollection.addTraceEntry({
-            trace: trace,
+          trace = ShoppingList.addTraceEntry({
+            trace,
             item: material!,
-            menueUid: menueUid,
-            recipe: {} as Recipe,
+            menueUid,
+            recipe: {} as {uid: string; name: string},
             quantity: menuPlanMaterialEntry.totalQuantity,
             unit: menuPlanMaterialEntry.unit,
             itemType: ItemType.material,
@@ -386,21 +500,18 @@ export default class ShoppingList {
       });
     });
 
-    if (itemCounter == 0) {
-      throw new Error(TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND);
-    }
+    return {trace, itemCount};
+  }
 
-    return {shoppingList, trace};
-  };
+  /* =====================================================================
+  // Item zur Liste hinzufügen (mit Akkumulation bei Duplikaten)
   // ===================================================================== */
+
   /**
-   * Produkt oder Material  der Liste hinzufügen
-   * In die Liste (Referenz) das Produkt/Material hinzufügen. Falls der Eintrag bereits
-   * vorhanden ist, wird dazu addiert.
-   * @param object - Objekt mit Referenz zur Liste, Produkt/Material, die hinzugefügt
-   *                 werden soll, Menge, Einheit, Abteilung und Hinweis ob das
-   *                 hinzufügen aufgrund Manueller Tätigkeit geschieht.
-   * @returns VOID : Da Liste als Referenz
+   * Fügt ein Produkt oder Material zur Liste hinzu.
+   * Bei gleicher UID + Einheit wird die Menge addiert.
+   *
+   * @param params - Item-Daten inkl. Referenz auf die Liste
    */
   static addItem = ({
     shoppingListReference,
@@ -410,29 +521,22 @@ export default class ShoppingList {
     department,
     addedManually = false,
     itemType,
-  }: AddItem) => {
-    if (!item) {
-      return;
-    }
+  }: AddItemParams) => {
+    if (!item) return;
+
     if (!department) {
-      // Lieber falsch zuordnen, als nicht aufführen
-      department = {
-        uid: "NotIdetifiable",
-        name: "Keine Zuordnung möglich",
-        pos: 99,
-        usable: true,
-      };
+      department = {...UNASSIGNED_DEPARTMENT};
     }
+
     if (
       !Object.prototype.hasOwnProperty.call(
         shoppingListReference.list,
         department.pos,
       )
     ) {
-      // Neue Abteilung hinzufügen
       shoppingListReference.list[department.pos] = {
         departmentUid: department.uid,
-        departmentName: department?.name,
+        departmentName: department.name,
         items: [],
       };
     }
@@ -445,14 +549,12 @@ export default class ShoppingList {
     );
 
     if (shoppingListItem) {
-      // Gibt es schon -- Addieren
       shoppingListItem.quantity = shoppingListItem.quantity + quantity;
     } else {
-      // Neu -- hinzufügen || Andere Einheit, gleich behandeln, wie neues Produkt
       shoppingListItem = {
         checked: false,
-        quantity: quantity,
-        unit: unit,
+        quantity,
+        unit,
         item: {uid: item.uid, name: item.name},
         type: itemType,
       };
@@ -462,57 +564,109 @@ export default class ShoppingList {
       }
 
       shoppingListReference.list[department.pos].items.push(shoppingListItem);
-      return;
     }
   };
+
+  /* =====================================================================
+  // Trace-Eintrag hinzufügen
   // ===================================================================== */
+
   /**
-   * Produkt oder Material aus der Liste entfernen
-  
-   * @param object - Objekt mit Referenz zur Liste, Produkt/Material, die hinzugefügt
-   *                 werden soll, Abteilung
-   * @returns VOID : Da Liste als Referenz
+   * Fügt einen Trace-Eintrag für ein Item hinzu.
+   * Zeigt, aus welchem Menü/Rezept die Menge stammt.
+   *
+   * @param params - Trace-Daten
+   * @returns Aktualisierte Trace-Map
+   */
+  static addTraceEntry = ({
+    trace,
+    item,
+    menueUid,
+    recipe,
+    planedPortions,
+    quantity,
+    unit,
+    addedManually = false,
+    itemType,
+  }: AddTraceEntryParams): ShoppingListTrace => {
+    if (!Object.prototype.hasOwnProperty.call(trace, item.uid)) {
+      trace[item.uid] = [];
+    }
+
+    const traceEntry: ProductTrace = {
+      menueUid,
+      recipe,
+      quantity,
+      unit,
+      itemType,
+    };
+    if (planedPortions) traceEntry.planedPortions = planedPortions;
+    if (addedManually) traceEntry.manualAdd = true;
+
+    trace[item.uid].push(traceEntry);
+    return trace;
+  };
+
+  /* =====================================================================
+  // Trace-Eintrag löschen
+  // ===================================================================== */
+
+  /**
+   * Entfernt den Trace-Eintrag eines Items.
+   *
+   * @param trace - Aktuelle Trace-Map
+   * @param itemUid - UID des zu entfernenden Items
+   * @returns Aktualisierte Trace-Map (Kopie)
+   */
+  static deleteTraceEntry = (
+    trace: ShoppingListTrace,
+    itemUid: Product["uid"] | Material["uid"],
+  ): ShoppingListTrace => {
+    const updatedTrace = _.cloneDeep(trace);
+    delete updatedTrace[itemUid];
+    return updatedTrace;
+  };
+
+  /* =====================================================================
+  // Item aus der Liste entfernen
+  // ===================================================================== */
+
+  /**
+   * Entfernt ein Item aus der Liste. Löscht die Abteilung, wenn sie leer ist.
+   *
+   * @param params - Item-Identifikation (UID, Einheit, Abteilung)
+   * @returns Aktualisierte ShoppingList (Kopie)
    */
   static deleteItem = ({
     shoppingListReference,
     departmentKey,
     unit,
     itemUid,
-  }: DeleteItem) => {
-    const updatedShoppingList = _.cloneDeep(
-      shoppingListReference,
-    ) as ShoppingList;
+  }: DeleteItemParams) => {
+    const updatedShoppingList = _.cloneDeep(shoppingListReference) as ShoppingList;
 
-    updatedShoppingList!.list[departmentKey].items = updatedShoppingList!.list[
-      departmentKey
-    ].items.filter((item) => item.unit !== unit || item.item.uid !== itemUid);
+    updatedShoppingList.list[departmentKey].items =
+      updatedShoppingList.list[departmentKey].items.filter(
+        (item) => item.unit !== unit || item.item.uid !== itemUid,
+      );
 
-    if (updatedShoppingList!.list[departmentKey].items.length == 0) {
-      // Ganzer Eintrag löschen
+    if (updatedShoppingList.list[departmentKey].items.length === 0) {
       delete updatedShoppingList.list[departmentKey];
     }
     return updatedShoppingList;
   };
+
+  /* =====================================================================
+  // Abteilung zur Liste hinzufügen
   // ===================================================================== */
+
   /**
    * Fügt eine Abteilung zur Einkaufsliste hinzu, falls diese noch nicht existiert.
    *
-   * Erwartet die UID der hinzuzufügenden Abteilung sowie die Liste aller verfügbaren
-   * Abteilungen. Falls die Abteilung bereits in der Einkaufsliste existiert, wird die Liste
-   * unverändert zurückgegeben.
-   *
-   * @param params.shoppingList Die Einkaufsliste, der eine Abteilung hinzugefügt werden soll.
-   * @param params.departmentUid Die UID der hinzuzufügenden Abteilung.
-   * @param params.departments Die Liste aller verfügbaren Abteilungen.
-   *
-   * @returns die aktualisierte Einkaufsliste mit der neuen Abteilung, falls diese hinzugefügt wurde.
-   *
-   * @example
-   * shoppingList = ShoppingList.addDepartmentToList({
-   *   shoppingList,
-   *   departmentUid: "FbYxZKc5NuZE39G4eBL3",
-   *   departments,
-   * });
+   * @param params.shoppingList - Die Einkaufsliste
+   * @param params.departmentUid - Die UID der hinzuzufügenden Abteilung
+   * @param params.departments - Alle verfügbaren Abteilungen
+   * @returns Die aktualisierte Einkaufsliste
    */
   static addDepartmentToList = ({
     shoppingList,
@@ -525,17 +679,10 @@ export default class ShoppingList {
   }) => {
     if (!shoppingList || !departmentUid) return shoppingList;
 
-    const department = departments.find(
-      (department) => department.uid === departmentUid,
-    );
+    const department = departments.find((d) => d.uid === departmentUid);
     if (!department) return shoppingList;
+    if (Object.hasOwn(shoppingList.list, department.pos)) return shoppingList;
 
-    // Prüfen ob Abteilung schon existiert
-    if (Object.hasOwn(shoppingList.list, department.pos)) {
-      return shoppingList;
-    }
-
-    // Neue Abteilung hinzufügen
     shoppingList.list[department.pos] = {
       departmentUid: department.uid,
       departmentName: department.name,
@@ -544,99 +691,64 @@ export default class ShoppingList {
 
     return shoppingList;
   };
+
+  /* =====================================================================
+  // Leere Einträge für Edit-Modus erstellen
   // ===================================================================== */
-  static createEmptyListEntries = ({
-    shoppingList,
-  }: {
-    shoppingList: ShoppingList;
-  }) => {
+
+  /**
+   * Fügt pro Abteilung einen leeren Eintrag am Ende hinzu (für den Edit-Modus).
+   */
+  static createEmptyListEntries = ({shoppingList}: {shoppingList: ShoppingList}) => {
     Object.keys(shoppingList.list).forEach((departmentPos) => {
-      // Wenn Array leer ist oder letztes Element nicht leer ist, neues leeres Element hinzufügen
+      const dept = shoppingList.list[Number(departmentPos) as Department["pos"]];
       if (
-        shoppingList.list[Number(departmentPos) as Department["pos"]].items
-          .length === 0 ||
-        shoppingList.list[Number(departmentPos) as Department["pos"]].items[
-          shoppingList.list[Number(departmentPos) as Department["pos"]].items
-            .length - 1
-        ].item.name !== ""
+        dept.items.length === 0 ||
+        dept.items[dept.items.length - 1].item.name !== ""
       ) {
-        console.log(
-          departmentPos,
-          shoppingList.list[Number(departmentPos) as Department["pos"]].items,
-        );
-        shoppingList.list[
-          Number(departmentPos) as Department["pos"]
-        ].items.push(ShoppingList.createEmptyListItem());
+        dept.items.push(ShoppingList.createEmptyListItem());
       }
     });
-
     return shoppingList;
   };
 
-  // ===================================================================== */
   /**
-   * Leeres Listenelement für die Einkaufsliste erstellen
-   *
-   * @returns Ein leeres ShoppingListItem-Objekt mit Standardwerten.
-   * @example
-   * const emptyItem = ShoppingList.createEmptyListItem();
+   * Erstellt ein leeres Listenelement für den Edit-Modus.
    */
-  static createEmptyListItem = () => {
-    return {
-      checked: false,
-      quantity: 0,
-      unit: "",
-      item: {uid: Utils.generateUid(10), name: ""},
-      type: ItemType.none,
-      manualEdit: false,
-      manualAdd: true,
-    } as ShoppingListItem;
-  };
+  static createEmptyListItem = (): ShoppingListItem => ({
+    checked: false,
+    quantity: 0,
+    unit: "",
+    item: {uid: Utils.generateUid(10), name: ""},
+    type: ItemType.none,
+    manualEdit: false,
+    manualAdd: true,
+  });
+
+  /* =====================================================================
+  // Leere Einträge entfernen
   // ===================================================================== */
+
   /**
-   * Alle leeren Einträge aus der Einkaufsliste entfernen
-   *
-   * Iteriert über alle Departments der Einkaufsliste und entfernt
-   * alle Items, die keine Menge, keine Einheit und keinen Namen haben.
-   *
-   * @param params.shoppingList Die Einkaufsliste, aus der die leeren Einträge entfernt werden sollen.
-   * @returns die bereinigte Einkaufsliste ohne leere Einträge.
-   * @example
-   * shoppingList = ShoppingList.deleteEmptyItems({ shoppingList });
+   * Entfernt alle Items ohne Menge, Einheit und Name.
    */
   static deleteEmptyItems = ({shoppingList}: {shoppingList: ShoppingList}) => {
     Object.keys(shoppingList.list).forEach((departmentPos) => {
       shoppingList.list[Number(departmentPos) as Department["pos"]].items =
-        shoppingList.list[
-          Number(departmentPos) as Department["pos"]
-        ].items.filter(
+        shoppingList.list[Number(departmentPos) as Department["pos"]].items.filter(
           (item) =>
             !(item.quantity === 0 && item.unit === "" && item.item.name === ""),
         );
     });
-
     return shoppingList;
   };
 
+  /* =====================================================================
+  // Checked-Items extrahieren und wiederherstellen
   // ===================================================================== */
+
   /**
-   * Liefert alle abgehakten (checked = true) Einträge gruppiert nach Department zurück.
-   *
-   * Die Funktion iteriert über alle Departments der Einkaufsliste und filtert pro Department
-   * nur die Items, die aktuell als `checked` markiert sind. Departments ohne markierte Items
-   * werden aus dem Resultat entfernt.
-   *
-   * Typische Verwendung:
-   * - Speichern/Synchronisieren des Checkbox-Status (z. B. für Persistenz, Export, Undo/Redo)
-   * - Als Grundlage für `restoreCheckedItems(...)` (Wiederherstellung des Status)
-   *
-   * @param params.shoppingList Die Einkaufsliste, aus der die markierten Items gelesen werden.
-   *
-   * @returns Eine Liste von Departments, die jeweils nur die markierten Items enthalten.
-   *          Departments ohne markierte Items sind nicht enthalten.
-   *
-   * @example
-   * const checkedByDepartment = ShoppingList.getCheckedItemsByDepartment({ shoppingList });
+   * Liefert alle abgehakten Items gruppiert nach Department zurück.
    */
   static getCheckedItemsByDepartment = ({
     shoppingList,
@@ -650,7 +762,6 @@ export default class ShoppingList {
         const checked = department.items.filter((item) => item.checked);
         if (checked.length === 0) return;
 
-        // Key beibehalten!
         result[departmentPosStr as unknown as Department["pos"]] = {
           departmentUid: department.departmentUid,
           departmentName: department.departmentName,
@@ -662,31 +773,20 @@ export default class ShoppingList {
     return result;
   };
 
-  // ===================================================================== */
   /**
-   * Stellt den `checked`-Status der Einkaufsliste anhand einer zuvor gespeicherten Auswahl wieder her.
+   * Stellt den checked-Status anhand zuvor gespeicherter Items wieder her.
    *
-   * Erwartet eine Liste der zuvor als `checked` markierten Einträge (typischerweise erzeugt durch
-   * `getCheckedItemsByDepartment(...)` und setzt in der übergebenen `shoppingList` die passenden Items
-   * wieder auf `checked = true`.
-   *
-   * - Items, die in `checkedItems` enthalten sind, werden auf `checked = true` gesetzt.
-   * - Das Matching erfolgt über eine stabile Identität (z. B. `departmentUid` + `item.uid` + `unit`
-   *
-   * @param params.shoppingList Die Einkaufsliste, deren Checkboxen wiederhergestellt werden sollen.
-   * @param params.checkedItems Die gespeicherte Auswahl der zuvor abgehakten Einträge inkl. Department-Info.
-   *
-   * @returns Eine neue Einkaufsliste mit wiederhergestelltem `checked`-Status
-   *
-   * @example
-   * const checkedItems = getCheckedItemsByDepartment(list);
-   * // ... später (z.B. nach Reload)
-   * const restored = restoreCheckedItems({ shoppingList: list, checkedItems });
+   * @param params.shoppingList - Die Einkaufsliste
+   * @param params.checkedItems - Zuvor gespeicherte abgehakte Items
+   * @returns Die aktualisierte Einkaufsliste
    */
   static restoreCheckedItems = ({
     shoppingList,
     checkedItems,
-  }: RestoreCheckedItems) => {
+  }: {
+    shoppingList: ShoppingList;
+    checkedItems: ShoppingList["list"];
+  }) => {
     Object.entries(checkedItems).forEach(([departmentPosStr, department]) => {
       const departmentPos = Number(departmentPosStr) as Department["pos"];
       const dep = shoppingList.list[departmentPos];
@@ -706,165 +806,208 @@ export default class ShoppingList {
     return shoppingList;
   };
 
+  /* =====================================================================
+  // Manuelle Items extrahieren (für Refresh-Preserve)
   // ===================================================================== */
+
   /**
-   * Einkaufsliste speichern
-   * @param object - Referenz zu Firebase, ShoppintListe und Authuser
-   * @returns shoppingList - ganze ShoppingList
+   * Extrahiert manuell hinzugefügte und/oder manuell bearbeitete Items
+   * aus einer Einkaufsliste. Wird beim Refresh verwendet, um diese Items
+   * zu bewahren.
+   *
+   * @param list - Die aktuelle Einkaufsliste
+   * @param keepManuallyAdded - Manuell hinzugefügte Items behalten
+   * @param keepManuallyEdited - Manuell bearbeitete Items behalten
+   * @returns Gefilterte Liste mit nur manuellen Items
    */
-  static save = async ({firebase, eventUid, shoppingList, authUser}: Save) => {
-    // shoppingList = ShoppingList.deleteEmptyItems({shoppingList});
+  static preserveManualItems(
+    list: ShoppingList["list"],
+    keepManuallyAdded: boolean,
+    keepManuallyEdited: boolean,
+  ): ShoppingList["list"] {
+    const preserved = _.cloneDeep(list);
 
-    if (!shoppingList.uid) {
-      // Neue Liste
-      await firebase.event.shoppingList
-        .create({
-          uids: [eventUid],
-          value: shoppingList,
-          authUser: authUser,
-        })
-        .then((result) => {
-          shoppingList = result.value;
+    Object.entries(preserved).forEach(([departmentPos, department]) => {
+      department.items = department.items.filter(
+        (item) =>
+          (keepManuallyAdded && item?.manualAdd === true) ||
+          (keepManuallyEdited && item?.manualEdit === true),
+      );
 
-          // Feed Eintrag
-          const indexList = Object.keys(shoppingList.list);
-          const randomDepartment = shoppingList.list[
-            indexList[Math.floor(Math.random() * indexList.length)]
-          ].items as ShoppingListItem[];
+      if (department.items.length === 0) {
+        delete preserved[departmentPos as unknown as Department["pos"]];
+      }
+    });
 
-          const randomItem =
-            randomDepartment[
-              Math.floor(Math.random() * randomDepartment.length)
-            ];
-          Feed.createFeedEntry({
-            firebase: firebase,
-            authUser: authUser,
-            feedType: FeedType.shoppingListCreated,
-            textElements: [randomItem.item.name],
-            objectUid: eventUid,
-            objectName: "",
-            feedVisibility: Role.basic,
-          });
+    return preserved;
+  }
 
-          // Statistik mitführen
-          Stats.incrementStat({
-            firebase: firebase,
-            field: StatsField.noShoppingLists,
-            value: 1,
-          });
+  /**
+   * Merged manuell bewahrte Items in eine neu generierte Liste.
+   *
+   * - manualEdit-Items: Menge aus der alten Liste beibehalten
+   * - manualAdd-Items: Falls UID+Menge identisch → addieren, sonst anhängen
+   *
+   * @param newList - Die neu generierte Liste (wird mutiert)
+   * @param preservedItems - Die zu bewahrenden manuellen Items
+   */
+  static mergeManualItems(
+    newList: ShoppingList,
+    preservedItems: ShoppingList["list"],
+  ): void {
+    Object.entries(preservedItems).forEach(([departmentKey, department]) => {
+      department.items.forEach((item) => {
+        if (
+          !Object.prototype.hasOwnProperty.call(newList.list, departmentKey)
+        ) {
+          newList.list[departmentKey as unknown as Department["pos"]] = {...department};
+          return;
+        }
 
-          logEvent(
-            firebase.analytics,
-            FirebaseAnalyticEvent.shoppingListGenerated,
+        if (item.manualEdit) {
+          // Manuell bearbeiteter Artikel: UID in neuer Liste suchen, Menge übernehmen
+          const existing = newList.list[
+            departmentKey as unknown as Department["pos"]
+          ].items.find(
+            (updatedItem: ShoppingListItem) =>
+              updatedItem.item.uid === item.item.uid,
           );
-        })
-        .catch((error) => {
-          console.error(error);
-          throw error;
-        });
-      // Statistik hochzählen
-    } else {
-      // reines Update
-      await firebase.event.shoppingList
-        .set({
-          uids: [eventUid, shoppingList.uid],
-          value: shoppingList,
-          authUser: authUser,
-        })
-        .catch((error) => {
-          console.error(error);
-          throw error;
-        });
+          if (existing) {
+            existing.quantity = item.quantity;
+            existing.manualEdit = true;
+          } else {
+            newList.list[departmentKey as unknown as Department["pos"]].items.push(item);
+          }
+        } else {
+          // Manuell hinzugefügter Artikel: bei identischem UID+Menge addieren
+          const existing = newList.list[
+            departmentKey as unknown as Department["pos"]
+          ].items.find(
+            (updatedItem: ShoppingListItem) =>
+              updatedItem.item.uid === item.item.uid &&
+              updatedItem.quantity === item.quantity,
+          );
+          if (existing) {
+            existing.quantity += item.quantity;
+          } else {
+            newList.list[departmentKey as unknown as Department["pos"]].items.push(item);
+          }
+        }
+      });
+    });
+  }
+
+  /**
+   * Merged manuell bewahrte Trace-Einträge in einen neuen Trace.
+   *
+   * @param newTrace - Der neu generierte Trace (wird mutiert)
+   * @param preservedItems - Die bewahrten manuellen Items
+   * @param originalTrace - Die originalen Trace-Einträge der alten Liste
+   */
+  static mergeManualTraceEntries(
+    newTrace: ShoppingListTrace,
+    preservedItems: ShoppingList["list"],
+    originalTrace: ShoppingListTrace,
+  ): void {
+    Object.values(preservedItems).forEach((department) => {
+      department.items.forEach((item) => {
+        if (!item.manualAdd) return;
+        const traceEntries = originalTrace[item.item.uid];
+        if (!traceEntries) return;
+
+        const manualTraceEntries = traceEntries.filter((e) => e.manualAdd);
+        if (manualTraceEntries.length === 0) return;
+
+        if (!Object.prototype.hasOwnProperty.call(newTrace, item.item.uid)) {
+          newTrace[item.item.uid] = [];
+        }
+        newTrace[item.item.uid] = newTrace[item.item.uid].concat(manualTraceEntries);
+      });
+    });
+  }
+
+  /* =====================================================================
+  // Trace on-demand berechnen
+  // ===================================================================== */
+
+  /**
+   * Berechnet den Trace on-demand, indem die Liste intern neu generiert
+   * wird (ohne Persistenz). Ergänzt manualAdd- und manualEdit-Einträge
+   * aus der bestehenden Liste.
+   *
+   * @param params - Menüplan, Rezepte, Stammdaten und bestehende Einkaufsliste
+   * @returns Berechnete Trace-Map
+   */
+  static computeTrace(params: {
+    selectedMenues: Menue["uid"][];
+    selectedDepartments: Department["uid"][];
+    menueplan: MenuplanData;
+    recipes: {[key: string]: Recipe};
+    products: Product[];
+    materials: Material[];
+    departments: Department[];
+    units: Unit[];
+    unitConversionBasic: UnitConversionBasic;
+    unitConversionProducts: UnitConversionProducts;
+    existingList: ShoppingList;
+  }): ShoppingListTrace {
+    const {existingList, ...createParams} = params;
+
+    // Basis-Trace durch Neugenerierung der Liste ermitteln
+    let trace: ShoppingListTrace = {};
+
+    try {
+      const result = ShoppingList.createNewList(createParams);
+      trace = result.trace;
+    } catch {
+      // Keine Items gefunden (z.B. leerer Menüplan) — leerer Trace als Basis
     }
 
-    return shoppingList;
-  };
-  // ===================================================================== */
-  /**
-   * Listener zu bestimmter ShoppingList holen
-   * @param object - Referenz zu Firebase, ShoppintListeUid und Callback Funktion
-   * @returns shoppingListListener - Listener mit Unsubscribe Methode
-   */
-  static getShoppingListListener = async ({
-    firebase,
-    eventUid,
-    shoppingListUid,
-    callback,
-    errorCallback,
-  }: GetShoppingListListener) => {
-    const shoppingListCallback = (shoppingList: ShoppingList) => {
-      // Menüplan mit UID anreichern
-      shoppingList.uid = shoppingListUid;
-      callback(shoppingList);
-    };
-    return await firebase.event.shoppingList
-      .listen<ShoppingList>({
-        uids: [eventUid, shoppingListUid],
-        callback: shoppingListCallback,
-        errorCallback: errorCallback,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
+    // manualEdit-Items: Trace-Einträge mit manualEdit=true markieren
+    Object.values(existingList.list).forEach((department) => {
+      department.items.forEach((item) => {
+        if (item.manualEdit && trace[item.item.uid]) {
+          trace[item.item.uid].forEach((entry) => {
+            entry.manualEdit = true;
+          });
+        }
       });
-  };
-  // ===================================================================== */
-  /**
-   * Shopping-List lesen
-   * @param object - Referenz zu Firebase, ShoppintListeUid udn AuthUser
-   * @returns shoppingList - Listener mit Unsubscribe Methode
-   */
-  static getShoppingList = async ({
-    eventUid,
-    shoppingListUid,
-    firebase,
-  }: GetShoppingList) => {
-    let shoppingList = new ShoppingList();
-    if (!firebase || !eventUid || !shoppingListUid) {
-      throw new Error(TEXT_ERROR_PARAMETER_NOT_PASSED);
-    }
+    });
 
-    await firebase.event.shoppingList
-      .read<ShoppingList>({uids: [eventUid, shoppingListUid]})
-      .then((result) => {
-        shoppingList = result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
+    // manualAdd-Items: Trace-Eintrag hinzufügen
+    Object.values(existingList.list).forEach((department) => {
+      department.items.forEach((item) => {
+        if (item.manualAdd) {
+          trace = ShoppingList.addTraceEntry({
+            trace,
+            item: item.item as Product,
+            menueUid: "",
+            recipe: {} as {uid: string; name: string},
+            quantity: item.quantity,
+            unit: item.unit,
+            addedManually: true,
+            itemType: item.type,
+          });
+        }
       });
-    return shoppingList;
-  };
-  // ===================================================================== */
-  /**
-   * Liste löschen
-   * @param object - Referenz zu Firabse, ShoppintListeUid
-   * @returns void
-   */
-  static delete = async ({firebase, eventUid, listUidToDelete}: Delete) => {
-    firebase.event.shoppingList
-      .delete({uids: [eventUid, listUidToDelete]})
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
+    });
 
-    logEvent(firebase.analytics, FirebaseAnalyticEvent.shoppingListDeleted);
-  };
+    return trace;
+  }
+
+  /* =====================================================================
+  // Items zählen
   // ===================================================================== */
+
   /**
-   * Anzahl Items zählen
-   * @param object - Referenz auf ShoppingList
-   * @returns result: Anzahl Items
+   * Zählt die Gesamtanzahl der Items in der Liste.
    */
-  static countItems = ({shoppingList}: CountItems) => {
+  static countItems = ({shoppingList}: {shoppingList: ShoppingList}) => {
     let result = 0;
     Object.values(shoppingList.list).forEach(
       (department) => (result += department.items.length),
     );
     return result;
   };
+
 }

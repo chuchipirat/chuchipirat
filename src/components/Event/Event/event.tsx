@@ -81,7 +81,11 @@ import UnitConversion, {
 } from "../../Unit/unitConversion.class";
 import EventShoppingListPage from "../ShoppingList/shoppingList";
 import ShoppingListCollection from "../ShoppingList/shoppingListCollection.class";
-import ShoppingList from "../ShoppingList/shoppingList.class";
+import ShoppingList, {ShoppingListItem} from "../ShoppingList/shoppingList.class";
+import {
+  headersDomainToCollection,
+  itemsDomainToShoppingList,
+} from "../ShoppingList/shoppingListAdapter";
 import EventMaterialListPage from "../MaterialList/materialList";
 import MaterialList from "../MaterialList/materialList.class";
 import EventInfoPage from "./eventInfo";
@@ -102,6 +106,7 @@ import {logEvent} from "firebase/analytics";
 import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
 import {EventDomain} from "../../Database/Repository/EventRepository";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
+import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
 import EventMasterDataContext, {EventMasterData} from "./eventMasterDataContext";
 
 /* ===================================================================
@@ -167,6 +172,59 @@ function getChangedMenueUids(
       changed.add(uid);
     }
   }
+  return changed;
+}
+
+/**
+ * Stabiler Vergleichs-Key für ein Shopping-List-Item.
+ * Verwendet den Artikelnamen statt der UID, da Freitext-Items bei
+ * jedem delete-all + re-insert eine neue Supabase-UUID erhalten.
+ */
+function shoppingListItemKey(item: ShoppingListItem): string {
+  return item.item.name + "_" + item.unit;
+}
+
+/**
+ * Vergleicht zwei ShoppingLists und liefert die Keys der Items zurück,
+ * die sich geändert haben oder neu hinzugekommen sind.
+ *
+ * @param oldList - Bisherige Einkaufsliste (oder null)
+ * @param newList - Neu geladene Einkaufsliste
+ * @returns Set von geänderten Item-Keys (`name_unit`)
+ */
+function getChangedShoppingListItemKeys(
+  oldList: ShoppingList | null,
+  newList: ShoppingList,
+): Set<string> {
+  const changed = new Set<string>();
+
+  // Alte Items in eine Map packen: key → {quantity, checked}
+  const oldMap = new Map<string, {quantity: number; checked: boolean}>();
+  if (oldList) {
+    Object.values(oldList.list).forEach((dept) => {
+      dept.items.forEach((item) => {
+        const key = shoppingListItemKey(item);
+        oldMap.set(key, {quantity: item.quantity, checked: item.checked});
+      });
+    });
+  }
+
+  // Neue Items durchgehen und mit alten vergleichen
+  Object.values(newList.list).forEach((dept) => {
+    dept.items.forEach((item) => {
+      const key = shoppingListItemKey(item);
+      const old = oldMap.get(key);
+
+      if (!old) {
+        // Neues Item
+        changed.add(key);
+      } else if (old.quantity !== item.quantity || old.checked !== item.checked) {
+        // Geänderte Menge oder Checkbox
+        changed.add(key);
+      }
+    });
+  });
+
   return changed;
 }
 
@@ -821,6 +879,19 @@ const EventPage = () => {
     Set<string>
   >(new Set());
   const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+
+  // Shopping-List-Item-Keys, die durch einen anderen Benutzer geändert wurden.
+  const [highlightedShoppingItemKeys, setHighlightedShoppingItemKeys] =
+    React.useState<Set<string>>(new Set());
+  const shoppingHighlightTimeoutRef =
+    React.useRef<ReturnType<typeof setTimeout>>();
+  // Flag: Während ein Shopping-List-Save läuft, Highlighting unterdrücken —
+  // eigene Änderungen sollen nicht hervorgehoben werden.
+  const shoppingListSaveInProgress = React.useRef(false);
+  // Ref für die aktuelle ShoppingList — wird synchron in den Realtime-
+  // Callbacks und beim initialen Laden aktualisiert, damit der nächste
+  // Callback immer den aktuellen Stand als Vergleichsbasis hat.
+  const shoppingListRef = React.useRef<ShoppingList | null>(null);
   // Ref für den aktuellen Menuplan, damit der Debounce-Callback (der in einem
   // useEffect mit [] lebt) immer Zugriff auf den neuesten Stand hat.
   const menuplanRef = React.useRef<MenuplanData>(state.menuplan);
@@ -1008,31 +1079,46 @@ const EventPage = () => {
     };
   }, []);
   React.useEffect(() => {
-    // ShoppingList-Collection (noch auf Firebase)
+    // ShoppingList-Collection aus Supabase laden + Realtime-Subscription
     if (activeTab == EventTabs.shoppingList) {
-      let unsubscribe: (() => void) | undefined;
       dispatch({
         type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_INIT,
         payload: {},
       });
-      ShoppingListCollection.getShoppingListCollectionListener({
-        firebase: firebase,
-        eventUid: eventUid,
-        callback: (shoppingListCollection) => {
+
+      // Initiale Daten laden
+      database.shoppingLists
+        .getListsForEvent(eventUid)
+        .then((headers) => {
+          const collection = headersDomainToCollection(headers, eventUid);
           dispatch({
             type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS,
-            payload: shoppingListCollection,
+            payload: collection,
           });
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
+
+      // Realtime-Subscription für laufende Änderungen
+      const unsubscribe = database.shoppingLists.subscribeToLists(
+        eventUid,
+        (headers) => {
+          const collection = headersDomainToCollection(headers, eventUid);
+          dispatch({
+            type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS,
+            payload: collection,
+          });
+        },
+        (error) => {
+          console.warn("Realtime shopping list subscription error:", error.message);
+        },
+      );
+
       return function cleanup() {
-        unsubscribe && unsubscribe();
+        unsubscribe();
+        if (shoppingHighlightTimeoutRef.current)
+          clearTimeout(shoppingHighlightTimeoutRef.current);
       };
     }
   }, [activeTab]);
@@ -1353,22 +1439,20 @@ const EventPage = () => {
     // Kein zurückschreiben in den State, da der Listener, das wieder erhält....
   };
   const onShoppingListUpdate = (shoppingList: ShoppingList) => {
-    ShoppingList.save({
-      firebase: firebase,
-      eventUid: state.event.uid,
-      shoppingList: shoppingList,
-      authUser: authUser,
+    // Optimistisches State-Update — Persistenz erfolgt direkt in useShoppingListHandlers
+    // via Repository. Die Realtime-Subscription synchronisiert den Zustand.
+    dispatch({
+      type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
+      payload: shoppingList,
     });
-    // Kein zurückschreiben in den State, da der Listener, das wieder erhält....
   };
   const onShoppingCollectionUpdate = (
     shoppingListCollection: ShoppingListCollection,
   ) => {
-    ShoppingListCollection.save({
-      firebase: firebase,
-      eventUid: state.event.uid,
-      shoppingListCollection: shoppingListCollection,
-      authUser: authUser,
+    // Optimistisches State-Update — Persistenz erfolgt direkt in useShoppingListHandlers
+    dispatch({
+      type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS,
+      payload: shoppingListCollection,
     });
   };
   const onUsedRecipesUpdate = (usedRecipes: UsedRecipes) => {
@@ -1535,18 +1619,12 @@ const EventPage = () => {
         .remove(state.event.uid + ".jpg")
         .catch(() => {});
 
-      // Firebase-Kinder löschen (ShoppingList, MaterialList — noch auf Firebase)
-      // UsedRecipes werden über CASCADE beim Event-Delete in Supabase entfernt.
-      await Promise.all([
-        ShoppingListCollection.delete({
-          firebase: firebase,
-          eventUid: state.event.uid,
-        }).catch(() => {}),
-        MaterialList.delete({
-          firebase: firebase,
-          eventUid: state.event.uid,
-        }).catch(() => {}),
-      ]);
+      // Firebase-Kinder löschen (MaterialList — noch auf Firebase)
+      // ShoppingList + UsedRecipes werden über CASCADE beim Event-Delete in Supabase entfernt.
+      await MaterialList.delete({
+        firebase: firebase,
+        eventUid: state.event.uid,
+      }).catch(() => {});
 
       // Event löschen — CASCADE entfernt alle Supabase-Kinder
       await database.events.deleteEvent(state.event.uid);
@@ -1870,32 +1948,91 @@ const EventPage = () => {
           state.shoppingList.unsubscribe();
         }
         dispatch({type: ReducerActions.SHOPPINGLIST_FETCH_INIT, payload: {}});
-        ShoppingList.getShoppingListListener({
-          firebase: firebase,
-          eventUid: eventUid,
-          shoppingListUid: objectUid as string,
-          callback: (shoppingList) => {
+
+        // Items aus Supabase laden
+        database.shoppingLists
+          .getListItems(objectUid as string)
+          .then((items) => {
+            const shoppingList = itemsDomainToShoppingList(
+              items,
+              objectUid as string,
+            );
+            // Ref sofort setzen — Basis für Realtime-Vergleiche
+            shoppingListRef.current = shoppingList;
             dispatch({
               type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
               payload: shoppingList,
-            });
-          },
-          errorCallback: (error) => {
-            if (error.message !== TEXT_DB_DOCUMENT_DELETED) {
-              dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-            }
-          },
-        })
-          .then((result) => {
-            dispatch({
-              type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_LISTENER,
-              payload: result,
             });
           })
           .catch((error) => {
             console.error(error);
             dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
           });
+
+        // Realtime-Subscription für Item-Änderungen
+        {
+          const unsubscribe = database.shoppingLists.subscribeToListItems(
+            objectUid as string,
+            (items) => {
+              const newShoppingList = itemsDomainToShoppingList(
+                items,
+                objectUid as string,
+              );
+
+              // Leere Liste ignorieren — entsteht kurzzeitig beim
+              // delete-all + re-insert in saveListItems(). Würde sonst
+              // den Ref auf leer setzen und beim INSERT alles highlighten.
+              const newItemCount = Object.values(newShoppingList.list)
+                .reduce((sum, dept) => sum + dept.items.length, 0);
+              const oldItemCount = shoppingListRef.current
+                ? Object.values(shoppingListRef.current.list)
+                    .reduce((sum, dept) => sum + dept.items.length, 0)
+                : 0;
+
+              if (newItemCount === 0 && oldItemCount > 0) {
+                return;
+              }
+
+              // Highlighting nur für Änderungen anderer Benutzer —
+              // eigene Saves setzen shoppingListSaveInProgress.
+              if (!shoppingListSaveInProgress.current && newItemCount > 0) {
+                const changedKeys = getChangedShoppingListItemKeys(
+                  shoppingListRef.current,
+                  newShoppingList,
+                );
+                if (changedKeys.size > 0) {
+                  setHighlightedShoppingItemKeys(changedKeys);
+                  if (shoppingHighlightTimeoutRef.current)
+                    clearTimeout(shoppingHighlightTimeoutRef.current);
+                  shoppingHighlightTimeoutRef.current = setTimeout(
+                    () => setHighlightedShoppingItemKeys(new Set()),
+                    2000,
+                  );
+                }
+              }
+
+              // Ref sofort aktualisieren, damit der nächste Realtime-Callback
+              // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
+              // asynchronen useEffect-Zyklus zu warten.
+              shoppingListRef.current = newShoppingList;
+
+              dispatch({
+                type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
+                payload: newShoppingList,
+              });
+            },
+            (error) => {
+              console.warn(
+                "Realtime shopping list items subscription error:",
+                error.message,
+              );
+            },
+          );
+          dispatch({
+            type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_LISTENER,
+            payload: unsubscribe,
+          });
+        }
     }
   };
   /* ------------------------------------------
@@ -2066,19 +2203,23 @@ const EventPage = () => {
             </Container>
           ) : activeTab == EventTabs.shoppingList ? (
             <Container>
-              <EventShoppingListPage
-                firebase={firebase}
-                authUser={authUser}
-                menuplan={state.menuplan}
-                event={state.event}
-                materials={state.materials}
-                recipes={state.recipes}
-                shoppingListCollection={state.shoppingListCollection}
-                shoppingList={state.shoppingList.value}
-                fetchMissingData={fetchMissingData}
-                onShoppingListUpdate={onShoppingListUpdate}
-                onShoppingCollectionUpdate={onShoppingCollectionUpdate}
-              />
+              <HighlightedShoppingListItemContext.Provider
+                value={highlightedShoppingItemKeys}
+              >
+                <EventShoppingListPage
+                  authUser={authUser}
+                  menuplan={state.menuplan}
+                  event={state.event}
+                  materials={state.materials}
+                  recipes={state.recipes}
+                  shoppingListCollection={state.shoppingListCollection}
+                  shoppingList={state.shoppingList.value}
+                  saveInProgressRef={shoppingListSaveInProgress}
+                  fetchMissingData={fetchMissingData}
+                  onShoppingListUpdate={onShoppingListUpdate}
+                  onShoppingCollectionUpdate={onShoppingCollectionUpdate}
+                />
+              </HighlightedShoppingListItemContext.Provider>
             </Container>
           ) : activeTab == EventTabs.materialList ? (
             <Container>

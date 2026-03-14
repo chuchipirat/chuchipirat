@@ -858,13 +858,7 @@ const MenueCard = ({
               ...classes.menuCard,
               ...classes.menueCardDrag[state.type],
               ...(state.type === "is-dragging" && {opacity: 0.4}),
-              ...(isHighlighted && {
-                "@keyframes remoteChangeGlow": {
-                  "0%": {boxShadow: "0 0 8px 3px rgba(25, 118, 210, 0.5)"},
-                  "100%": {boxShadow: "0 0 0 0 rgba(25, 118, 210, 0)"},
-                },
-                animation: "remoteChangeGlow 2s ease-out",
-              }),
+              ...(isHighlighted && classes.remoteChangeGlow),
             }}
           >
             <CardHeader

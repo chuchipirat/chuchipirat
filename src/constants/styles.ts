@@ -637,6 +637,21 @@ const useCustomStyles = () => {
       height: "100%",
       whiteSpace: "nowrap",
     },
+    /* ------------------------------------------
+    // Realtime-Highlight: Glow-Animation für Änderungen
+    // anderer Benutzer (Supabase Realtime).
+    // ------------------------------------------ */
+    remoteChangeGlow: {
+      "@keyframes remoteChangeGlow": {
+        "0%": {
+          boxShadow: `0 0 8px 3px ${alpha(theme.palette.primary.main, 0.5)}`,
+        },
+        "100%": {
+          boxShadow: `0 0 0 0 ${alpha(theme.palette.primary.main, 0)}`,
+        },
+      },
+      animation: "remoteChangeGlow 2s ease-out",
+    },
   };
 };
 

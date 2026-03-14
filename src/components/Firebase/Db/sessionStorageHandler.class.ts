@@ -209,6 +209,12 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     respectPrefix: false,
     excludeFromCaching: true,
   },
+  SHOPPING_LISTS: {
+    durationOfValidity: 0,
+    uid: "/shoppingLists",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
 };
 
 const PREFIX_DOCUMENTUID_SEPARATOR = "|";

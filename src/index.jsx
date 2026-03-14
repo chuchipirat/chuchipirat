@@ -23,12 +23,14 @@ import {de} from "date-fns/locale";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
+  //FIXME:
   enabled: !Utils.isDevEnvironment(),
   environment: import.meta.env.VITE_ENVIRONMENT,
   release: packageJson.version,
   integrations: [
     Sentry.browserTracingIntegration(),
     Sentry.replayIntegration(),
+    // Sentry.consoleLoggingIntegration({levels: ["log", "warn", "error"]}),
   ],
   // Tracing
   tracesSampleRate: 1.0,

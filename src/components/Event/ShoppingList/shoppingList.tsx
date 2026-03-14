@@ -107,16 +107,17 @@ import {TextFieldSize} from "../../../constants/defaultValues";
 import {DialogSelectDepartments} from "./dialogSelectDepartments";
 
 import {useEventMasterData} from "../Event/eventMasterDataContext";
+import {useFirebase} from "../../Firebase/firebaseContext";
+import {HighlightedShoppingListItemContext} from "./shoppingListHighlightContext";
 
 // Custom hooks
 import useRecipeDrawer from "./useRecipeDrawer";
-import useShoppingListDialogs, {
+import useShoppingListHandlers, {
   DialogSelectDepartmentsCaller,
   OnDialogAddItemOk,
-} from "./useShoppingListDialogs";
-import useShoppingListOperations, {
   ItemChange,
-} from "./useShoppingListOperations";
+} from "./useShoppingListHandlers";
+// import * as Sentry from "@sentry/react";
 
 /* ===================================================================
 // ============================ Dispatcher ===========================
@@ -202,7 +203,6 @@ const shoppingListReducer = (state: State, action: DispatchAction): State => {
 // =============================== Base ==============================
 // =================================================================== */
 interface EventShoppingListPageProps {
-  firebase: Firebase;
   authUser: AuthUser;
   menuplan: MenuplanData;
   event: Event;
@@ -210,6 +210,7 @@ interface EventShoppingListPageProps {
   recipes: Recipes;
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
+  saveInProgressRef: React.MutableRefObject<boolean>;
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (
@@ -218,10 +219,10 @@ interface EventShoppingListPageProps {
 }
 
 const EventShoppingListPage = ({
-  firebase,
   authUser,
   menuplan,
   event,
+  saveInProgressRef,
   materials,
   recipes,
   shoppingListCollection,
@@ -232,8 +233,15 @@ const EventShoppingListPage = ({
 }: EventShoppingListPageProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
-  const {products, units, departments, unitConversionBasic, unitConversionProducts} =
-    useEventMasterData();
+  // Firebase wird nur noch für RecipeDrawer benötigt (TODO: nach Recipe-Migration entfernen)
+  const firebase = useFirebase();
+  const {
+    products,
+    units,
+    departments,
+    unitConversionBasic,
+    unitConversionProducts,
+  } = useEventMasterData();
 
   const navigationValuesContext = React.useContext(NavigationValuesContext);
 
@@ -293,8 +301,9 @@ const EventShoppingListPage = ({
     onDialogHandleItemOk,
     onDialogTraceItemClose,
     onGeneratePrintVersion,
-  } = useShoppingListDialogs({
-    firebase,
+    onCheckboxClick,
+    onChangeItem,
+  } = useShoppingListHandlers({
     authUser,
     event,
     menuplan,
@@ -307,6 +316,7 @@ const EventShoppingListPage = ({
     shoppingListCollection,
     shoppingList,
     selectedListItem: state.selectedListItem,
+    saveInProgressRef,
     fetchMissingData,
     onShoppingListUpdate,
     onShoppingCollectionUpdate,
@@ -316,20 +326,12 @@ const EventShoppingListPage = ({
     onDispatchSnackbar,
   });
 
-  const {onCheckboxClick, onChangeItem} = useShoppingListOperations({
-    shoppingList,
-    shoppingListCollection,
-    selectedListItem: state.selectedListItem,
-    departments,
-    onShoppingListUpdate,
-    onShoppingCollectionUpdate,
-    onSnackbarShow: onDispatchSnackbar,
-  });
-
   /* ------------------------------------------
   // Navigation-Handler
   // ------------------------------------------ */
   React.useEffect(() => {
+    // Sentry.logger.info("User triggered test log", {log_source: "sentry_test"});
+
     navigationValuesContext?.setNavigationValues({
       action: Action.NONE,
       object: NavigationObject.shoppingList,
@@ -565,9 +567,9 @@ const EventShoppingListPage = ({
           itemType={TEXT_ITEM}
           dialogOpen={traceItemDialogValues.open}
           trace={
-            shoppingListCollection.lists[state.selectedListItem!].trace[
+            shoppingListCollection.lists[state.selectedListItem!]?.trace[
               contextMenuSelectedItem.productUid
-            ]
+            ] ?? []
           }
           sortedMenues={traceItemDialogValues.sortedMenues}
           hasBeenManualyEdited={Boolean(
@@ -679,6 +681,9 @@ const EventShoppingListList = React.memo(
     const classes = useCustomStyles();
     const theme = useTheme();
     const shouldFocusDepartmentRef = React.useRef<string | null>(null);
+    const highlightedItemKeys = React.useContext(
+      HighlightedShoppingListItemContext,
+    );
 
     const toAutocompleteItem = React.useCallback(
       (shoppingListItem: ShoppingListItem) => {
@@ -792,6 +797,7 @@ const EventShoppingListList = React.memo(
             return (
               <React.Fragment key={"GridItemDepartment_" + departmentKey}>
                 <Typography
+                  id={"department_heading_" + departmentKey}
                   component={"h2"}
                   variant={"h5"}
                   align="center"
@@ -809,11 +815,14 @@ const EventShoppingListList = React.memo(
                       key={
                         "shoppingListItem_" + item.item.uid + "_" + item.unit
                       }
-                      sx={
-                        shoppingListModus === ListMode.VIEW
+                      sx={{
+                        ...(shoppingListModus === ListMode.VIEW
                           ? viewModeItemSx
-                          : classes.eventListItem
-                      }
+                          : classes.eventListItem),
+                        ...(highlightedItemKeys.has(
+                          item.item.name + "_" + item.unit,
+                        ) && classes.remoteChangeGlow),
+                      }}
                     >
                       <ListItemIcon
                         sx={

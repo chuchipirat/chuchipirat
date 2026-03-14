@@ -518,10 +518,13 @@ export const useUsedRecipesHandlers = ({
     };
     onUsedRecipesUpdate(updatedUsedRecipes);
 
-    // updated_at in DB aktualisieren, damit der Wert beim nächsten Laden
-    // (z.B. Tab-Wechsel) noch stimmt
+    // updated_at in DB aktualisieren — ein leerer Update auf die Kopfzeile
+    // triggert update_updated_at und hält den Zeitstempel konsistent.
     database.usedRecipeLists
-      .touchListUpdatedAt(state.selectedListItem)
+      .updateListMenues(
+        state.selectedListItem,
+        usedRecipes.lists[state.selectedListItem].properties.selectedMenues,
+      )
       .catch((error) => {
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });

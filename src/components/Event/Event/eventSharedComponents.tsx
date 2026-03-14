@@ -349,8 +349,10 @@ export const DialogTraceItem = ({
                                       : TEXT_ADDED_MANUALY
                                   }
                                   secondary={
-                                    item?.planedPortions &&
-                                    `${item.planedPortions} Portionen`
+                                    item.manualEdit
+                                      ? TEXT_THE_QUANTITY_HAS_BEEN_MANUALY_EDITED
+                                      : item?.planedPortions &&
+                                        `${item.planedPortions} Portionen`
                                   }
                                   key={`listItemTextItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                 />
@@ -378,8 +380,10 @@ export const DialogTraceItem = ({
                                       : TEXT_ADDED_MANUALY
                                   }
                                   secondary={
-                                    item?.planedPortions &&
-                                    `${item.planedPortions} Portionen`
+                                    item.manualEdit
+                                      ? TEXT_THE_QUANTITY_HAS_BEEN_MANUALY_EDITED
+                                      : item?.planedPortions &&
+                                        `${item.planedPortions} Portionen`
                                   }
                                   key={`listItemTextItem_${menue.menueUid}_${counter}_${item.recipe.uid}`}
                                 />

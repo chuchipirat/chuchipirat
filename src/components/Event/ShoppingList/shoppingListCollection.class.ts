@@ -1,13 +1,27 @@
+/**
+ * ShoppingListCollection — Domain-Modell für die Übersicht aller
+ * Einkaufslisten eines Events.
+ *
+ * Reine Geschäftslogik ohne Persistenz-Code. Verwaltet die
+ * Listen-Properties (Name, Auswahlen) und bietet Factory-Methoden.
+ *
+ * Persistenz erfolgt über das ShoppingListRepository.
+ * Traces werden bei Bedarf on-the-fly aus dem Menüplan berechnet
+ * (kein separates Trace-Feld mehr in der DB).
+ */
 import {ChangeRecord} from "../../Shared/global.interface";
 import Unit from "../../Unit/unit.class";
 import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Firebase from "../../Firebase/firebase.class";
 import Product from "../../Product/product.class";
 import {Meal, Menue, MenuplanData} from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 import Recipe from "../../Recipe/recipe.class";
-import ShoppingList, {ItemType, ShoppingListItem} from "./shoppingList.class";
+import ShoppingList, {
+  ItemType,
+  ShoppingListItem,
+  ShoppingListTrace,
+} from "./shoppingList.class";
 import {
   UnitConversionBasic,
   UnitConversionProducts,
@@ -16,28 +30,22 @@ import Department from "../../Department/department.class";
 import Material from "../../Material/material.class";
 import _ from "lodash";
 import Utils from "../../Shared/utils.class";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
-import Stats, {StatsField} from "../../Shared/stats.class";
-import {logEvent} from "firebase/analytics";
 
-interface Factory {
-  event: Event;
-}
-interface SaveCollection {
-  firebase: Firebase;
-  authUser: AuthUser;
-  shoppingListCollection: ShoppingListCollection;
-}
-interface GetShoppingListCollection {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-}
-interface GetShoppingListCollectionListener {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-  callback: (shoppingListCollection: ShoppingListCollection) => void;
-}
+/* =====================================================================
+// Interfaces
+// ===================================================================== */
 
+/**
+ * Properties einer einzelnen Einkaufsliste.
+ *
+ * @param uid - Eindeutige ID der Liste
+ * @param name - Anzeigename
+ * @param selectedMeals - Ausgewählte Meal-IDs (für Drift-Erkennung)
+ * @param selectedMenues - Ausgewählte Menü-IDs
+ * @param selectedDepartments - Ausgewählte Abteilungs-IDs (Filter)
+ * @param generated - Wer/wann die Liste generiert/aktualisiert wurde
+ * @param hasManuallyAddedItems - Hat manuell hinzugefügte Positionen
+ */
 export interface ShoppingListProperties {
   uid: string;
   name: string;
@@ -48,40 +56,10 @@ export interface ShoppingListProperties {
   hasManuallyAddedItems: boolean;
 }
 
-interface CreateNewList {
-  name: string;
-  selectedMenues: Menue["uid"][];
-  selectedDepartments: Department["uid"][];
-  shoppingListCollection: ShoppingListCollection;
-  menueplan: MenuplanData;
-  eventUid: Event["uid"];
-  products: Product[];
-  materials: Material[];
-  departments: Department[];
-  units: Unit[];
-  unitConversionBasic: UnitConversionBasic;
-  unitConversionProducts: UnitConversionProducts;
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-
-interface RefreshLists {
-  shoppingListCollection: ShoppingListCollection;
-  shoppingList: ShoppingList;
-  keepManuallyAddedItems?: boolean;
-  keepManuallyEditedItems?: boolean;
-  menueplan: MenuplanData;
-  eventUid: Event["uid"];
-  products: Product[];
-  materials: Material[];
-  departments: Department[];
-  units: Unit[];
-  unitConversionBasic: UnitConversionBasic;
-  unitConversionProducts: UnitConversionProducts;
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-
+/**
+ * @deprecated Wird nur noch für die Kompatibilität mit bestehendem UI-Code
+ * exportiert. Trace-Daten werden in Supabase on-the-fly berechnet.
+ */
 export interface ProductTrace {
   menueUid: Menue["uid"];
   recipe: {uid: Recipe["uid"]; name: Recipe["name"]};
@@ -89,641 +67,341 @@ export interface ProductTrace {
   quantity: number;
   unit: Unit["key"];
   manualAdd?: boolean;
+  manualEdit?: boolean;
   itemType: ItemType;
 }
 
-interface DeleteList {
-  firebase: Firebase;
-  shoppingListColection: ShoppingListCollection;
-  eventUid: Event["uid"];
+/**
+ * @deprecated Trace ist jetzt in ShoppingList.class.ts definiert.
+ */
+export type {ShoppingListTrace};
+
+/**
+ * Eintrag in der Listen-Übersicht — Properties + optionaler Trace.
+ */
+export interface ShoppingListEntry {
+  properties: ShoppingListProperties;
+  trace: ShoppingListTrace;
+}
+
+/* =====================================================================
+// Interfaces für Methoden-Parameter
+// ===================================================================== */
+
+interface CreateNewListParams {
+  name: string;
+  selectedMenues: Menue["uid"][];
+  selectedDepartments: Department["uid"][];
+  shoppingListCollection: ShoppingListCollection;
+  menueplan: MenuplanData;
+  /** Vorgeladene Rezepte — Key: recipeUid, Value: Recipe-Objekt */
+  recipes: {[key: string]: Recipe};
+  products: Product[];
+  materials: Material[];
+  departments: Department[];
+  units: Unit[];
+  unitConversionBasic: UnitConversionBasic;
+  unitConversionProducts: UnitConversionProducts;
+  authUser: AuthUser;
+}
+
+interface RefreshListParams {
+  shoppingListCollection: ShoppingListCollection;
+  shoppingList: ShoppingList;
+  keepManuallyAddedItems?: boolean;
+  keepManuallyEditedItems?: boolean;
+  menueplan: MenuplanData;
+  /** Vorgeladene Rezepte — Key: recipeUid, Value: Recipe-Objekt */
+  recipes: {[key: string]: Recipe};
+  products: Product[];
+  materials: Material[];
+  departments: Department[];
+  units: Unit[];
+  unitConversionBasic: UnitConversionBasic;
+  unitConversionProducts: UnitConversionProducts;
+  authUser: AuthUser;
+}
+
+interface DeleteListParams {
+  usedRecipes?: unknown;
+  shoppingListCollection?: ShoppingListCollection;
+  /** @deprecated Verwende shoppingListCollection statt shoppingListColection */
+  shoppingListColection?: ShoppingListCollection;
   listUidToDelete: ShoppingList["uid"];
   authUser: AuthUser;
 }
 
-interface EditListName {
+interface EditListNameParams {
   shoppingListCollection: ShoppingListCollection;
   listUidToEdit: ShoppingList["uid"];
   newName: ShoppingListProperties["name"];
   authUser: AuthUser;
 }
 
-export interface ShoppingListTrace {
-  [key: Product["uid"]]: ProductTrace[];
-}
+/* =====================================================================
+// ShoppingListCollection
+// ===================================================================== */
 
-export interface ShoppingListEntry {
-  properties: ShoppingListProperties;
-  trace: ShoppingListTrace;
-}
-
-interface Save {
-  firebase: Firebase;
-  eventUid: Event["uid"];
-  shoppingListCollection: ShoppingListCollection;
-  authUser: AuthUser;
-}
-interface Delete {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-}
-
-interface AddTraceEntry {
-  trace: ShoppingListTrace;
-  item: Product | Material;
-  menueUid: Menue["uid"];
-  recipe: {uid: Recipe["uid"]; name: Recipe["name"]};
-  planedPortions?: number;
-  quantity: number;
-  unit: Unit["key"];
-  addedManually?: boolean;
-  itemType: ItemType;
-}
-
-interface DeleteTraceEntry {
-  trace: ShoppingListTrace;
-  itemUid: Product["uid"] | Material["uid"];
-}
-
+/**
+ * Domain-Modell für die Übersicht aller Einkaufslisten eines Events.
+ *
+ * Verwaltet Listen-Properties, bietet Factory-Methoden für Erstellen,
+ * Aktualisieren und Löschen. Keine Persistenz-Logik enthalten —
+ * der aufrufende Code (Handler-Hook) speichert über das Repository.
+ */
 export default class ShoppingListCollection {
-  // HINT: Änderungen müssen auch im Cloud-FX-Type nachgeführt werden
   noOfLists: number;
   lists: {[key: string]: ShoppingListEntry};
   lastChange: ChangeRecord;
   eventUid: Event["uid"];
+  /** @deprecated Nicht mehr in der DB — Supabase-VIEW löst Produkte auf. */
   usedProducts?: Product["uid"][];
+  /** @deprecated Nicht mehr in der DB — Supabase-VIEW löst Materialien auf. */
   usedMaterials?: Material["uid"][];
 
-  /* =====================================================================
-  // Konstruktor
-  // ===================================================================== */
+  /** Auch exportiert als uid für Kompatibilität */
+  uid?: string;
+
   constructor() {
     this.noOfLists = 0;
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
     this.lists = {};
     this.eventUid = "";
-  } // ===================================================================== */
-  /**
-   * Factory Methode
-   * @returns ShoppingListCollection
-   */
-  static factory = ({event}: Factory) => {
-    const shoppingListCollection = new ShoppingListCollection();
-    shoppingListCollection.eventUid = event.uid;
-    return shoppingListCollection;
-  };
+  }
+
+  /* =====================================================================
+  // Factory
   // ===================================================================== */
+
   /**
-   * Collection speichern (Übersichts-File aller Einkaufslisten)
-   * @returns void
+   * Erstellt eine leere ShoppingListCollection für ein Event.
+   *
+   * @param params.event - Das Event, für das die Collection erstellt wird
+   * @returns Leere ShoppingListCollection
    */
-  static saveCollection = async ({
-    firebase,
-    authUser,
-    shoppingListCollection,
-  }: SaveCollection) => {
-    firebase.event.shoppingListCollection
-      .set({
-        uids: [shoppingListCollection.eventUid],
-        value: shoppingListCollection,
-        authUser: authUser,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Collection mit Listener holen
-   * @returns listener
-   */
-  static getShoppingListCollection = async ({
-    eventUid,
-    firebase,
-  }: GetShoppingListCollection) => {
-    let shoppingListColection = {} as ShoppingListCollection;
-    await firebase.event.shoppingListCollection
-      .read<ShoppingListCollection>({uids: [eventUid]})
-      .then((result) => {
-        shoppingListColection = result;
-        shoppingListColection.eventUid = eventUid;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    return shoppingListColection;
-  };
-
-  // ===================================================================== */
-  /**
-   * Collection mit Listener holen
-   * @returns listener
-   */
-  static getShoppingListCollectionListener = async ({
-    firebase,
-    eventUid: uid,
-    callback,
-  }: GetShoppingListCollectionListener) => {
-    const shoppingListCollectionCallback = (
-      shoppingListCollection: ShoppingListCollection,
-    ) => {
-      // Menüplan mit UID anreichern
-      shoppingListCollection.eventUid = uid;
-      callback(shoppingListCollection);
-    };
-    const errorCallback = (error: Error) => {
-      console.error(error);
-      throw error;
-    };
-
-    return await firebase.event.shoppingListCollection
-      .listen<ShoppingListCollection>({
-        uids: [uid],
-        callback: shoppingListCollectionCallback,
-        errorCallback: errorCallback,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Neue Liste erstellen
-   * Anhand der gewählten Menües, die Rezepte suchen und eine neue Liste
-   * erstellen.
-   * @param object - Objekt Name der Liste, ausgewählte Menües [menueUid],
-   *                 Firebase und Authuser
-   * @returns Generierte Liste als Objekt
-   */
-  static createNewList = async ({
-    name,
-    selectedMenues,
-    selectedDepartments,
-    shoppingListCollection,
-    menueplan,
-    eventUid,
-    products,
-    materials,
-    departments,
-    units,
-    unitConversionBasic,
-    unitConversionProducts,
-    firebase,
-    authUser,
-  }: CreateNewList) => {
-    let trace = {} as ShoppingListTrace;
-    let shoppingList = {} as ShoppingList;
-
-    await ShoppingList.createNewList({
-      selectedMenues: selectedMenues,
-      selectedDepartments: selectedDepartments,
-      menueplan: menueplan,
-      products: products,
-      materials: materials,
-      departments: departments,
-      units: units,
-      unitConversionBasic: unitConversionBasic,
-      unitConversionProducts: unitConversionProducts,
-      firebase: firebase,
-    }).then(async (result) => {
-      shoppingList = result.shoppingList;
-      trace = result.trace;
-
-      // Liste speichern und UID aufnehmen für Trace
-      await ShoppingList.save({
-        firebase: firebase,
-        eventUid: eventUid,
-        shoppingList: result.shoppingList,
-        authUser: authUser,
-      }).then(async (result) => {
-        shoppingList = result;
-        shoppingListCollection.noOfLists++;
-
-        shoppingListCollection.lists[shoppingList.uid] = {
-          properties: {
-            uid: shoppingList.uid,
-            name: name,
-            selectedMenues: selectedMenues,
-            selectedDepartments: selectedDepartments,
-            selectedMeals: getMealsOfMenues({
-              menuplan: menueplan,
-              menues: selectedMenues,
-            }),
-            generated: Utils.createChangeRecord(authUser),
-            hasManuallyAddedItems: false,
-          },
-          trace: trace,
-        };
-      });
-    });
-    // Neue UID und Collection
-    return {
-      shoppingListUid: shoppingList.uid,
-      shoppingListCollection: shoppingListCollection,
-    };
-  };
-  // ===================================================================== */
-  /**
-   * Eintrag in Trace hinzufügen
-   * @param object - Objekt mit: Referenz zum Trace-Array, der Artikel, Menu-UID
-   *                 Rezept (UID und Name), Menge und Einheit
-   * @returns gibt das Trace File zurück
-   */
-  static addTraceEntry = ({
-    trace,
-    item,
-    menueUid,
-    recipe,
-    planedPortions,
-    quantity,
-    unit,
-    addedManually: addedManualy = false,
-    itemType,
-  }: AddTraceEntry) => {
-    if (!Object.prototype.hasOwnProperty.call(trace, item.uid)) {
-      trace[item.uid] = [];
-    }
-
-    const shoppingListItem: ProductTrace = {
-      menueUid: menueUid,
-      recipe: recipe,
-      quantity: quantity,
-      unit: unit,
-      itemType: itemType,
-    };
-    if (planedPortions) {
-      shoppingListItem.planedPortions = planedPortions;
-    }
-
-    if (addedManualy) {
-      shoppingListItem.manualAdd = true;
-    }
-
-    trace[item.uid].push(shoppingListItem);
-    return trace;
-  };
-  // ===================================================================== */
-  /**
-   * Eintrag aus dem Trace löschen
-   * @param object - Objekt mit: Referenz zum Trace-Array, und UID des Item
-   * @returns gibt das Trace File zurück
-   */
-  static deleteTraceEntry = ({trace, itemUid}: DeleteTraceEntry) => {
-    // Gewähltes Produkt ausfiltern
-    const updatedTrace = _.cloneDeep(trace);
-
-    delete updatedTrace[itemUid];
-
-    return updatedTrace;
-  };
-  // ===================================================================== */
-  /**
-   * Bestehende Liste aktualisieren
-   * @param object - Objekt mit: Referenz auf ShoppingList-Collection,
-   *                 ShoppingList, Wert ob manuell hinzugefügte Werte bei-
-   *                 behalten werden sollen, Referenzen auf Menplan, Produkte
-   *                 Materialien, UnitConversion Basic, Unit Conversion Products
-   *                 Abteilungen, Firebase und AuthUser
-   * @returns objekt mit ShoppingList und ShoppingListCollection
-   */
-  static refreshList = async ({
-    shoppingListCollection,
-    shoppingList,
-    keepManuallyAddedItems = false,
-    keepManuallyEditedItems = false,
-    menueplan,
-    products,
-    materials,
-    units,
-    unitConversionBasic,
-    unitConversionProducts,
-    departments,
-    firebase,
-    authUser,
-  }: RefreshLists) => {
-    // Manuel hinzugefügte Elmente nicht löschen!
-    let manuallyAddedItems: ShoppingList["list"];
-    const manuallyAddedItemsTrace = {} as ShoppingListTrace;
-    const updatedShoppingListCollection = _.cloneDeep(
-      shoppingListCollection,
-    ) as ShoppingListCollection;
-    let updatedTrace = {} as ShoppingListTrace;
-    let updatedShoppingList = {} as ShoppingList;
-    let itemToInsert: ShoppingListItem | undefined = undefined;
-    const listToUpdate = updatedShoppingListCollection.lists[shoppingList.uid];
-
-    if (keepManuallyAddedItems || keepManuallyEditedItems) {
-      // die manuell hinzugefügten/bearbeiteten Elemente behalten
-      manuallyAddedItems = _.cloneDeep(shoppingList.list);
-
-      Object.entries(manuallyAddedItems).forEach(
-        ([departmentPos, department]) => {
-          department.items = department.items.filter(
-            (item) =>
-              (keepManuallyAddedItems && item?.manualAdd === true) ||
-              (keepManuallyEditedItems && item?.manualEdit === true),
-          );
-
-          if (department.items.length == 0) {
-            // Ganze Abteilung löschen
-            delete manuallyAddedItems[departmentPos];
-          }
-        },
-      );
-
-      // Trace-Elemente für manualAdd-Items behalten (manualEdit-Items
-      // werden beim Refresh neu generiert, brauchen keinen eigenen Trace)
-      Object.values(manuallyAddedItems).forEach((department) => {
-        department.items.forEach((item) => {
-          if (!item.manualAdd) return; // Nur Traces von manualAdd-Items behalten
-          const traceEntries =
-            shoppingListCollection.lists[shoppingList.uid].trace[item.item.uid];
-          if (traceEntries) {
-            manuallyAddedItemsTrace[item.item.uid] = traceEntries.filter(
-              (entry) => entry.manualAdd,
-            );
-          }
-        });
-      });
-    }
-
-    // überprüfen ob die gewählten Menüs auch in den Mahlzeiten sind.
-    // Wenn die Menüs im Menüplan verschoben werden, müssen die Menüs neu definiert werden
-    // Anhand der Mahlzeiten (die mitgespeichert werden)
-    if (
-      !Utils.areStringArraysEqual(
-        listToUpdate.properties.selectedMeals,
-        getMealsOfMenues({
-          menuplan: menueplan,
-          menues: listToUpdate.properties.selectedMenues,
-        }),
-      ) ||
-      // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
-      // Auswahl entfernt
-      listToUpdate.properties.selectedMenues.length !==
-        getMenuesOfMeals({
-          menuplan: menueplan,
-          meals: listToUpdate.properties.selectedMeals,
-        }).length
-    ) {
-      // Die Menüs wurden geändert. Daher müssen wir jetzt
-      // die Menüs neu bestimmen anhand der Mahlzeiten
-      listToUpdate.properties.selectedMenues = getMenuesOfMeals({
-        menuplan: menueplan,
-        meals: listToUpdate.properties.selectedMeals,
-      });
-    }
-
-    // Shopping Liste neu generieren
-    await ShoppingList.createNewList({
-      selectedMenues: listToUpdate.properties.selectedMenues,
-      selectedDepartments: listToUpdate.properties.selectedDepartments,
-      menueplan: menueplan,
-      products: products,
-      materials: materials,
-      departments: departments,
-      units: units,
-      unitConversionBasic: unitConversionBasic,
-      unitConversionProducts: unitConversionProducts,
-      firebase: firebase,
-    })
-      .then((result) => {
-        updatedShoppingList = result.shoppingList;
-        updatedShoppingList.uid = shoppingList.uid;
-        updatedTrace = result.trace;
-
-        if (keepManuallyAddedItems || keepManuallyEditedItems) {
-          // Liste mit manuellen Einträgen mergen
-          Object.entries(manuallyAddedItems).forEach(
-            ([departmentKey, department]) => {
-              department.items.forEach((item) => {
-                if (
-                  !Object.prototype.hasOwnProperty.call(
-                    updatedShoppingList.list,
-                    departmentKey,
-                  )
-                ) {
-                  itemToInsert = undefined;
-                  updatedShoppingList.list[departmentKey] = {...department};
-                } else {
-                  if (item.manualEdit) {
-                    // Manuell bearbeiteter Artikel: In der neuen Liste per UID suchen
-                    // und die bearbeitete Menge beibehalten
-                    itemToInsert = updatedShoppingList.list[
-                      departmentKey
-                    ].items.find(
-                      (updatedListItem: ShoppingListItem) =>
-                        updatedListItem.item.uid == item.item.uid,
-                    );
-                    if (itemToInsert) {
-                      itemToInsert.quantity = item.quantity;
-                      itemToInsert.manualEdit = true;
-                    } else {
-                      updatedShoppingList.list[departmentKey].items.push(item);
-                    }
-                  } else {
-                    // Manuell hinzugefügter Artikel: prüfen ob identisch vorhanden
-                    itemToInsert = updatedShoppingList.list[
-                      departmentKey
-                    ].items.find(
-                      (updatedListItem: ShoppingListItem) =>
-                        updatedListItem.item.uid == item.item.uid &&
-                        updatedListItem.quantity == item.quantity,
-                    );
-                    if (itemToInsert) {
-                      itemToInsert.quantity += item.quantity;
-                    } else {
-                      updatedShoppingList.list[departmentKey].items.push(item);
-                    }
-                  }
-                }
-              });
-            },
-          );
-          // Trace mit manuellen Einträgen mergen
-          Object.entries(manuallyAddedItemsTrace).forEach(([itemUid]) => {
-            // Prüfen ob es das im neuen Trace schon gibt.
-            if (!Object.prototype.hasOwnProperty.call(updatedTrace, itemUid)) {
-              updatedTrace[itemUid] = [];
-            }
-            updatedTrace[itemUid] = updatedTrace[itemUid].concat(
-              manuallyAddedItemsTrace[itemUid],
-            );
-          });
-        }
-
-        updatedShoppingListCollection.lists[shoppingList.uid].trace =
-          updatedTrace;
-
-        updatedShoppingListCollection.lists[
-          shoppingList.uid
-        ].properties.generated = Utils.createChangeRecord(authUser);
-
-        // Flag zurücksetzen, wenn manuell hinzugefügte Artikel gelöscht wurden
-        updatedShoppingListCollection.lists[
-          shoppingList.uid
-        ].properties.hasManuallyAddedItems = keepManuallyAddedItems;
-
-        logEvent(
-          firebase.analytics,
-          FirebaseAnalyticEvent.shoppingListRefreshed,
-        );
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    console.log(updatedShoppingList);
-    return {
-      shoppingList: updatedShoppingList,
-      shoppingListCollection: updatedShoppingListCollection,
-    };
+  static factory = ({event}: {event: Event}) => {
+    const collection = new ShoppingListCollection();
+    collection.eventUid = event.uid;
+    return collection;
   };
 
   /* =====================================================================
-  // Einkaufsliste speichern
+  // Neue Liste erstellen (reine Geschäftslogik)
   // ===================================================================== */
-  static save = async ({
-    firebase,
-    eventUid,
-    shoppingListCollection,
-    authUser,
-  }: Save) => {
-    shoppingListCollection.lastChange = Utils.createChangeRecord(authUser);
 
-    await firebase.event.shoppingListCollection
-      .set({
-        uids: [eventUid],
-        value: shoppingListCollection,
-        authUser: authUser,
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
   /**
-   * Listen löschen (löscht das gesamte Dokument)
-   * @param object - Objekt Event-UID und Firebase-Referenz
-   * @returns void
+   * Erstellt eine neue Einkaufsliste und aktualisiert die Collection.
+   *
+   * Delegiert die Listengenerierung an ShoppingList.createNewList()
+   * und fügt die Properties in die Collection ein.
+   *
+   * @param params - Name, Auswahlen, vorgeladene Rezepte, Stammdaten
+   * @returns Aktualisierte Collection + generierte Liste + Trace
    */
-  static delete = async ({eventUid, firebase}: Delete) => {
-    let counter = 0;
-    // Zuerst Übersicht holen um alle Einkaufslisten einzeln zu löschen
-    await ShoppingListCollection.getShoppingListCollection({
-      eventUid: eventUid,
-      firebase: firebase,
-    })
-      .then((result) => {
-        Object.keys(result.lists).forEach(async (shoppingListUid) => {
-          await ShoppingList.delete({
-            eventUid: eventUid,
-            listUidToDelete: shoppingListUid,
-            firebase: firebase,
-          })
-            .then(() => {
-              counter++;
-            })
-            .catch((error) => {
-              console.error(error);
-              throw error;
-            });
-        });
-      })
-      .then(async () => {
-        // Collection selbst löschen
-        await firebase.event.shoppingListCollection
-          .delete({uids: [eventUid]})
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-      })
-      .then(() => {
-        Stats.incrementStat({
-          field: StatsField.noShoppingLists,
-          value: counter * -1,
-          firebase: firebase,
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
+  static createNewList(params: CreateNewListParams): {
+    shoppingList: ShoppingList;
+    trace: ShoppingListTrace;
+    shoppingListCollection: ShoppingListCollection;
+  } {
+    const {
+      name, selectedMenues, selectedDepartments, shoppingListCollection,
+      menueplan, recipes, products, materials, departments, units,
+      unitConversionBasic, unitConversionProducts, authUser,
+    } = params;
+
+    // Liste generieren
+    const {shoppingList, trace} = ShoppingList.createNewList({
+      selectedMenues,
+      selectedDepartments,
+      menueplan,
+      recipes,
+      products,
+      materials,
+      departments,
+      units,
+      unitConversionBasic,
+      unitConversionProducts,
+    });
+
+    // Collection aktualisieren
+    const updatedCollection = _.cloneDeep(shoppingListCollection);
+    updatedCollection.noOfLists++;
+
+    // UID wird nach dem Speichern durch das Repository gesetzt —
+    // hier als Platzhalter leer lassen
+    updatedCollection.lists["__pending__"] = {
+      properties: {
+        uid: "",
+        name,
+        selectedMenues,
+        selectedDepartments,
+        selectedMeals: getMealsOfMenues({menuplan: menueplan, menues: selectedMenues}),
+        generated: Utils.createChangeRecord(authUser),
+        hasManuallyAddedItems: false,
+      },
+      trace,
+    };
+
+    return {shoppingList, trace, shoppingListCollection: updatedCollection};
+  }
+
+  /* =====================================================================
+  // Liste aktualisieren (Refresh)
   // ===================================================================== */
+
   /**
-   * List löschen
-   * @param object - Objekt mit ShoppingListCollection, authUser
-   * @returns void
+   * Aktualisiert eine bestehende Einkaufsliste (Refresh).
+   *
+   * Generiert die Liste neu aus dem Menüplan und merged optional
+   * manuell hinzugefügte/bearbeitete Items.
+   *
+   * @param params - Aktuelle Collection, Liste, Optionen, Stammdaten
+   * @returns Aktualisierte ShoppingList + Collection
    */
-  static deleteList = async ({
-    firebase,
+  static refreshList(params: RefreshListParams): {
+    shoppingList: ShoppingList;
+    shoppingListCollection: ShoppingListCollection;
+  } {
+    const {
+      shoppingListCollection, shoppingList,
+      keepManuallyAddedItems = false, keepManuallyEditedItems = false,
+      menueplan, recipes, products, materials, departments, units,
+      unitConversionBasic, unitConversionProducts, authUser,
+    } = params;
+
+    const updatedCollection = _.cloneDeep(shoppingListCollection);
+    const listEntry = updatedCollection.lists[shoppingList.uid];
+
+    // Manuelle Items bewahren (falls gewünscht)
+    let preservedItems: ShoppingList["list"] | undefined;
+    if (keepManuallyAddedItems || keepManuallyEditedItems) {
+      preservedItems = ShoppingList.preserveManualItems(
+        shoppingList.list,
+        keepManuallyAddedItems,
+        keepManuallyEditedItems,
+      );
+    }
+
+    // Drift-Erkennung: Menüs im Menüplan verschoben?
+    if (
+      !Utils.areStringArraysEqual(
+        listEntry.properties.selectedMeals,
+        getMealsOfMenues({
+          menuplan: menueplan,
+          menues: listEntry.properties.selectedMenues,
+        }),
+      ) ||
+      listEntry.properties.selectedMenues.length !==
+        getMenuesOfMeals({
+          menuplan: menueplan,
+          meals: listEntry.properties.selectedMeals,
+        }).length
+    ) {
+      listEntry.properties.selectedMenues = getMenuesOfMeals({
+        menuplan: menueplan,
+        meals: listEntry.properties.selectedMeals,
+      });
+    }
+
+    // Liste neu generieren
+    const {shoppingList: newList, trace: newTrace} = ShoppingList.createNewList({
+      selectedMenues: listEntry.properties.selectedMenues,
+      selectedDepartments: listEntry.properties.selectedDepartments,
+      menueplan,
+      recipes,
+      products,
+      materials,
+      departments,
+      units,
+      unitConversionBasic,
+      unitConversionProducts,
+    });
+
+    newList.uid = shoppingList.uid;
+
+    // Manuelle Items mergen
+    if (preservedItems && (keepManuallyAddedItems || keepManuallyEditedItems)) {
+      ShoppingList.mergeManualItems(newList, preservedItems);
+      ShoppingList.mergeManualTraceEntries(
+        newTrace,
+        preservedItems,
+        shoppingListCollection.lists[shoppingList.uid].trace,
+      );
+    }
+
+    // Collection aktualisieren
+    updatedCollection.lists[shoppingList.uid].trace = newTrace;
+    updatedCollection.lists[shoppingList.uid].properties.generated =
+      Utils.createChangeRecord(authUser);
+    updatedCollection.lists[shoppingList.uid].properties.hasManuallyAddedItems =
+      keepManuallyAddedItems;
+
+    return {
+      shoppingList: newList,
+      shoppingListCollection: updatedCollection,
+    };
+  }
+
+  /* =====================================================================
+  // Liste löschen (reine Geschäftslogik)
+  // ===================================================================== */
+
+  /**
+   * Entfernt eine Liste aus der Collection (optimistisches UI-Update).
+   * Der Caller muss die Löschung im Repository separat durchführen.
+   *
+   * @param params - Collection, Liste zum Löschen, AuthUser
+   * @returns Aktualisierte Collection
+   */
+  static deleteList({
+    shoppingListCollection,
     shoppingListColection,
-    eventUid,
     listUidToDelete,
     authUser,
-  }: DeleteList) => {
-    const updatedShoppingListCollection = _.cloneDeep(
-      shoppingListColection,
+  }: DeleteListParams): ShoppingListCollection {
+    // Abwärtskompatibilität: beide Varianten akzeptieren
+    const collection = _.cloneDeep(
+      (shoppingListCollection ?? shoppingListColection)!,
     ) as ShoppingListCollection;
-    delete updatedShoppingListCollection.lists[listUidToDelete];
 
-    updatedShoppingListCollection.lastChange = {
+    delete collection.lists[listUidToDelete];
+
+    collection.lastChange = {
       fromDisplayName: authUser.publicProfile.displayName,
       fromUid: authUser.uid,
       date: new Date(),
     };
+    collection.noOfLists--;
 
-    updatedShoppingListCollection.noOfLists--;
+    return collection;
+  }
 
-    await firebase.event.shoppingListCollection
-      .set({
-        uids: [eventUid, updatedShoppingListCollection.eventUid],
-        value: updatedShoppingListCollection,
-        authUser: authUser,
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    return updatedShoppingListCollection;
-  };
+  /* =====================================================================
+  // Listenname ändern (reine Geschäftslogik)
   // ===================================================================== */
+
   /**
-   * Listen-Namen anpassen
-   * @param object - Objekt mit ShoppingListCollection, authUser
-   * @returns void
+   * Ändert den Namen einer Liste in der Collection (optimistisches UI-Update).
+   *
+   * @param params - Collection, Listen-UID, neuer Name, AuthUser
+   * @returns Aktualisierte Collection
    */
-  static editListName = ({
+  static editListName({
     shoppingListCollection,
     listUidToEdit,
     newName,
     authUser,
-  }: EditListName) => {
-    const updatedShoppingListCollection = _.cloneDeep(
-      shoppingListCollection,
-    ) as ShoppingListCollection;
+  }: EditListNameParams): ShoppingListCollection {
+    const updated = _.cloneDeep(shoppingListCollection) as ShoppingListCollection;
 
-    updatedShoppingListCollection.lists[listUidToEdit].properties.name =
-      newName;
-    updatedShoppingListCollection.lastChange = {
+    updated.lists[listUidToEdit].properties.name = newName;
+    updated.lastChange = {
       fromDisplayName: authUser.publicProfile.displayName,
       fromUid: authUser.uid,
       date: new Date(),
     };
 
-    return updatedShoppingListCollection;
-  };
+    return updated;
+  }
+
 }

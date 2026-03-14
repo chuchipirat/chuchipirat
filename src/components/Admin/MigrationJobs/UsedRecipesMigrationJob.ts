@@ -2,19 +2,16 @@
  * Migrationsjob für UsedRecipes (benannte Rezeptlisten) von Firebase nach Postgres.
  *
  * Migriert alle UsedRecipes-Dokumente aus `events/{uid}/docs/usedRecipes`.
- * Pro Liste wird ein `event_used_recipe_lists`-Eintrag angelegt, plus
- * Junction-Einträge in `event_used_recipe_list_menues` für die Menü-Auswahl.
- *
- * `selectedMeals` aus Firebase wird nun ebenfalls migriert — in die
- * Junction-Tabelle `event_used_recipe_list_meals`, damit die Drift-Erkennung
- * bei verschobenen Menüs funktioniert.
+ * Pro Liste wird ein `event_used_recipe_lists`-Eintrag angelegt, mit
+ * `selected_menue_ids` und `selected_meal_ids` als TEXT[]-Spalten.
  *
  * FK-Auflösungen:
  * - Event-Firebase-UID → events.firebase_uid → events.id
  * - Menue-Firebase-UID → event_menues.firebase_uid → event_menues.id
+ * - Meal-Firebase-UID → event_meals.firebase_uid → event_meals.id
  *
  * Voraussetzungen (müssen vor diesem Job ausgeführt worden sein):
- * - Events, Menupläne (für event_menues)
+ * - Events, Menupläne (für event_menues und event_meals)
  *
  * @example
  * const job = new UsedRecipesMigrationJob();
@@ -57,7 +54,7 @@ interface FirebaseUsedRecipesData {
 /**
  * Migrations-Job für UsedRecipes aller Events.
  *
- * Baut beim ersten Aufruf Lookup-Maps auf (Events, Menüs).
+ * Baut beim ersten Aufruf Lookup-Maps auf (Events, Menüs, Meals).
  */
 export class UsedRecipesMigrationJob
   implements MigrationJob<FirebaseUsedRecipesData>
@@ -65,7 +62,7 @@ export class UsedRecipesMigrationJob
   name = "Verwendete Rezepte (benannte Listen)";
   description =
     "Migriert alle UsedRecipes-Listen von Firebase nach Postgres. " +
-    "Legt Kopfzeilen und Menü-Zuordnungen an. " +
+    "Schreibt Menü- und Meal-Auswahl als TEXT[]-Arrays auf die Kopfzeile. " +
     "Setzt voraus, dass Events und Menupläne bereits migriert sind.";
 
   /** firebase_uid → Postgres-ID für Events */
@@ -170,9 +167,9 @@ export class UsedRecipesMigrationJob
    * Migriert alle Listen eines Events nach Postgres.
    *
    * Pro Liste:
-   * 1. Kopfzeile in event_used_recipe_lists einfügen
-   * 2. selectedMenues → event_used_recipe_list_menues (nach firebase_uid → id Auflösung)
-   * 3. selectedMeals → event_used_recipe_list_meals (nach firebase_uid → id Auflösung)
+   * 1. Firebase-UIDs der selectedMenues → Postgres-IDs auflösen
+   * 2. Firebase-UIDs der selectedMeals → Postgres-IDs auflösen
+   * 3. Kopfzeile mit TEXT[]-Arrays in event_used_recipe_lists einfügen
    *
    * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
@@ -203,21 +200,7 @@ export class UsedRecipesMigrationJob
         continue;
       }
 
-      // Kopfzeile einfügen
-      const {data: listRow, error: listError} = await client
-        .from("event_used_recipe_lists")
-        .insert({
-          event_id: eventId,
-          name: props.name ?? "",
-          firebase_uid: props.uid ?? listKey,
-        })
-        .select("id")
-        .single();
-
-      if (listError) throw listError;
-      const listId = (listRow as {id: string}).id;
-
-      // Menü-Zuordnungen einfügen (selectedMenues → firebase_uid Auflösung)
+      // Menü-IDs auflösen (Firebase-UID → Postgres-ID)
       const menueIds: string[] = [];
       for (const menueFirebaseUid of props.selectedMenues ?? []) {
         const menueId = this.menueIdByFirebaseUid.get(menueFirebaseUid);
@@ -231,19 +214,7 @@ export class UsedRecipesMigrationJob
         }
       }
 
-      if (menueIds.length > 0) {
-        const menueRows = menueIds.map((menueId) => ({
-          list_id: listId,
-          menue_id: menueId,
-        }));
-        const {error: menueError} = await client
-          .from("event_used_recipe_list_menues")
-          .insert(menueRows);
-
-        if (menueError) throw menueError;
-      }
-
-      // Meal-Zuordnungen einfügen (selectedMeals → firebase_uid Auflösung)
+      // Meal-IDs auflösen (Firebase-UID → Postgres-ID)
       const mealIds: string[] = [];
       for (const mealFirebaseUid of props.selectedMeals ?? []) {
         const mealId = this.mealIdByFirebaseUid.get(mealFirebaseUid);
@@ -257,17 +228,18 @@ export class UsedRecipesMigrationJob
         }
       }
 
-      if (mealIds.length > 0) {
-        const mealRows = mealIds.map((mealId) => ({
-          list_id: listId,
-          meal_id: mealId,
-        }));
-        const {error: mealError} = await client
-          .from("event_used_recipe_list_meals")
-          .insert(mealRows);
+      // Kopfzeile mit Arrays einfügen (ein einziger INSERT)
+      const {error: listError} = await client
+        .from("event_used_recipe_lists")
+        .insert({
+          event_id: eventId,
+          name: props.name ?? "",
+          firebase_uid: props.uid ?? listKey,
+          selected_menue_ids: menueIds,
+          selected_meal_ids: mealIds,
+        });
 
-        if (mealError) throw mealError;
-      }
+      if (listError) throw listError;
     }
   }
 
@@ -275,7 +247,7 @@ export class UsedRecipesMigrationJob
   // Hilfsmethode: Lookup-Maps aufbauen
   // ===================================================================== */
   /**
-   * Lädt Events und Menüs aus Postgres und befüllt die Lookup-Maps.
+   * Lädt Events, Menüs und Meals aus Postgres und befüllt die Lookup-Maps.
    *
    * @throws {PostgrestError} bei Datenbankfehler
    */

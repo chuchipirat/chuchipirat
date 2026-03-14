@@ -2,15 +2,14 @@
  * Unit-Tests für UsedRecipeListRepository.
  *
  * Testet alle öffentlichen Methoden: getListsForEvent, createList,
- * updateListName, updateListMenues, deleteList, getRecipesForList,
+ * updateListName, updateListMenues, updateListMeals,
+ * updateListMenuesAndMeals, deleteList, getRecipesForList,
  * subscribeToLists.
  */
 import {
   UsedRecipeListRepository,
   UsedRecipeListDomain,
   UsedRecipeListRow,
-  UsedRecipeListMenueRow,
-  UsedRecipeListMealRow,
   UsedRecipeListRecipeRow,
 } from "../UsedRecipeListRepository";
 import {createSupabaseMock, createQueryMock} from "../__mocks__/supabaseMock";
@@ -42,6 +41,8 @@ const testListRow1: UsedRecipeListRow = {
   id: "list-001",
   event_id: EVENT_ID,
   name: "Samstagsrezepte",
+  selected_menue_ids: ["menue-001", "menue-002"],
+  selected_meal_ids: ["meal-001", "meal-002"],
   firebase_uid: null,
   created_at: "2026-03-01T00:00:00Z",
   created_by: null,
@@ -53,35 +54,13 @@ const testListRow2: UsedRecipeListRow = {
   id: "list-002",
   event_id: EVENT_ID,
   name: "Sonntagsrezepte",
+  selected_menue_ids: [],
+  selected_meal_ids: [],
   firebase_uid: null,
   created_at: "2026-03-02T00:00:00Z",
   created_by: null,
   updated_at: "2026-03-02T00:00:00Z",
   updated_by: null,
-};
-
-const testMenueRow1: UsedRecipeListMenueRow = {
-  id: "lm-001",
-  list_id: "list-001",
-  menue_id: "menue-001",
-};
-
-const testMenueRow2: UsedRecipeListMenueRow = {
-  id: "lm-002",
-  list_id: "list-001",
-  menue_id: "menue-002",
-};
-
-const testMealRow1: UsedRecipeListMealRow = {
-  id: "lml-001",
-  list_id: "list-001",
-  meal_id: "meal-001",
-};
-
-const testMealRow2: UsedRecipeListMealRow = {
-  id: "lml-002",
-  list_id: "list-001",
-  meal_id: "meal-002",
 };
 
 const testRecipeRow: UsedRecipeListRecipeRow = {
@@ -112,38 +91,11 @@ describe("UsedRecipeListRepository", () => {
   // getListsForEvent
   // ===================================================================== */
   describe("getListsForEvent", () => {
-    it("should return lists with their menue and meal selections", async () => {
-      const listsQuery = createQueryMock();
-      const menuesQuery = createQueryMock();
-      const mealsQuery = createQueryMock();
-
-      client.from.mockImplementation((table: string) => {
-        if (table === "event_used_recipe_lists") {
-          return listsQuery;
-        }
-        if (table === "event_used_recipe_list_menues") {
-          return menuesQuery;
-        }
-        if (table === "event_used_recipe_list_meals") {
-          return mealsQuery;
-        }
-        return queryMock;
+    it("should return lists with menue and meal arrays from header", async () => {
+      queryMock.order.mockResolvedValue({
+        data: [testListRow1, testListRow2],
+        error: null,
       });
-
-      const listsResult = {data: [testListRow1, testListRow2], error: null};
-      listsQuery.order.mockResolvedValue(listsResult);
-
-      const menuesResult = {
-        data: [testMenueRow1, testMenueRow2],
-        error: null,
-      };
-      menuesQuery.in.mockResolvedValue(menuesResult);
-
-      const mealsResult = {
-        data: [testMealRow1, testMealRow2],
-        error: null,
-      };
-      mealsQuery.in.mockResolvedValue(mealsResult);
 
       const result = await repo.getListsForEvent(EVENT_ID);
 
@@ -164,12 +116,14 @@ describe("UsedRecipeListRepository", () => {
         selectedMeals: [],
         updatedAt: new Date("2026-03-02T00:00:00Z"),
       });
+
+      // Nur eine Tabelle abgefragt (keine Junction-Tabellen mehr)
+      expect(client.from).toHaveBeenCalledWith("event_used_recipe_lists");
+      expect(client.from).toHaveBeenCalledTimes(1);
     });
 
     it("should return empty array when no lists exist", async () => {
-      const listsQuery = createQueryMock();
-      client.from.mockReturnValue(listsQuery);
-      listsQuery.order.mockResolvedValue({data: [], error: null});
+      queryMock.order.mockResolvedValue({data: [], error: null});
 
       const result = await repo.getListsForEvent(EVENT_ID);
 
@@ -177,9 +131,7 @@ describe("UsedRecipeListRepository", () => {
     });
 
     it("should throw on database error", async () => {
-      const listsQuery = createQueryMock();
-      client.from.mockReturnValue(listsQuery);
-      listsQuery.order.mockResolvedValue({
+      queryMock.order.mockResolvedValue({
         data: null,
         error: {message: "DB error", code: "42P01"},
       });
@@ -195,33 +147,14 @@ describe("UsedRecipeListRepository", () => {
   // createList
   // ===================================================================== */
   describe("createList", () => {
-    it("should insert list, menue and meal junction rows", async () => {
-      const listsQuery = createQueryMock();
-      const menuesQuery = createQueryMock();
-      const mealsQuery = createQueryMock();
-
-      client.from.mockImplementation((table: string) => {
-        if (table === "event_used_recipe_lists") {
-          return listsQuery;
-        }
-        if (table === "event_used_recipe_list_menues") {
-          return menuesQuery;
-        }
-        if (table === "event_used_recipe_list_meals") {
-          return mealsQuery;
-        }
-        return queryMock;
-      });
-
-      listsQuery.single.mockResolvedValue({data: testListRow1, error: null});
-      menuesQuery.insert.mockResolvedValue({data: null, error: null});
-      mealsQuery.insert.mockResolvedValue({data: null, error: null});
+    it("should insert list with arrays in header", async () => {
+      queryMock.single.mockResolvedValue({data: testListRow1, error: null});
 
       const result = await repo.createList(
         EVENT_ID,
         "Samstagsrezepte",
         ["menue-001", "menue-002"],
-        ["meal-001"],
+        ["meal-001", "meal-002"],
       );
 
       expect(result).toEqual({
@@ -229,40 +162,34 @@ describe("UsedRecipeListRepository", () => {
         eventId: EVENT_ID,
         name: "Samstagsrezepte",
         selectedMenues: ["menue-001", "menue-002"],
-        selectedMeals: ["meal-001"],
+        selectedMeals: ["meal-001", "meal-002"],
         updatedAt: new Date("2026-03-01T00:00:00Z"),
       });
 
-      expect(listsQuery.insert).toHaveBeenCalledWith({
+      expect(queryMock.insert).toHaveBeenCalledWith({
         event_id: EVENT_ID,
         name: "Samstagsrezepte",
+        selected_menue_ids: ["menue-001", "menue-002"],
+        selected_meal_ids: ["meal-001", "meal-002"],
       });
 
-      expect(menuesQuery.insert).toHaveBeenCalledWith([
-        {list_id: "list-001", menue_id: "menue-001"},
-        {list_id: "list-001", menue_id: "menue-002"},
-      ]);
-
-      expect(mealsQuery.insert).toHaveBeenCalledWith([
-        {list_id: "list-001", meal_id: "meal-001"},
-      ]);
+      // Nur eine Tabelle geschrieben (keine Junction-Inserts mehr)
+      expect(client.from).toHaveBeenCalledTimes(1);
     });
 
-    it("should create list without menues or meals if none selected", async () => {
-      const listsQuery = createQueryMock();
-      client.from.mockReturnValue(listsQuery);
-      listsQuery.single.mockResolvedValue({data: testListRow1, error: null});
+    it("should create list with empty arrays if none selected", async () => {
+      const emptyRow: UsedRecipeListRow = {
+        ...testListRow1,
+        selected_menue_ids: [],
+        selected_meal_ids: [],
+      };
+      queryMock.single.mockResolvedValue({data: emptyRow, error: null});
 
       const result = await repo.createList(EVENT_ID, "Samstagsrezepte", []);
 
       expect(result.selectedMenues).toEqual([]);
       expect(result.selectedMeals).toEqual([]);
-      expect(client.from).not.toHaveBeenCalledWith(
-        "event_used_recipe_list_menues",
-      );
-      expect(client.from).not.toHaveBeenCalledWith(
-        "event_used_recipe_list_meals",
-      );
+      expect(client.from).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -296,30 +223,16 @@ describe("UsedRecipeListRepository", () => {
   // updateListMenues
   // ===================================================================== */
   describe("updateListMenues", () => {
-    it("should delete existing and insert new menue selections", async () => {
-      const deleteQuery = createQueryMock();
-      const insertQuery = createQueryMock();
-
-      let callIndex = 0;
-      client.from.mockImplementation((table: string) => {
-        if (table === "event_used_recipe_list_menues") {
-          callIndex++;
-          // Erster Aufruf: delete, zweiter: insert
-          return callIndex === 1 ? deleteQuery : insertQuery;
-        }
-        return queryMock;
-      });
-
-      deleteQuery.eq.mockResolvedValue({data: null, error: null});
-      insertQuery.insert.mockResolvedValue({data: null, error: null});
+    it("should update selected_menue_ids array", async () => {
+      queryMock.eq.mockResolvedValue({data: null, error: null});
 
       await repo.updateListMenues("list-001", ["menue-003"]);
 
-      expect(deleteQuery.delete).toHaveBeenCalled();
-      expect(deleteQuery.eq).toHaveBeenCalledWith("list_id", "list-001");
-      expect(insertQuery.insert).toHaveBeenCalledWith([
-        {list_id: "list-001", menue_id: "menue-003"},
-      ]);
+      expect(client.from).toHaveBeenCalledWith("event_used_recipe_lists");
+      expect(queryMock.update).toHaveBeenCalledWith({
+        selected_menue_ids: ["menue-003"],
+      });
+      expect(queryMock.eq).toHaveBeenCalledWith("id", "list-001");
     });
   });
 
@@ -327,41 +240,26 @@ describe("UsedRecipeListRepository", () => {
   // updateListMeals
   // ===================================================================== */
   describe("updateListMeals", () => {
-    it("should delete existing and insert new meal selections", async () => {
-      const deleteQuery = createQueryMock();
-      const insertQuery = createQueryMock();
-
-      let callIndex = 0;
-      client.from.mockImplementation((table: string) => {
-        if (table === "event_used_recipe_list_meals") {
-          callIndex++;
-          return callIndex === 1 ? deleteQuery : insertQuery;
-        }
-        return queryMock;
-      });
-
-      deleteQuery.eq.mockResolvedValue({data: null, error: null});
-      insertQuery.insert.mockResolvedValue({data: null, error: null});
+    it("should update selected_meal_ids array", async () => {
+      queryMock.eq.mockResolvedValue({data: null, error: null});
 
       await repo.updateListMeals("list-001", ["meal-003"]);
 
-      expect(deleteQuery.delete).toHaveBeenCalled();
-      expect(deleteQuery.eq).toHaveBeenCalledWith("list_id", "list-001");
-      expect(insertQuery.insert).toHaveBeenCalledWith([
-        {list_id: "list-001", meal_id: "meal-003"},
-      ]);
+      expect(client.from).toHaveBeenCalledWith("event_used_recipe_lists");
+      expect(queryMock.update).toHaveBeenCalledWith({
+        selected_meal_ids: ["meal-003"],
+      });
+      expect(queryMock.eq).toHaveBeenCalledWith("id", "list-001");
     });
 
-    it("should only delete when mealIds is empty", async () => {
-      const deleteQuery = createQueryMock();
-      client.from.mockReturnValue(deleteQuery);
-      deleteQuery.eq.mockResolvedValue({data: null, error: null});
+    it("should set empty array when no meals provided", async () => {
+      queryMock.eq.mockResolvedValue({data: null, error: null});
 
       await repo.updateListMeals("list-001", []);
 
-      expect(deleteQuery.delete).toHaveBeenCalled();
-      // Nur ein from()-Aufruf (delete), kein zweiter (insert)
-      expect(client.from).toHaveBeenCalledTimes(1);
+      expect(queryMock.update).toHaveBeenCalledWith({
+        selected_meal_ids: [],
+      });
     });
   });
 
@@ -369,14 +267,8 @@ describe("UsedRecipeListRepository", () => {
   // updateListMenuesAndMeals
   // ===================================================================== */
   describe("updateListMenuesAndMeals", () => {
-    it("should update both menues and meals", async () => {
-      // Spy auf die einzelnen Methoden
-      const updateMenuesSpy = jest
-        .spyOn(repo, "updateListMenues")
-        .mockResolvedValue();
-      const updateMealsSpy = jest
-        .spyOn(repo, "updateListMeals")
-        .mockResolvedValue();
+    it("should update both arrays in a single UPDATE", async () => {
+      queryMock.eq.mockResolvedValue({data: null, error: null});
 
       await repo.updateListMenuesAndMeals(
         "list-001",
@@ -384,11 +276,14 @@ describe("UsedRecipeListRepository", () => {
         ["meal-002"],
       );
 
-      expect(updateMenuesSpy).toHaveBeenCalledWith("list-001", ["menue-003"]);
-      expect(updateMealsSpy).toHaveBeenCalledWith("list-001", ["meal-002"]);
+      expect(queryMock.update).toHaveBeenCalledWith({
+        selected_menue_ids: ["menue-003"],
+        selected_meal_ids: ["meal-002"],
+      });
+      expect(queryMock.eq).toHaveBeenCalledWith("id", "list-001");
 
-      updateMenuesSpy.mockRestore();
-      updateMealsSpy.mockRestore();
+      // Nur ein from()-Aufruf (ein UPDATE statt 2 deletes + 2 inserts + 1 touch)
+      expect(client.from).toHaveBeenCalledTimes(1);
     });
   });
 
