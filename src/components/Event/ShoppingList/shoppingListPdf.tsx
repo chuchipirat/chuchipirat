@@ -8,11 +8,15 @@ import {pdfStyles} from "../../../constants/stylesShoppingListPdf";
 import {
   APP_NAME as TEXT_APP_NAME,
   SHOPPING_LIST as TEXT_SHOPPING_LIST,
+  ITEM as TEXT_ITEM,
 } from "../../../constants/text";
 
 import {Footer, Header} from "../../Shared/pdfComponents";
 import ShoppingList, {ShoppingListItem} from "./shoppingList.class";
 import {ShoppingListProperties} from "./shoppingListCollection.class";
+
+const styles = pdfStyles;
+
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -63,205 +67,224 @@ interface FormattedShoppingListDepartment {
   name: string;
 }
 
+/** Cursor-Zustand für die aktuelle Position im zweispaltigen Layout. */
+interface PageControl {
+  lineCounter: number;
+  actualColumn: Column;
+  maxLines: number;
+}
+
+/**
+ * Erzeugt einen neuen PageControl mit Zeiger auf Zeile 0, linke Spalte.
+ *
+ * @param maxLines - Maximale Zeilenanzahl pro Spalte auf dieser Seite.
+ * @returns Neuer PageControl.
+ */
+function createPageControl(maxLines: number): PageControl {
+  return {lineCounter: 0, actualColumn: Column.LEFT, maxLines};
+}
+
 // ===================================================================== */
 /**
- * Einkaufsliste formatieren
- * Damit die Liste in zwei Spalten generiert werden kann (Platz-sparend),
- * müssen die Einträge entsprechend so gebüschelt werden, dass sie später
- * in der Render-Methode korrekt nebeneinander angezeigt werden, auch wenn
- * die Lese Richtung von unten-nach-oben ist.
+ * Formatiert eine Einkaufsliste für das zweispaltige PDF-Layout.
+ *
+ * Die Einträge werden so gebündelt, dass sie in der Render-Methode
+ * korrekt nebeneinander angezeigt werden, auch wenn die Leserichtung
+ * von oben nach unten ist.
+ *
+ * @param shoppingList - Die zu formatierende Einkaufsliste.
+ * @returns Array von formatierten Seiten mit Steuerungsinformationen.
  */
-class FormattedShoppingList {
-  pages: FormattedShoppingListPage[];
-  actualPage: number;
+function formatShoppingList(
+  shoppingList: ShoppingList,
+): FormattedShoppingListPage[] {
+  const pages: FormattedShoppingListPage[] = [];
+  let actualPage = 0;
 
-  constructor(shoppingList: ShoppingList) {
-    this.pages = [];
-    this.actualPage = 0;
-    // Einträge zählen
-    const noItems = ShoppingList.countItems({shoppingList: shoppingList});
-    const noDepartmentes = Object.keys(shoppingList.list).length;
+  // Leere Abteilungen herausfiltern
+  const departments = Object.values(shoppingList.list).filter(
+    (dept) => dept.items.length > 0,
+  );
+  const noDepartments = departments.length;
+  const noItems = departments.reduce(
+    (sum, dept) => sum + dept.items.length,
+    0,
+  );
 
-    // Anzahl Zeilen bestimmen (inkl. Leerzeilen)
-    const noEntries = noItems + noDepartmentes + (noDepartmentes - 1);
-    // 2 Spalten = 1/2 sovile Zeilen
-    let noLines = Math.round(noEntries / 2);
+  // Keine Einträge → leere Seite zurückgeben
+  if (noDepartments === 0) {
+    pages.push({pageControl: createPageControl(0), list: []});
+    return pages;
+  }
 
-    // Seiten mit Max.Zeilen bestimmen
-    do {
-      if (this.pages.length === 0 && noLines > LINES_PER_PAGE.FIRST) {
-        // Es gibt mehrere Seiten
-        this.pages.push({
-          pageControl: new PageControl(LINES_PER_PAGE.FIRST),
-          list: [],
+  // Anzahl Zeilen bestimmen (Items + Abteilungstitel + Trennzeilen zwischen Abteilungen)
+  const noEntries = noItems + noDepartments + (noDepartments - 1);
+  // 2 Spalten → halb so viele Zeilen (aufgerundet, damit die rechte Spalte nicht überläuft)
+  let noLines = Math.ceil(noEntries / 2);
+
+  // Seiten mit Max.Zeilen bestimmen
+  do {
+    if (pages.length === 0 && noLines > LINES_PER_PAGE.FIRST) {
+      pages.push({pageControl: createPageControl(LINES_PER_PAGE.FIRST), list: []});
+      noLines = noLines - LINES_PER_PAGE.FIRST;
+    } else if (pages.length === 0 && noLines <= LINES_PER_PAGE.FIRST) {
+      pages.push({pageControl: createPageControl(noLines), list: []});
+      noLines = 0;
+    } else if (pages.length > 0 && noLines > LINES_PER_PAGE.REST) {
+      pages.push({pageControl: createPageControl(LINES_PER_PAGE.REST), list: []});
+      noLines = noLines - LINES_PER_PAGE.REST;
+    } else {
+      pages.push({pageControl: createPageControl(noLines), list: []});
+      noLines = 0;
+    }
+  } while (noLines > 0);
+
+  /* ----------------------------------------------------------------- */
+  /* Hilfsfunktionen (Closures über pages / actualPage)                */
+  /* ----------------------------------------------------------------- */
+
+  /** Stellt sicher, dass die aktuelle Seite im Array existiert. */
+  function ensurePageExists() {
+    if (!pages[actualPage]) {
+      pages.push({pageControl: createPageControl(LINES_PER_PAGE.REST), list: []});
+    }
+  }
+
+  /** Füllt die linke Spalte bis maxLines mit Leerzeilen auf. */
+  function padToEndOfLeftColumn(pageControl: PageControl) {
+    while (pageControl.lineCounter < pageControl.maxLines) {
+      pages[actualPage].list.push({left: null, right: null});
+      pageControl.lineCounter++;
+    }
+  }
+
+  /** Prüft ob ein Spalten- oder Seitenumbruch nötig ist. */
+  function updatePageControl(pageControl: PageControl) {
+    if (
+      pageControl.lineCounter === pageControl.maxLines &&
+      pageControl.actualColumn === Column.LEFT
+    ) {
+      pageControl.lineCounter = 0;
+      pageControl.actualColumn = Column.RIGHT;
+    } else if (
+      pageControl.lineCounter === pageControl.maxLines &&
+      pageControl.actualColumn === Column.RIGHT
+    ) {
+      actualPage++;
+      ensurePageExists();
+    }
+  }
+
+  /**
+   * Stellt sicher, dass genügend Platz für einen Abteilungstitel
+   * plus mindestens ein Item vorhanden ist.
+   */
+  function ensureSpaceForDepartment(
+    pageControl: PageControl,
+    itemsCount: number,
+  ) {
+    if (itemsCount <= 0) return;
+
+    const freeLines = pageControl.maxLines - pageControl.lineCounter;
+    if (freeLines >= 2) return;
+
+    if (pageControl.actualColumn === Column.LEFT) {
+      padToEndOfLeftColumn(pageControl);
+      pageControl.lineCounter = 0;
+      pageControl.actualColumn = Column.RIGHT;
+    } else {
+      actualPage++;
+      ensurePageExists();
+    }
+  }
+
+  /**
+   * Stellt sicher, dass die Zeile am aktuellen lineCounter existiert.
+   * Wird vor jedem Schreiben in die rechte Spalte aufgerufen.
+   */
+  function ensureRowExists(pageControl: PageControl) {
+    if (!pages[actualPage].list[pageControl.lineCounter]) {
+      pages[actualPage].list.push({left: null, right: null});
+    }
+  }
+
+  /* ----------------------------------------------------------------- */
+  /* Einträge in die Seiten einfüllen                                  */
+  /* ----------------------------------------------------------------- */
+
+  departments.forEach((department, departmentIndex) => {
+    let pageControl = pages[actualPage].pageControl;
+
+    // Platz prüfen, bevor die Überschrift geschrieben wird
+    ensureSpaceForDepartment(pageControl, department.items.length);
+
+    // pageControl neu holen (falls Seite/Spalte gewechselt wurde)
+    pageControl = pages[actualPage].pageControl;
+
+    // Abteilungs-Überschrift schreiben
+    switch (pageControl.actualColumn) {
+      case Column.LEFT:
+        pages[actualPage].list.push({
+          left: {type: LineType.DEPARTMENT, name: department.departmentName},
+          right: null,
         });
-        noLines = noLines - LINES_PER_PAGE.FIRST;
-      } else if (this.pages.length === 0 && noLines <= LINES_PER_PAGE.FIRST) {
-        // Nur eine Seite, aber nicht voll --> sauber verteilen
-        this.pages.push({
-          pageControl: new PageControl(noLines),
-          list: [],
-        });
-        noLines = 0;
-      } else if (this.pages.length > 0 && noLines > LINES_PER_PAGE.REST) {
-        // zweite oder mehr Seite - voll
-        this.pages.push({
-          pageControl: new PageControl(LINES_PER_PAGE.REST),
-          list: [],
-        });
-        noLines = noLines - LINES_PER_PAGE.REST;
-      } else {
-        // letzte Seite
-        this.pages.push({
-          pageControl: new PageControl(noLines),
-          list: [],
-        });
-        noLines = 0;
-      }
-    } while (noLines > 0);
+        pageControl.lineCounter++;
+        break;
+      case Column.RIGHT:
+        ensureRowExists(pageControl);
+        pages[actualPage].list[pageControl.lineCounter].right = {
+          type: LineType.DEPARTMENT,
+          name: department.departmentName,
+        };
+        pageControl.lineCounter++;
+        break;
+    }
+    updatePageControl(pageControl);
 
-    Object.values(shoppingList.list).forEach((department) => {
-      let pageControl = this.pages[this.actualPage].pageControl;
-
-      // Platz prüfen, bevor die Überschrift geschrieben wird
-      this.ensureSpaceForDepartment(pageControl, department.items.length);
-
-      // danach pageControl neu holen (falls Seite/Spalte gewechselt wurde)
-      pageControl = this.pages[this.actualPage].pageControl;
-
-      switch (pageControl.actualColum) {
+    // Items der Abteilung schreiben
+    department.items.forEach((item) => {
+      pageControl = pages[actualPage].pageControl;
+      switch (pageControl.actualColumn) {
         case Column.LEFT:
-          this.pages[this.actualPage].list.push({
+          pages[actualPage].list.push({
             left: {
-              type: LineType.DEPARTMENT,
-              name: department.departmentName,
+              type: LineType.ITEM,
+              quantity: item.quantity,
+              checked: item.checked,
+              unit: item.unit,
+              name: item.item.name,
             },
             right: null,
           });
           pageControl.lineCounter++;
           break;
         case Column.RIGHT:
-          this.pages[this.actualPage].list[pageControl.lineCounter].right = {
-            type: LineType.DEPARTMENT,
-            name: department.departmentName,
+          ensureRowExists(pageControl);
+          pages[actualPage].list[pageControl.lineCounter].right = {
+            type: LineType.ITEM,
+            checked: item.checked,
+            quantity: item.quantity,
+            unit: item.unit,
+            name: item.item.name,
           };
           pageControl.lineCounter++;
           break;
       }
-      this.updatePageControl(pageControl);
-      department.items.forEach((item) => {
-        pageControl = this.pages[this.actualPage].pageControl;
-        let lineItem: FormattedShoppingListLine;
-        switch (pageControl.actualColum) {
-          case Column.LEFT:
-            this.pages[this.actualPage].list.push({
-              left: {
-                type: LineType.ITEM,
-                quantity: item.quantity,
-                checked: item.checked,
-                unit: item.unit,
-                name: item.item.name,
-              },
-              right: null,
-            });
-            pageControl.lineCounter++;
-            break;
-          case Column.RIGHT:
-            lineItem =
-              this.pages[this.actualPage].list[pageControl.lineCounter];
-            lineItem.right = {
-              type: LineType.ITEM,
-              checked: item.checked,
-              quantity: item.quantity,
-              unit: item.unit,
-              name: item.item.name,
-            };
-            pageControl.lineCounter++;
-            break;
-        }
-        this.updatePageControl(pageControl);
-      });
-      if (pageControl.lineCounter !== 0) {
-        // nun brauchts eine Leerzeile - aber nicht am Spaltenanfang
-        if (pageControl.actualColum === Column.LEFT) {
-          this.pages[this.actualPage].list.push({left: null, right: null});
-        }
-        pageControl.lineCounter++;
-        this.updatePageControl(pageControl);
-      }
+      updatePageControl(pageControl);
     });
-  }
 
-  updatePageControl(pageControl: PageControl) {
-    // Prüfen ob es einen Spalten- oder Seitenumbruch benötigt
-    if (
-      pageControl.lineCounter === pageControl.maxLines &&
-      pageControl.actualColum === Column.LEFT
-    ) {
-      pageControl.lineCounter = 0;
-      pageControl.actualColum = Column.RIGHT;
-    } else if (
-      pageControl.lineCounter === pageControl.maxLines &&
-      pageControl.actualColum === Column.RIGHT
-    ) {
-      // Neue Seite anlegen
-      this.actualPage++;
-      this.ensurePageExists();
-    }
-  }
-
-  private ensurePageExists() {
-    if (!this.pages[this.actualPage]) {
-      this.pages.push({
-        pageControl: new PageControl(LINES_PER_PAGE.REST),
-        list: [],
-      });
-    }
-  }
-
-  private padToEndOfLeftColumn(pageControl: PageControl) {
-    // LEFT-Spalte bis maxLines auffüllen, damit RIGHT danach immer in list[index] schreiben kann
-    while (pageControl.lineCounter < pageControl.maxLines) {
-      this.pages[this.actualPage].list.push({left: null, right: null});
+    // Leerzeile nach jeder Abteilung ausser der letzten
+    const isLastDepartment = departmentIndex === noDepartments - 1;
+    if (!isLastDepartment && pageControl.lineCounter !== 0) {
+      if (pageControl.actualColumn === Column.LEFT) {
+        pages[actualPage].list.push({left: null, right: null});
+      }
       pageControl.lineCounter++;
+      updatePageControl(pageControl);
     }
-  }
+  });
 
-  private ensureSpaceForDepartment(
-    pageControl: PageControl,
-    itemsCount: number
-  ) {
-    // Wenn es keine Items gibt, ist die Regel "mindestens 1 Item unter Titel" nicht erfüllbar – dann lassen wir es zu
-    if (itemsCount <= 0) return;
-
-    const freeLines = pageControl.maxLines - pageControl.lineCounter;
-
-    // Wir brauchen: 1 Zeile Titel + 1 Zeile Item = 2 Zeilen
-    if (freeLines >= 2) return;
-
-    if (pageControl.actualColum === Column.LEFT) {
-      // Frühzeitig in die rechte Spalte wechseln:
-      this.padToEndOfLeftColumn(pageControl); // füllt bis maxLines
-      pageControl.lineCounter = 0;
-      pageControl.actualColum = Column.RIGHT;
-    } else {
-      // In RIGHT gibt es keine "nächste Spalte" auf derselben Seite → nächste Seite
-      this.actualPage++;
-      this.ensurePageExists();
-    }
-  }
-}
-
-class PageControl {
-  lineCounter: number;
-  actualColum: Column;
-  maxLines: number;
-
-  constructor(maxLines: number) {
-    this.lineCounter = 0;
-    this.actualColum = Column.LEFT;
-    this.maxLines = maxLines;
-  }
+  return pages;
 }
 
 /* ===================================================================
@@ -271,7 +294,7 @@ class PageControl {
  * PDF-Dokument für die Einkaufsliste.
  *
  * Rendert die Einkaufsliste als zweispaltiges, mehrseitiges PDF-Dokument.
- * Die Einträge werden mit {@link FormattedShoppingList} für das zweispaltige
+ * Die Einträge werden mit {@link formatShoppingList} für das zweispaltige
  * Layout vorformatiert.
  *
  * @param props - Einkaufslistendaten, Event-Name und Autoreninfo.
@@ -291,7 +314,8 @@ const ShoppingListPdf = ({
   authUser,
 }: ShoppingListPdfProps) => {
   const actualDate = new Date();
-  const formatedShoppingList = new FormattedShoppingList(shoppingList);
+  const formattedShoppingList = formatShoppingList(shoppingList);
+  const itemCount = ShoppingList.countItems({shoppingList});
 
   return (
     <Document
@@ -301,12 +325,13 @@ const ShoppingListPdf = ({
       subject={TEXT_SHOPPING_LIST + " " + eventName}
       title={TEXT_SHOPPING_LIST + " " + eventName}
     >
-      {formatedShoppingList.pages.map((page, counter) => (
+      {formattedShoppingList.map((page, counter) => (
         <ShoppingListPage
           eventName={eventName}
           shoppingList={page.list}
           shoppingListName={shoppingListName}
           shoppingListSelectedTimeSlice={shoppingListSelectedTimeSlice}
+          itemCount={itemCount}
           actualDate={actualDate}
           pageNumber={counter}
           authUser={authUser}
@@ -330,6 +355,7 @@ interface ShoppingListPageProps {
   shoppingListName: ShoppingListProperties["name"];
   shoppingListSelectedTimeSlice: string;
   eventName: Event["name"];
+  itemCount: number;
   actualDate: Date;
   pageNumber: number;
   authUser: AuthUser;
@@ -339,6 +365,7 @@ const ShoppingListPage = ({
   shoppingListName,
   shoppingListSelectedTimeSlice,
   eventName,
+  itemCount,
   actualDate,
   pageNumber,
   authUser,
@@ -349,6 +376,7 @@ const ShoppingListPage = ({
       <ShoppingListTitle
         shoppingListName={shoppingListName}
         shoppingListSelectedTimeSlice={shoppingListSelectedTimeSlice}
+        itemCount={itemCount}
       />
       <ShoppingListList shoppingList={shoppingList} pageNumber={pageNumber} />
 
@@ -364,17 +392,19 @@ const ShoppingListPage = ({
 // ============================== Titel ==============================
 // =================================================================== */
 /**
- * Titelbereich der Einkaufsliste mit Name und Zeitraum.
+ * Titelbereich der Einkaufsliste mit Name, Zeitraum und Artikelanzahl.
  *
- * @param props - Listenname und ausgewählter Zeitabschnitt.
+ * @param props - Listenname, ausgewählter Zeitabschnitt und Artikelanzahl.
  */
 interface ShoppingListTitleProps {
   shoppingListName: ShoppingListProperties["name"];
   shoppingListSelectedTimeSlice: string;
+  itemCount: number;
 }
 const ShoppingListTitle = ({
   shoppingListName,
   shoppingListSelectedTimeSlice,
+  itemCount,
 }: ShoppingListTitleProps) => {
   return (
     <React.Fragment>
@@ -384,7 +414,7 @@ const ShoppingListTitle = ({
       <View style={styles.containerBottomBorder} />
       <Text
         style={styles.subSubTitle}
-      >{`${shoppingListName}: ${shoppingListSelectedTimeSlice}`}</Text>
+      >{`${shoppingListName}: ${shoppingListSelectedTimeSlice} (${itemCount} ${TEXT_ITEM})`}</Text>
       <View style={styles.containerBottomBorder} />
     </React.Fragment>
   );
@@ -412,172 +442,119 @@ const ShoppingListList = ({
           style={styles.tableRow}
           key={"itemBlock_" + "_" + pageNumber + "_" + line}
         >
-          {item.left == null ? (
-            <View
-              style={styles.tableCol50}
-              key={"itemBlockNull_Left" + pageNumber + "_" + line}
-            />
-          ) : item.left?.type == LineType.DEPARTMENT ? (
-            <View
-              style={styles.tableCol50}
-              key={"itemBlockDepartment_Left" + pageNumber + "_" + line}
-            >
-              <Text
-                style={{
-                  ...styles.tableCellBold,
-                  ...styles.tableCellAlignLeft,
-                  ...styles.tableCellMarginTop,
-                }}
-              >
-                {item.left.name}
-              </Text>
-            </View>
-          ) : (
-            <React.Fragment key={"itemLeft_" + pageNumber + "_" + line}>
-              <View
-                style={styles.tableColQuantity}
-                key={"itemBlockQuantity_Left" + pageNumber + "_" + line}
-              >
-                <Text
-                  style={
-                    item.left.checked
-                      ? {
-                          ...styles.tableCell,
-                          ...styles.gray,
-                          ...styles.strikeTrough,
-                        }
-                      : styles.tableCell
-                  }
-                >
-                  {Number.isNaN(item.left?.quantity) || !item.left?.quantity
-                    ? ""
-                    : QUANTITY_FORMAT.format(item.left.quantity)}
-                </Text>
-              </View>
-              <View
-                style={styles.tableColUnit}
-                key={"itemBlockUnit_Left" + pageNumber + "_" + line}
-              >
-                <Text
-                  style={
-                    item.left.checked
-                      ? {
-                          ...styles.tableCell,
-                          ...styles.gray,
-                          ...styles.strikeTrough,
-                        }
-                      : styles.tableCell
-                  }
-                >
-                  {item.left?.unit}
-                </Text>
-              </View>
-              <View
-                style={styles.tableColItem}
-                key={"itemBlockProduct_Left" + pageNumber + "_" + line}
-              >
-                <Text
-                  style={
-                    item.left.checked
-                      ? {
-                          ...styles.tableCell,
-                          ...styles.gray,
-                          ...styles.strikeTrough,
-                        }
-                      : styles.tableCell
-                  }
-                >
-                  {item.left?.name}
-                </Text>
-              </View>
-            </React.Fragment>
-          )}
-          {item.right == null ? (
-            <View
-              style={styles.tableCol50}
-              key={"itemBlockDepartment_Left" + pageNumber + "_" + line}
-            />
-          ) : item.right?.type == LineType.DEPARTMENT ? (
-            <View
-              style={styles.tableCol50}
-              key={"itemBlockDepartment_Right" + pageNumber + "_" + line}
-            >
-              <Text
-                style={{
-                  ...styles.tableCellBold,
-                  ...styles.tableCellAlignLeft,
-                  ...styles.tableCellMarginTop,
-                }}
-              >
-                {item.right.name}
-              </Text>
-            </View>
-          ) : (
-            <React.Fragment key={"itemRight_" + pageNumber + "_" + line}>
-              <View
-                style={styles.tableColQuantity}
-                key={"itemBlockQuantity_Right" + pageNumber + "_" + line}
-              >
-                <Text
-                  style={
-                    item.right.checked
-                      ? {
-                          ...styles.tableCell,
-                          ...styles.gray,
-                          ...styles.strikeTrough,
-                        }
-                      : styles.tableCell
-                  }
-                >
-                  {Number.isNaN(item.right?.quantity) || !item.right?.quantity
-                    ? ""
-                    : QUANTITY_FORMAT.format(item.right?.quantity)}
-                </Text>
-              </View>
-              <View
-                style={styles.tableColUnit}
-                key={"itemBlockUnit_Right" + pageNumber + "_" + line}
-              >
-                <Text
-                  style={
-                    item.right.checked
-                      ? {
-                          ...styles.tableCell,
-                          ...styles.gray,
-                          ...styles.strikeTrough,
-                        }
-                      : styles.tableCell
-                  }
-                >
-                  {item.right?.unit}
-                </Text>
-              </View>
-              <View
-                style={styles.tableColItem}
-                key={"itemBlockProduct_Right" + pageNumber + "_" + line}
-              >
-                <Text
-                  style={
-                    item.right.checked
-                      ? {
-                          ...styles.tableCell,
-                          ...styles.gray,
-                          ...styles.strikeTrough,
-                        }
-                      : styles.tableCell
-                  }
-                >
-                  {item.right?.name}
-                </Text>
-              </View>
-            </React.Fragment>
-          )}
+          <ShoppingListColumn
+            entry={item.left}
+            side="Left"
+            pageNumber={pageNumber}
+            line={line}
+          />
+          <ShoppingListColumn
+            entry={item.right}
+            side="Right"
+            pageNumber={pageNumber}
+            line={line}
+          />
         </View>
       ))}
     </View>
   );
 };
 
-export default ShoppingListPdf;
+/* ===================================================================
+// ======================== Einzelne Spalte ===========================
+// =================================================================== */
 
-const styles = pdfStyles;
+/**
+ * Gibt den Zellenstil für einen Eintrag zurück — durchgestrichen und grau
+ * wenn abgehakt, sonst normaler Tabellenzellenstil.
+ *
+ * @param checked - Ob der Eintrag abgehakt ist.
+ * @returns Kombinierter Style für die Tabellenzelle.
+ */
+const checkedCellStyle = (checked: boolean) =>
+  checked
+    ? {...styles.tableCell, ...styles.gray, ...styles.strikeTrough}
+    : styles.tableCell;
+
+/**
+ * Rendert eine einzelne Spalte (links oder rechts) einer Einkaufslistenzeile.
+ *
+ * Zeigt je nach Typ: nichts (null), eine Abteilungsüberschrift oder
+ * ein Item mit Menge, Einheit und Name.
+ *
+ * @param props.entry - Der Spalteninhalt (Item, Abteilung oder null).
+ * @param props.side - "Left" oder "Right" für eindeutige Keys.
+ * @param props.pageNumber - Seitennummer für eindeutige Keys.
+ * @param props.line - Zeilennummer für eindeutige Keys.
+ */
+interface ShoppingListColumnProps {
+  entry: FormattedShoppingListItem | FormattedShoppingListDepartment | null;
+  side: "Left" | "Right";
+  pageNumber: number;
+  line: number;
+}
+const ShoppingListColumn = ({
+  entry,
+  side,
+  pageNumber,
+  line,
+}: ShoppingListColumnProps) => {
+  if (entry == null) {
+    return (
+      <View
+        style={styles.tableCol50}
+        key={`itemBlockNull_${side}_${pageNumber}_${line}`}
+      />
+    );
+  }
+
+  if (entry.type === LineType.DEPARTMENT) {
+    return (
+      <View
+        style={styles.tableCol50}
+        key={`itemBlockDepartment_${side}_${pageNumber}_${line}`}
+      >
+        <Text
+          style={{
+            ...styles.tableCellBold,
+            ...styles.tableCellAlignLeft,
+            ...styles.tableCellMarginTop,
+          }}
+        >
+          {entry.name}
+        </Text>
+      </View>
+    );
+  }
+
+  // LineType.ITEM
+  const cellStyle = checkedCellStyle(entry.checked);
+  return (
+    <React.Fragment key={`item_${side}_${pageNumber}_${line}`}>
+      <View
+        style={styles.tableColQuantity}
+        key={`itemBlockQuantity_${side}_${pageNumber}_${line}`}
+      >
+        <Text style={cellStyle}>
+          {Number.isNaN(entry.quantity) || !entry.quantity
+            ? ""
+            : QUANTITY_FORMAT.format(entry.quantity)}
+        </Text>
+      </View>
+      <View
+        style={styles.tableColUnit}
+        key={`itemBlockUnit_${side}_${pageNumber}_${line}`}
+      >
+        <Text style={cellStyle}>{entry.unit}</Text>
+      </View>
+      <View
+        style={styles.tableColItem}
+        key={`itemBlockProduct_${side}_${pageNumber}_${line}`}
+      >
+        <Text style={cellStyle}>{entry.name}</Text>
+      </View>
+    </React.Fragment>
+  );
+};
+
+export default ShoppingListPdf;
