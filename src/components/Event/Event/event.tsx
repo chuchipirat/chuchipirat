@@ -88,6 +88,10 @@ import {
 } from "../ShoppingList/shoppingListAdapter";
 import EventMaterialListPage from "../MaterialList/materialList";
 import MaterialList from "../MaterialList/materialList.class";
+import {
+  headersDomainToMaterialList,
+  itemsDomainToMaterialListItems,
+} from "../MaterialList/materialListAdapter";
 import EventInfoPage from "./eventInfo";
 import FieldValidationError, {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
 import {
@@ -888,6 +892,9 @@ const EventPage = () => {
   // Flag: Während ein Shopping-List-Save läuft, Highlighting unterdrücken —
   // eigene Änderungen sollen nicht hervorgehoben werden.
   const shoppingListSaveInProgress = React.useRef(false);
+  // Flag: Während ein Material-List-Save läuft, Realtime-Reloads unterdrücken —
+  // eigene Änderungen sollen den optimistischen State nicht überschreiben.
+  const materialListSaveInProgress = React.useRef(false);
   // Ref für die aktuelle ShoppingList — wird synchron in den Realtime-
   // Callbacks und beim initialen Laden aktualisiert, damit der nächste
   // Callback immer den aktuellen Stand als Vergleichsbasis hat.
@@ -1342,29 +1349,59 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Materialliste (noch auf Firebase)
+    // Materialliste (Supabase)
     if (activeTab == EventTabs.materialList) {
-      let unsubscribe: () => void;
       dispatch({type: ReducerActions.MATERIALLIST_FETCH_INIT, payload: {}});
-      MaterialList.getMaterialListListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (materialList) => {
+
+      // Initialer Load
+      database.materialLists
+        .getListsForEvent(eventUid)
+        .then(async (headers) => {
+          const ml = headersDomainToMaterialList(headers, eventUid);
+
+          // Items für alle Listen laden
+          for (const header of headers) {
+            const items = await database.materialLists.getListItems(header.id);
+            ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
+          }
+
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
-            payload: materialList,
+            payload: ml,
           });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
+
+      // Realtime-Subscription auf Kopfzeilen
+      const unsubscribe = database.materialLists.subscribeToLists(
+        eventUid,
+        async (headers) => {
+          // Während eines Saves den Realtime-Reload unterdrücken,
+          // damit der optimistische State nicht überschrieben wird.
+          if (materialListSaveInProgress.current) return;
+
+          const ml = headersDomainToMaterialList(headers, eventUid);
+
+          for (const header of headers) {
+            const items = await database.materialLists.getListItems(header.id);
+            ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
+          }
+
+          dispatch({
+            type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
+            payload: ml,
+          });
+        },
+        (error) => {
+          console.warn(
+            "Realtime materiallists subscription error:",
+            error.message,
+          );
+        },
+      );
+
       return function cleanup() {
         unsubscribe();
       };
@@ -1464,10 +1501,11 @@ const EventPage = () => {
     });
   };
   const onMaterialListUpdate = (materialList: MaterialList) => {
-    MaterialList.save({
-      firebase: firebase,
-      materialList: materialList,
-      authUser: authUser,
+    // Optimistisches State-Update — Persistenz erfolgt direkt in useMaterialListHandlers
+    // via Repository. Die Realtime-Subscription synchronisiert den Zustand.
+    dispatch({
+      type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
+      payload: materialList,
     });
   };
   const onEventUpdate = (event: Event) => {
@@ -1619,14 +1657,8 @@ const EventPage = () => {
         .remove(state.event.uid + ".jpg")
         .catch(() => {});
 
-      // Firebase-Kinder löschen (MaterialList — noch auf Firebase)
-      // ShoppingList + UsedRecipes werden über CASCADE beim Event-Delete in Supabase entfernt.
-      await MaterialList.delete({
-        firebase: firebase,
-        eventUid: state.event.uid,
-      }).catch(() => {});
-
       // Event löschen — CASCADE entfernt alle Supabase-Kinder
+      // (MaterialLists, ShoppingLists, UsedRecipes etc.)
       await database.events.deleteEvent(state.event.uid);
 
       // Kurzer Timeout, damit der Session-Storage nachmag
@@ -2224,7 +2256,6 @@ const EventPage = () => {
           ) : activeTab == EventTabs.materialList ? (
             <Container>
               <EventMaterialListPage
-                firebase={firebase}
                 authUser={authUser}
                 materialList={state.materialList}
                 event={state.event}
@@ -2232,6 +2263,7 @@ const EventPage = () => {
                 menuplan={state.menuplan}
                 materials={state.materials}
                 recipes={state.recipes}
+                saveInProgressRef={materialListSaveInProgress}
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}

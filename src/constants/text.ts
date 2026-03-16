@@ -270,6 +270,7 @@ export const FIELD_TAGS = "Tags";
 export const FIELD_DAY = "Tag";
 export const FIELD_SHOW_SCALE_FACTORS = "Skalierungsfaktoren anzeigen";
 export const FIELD_QUANTITY = "Menge";
+export const FIELD_RESPONSIBLE = "Verantwortlich";
 export const FIELD_SCALING_FACTOR = "Sk.faktor";
 export const FIELD_INGREDIENT = "";
 export const INGREDIENT = "Zutat";

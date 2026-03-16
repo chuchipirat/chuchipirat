@@ -11,13 +11,27 @@ import {
 } from "../../../constants/text";
 
 import {Footer, Header} from "../../Shared/pdfComponents";
-import {MaterialListEntry, MaterialListMaterial} from "./materialList.class";
+import {MaterialListEntry} from "./materialList.class";
 import Utils from "../../Shared/utils.class";
+
+const styles = pdfStyles;
 
 /** Zahlenformat für Mengenangaben (Schweizer Locale, max. 3 signifikante Stellen). */
 const QUANTITY_FORMAT = new Intl.NumberFormat("de-CH", {
   maximumSignificantDigits: 3,
 });
+
+/**
+ * Erzeugt den kombinierten Style für abgehakte Zellen.
+ *
+ * @param checked - Ob das Item abgehakt ist
+ * @returns Zellen-Style (grau + durchgestrichen wenn checked)
+ */
+const checkedCellStyle = (checked: boolean) =>
+  checked
+    ? {...styles.tableCell, ...styles.gray, ...styles.strikeTrough}
+    : styles.tableCell;
+
 /* ===================================================================
 // ========================= PDF Materialliste =======================
 // =================================================================== */
@@ -26,6 +40,7 @@ const QUANTITY_FORMAT = new Intl.NumberFormat("de-CH", {
  *
  * Rendert eine einseitige Materialliste mit Mengenangaben, alphabetisch
  * sortiert. Bereits abgehakte Positionen werden durchgestrichen dargestellt.
+ * Zeigt optional eine Koch-Zuordnungs-Spalte an.
  *
  * @param props - Materiallistendaten, Zeitabschnitt, Event-Name und Autoreninfo.
  */
@@ -90,6 +105,7 @@ const MaterialListPage = ({
       <MaterialListTitle
         materialListName={materialList.properties.name}
         materialListSelectedTimeSlice={materialListSelectedTimeSlice}
+        itemCount={materialList.items.length}
       />
       <MaterialListList materialList={materialList} />
 
@@ -101,21 +117,24 @@ const MaterialListPage = ({
     </Page>
   );
 };
+
 /* ===================================================================
 // ============================== Titel ==============================
 // =================================================================== */
 /**
- * Titelbereich der Materialliste mit Name und Zeitraum.
+ * Titelbereich der Materialliste mit Name, Zeitraum und Item-Anzahl.
  *
- * @param props - Listenname und ausgewählter Zeitabschnitt.
+ * @param props - Listenname, Zeitabschnitt und Anzahl Positionen.
  */
 interface MaterialListTitleProps {
-  materialListName: MaterialListMaterial["name"];
+  materialListName: string;
   materialListSelectedTimeSlice: string;
+  itemCount: number;
 }
 const MaterialListTitle = ({
   materialListName,
   materialListSelectedTimeSlice,
+  itemCount,
 }: MaterialListTitleProps) => {
   return (
     <React.Fragment>
@@ -125,16 +144,19 @@ const MaterialListTitle = ({
       <View style={styles.containerBottomBorder} />
       <Text
         style={styles.subSubTitle}
-      >{`${materialListName}: ${materialListSelectedTimeSlice}`}</Text>
+      >{`${materialListName}: ${materialListSelectedTimeSlice} (${itemCount} Positionen)`}</Text>
       <View style={styles.containerBottomBorder} />
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================ Item-Liste ===========================
 // =================================================================== */
 /**
  * Tabelle mit den Materiallistenpositionen, alphabetisch sortiert.
+ * Zeigt optional eine Koch-Spalte an, wenn mindestens ein Item eine
+ * Koch-Zuordnung hat.
  *
  * @param props - Materiallistendaten mit Positionen.
  */
@@ -142,55 +164,48 @@ interface MaterialListListProps {
   materialList: MaterialListEntry;
 }
 const MaterialListList = ({materialList}: MaterialListListProps) => {
+  // Koch-Spalte nur anzeigen wenn mindestens ein Item einen Koch hat
+  const hasCookAssignment = materialList.items.some(
+    (material) => material.resolvedCookName || material.assignedCookName,
+  );
+
   return (
     <View style={styles.table} key={"materialBlockTable"}>
       {Utils.sortArray({array: materialList.items, attributeName: "name"}).map(
-        (material, line) => (
-          <View style={styles.tableRow} key={"materialLine_" + "_" + line}>
+        (material, rowIndex) => (
+          <View style={styles.tableRow} key={"materialLine_" + "_" + rowIndex}>
             <View
               style={styles.tableColQuantity}
-              key={"materialBlockQuantity" + line}
+              key={"materialBlockQuantity" + rowIndex}
             >
-              <Text
-                style={
-                  material.checked
-                    ? {
-                        ...styles.tableCell,
-                        ...styles.gray,
-                        ...styles.strikeTrough,
-                      }
-                    : styles.tableCell
-                }
-              >
+              <Text style={checkedCellStyle(material.checked)}>
                 {Number.isNaN(material.quantity) || !material.quantity
                   ? ""
                   : QUANTITY_FORMAT.format(material.quantity)}
               </Text>
             </View>
-            <View style={styles.tableCol5} key={"materialBlockSpacer" + line} />
+            <View style={styles.tableCol5} key={"materialBlockSpacer" + rowIndex} />
 
-            <View style={styles.tableColItem} key={"materialBlockName" + line}>
-              <Text
-                style={
-                  material.checked
-                    ? {
-                        ...styles.tableCell,
-                        ...styles.gray,
-                        ...styles.strikeTrough,
-                      }
-                    : styles.tableCell
-                }
-              >
+            <View
+              style={hasCookAssignment ? styles.tableColItemNarrow : styles.tableColItem}
+              key={"materialBlockName" + rowIndex}
+            >
+              <Text style={checkedCellStyle(material.checked)}>
                 {material.name}
               </Text>
             </View>
+            {hasCookAssignment && (
+              <View style={styles.tableColCook} key={"materialBlockCook" + rowIndex}>
+                <Text style={checkedCellStyle(material.checked)}>
+                  {material.resolvedCookName || material.assignedCookName || ""}
+                </Text>
+              </View>
+            )}
           </View>
-        )
+        ),
       )}
     </View>
   );
 };
 
 export default MaterialListPdf;
-
-const styles = pdfStyles;

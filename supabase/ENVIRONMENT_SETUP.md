@@ -55,6 +55,10 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260313000002_add_used_recipe_list_meals.sql`              | Junction-Tabelle `event_used_recipe_list_meals` für Drift-Erkennung bei verschobenen Menüs |
 | `20260313000003_fix_save_menuplan_preserve_junctions.sql`    | Fix: `save_menuplan` sichert Junction-Daten der UsedRecipeLists vor CASCADE-Delete und stellt sie nach dem Re-Insert wieder her |
 | `20260315000001_simplify_menuplan_audit.sql`                | Menuplan-Audit vereinfachen: `event_menuplan_tracking`-Tabelle erstellen, Audit-Spalten und Triggers von 10 Menuplan-/Junction-Tabellen entfernen, `save_menuplan` RPC vereinfachen |
+| `20260316000002_create_shopping_lists.sql`                  | Einkaufslisten: ENUM `shopping_list_edit_source`, Tabellen `event_shopping_lists` + `event_shopping_list_items`, VIEW `event_shopping_list_items_view` (aufgelöste Namen, Abteilungen, Einheiten), RLS via `is_event_cook()` |
+| `20260316000003_enable_realtime_shopping_lists.sql`         | Aktiviert Supabase Realtime für `event_shopping_lists` und `event_shopping_list_items` |
+| `20260316000006_create_material_lists.sql`                  | Materiallisten: Tabellen `event_material_lists` + `event_material_list_items` (inkl. Koch-Zuordnung via `assigned_cook_id`/`assigned_cook_name`), VIEW `event_material_list_items_view` (aufgelöste Material-Namen und Koch-Namen), RLS via `is_event_cook()`, wiederverwendet `shopping_list_edit_source` ENUM |
+| `20260316000007_enable_realtime_material_lists.sql`         | Aktiviert Supabase Realtime für `event_material_lists` und `event_material_list_items` |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -157,6 +161,8 @@ Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) 
 13. **EventPictures** migrieren (kopiert Event-Bilder von Firebase Storage nach Supabase Storage — hängt von Events ab)
 14. **RecipeVariants** migrieren (Varianten-Rezepte — hängt von Events, Recipes, Users, Products, Materials ab)
 15. **UsedRecipeListMeals** migrieren (Meal-Zuordnungen für Mengenberechnungs-Listen — hängt von Events, Menuplan ab)
+16. **ShoppingLists** migrieren (Einkaufslisten — hängt von Events, Products, Materials, Departments, Units ab)
+17. **MaterialLists** migrieren (Materiallisten — hängt von Events, Materials ab)
 
 ---
 

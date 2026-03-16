@@ -215,6 +215,12 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     respectPrefix: false,
     excludeFromCaching: true,
   },
+  MATERIAL_LISTS: {
+    durationOfValidity: 0,
+    uid: "/materialLists",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
 };
 
 const PREFIX_DOCUMENTUID_SEPARATOR = "|";

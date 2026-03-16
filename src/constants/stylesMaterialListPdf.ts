@@ -57,6 +57,14 @@ export const pdfStyles = StyleSheet.create({
     width: "60%",
     textAlign: "left",
   },
+  tableColItemNarrow: {
+    width: "35%",
+    textAlign: "left",
+  },
+  tableColCook: {
+    width: "25%",
+    textAlign: "left",
+  },
   tableCell: {
     ...PDF_TOKENS.tableCell,
   },
