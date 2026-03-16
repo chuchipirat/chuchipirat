@@ -14,7 +14,11 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "./sessionStorageHandler.class";
-import {ChangeLog, Comment} from "../../Request/request.class";
+// Legacy-Typen — ChangeLog und Comment existieren nicht mehr in request.class.ts
+// Die Felder werden nur als any-Typ verwendet, da diese Klasse nur noch
+// von der Migration gelesen wird.
+type ChangeLog = any;
+type Comment = any;
 import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export class FirebaseDbRequestActive extends FirebaseDbSuper {

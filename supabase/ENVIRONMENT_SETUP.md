@@ -59,6 +59,7 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260316000003_enable_realtime_shopping_lists.sql`         | Aktiviert Supabase Realtime für `event_shopping_lists` und `event_shopping_list_items` |
 | `20260316000006_create_material_lists.sql`                  | Materiallisten: Tabellen `event_material_lists` + `event_material_list_items` (inkl. Koch-Zuordnung via `assigned_cook_id`/`assigned_cook_name`), VIEW `event_material_list_items_view` (aufgelöste Material-Namen und Koch-Namen), RLS via `is_event_cook()`, wiederverwendet `shopping_list_edit_source` ENUM |
 | `20260316000007_enable_realtime_material_lists.sql`         | Aktiviert Supabase Realtime für `event_material_lists` und `event_material_list_items` |
+| `20260317000001_create_requests.sql`                        | Anträge: ENUMs `request_status_type` + `request_type_enum`, SEQUENCE `request_number_seq`, Tabellen `requests` + `request_comments`, VIEWs `requests_view` (Autor/Assignee/Rezept aufgelöst) + `request_comments_view` (Kommentar-Autor aufgelöst), RLS: Autor sieht eigene, Community Leaders sehen alle |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -140,7 +141,13 @@ Wird durch Migration `20260227000002_create_media_bucket.sql` erstellt. Enthält
 
 ---
 
-## 5. Daten-Migration (Firebase → Postgres)
+## 5. Firebase Auth → Supabase Auth (User-Import)
+
+Bevor Tabellen mit `FK → auth.users(id)` migriert werden (z.B. `requests`), müssen alle Firebase-Auth-Benutzer in Supabase Auth importiert werden. Siehe **[Firebase Auth Migration Playbook](../docs/claude/firebase-auth-migration.md)** für die vollständige Anleitung.
+
+---
+
+## 6. Daten-Migration (Firebase → Postgres)
 
 Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) migriert werden. Diese Seite ist nur für Admins zugänglich.
 
@@ -166,7 +173,7 @@ Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) 
 
 ---
 
-## 6. Einmalige SQL-Korrekturen
+## 7. Einmalige SQL-Korrekturen
 
 SQL-Statements die einmalig auf bestehenden Umgebungen ausgeführt werden müssen (z.B. nach Bugfixes):
 
@@ -180,7 +187,7 @@ WHERE display_name = email;
 
 ---
 
-## 7. Umgebungsspezifische Werte
+## 8. Umgebungsspezifische Werte
 
 | Variable                    | Dev (lokal)               | Test          | Produktion               |
 | --------------------------- | ------------------------- | ------------- | ------------------------ |

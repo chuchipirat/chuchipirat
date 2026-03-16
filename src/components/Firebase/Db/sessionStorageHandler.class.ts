@@ -221,6 +221,18 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     respectPrefix: false,
     excludeFromCaching: true,
   },
+  REQUESTS: {
+    durationOfValidity: 0,
+    uid: "/requests",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  REQUEST_COMMENTS: {
+    durationOfValidity: 0,
+    uid: "/requestComments",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
 };
 
 const PREFIX_DOCUMENTUID_SEPARATOR = "|";

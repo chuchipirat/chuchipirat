@@ -1,7 +1,17 @@
+/**
+ * Antrags-Übersicht — Hauptseite für die Verwaltung von Anträgen.
+ *
+ * Zeigt aktive und abgeschlossene Anträge in einer Tabelle an.
+ * Community Leaders sehen alle Anträge, andere Benutzer nur eigene.
+ * Unterstützt Suchen, Filtern (aktiv/alle) und Statusübergänge.
+ */
 import React from "react";
-import {useNavigate} from "react-router";
+import {useNavigate, useParams} from "react-router";
+import * as Sentry from "@sentry/browser";
 
 import {
+  Alert,
+  Button,
   Container,
   Backdrop,
   CircularProgress,
@@ -9,7 +19,6 @@ import {
   Card,
   CardContent,
   Chip,
-  Typography,
   ToggleButton,
   ToggleButtonGroup,
   useTheme,
@@ -27,7 +36,12 @@ import {
   REQUEST_AUTHOR_DISPLAYNAME as TEXT_REQUEST_AUTHOR_DISPLAYNAME,
   ACTIVE_REQUESTS as TEXT_ACTIVE_REQUESTS,
   ALL_REQUESTS as TEXT_ALL_REQUESTS,
-  NO_OPEN_REQUESTS_FOUND as TEXT_NO_OPEN_REQUESTS_FOUND,
+  REQUEST_EMPTY_STATE as TEXT_REQUEST_EMPTY_STATE,
+  REQUEST_EMPTY_STATE_LEADER as TEXT_REQUEST_EMPTY_STATE_LEADER,
+  REQUEST_STATUS_CHANGED as TEXT_REQUEST_STATUS_CHANGED,
+  REQUEST_COMMENT_ADDED as TEXT_REQUEST_COMMENT_ADDED,
+  REQUEST_ASSIGNED_TO_ME as TEXT_REQUEST_ASSIGNED_TO_ME,
+  REQUEST_SEARCH_ALSO_CLOSED as TEXT_REQUEST_SEARCH_ALSO_CLOSED,
 } from "../../constants/text";
 
 import {RECIPE as ROUTES_RECIPE} from "../../constants/routes";
@@ -36,9 +50,12 @@ import useCustomStyles from "../../constants/styles";
 
 import PageTitle from "../Shared/pageTitle";
 
-import {Request} from "./request.class";
+import {Request, RequestStatus, RequestType, RequestAction} from "./request.class";
+import {RequestService} from "./requestService";
+import {RequestDomain} from "../Database/Repository/RequestRepository";
+import {RequestCommentDomain} from "../Database/Repository/RequestCommentRepository";
 
-import {Snackbar} from "../Shared/customSnackbar";
+import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
 import AlertMessage from "../Shared/AlertMessage";
 import EnhancedTable, {
   TableColumnTypes,
@@ -52,16 +69,10 @@ import {
   NavigationObject,
 } from "../Navigation/navigationContext";
 import Action from "../../constants/actions";
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useAuthUser} from "../Session/authUserContext";
-import {
-  RECIPE_DRAWER_DATA_INITIAL_VALUES,
-  RecipeDrawer,
-  RecipeDrawerData,
-} from "../Recipe/RecipeDrawer";
-import EventGroupConfiguration from "../Event/GroupConfiguration/groupConfiguration.class";
-import Recipe, {RecipeType, Recipes} from "../Recipe/recipe.class";
-import {RequestStatus, RequestType} from "./request.class";
+import {useDatabase} from "../Database/DatabaseContext";
+import Recipe, {Recipes} from "../Recipe/recipe.class";
+import Role from "../../constants/roles";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -73,6 +84,7 @@ enum ReducerActions {
   FETCH_RECIPE_INIT,
   FETCH_RECIPE_SUCCESS,
   UPDATE_REQUEST_SELECTION,
+  SNACKBAR_SHOW,
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
   UPDATE_SINGLE_REQUEST,
@@ -80,30 +92,31 @@ enum ReducerActions {
 
 type DispatchAction =
   | {type: ReducerActions.FETCH_INIT; payload: Record<string, never>}
-  | {type: ReducerActions.FETCH_SUCCESS; payload: Request[]}
-  | {type: ReducerActions.FETCH_CLOSED_REQUESTS; payload: Request[]}
+  | {type: ReducerActions.FETCH_SUCCESS; payload: RequestDomain[]}
+  | {type: ReducerActions.FETCH_CLOSED_REQUESTS; payload: RequestDomain[]}
   | {
       type: ReducerActions.UPDATE_REQUEST_SELECTION;
       payload: {newStateFilter: string};
     }
   | {type: ReducerActions.FETCH_RECIPE_INIT; payload: Record<string, never>}
   | {type: ReducerActions.FETCH_RECIPE_SUCCESS; payload: Recipe}
+  | {type: ReducerActions.SNACKBAR_SHOW; payload: {message: string}}
   | {type: ReducerActions.SNACKBAR_CLOSE; payload: Record<string, never>}
-  | {type: ReducerActions.UPDATE_SINGLE_REQUEST; payload: Request}
+  | {type: ReducerActions.UPDATE_SINGLE_REQUEST; payload: RequestDomain}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
-  requests: Request[];
+  requests: RequestDomain[];
   recipes: Recipes;
-  activeRequests: Request[];
-  closedRequests: Request[];
+  activeRequests: RequestDomain[];
+  closedRequests: RequestDomain[];
   isLoading: boolean;
   snackbar: Snackbar;
   closedRequestsFetched: boolean;
   error: Error | null;
 };
 
-const inititialState: State = {
+const initialState: State = {
   requests: [],
   recipes: {},
   activeRequests: [],
@@ -114,8 +127,26 @@ const inititialState: State = {
   error: null,
 };
 
+/** UI-Darstellung eines Antrags in der Tabelle. */
+interface RequestUi {
+  uid: string;
+  number: number;
+  status: JSX.Element;
+  recipeName: string;
+  createDate: Date;
+  assigneeDisplayName: string;
+  authorDisplayName: string;
+  // Felder für den Dialog (nicht in Tabelle sichtbar)
+  _domain: RequestDomain;
+}
+
+enum RequestStateFilter {
+  Active = "active",
+  All = "all",
+}
+
 interface RequestTableProps {
-  requests: Request[];
+  requests: RequestDomain[];
   onClick: (
     event: React.MouseEvent<HTMLTableRowElement, MouseEvent>,
     name: string,
@@ -126,38 +157,18 @@ interface RequestTableProps {
     event: React.MouseEvent<HTMLElement>,
     newStateFilter: string,
   ) => void;
-}
-// Interface für die Anzeige im UI
-interface RequestUi {
-  uid: string;
-  number: number;
-  status: JSX.Element;
-  author: Request["author"];
-  assignee: Request["assignee"];
-  comments: Request["comments"];
-  changeLog: Request["changeLog"];
-  createDate: Request["createDate"];
-  resolveDate: Request["resolveDate"];
-  requestObject: Request["requestObject"];
-  requestType: Request["requestType"];
-  transitions: Request["transitions"];
-}
-
-enum RequestStateFilter {
-  Active = "active",
-  All = "all",
+  isCommunityLeader: boolean;
 }
 
 interface StatusChipsProps {
-  status: RequestStatus;
+  status: string;
 }
 
 const requestReducer = (state: State, action: DispatchAction): State => {
-  let tmpRequests: Request[] = [];
+  let tmpRequests: RequestDomain[] = [];
   let index: number;
   switch (action.type) {
     case ReducerActions.FETCH_INIT:
-      // Daten werden geladen
       return {
         ...state,
         isLoading: true,
@@ -193,8 +204,16 @@ const requestReducer = (state: State, action: DispatchAction): State => {
         isLoading: false,
         recipes: {...state.recipes, [action.payload.uid]: action.payload},
       };
+    case ReducerActions.SNACKBAR_SHOW:
+      return {
+        ...state,
+        snackbar: {
+          severity: "success",
+          message: action.payload.message,
+          open: true,
+        },
+      };
     case ReducerActions.SNACKBAR_CLOSE:
-      // Snackbar schliessen
       return {
         ...state,
         snackbar: {
@@ -204,8 +223,7 @@ const requestReducer = (state: State, action: DispatchAction): State => {
         },
       };
     case ReducerActions.UPDATE_SINGLE_REQUEST:
-      // Einzelner Request anpassen
-      tmpRequests = state.requests;
+      tmpRequests = [...state.requests];
       index = tmpRequests.findIndex(
         (request) => request.uid === action.payload.uid,
       );
@@ -217,7 +235,6 @@ const requestReducer = (state: State, action: DispatchAction): State => {
         requests: tmpRequests,
       };
     case ReducerActions.GENERIC_ERROR:
-      // allgemeiner Fehler
       return {
         ...state,
         error: action.payload,
@@ -233,30 +250,25 @@ const requestReducer = (state: State, action: DispatchAction): State => {
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
-
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 const RequestOverviewPage = () => {
-  const firebase = useFirebase();
   const authUser = useAuthUser();
+  const database = useDatabase();
   const classes = useCustomStyles();
   const navigate = useNavigate();
+  const {id: deepLinkRequestId} = useParams<{id: string}>();
 
   const navigationValuesContext = React.useContext(NavigationValuesContext);
 
-  const [state, dispatch] = React.useReducer(requestReducer, inititialState);
+  const [state, dispatch] = React.useReducer(requestReducer, initialState);
   const [requestStateFilter, setRequestStateFilter] = React.useState(
     RequestStateFilter.Active,
   );
 
   const [requestPopupValues, setRequestPopupValues] = React.useState({
-    selectedRequest: {} as Request,
+    selectedRequest: null as RequestDomain | null,
+    comments: [] as RequestCommentDomain[],
     open: false,
   });
-  const [recipeDrawerData, setRecipeDrawerData] =
-    React.useState<RecipeDrawerData>(RECIPE_DRAWER_DATA_INITIAL_VALUES);
-
   /* ------------------------------------------
   // Navigation-Handler
   // ------------------------------------------ */
@@ -266,41 +278,120 @@ const RequestOverviewPage = () => {
       object: NavigationObject.none,
     });
   }, []);
+
   /* ------------------------------------------
   // Daten aus der DB lesen
   // ------------------------------------------ */
   React.useEffect(() => {
-    if (!authUser) {
-      return;
-    }
+    if (!authUser) return;
+
     dispatch({type: ReducerActions.FETCH_INIT, payload: {}});
 
-    Request.getActiveRequests({firebase: firebase, authUser: authUser})
+    database.requests
+      .getActiveRequests()
       .then((result) => {
         dispatch({type: ReducerActions.FETCH_SUCCESS, payload: result});
       })
       .catch((error) => {
+        Sentry.captureException(error);
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
   }, [authUser]);
-  if (!authUser) {
-    return null;
-  }
+
+  /* ------------------------------------------
+  // Deep-Link: Antrag per URL-Parameter öffnen
+  // Wird ausgelöst durch /requestoverview/:id (z.B. aus E-Mail-Link)
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (!deepLinkRequestId || state.isLoading || requestPopupValues.open) return;
+
+    // Antrag in aktiven Requests suchen
+    let targetRequest = state.requests.find((r) => r.uid === deepLinkRequestId);
+
+    if (targetRequest) {
+      // Gefunden — Dialog öffnen
+      database.requestComments
+        .getCommentsForRequest(targetRequest.uid)
+        .then((comments) => {
+          setRequestPopupValues({
+            selectedRequest: targetRequest!,
+            comments,
+            open: true,
+          });
+        })
+        .catch((error) => {
+          Sentry.captureException(error);
+          setRequestPopupValues({
+            selectedRequest: targetRequest!,
+            comments: [],
+            open: true,
+          });
+        });
+    } else if (!state.closedRequestsFetched) {
+      // Nicht in aktiven Requests — geschlossene nachladen
+      database.requests
+        .getClosedRequests()
+        .then((closedRequests) => {
+          dispatch({
+            type: ReducerActions.FETCH_CLOSED_REQUESTS,
+            payload: closedRequests,
+          });
+
+          targetRequest = closedRequests.find(
+            (r) => r.uid === deepLinkRequestId,
+          );
+          if (!targetRequest) return;
+
+          return database.requestComments
+            .getCommentsForRequest(targetRequest.uid)
+            .then((comments) => {
+              setRequestPopupValues({
+                selectedRequest: targetRequest!,
+                comments,
+                open: true,
+              });
+            });
+        })
+        .catch((error) => {
+          Sentry.captureException(error);
+        });
+    }
+  }, [deepLinkRequestId, state.requests, state.isLoading]);
+
+  if (!authUser) return null;
+
+  const isCommunityLeader = authUser.roles.includes(Role.communityLeader);
 
   /* ------------------------------------------
   // PopUp öffnen
   // ------------------------------------------ */
-  const onRowClick = (
-    event: React.MouseEvent<HTMLTableRowElement, MouseEvent>,
+  const onRowClick = async (
+    _event: React.MouseEvent<HTMLTableRowElement, MouseEvent>,
     requestNumber: string,
   ) => {
-    setRequestPopupValues({
-      ...requestPopupValues,
-      selectedRequest: state.requests.find(
-        (request) => request.number == parseInt(requestNumber),
-      ) as Request,
-      open: true,
-    });
+    const selectedRequest = state.requests.find(
+      (request) => request.number === parseInt(requestNumber),
+    );
+    if (!selectedRequest) return;
+
+    // Kommentare für den Antrag laden
+    try {
+      const comments = await database.requestComments.getCommentsForRequest(
+        selectedRequest.uid,
+      );
+      setRequestPopupValues({
+        selectedRequest,
+        comments,
+        open: true,
+      });
+    } catch (error) {
+      Sentry.captureException(error);
+      setRequestPopupValues({
+        selectedRequest,
+        comments: [],
+        open: true,
+      });
+    }
   };
 
   /* ------------------------------------------
@@ -309,91 +400,150 @@ const RequestOverviewPage = () => {
   const onPopUpClose = () => {
     setRequestPopupValues({...requestPopupValues, open: false});
   };
+
   /* ------------------------------------------
   // Status anpassen
   // ------------------------------------------ */
-  const onUpdateStatus = (nextStatus: RequestStatus) => {
-    Request.updateStatus({
-      firebase: firebase,
-      request: requestPopupValues.selectedRequest,
-      nextStatus: nextStatus,
-      authUser: authUser,
-    })
-      .then((result) => {
-        dispatch({
-          type: ReducerActions.UPDATE_SINGLE_REQUEST,
-          payload: result,
-        });
-        setRequestPopupValues({
-          ...requestPopupValues,
-          selectedRequest: result,
-        });
-      })
-      .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+  const onUpdateStatus = async (nextStatus: RequestStatus, reason?: string) => {
+    if (!requestPopupValues.selectedRequest) return;
+    const request = requestPopupValues.selectedRequest;
+
+    try {
+      // Bei Ablehnung: Begründung als Kommentar speichern
+      if (reason) {
+        const comment = await database.requestComments.insertComment(
+          request.uid,
+          reason,
+          authUser,
+        );
+        setRequestPopupValues((prev) => ({
+          ...prev,
+          comments: [...prev.comments, comment],
+        }));
+      }
+
+      const changeLog = Request.createChangeLogEntry(
+        request.changeLog,
+        RequestAction.changeState,
+        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {status: nextStatus},
+      );
+
+      const resolveDate = Request.isClosedStatus(nextStatus) ? new Date() : undefined;
+
+      const updated = await database.requests.updateStatus(
+        request.uid,
+        nextStatus,
+        changeLog,
+        authUser,
+        resolveDate,
+      );
+
+      dispatch({
+        type: ReducerActions.UPDATE_SINGLE_REQUEST,
+        payload: updated,
       });
+      setRequestPopupValues((prev) => ({
+        ...prev,
+        selectedRequest: updated,
+      }));
+
+      dispatch({
+        type: ReducerActions.SNACKBAR_SHOW,
+        payload: {message: TEXT_REQUEST_STATUS_CHANGED},
+      });
+
+      // Post-Actions ausführen (Rezept veröffentlichen, E-Mails etc.)
+      await RequestService.executePostAction(updated, nextStatus, database);
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
+
   /* ------------------------------------------
   // Request mir zuweisen
   // ------------------------------------------ */
-  const onAssignToMe = () => {
-    Request.assignToMe({
-      request: requestPopupValues.selectedRequest,
-      firebase: firebase,
-      authUser: authUser,
-    })
-      .then((result) => {
-        dispatch({
-          type: ReducerActions.UPDATE_SINGLE_REQUEST,
-          payload: result,
-        });
-        setRequestPopupValues({
-          ...requestPopupValues,
-          selectedRequest: result,
-        });
-      })
-      .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+  const onAssignToMe = async () => {
+    if (!requestPopupValues.selectedRequest) return;
+    const request = requestPopupValues.selectedRequest;
+
+    try {
+      const changeLog = Request.createChangeLogEntry(
+        request.changeLog,
+        RequestAction.assign,
+        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {assignee: authUser.publicProfile.displayName},
+      );
+
+      const updated = await database.requests.assignRequest(
+        request.uid,
+        authUser.authUid,
+        changeLog,
+        authUser,
+      );
+
+      dispatch({
+        type: ReducerActions.UPDATE_SINGLE_REQUEST,
+        payload: updated,
       });
+      setRequestPopupValues({
+        ...requestPopupValues,
+        selectedRequest: updated,
+      });
+
+      dispatch({
+        type: ReducerActions.SNACKBAR_SHOW,
+        payload: {message: TEXT_REQUEST_ASSIGNED_TO_ME},
+      });
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
+
   /* ------------------------------------------
   // Neuer Kommentar hinzufügen
   // ------------------------------------------ */
-  const onAddComment = (newComment: string) => {
-    Request.addComment({
-      request: requestPopupValues.selectedRequest,
-      comment: newComment,
-      firebase: firebase,
-      authUser: authUser,
-    })
-      .then((result) => {
-        dispatch({
-          type: ReducerActions.UPDATE_SINGLE_REQUEST,
-          payload: result,
-        });
-        setRequestPopupValues({
-          ...requestPopupValues,
-          selectedRequest: result,
-        });
-      })
-      .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+  const onAddComment = async (newComment: string) => {
+    if (!requestPopupValues.selectedRequest) return;
+
+    try {
+      const comment = await database.requestComments.insertComment(
+        requestPopupValues.selectedRequest.uid,
+        newComment,
+        authUser,
+      );
+
+      setRequestPopupValues({
+        ...requestPopupValues,
+        comments: [...requestPopupValues.comments, comment],
       });
+
+      dispatch({
+        type: ReducerActions.SNACKBAR_SHOW,
+        payload: {message: TEXT_REQUEST_COMMENT_ADDED},
+      });
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
+
   /* ------------------------------------------
   // Filter der Requests nach Status
   // ------------------------------------------ */
   const onStateFilterChange = (
-    event: React.MouseEvent<HTMLElement>,
+    _event: React.MouseEvent<HTMLElement> | null,
     newStateFilter: string,
   ) => {
     if (
-      state.closedRequestsFetched == false &&
-      newStateFilter == RequestStateFilter.All
+      state.closedRequestsFetched === false &&
+      newStateFilter === RequestStateFilter.All
     ) {
       dispatch({type: ReducerActions.FETCH_INIT, payload: {}});
-      // die geschlossenen Anträge holen
-      Request.getClosedRequests({firebase: firebase, authUser: authUser})
+      database.requests
+        .getClosedRequests()
         .then((result) => {
           dispatch({
             type: ReducerActions.FETCH_CLOSED_REQUESTS,
@@ -401,69 +551,25 @@ const RequestOverviewPage = () => {
           });
         })
         .catch((error) => {
+          Sentry.captureException(error);
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
     } else {
-      // state.requests mit den richtigen Informationen füllen.
       dispatch({
         type: ReducerActions.UPDATE_REQUEST_SELECTION,
-        payload: {newStateFilter: newStateFilter},
+        payload: {newStateFilter},
       });
     }
 
     setRequestStateFilter(newStateFilter as RequestStateFilter);
   };
+
   /* ------------------------------------------
   // Recipe-Drawer-Handling
   // ------------------------------------------ */
-  const onRecipeDrawerOpen = async (recipeUid: string) => {
-    let recipe = new Recipe();
-
-    if (Object.prototype.hasOwnProperty.call(state.recipes, recipeUid)) {
-      recipe = state.recipes[recipeUid];
-    } else {
-      // Rezept muss noch geholt werden
-      dispatch({type: ReducerActions.FETCH_RECIPE_INIT, payload: {}});
-
-      await Recipe.getRecipe({
-        firebase: firebase,
-        uid: recipeUid,
-        authUser: authUser,
-        // Das Rezept muss vom Author des Requests stammen.
-        userUid: requestPopupValues.selectedRequest.requestObject.authorUid,
-        type:
-          requestPopupValues.selectedRequest.requestType ===
-          RequestType.recipePublish
-            ? RecipeType.private
-            : RecipeType.public,
-      }).then((result) => {
-        dispatch({type: ReducerActions.FETCH_RECIPE_SUCCESS, payload: result});
-        recipe = result;
-      });
-    }
-
-    // Wenn es der*die Autorin ist, auf die Seite abspringen --> um das Rezept
-    // allenfalls zu bearbeiten
-    if (requestPopupValues.selectedRequest.author.uid === authUser.uid) {
-      navigate(
-        `${ROUTES_RECIPE}/${requestPopupValues.selectedRequest.requestObject.uid}`,
-        {
-          state: {
-            action: Action.VIEW,
-            recipe: recipe,
-          },
-        },
-      );
-    } else {
-      setRecipeDrawerData({
-        ...recipeDrawerData,
-        recipe: recipe,
-        open: true,
-      });
-    }
-  };
-  const onRecipeDrawerClose = () => {
-    setRecipeDrawerData({...recipeDrawerData, open: false});
+  /** Rezept in neuem Tab öffnen (Community Leader kann dort bearbeiten). */
+  const onRecipeOpen = (recipeUid: string) => {
+    window.open(`${ROUTES_RECIPE}/${recipeUid}`, "_blank");
   };
 
   return (
@@ -491,30 +597,29 @@ const RequestOverviewPage = () => {
             isLoading={state.isLoading}
             requestStateFilter={requestStateFilter}
             handleStateFilterChange={onStateFilterChange}
+            isCommunityLeader={isCommunityLeader}
           />
         </Container>
-        <RecipeDrawer
-          drawerSettings={recipeDrawerData}
-          recipe={recipeDrawerData.recipe}
-          mealPlan={recipeDrawerData.mealPlan}
-          groupConfiguration={{} as EventGroupConfiguration}
-          scaledPortions={recipeDrawerData.scaledPortions}
-          editMode={false}
-          disableFunctionality={true}
-          firebase={firebase}
-          authUser={authUser}
-          onClose={onRecipeDrawerClose}
-        />
-
-        <DialogRequest
-          request={requestPopupValues.selectedRequest}
-          dialogOpen={requestPopupValues.open}
-          authUser={authUser}
-          handleClose={onPopUpClose}
-          handleUpdateStatus={onUpdateStatus}
-          handleAssignToMe={onAssignToMe}
-          handleAddComment={onAddComment}
-          handleRecipeOpen={onRecipeDrawerOpen}
+        {requestPopupValues.selectedRequest && (
+          <DialogRequest
+            request={requestPopupValues.selectedRequest}
+            comments={requestPopupValues.comments}
+            dialogOpen={requestPopupValues.open}
+            authUser={authUser}
+            handleClose={onPopUpClose}
+            handleUpdateStatus={onUpdateStatus}
+            handleAssignToMe={onAssignToMe}
+            handleAddComment={onAddComment}
+            handleRecipeOpen={onRecipeOpen}
+          />
+        )}
+        <CustomSnackbar
+          message={state.snackbar.message}
+          severity={state.snackbar.severity}
+          snackbarOpen={state.snackbar.open}
+          handleClose={(_event, _reason) =>
+            dispatch({type: ReducerActions.SNACKBAR_CLOSE, payload: {}})
+          }
         />
       </Stack>
     </React.Fragment>
@@ -522,7 +627,7 @@ const RequestOverviewPage = () => {
 };
 
 /* ===================================================================
-// =========================== Produkte Panel ========================
+// ========================= Request-Tabelle =========================
 // =================================================================== */
 const RequestTable = ({
   requests,
@@ -530,8 +635,9 @@ const RequestTable = ({
   isLoading,
   requestStateFilter,
   handleStateFilterChange,
+  isCommunityLeader,
 }: RequestTableProps) => {
-  const TABLE_COLUMS = [
+  const TABLE_COLUMNS = [
     {
       id: "uid",
       type: TableColumnTypes.string,
@@ -549,7 +655,7 @@ const RequestTable = ({
       visible: true,
     },
     {
-      id: "requestObject.name",
+      id: "recipeName",
       type: TableColumnTypes.string,
       textAlign: ColumnTextAlign.left,
       disablePadding: false,
@@ -573,7 +679,7 @@ const RequestTable = ({
       visible: true,
     },
     {
-      id: "assignee.displayName",
+      id: "assigneeDisplayName",
       type: TableColumnTypes.string,
       textAlign: ColumnTextAlign.left,
       disablePadding: false,
@@ -581,7 +687,7 @@ const RequestTable = ({
       visible: true,
     },
     {
-      id: "author.displayName",
+      id: "authorDisplayName",
       type: TableColumnTypes.string,
       textAlign: ColumnTextAlign.left,
       disablePadding: false,
@@ -595,58 +701,55 @@ const RequestTable = ({
   const [searchString, setSearchString] = React.useState("");
   const [requestsUi, setRequestsUi] = React.useState<RequestUi[]>([]);
 
-  /* ------------------------------------------
-  // Such-String löschen
-  // ------------------------------------------ */
   const clearSearchString = () => {
     setSearchString("");
   };
-  /* ------------------------------------------
-  // Such-String löschen
-  // ------------------------------------------ */
+
   const updateSearchString = (
     event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
   ) => {
     setSearchString(event.target.value);
     setRequestsUi(createRequestsForUi(requests, event.target.value));
   };
-  /* ------------------------------------------
-  // Tabelleninhalt für UI anpassen
-  // ------------------------------------------ */
-  const createRequestsForUi = (requests: Request[], searchString: string) => {
-    let filteredRequests: Request[] = [];
-    if (searchString) {
-      searchString = searchString.toLowerCase();
 
+  /** Wandelt RequestDomain-Objekte in die Tabellen-Darstellung um. */
+  const createRequestsForUi = (
+    requests: RequestDomain[],
+    searchString: string,
+  ): RequestUi[] => {
+    let filteredRequests: RequestDomain[] = [];
+    if (searchString) {
+      const search = searchString.toLowerCase();
       filteredRequests = requests.filter(
-        (request) =>
-          request.number.toString().includes(searchString) ||
-          request.requestObject.name.toLowerCase().includes(searchString) ||
-          request.assignee.displayName.toLowerCase().includes(searchString) ||
-          request.author.displayName.toLowerCase().includes(searchString),
+        (r) =>
+          r.number.toString().includes(search) ||
+          r.recipeName.toLowerCase().includes(search) ||
+          r.assigneeDisplayName.toLowerCase().includes(search) ||
+          r.authorDisplayName.toLowerCase().includes(search),
       );
     } else {
       filteredRequests = requests;
     }
 
-    const requestui = filteredRequests.map((request) => {
-      return {
-        ...request,
-        status: <StatusChips status={request.status} />,
-      };
-    });
-    return requestui;
+    return filteredRequests.map((r) => ({
+      uid: r.uid,
+      number: r.number,
+      status: <StatusChips status={r.status} />,
+      recipeName: r.recipeName,
+      createDate: r.createdAt,
+      assigneeDisplayName: r.assigneeDisplayName,
+      authorDisplayName: r.authorDisplayName,
+      _domain: r,
+    }));
   };
 
   if (!searchString && requests.length > 0 && requestsUi.length === 0) {
-    // Initialer Aufbau
     setRequestsUi(createRequestsForUi(requests, searchString));
   } else if (
     !searchString &&
     requests.length > 0 &&
     requests.length !== requestsUi.length
   ) {
-    // Neues dazugekommen
     setRequestsUi(createRequestsForUi(requests, searchString));
   }
 
@@ -679,18 +782,39 @@ const RequestTable = ({
           </ToggleButtonGroup>
           <EnhancedTable
             tableData={requestsUi}
-            tableColumns={TABLE_COLUMS}
+            tableColumns={TABLE_COLUMNS}
             keyColum={"number"}
             onRowClick={onClick}
           />
-          {requestsUi.length == 0 && isLoading == false && !searchString && (
-            <Typography
-              variant="subtitle1"
-              align="center"
-              style={{marginTop: "2ex"}}
-            >
-              {TEXT_NO_OPEN_REQUESTS_FOUND}
-            </Typography>
+          {/* Keine Treffer bei Suche im Aktiv-Filter */}
+          {requestsUi.length === 0 &&
+            !isLoading &&
+            searchString &&
+            requestStateFilter === RequestStateFilter.Active && (
+              <Alert
+                severity="info"
+                action={
+                  <Button
+                    color="inherit"
+                    size="small"
+                    onClick={() =>
+                      handleStateFilterChange(null, RequestStateFilter.All)
+                    }
+                  >
+                    {TEXT_ALL_REQUESTS}
+                  </Button>
+                }
+              >
+                {TEXT_REQUEST_SEARCH_ALSO_CLOSED}
+              </Alert>
+            )}
+          {/* Leerer Zustand ohne Suche */}
+          {requestsUi.length === 0 && !isLoading && !searchString && (
+            <Alert severity="info">
+              {isCommunityLeader
+                ? TEXT_REQUEST_EMPTY_STATE_LEADER
+                : TEXT_REQUEST_EMPTY_STATE}
+            </Alert>
           )}
         </Stack>
       </CardContent>
@@ -698,24 +822,34 @@ const RequestTable = ({
   );
 };
 
+/* =====================================================================
+// Status-Chip
 // ===================================================================== */
 /**
- * Status-Chip
- * @param status - Status, für den der Style ermittelt werden soll.
+ * Zeigt den Status als farbigen Chip an.
+ *
+ * @param status - Status-Wert für den Chip
  */
 export const StatusChips = ({status}: StatusChipsProps) => {
   const classes = useCustomStyles();
 
+  const chipStyle = (() => {
+    switch (status) {
+      case RequestStatus.done:
+        return classes.workflowChipDone;
+      case RequestStatus.declined:
+        return classes.workflowChipAborted;
+      case RequestStatus.backToAuthor:
+        return classes.workflowChipBackToAuthor;
+      default:
+        return classes.workflowChipActive;
+    }
+  })();
+
   return (
     <Chip
       label={Request.translateStatus(status)}
-      sx={
-        status == RequestStatus.done
-          ? classes.workflowChipDone
-          : status == RequestStatus.declined
-            ? classes.workflowChipAborted
-            : classes.workflowChipActive
-      }
+      sx={chipStyle}
       size="small"
     />
   );

@@ -363,6 +363,7 @@ services:
       SMTP_PASS: ${SMTP_PASS}
       SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
       SMTP_SENDER_NAME: ${SMTP_SENDER_NAME}
+      SITE_URL: ${SITE_URL}
     command:
       [
         "start",

@@ -152,8 +152,9 @@ import {
 import Firebase from "../Firebase/firebase.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import {RecipeCommentDomain} from "../Database/Repository/RecipeCommentRepository";
-import {RequestPublishRecipe} from "../Request/request.publishRecipe.class";
-import {RequestReportError} from "../Request/request.reportError.class";
+import {RequestAction, RequestType} from "../Request/request.class";
+import {Request as RequestClass} from "../Request/request.class";
+import {RequestService} from "../Request/requestService";
 import DialogScaleRecipe, {OnScale} from "./dialogScaleRecipe";
 import DialogPublishRecipe from "./dialogPublishRecipe";
 
@@ -661,26 +662,50 @@ const RecipeView = ({
   };
   const onCreateRecipePublishRequest = async (messageForReview: string) => {
     try {
-      // Firebase-Request erstellen (Request-System noch auf Firebase)
-      const publishRequest = new RequestPublishRecipe();
-      const requestNo = await publishRequest.createRequest({
-        firebase,
-        requestObject: recipe as unknown as Parameters<
-          typeof publishRequest.createRequest
-        >[0]["requestObject"],
-        messageForReview,
+      // Initialen Changelog-Eintrag erstellen
+      const changeLog = RequestClass.createChangeLogEntry(
+        [],
+        RequestAction.created,
+        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {status: "created"},
+      );
+
+      // Antrag in Supabase erstellen
+      const created = await database.requests.createRequest(
+        {
+          requestType: RequestType.recipePublish,
+          recipeUid: recipe.uid,
+          changeLog,
+        },
         authUser,
-      });
+      );
+
+      // Initialen Kommentar als Request-Kommentar speichern (falls vorhanden)
+      if (messageForReview) {
+        await database.requestComments.insertComment(
+          created.uid,
+          messageForReview,
+          authUser,
+        );
+      }
+
       // is_in_review in Supabase-Rezept aktualisieren
       await database.recipes.patch({
         id: recipe.uid,
         fields: {is_in_review: true},
         authUser,
       });
+
+      // E-Mail-Benachrichtigung an Community Leaders auslösen
+      RequestService.triggerNewRequestNotification(
+        RequestType.recipePublish,
+        created.uid,
+      );
+
       onUpdateRecipe({
         recipe: {...recipe, isInReview: true},
         snackbar: {
-          message: TEXT_PUBLISH_RECIPE_REQUEST_CREATED(requestNo),
+          message: TEXT_PUBLISH_RECIPE_REQUEST_CREATED(created.number),
           severity: "success",
           open: true,
         },
@@ -710,20 +735,43 @@ const RecipeView = ({
   };
   const onReportErrorRequest = async (messageForReview: string) => {
     try {
-      // Firebase-Request erstellen (Request-System noch auf Firebase)
-      const reportErrorRequest = new RequestReportError();
-      const requestNo = await reportErrorRequest.createRequest({
-        firebase,
-        requestObject: recipe as unknown as Parameters<
-          typeof reportErrorRequest.createRequest
-        >[0]["requestObject"],
-        messageForReview,
+      // Initialen Changelog-Eintrag erstellen
+      const changeLog = RequestClass.createChangeLogEntry(
+        [],
+        RequestAction.created,
+        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {status: "created"},
+      );
+
+      // Antrag in Supabase erstellen
+      const created = await database.requests.createRequest(
+        {
+          requestType: RequestType.reportError,
+          recipeUid: recipe.uid,
+          changeLog,
+        },
         authUser,
-      });
+      );
+
+      // Initialen Kommentar speichern (falls vorhanden)
+      if (messageForReview) {
+        await database.requestComments.insertComment(
+          created.uid,
+          messageForReview,
+          authUser,
+        );
+      }
+
+      // E-Mail-Benachrichtigung an Community Leaders auslösen
+      RequestService.triggerNewRequestNotification(
+        RequestType.reportError,
+        created.uid,
+      );
+
       onUpdateRecipe({
         recipe,
         snackbar: {
-          message: TEXT_REPORT_ERROR_RECIPE_REQUEST_CREATED(requestNo),
+          message: TEXT_REPORT_ERROR_RECIPE_REQUEST_CREATED(created.number),
           severity: "success",
           open: true,
         },

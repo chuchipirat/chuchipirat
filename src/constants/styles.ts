@@ -505,6 +505,10 @@ const useCustomStyles = () => {
       backgroundColor: "#B71C1C !important",
       color: "white !important",
     },
+    workflowChipBackToAuthor: {
+      backgroundColor: "#E65100 !important",
+      color: "white !important",
+    },
     /* ------------------------------------------
     // Tabelle
     // ------------------------------------------ */

@@ -22,6 +22,8 @@ import {MenuplanRepository} from "./Repository/MenuplanRepository";
 import {UsedRecipeListRepository} from "./Repository/UsedRecipeListRepository";
 import {ShoppingListRepository} from "./Repository/ShoppingListRepository";
 import {MaterialListRepository} from "./Repository/MaterialListRepository";
+import {RequestRepository} from "./Repository/RequestRepository";
+import {RequestCommentRepository} from "./Repository/RequestCommentRepository";
 import {supabaseAdmin} from "./supabaseClient";
 
 /* =====================================================================
@@ -61,6 +63,8 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property usedRecipeLists - Repository für benannte Rezeptlisten eines Events
  * @property shoppingLists - Repository für Einkaufslisten eines Events
  * @property materialLists - Repository für Materiallisten eines Events
+ * @property requests - Repository für Anträge (Rezept-Veröffentlichung, Fehlermeldungen)
+ * @property requestComments - Repository für Antrags-Kommentare
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
  * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
  *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
@@ -89,6 +93,8 @@ export class DatabaseService {
   usedRecipeLists: UsedRecipeListRepository;
   shoppingLists: ShoppingListRepository;
   materialLists: MaterialListRepository;
+  requests: RequestRepository;
+  requestComments: RequestCommentRepository;
   storage: {users: UserStorageRepository; events: EventStorageRepository};
   admin: {
     users: UserRepository;
@@ -112,6 +118,8 @@ export class DatabaseService {
     usedRecipeLists: UsedRecipeListRepository;
     shoppingLists: ShoppingListRepository;
     materialLists: MaterialListRepository;
+    requests: RequestRepository;
+    requestComments: RequestCommentRepository;
     storage: {users: UserStorageRepository; events: EventStorageRepository};
   } | null;
 
@@ -138,6 +146,8 @@ export class DatabaseService {
     this.usedRecipeLists = new UsedRecipeListRepository();
     this.shoppingLists = new ShoppingListRepository();
     this.materialLists = new MaterialListRepository();
+    this.requests = new RequestRepository();
+    this.requestComments = new RequestCommentRepository();
     this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
     this.admin = supabaseAdmin
       ? {
@@ -162,6 +172,8 @@ export class DatabaseService {
           usedRecipeLists: new UsedRecipeListRepository(supabaseAdmin),
           shoppingLists: new ShoppingListRepository(supabaseAdmin),
           materialLists: new MaterialListRepository(supabaseAdmin),
+          requests: new RequestRepository(supabaseAdmin),
+          requestComments: new RequestCommentRepository(supabaseAdmin),
           storage: {users: new UserStorageRepository(supabaseAdmin), events: new EventStorageRepository(supabaseAdmin)},
         }
       : null;
