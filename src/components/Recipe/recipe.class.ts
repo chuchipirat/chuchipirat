@@ -241,7 +241,6 @@ export default class Recipe {
   rating: Rating;
   usedProducts?: Product["uid"][];
   usedMaterials?: Material["uid"][];
-  isInReview?: boolean;
   created: ChangeRecord;
   lastChange: ChangeRecord;
   type: RecipeType;
@@ -293,7 +292,6 @@ export default class Recipe {
       myRating: 0,
     };
     this.type = RecipeType.private;
-    this.isInReview = false;
   }
 
   /* =====================================================================
@@ -1082,7 +1080,6 @@ export default class Recipe {
     };
     recipe.outdoorKitchenSuitable = header.outdoorKitchenSuitable;
     recipe.usable = header.usable;
-    recipe.isInReview = header.isInReview;
     recipe.type = header.recipeType as RecipeType;
     recipe.rating = {
       avgRating: header.avgRating,
@@ -1350,7 +1347,6 @@ export default class Recipe {
         allergens: [...(recipe.dietProperties?.allergens ?? [])],
       },
       outdoorKitchenSuitable: recipe.outdoorKitchenSuitable ?? false,
-      isInReview: recipe.isInReview ?? false,
       usable: recipe.usable ?? true,
       avgRating: recipe.rating?.avgRating ?? 0,
       noRatings: recipe.rating?.noRatings ?? 0,

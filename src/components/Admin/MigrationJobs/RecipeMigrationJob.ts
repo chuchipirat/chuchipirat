@@ -347,7 +347,6 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
         menuTypes: data.menuTypes,
         dietProperties: data.dietProperties,
         outdoorKitchenSuitable: data.outdoorKitchenSuitable,
-        isInReview: data.isInReview,
         usable: true,
         avgRating: data.rating?.avgRating ?? 0,
         noRatings: data.rating?.noRatings ?? 0,

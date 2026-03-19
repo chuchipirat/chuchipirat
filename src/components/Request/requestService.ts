@@ -2,8 +2,7 @@
  * RequestService — Verarbeitet Post-Actions nach Statusübergängen.
  *
  * Enthält die Logik, die nach einem Statuswechsel ausgeführt werden muss:
- * - Rezept veröffentlichen (recipe_type = 'public', is_in_review = false)
- * - Rezept-Prüfung zurücksetzen (is_in_review = false)
+ * - Rezept veröffentlichen (recipe_type → 'public')
  * - E-Mail-Benachrichtigungen via Edge Function
  *
  * @example
@@ -81,12 +80,12 @@ export class RequestService {
   ): Promise<void> {
     switch (newStatus) {
       case RequestStatus.done:
-        // Rezept veröffentlichen: recipe_type → 'public', is_in_review → false
+        // Rezept veröffentlichen: recipe_type → 'public'
         // Eigener try/catch, damit E-Mail und Feed auch bei Fehler ausgeführt werden
         try {
           await database.recipes.patch({
             id: request.recipeUid,
-            fields: {recipe_type: RecipeType.public, is_in_review: false},
+            fields: {recipe_type: RecipeType.public},
             authUser: authUser!,
           });
         } catch (err) {
@@ -130,17 +129,6 @@ export class RequestService {
         break;
 
       case RequestStatus.declined:
-        // Prüfungs-Flag zurücksetzen (eigener try/catch für Isolation)
-        try {
-          await database.recipes.patch({
-            id: request.recipeUid,
-            fields: {is_in_review: false},
-            authUser: authUser!,
-          });
-        } catch (err) {
-          console.error("is_in_review konnte nicht zurückgesetzt werden:", err);
-          Sentry.captureException(err);
-        }
         // E-Mail an Autor*in mit Begründung (letzter Kommentar)
         RequestService.triggerNotification("requestDeclined", request.uid);
         break;

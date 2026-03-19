@@ -76,7 +76,6 @@ const MENU_TYPE_TO_DB: Record<number, string> = {
  * @param diet - Diätklassifikation
  * @param allergens - Allergen-Array
  * @param outdoor_kitchen_suitable - Geeignet für Outdoor-Küche
- * @param is_in_review - Wartet auf Überprüfung
  * @param usable - Ob das Rezept aktiv ist
  * @param avg_rating - Durchschnittsbewertung (via Trigger)
  * @param no_ratings - Anzahl Bewertungen (via Trigger)
@@ -110,7 +109,6 @@ export interface RecipeRow {
   diet: string;
   allergens: string[];
   outdoor_kitchen_suitable: boolean;
-  is_in_review: boolean;
   usable: boolean;
   avg_rating: number;
   no_ratings: number;
@@ -218,7 +216,6 @@ export interface RecipeVariantPropertiesDomain {
  * @param menuTypes - MenuType-Werte (numerisch, MenuType.None=0 nicht enthalten)
  * @param dietProperties - Diät- und Allergeneigenschaften
  * @param outdoorKitchenSuitable - Für Outdoor-Küche geeignet
- * @param isInReview - Wartet auf Admin-Review
  * @param usable - Aktiv
  * @param avgRating - Durchschnittsbewertung
  * @param noRatings - Anzahl Bewertungen
@@ -247,7 +244,6 @@ export interface RecipeDomain {
     diet: number;
   };
   outdoorKitchenSuitable: boolean;
-  isInReview: boolean;
   usable: boolean;
   avgRating: number;
   noRatings: number;
@@ -306,7 +302,6 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
         .filter(Boolean),
       diet: DIET_TO_DB[domain.dietProperties?.diet ?? 1] ?? "meat",
       outdoor_kitchen_suitable: domain.outdoorKitchenSuitable ?? false,
-      is_in_review: domain.isInReview ?? false,
       usable: domain.usable ?? true,
       recipe_type: domain.recipeType ?? "public",
       variant_note: domain.variantProperties?.note ?? null,
@@ -353,7 +348,6 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
         diet: DIET_FROM_DB[row.diet] ?? 1,
       },
       outdoorKitchenSuitable: row.outdoor_kitchen_suitable,
-      isInReview: row.is_in_review,
       usable: row.usable,
       avgRating: Number(row.avg_rating),
       noRatings: row.no_ratings,

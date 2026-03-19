@@ -316,6 +316,21 @@ const RecipeView = ({
     React.useState(false);
   const [reportErrorDialogOpen, setReportErrorDialogOpen] =
     React.useState(false);
+  // Prüft on-demand, ob ein aktiver Veröffentlichungsantrag existiert.
+  // Nur relevant für private Rezepte des Autors.
+  const [isInReview, setIsInReview] = React.useState(false);
+
+  React.useEffect(() => {
+    if (
+      recipe.type === RecipeType.private &&
+      recipe.created.fromUid === authUser.authUid
+    ) {
+      database.requests
+        .hasActivePublishRequest(recipe.uid)
+        .then(setIsInReview)
+        .catch(() => setIsInReview(false));
+    }
+  }, [recipe.uid, recipe.type, recipe.created.fromUid, authUser.authUid]);
 
   if (!isEmbedded) {
     document.title = recipe.name;
@@ -703,21 +718,18 @@ const RecipeView = ({
         );
       }
 
-      // is_in_review in Supabase-Rezept aktualisieren
-      await database.recipes.patch({
-        id: recipe.uid,
-        fields: {is_in_review: true},
-        authUser,
-      });
-
       // E-Mail-Benachrichtigung an Community Leaders auslösen
       RequestService.triggerNewRequestNotification(
         RequestType.recipePublish,
         created.uid,
       );
 
+      // Lokalen Zustand aktualisieren — kein DB-Patch nötig,
+      // da der Review-Status aus der requests-Tabelle abgeleitet wird.
+      setIsInReview(true);
+
       onUpdateRecipe({
-        recipe: {...recipe, isInReview: true},
+        recipe: {...recipe},
         snackbar: {
           message: TEXT_PUBLISH_RECIPE_REQUEST_CREATED(created.number),
           severity: "success",
@@ -867,6 +879,7 @@ const RecipeView = ({
           onShowRequest={onShowRequest}
           onDelete={onDeleteRecipe}
           authUser={authUser}
+          isInReview={isInReview}
         />
       )}
       <RecipeDivider />
@@ -1150,6 +1163,7 @@ interface RecipeButtonRowProps {
   onShowRequest: () => void;
   onDelete: () => void;
   authUser: AuthUser;
+  isInReview: boolean;
 }
 
 const RecipeButtonRow = ({
@@ -1166,6 +1180,7 @@ const RecipeButtonRow = ({
   onShowRequest,
   onDelete,
   authUser,
+  isInReview,
 }: RecipeButtonRowProps) => {
   const buttons: CustomButton[] = [];
 
@@ -1192,9 +1207,9 @@ const RecipeButtonRow = ({
           authUser.roles.includes(Role.communityLeader))) ||
       (recipe.type === RecipeType.private &&
         (recipe.created.fromUid === authUser.uid ||
-          // Falls das Rezepte im Freigabeprozess ist, soll es von
-          // der*m Commnunity-Leader*in angepasst weden können
-          (recipe.isInReview &&
+          // Falls das Rezept im Freigabeprozess ist, soll es von
+          // der*m Community-Leader*in angepasst werden können
+          (isInReview &&
             authUser.roles.includes(Role.communityLeader)))) ||
       // Bei der Rezeptvariante, sollen alle anpassen können
       // Die DB-Regel fängt das ab, dass das Rezept nur angezeigt wird
@@ -1243,7 +1258,7 @@ const RecipeButtonRow = ({
       hero: true,
       visible:
         recipe.type === RecipeType.private &&
-        (recipe?.isInReview === false || recipe.isInReview === undefined) &&
+        !isInReview &&
         recipe.created.fromUid === authUser.authUid,
       label: TEXT_PUBLISH_RECIPE,
       variant: "outlined",
@@ -1269,7 +1284,7 @@ const RecipeButtonRow = ({
       visible:
         recipe.type === RecipeType.private &&
         recipe.created.fromUid === authUser.uid &&
-        recipe.isInReview === true,
+        isInReview,
       label: TEXT_SHOW_OPEN_REQUESTS,
       variant: "outlined",
       color: "primary",

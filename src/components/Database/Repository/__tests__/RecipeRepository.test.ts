@@ -50,7 +50,6 @@ const testRow: RecipeRow = {
   diet: "meat",
   allergens: ["gluten"],
   outdoor_kitchen_suitable: false,
-  is_in_review: false,
   usable: true,
   avg_rating: 4.5,
   no_ratings: 10,
@@ -83,7 +82,6 @@ const testDomain: RecipeDomain = {
     allergens: [2], // gluten → 2
   },
   outdoorKitchenSuitable: false,
-  isInReview: false,
   usable: true,
   avgRating: 4.5,
   noRatings: 10,
@@ -135,7 +133,6 @@ describe("RecipeRepository", () => {
       expect(row.menu_types).toEqual(["main_course"]);
       expect(row.recipe_type).toBe("public");
       expect(row.outdoor_kitchen_suitable).toBe(false);
-      expect(row.is_in_review).toBe(false);
       // no_comments wird nicht im toRow() gesetzt — wird vom DB-Trigger gepflegt
       expect((row as any).no_comments).toBeUndefined();
       // id darf nicht mitgesendet werden

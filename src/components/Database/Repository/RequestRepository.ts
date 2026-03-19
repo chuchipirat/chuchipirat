@@ -20,6 +20,7 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {RequestStatus, RequestType} from "../../Request/request.class";
 
 /* =====================================================================
 // DB-Zeilenstruktur (snake_case, entspricht den Postgres-Spalten der View)
@@ -154,7 +155,10 @@ export interface CreateRequestParams {
  * Liest über die View `requests_view`, schreibt in die Tabelle `requests`.
  * Die Antragsnummer wird automatisch von der Postgres-SEQUENCE vergeben.
  */
-export class RequestRepository extends BaseRepository<RequestDomain, RequestRow> {
+export class RequestRepository extends BaseRepository<
+  RequestDomain,
+  RequestRow
+> {
   tableName = "requests";
 
   /** View-Name für Leseoperationen. */
@@ -245,7 +249,9 @@ export class RequestRepository extends BaseRepository<RequestDomain, RequestRow>
         .order("created_at", {ascending: false});
 
       if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as RequestRow));
+      return (data ?? []).map((row) =>
+        this.toDomain(row as unknown as RequestRow),
+      );
     } catch (error) {
       Sentry.captureException(error);
       throw error;
@@ -266,7 +272,9 @@ export class RequestRepository extends BaseRepository<RequestDomain, RequestRow>
         .order("created_at", {ascending: false});
 
       if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as RequestRow));
+      return (data ?? []).map((row) =>
+        this.toDomain(row as unknown as RequestRow),
+      );
     } catch (error) {
       Sentry.captureException(error);
       throw error;
@@ -289,6 +297,36 @@ export class RequestRepository extends BaseRepository<RequestDomain, RequestRow>
 
       if (error) throw error;
       return data ? this.toDomain(data as unknown as RequestRow) : null;
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Prüft, ob für ein Rezept ein aktiver Veröffentlichungsantrag existiert.
+   *
+   * Ein Antrag gilt als aktiv, wenn der Status weder 'done' noch 'declined' ist.
+   * Ersetzt das denormalisierte `is_in_review`-Flag in der Rezepttabelle.
+   *
+   * @param recipeUid - UID des Rezepts
+   * @returns `true`, wenn ein aktiver Veröffentlichungsantrag existiert
+   */
+  async hasActivePublishRequest(recipeUid: string): Promise<boolean> {
+    try {
+      const {count, error} = await this.client
+        .from(this.tableName)
+        .select("id", {count: "exact", head: true})
+        .eq("request_object_uid", recipeUid)
+        .eq("request_type", RequestType.recipePublish)
+        .not(
+          "status",
+          "in",
+          `("${RequestStatus.done}","${RequestStatus.declined}")`,
+        );
+
+      if (error) throw error;
+      return (count ?? 0) > 0;
     } catch (error) {
       Sentry.captureException(error);
       throw error;

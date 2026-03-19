@@ -118,7 +118,6 @@ export class FirebaseDbRecipe extends FirebaseDbSuper {
       },
       usedProducts: usedProducts,
       usedMaterials: usedMaterials,
-      isInReview: value.isInReview ? value.isInReview : false,
       created: value.created,
       lastChange: value.lastChange,
       variantProperties:
@@ -169,7 +168,6 @@ export class FirebaseDbRecipe extends FirebaseDbSuper {
         cooking: value.times.cooking,
       },
       usedProducts: value.usedProducts,
-      isInReview: value.isInReview ? value.isInReview : false,
       created: value.created,
       lastChange: value.lastChange,
       variantProperties: value.variantProperties

@@ -62,6 +62,8 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260317000001_create_requests.sql`                        | Anträge: ENUMs `request_status_type` + `request_type_enum`, SEQUENCE `request_number_seq`, Tabellen `requests` + `request_comments`, VIEWs `requests_view` (Autor/Assignee/Rezept aufgelöst) + `request_comments_view` (Kommentar-Autor aufgelöst), RLS: Autor sieht eigene, Community Leaders sehen alle |
 | `20260317000002_create_user_role_enum.sql`                  | Gemeinsamer ENUM `user_role` (basic, communityLeader, admin): `users.roles` von `TEXT[]` auf `user_role[]` umgestellt, `users_update`-Policy und `is_admin()`/`is_community_leader()`-Funktionen angepasst |
 | `20260318000001_create_feeds.sql`                           | Feed-System: ENUM `feed_type` (10 Werte), Tabelle `feeds` (Visibility via `user_role`), VIEW `feeds_view` (User- und Quellobjekt-Namen via JOINs aufgelöst), RLS: SELECT/INSERT alle authentifizierten, DELETE nur Community Leaders |
+| `20260318000002_fix_users_select_policy.sql`                | Fix: SELECT-Policy auf `users` für alle authentifizierten User geöffnet (benötigt für `feeds_view` JOINs) |
+| `20260319000001_drop_recipes_is_in_review.sql`              | Entfernt denormalisierte Spalte `is_in_review` aus `recipes` — Review-Status wird neu direkt aus der `requests`-Tabelle abgeleitet |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 

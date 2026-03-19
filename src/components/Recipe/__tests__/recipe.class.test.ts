@@ -87,9 +87,6 @@ test("Recipe.constructor(): Konstruktor der Klasse", () => {
 
   expect(recipe).toHaveProperty("rating");
   expect(Object.keys(recipe.rating).length).toBe(3);
-
-  expect(recipe).toHaveProperty("isInReview");
-  expect(recipe.isInReview).toBeFalsy();
 });
 /* =====================================================================
 // Variante erstellen

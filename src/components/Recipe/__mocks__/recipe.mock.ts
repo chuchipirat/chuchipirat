@@ -151,7 +151,6 @@ export const recipe: Recipe = {
   usable: true,
   rating: {avgRating: 5, noRatings: 1, myRating: 0},
   usedProducts: [],
-  isInReview: false,
   lastChange: {
     date: new Date(0),
     fromDisplayName: "string",
