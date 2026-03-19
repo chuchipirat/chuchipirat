@@ -129,9 +129,11 @@ const fullProfile = {
   pictureSrc: "https://example.com/profile.jpg",
   stats: {
     noComments: 5,
+    noRatings: 9,
     noEvents: 10,
     noRecipesPublic: 8,
     noRecipesPrivate: 3,
+    noRecipesVariants: 2,
     noFoundBugs: 2,
   },
 };
@@ -232,6 +234,54 @@ describe("UserProfilePage", () => {
       expect(
         screen.queryByRole("button", {name: /Speichern/i}),
       ).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Statistiken", () => {
+    test("Zeigt Benutzer-Statistiken auf der Profilseite an", async () => {
+      renderUserProfilePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Jest")).toBeInTheDocument();
+      });
+
+      // Prüfe, dass die Stats-Labels gerendert werden
+      expect(screen.getByText(/Öffentliche Rezepte/i)).toBeInTheDocument();
+      expect(screen.getByText(/Private Rezepte/i)).toBeInTheDocument();
+      expect(screen.getByText(/Anlassvarianten/i)).toBeInTheDocument();
+      expect(screen.getByText(/Bekochte Anlässe/i)).toBeInTheDocument();
+      expect(screen.getByText(/Kommentare/i)).toBeInTheDocument();
+      expect(screen.getByText(/Bewertungen/i)).toBeInTheDocument();
+
+      // Prüfe die konkreten Werte aus den Testdaten
+      expect(screen.getByText("8")).toBeInTheDocument();    // noRecipesPublic
+      expect(screen.getByText("5")).toBeInTheDocument();    // noComments
+      expect(screen.getByText("9")).toBeInTheDocument();    // noRatings
+      expect(screen.getByText("10")).toBeInTheDocument();   // noEvents
+    });
+
+    test("Zeigt Bug-Anzahl wenn > 0", async () => {
+      renderUserProfilePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Jest")).toBeInTheDocument();
+      });
+
+      expect(screen.getByText(/Gefundene Bugs/i)).toBeInTheDocument();
+    });
+
+    test("Versteckt Bug-Anzahl wenn = 0", async () => {
+      mockGetFullProfile.mockResolvedValue({
+        ...fullProfile,
+        stats: {...fullProfile.stats, noFoundBugs: 0},
+      });
+      renderUserProfilePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Test Jest")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText(/Gefundene Bugs/i)).not.toBeInTheDocument();
     });
   });
 

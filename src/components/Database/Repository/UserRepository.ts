@@ -244,24 +244,30 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   // Ersetzt: firebase.user.public.profile.read({uids: [uid]})
   // ===================================================================== */
   /**
-   * Lädt das öffentliche Profil eines Benutzers aus der user_profiles-View.
-   * Die View enthält nur die öffentlich sichtbaren Felder (DisplayName, Motto, Bild, etc.).
-   * Statistiken werden vorerst mit Standardwerten (0) gefüllt und später über
-   * Views/JOINs aus den Datentabellen berechnet.
+   * Lädt das öffentliche Profil eines Benutzers aus der user_profiles-View
+   * und die Statistiken über die RPC-Funktion `get_user_profile_stats()`.
+   * Beide Abfragen laufen parallel (Promise.all).
    *
    * @param authUid - Supabase Auth UUID (auth_uid-Spalte)
    * @returns UserPublicProfile-Objekt
    */
   async findPublicProfile(authUid: string): Promise<UserPublicProfile> {
-    const {data, error} = await this.client
-      .from("user_profiles")
-      .select("*")
-      .eq("auth_uid", authUid)
-      .maybeSingle();
+    // Profildaten und Statistiken parallel laden
+    const [profileResult, statsResult] = await Promise.all([
+      this.client
+        .from("user_profiles")
+        .select("*")
+        .eq("auth_uid", authUid)
+        .maybeSingle(),
+      this.client.rpc("get_user_profile_stats", {p_auth_uid: authUid}),
+    ]);
 
-    if (error) throw error;
-    if (!data) throw new Error(`Benutzerprofil nicht gefunden: ${authUid}`);
+    if (profileResult.error) throw profileResult.error;
+    if (!profileResult.data)
+      throw new Error(`Benutzerprofil nicht gefunden: ${authUid}`);
+    if (statsResult.error) throw statsResult.error;
 
+    const data = profileResult.data;
     const profile = new UserPublicProfile();
     profile.uid = data.id;
     profile.displayName = data.display_name;
@@ -269,14 +275,14 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     profile.memberId = data.member_id;
     profile.motto = data.motto;
     profile.pictureSrc = data.picture_src;
-    // Stats will be populated via views/joins once data tables exist
-    profile.stats = {
-      noComments: 0,
-      noEvents: 0,
-      noRecipesPublic: 0,
-      noRecipesPrivate: 0,
-      noFoundBugs: 0,
-    };
+
+    // Stats aus RPC-Ergebnis mappen
+    const statsMap = new Map<string, number>(
+      (statsResult.data ?? []).map(
+        (row: {field: string; value: number}) => [row.field, Number(row.value)],
+      ),
+    );
+    profile.stats = UserRepository.mapStatsFromRpc(statsMap);
     return profile;
   }
 
@@ -285,11 +291,11 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   // Ersetzt: User.getFullProfile() das zuvor 2 separate Reads brauchte
   // ===================================================================== */
   /**
-   * Lädt das vollständige Benutzerprofil (private + öffentliche Daten).
-   * Dank der vereinheitlichten users-Tabelle reicht eine einzige Abfrage,
-   * statt wie bisher 2 separate Firestore-Reads (user + public/profile).
-   * @param userId - UID des Benutzers
-   * @returns Vollständiges Benutzerprofil inkl. Statistiken (vorerst mit Standardwerten)
+   * Lädt das vollständige Benutzerprofil (private + öffentliche Daten)
+   * inkl. Statistiken via `get_user_profile_stats()`.
+   *
+   * @param userId - UID des Benutzers (Firebase UID / users.id)
+   * @returns Vollständiges Benutzerprofil inkl. berechneten Statistiken
    * @throws Error falls der Benutzer nicht gefunden wird
    */
   async findFullProfile(
@@ -298,16 +304,57 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const user = await this.findById(userId);
     if (!user) throw new Error(`User not found: ${userId}`);
 
-    // Stats will be computed from data tables via views later
+    // Stats über RPC laden, falls authUid vorhanden
+    let stats = UserRepository.emptyStats();
+
+    if (user.authUid) {
+      const {data, error} = await this.client.rpc("get_user_profile_stats", {
+        p_auth_uid: user.authUid,
+      });
+
+      if (!error && data) {
+        const statsMap = new Map<string, number>(
+          data.map((row: {field: string; value: number}) => [
+            row.field,
+            Number(row.value),
+          ]),
+        );
+        stats = UserRepository.mapStatsFromRpc(statsMap);
+      }
+    }
+
+    return {...user, stats};
+  }
+
+  /* =====================================================================
+  // Hilfsmethoden für Stats-Mapping
+  // ===================================================================== */
+
+  /** Gibt ein leeres Stats-Objekt mit allen Feldern auf 0 zurück. */
+  private static emptyStats(): UserPublicProfile["stats"] {
     return {
-      ...user,
-      stats: {
-        noComments: 0,
-        noEvents: 0,
-        noRecipesPublic: 0,
-        noRecipesPrivate: 0,
-        noFoundBugs: 0,
-      },
+      noComments: 0,
+      noRatings: 0,
+      noEvents: 0,
+      noRecipesPublic: 0,
+      noRecipesPrivate: 0,
+      noRecipesVariants: 0,
+      noFoundBugs: 0,
+    };
+  }
+
+  /** Mappt die RPC-Ergebnisse auf das Stats-Objekt. */
+  private static mapStatsFromRpc(
+    statsMap: Map<string, number>,
+  ): UserPublicProfile["stats"] {
+    return {
+      noRecipesPublic: statsMap.get("noRecipesPublic") ?? 0,
+      noRecipesPrivate: statsMap.get("noRecipesPrivate") ?? 0,
+      noRecipesVariants: statsMap.get("noRecipesVariants") ?? 0,
+      noEvents: statsMap.get("noEvents") ?? 0,
+      noComments: statsMap.get("noComments") ?? 0,
+      noRatings: statsMap.get("noRatings") ?? 0,
+      noFoundBugs: statsMap.get("noFoundBugs") ?? 0,
     };
   }
 

@@ -727,6 +727,14 @@ export const HOME_STATS_CAPTIONS = {
   noMaterials: "Materialien",
   noMaterialLists: "Generierte Materiallisten",
 };
+export const STATS_GROUP_PLATFORM = "Plattform";
+export const STATS_GROUP_RECIPES = "Rezepte";
+export const STATS_GROUP_EVENTS = "Anlässe";
+export const STATS_GROUP_AVERAGES = "⌀ Durchschnitt pro Anlass";
+export const HOME_EMPTY_EVENTS =
+  "Noch keine Anlässe vorhanden. Erstelle deinen ersten Anlass!";
+export const HOME_EMPTY_RECIPES = "Noch keine Rezepte publiziert.";
+export const HOME_EMPTY_FEED = "Noch keine Aktivitäten.";
 /* =====================================================================
 // Meldungen rund um SignIn/SignUp
 // ===================================================================== */
@@ -890,9 +898,12 @@ export const DB_DOCUMENT_DELETED = "Dokument wurde gelöscht.";
 // Texte zum Profil
 // ===================================================================== */
 export const FOUND_TREASURES = "Gefundene Schätze";
-export const RECIPES_CREATED_PUBLIC = "erfasste öffentliche Rezepte";
-export const RECIPES_CREATED_PRIVATE = "erfasste private Rezepte";
-export const EVENTS_PARTICIPATED = "bekochte Anlässe";
+export const RECIPES_CREATED_PUBLIC = "Öffentliche Rezepte";
+export const RECIPES_CREATED_PRIVATE = "Private Rezepte";
+export const RECIPES_CREATED_VARIANTS = "Anlassvarianten";
+export const EVENTS_PARTICIPATED = "Bekochte Anlässe";
+export const COMMENTS_WRITTEN = "Kommentare";
+export const RATINGS_GIVEN = "Bewertungen";
 export const FOUND_BUGS = "Gefundene Bugs";
 export const COMMENTS_LEFT = "hinterlassene Kommentare";
 export const USER_PROFILE_ERROR_DISPLAYNAME_MISSING =

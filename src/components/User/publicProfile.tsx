@@ -20,6 +20,9 @@ import {
   HowToReg as HowToRegIcon,
   Fastfood as FastfoodIcon,
   BugReport as BugReportIcon,
+  Comment as CommentIcon,
+  Star as StarIcon,
+  ContentCopy as ContentCopyIcon,
 } from "@mui/icons-material";
 
 import PageTitle from "../Shared/pageTitle";
@@ -36,7 +39,10 @@ import {
   MOTTO as TEXT_MOTTO,
   RECIPES_CREATED_PUBLIC as TEXT_RECIPES_CREATED_PUBLIC,
   RECIPES_CREATED_PRIVATE as TEXT_RECIPES_CREATED_PRIVATE,
+  RECIPES_CREATED_VARIANTS as TEXT_RECIPES_CREATED_VARIANTS,
   EVENTS_PARTICIPATED as TEXT_EVENTS_PARTICIPATED,
+  COMMENTS_WRITTEN as TEXT_COMMENTS_WRITTEN,
+  RATINGS_GIVEN as TEXT_RATINGS_GIVEN,
   FOUND_BUGS as TEXT_FOUND_BUGS,
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
 } from "../../constants/text";
@@ -303,20 +309,26 @@ export const AchievedRewardsList = ({
   return (
     <List>
       <FormListItem
-        id={"noRecipesPrivate"}
-        key={"noRecipesPrivate"}
+        id={"noRecipesPublic"}
+        key={"noRecipesPublic"}
         value={userProfile.stats.noRecipesPublic.toLocaleString("de-CH")}
         label={TEXT_RECIPES_CREATED_PUBLIC}
         icon={<FastfoodIcon fontSize="small" />}
       />
       <FormListItem
-        id={"noRecipesPublic"}
-        key={"noRecipesPublic"}
+        id={"noRecipesPrivate"}
+        key={"noRecipesPrivate"}
         value={userProfile.stats.noRecipesPrivate.toLocaleString("de-CH")}
         label={TEXT_RECIPES_CREATED_PRIVATE}
         icon={<FastfoodIcon fontSize="small" />}
       />
-
+      <FormListItem
+        id={"noRecipesVariants"}
+        key={"noRecipesVariants"}
+        value={userProfile.stats.noRecipesVariants.toLocaleString("de-CH")}
+        label={TEXT_RECIPES_CREATED_VARIANTS}
+        icon={<ContentCopyIcon fontSize="small" />}
+      />
       <FormListItem
         id={"noEvents"}
         key={"noEvents"}
@@ -324,10 +336,24 @@ export const AchievedRewardsList = ({
         label={TEXT_EVENTS_PARTICIPATED}
         icon={<TodayIcon fontSize="small" />}
       />
+      <FormListItem
+        id={"noComments"}
+        key={"noComments"}
+        value={userProfile.stats.noComments.toLocaleString("de-CH")}
+        label={TEXT_COMMENTS_WRITTEN}
+        icon={<CommentIcon fontSize="small" />}
+      />
+      <FormListItem
+        id={"noRatings"}
+        key={"noRatings"}
+        value={userProfile.stats.noRatings.toLocaleString("de-CH")}
+        label={TEXT_RATINGS_GIVEN}
+        icon={<StarIcon fontSize="small" />}
+      />
       {userProfile.stats?.noFoundBugs > 0 && (
         <FormListItem
-          id={"noFoundBungs"}
-          key={"noFoundBungs"}
+          id={"noFoundBugs"}
+          key={"noFoundBugs"}
           value={userProfile.stats.noFoundBugs.toLocaleString("de-CH")}
           label={TEXT_FOUND_BUGS}
           icon={<BugReportIcon fontSize="small" />}

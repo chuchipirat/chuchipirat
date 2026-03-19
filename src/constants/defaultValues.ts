@@ -10,7 +10,7 @@ import {
 } from "../constants/text";
 
 export const FEEDS_DISPLAY = 10;
-export const RECIPE_DISPLAY = 3;
+export const RECIPE_DISPLAY = 6;
 export const COMMENT_DISPLAY = 3;
 export const RECIPES_SEARCH = 12;
 

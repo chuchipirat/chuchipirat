@@ -423,9 +423,11 @@ describe("getFullProfile()", () => {
       pictureSrc: "",
       stats: {
         noComments: 0,
+        noRatings: 0,
         noEvents: 0,
         noRecipesPublic: 0,
         noRecipesPrivate: 0,
+        noRecipesVariants: 0,
         noFoundBugs: 0,
       },
     });

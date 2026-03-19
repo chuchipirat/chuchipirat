@@ -25,6 +25,7 @@ import {MaterialListRepository} from "./Repository/MaterialListRepository";
 import {RequestRepository} from "./Repository/RequestRepository";
 import {RequestCommentRepository} from "./Repository/RequestCommentRepository";
 import {FeedRepository} from "./Repository/FeedRepository";
+import {StatsRepository} from "./Repository/StatsRepository";
 import {supabaseAdmin} from "./supabaseClient";
 
 /* =====================================================================
@@ -67,6 +68,7 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property requests - Repository für Anträge (Rezept-Veröffentlichung, Fehlermeldungen)
  * @property requestComments - Repository für Antrags-Kommentare
  * @property feeds - Repository für Feed-Einträge (Aktivitätsübersicht)
+ * @property stats - Repository für Plattform-Statistiken (KPIs)
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
  * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
  *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
@@ -98,6 +100,7 @@ export class DatabaseService {
   requests: RequestRepository;
   requestComments: RequestCommentRepository;
   feeds: FeedRepository;
+  stats: StatsRepository;
   storage: {users: UserStorageRepository; events: EventStorageRepository};
   admin: {
     users: UserRepository;
@@ -124,6 +127,7 @@ export class DatabaseService {
     requests: RequestRepository;
     requestComments: RequestCommentRepository;
     feeds: FeedRepository;
+    stats: StatsRepository;
     storage: {users: UserStorageRepository; events: EventStorageRepository};
   } | null;
 
@@ -153,6 +157,7 @@ export class DatabaseService {
     this.requests = new RequestRepository();
     this.requestComments = new RequestCommentRepository();
     this.feeds = new FeedRepository();
+    this.stats = new StatsRepository();
     this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
     this.admin = supabaseAdmin
       ? {
@@ -180,6 +185,7 @@ export class DatabaseService {
           requests: new RequestRepository(supabaseAdmin),
           requestComments: new RequestCommentRepository(supabaseAdmin),
           feeds: new FeedRepository(supabaseAdmin),
+          stats: new StatsRepository(supabaseAdmin),
           storage: {users: new UserStorageRepository(supabaseAdmin), events: new EventStorageRepository(supabaseAdmin)},
         }
       : null;

@@ -71,13 +71,15 @@ const PUBLISH_RECIPE_TRANSITIONS: RequestTransition[] = [
     fromState: RequestStatus.created,
     toState: RequestStatus.inReview,
     description:
-      TEXT_REQUEST_STATUS_TRANSITION_PUBLISH_RECIPE.created.inReview.description,
+      TEXT_REQUEST_STATUS_TRANSITION_PUBLISH_RECIPE.created.inReview
+        .description,
   },
   {
     fromState: RequestStatus.inReview,
     toState: RequestStatus.declined,
     description:
-      TEXT_REQUEST_STATUS_TRANSITION_PUBLISH_RECIPE.created.declined.description,
+      TEXT_REQUEST_STATUS_TRANSITION_PUBLISH_RECIPE.created.declined
+        .description,
   },
   {
     fromState: RequestStatus.inReview,
@@ -112,7 +114,8 @@ const REPORT_ERROR_TRANSITIONS: RequestTransition[] = [
     fromState: RequestStatus.inReview,
     toState: RequestStatus.backToAuthor,
     description:
-      TEXT_REQUEST_STATUS_TRANSITION_REPORT_ERROR.created.backToAuthor.description,
+      TEXT_REQUEST_STATUS_TRANSITION_REPORT_ERROR.created.backToAuthor
+        .description,
   },
   {
     fromState: RequestStatus.inReview,

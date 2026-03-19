@@ -64,6 +64,8 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260318000001_create_feeds.sql`                           | Feed-System: ENUM `feed_type` (10 Werte), Tabelle `feeds` (Visibility via `user_role`), VIEW `feeds_view` (User- und Quellobjekt-Namen via JOINs aufgelöst), RLS: SELECT/INSERT alle authentifizierten, DELETE nur Community Leaders |
 | `20260318000002_fix_users_select_policy.sql`                | Fix: SELECT-Policy auf `users` für alle authentifizierten User geöffnet (benötigt für `feeds_view` JOINs) |
 | `20260319000001_drop_recipes_is_in_review.sql`              | Entfernt denormalisierte Spalte `is_in_review` aus `recipes` — Review-Status wird neu direkt aus der `requests`-Tabelle abgeleitet |
+| `20260319000002_create_get_platform_stats.sql`              | SECURITY DEFINER Funktion `get_platform_stats()`: gibt 18 aggregierte Plattform-KPIs (User, Rezepte, Anlässe, Durchschnitte) als `(field TEXT, value NUMERIC)` zurück. Umgeht RLS (nur Aggregate, keine Einzeldaten) |
+| `20260320000001_create_get_user_profile_stats.sql`          | SECURITY DEFINER Funktion `get_user_profile_stats(p_auth_uid UUID)`: gibt 5 benutzerspezifische KPIs (öffentliche/private Rezepte, Events, Kommentare, gefundene Bugs) für die öffentliche Profilseite zurück |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 

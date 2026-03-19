@@ -298,9 +298,11 @@ describe("UserRepository", () => {
 
       expect(result.stats).toEqual({
         noComments: 0,
+        noRatings: 0,
         noEvents: 0,
         noRecipesPublic: 0,
         noRecipesPrivate: 0,
+        noRecipesVariants: 0,
         noFoundBugs: 0,
       });
     });
@@ -346,9 +348,11 @@ describe("UserRepository", () => {
       expect(result.displayName).toBe("TestUser");
       expect(result.stats).toEqual({
         noComments: 0,
+        noRatings: 0,
         noEvents: 0,
         noRecipesPublic: 0,
         noRecipesPrivate: 0,
+        noRecipesVariants: 0,
         noFoundBugs: 0,
       });
     });

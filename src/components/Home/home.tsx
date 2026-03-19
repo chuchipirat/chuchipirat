@@ -1,7 +1,7 @@
 import React, {SyntheticEvent} from "react";
 import {useTheme} from "@mui/material/styles";
-
 import {useNavigate, useLocation} from "react-router";
+import * as Sentry from "@sentry/browser";
 
 import {
   Card,
@@ -41,11 +41,14 @@ import {
   FEED as TEXT_FEED,
   STATS as TEXT_STATS,
   APP_NAME as TEXT_APP_NAME,
+  HOME_EMPTY_EVENTS as TEXT_HOME_EMPTY_EVENTS,
+  HOME_EMPTY_RECIPES as TEXT_HOME_EMPTY_RECIPES,
+  HOME_EMPTY_FEED as TEXT_HOME_EMPTY_FEED,
 } from "../../constants/text";
 import * as ROUTES from "../../constants/routes";
 
 import {ImageRepository} from "../../constants/imageRepository";
-import Event, {EventType} from "../Event/Event/event.class";
+import {EventDomain, getMaxDate} from "../Database/Repository/EventRepository";
 import EventCard, {EventCardLoading} from "../Event/Event/eventCard";
 
 import {useAuthUser} from "../Session/authUserContext";
@@ -60,175 +63,189 @@ import {
   FEEDS_DISPLAY as DEFAULT_VALUES_FEEDS_DISPLAY,
   RECIPE_DISPLAY as DEFAULT_RECIPE_DISPLAY,
 } from "../../constants/defaultValues";
-import Stats, {Kpi} from "../Shared/stats.class";
+import {Kpi, KpiGroup, StatsRepository} from "../Database/Repository/StatsRepository";
 import {
   NavigationValuesContext,
   NavigationObject,
 } from "../Navigation/navigationContext";
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
-import {useFirebase} from "../Firebase/firebaseContext";
+import CustomSnackbar, {
+  Snackbar,
+  SNACKBAR_INITIAL_STATE_VALUES,
+} from "../Shared/customSnackbar";
 import {useDatabase} from "../Database/DatabaseContext";
 import {SystemMessageDomain} from "../Database/Repository/SystemMessageRepository";
 import {AlertSystemMessage} from "../Admin/SystemMessage/systemMessage";
-import {General} from "../../constants/firebaseMessages";
 import useCustomStyles from "../../constants/styles";
+
 /* ===================================================================
 // ============================ Dispatcher ===========================
 // =================================================================== */
 
+/**
+ * Aktionen für den Home-Reducer.
+ */
 enum ReducerActions {
   EVENTS_FETCH_INIT,
   EVENTS_FETCH_SUCCESS,
-  PASSED_EVENTS_FETCH_INIT,
-  PASSED_EVENTS_FETCH_SUCCESS,
+  EVENTS_FETCH_ERROR,
   NEWEST_RECIPES_FETCH_INIT,
   NEWEST_RECIPES_FETCH_SUCCESS,
+  NEWEST_RECIPES_FETCH_ERROR,
   FEED_FETCH_INIT,
   FEED_FETCH_SUCCESS,
+  FEED_FETCH_ERROR,
   STATS_FETCH_INIT,
   STATS_FETCH_SUCCESS,
+  STATS_FETCH_ERROR,
   SYSTEM_MESSAGE_FETCH_SUCCESS,
-  SET_SNACKBAR,
-  CLOSE_SNACKBAR,
-  GENERIC_ERROR,
+  TOGGLE_PASSED_EVENTS,
+  SNACKBAR_SET,
+  SNACKBAR_CLOSE,
 }
+
+/**
+ * Diskriminierte Union für alle Dispatcher-Aktionen.
+ * Stellt sicher, dass jede Aktion nur mit dem richtigen Payload aufgerufen wird.
+ */
 type DispatchAction =
   | {type: ReducerActions.EVENTS_FETCH_INIT}
-  | {type: ReducerActions.EVENTS_FETCH_SUCCESS; payload: Event[]}
-  | {type: ReducerActions.PASSED_EVENTS_FETCH_INIT}
-  | {type: ReducerActions.PASSED_EVENTS_FETCH_SUCCESS; payload: Event[]}
+  | {type: ReducerActions.EVENTS_FETCH_SUCCESS; payload: {actual: EventDomain[]; passed: EventDomain[]}}
+  | {type: ReducerActions.EVENTS_FETCH_ERROR; payload: Error}
   | {type: ReducerActions.NEWEST_RECIPES_FETCH_INIT}
   | {type: ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS; payload: FeedDomain[]}
+  | {type: ReducerActions.NEWEST_RECIPES_FETCH_ERROR; payload: Error}
   | {type: ReducerActions.FEED_FETCH_INIT}
   | {type: ReducerActions.FEED_FETCH_SUCCESS; payload: FeedDomain[]}
+  | {type: ReducerActions.FEED_FETCH_ERROR; payload: Error}
   | {type: ReducerActions.STATS_FETCH_INIT}
   | {type: ReducerActions.STATS_FETCH_SUCCESS; payload: Kpi[]}
+  | {type: ReducerActions.STATS_FETCH_ERROR; payload: Error}
+  | {type: ReducerActions.TOGGLE_PASSED_EVENTS}
   | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS; payload: SystemMessageDomain[]}
-  | {type: ReducerActions.SET_SNACKBAR; payload: Snackbar}
-  | {type: ReducerActions.CLOSE_SNACKBAR}
-  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
+  | {type: ReducerActions.SNACKBAR_SET; payload: Snackbar}
+  | {type: ReducerActions.SNACKBAR_CLOSE};
 
+/**
+ * State der Startseite mit per-Section-Fehlern.
+ *
+ * @param events - Aktuelle (zukünftige) Anlässe des Benutzers
+ * @param passedEvents - Vergangene Anlässe (aus demselben Fetch, clientseitig gefiltert)
+ * @param showPassedEvents - Ob vergangene Anlässe angezeigt werden sollen
+ * @param recipes - Neueste publizierte Rezepte
+ * @param feed - Feed-Einträge (Aktivitäten)
+ * @param stats - Plattform-KPIs
+ * @param systemMessages - Systemmeldungen
+ * @param snackbar - Snackbar-State
+ * @param isLoadingEvents - Ladeindikator Anlässe
+ * @param isLoadingNewestRecipes - Ladeindikator Rezepte
+ * @param isLoadingFeed - Ladeindikator Feed
+ * @param isLoadingStats - Ladeindikator Statistik
+ * @param eventsError - Fehler beim Laden der Anlässe
+ * @param recipesError - Fehler beim Laden der Rezepte
+ * @param feedError - Fehler beim Laden des Feeds
+ * @param statsError - Fehler beim Laden der Statistik
+ */
 type State = {
-  events: Event[];
-  passedEvents: Event[];
+  events: EventDomain[];
+  passedEvents: EventDomain[];
+  showPassedEvents: boolean;
   recipes: FeedDomain[];
   feed: FeedDomain[];
   stats: Kpi[];
   systemMessages: SystemMessageDomain[];
   snackbar: Snackbar;
   isLoadingEvents: boolean;
-  isLoadingPassedEvents: boolean;
   isLoadingNewestRecipes: boolean;
   isLoadingFeed: boolean;
   isLoadingStats: boolean;
-  error: Error | null;
+  eventsError: Error | null;
+  recipesError: Error | null;
+  feedError: Error | null;
+  statsError: Error | null;
 };
 
-const inititialState: State = {
+const initialState: State = {
   events: [],
   passedEvents: [],
+  showPassedEvents: false,
   recipes: [],
   feed: [],
   stats: [],
   systemMessages: [],
-  snackbar: {} as Snackbar,
+  snackbar: SNACKBAR_INITIAL_STATE_VALUES,
   isLoadingEvents: false,
-  isLoadingPassedEvents: false,
   isLoadingNewestRecipes: false,
   isLoadingFeed: false,
   isLoadingStats: false,
-  error: null,
+  eventsError: null,
+  recipesError: null,
+  feedError: null,
+  statsError: null,
 };
 
+/**
+ * Reducer für die Startseite. Verwaltet Lade- und Fehlerzustände
+ * für alle 5 Datenquellen (Events, Rezepte, Feed, Stats, Systemmeldungen).
+ *
+ * @param state - Aktueller State
+ * @param action - Diskriminierte Aktion
+ * @returns Neuer State
+ */
 const homeReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.EVENTS_FETCH_INIT:
-      return {
-        ...state,
-        isLoadingEvents: true,
-      };
+      return {...state, isLoadingEvents: true, eventsError: null};
     case ReducerActions.EVENTS_FETCH_SUCCESS:
       return {
         ...state,
         isLoadingEvents: false,
-        events: action.payload,
+        events: action.payload.actual,
+        passedEvents: action.payload.passed,
       };
-    case ReducerActions.PASSED_EVENTS_FETCH_INIT:
-      return {
-        ...state,
-        isLoadingPassedEvents: true,
-      };
-    case ReducerActions.PASSED_EVENTS_FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoadingPassedEvents: false,
-        passedEvents: action.payload,
-      };
+    case ReducerActions.EVENTS_FETCH_ERROR:
+      return {...state, isLoadingEvents: false, eventsError: action.payload};
     case ReducerActions.NEWEST_RECIPES_FETCH_INIT:
-      return {
-        ...state,
-        isLoadingNewestRecipes: true,
-      };
+      return {...state, isLoadingNewestRecipes: true, recipesError: null};
     case ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoadingNewestRecipes: false,
-        recipes: action.payload,
-      };
+      return {...state, isLoadingNewestRecipes: false, recipes: action.payload};
+    case ReducerActions.NEWEST_RECIPES_FETCH_ERROR:
+      return {...state, isLoadingNewestRecipes: false, recipesError: action.payload};
     case ReducerActions.FEED_FETCH_INIT:
-      return {
-        ...state,
-        isLoadingFeed: true,
-      };
+      return {...state, isLoadingFeed: true, feedError: null};
     case ReducerActions.FEED_FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoadingFeed: false,
-        feed: action.payload,
-      };
+      return {...state, isLoadingFeed: false, feed: action.payload};
+    case ReducerActions.FEED_FETCH_ERROR:
+      return {...state, isLoadingFeed: false, feedError: action.payload};
     case ReducerActions.STATS_FETCH_INIT:
-      return {
-        ...state,
-        isLoadingStats: true,
-      };
+      return {...state, isLoadingStats: true, statsError: null};
     case ReducerActions.STATS_FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoadingStats: false,
-        stats: action.payload,
-      };
+      return {...state, isLoadingStats: false, stats: action.payload};
+    case ReducerActions.STATS_FETCH_ERROR:
+      return {...state, isLoadingStats: false, statsError: action.payload};
+    case ReducerActions.TOGGLE_PASSED_EVENTS:
+      return {...state, showPassedEvents: !state.showPassedEvents};
     case ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS:
-      return {
-        ...state,
-        systemMessages: action.payload,
-      };
-    case ReducerActions.SET_SNACKBAR:
-      return {
-        ...state,
-        snackbar: action.payload,
-      };
-    case ReducerActions.CLOSE_SNACKBAR:
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: "",
-          open: false,
-        },
-      };
-    case ReducerActions.GENERIC_ERROR:
-      return {...state, error: action.payload};
+      return {...state, systemMessages: action.payload};
+    case ReducerActions.SNACKBAR_SET:
+      return {...state, snackbar: action.payload};
+    case ReducerActions.SNACKBAR_CLOSE:
+      return {...state, snackbar: SNACKBAR_INITIAL_STATE_VALUES};
     default: {
       const exhaustiveCheck: never = action;
       throw new Error(`Unbekannter ActionType: ${exhaustiveCheck}`);
     }
   }
 };
+
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
+
+/**
+ * Startseite nach dem Login. Lädt Events, Rezepte, Feed, Statistik
+ * und Systemmeldungen parallel und zeigt sie in einem 2-Spalten-Layout an.
+ */
 const HomePage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const location = useLocation();
@@ -237,15 +254,19 @@ const HomePage = () => {
   const navigate = useNavigate();
 
   const navigationValuesContext = React.useContext(NavigationValuesContext);
-  const [state, dispatch] = React.useReducer(homeReducer, inititialState);
-  // Prüfen ob allenfalls eine Snackbar angezeigt werden soll
-  // --> aus dem Prozess Anlass löschen
-  if (location.state && location.state?.["snackbar"] && !state.snackbar.open) {
-    dispatch({
-      type: ReducerActions.SET_SNACKBAR,
-      payload: location.state?.["snackbar"],
-    });
-  }
+  const [state, dispatch] = React.useReducer(homeReducer, initialState);
+
+  /* ------------------------------------------
+  // Snackbar aus location.state (z.B. nach Anlass löschen)
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (location.state?.["snackbar"] && !state.snackbar.open) {
+      dispatch({
+        type: ReducerActions.SNACKBAR_SET,
+        payload: location.state["snackbar"],
+      });
+    }
+  }, [location.state]);
 
   /* ------------------------------------------
   // Navigation-Handler
@@ -260,39 +281,34 @@ const HomePage = () => {
   /* ------------------------------------------
   // Daten aus der DB lesen
   // ------------------------------------------ */
+
+  // Events: einmal laden, clientseitig in aktuell/vergangen aufteilen
   React.useEffect(() => {
-    if (!authUser) {
-      return;
-    }
+    if (!authUser) return;
     dispatch({type: ReducerActions.EVENTS_FETCH_INIT});
 
-    Event.getEventsOfUser({
-      firebase: firebase,
-      userUid: authUser.uid,
-      eventType: EventType.actual,
-    })
+    database.events
+      .getAllEventsForUser()
       .then((result) => {
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        const actual = result.filter((event) => getMaxDate(event) >= today);
+        const passed = result.filter((event) => getMaxDate(event) < today);
         dispatch({
           type: ReducerActions.EVENTS_FETCH_SUCCESS,
-          payload: result,
+          payload: {actual, passed},
         });
       })
       .catch((error) => {
-        if (error.code != General.PERMISSION_DENIED) {
-          console.error(error);
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        } else {
-          // Wenn der User sich zum ersten anmeldet, gibt es keine
-          // Anlässe. Daher wird dieser Fehler aktiv unterbunden
-          dispatch({
-            type: ReducerActions.EVENTS_FETCH_SUCCESS,
-            payload: [],
-          });
-        }
+        Sentry.captureException(error);
+        console.error(error);
+        dispatch({type: ReducerActions.EVENTS_FETCH_ERROR, payload: error as Error});
       });
   }, [authUser]);
+
+  // Neueste publizierte Rezepte
   React.useEffect(() => {
-    //Neuster freigegebene Rezepte
+    if (!authUser) return;
     dispatch({type: ReducerActions.NEWEST_RECIPES_FETCH_INIT});
 
     database.feeds
@@ -304,12 +320,15 @@ const HomePage = () => {
         });
       })
       .catch((error) => {
+        Sentry.captureException(error);
         console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        dispatch({type: ReducerActions.NEWEST_RECIPES_FETCH_ERROR, payload: error as Error});
       });
-  }, []);
+  }, [authUser]);
+
+  // Feed-Einträge
   React.useEffect(() => {
-    //Feed Einträge
+    if (!authUser) return;
     dispatch({type: ReducerActions.FEED_FETCH_INIT});
 
     database.feeds
@@ -321,15 +340,19 @@ const HomePage = () => {
         });
       })
       .catch((error) => {
+        Sentry.captureException(error);
         console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        dispatch({type: ReducerActions.FEED_FETCH_ERROR, payload: error as Error});
       });
-  }, []);
+  }, [authUser]);
+
+  // Statistik
   React.useEffect(() => {
-    //Statistik Einträge
+    if (!authUser) return;
     dispatch({type: ReducerActions.STATS_FETCH_INIT});
 
-    Stats.getStats(firebase)
+    database.stats
+      .getStats()
       .then((result) => {
         dispatch({
           type: ReducerActions.STATS_FETCH_SUCCESS,
@@ -337,15 +360,19 @@ const HomePage = () => {
         });
       })
       .catch((error) => {
+        Sentry.captureException(error);
         console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        dispatch({type: ReducerActions.STATS_FETCH_ERROR, payload: error as Error});
       });
-  }, []);
+  }, [authUser]);
+
+  // Systemmeldungen
   React.useEffect(() => {
+    if (!authUser) return;
+
     database.systemMessages
       .getValidMessages()
       .then((result) => {
-        // Nur Meldungen mit Text anzeigen
         const withText = result.filter((msg) => msg.text);
         if (withText.length > 0) {
           dispatch({
@@ -355,137 +382,124 @@ const HomePage = () => {
         }
       })
       .catch((error) => {
+        Sentry.captureException(error);
         console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-  }, []);
+  }, [authUser]);
 
   if (!authUser) {
     return null;
   }
 
+  /* ------------------------------------------
+  // Vergangene Anlässe anzeigen/ausblenden
+  // ------------------------------------------ */
   const onShowPassedEvents = () => {
-    dispatch({type: ReducerActions.PASSED_EVENTS_FETCH_INIT});
-    Event.getEventsOfUser({
-      firebase: firebase,
-      userUid: authUser.uid,
-      eventType: EventType.history,
-    })
-      .then((result) => {
-        dispatch({
-          type: ReducerActions.PASSED_EVENTS_FETCH_SUCCESS,
-          payload: result,
-        });
-      })
-      .catch((error) =>
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
-      );
+    dispatch({type: ReducerActions.TOGGLE_PASSED_EVENTS});
   };
+
   /* ------------------------------------------
   // Objekte öffnen
   // ------------------------------------------ */
-  const onEventClick = (raisedEvent: React.MouseEvent<HTMLButtonElement>) => {
-    let event: Event | undefined;
+  const onEventClick = React.useCallback(
+    (raisedEvent: React.MouseEvent<HTMLButtonElement>) => {
+      const uid = raisedEvent.currentTarget.dataset.eventUid;
+      const event =
+        state.events.find((event) => event.uid === uid) ??
+        state.passedEvents.find((event) => event.uid === uid);
 
-    const uid = raisedEvent.currentTarget.dataset.eventUid;
-    event = state.events.find((event) => event.uid === uid);
-    if (!event && state.passedEvents.length > 0) {
-      event = state.passedEvents.find((event) => event.uid === uid);
-    }
+      if (!event) return;
 
-    if (!event) {
-      return;
-    }
-    navigate(`${ROUTES.EVENT}/${event.uid}`, {
-      state: {
-        action: Action.VIEW,
-        event: event,
-      },
-    });
-  };
-  const onCreateNewEvent = () => {
-    navigate(`${ROUTES.CREATE_NEW_EVENT}`);
-  };
-  const onRecipeClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    const recipeUid = event.currentTarget.name.split("_")[1];
-    const recipe = state.recipes.find(
-      (recipe) => recipe.sourceObject.uid == recipeUid,
-    );
-
-    if (!recipe) {
-      return;
-    }
-    navigate(`${ROUTES.RECIPE}/${recipeUid}`, {
-      state: {
-        action: Action.VIEW,
-        recipeShort: {
-          uid: recipe.sourceObject.uid,
-          name: recipe.sourceObject.name,
-          pictureSrc: recipe.sourceObject.pictureSrc,
+      navigate(`${ROUTES.EVENT}/${event.uid}`, {
+        state: {
+          action: Action.VIEW,
+          event: event,
         },
-        recipeType: RecipeType.public,
-      },
-    });
-  };
-  const onFeedEntryClick = (event: React.MouseEvent<HTMLElement>) => {
-    const feedEntry = state.feed.find(
-      (feedEntry) => feedEntry.uid == event.currentTarget.id.split("_")[1],
-    );
-    if (!feedEntry) {
-      return;
-    }
+      });
+    },
+    [state.events, state.passedEvents, navigate],
+  );
 
-    switch (feedEntry.feedType) {
-      case FeedType.recipePublished:
-      case FeedType.recipeRated:
-      case FeedType.recipeCommented:
-        // Rezept anzeigen
-        navigate(`${ROUTES.RECIPE}/${feedEntry.sourceObject.uid}`, {
-          state: {
-            action: Action.VIEW,
+  const onCreateNewEvent = React.useCallback(() => {
+    navigate(`${ROUTES.CREATE_NEW_EVENT}`);
+  }, [navigate]);
+
+  const onRecipeClick = React.useCallback(
+    (clickEvent: React.MouseEvent<HTMLButtonElement>) => {
+      const recipeUid = clickEvent.currentTarget.dataset.recipeUid;
+      const recipe = state.recipes.find(
+        (recipe) => recipe.sourceObject.uid === recipeUid,
+      );
+
+      if (!recipe) return;
+
+      navigate(`${ROUTES.RECIPE}/${recipeUid}`, {
+        state: {
+          action: Action.VIEW,
+          recipeShort: {
+            uid: recipe.sourceObject.uid,
+            name: recipe.sourceObject.name,
+            pictureSrc: recipe.sourceObject.pictureSrc,
           },
-        });
-        break;
-      default:
-        // Wenn nichts vorhanden, User anzeigen,
-        // der/die den Feed generiert hat
-        navigate(`${ROUTES.USER_PUBLIC_PROFILE}/${feedEntry.user.uid}`, {
-          state: {
-            action: Action.VIEW,
-            displayName: feedEntry.user.displayName,
-            pictureSrc: feedEntry.user.pictureSrc,
-          },
-        });
-    }
-  };
+          recipeType: RecipeType.public,
+        },
+      });
+    },
+    [state.recipes, navigate],
+  );
+
+  const onFeedEntryClick = React.useCallback(
+    (clickEvent: React.MouseEvent<HTMLElement>) => {
+      const feedUid = clickEvent.currentTarget.dataset.feedUid;
+      const feedEntry = state.feed.find(
+        (feedEntry) => feedEntry.uid === feedUid,
+      );
+      if (!feedEntry) return;
+
+      switch (feedEntry.feedType) {
+        case FeedType.recipePublished:
+        case FeedType.recipeRated:
+        case FeedType.recipeCommented:
+          navigate(`${ROUTES.RECIPE}/${feedEntry.sourceObject.uid}`, {
+            state: {action: Action.VIEW},
+          });
+          break;
+        default:
+          navigate(
+            `${ROUTES.USER_PUBLIC_PROFILE}/${feedEntry.user.uid}`,
+            {
+              state: {
+                action: Action.VIEW,
+                displayName: feedEntry.user.displayName,
+                pictureSrc: feedEntry.user.pictureSrc,
+              },
+            },
+          );
+      }
+    },
+    [state.feed, navigate],
+  );
+
   /* ------------------------------------------
-  // Snackback schliessen
+  // Snackbar schliessen
   // ------------------------------------------ */
-  const handleSnackbarClose = (
-    _event: globalThis.Event | SyntheticEvent<Element, globalThis.Event>,
-    reason: SnackbarCloseReason,
-  ) => {
-    if (reason === "clickaway") {
-      return;
-    }
-    delete location.state?.snackbar;
-    dispatch({
-      type: ReducerActions.CLOSE_SNACKBAR,
-    });
-  };
+  const handleSnackbarClose = React.useCallback(
+    (
+      _event: globalThis.Event | SyntheticEvent<Element, globalThis.Event>,
+      reason: SnackbarCloseReason,
+    ) => {
+      if (reason === "clickaway") return;
+      delete location.state?.snackbar;
+      dispatch({type: ReducerActions.SNACKBAR_CLOSE});
+    },
+    [location.state],
+  );
+
   return (
     <React.Fragment>
       <HomeHeader authUser={authUser} />
       <Container sx={classes.container} component="main" maxWidth="md">
         <Grid container spacing={2} justifyContent="center">
-          {state.error && (
-            <Grid size={12} key={"error"}>
-              <AlertMessage
-                error={state.error}
-                messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
-              />
-            </Grid>
-          )}
           {state.systemMessages.map((msg) => (
             <Grid size={12} key={`systemMessage_${msg.uid}`}>
               <AlertSystemMessage systemMessage={msg} />
@@ -495,6 +509,7 @@ const HomePage = () => {
             <HomeNextEvents
               events={state.events}
               isLoadingEvents={state.isLoadingEvents}
+              error={state.eventsError}
               onCardClick={onEventClick}
               onCreateNewEvent={onCreateNewEvent}
             />
@@ -502,7 +517,7 @@ const HomePage = () => {
           <Grid size={12}>
             <HomePassedEvents
               events={state.passedEvents}
-              isLoadingPassedEvents={state.isLoadingPassedEvents}
+              showPassedEvents={state.showPassedEvents}
               onCardClick={onEventClick}
               onShowPassedEvents={onShowPassedEvents}
             />
@@ -510,19 +525,20 @@ const HomePage = () => {
           <Grid size={12}>
             <Divider style={{marginBottom: "2rem"}} />
           </Grid>
-          <Grid size={{xs: 12, md: 4}}>
+          <Grid size={{xs: 12, md: 8}}>
             <HomeNewestRecipes
               recipes={state.recipes}
-              isLoadingRecipes={state.isLoadingEvents}
+              isLoadingRecipes={state.isLoadingNewestRecipes}
+              error={state.recipesError}
               onCardClick={onRecipeClick}
             />
-          </Grid>
-          <Grid size={{xs: 12, md: 4}}>
-            <HomeFeed
-              feed={state.feed}
-              isLoadingFeed={state.isLoadingFeed}
-              onListEntryClick={onFeedEntryClick}
-            />
+            <Box sx={{marginTop: 2}}>
+              <HomeFeed
+                feed={state.feed}
+                isLoadingFeed={state.isLoadingFeed}
+                onListEntryClick={onFeedEntryClick}
+              />
+            </Box>
           </Grid>
           <Grid size={{xs: 12, md: 4}}>
             <HomeStats
@@ -541,9 +557,16 @@ const HomePage = () => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================= Header ==============================
 // =================================================================== */
+
+/**
+ * Kopfbereich der Startseite mit Begrüssung und Untertitel.
+ *
+ * @param authUser - Der angemeldete Benutzer
+ */
 interface HomeHeaderProps {
   authUser: AuthUser;
 }
@@ -556,28 +579,58 @@ const HomeHeader = ({authUser}: HomeHeaderProps) => {
     />
   );
 };
+
 /* ===================================================================
 // ============================= Events ==============================
 // =================================================================== */
+
+/**
+ * Abschnitt «Nächste Anlässe» mit Event-Cards und «Neuen Anlass erstellen»-Karte.
+ *
+ * @param events - Aktuelle (zukünftige) Events
+ * @param isLoadingEvents - Ladeindikator
+ * @param error - Fehler beim Laden (wird als AlertMessage angezeigt)
+ * @param onCardClick - Callback beim Klick auf eine Event-Card
+ * @param onCreateNewEvent - Callback beim Klick auf «Neuen Anlass erstellen»
+ */
 interface HomeNextEventsProps {
-  events: Event[];
+  events: EventDomain[];
   isLoadingEvents: boolean;
+  error: Error | null;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onCreateNewEvent: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
-const HomeNextEvents = ({
+const HomeNextEvents = React.memo(({
   events,
   isLoadingEvents,
+  error,
   onCardClick,
   onCreateNewEvent,
 }: HomeNextEventsProps) => {
   const classes = useCustomStyles();
   return (
     <React.Fragment>
+      {error && (
+        <AlertMessage
+          error={error}
+          messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+        />
+      )}
       <Grid container spacing={2} justifyContent="center">
         {isLoadingEvents && (
           <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
             <EventCardLoading key={"loadingEventCard"} />
+          </Grid>
+        )}
+        {!isLoadingEvents && events.length === 0 && !error && (
+          <Grid size={12}>
+            <Typography
+              align="center"
+              color="textSecondary"
+              style={{marginBottom: "1rem"}}
+            >
+              {TEXT_HOME_EMPTY_EVENTS}
+            </Typography>
           </Grid>
         )}
         {events.map((event) => (
@@ -617,32 +670,38 @@ const HomeNextEvents = ({
       </Grid>
     </React.Fragment>
   );
-};
+});
+HomeNextEvents.displayName = "HomeNextEvents";
+
+/* ===================================================================
+// ======================== Vergangene Anlässe =======================
+// =================================================================== */
+
+/**
+ * Abschnitt «Vergangene Anlässe» — zeigt einen Toggle-Button und
+ * die Event-Cards vergangener Anlässe.
+ *
+ * @param events - Vergangene Events
+ * @param showPassedEvents - Ob der Bereich sichtbar ist
+ * @param onCardClick - Callback beim Klick auf eine Event-Card
+ * @param onShowPassedEvents - Callback zum Umschalten der Sichtbarkeit
+ */
 interface HomePassedEventsProps {
-  events: Event[];
+  events: EventDomain[];
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  isLoadingPassedEvents: boolean;
+  showPassedEvents: boolean;
   onShowPassedEvents: () => void;
 }
-const HomePassedEvents = ({
+const HomePassedEvents = React.memo(({
   events,
   onCardClick,
-  isLoadingPassedEvents,
+  showPassedEvents,
   onShowPassedEvents,
 }: HomePassedEventsProps) => {
   const classes = useCustomStyles();
-
-  const [showLoadPassedEvents, setShowLoadPassedEvents] = React.useState(true);
-  /* ------------------------------------------
-  // Vergangene Anlässe lasen
-  // ------------------------------------------ */
-  const loadPassedEvents = () => {
-    setShowLoadPassedEvents(false);
-    onShowPassedEvents();
-  };
-  // Leere Containers erzeugen, damit die Cards je nach Layout schön auf-
-  // gelistet werden
   const theme = useTheme();
+
+  // Leere Container erzeugen, damit die Cards je nach Layout schön aufgelistet werden
   let rowFiller: number[] = [];
   const breakpointIsXs = useMediaQuery(theme.breakpoints.down("sm"));
   const breakpointIsSm = useMediaQuery(theme.breakpoints.down("md"));
@@ -655,14 +714,14 @@ const HomePassedEvents = ({
   return (
     <React.Fragment>
       <Grid container spacing={2} justifyContent="center">
-        {showLoadPassedEvents ? (
+        {!showPassedEvents ? (
           <Grid size={12} sx={classes.centerCenter}>
             <Button
               color="primary"
               sx={classes.button}
-              onClick={loadPassedEvents}
+              onClick={onShowPassedEvents}
             >
-              {TEXT_EVENT_SHOW_PAST_EVENTS}{" "}
+              {TEXT_EVENT_SHOW_PAST_EVENTS}
             </Button>
           </Grid>
         ) : (
@@ -677,17 +736,7 @@ const HomePassedEvents = ({
             </Typography>
           </Grid>
         )}
-        {isLoadingPassedEvents && (
-          <React.Fragment>
-            <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
-              <EventCardLoading />
-            </Grid>
-            <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
-              <EventCardLoading />
-            </Grid>
-          </React.Fragment>
-        )}
-        {!showLoadPassedEvents &&
+        {showPassedEvents &&
           events.map((event) => (
             <Grid
               size={{xs: 12, sm: 6, md: 4, lg: 3}}
@@ -700,7 +749,7 @@ const HomePassedEvents = ({
               />
             </Grid>
           ))}
-        {!showLoadPassedEvents &&
+        {showPassedEvents &&
           rowFiller.map((number) => (
             <Grid
               size={{xs: 12, sm: 6, md: 4, lg: 3}}
@@ -710,31 +759,43 @@ const HomePassedEvents = ({
       </Grid>
     </React.Fragment>
   );
-};
+});
+HomePassedEvents.displayName = "HomePassedEvents";
 
 /* ===================================================================
 // ========================== Neuste Rezepte ==========================
 // =================================================================== */
+
+/**
+ * Abschnitt «Neueste Rezepte» mit Rezept-Cards.
+ *
+ * @param recipes - Feed-Einträge der neuesten publizierten Rezepte
+ * @param isLoadingRecipes - Ladeindikator
+ * @param error - Fehler beim Laden (wird als AlertMessage angezeigt)
+ * @param onCardClick - Callback beim Klick auf eine Rezept-Card
+ */
 interface HomeNewestRecipesProps {
   recipes: FeedDomain[];
   isLoadingRecipes: boolean;
+  error: Error | null;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
-const HomeNewestRecipes = ({
+const HomeNewestRecipes = React.memo(({
   recipes,
   isLoadingRecipes,
+  error,
   onCardClick,
 }: HomeNewestRecipesProps) => {
   const classes = useCustomStyles();
-  const [hover, setHover] = React.useState({recipeUid: "", hover: false});
-  /* ------------------------------------------
-  // Hover-Effekt Karte
-  // ------------------------------------------ */
+  const [hoveredRecipeUid, setHoveredRecipeUid] = React.useState<string | null>(
+    null,
+  );
+
   const handleHover = (recipeUid: string) => {
-    setHover({recipeUid: recipeUid, hover: true});
+    setHoveredRecipeUid(recipeUid);
   };
   const handleMouseOut = () => {
-    setHover({recipeUid: "", hover: false});
+    setHoveredRecipeUid(null);
   };
 
   return (
@@ -749,14 +810,29 @@ const HomeNewestRecipes = ({
           {TEXT_NEWEST_RECIPES}
         </Typography>
       </Grid>
+      {error && (
+        <Grid size={12}>
+          <AlertMessage
+            error={error}
+            messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+          />
+        </Grid>
+      )}
       {isLoadingRecipes &&
-        Array(DEFAULT_RECIPE_DISPLAY).map((emptyCard) => (
-          <Grid size={12} key={"emptyRecipeGrid_" + emptyCard}>
-            <RecipeCardLoading key={"emptyRecipeCard_" + emptyCard} />
+        [...Array(DEFAULT_RECIPE_DISPLAY).keys()].map((index) => (
+          <Grid size={6} key={"emptyRecipeGrid_" + index}>
+            <RecipeCardLoading key={"emptyRecipeCard_" + index} />
           </Grid>
         ))}
+      {!isLoadingRecipes && recipes.length === 0 && !error && (
+        <Grid size={12}>
+          <Typography align="center" color="textSecondary">
+            {TEXT_HOME_EMPTY_RECIPES}
+          </Typography>
+        </Grid>
+      )}
       {recipes.map((recipe) => (
-        <Grid size={12} key={"recipeGrid_" + recipe.uid}>
+        <Grid size={6} key={"recipeGrid_" + recipe.uid}>
           <Card
             sx={classes.card}
             onMouseOver={() => handleHover(recipe.uid)}
@@ -764,7 +840,7 @@ const HomeNewestRecipes = ({
             key={"recipeCard_" + recipe.uid}
           >
             <CardActionArea
-              name={"recipeCardActionArea_" + recipe.sourceObject.uid}
+              data-recipe-uid={recipe.sourceObject.uid}
               onClick={onCardClick}
               style={{height: "100%"}}
             >
@@ -781,7 +857,7 @@ const HomeNewestRecipes = ({
                     title={recipe.sourceObject.name}
                     style={{
                       transform:
-                        hover.hover && hover.recipeUid === recipe.uid
+                        hoveredRecipeUid === recipe.uid
                           ? "scale(1.05)"
                           : "scale(1)",
                       transition: "0.5s ease",
@@ -796,99 +872,136 @@ const HomeNewestRecipes = ({
       ))}
     </Grid>
   );
-};
+});
+HomeNewestRecipes.displayName = "HomeNewestRecipes";
+
 /* ===================================================================
 // ========================== Feed-Einträge ==========================
 // =================================================================== */
+
+/**
+ * Abschnitt «Feed» — zeigt die neuesten Aktivitäten der Community.
+ *
+ * @param feed - Feed-Einträge
+ * @param isLoadingFeed - Ladeindikator
+ * @param onListEntryClick - Callback beim Klick auf einen Feed-Eintrag
+ */
 interface HomeFeedProps {
   feed: FeedDomain[];
   isLoadingFeed: boolean;
   onListEntryClick: (event: React.MouseEvent<HTMLElement>) => void;
 }
-const HomeFeed = ({feed, isLoadingFeed, onListEntryClick}: HomeFeedProps) => {
-  const classes = useCustomStyles();
-  return (
-    <Grid container spacing={2} justifyContent="center">
-      <Grid size={12}>
-        <Typography
-          align="center"
-          gutterBottom={true}
-          variant="h5"
-          component="h2"
-        >
-          {TEXT_FEED}
-        </Typography>
-      </Grid>
-      <Grid size={12}>
-        <Card sx={classes.card}>
-          <List>
-            {isLoadingFeed &&
-              [...Array(DEFAULT_VALUES_FEEDS_DISPLAY).keys()].map(
-                (emptyElement) => (
-                  <ListItem key={"eventListItem_skelleton" + emptyElement}>
-                    <ListItemText
-                      primary={<Skeleton />}
-                      secondary={<Skeleton />}
-                    />
-                  </ListItem>
-                ),
-              )}
-            {feed.map((feedEntry, counter) => (
-              <React.Fragment key={"feed_" + feedEntry.uid}>
-                <ListItemButton
-                  alignItems="flex-start"
-                  key={"feedListItem_" + feedEntry.uid}
-                  id={"feedListItem_" + feedEntry.uid}
-                  onClick={onListEntryClick}
-                >
-                  <ListItemAvatar>
-                    {feedEntry.user.pictureSrc ? (
-                      <Avatar
-                        alt={feedEntry.user.displayName}
-                        src={String(feedEntry.user.pictureSrc)}
+const HomeFeed = React.memo(
+  ({feed, isLoadingFeed, onListEntryClick}: HomeFeedProps) => {
+    const classes = useCustomStyles();
+    return (
+      <Grid container spacing={2} justifyContent="center">
+        <Grid size={12}>
+          <Typography
+            align="center"
+            gutterBottom={true}
+            variant="h5"
+            component="h2"
+          >
+            {TEXT_FEED}
+          </Typography>
+        </Grid>
+        <Grid size={12}>
+          <Card sx={classes.card}>
+            <List>
+              {isLoadingFeed &&
+                [...Array(DEFAULT_VALUES_FEEDS_DISPLAY).keys()].map(
+                  (index) => (
+                    <ListItem key={"feedListItem_skeleton_" + index}>
+                      <ListItemText
+                        primary={<Skeleton />}
+                        secondary={<Skeleton />}
                       />
-                    ) : (
-                      <Avatar alt={feedEntry.user.displayName}>
-                        {feedEntry.user.displayName.charAt(0).toUpperCase()}
-                      </Avatar>
-                    )}
-                  </ListItemAvatar>
-                  <ListItemText
-                    primary={feedEntry.title}
-                    secondary={
-                      <React.Fragment>
-                        <Typography
-                          component="span"
-                          variant="body2"
-                          color="textPrimary"
-                        >
-                          {feedEntry.user.displayName}
-                        </Typography>
-                        {" - " + feedEntry.text}
-                      </React.Fragment>
-                    }
-                  />
-                </ListItemButton>
-                {counter != feed.length - 1 && (
-                  <Divider variant="inset" component="li" />
+                    </ListItem>
+                  ),
                 )}
-              </React.Fragment>
-            ))}
-          </List>
-        </Card>
+              {!isLoadingFeed && feed.length === 0 && (
+                <ListItem>
+                  <ListItemText
+                    primary={TEXT_HOME_EMPTY_FEED}
+                    sx={{textAlign: "center"}}
+                  />
+                </ListItem>
+              )}
+              {feed.map((feedEntry, counter) => (
+                <React.Fragment key={"feed_" + feedEntry.uid}>
+                  <ListItemButton
+                    alignItems="flex-start"
+                    key={"feedListItem_" + feedEntry.uid}
+                    data-feed-uid={feedEntry.uid}
+                    onClick={onListEntryClick}
+                  >
+                    <ListItemAvatar>
+                      {feedEntry.user.pictureSrc ? (
+                        <Avatar
+                          alt={feedEntry.user.displayName}
+                          src={String(feedEntry.user.pictureSrc)}
+                        />
+                      ) : (
+                        <Avatar alt={feedEntry.user.displayName}>
+                          {feedEntry.user.displayName.charAt(0).toUpperCase()}
+                        </Avatar>
+                      )}
+                    </ListItemAvatar>
+                    <ListItemText
+                      primary={feedEntry.title}
+                      secondary={
+                        <React.Fragment>
+                          <Typography
+                            component="span"
+                            variant="body2"
+                            color="textPrimary"
+                          >
+                            {feedEntry.user.displayName}
+                          </Typography>
+                          {" - " + feedEntry.text}
+                        </React.Fragment>
+                      }
+                    />
+                  </ListItemButton>
+                  {counter !== feed.length - 1 && (
+                    <Divider variant="inset" component="li" />
+                  )}
+                </React.Fragment>
+              ))}
+            </List>
+          </Card>
+        </Grid>
       </Grid>
-    </Grid>
-  );
-};
+    );
+  },
+);
+HomeFeed.displayName = "HomeFeed";
+
 /* ===================================================================
-// ======================= Statistik-Einträge ========================
+// ======================= Statistik-Sidebar =========================
 // =================================================================== */
+
+/** Anzahl KPIs für die Skeleton-Anzeige (18 KPIs in 4 Gruppen). */
+const STATS_SKELETON_COUNT = 18;
+
+/**
+ * Statistik-Sidebar — zeigt die Plattform-KPIs gruppiert an.
+ *
+ * @param stats - Flaches KPI-Array
+ * @param isLoadingStats - Ladeindikator
+ */
 interface HomeStatsProps {
   stats: Kpi[];
   isLoadingStats: boolean;
 }
-const HomeStats = ({stats, isLoadingStats}: HomeStatsProps) => {
+const HomeStats = React.memo(({stats, isLoadingStats}: HomeStatsProps) => {
   const classes = useCustomStyles();
+  const kpiGroups: KpiGroup[] = React.useMemo(
+    () => StatsRepository.groupKpis(stats),
+    [stats],
+  );
+
   return (
     <Grid container spacing={2} justifyContent="center">
       <Grid size={12}>
@@ -904,38 +1017,50 @@ const HomeStats = ({stats, isLoadingStats}: HomeStatsProps) => {
       <Grid size={12}>
         <Card sx={classes.card}>
           <List>
-            {isLoadingStats
-              ? stats.map((emptyElement) => (
-                  <ListItem key={"eventListItem_skelleton" + emptyElement}>
-                    <ListItemText primary={<Skeleton />} />
+            {isLoadingStats &&
+              [...Array(STATS_SKELETON_COUNT).keys()].map((index) => (
+                <ListItem key={"statsListItem_skeleton_" + index}>
+                  <ListItemText primary={<Skeleton />} />
+                </ListItem>
+              ))}
+            {!isLoadingStats &&
+              kpiGroups.map((group, groupIndex) => (
+                <React.Fragment key={"statsGroup_" + group.title}>
+                  {groupIndex > 0 && (
+                    <Divider
+                      style={{marginLeft: "1rem", marginRight: "1rem"}}
+                      component="li"
+                    />
+                  )}
+                  <ListItem>
+                    <ListItemText
+                      primary={
+                        <Typography variant="subtitle2" color="textSecondary">
+                          {group.title}
+                        </Typography>
+                      }
+                    />
                   </ListItem>
-                ))
-              : stats.map((stat, counter) => (
-                  <React.Fragment key={"stat_" + stat.id}>
+                  {group.kpis.map((stat) => (
                     <ListItem
-                      alignItems="flex-start"
                       key={"statListItem_" + stat.id}
-                      id={"statListItem_" + stat.id}
+                      sx={{paddingTop: 0, paddingBottom: 0}}
                     >
                       <ListItemText primary={stat.caption} />
                       <ListItemText
-                        primary={(stat.value ?? 0).toLocaleString("de-CH")}
+                        primary={stat.value.toLocaleString("de-CH")}
                         style={{textAlign: "right"}}
                       />
                     </ListItem>
-                    {counter != stats.length - 1 && (
-                      <Divider
-                        style={{marginLeft: "1rem", marginRight: "1rem"}}
-                        component="li"
-                      />
-                    )}
-                  </React.Fragment>
-                ))}
+                  ))}
+                </React.Fragment>
+              ))}
           </List>
         </Card>
       </Grid>
     </Grid>
   );
-};
+});
+HomeStats.displayName = "HomeStats";
 
 export default HomePage;

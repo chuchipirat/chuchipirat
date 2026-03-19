@@ -95,9 +95,11 @@ const publicProfile: UserPublicProfile = {
   pictureSrc: "https://example.com/avatar.jpg",
   stats: {
     noComments: 5,
+    noRatings: 8,
     noEvents: 12,
     noRecipesPublic: 25,
     noRecipesPrivate: 7,
+    noRecipesVariants: 4,
     noFoundBugs: 3,
   },
 };
@@ -320,6 +322,49 @@ describe("PublicProfilePage", () => {
     });
   });
 
+  describe("Statistiken", () => {
+    test("Zeigt Benutzer-Statistiken (Rezepte, Anlässe, Engagement) auf der Profilseite an", async () => {
+      renderPublicProfilePage();
+
+      await waitFor(() => {
+        expect(screen.getByText(/Öffentliche Rezepte/i)).toBeInTheDocument();
+        expect(screen.getByText(/Private Rezepte/i)).toBeInTheDocument();
+        expect(screen.getByText(/Anlassvarianten/i)).toBeInTheDocument();
+        expect(screen.getByText(/Bekochte Anlässe/i)).toBeInTheDocument();
+        expect(screen.getByText(/Kommentare/i)).toBeInTheDocument();
+        expect(screen.getByText(/Bewertungen/i)).toBeInTheDocument();
+      });
+
+      // Prüfe die konkreten Werte aus den Testdaten
+      expect(screen.getByText("25")).toBeInTheDocument();   // noRecipesPublic
+      expect(screen.getByText("7")).toBeInTheDocument();     // noRecipesPrivate
+      expect(screen.getByText("4")).toBeInTheDocument();     // noRecipesVariants
+      expect(screen.getByText("12")).toBeInTheDocument();    // noEvents
+      expect(screen.getByText("5")).toBeInTheDocument();     // noComments
+      expect(screen.getByText("8")).toBeInTheDocument();     // noRatings
+    });
+
+    test("Zeigt Bug-Anzahl auf der Profilseite wenn > 0", async () => {
+      renderPublicProfilePage();
+
+      await waitFor(() => {
+        expect(screen.getByText(/Gefundene Bugs/i)).toBeInTheDocument();
+        expect(screen.getByText("3")).toBeInTheDocument();   // noFoundBugs
+      });
+    });
+
+    test("Versteckt Bug-Anzahl auf der Profilseite wenn = 0", async () => {
+      mockGetPublicProfile.mockResolvedValue(profileNoBugs);
+      renderPublicProfilePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Koch Guru")).toBeInTheDocument();
+      });
+
+      expect(screen.queryByText(/Gefundene Bugs/i)).not.toBeInTheDocument();
+    });
+  });
+
   describe("Fehlerbehandlung", () => {
     test("DB-Fetch-Fehler zeigt Fehlermeldung an", async () => {
       mockGetPublicProfile.mockRejectedValue(new Error("Verbindungsfehler"));
@@ -360,19 +405,15 @@ describe("PublicProfileList", () => {
 });
 
 describe("AchievedRewardsList", () => {
-  test("Rendert Rezeptzahlen (öffentlich + privat)", () => {
+  test("Rendert alle KPI-Labels", () => {
     renderAchievedRewardsList(publicProfile);
 
-    expect(
-      screen.getByText(/erfasste öffentliche Rezepte/i),
-    ).toBeInTheDocument();
-    expect(screen.getByText(/erfasste private Rezepte/i)).toBeInTheDocument();
-  });
-
-  test("Rendert Anlass-Anzahl", () => {
-    renderAchievedRewardsList(publicProfile);
-
-    expect(screen.getByText(/bekochte Anlässe/i)).toBeInTheDocument();
+    expect(screen.getByText(/Öffentliche Rezepte/i)).toBeInTheDocument();
+    expect(screen.getByText(/Private Rezepte/i)).toBeInTheDocument();
+    expect(screen.getByText(/Anlassvarianten/i)).toBeInTheDocument();
+    expect(screen.getByText(/Bekochte Anlässe/i)).toBeInTheDocument();
+    expect(screen.getByText(/Kommentare/i)).toBeInTheDocument();
+    expect(screen.getByText(/Bewertungen/i)).toBeInTheDocument();
   });
 
   test("Zeigt Bug-Anzahl nur wenn > 0", () => {

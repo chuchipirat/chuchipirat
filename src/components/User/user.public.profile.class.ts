@@ -8,11 +8,12 @@ interface IncrementField {
 }
 
 export enum UserPublicProfileStatsFields {
-  // noRecipes = "noRecipes",
   noComments = "noComments",
+  noRatings = "noRatings",
   noEvents = "noEvents",
   noRecipesPublic = "noRecipesPublic",
   noRecipesPrivate = "noRecipesPrivate",
+  noRecipesVariants = "noRecipesVariants",
   noFoundBugs = "noFoundBugs",
 }
 type Stats = {[key in UserPublicProfileStatsFields]: number};
@@ -43,9 +44,11 @@ export class UserPublicProfile {
     this.pictureSrc = "";
     this.stats = {
       noComments: 0,
+      noRatings: 0,
       noEvents: 0,
       noRecipesPublic: 0,
       noRecipesPrivate: 0,
+      noRecipesVariants: 0,
       noFoundBugs: 0,
     };
   }
