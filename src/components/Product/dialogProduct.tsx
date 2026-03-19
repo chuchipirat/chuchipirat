@@ -64,6 +64,8 @@ import UnitAutocomplete from "../Unit/unitAutocomplete";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 import DepartmentAutocomplete from "../Department/departmentAutocomplete";
 import {useDatabase} from "../Database/DatabaseContext";
+import {FeedType} from "../Shared/feed.class";
+import Role from "../../constants/roles";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -409,6 +411,19 @@ const DialogProduct = ({
             product.usable = result.usable;
             handleOk(product);
             setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
+
+            // Feed-Eintrag: Produkt erstellt
+            database.feeds
+              .insertFeed(
+                {
+                  feedType: FeedType.productCreated,
+                  visibility: Role.communityLeader,
+                  sourceObjectType: "product",
+                  sourceObjectUid: result.uid,
+                },
+                authUser,
+              )
+              .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
           })
           .catch((error) => {
             console.error("Fehler beim Anlegen des Produkts:", error);

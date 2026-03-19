@@ -58,7 +58,12 @@ import {
   REQUEST_DECLINE_REASON_LABEL as TEXT_REQUEST_DECLINE_REASON_LABEL,
   REQUEST_DECLINE_REASON_REQUIRED as TEXT_REQUEST_DECLINE_REASON_REQUIRED,
   REQUEST_DECLINE_CONFIRM as TEXT_REQUEST_DECLINE_CONFIRM,
+  REQUEST_DONE_COMMENT_LABEL as TEXT_REQUEST_DONE_COMMENT_LABEL,
+  REQUEST_DONE_CONFIRM as TEXT_REQUEST_DONE_CONFIRM,
   REQUEST_BACK_TO_AUTHOR_HINT as TEXT_REQUEST_BACK_TO_AUTHOR_HINT,
+  REQUEST_BACK_TO_AUTHOR_REASON_LABEL as TEXT_REQUEST_BACK_TO_AUTHOR_REASON_LABEL,
+  REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED as TEXT_REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED,
+  REQUEST_BACK_TO_AUTHOR_CONFIRM as TEXT_REQUEST_BACK_TO_AUTHOR_CONFIRM,
   REQUEST_NO_COMMENTS_YET as TEXT_REQUEST_NO_COMMENTS_YET,
   REQUEST_CHANGELOG_TITLE as TEXT_REQUEST_CHANGELOG_TITLE,
   REQUEST_CONFIRM_STATUS_CHANGE_TITLE as TEXT_REQUEST_CONFIRM_STATUS_CHANGE_TITLE,
@@ -171,6 +176,12 @@ const DialogRequest = ({
   const [pendingDecline, setPendingDecline] = React.useState(false);
   const [declineReason, setDeclineReason] = React.useState("");
   const [declineReasonError, setDeclineReasonError] = React.useState(false);
+  const [pendingDone, setPendingDone] = React.useState(false);
+  const [doneComment, setDoneComment] = React.useState("");
+  const [pendingBackToAuthor, setPendingBackToAuthor] = React.useState(false);
+  const [backToAuthorReason, setBackToAuthorReason] = React.useState("");
+  const [backToAuthorReasonError, setBackToAuthorReasonError] =
+    React.useState(false);
 
   const isCommunityLeader = authUser.roles.includes(Role.communityLeader);
   const isAssignee = request?.assigneeUid === authUser.authUid;
@@ -182,6 +193,11 @@ const DialogRequest = ({
     setPendingDecline(false);
     setDeclineReason("");
     setDeclineReasonError(false);
+    setPendingDone(false);
+    setDoneComment("");
+    setPendingBackToAuthor(false);
+    setBackToAuthorReason("");
+    setBackToAuthorReasonError(false);
     handleClose();
   };
 
@@ -192,7 +208,19 @@ const DialogRequest = ({
       return;
     }
 
-    // Bestätigungsdialog für nicht-Ablehnungs-Transitionen
+    // Bei Abschluss: optionalen Kommentar anbieten
+    if (nextStatus === RequestStatus.done) {
+      setPendingDone(true);
+      return;
+    }
+
+    // Zurück an Autor*in: Begründung verlangen
+    if (nextStatus === RequestStatus.backToAuthor) {
+      setPendingBackToAuthor(true);
+      return;
+    }
+
+    // Bestätigungsdialog für andere Transitionen
     const statusName =
       TEXT_STATUS_NAME[nextStatus as keyof typeof TEXT_STATUS_NAME] ?? nextStatus;
     const confirmed = await customDialog({
@@ -221,6 +249,40 @@ const DialogRequest = ({
     setPendingDecline(false);
     setDeclineReason("");
     setDeclineReasonError(false);
+  };
+
+  /** Abschluss bestätigen (Kommentar ist optional). */
+  const onConfirmDone = () => {
+    setPendingDone(false);
+    const trimmed = doneComment.trim();
+    handleUpdateStatus(RequestStatus.done, trimmed || undefined);
+    setDoneComment("");
+  };
+
+  const onCancelDone = () => {
+    setPendingDone(false);
+    setDoneComment("");
+  };
+
+  /** Zurück an Autor*in bestätigen (Begründung ist Pflicht). */
+  const onConfirmBackToAuthor = () => {
+    if (!backToAuthorReason.trim()) {
+      setBackToAuthorReasonError(true);
+      return;
+    }
+    setBackToAuthorReasonError(false);
+    setPendingBackToAuthor(false);
+    handleUpdateStatus(
+      RequestStatus.backToAuthor,
+      backToAuthorReason.trim(),
+    );
+    setBackToAuthorReason("");
+  };
+
+  const onCancelBackToAuthor = () => {
+    setPendingBackToAuthor(false);
+    setBackToAuthorReason("");
+    setBackToAuthorReasonError(false);
   };
 
   const onChangeComment = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -442,6 +504,84 @@ const DialogRequest = ({
                       {TEXT_REQUEST_DECLINE_CONFIRM}
                     </Button>
                     <Button size="small" onClick={onCancelDecline}>
+                      {TEXT_BUTTON_CANCEL}
+                    </Button>
+                  </React.Fragment>
+                }
+              />
+            </ListItem>
+          )}
+          {/* Optionaler Kommentar beim Abschliessen (inline-Formular) */}
+          {pendingDone && (
+            <ListItem>
+              <ListItemText
+                primary={
+                  <React.Fragment>
+                    <TextField
+                      label={TEXT_REQUEST_DONE_COMMENT_LABEL}
+                      multiline
+                      minRows={3}
+                      variant="outlined"
+                      fullWidth
+                      value={doneComment}
+                      onChange={(e) => setDoneComment(e.target.value)}
+                      autoFocus
+                      style={{marginBottom: "8px"}}
+                    />
+                    <Button
+                      size="small"
+                      color="primary"
+                      variant="contained"
+                      onClick={onConfirmDone}
+                      style={{marginRight: "8px"}}
+                    >
+                      {TEXT_REQUEST_DONE_CONFIRM}
+                    </Button>
+                    <Button size="small" onClick={onCancelDone}>
+                      {TEXT_BUTTON_CANCEL}
+                    </Button>
+                  </React.Fragment>
+                }
+              />
+            </ListItem>
+          )}
+          {/* Begründung für Zurück an Autor*in (inline-Formular) */}
+          {pendingBackToAuthor && (
+            <ListItem>
+              <ListItemText
+                primary={
+                  <React.Fragment>
+                    <TextField
+                      label={TEXT_REQUEST_BACK_TO_AUTHOR_REASON_LABEL}
+                      multiline
+                      minRows={3}
+                      variant="outlined"
+                      fullWidth
+                      value={backToAuthorReason}
+                      onChange={(e) => {
+                        setBackToAuthorReason(e.target.value);
+                        if (e.target.value.trim())
+                          setBackToAuthorReasonError(false);
+                      }}
+                      error={backToAuthorReasonError}
+                      helperText={
+                        backToAuthorReasonError
+                          ? TEXT_REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED
+                          : ""
+                      }
+                      autoFocus
+                      style={{marginBottom: "8px"}}
+                    />
+                    <Button
+                      size="small"
+                      color="warning"
+                      variant="contained"
+                      onClick={onConfirmBackToAuthor}
+                      style={{marginRight: "8px"}}
+                    >
+                      {TEXT_REQUEST_BACK_TO_AUTHOR_CONFIRM}
+                    </Button>
+                    <Button size="small" onClick={onCancelBackToAuthor}>
                       {TEXT_BUTTON_CANCEL}
                     </Button>
                   </React.Fragment>

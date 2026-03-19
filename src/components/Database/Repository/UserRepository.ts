@@ -248,18 +248,19 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
    * Die View enthält nur die öffentlich sichtbaren Felder (DisplayName, Motto, Bild, etc.).
    * Statistiken werden vorerst mit Standardwerten (0) gefüllt und später über
    * Views/JOINs aus den Datentabellen berechnet.
-   * @param userId - UID des Benutzers
+   *
+   * @param authUid - Supabase Auth UUID (auth_uid-Spalte)
    * @returns UserPublicProfile-Objekt
    */
-  async findPublicProfile(userId: string): Promise<UserPublicProfile> {
+  async findPublicProfile(authUid: string): Promise<UserPublicProfile> {
     const {data, error} = await this.client
       .from("user_profiles")
       .select("*")
-      .eq("auth_uid", userId)
+      .eq("auth_uid", authUid)
       .maybeSingle();
 
     if (error) throw error;
-    if (!data) throw new Error(`Benutzerprofil nicht gefunden: ${userId}`);
+    if (!data) throw new Error(`Benutzerprofil nicht gefunden: ${authUid}`);
 
     const profile = new UserPublicProfile();
     profile.uid = data.id;

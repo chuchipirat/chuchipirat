@@ -65,6 +65,7 @@ import User from "../../User/user.class";
 
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
+import {FeedType} from "../../Shared/feed.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Utils from "../../Shared/utils.class";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
@@ -335,6 +336,19 @@ const EventInfoPage = ({
       if (event.uid) {
         // Koch in Supabase hinzufügen — publicProfile.uid enthält die Auth-UUID
         await database.events.addCook(event.uid, personUid, authUser);
+
+        // Feed-Eintrag: Koch zum Team hinzugefügt
+        database.feeds
+          .insertFeed(
+            {
+              feedType: FeedType.eventCookAdded,
+              sourceObjectType: "event",
+              sourceObjectUid: event.uid,
+              userUid: personUid,
+            },
+            authUser,
+          )
+          .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
       }
 
       onUpdateEvent({...event, cooks: updatedCooks} as Event);

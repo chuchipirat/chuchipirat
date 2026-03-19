@@ -43,7 +43,14 @@ UI Component  →  Domain Service (.class.ts)  →  Repository
 | **Phase 2** | Auth (Supabase Auth primary, Firebase fallback), user profiles, image storage | Done |
 | **Phase 3** | GlobalSettings, SystemMessages, Admin UI restructuring | Done |
 | **Phase 4** | Masterdata: Departments, Units, Materials, Products, Unit Conversions | Done |
-| **Phase 5+** | Events, Recipes, Requests, Feeds, Stats | Pending (still on Firebase) |
+| **Phase 5** | Recipes | Done |
+| **Phase 6** | Events, Group Config, Menuplan | Done |
+| **Phase 7** | Used Recipes | Done |
+| **Phase 8** | Shopping Lists | Done |
+| **Phase 9** | Material Lists | Done |
+| **Phase 10** | Requests | Done |
+| **Phase 11** | Feeds | Done (in progress on branch) |
+| **Remaining** | Cloud Functions migration, UI page cleanup, Firebase removal | Pending |
 
 ## Migration Jobs
 
@@ -61,3 +68,12 @@ Each `MigrationJob` fetches Firebase records and writes them to Supabase via the
 6. `ProductMigrationJob` — Products (Phase 4, depends on departments/units)
 7. `UnitConversionBasicMigrationJob` — Standard unit conversions (Phase 4, depends on units)
 8. `UnitConversionProductMigrationJob` — Product-specific unit conversions (Phase 4, depends on products/units)
+9. `RecipeMigrationJob` — Recipes (Phase 5)
+10. `EventMigrationJob` — Events (Phase 6)
+11. `GroupConfigMigrationJob` — Group Config (Phase 6)
+12. `MenuplanMigrationJob` — Menuplans (Phase 6)
+13. `EventPictureMigrationJob` — Event pictures (Phase 6)
+14. `ShoppingListMigrationJob` — Shopping Lists (Phase 8)
+15. `MaterialListMigrationJob` — Material Lists (Phase 9)
+16. `RequestMigrationJob` — Requests (Phase 10)
+17. `FeedMigrationJob` — Feeds (Phase 11)

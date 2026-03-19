@@ -185,12 +185,16 @@ export class RequestCommentRepository extends BaseRepository<
    * @param requestId - Die Antrags-ID
    * @param comment - Der Kommentartext
    * @param authUser - Der angemeldete Benutzer
+   * @param skipNotification - Wenn true, wird keine separate Kommentar-E-Mail
+   *   ausgelöst (z.B. bei Kommentaren als Teil eines Statuswechsels, der
+   *   bereits eine eigene Benachrichtigung auslöst).
    * @returns Der eingefügte Kommentar mit Profilfeldern aus authUser
    */
   async insertComment(
     requestId: string,
     comment: string,
     authUser: AuthUser,
+    skipNotification = false,
   ): Promise<RequestCommentDomain> {
     try {
       const {data, error} = await this.client
@@ -204,18 +208,22 @@ export class RequestCommentRepository extends BaseRepository<
 
       if (error) throw error;
 
-      // Benachrichtigung asynchron auslösen — Fehler beim Senden blocken nicht
-      this.client.functions
-        .invoke("notify-request", {
-          body: {
-            scenario: "requestNewComment",
-            requestId,
-            commentId: data.id,
-          },
-        })
-        .catch((err: unknown) =>
-          console.error("notify-request (comment) konnte nicht aufgerufen werden:", err),
-        );
+      // Benachrichtigung asynchron auslösen — Fehler beim Senden blocken nicht.
+      // Bei Statuswechseln (done, declined) wird die Benachrichtigung
+      // übersprungen, da bereits eine spezifische E-Mail ausgelöst wird.
+      if (!skipNotification) {
+        this.client.functions
+          .invoke("notify-request", {
+            body: {
+              scenario: "requestNewComment",
+              requestId,
+              commentId: data.id,
+            },
+          })
+          .catch((err: unknown) =>
+            console.error("notify-request (comment) konnte nicht aufgerufen werden:", err),
+          );
+      }
 
       // Domain-Objekt mit Profilfeldern aus authUser zurückgeben
       return {

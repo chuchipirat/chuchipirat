@@ -65,3 +65,7 @@ supabase/dev/
 supabase/.env
 supabase/.temp/
 supabase/html-report/*
+
+
+# documentation
+firebase-auth-migration.md

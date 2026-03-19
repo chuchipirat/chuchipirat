@@ -77,13 +77,13 @@ export const FormListItem = ({
             <ListItemText sx={classes.listItemTitle} secondary={label} />
             {typeof value === "string" ? (
               <ListItemText
-                sx={
-                  !displayAsCode
-                    ? classes.listItemContent
-                    : [classes.listItemContent, classes.typographyCode]
-                }
-                disableTypography={displayAsCode}
+                sx={classes.listItemContent}
                 primary={value}
+                primaryTypographyProps={
+                  displayAsCode
+                    ? {sx: classes.typographyCode}
+                    : undefined
+                }
               />
             ) : value instanceof Date ? (
               <ListItemText sx={classes.listItemContent}>

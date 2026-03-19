@@ -60,6 +60,8 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260316000006_create_material_lists.sql`                  | Materiallisten: Tabellen `event_material_lists` + `event_material_list_items` (inkl. Koch-Zuordnung via `assigned_cook_id`/`assigned_cook_name`), VIEW `event_material_list_items_view` (aufgelöste Material-Namen und Koch-Namen), RLS via `is_event_cook()`, wiederverwendet `shopping_list_edit_source` ENUM |
 | `20260316000007_enable_realtime_material_lists.sql`         | Aktiviert Supabase Realtime für `event_material_lists` und `event_material_list_items` |
 | `20260317000001_create_requests.sql`                        | Anträge: ENUMs `request_status_type` + `request_type_enum`, SEQUENCE `request_number_seq`, Tabellen `requests` + `request_comments`, VIEWs `requests_view` (Autor/Assignee/Rezept aufgelöst) + `request_comments_view` (Kommentar-Autor aufgelöst), RLS: Autor sieht eigene, Community Leaders sehen alle |
+| `20260317000002_create_user_role_enum.sql`                  | Gemeinsamer ENUM `user_role` (basic, communityLeader, admin): `users.roles` von `TEXT[]` auf `user_role[]` umgestellt, `users_update`-Policy und `is_admin()`/`is_community_leader()`-Funktionen angepasst |
+| `20260318000001_create_feeds.sql`                           | Feed-System: ENUM `feed_type` (10 Werte), Tabelle `feeds` (Visibility via `user_role`), VIEW `feeds_view` (User- und Quellobjekt-Namen via JOINs aufgelöst), RLS: SELECT/INSERT alle authentifizierten, DELETE nur Community Leaders |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -170,6 +172,8 @@ Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) 
 15. **UsedRecipeListMeals** migrieren (Meal-Zuordnungen für Mengenberechnungs-Listen — hängt von Events, Menuplan ab)
 16. **ShoppingLists** migrieren (Einkaufslisten — hängt von Events, Products, Materials, Departments, Units ab)
 17. **MaterialLists** migrieren (Materiallisten — hängt von Events, Materials ab)
+18. **Requests** migrieren (Anträge — hängt von Users, Recipes ab)
+19. **Feeds** migrieren (Feed-Einträge — hängt von Users, Recipes, Events, Products, Materials ab; `menuplanCreated` → `eventCreated`, `recipeCreated`/`none` übersprungen)
 
 ---
 

@@ -265,21 +265,19 @@ describe("UserRepository", () => {
   // ------------------------------------------ */
   describe("findPublicProfile()", () => {
     test("Öffentliches Profil anhand auth_uid laden", async () => {
-      // Seit der Supabase-Migration wird die Abfrage per auth_uid durchgeführt,
-      // da URLs die Supabase Auth UUID verwenden.
       supabaseMock.queryMock.maybeSingle.mockResolvedValue({
         data: userProfileRow,
         error: null,
       });
 
       const result = await repo.findPublicProfile(
-        "supabase-auth-uuid-123",
+        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       );
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("user_profiles");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
         "auth_uid",
-        "supabase-auth-uuid-123",
+        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       );
       expect(result.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(result.displayName).toBe("TestUser");
@@ -295,7 +293,7 @@ describe("UserRepository", () => {
       });
 
       const result = await repo.findPublicProfile(
-        "supabase-auth-uuid-123",
+        "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       );
 
       expect(result.stats).toEqual({

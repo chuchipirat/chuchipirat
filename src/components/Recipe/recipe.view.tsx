@@ -152,6 +152,7 @@ import {
 import Firebase from "../Firebase/firebase.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import {RecipeCommentDomain} from "../Database/Repository/RecipeCommentRepository";
+import {FeedType} from "../Shared/feed.class";
 import {RequestAction, RequestType} from "../Request/request.class";
 import {Request as RequestClass} from "../Request/request.class";
 import {RequestService} from "../Request/requestService";
@@ -368,6 +369,19 @@ const RecipeView = ({
         {uid: "", recipeId: recipe.uid, userId: authUser.authUid, rating: value},
         authUser,
       );
+      // Feed-Eintrag: Rezept bewertet
+      database.feeds
+        .insertFeed(
+          {
+            feedType: FeedType.recipeRated,
+            sourceObjectType: "recipe",
+            sourceObjectUid: recipe.uid,
+            sourceObjectData: {rating: value},
+          },
+          authUser,
+        )
+        .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+
       // DB-Trigger hat avg_rating + no_ratings in recipes aktualisiert → nachladen.
       // Cache umgehen, damit die vom Trigger aktualisierten Werte gelesen werden.
       const updatedHeader = await database.recipes.getRecipe(recipe.uid, true);
@@ -681,10 +695,10 @@ const RecipeView = ({
       );
 
       // Initialen Kommentar als Request-Kommentar speichern (falls vorhanden)
-      if (messageForReview) {
+      if (messageForReview?.trim()) {
         await database.requestComments.insertComment(
           created.uid,
-          messageForReview,
+          messageForReview.trim(),
           authUser,
         );
       }
@@ -754,10 +768,10 @@ const RecipeView = ({
       );
 
       // Initialen Kommentar speichern (falls vorhanden)
-      if (messageForReview) {
+      if (messageForReview?.trim()) {
         await database.requestComments.insertComment(
           created.uid,
-          messageForReview,
+          messageForReview.trim(),
           authUser,
         );
       }
@@ -932,6 +946,7 @@ const RecipeView = ({
               <Grid size={12} style={{marginTop: "2em", marginBottom: "2em"}}>
                 <RecipeComments
                   recipeId={recipe.uid}
+                  recipeName={recipe.name}
                   disableFunctionality={disableFunctionality}
                 />
               </Grid>
@@ -2298,6 +2313,7 @@ const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
  */
 interface RecipeCommentsProps {
   recipeId: string;
+  recipeName: string;
   disableFunctionality?: boolean;
 }
 
@@ -2315,6 +2331,7 @@ const MAX_COMMENT_LENGTH = 500;
  */
 const RecipeComments = ({
   recipeId,
+  recipeName,
   disableFunctionality = false,
 }: RecipeCommentsProps) => {
   const database = useDatabase();
@@ -2387,6 +2404,18 @@ const RecipeComments = ({
       );
       setComments((previous) => [insertedComment, ...previous]);
       setNewComment("");
+
+      // Feed-Eintrag: Rezept kommentiert
+      database.feeds
+        .insertFeed(
+          {
+            feedType: FeedType.recipeCommented,
+            sourceObjectType: "recipe",
+            sourceObjectUid: recipeId,
+          },
+          authUser,
+        )
+        .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
     } catch (err) {
       console.error(err);
     } finally {

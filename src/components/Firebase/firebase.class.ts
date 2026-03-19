@@ -1,7 +1,7 @@
 import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
 
 import FirebaseDbEvent from "./Db/firebase.db.event.class";
-import FirebaseDbFeed from "./Db/firebase.db.feed.class";
+
 import FirebaseDbMasterData from "./Db/firebase.db.masterData.class";
 import FirebaseDbRecipePublic from "./Db/firebase.db.recipe.public.class";
 import FirebaseDbRecipePrivate from "./Db/firebase.db.recipe.private.class";
@@ -100,7 +100,6 @@ export default class Firebase {
   event: FirebaseDbEvent;
   eventShort: FirebaseDbEventShort;
   user: FirebaseDbUser;
-  feed: FirebaseDbFeed;
   stats: FirebaseDbStats;
   masterdata: FirebaseDbMasterData;
   configuration: FirebaseDbConfiguration;
@@ -132,7 +131,7 @@ export default class Firebase {
     this.event = new FirebaseDbEvent(this);
     this.eventShort = new FirebaseDbEventShort(this);
     this.user = new FirebaseDbUser(this);
-    this.feed = new FirebaseDbFeed(this);
+
     this.stats = new FirebaseDbStats(this);
     this.masterdata = new FirebaseDbMasterData(this);
 

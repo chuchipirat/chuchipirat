@@ -69,6 +69,7 @@ import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
+import {FeedType} from "../Shared/feed.class";
 import LocalStorageKey from "../../constants/localStorage";
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -362,6 +363,18 @@ const UserProfilePage = () => {
         type: ReducerActions.USER_PICTURE_UPLOAD_SUCCESS,
         payload: publicUrl,
       });
+
+      // Feed-Eintrag: Profilbild geändert
+      database.feeds
+        .insertFeed(
+          {
+            feedType: FeedType.profilePictureChanged,
+            sourceObjectType: "user",
+            sourceObjectUid: authUser!.authUid,
+          },
+          authUser!,
+        )
+        .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
     } catch (error) {
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     } finally {

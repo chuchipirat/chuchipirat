@@ -8,7 +8,7 @@ The Request system manages user-initiated workflows for public content changes (
 
 - **Recipe publish** = single `UPDATE recipes SET recipe_type = 'public', is_in_review = false`. No Cloud Function needed — Supabase normalization means RLS propagates automatically.
 - **Email delivery:** New Edge Function `notify-request` following the `notify-recipe-comment` pattern (Brevo primary, SMTP/MailPit fallback)
-- **Feed entries:** TODO marker only — will be added in feed migration phase
+- **Feed entries:** Implemented in Phase 11 (Feed migration)
 - **Request numbering:** Postgres SEQUENCE (atomic, no race conditions)
 - **Single table:** Merge active/closed into one `requests` table with `status` column
 - **Drop polymorphism:** Replace abstract class + 2 subclasses with a single service + transition constants. The subclasses add minimal value (different transition maps + post-actions).
@@ -220,7 +220,7 @@ Strip all Firebase persistence. Keep as a static utility class (not abstract):
 Handles post-actions after status transitions:
 
 - `executePostAction(request, newStatus, database)` → switch on `requestType` + `status`:
-  - publish + done: `database.recipes.patchRecipeFields(recipeId, {recipe_type: 'public', is_in_review: false})` + trigger email via Edge Function + TODO: feed entry
+  - publish + done: `database.recipes.patchRecipeFields(recipeId, {recipe_type: 'public', is_in_review: false})` + trigger email via Edge Function + feed entry (Phase 11)
   - publish + declined: `database.recipes.patchRecipeFields(recipeId, {is_in_review: false})`
   - error + done: trigger email via Edge Function
   - error + declined: no action currently

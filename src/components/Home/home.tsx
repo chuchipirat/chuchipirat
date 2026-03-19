@@ -50,7 +50,8 @@ import EventCard, {EventCardLoading} from "../Event/Event/eventCard";
 
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Feed, {FeedType} from "../Shared/feed.class";
+import {FeedType} from "../Shared/feed.class";
+import {FeedDomain} from "../Database/Repository/FeedRepository";
 import {RecipeCardLoading} from "../Recipe/recipeCard";
 import Action from "../../constants/actions";
 import {RecipeType} from "../Recipe/recipe.class";
@@ -97,9 +98,9 @@ type DispatchAction =
   | {type: ReducerActions.PASSED_EVENTS_FETCH_INIT}
   | {type: ReducerActions.PASSED_EVENTS_FETCH_SUCCESS; payload: Event[]}
   | {type: ReducerActions.NEWEST_RECIPES_FETCH_INIT}
-  | {type: ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS; payload: Feed[]}
+  | {type: ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS; payload: FeedDomain[]}
   | {type: ReducerActions.FEED_FETCH_INIT}
-  | {type: ReducerActions.FEED_FETCH_SUCCESS; payload: Feed[]}
+  | {type: ReducerActions.FEED_FETCH_SUCCESS; payload: FeedDomain[]}
   | {type: ReducerActions.STATS_FETCH_INIT}
   | {type: ReducerActions.STATS_FETCH_SUCCESS; payload: Kpi[]}
   | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS; payload: SystemMessageDomain[]}
@@ -110,8 +111,8 @@ type DispatchAction =
 type State = {
   events: Event[];
   passedEvents: Event[];
-  recipes: Feed[];
-  feed: Feed[];
+  recipes: FeedDomain[];
+  feed: FeedDomain[];
   stats: Kpi[];
   systemMessages: SystemMessageDomain[];
   snackbar: Snackbar;
@@ -294,12 +295,8 @@ const HomePage = () => {
     //Neuster freigegebene Rezepte
     dispatch({type: ReducerActions.NEWEST_RECIPES_FETCH_INIT});
 
-    Feed.getNewestFeeds({
-      firebase: firebase,
-      limitTo: DEFAULT_RECIPE_DISPLAY,
-      feedType: FeedType.recipePublished,
-      visibility: Role.basic,
-    })
+    database.feeds
+      .getNewestFeeds(DEFAULT_RECIPE_DISPLAY, Role.basic, FeedType.recipePublished)
       .then((result) => {
         dispatch({
           type: ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS,
@@ -315,11 +312,8 @@ const HomePage = () => {
     //Feed Einträge
     dispatch({type: ReducerActions.FEED_FETCH_INIT});
 
-    Feed.getNewestFeeds({
-      firebase: firebase,
-      limitTo: DEFAULT_VALUES_FEEDS_DISPLAY,
-      visibility: Role.basic,
-    })
+    database.feeds
+      .getNewestFeeds(DEFAULT_VALUES_FEEDS_DISPLAY, Role.basic)
       .then((result) => {
         dispatch({
           type: ReducerActions.FEED_FETCH_SUCCESS,
@@ -433,7 +427,7 @@ const HomePage = () => {
       },
     });
   };
-  const onFeedEntryCllick = (event: React.MouseEvent<HTMLElement>) => {
+  const onFeedEntryClick = (event: React.MouseEvent<HTMLElement>) => {
     const feedEntry = state.feed.find(
       (feedEntry) => feedEntry.uid == event.currentTarget.id.split("_")[1],
     );
@@ -441,8 +435,10 @@ const HomePage = () => {
       return;
     }
 
-    switch (feedEntry.type) {
+    switch (feedEntry.feedType) {
       case FeedType.recipePublished:
+      case FeedType.recipeRated:
+      case FeedType.recipeCommented:
         // Rezept anzeigen
         navigate(`${ROUTES.RECIPE}/${feedEntry.sourceObject.uid}`, {
           state: {
@@ -525,7 +521,7 @@ const HomePage = () => {
             <HomeFeed
               feed={state.feed}
               isLoadingFeed={state.isLoadingFeed}
-              onListEntryClick={onFeedEntryCllick}
+              onListEntryClick={onFeedEntryClick}
             />
           </Grid>
           <Grid size={{xs: 12, md: 4}}>
@@ -720,7 +716,7 @@ const HomePassedEvents = ({
 // ========================== Neuste Rezepte ==========================
 // =================================================================== */
 interface HomeNewestRecipesProps {
-  recipes: Feed[];
+  recipes: FeedDomain[];
   isLoadingRecipes: boolean;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
@@ -805,7 +801,7 @@ const HomeNewestRecipes = ({
 // ========================== Feed-Einträge ==========================
 // =================================================================== */
 interface HomeFeedProps {
-  feed: Feed[];
+  feed: FeedDomain[];
   isLoadingFeed: boolean;
   onListEntryClick: (event: React.MouseEvent<HTMLElement>) => void;
 }

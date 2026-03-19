@@ -5,8 +5,6 @@ import AuthUser from "../Firebase/Authentication/authUser.class";
 
 import Utils from "../Shared/utils.class";
 import Stats, {StatsField} from "../Shared/stats.class";
-import Feed, {FeedType} from "../Shared/feed.class";
-import Role from "../../constants/roles";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 import Product from "../Product/product.class";
 
@@ -151,17 +149,6 @@ export default class Material {
 
     // Event auslösen
     logEvent(firebase.analytics, FirebaseAnalyticEvent.materialCreated);
-
-    // interner Feed-Eintrag
-    Feed.createFeedEntry({
-      firebase: firebase,
-      authUser: authUser,
-      feedType: FeedType.materialCreated,
-      feedVisibility: Role.communityLeader,
-      objectUid: material.uid,
-      objectName: material.name,
-      textElements: [material.name],
-    });
 
     // Statistik
     Stats.incrementStat({

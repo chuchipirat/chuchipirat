@@ -52,6 +52,7 @@ import {
 
 import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
+import {FeedType} from "../../Shared/feed.class";
 
 import {
   NavigationValuesContext,
@@ -487,7 +488,42 @@ const CreateEventPage = () => {
       // 7. Menüplan initialisieren (Mahlzeittypen + Mahlzeiten + Menüs für jedes Datum)
       await database.menuplan.initializeMenuplan(eventDomain.uid, dateDomains, authUser);
 
-      // 8. Zum Event navigieren
+      // 8. Feed-Einträge erstellen (nicht blockierend)
+      database.feeds
+        .insertFeed(
+          {
+            feedType: FeedType.eventCreated,
+            sourceObjectType: "event",
+            sourceObjectUid: eventDomain.uid,
+          },
+          authUser,
+        )
+        .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+
+      // Feed für jeden weiteren Koch (nicht den Ersteller selbst)
+      // cook.uid ist die Firebase-UID → auth UUID über users-Tabelle auflösen
+      const usersForFeed = database.admin?.users ?? database.users;
+      for (const cook of state.event.cooks) {
+        if (cook.uid !== authUser.uid) {
+          usersForFeed
+            .findById(cook.uid)
+            .then((userDomain) => {
+              if (!userDomain?.authUid) return;
+              return database.feeds.insertFeed(
+                {
+                  feedType: FeedType.eventCookAdded,
+                  sourceObjectType: "event",
+                  sourceObjectUid: eventDomain.uid,
+                  userUid: userDomain.authUid,
+                },
+                authUser,
+              );
+            })
+            .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+        }
+      }
+
+      // 9. Zum Event navigieren
       const savedEvent = {...state.event, uid: eventDomain.uid, pictureSrc};
       dispatch({type: ReducerActions.SAVE_EVENT_SUCCESS, payload: savedEvent});
       navigate(`${ROUTE_EVENT}/${eventDomain.uid}`);

@@ -70,7 +70,7 @@ const DialogPublishRecipe = ({
   // ------------------------------------------ */
   const onOkClick = () => {
     setFormFields({...formFields, initial: true});
-    handleOk(formFields.messageForReview);
+    handleOk(formFields.messageForReview.trim());
   };
   /* ------------------------------------------
   // PopUp Abbrechen

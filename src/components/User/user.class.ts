@@ -503,8 +503,9 @@ export default class User {
     // Admin-Client verwenden (umgeht RLS während Übergangsphase)
     const usersRead = database.admin?.users ?? database.users;
     // Alte Werte holen um zu vergleichen ob die Cloud Function gestartet werden muss
+    // findPublicProfile erwartet die Supabase Auth UUID (auth_uid-Spalte)
     const actualPublicProfile = await usersRead.findPublicProfile(
-      userProfile.uid,
+      authUser.authUid,
     );
 
     // Bild hochladen wenn vorhanden

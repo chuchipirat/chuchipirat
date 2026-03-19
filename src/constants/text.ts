@@ -958,10 +958,11 @@ export const FEED_TITLE = {
   RECIPE_CREATED: "Neues Rezept",
   RECIPE_PUBLISHED: "Neues Rezept",
   RECIPE_RATED: "Neues Rating für",
+  RECIPE_COMMENTED: "Neuer Kommentar",
   EVENT_CREATED: "Gut geplant ist halb gewonnen",
   EVENT_COOK_ADDED: "Küchen-Crew vergrössert",
-  MENUPLAN_CREATED: "Was wird wann gekocht?",
   SHOPPINGLIST_CREATED: "Einkaufen ist angesagt",
+  PROFILE_PICTURE_CHANGED: "Neues Profilbild",
 };
 
 export const FEED_TEXT = {
@@ -999,10 +1000,17 @@ export const FEED_TEXT = {
     `hat den Anlass «${textElements[0]}» erstellt.`,
   EVENT_COOK_ADDED: (textElements: string[]) =>
     `wurde in das Team «${textElements[0]}» aufgenommen.`,
-  MENUPLAN_CREATED: (textElements: string[]) =>
-    `Plant gerade den ${textElements[0]}`,
-  SHOPPINGLIST_CREATED: (textElements: string[]) =>
-    `kauft ${textElements[0]} ein.`,
+  SHOPPINGLIST_CREATED: (textElements: string[]) => {
+    const item = textElements[0] ?? "";
+    const remaining = parseInt(textElements[1] ?? "0", 10);
+    if (remaining > 0) {
+      return `schnappt sich ${item} und ${remaining} weitere Schätze.`;
+    }
+    return `schnappt sich ${item}.`;
+  },
+  RECIPE_COMMENTED: (textElements: string[]) =>
+    `hat das Rezept «${textElements[0]}» kommentiert.`,
+  PROFILE_PICTURE_CHANGED: "hat ein neues Profilbild hochgeladen.",
 };
 /* =====================================================================
 // Texte zum Handling mit Bilder/Images
@@ -1441,6 +1449,10 @@ export const UNIT_DIMENSION = {
   DLS: "Dimensionslos",
 };
 export const FEEDS = "Feed-Einträge";
+export const DELETE_FEEDS = "Feeds löschen";
+export const DELETE_FEEDS_OLDER_THAN =
+  "Feeds löschen, die älter sind als (Tage)";
+export const FEED_ENTRIES = "Feed-Einträge";
 export const RECEIPT = "Quittung";
 export const CREATE_RECEIPT = "Quittung erstellen";
 export const PAY_DATE = "Bezahlt am";
@@ -1529,8 +1541,15 @@ export const REQUEST_DECLINE_REASON_LABEL = "Begründung für Ablehnung";
 export const REQUEST_DECLINE_REASON_REQUIRED =
   "Bitte gib eine Begründung für die Ablehnung an.";
 export const REQUEST_DECLINE_CONFIRM = "Ablehnen";
+export const REQUEST_DONE_COMMENT_LABEL = "Optionaler Kommentar";
+export const REQUEST_DONE_CONFIRM = "Antrag abschliessen";
 export const REQUEST_BACK_TO_AUTHOR_HINT =
   "Der/die Bearbeiter*in benötigt weitere Informationen von dir.";
+export const REQUEST_BACK_TO_AUTHOR_REASON_LABEL =
+  "Was muss angepasst werden?";
+export const REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED =
+  "Bitte gib an, was angepasst werden muss.";
+export const REQUEST_BACK_TO_AUTHOR_CONFIRM = "Zurück an Autor*in";
 export const REQUEST_EMPTY_STATE =
   "Du hast noch keine Anträge erstellt. Sobald du ein Rezept zur Veröffentlichung einreichst oder einen Fehler meldest, erscheint dein Antrag hier.";
 export const REQUEST_EMPTY_STATE_LEADER =

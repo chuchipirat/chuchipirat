@@ -109,7 +109,7 @@ async function handleNewRequest(
     .limit(1)
     .maybeSingle();
 
-  const commentText = firstComment?.comment ?? "";
+  const commentText = firstComment?.comment?.trim() ?? "";
 
   // Antrags-Link zusammenbauen
   const siteUrl = (Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch").replace(
@@ -183,17 +183,45 @@ async function handleRecipePublished(
   const author = await getUser(supabaseAdmin, request.author_uid);
   if (!author?.email) return;
 
+  // Letzten Kommentar laden (optionaler Abschluss-Kommentar)
+  const {data: lastComment} = await supabaseAdmin
+    .from("request_comments")
+    .select("comment")
+    .eq("request_id", request.id)
+    .order("created_at", {ascending: false})
+    .limit(1)
+    .maybeSingle();
+
+  const commentText = lastComment?.comment?.trim() ?? "";
+
+  // Kommentar-Block als vorbereitetes HTML (gleiche Struktur wie bei Ablehnung)
+  const commentBlock = commentText
+    ? `<p style="margin: 16px 0 8px; font-size: 14px; color: #757575; line-height: 1.5;">Kommentar:</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="background-color: #f5f5f5; border-left: 4px solid #006064; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0; font-size: 15px; color: #424242; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(commentText.length > 500 ? commentText.slice(0, 497) + "…" : commentText)}</p>
+                  </td>
+                </tr>
+              </table>`
+    : "";
+
   const subject = `Dein Rezept «${recipeName}» wurde veröffentlicht`;
-  const htmlContent = renderEmailTemplate("request-published", {
-    subject,
-    authorDisplayName: author.display_name || "Koch",
-    recipeName,
-  });
+  const htmlContent = renderEmailTemplate(
+    "request-published",
+    {
+      subject,
+      authorDisplayName: author.display_name || "Koch",
+      recipeName,
+    },
+    {commentBlock},
+  );
 
   const textContent =
     `Hallo ${author.display_name || "Koch"},\n\n` +
     `Dein Rezept «${recipeName}» wurde veröffentlicht!\n` +
     `Es ist jetzt für alle Benutzer*innen von chuchipirat sichtbar.\n\n` +
+    (commentText ? `Kommentar:\n${commentText}\n\n` : "") +
     `Vielen Dank für deinen Beitrag!\n\n` +
     `Bei Fragen: hallo@chuchipirat.ch`;
 
@@ -213,17 +241,44 @@ async function handleReportErrorFixed(
   const author = await getUser(supabaseAdmin, request.author_uid);
   if (!author?.email) return;
 
+  // Letzten Kommentar laden (optionaler Abschluss-Kommentar)
+  const {data: lastComment} = await supabaseAdmin
+    .from("request_comments")
+    .select("comment")
+    .eq("request_id", request.id)
+    .order("created_at", {ascending: false})
+    .limit(1)
+    .maybeSingle();
+
+  const commentText = lastComment?.comment?.trim() ?? "";
+
+  const commentBlock = commentText
+    ? `<p style="margin: 16px 0 8px; font-size: 14px; color: #757575; line-height: 1.5;">Kommentar:</p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="background-color: #f5f5f5; border-left: 4px solid #006064; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+                    <p style="margin: 0; font-size: 15px; color: #424242; line-height: 1.6; white-space: pre-wrap;">${escapeHtml(commentText.length > 500 ? commentText.slice(0, 497) + "…" : commentText)}</p>
+                  </td>
+                </tr>
+              </table>`
+    : "";
+
   const subject = `Die Fehlermeldung #${request.number} wurde bearbeitet`;
-  const htmlContent = renderEmailTemplate("request-error-fixed", {
-    subject,
-    authorDisplayName: author.display_name || "Koch",
-    requestNumber: String(request.number),
-    recipeName,
-  });
+  const htmlContent = renderEmailTemplate(
+    "request-error-fixed",
+    {
+      subject,
+      authorDisplayName: author.display_name || "Koch",
+      requestNumber: String(request.number),
+      recipeName,
+    },
+    {commentBlock},
+  );
 
   const textContent =
     `Hallo ${author.display_name || "Koch"},\n\n` +
     `Die Fehlermeldung #${request.number} zum Rezept «${recipeName}» wurde bearbeitet.\n\n` +
+    (commentText ? `Kommentar:\n${commentText}\n\n` : "") +
     `Vielen Dank für deine Meldung!\n\n` +
     `Bei Fragen: hallo@chuchipirat.ch`;
 
@@ -255,7 +310,7 @@ async function handleDeclined(
     .limit(1)
     .maybeSingle();
 
-  const reasonText = lastComment?.comment ?? "";
+  const reasonText = lastComment?.comment?.trim() ?? "";
 
   const siteUrl = (Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch").replace(
     /\/$/,

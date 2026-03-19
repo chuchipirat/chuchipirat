@@ -407,14 +407,24 @@ const RequestOverviewPage = () => {
   const onUpdateStatus = async (nextStatus: RequestStatus, reason?: string) => {
     if (!requestPopupValues.selectedRequest) return;
     const request = requestPopupValues.selectedRequest;
+    // Status vor dem Wechsel merken (für bedingte Post-Actions)
+    const previousStatus = request.status;
 
     try {
-      // Bei Ablehnung: Begründung als Kommentar speichern
+      // Kommentar speichern (falls vorhanden).
+      // Bei done/declined: skipNotification = true, da der Statuswechsel
+      // bereits eine eigene E-Mail auslöst (requestRecipePublished / requestDeclined).
+      // Bei anderen Übergängen (z.B. backToAuthor): Kommentar-Benachrichtigung
+      // ist die einzige E-Mail → normal senden.
       if (reason) {
+        const isClosingTransition =
+          nextStatus === RequestStatus.done ||
+          nextStatus === RequestStatus.declined;
         const comment = await database.requestComments.insertComment(
           request.uid,
           reason,
           authUser,
+          isClosingTransition,
         );
         setRequestPopupValues((prev) => ({
           ...prev,
@@ -454,7 +464,13 @@ const RequestOverviewPage = () => {
       });
 
       // Post-Actions ausführen (Rezept veröffentlichen, E-Mails etc.)
-      await RequestService.executePostAction(updated, nextStatus, database);
+      await RequestService.executePostAction(
+        updated,
+        nextStatus,
+        database,
+        authUser,
+        previousStatus,
+      );
     } catch (error) {
       Sentry.captureException(error);
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
@@ -751,6 +767,9 @@ const RequestTable = ({
     requests.length !== requestsUi.length
   ) {
     setRequestsUi(createRequestsForUi(requests, searchString));
+  } else if (requests.length === 0 && requestsUi.length > 0) {
+    // Requests-Liste wurde geleert (z.B. Wechsel zurück auf «Aktiv» ohne aktive Anträge)
+    setRequestsUi([]);
   }
 
   return (

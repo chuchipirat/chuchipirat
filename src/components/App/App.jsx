@@ -84,7 +84,7 @@ const OverviewEvents = lazy(() => import("../Admin/Overview/overviewEvents"));
 const OverviewUsers = lazy(() => import("../Admin/Overview/overviewUsers"));
 const OverviewMailbox = lazy(() => import("../Admin/overviewMailbox"));
 const OverviewCloudFx = lazy(() => import("../Admin/overviewCloudFunctions"));
-const OverviewFeeds = lazy(() => import("../Admin/overviewFeeds"));
+const OverviewFeeds = lazy(() => import("../Admin/Overview/overviewFeeds"));
 const ActivateSupportUser = lazy(() => import("../Admin/activateSupportUser"));
 const MailConsole = lazy(() => import("../Admin/mailConsole"));
 const Migration = lazy(() => import("../Admin/migration"));

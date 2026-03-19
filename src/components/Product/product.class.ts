@@ -2,9 +2,6 @@ import Utils from "../Shared/utils.class";
 import Stats, {StatsField} from "../Shared/stats.class";
 import * as TEXT from "../../constants/text";
 
-import Feed, {FeedType} from "../Shared/feed.class";
-import Role from "../../constants/roles";
-
 import Department from "../Department/department.class";
 import Unit from "../Unit/unit.class";
 import Firebase from "../Firebase/firebase.class";
@@ -241,17 +238,6 @@ export default class Product {
 
     // Event auslösen
     logEvent(firebase.analytics, FirebaseAnalyticEvent.ingredientCreated);
-
-    // interner Feed-Eintrag
-    Feed.createFeedEntry({
-      firebase: firebase,
-      authUser: authUser,
-      feedType: FeedType.productCreated,
-      feedVisibility: Role.communityLeader,
-      objectUid: product.uid,
-      objectName: product.name,
-      textElements: [product.name],
-    });
 
     // Statistik
     Stats.incrementStat({

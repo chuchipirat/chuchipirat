@@ -125,7 +125,7 @@ const ExecuteJobPage = () => {
     });
   };
   const onRebuildFile000AllFeeds = async () => {
-    await rebuildFile000AllFeeds(firebase).then((result) => {
+    await rebuildFile000AllFeeds().then((result) => {
       setDocumentCounter({...documentCounter, allFeeds: result});
     });
   };

@@ -217,6 +217,7 @@ const BODY_TEMPLATES: Record<string, string> = {
               <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
                 Ab sofort steht es allen Köch*innen zur Verfügung.
               </p>
+              {{commentBlock}}
               <p style="margin: 24px 0 0; font-size: 14px; color: #757575; line-height: 1.5;">
                 Vielen Dank für deinen Beitrag!
               </p>`,
@@ -229,6 +230,7 @@ const BODY_TEMPLATES: Record<string, string> = {
                 Die Fehlermeldung <strong>#{{requestNumber}}</strong> zum Rezept
                 <strong>«{{recipeName}}»</strong> wurde bearbeitet.
               </p>
+              {{commentBlock}}
               <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
                 Vielen Dank für deine Meldung — sie hilft uns, chuchipirat besser zu machen!
               </p>
@@ -287,9 +289,13 @@ export function renderEmailTemplate(
 
   // Header, Body und Footer zusammenbauen und Platzhalter ersetzen
   const fullTemplate = HEADER + bodyTemplate + FOOTER;
-  return fullTemplate.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+  const rendered = fullTemplate.replace(/\{\{(\w+)\}\}/g, (match, key) => {
     return safeVars[key] ?? match;
   });
+
+  // Trailing Whitespace pro Zeile entfernen, damit SMTP Quoted-Printable
+  // keine `=20`-Artefakte erzeugt (z.B. wenn ein optionaler Block leer ist)
+  return rendered.replace(/[ \t]+$/gm, "");
 }
 
 /**

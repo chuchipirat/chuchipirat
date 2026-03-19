@@ -14,6 +14,9 @@ import {RequestDomain} from "../Database/Repository/RequestRepository";
 import {RequestStatus, RequestType} from "./request.class";
 import DatabaseService from "../Database/DatabaseService";
 import {supabase} from "../Database/supabaseClient";
+import {FeedType} from "../Shared/feed.class";
+import {AuthUser} from "../Firebase/Authentication/authUser.class";
+import {RecipeType} from "../Recipe/recipe.class";
 
 /**
  * Service für Post-Actions nach Statusübergängen von Anträgen.
@@ -33,6 +36,8 @@ export class RequestService {
     request: RequestDomain,
     newStatus: string,
     database: DatabaseService,
+    authUser?: AuthUser,
+    previousStatus?: string,
   ): Promise<void> {
     try {
       switch (request.requestType) {
@@ -41,12 +46,15 @@ export class RequestService {
             request,
             newStatus,
             database,
+            authUser,
+            previousStatus,
           );
           break;
         case RequestType.reportError:
           await RequestService.handleReportErrorTransition(
             request,
             newStatus,
+            previousStatus,
           );
           break;
       }
@@ -68,15 +76,23 @@ export class RequestService {
     request: RequestDomain,
     newStatus: string,
     database: DatabaseService,
+    authUser?: AuthUser,
+    previousStatus?: string,
   ): Promise<void> {
     switch (newStatus) {
       case RequestStatus.done:
         // Rezept veröffentlichen: recipe_type → 'public', is_in_review → false
-        await database.recipes.patch({
-          id: request.recipeUid,
-          fields: {recipe_type: "public", is_in_review: false},
-          authUser: {} as any, // Audit-Felder werden vom Trigger gesetzt
-        });
+        // Eigener try/catch, damit E-Mail und Feed auch bei Fehler ausgeführt werden
+        try {
+          await database.recipes.patch({
+            id: request.recipeUid,
+            fields: {recipe_type: RecipeType.public, is_in_review: false},
+            authUser: authUser!,
+          });
+        } catch (err) {
+          console.error("Rezept konnte nicht veröffentlicht werden:", err);
+          Sentry.captureException(err);
+        }
 
         // E-Mail an Autor*in: «Dein Rezept wurde veröffentlicht»
         RequestService.triggerNotification(
@@ -84,24 +100,47 @@ export class RequestService {
           request.uid,
         );
 
-        // TODO: Feed-Eintrag erstellen (wird in Feed-Migration ergänzt)
+        // Feed-Eintrag: Rezept wurde veröffentlicht
+        if (authUser) {
+          database.feeds
+            .insertFeed(
+              {
+                feedType: FeedType.recipePublished,
+                sourceObjectType: "recipe",
+                sourceObjectUid: request.recipeUid,
+                userUid: request.authorUid,
+              },
+              authUser,
+            )
+            .catch((err) => {
+              console.error("Feed-Eintrag konnte nicht erstellt werden:", err);
+              Sentry.captureException(err);
+            });
+        }
         break;
 
       case RequestStatus.inReview:
-        // Autor*in hat den Antrag erneut eingereicht → Assignee benachrichtigen
-        RequestService.triggerNotification(
-          "requestBackToReview",
-          request.uid,
-        );
+        // Nur bei Rückkehr vom Autor (backToAuthor → inReview) benachrichtigen
+        if (previousStatus === RequestStatus.backToAuthor) {
+          RequestService.triggerNotification(
+            "requestBackToReview",
+            request.uid,
+          );
+        }
         break;
 
       case RequestStatus.declined:
-        // Prüfungs-Flag zurücksetzen
-        await database.recipes.patch({
-          id: request.recipeUid,
-          fields: {is_in_review: false},
-          authUser: {} as any,
-        });
+        // Prüfungs-Flag zurücksetzen (eigener try/catch für Isolation)
+        try {
+          await database.recipes.patch({
+            id: request.recipeUid,
+            fields: {is_in_review: false},
+            authUser: authUser!,
+          });
+        } catch (err) {
+          console.error("is_in_review konnte nicht zurückgesetzt werden:", err);
+          Sentry.captureException(err);
+        }
         // E-Mail an Autor*in mit Begründung (letzter Kommentar)
         RequestService.triggerNotification("requestDeclined", request.uid);
         break;
@@ -117,6 +156,7 @@ export class RequestService {
   private static async handleReportErrorTransition(
     request: RequestDomain,
     newStatus: string,
+    previousStatus?: string,
   ): Promise<void> {
     switch (newStatus) {
       case RequestStatus.done:
@@ -128,11 +168,13 @@ export class RequestService {
         break;
 
       case RequestStatus.inReview:
-        // Autor*in hat den Antrag erneut eingereicht → Assignee benachrichtigen
-        RequestService.triggerNotification(
-          "requestBackToReview",
-          request.uid,
-        );
+        // Nur bei Rückkehr vom Autor (backToAuthor → inReview) benachrichtigen
+        if (previousStatus === RequestStatus.backToAuthor) {
+          RequestService.triggerNotification(
+            "requestBackToReview",
+            request.uid,
+          );
+        }
         break;
 
       case RequestStatus.declined:

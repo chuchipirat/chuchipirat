@@ -13,6 +13,7 @@ import {
 import useCustomStyles from "../../constants/styles";
 import {useDatabase} from "../Database/DatabaseContext";
 import {supabase} from "../Database/supabaseClient";
+import {FeedType} from "../Shared/feed.class";
 
 import PageTitle from "../Shared/pageTitle";
 import {Typography, Alert, AlertTitle} from "@mui/material";
@@ -51,6 +52,23 @@ const VerifyEmailPage = () => {
 
         // Login-Zähler hochzählen (erster Login nach E-Mail-Verifizierung)
         await users.registerSignIn(userDomain.uid);
+
+        // Feed-Eintrag für neuen User (nur bei Erstregistrierung, nicht bei E-Mail-Änderung)
+        const {data: sessionData} = await supabase.auth.getSession();
+        const isSignup = sessionData?.session?.user?.app_metadata?.provider !== "email"
+          || userDomain.noLogins <= 1;
+        if (isSignup) {
+          database.feeds
+            .insertFeed(
+              {
+                feedType: FeedType.userCreated,
+                sourceObjectType: "user",
+                sourceObjectUid: user.id,
+              },
+              {uid: userDomain.uid, authUid: user.id, publicProfile: {displayName: userDomain.displayName, pictureSrc: userDomain.pictureSrc ?? ""}} as any,
+            )
+            .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+        }
 
         // Vestaboard-Benachrichtigung (nicht kritisch)
         await supabase.functions.invoke("notify-vestaboard", {

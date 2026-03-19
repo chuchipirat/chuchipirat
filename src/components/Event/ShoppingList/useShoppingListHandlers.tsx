@@ -76,6 +76,7 @@ import {
   SHOPPINTLIST_ITEM_MOVED_TO_RIGHT_DEPARTMENT as TEXT_SHOPPINTLIST_ITEM_MOVED_TO_RIGHT_DEPARTMENT,
 } from "../../../constants/text";
 import {useDatabase} from "../../Database/DatabaseContext";
+import {FeedType} from "../../Shared/feed.class";
 import {
   shoppingListToInsertRows,
 } from "./shoppingListAdapter";
@@ -789,6 +790,29 @@ const useShoppingListHandlers = ({
             }
 
             onShoppingCollectionUpdate(finalCollection);
+
+            // Feed-Eintrag: Einkaufsliste erstellt — zufälliges Item auswählen
+            const allItems = Object.values(newList.list).flatMap((department) => department.items);
+            const nonEmptyItems = allItems.filter((entry) => entry.item.name && entry.quantity > 0);
+            if (nonEmptyItems.length > 0) {
+              const randomItem = nonEmptyItems[Math.floor(Math.random() * nonEmptyItems.length)];
+              const itemText = randomItem.unit
+                ? `${randomItem.quantity} ${randomItem.unit} ${randomItem.item.name}`
+                : `${randomItem.quantity} ${randomItem.item.name}`;
+              const remaining = nonEmptyItems.length - 1;
+
+              database.feeds
+                .insertFeed(
+                  {
+                    feedType: FeedType.shoppingListCreated,
+                    sourceObjectType: "event",
+                    sourceObjectUid: event.uid,
+                    sourceObjectData: {randomItem: itemText, remainingCount: remaining},
+                  },
+                  authUser,
+                )
+                .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+            }
 
             // Liste laden und anzeigen
             fetchMissingData({

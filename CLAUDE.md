@@ -22,8 +22,8 @@ Environment-specific builds use `env-cmd` with `.env.development`, `.env.test`, 
 - **MUI v5** (@mui/material) with Emotion for styling
 - **React Router v5** with lazy-loaded routes and role-based authorization
 - **Supabase Auth** (primary) with Firebase Auth fallback during migration
-- **Supabase/Postgres** for auth, users, masterdata (departments, units, products, materials, unit conversions, global settings, system messages). **Firebase Firestore** still handles events, recipes, requests, feeds, stats.
-- **Firebase v10** — Storage, Analytics, Cloud Functions (Firestore for remaining entities above)
+- **Supabase/Postgres** for all data: auth, users, masterdata, events, recipes, requests, feeds, shopping lists, material lists, products, materials, and more. Data migration from Firebase is **complete**.
+- **Firebase v10** — Cloud Functions (some still active, migration pending), Storage (legacy, being replaced by Supabase Storage), Analytics, Authentication fallback during transition
 - **@react-pdf/renderer** for PDF export (menu plans, recipes, shopping/material lists)
 - **@atlaskit/pragmatic-drag-and-drop** for drag-and-drop reordering
 - **Fuse.js** for fuzzy search, **date-fns** for dates, **Sentry** for error monitoring
@@ -45,10 +45,10 @@ HOCs (`withAuthentication`, `withAuthorization`, `withFirebase`) wrap components
 
 ### Service Layer
 
-Two persistence layers coexist during migration:
+Two persistence layers coexist during the transition (Firebase removal pending):
 
-- **Supabase** (`src/components/Database/`): `DatabaseService` bundles 12 repositories (via `BaseRepository`). UI accesses them via `useDatabase()`.
-- **Firebase** (`src/components/Firebase/`): `firebase.class.ts` + `Db/firebase.db.*.class.ts` for remaining entities (events, recipes, etc.), plus Storage, Authentication fallback, and Analytics.
+- **Supabase** (`src/components/Database/`): `DatabaseService` bundles all repositories (via `BaseRepository`). UI accesses them via `useDatabase()`. **All data is now in Supabase.**
+- **Firebase** (`src/components/Firebase/`): `firebase.class.ts` — still used for Cloud Functions (some not yet migrated to Supabase Edge Functions), Authentication fallback, Analytics, and some UI pages not yet fully switched over.
 
 ### Component Pattern
 
@@ -92,3 +92,4 @@ Topic-specific guidelines are in `docs/claude/`. Consult them when working on th
 - **Post-Migration Tasks**: `docs/claude/post-migration-tasks.md` — Cleanup tasks to complete once Firebase is fully removed (enum type changes, lookup map removal, etc.)
 - **Security Guidelines**: `docs/claude/security-guidelines.md` — Input validation conventions, SQL injection protection, XSS, file uploads, RLS checklist. Consult when implementing forms, repositories, or file uploads.
 - **Testcases**: `docs/claude/manual-testcases.md`- How to generate manual testcases. Conventions, rules, filepath. Consult this when creating manual Testcases for in the Obsidian Vault.
+- **Firebase Auth Migration**: `docs/claude/firebase-auth-migration.md` — Step-by-step playbook for importing Firebase Auth users into Supabase Auth and linking them to `public.users`. Required before migrating tables with `FK → auth.users(id)`.
