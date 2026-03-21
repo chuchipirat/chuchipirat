@@ -449,6 +449,23 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   }
 
   /**
+   * Zählt die Benutzer mit einer bestimmten Rolle.
+   * Nutzt Supabase `.contains()` für den Array-Vergleich auf der roles-Spalte.
+   *
+   * @param role - Die zu zählende Rolle.
+   * @returns Anzahl der Benutzer mit dieser Rolle.
+   */
+  async countByRole(role: Role): Promise<number> {
+    const {count, error} = await this.client
+      .from(this.tableName)
+      .select("id", {count: "exact", head: true})
+      .contains("roles", [role]);
+
+    if (error) throw error;
+    return count ?? 0;
+  }
+
+  /**
    * Gibt eine Map von auth_uid → display_name für eine Menge von UUIDs zurück.
    * Wird verwendet, um Ersteller-Namen auf Admin-Karten anzuzeigen.
    *

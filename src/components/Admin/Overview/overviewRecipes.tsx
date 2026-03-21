@@ -50,6 +50,7 @@ import {
 } from "@mui/icons-material";
 
 import PageTitle from "../../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "../system";
 import AlertMessage from "../../Shared/AlertMessage";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useFirebase} from "../../Firebase/firebaseContext";
@@ -62,6 +63,7 @@ import {FormListItem} from "../../Shared/formListItem";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 
+import * as Sentry from "@sentry/browser";
 import useCustomStyles from "../../../constants/styles";
 
 import {
@@ -277,14 +279,16 @@ const RecipeCardAdmin = ({
  * @param domain - Kurz-Rezeptdaten (null wenn kein Rezept ausgewählt)
  * @param creatorName - Anzeigename des Erstellers
  * @param onClose - Callback zum Schliessen
- * @param onOpenInDrawer - Callback: Rezept im Drawer öffnen
+ * @param onOpenInDrawer - Callback: Rezept im Drawer öffnen (optional — Button wird ausgeblendet wenn nicht gesetzt)
+ * @param extraActions - Zusätzliche Aktions-Buttons im Dialog-Footer (optional)
  */
 interface DialogRecipeAdminDetailProps {
   open: boolean;
   domain: RecipeShortDomain | null;
   creatorName: string | undefined;
   onClose: () => void;
-  onOpenInDrawer: (domain: RecipeShortDomain) => void;
+  onOpenInDrawer?: (domain: RecipeShortDomain) => void;
+  extraActions?: React.ReactNode;
 }
 
 /**
@@ -294,12 +298,13 @@ interface DialogRecipeAdminDetailProps {
  * alle Metadaten (UUID, Typ, Quelle, Erstelldatum, Ersteller) in
  * einem kompakten label-links / wert-rechts Layout via FormListItem.
  */
-const DialogRecipeAdminDetail = ({
+export const DialogRecipeAdminDetail = ({
   open,
   domain,
   creatorName,
   onClose,
   onOpenInDrawer,
+  extraActions,
 }: DialogRecipeAdminDetailProps) => {
   const classes = useCustomStyles();
 
@@ -402,13 +407,16 @@ const DialogRecipeAdminDetail = ({
         <Button onClick={onClose} color="inherit">
           {TEXT_CLOSE}
         </Button>
-        <Button
-          onClick={() => onOpenInDrawer(domain)}
-          variant="outlined"
-          color="primary"
-        >
-          {TEXT_RECIPE_OPEN}
-        </Button>
+        {extraActions}
+        {onOpenInDrawer && (
+          <Button
+            onClick={() => onOpenInDrawer(domain)}
+            variant="outlined"
+            color="primary"
+          >
+            {TEXT_RECIPE_OPEN}
+          </Button>
+        )}
       </DialogActions>
     </Dialog>
   );
@@ -514,6 +522,7 @@ const OverviewRecipePage = () => {
         payload: {recipes: domains, creatorNames: nameMap},
       });
     } catch (error) {
+      Sentry.captureException(error);
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error instanceof Error ? error : new Error(String(error)),
@@ -575,6 +584,7 @@ const OverviewRecipePage = () => {
       setDrawerRecipe(recipe);
       setDrawerOpen(true);
     } catch (error) {
+      Sentry.captureException(error);
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error instanceof Error ? error : new Error(String(error)),
@@ -595,6 +605,7 @@ const OverviewRecipePage = () => {
       <PageTitle
         title={TEXT_RECIPES}
         subTitle={TEXT_OVERVIEW_RECIPES_DESCRIPTION}
+        breadcrumbs={[SYSTEM_BREADCRUMB]}
       />
 
       {/* ===== BODY ===== */}

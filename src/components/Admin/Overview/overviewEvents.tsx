@@ -48,8 +48,10 @@ import {
 } from "@mui/icons-material";
 import {DataGrid, GridColDef, GridToolbar} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
+import * as Sentry from "@sentry/browser";
 
 import PageTitle from "../../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "../system";
 import AlertMessage from "../../Shared/AlertMessage";
 import SearchPanel from "../../Shared/searchPanel";
 import {FormListItem} from "../../Shared/formListItem";
@@ -638,6 +640,7 @@ const OverviewEventsPage = () => {
         dispatch({type: ReducerActions.FETCH_SUCCESS, payload: items});
       })
       .catch((error) => {
+        Sentry.captureException(error);
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: error instanceof Error ? error : new Error(String(error)),
@@ -755,6 +758,7 @@ const OverviewEventsPage = () => {
         );
       })
       .catch((error) => {
+        Sentry.captureException(error);
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: error instanceof Error ? error : new Error(String(error)),
@@ -762,7 +766,7 @@ const OverviewEventsPage = () => {
       });
 
     Receipt.save({firebase, receipt: receiptData, authUser}).catch((error) => {
-      console.error(error);
+      Sentry.captureException(error);
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error instanceof Error ? error : new Error(String(error)),
@@ -784,6 +788,7 @@ const OverviewEventsPage = () => {
       <PageTitle
         title={TEXT_EVENTS}
         subTitle={TEXT_OVERVIEW_EVENTS_DESCRIPTION}
+        breadcrumbs={[SYSTEM_BREADCRUMB]}
       />
 
       {/* ===== BODY ===== */}

@@ -544,7 +544,6 @@ const ProductsPage = () => {
     }
   };
 
-  // TODO: Reimplement with Supabase Edge Function — Material.createMaterialFromProduct() nutzt noch Firebase
   const onConvertProductToMaterial = async (product: Product) => {
     // Fragen welcher Material-Typ gesetzt werden soll?
     const userInput = (await customDialog({
@@ -562,18 +561,21 @@ const ProductsPage = () => {
     })) as SingleTextInputResult;
 
     if (userInput.valid) {
-      // Cloud-FX triggern.
-      Material.createMaterialFromProduct({
-        firebase: firebase,
-        product: {uid: product.uid, name: product.name},
-        newMaterialType: parseInt(userInput.input) as MaterialType,
-        authUser: authUser,
-      }).then(() => {
-        dispatch({
-          type: ReducerActions.PRODUCT_CONVERTED_TO_MATERIAL,
-          payload: product,
+      // Materialtyp-Zuordnung: 1 = consumable, 2 = usage
+      const materialTypeMap: Record<number, string> = {
+        [MaterialType.consumable]: "consumable",
+        [MaterialType.usage]: "usage",
+      };
+      const materialType = materialTypeMap[parseInt(userInput.input)] ?? "consumable";
+
+      database.adminOps
+        .convertProductToMaterial(product.uid, materialType)
+        .then(() => {
+          dispatch({
+            type: ReducerActions.PRODUCT_CONVERTED_TO_MATERIAL,
+            payload: product,
+          });
         });
-      });
     }
   };
 

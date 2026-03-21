@@ -54,6 +54,7 @@ import {
 } from "@mui/icons-material";
 
 import PageTitle from "../../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "../system";
 import AlertMessage from "../../Shared/AlertMessage";
 import SearchPanel from "../../Shared/searchPanel";
 import CustomSnackbar, {
@@ -108,6 +109,7 @@ import {DataGrid, GridColDef, GridSortModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import isEqual from "lodash/isEqual";
 
+import * as Sentry from "@sentry/browser";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
 /* ===================================================================
@@ -122,10 +124,13 @@ enum ReducerActions {
   GENERIC_ERROR,
 }
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: Record<string, unknown>;
-};
+/** Diskriminierte Union für typsichere Reducer-Aktionen. */
+type DispatchAction =
+  | {type: ReducerActions.FETCH_INIT}
+  | {type: ReducerActions.FETCH_SUCCESS; payload: UserOverviewStructure[]}
+  | {type: ReducerActions.SNACKBAR_SET; payload: Snackbar}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
   users: UserOverviewStructure[];
@@ -141,6 +146,13 @@ const initialState: State = {
   snackbar: SNACKBAR_INITIAL_STATE_VALUES,
 };
 
+/**
+ * Reducer für die Benutzer-Übersichtsseite.
+ *
+ * @param state Aktueller State.
+ * @param action Typsichere Reducer-Aktion.
+ * @returns Neuer State.
+ */
 const usersReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.FETCH_INIT:
@@ -149,10 +161,10 @@ const usersReducer = (state: State, action: DispatchAction): State => {
       return {
         ...state,
         isLoading: false,
-        users: action.payload as unknown as UserOverviewStructure[],
+        users: action.payload,
       };
     case ReducerActions.SNACKBAR_SET:
-      return {...state, snackbar: action.payload as unknown as Snackbar};
+      return {...state, snackbar: action.payload};
     case ReducerActions.SNACKBAR_CLOSE:
       return {
         ...state,
@@ -162,7 +174,7 @@ const usersReducer = (state: State, action: DispatchAction): State => {
       return {
         ...state,
         isLoading: false,
-        error: action.payload as unknown as Error,
+        error: action.payload,
       };
     default:
       throw new Error("Unbekannter ReducerAction");
@@ -202,18 +214,21 @@ const OverviewUsersPage = () => {
   // Daten laden
   // ------------------------------------------ */
   useEffect(() => {
-    dispatch({type: ReducerActions.FETCH_INIT, payload: {}});
+    dispatch({type: ReducerActions.FETCH_INIT});
 
     User.getUsersOverview({database})
       .then((result) => {
         dispatch({
           type: ReducerActions.FETCH_SUCCESS,
-          payload: result as unknown as Record<string, unknown>,
+          payload: result,
         });
       })
       .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        Sentry.captureException(error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   }, []);
 
@@ -248,8 +263,11 @@ const OverviewUsersPage = () => {
       setRecipeCounts(counts);
       setUserEvents(events);
     } catch (error) {
-      console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Record<string, unknown>});
+      Sentry.captureException(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error instanceof Error ? error : new Error(String(error)),
+      });
     } finally {
       setDialogLoading(false);
     }
@@ -281,8 +299,11 @@ const OverviewUsersPage = () => {
           : null
       );
     } catch (error) {
-      console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Record<string, unknown>});
+      Sentry.captureException(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error instanceof Error ? error : new Error(String(error)),
+      });
     }
   };
 
@@ -309,23 +330,26 @@ const OverviewUsersPage = () => {
           severity: "success",
           message: TEXT_ROLES_UPDATED_SUCCSESSFULLY,
           open: true,
-        } as unknown as Record<string, unknown>,
+        },
       });
     } catch (error) {
-      console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Record<string, unknown>});
+      Sentry.captureException(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error instanceof Error ? error : new Error(String(error)),
+      });
     }
     setRoleDialog({open: false, userUid: ""});
   };
 
   const handleSnackbarClose = (_event: unknown, reason?: string) => {
     if (reason === "clickaway") return;
-    dispatch({type: ReducerActions.SNACKBAR_CLOSE, payload: {}});
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
 
   return (
     <React.Fragment>
-      <PageTitle title={TEXT_USER_LIST} />
+      <PageTitle title={TEXT_USER_LIST} breadcrumbs={[SYSTEM_BREADCRUMB]} />
 
       <Container sx={classes.container} component="main" maxWidth="xl">
         <Backdrop sx={classes.backdrop} open={state.isLoading}>

@@ -25,6 +25,7 @@ import {
 import {OpenInNew as OpenInNewIcon} from "@mui/icons-material";
 
 import PageTitle from "../../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "../system";
 
 import useCustomStyles from "../../../constants/styles";
 import CustomSnackbar, {
@@ -64,6 +65,7 @@ import {deDE} from "@mui/x-data-grid/locales";
 import {FeedDomain} from "../../Database/Repository/FeedRepository";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useDatabase} from "../../Database/DatabaseContext";
+import * as Sentry from "@sentry/browser";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -240,7 +242,7 @@ const OverviewFeedsPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: error,
@@ -316,7 +318,7 @@ const OverviewFeedsPage = () => {
       // Dialog nur bei Erfolg schliessen
       setDialogFeed(null);
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
@@ -344,7 +346,7 @@ const OverviewFeedsPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
       });
   };
@@ -370,7 +372,7 @@ const OverviewFeedsPage = () => {
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={`${TEXT_FEEDS} ${TEXT_MONITOR}`} />
+      <PageTitle title={`${TEXT_FEEDS} ${TEXT_MONITOR}`} breadcrumbs={[SYSTEM_BREADCRUMB]} />
 
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="xl">

@@ -88,7 +88,7 @@ import DialogMaterial, {
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
-import {FetchMissingDataProps} from "../Event/event";
+import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
 import DialogProduct, {
   PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   ProductDialog,
@@ -216,6 +216,8 @@ interface EventShoppingListPageProps {
   onShoppingCollectionUpdate: (
     shoppingListCollection: ShoppingListCollection,
   ) => void;
+  /** Optionale Listen-ID für Deep-Link-Navigation (z.B. aus Verwendungsnachweis). */
+  initialListId?: string;
 }
 
 const EventShoppingListPage = ({
@@ -230,6 +232,7 @@ const EventShoppingListPage = ({
   fetchMissingData,
   onShoppingListUpdate,
   onShoppingCollectionUpdate,
+  initialListId,
 }: EventShoppingListPageProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
@@ -325,6 +328,24 @@ const EventShoppingListPage = ({
     onDispatchError,
     onDispatchSnackbar,
   });
+
+  /* ------------------------------------------
+  // Deep-Link: Einkaufsliste automatisch auswählen
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (
+      initialListId &&
+      !state.selectedListItem &&
+      shoppingListCollection.noOfLists > 0 &&
+      initialListId in shoppingListCollection.lists
+    ) {
+      fetchMissingData({
+        type: FetchMissingDataType.SHOPPING_LIST,
+        objectUid: initialListId,
+      });
+      onDispatchSetSelectedListItem(initialListId);
+    }
+  }, [initialListId, shoppingListCollection.noOfLists]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* ------------------------------------------
   // Navigation-Handler

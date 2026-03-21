@@ -115,7 +115,7 @@ describe("GlobalSettingsPage", () => {
       renderGlobalSettingsPage();
 
       await waitFor(() => {
-        expect(screen.getByText("Globale Einstellungen")).toBeInTheDocument();
+        expect(screen.getByRole("heading", {name: "Globale Einstellungen"})).toBeInTheDocument();
       });
     });
 

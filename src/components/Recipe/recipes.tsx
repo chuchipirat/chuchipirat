@@ -348,23 +348,13 @@ const RecipesPage = () => {
     if (!recipe) {
       return;
     }
-    if (recipe.type === RecipeType.private) {
-      navigate(`${ROUTE_RECIPE}/${authUser.uid}/${recipe.uid}`, {
-        state: {
-          action: Action.VIEW,
-          recipeShort: recipe,
-          recipeType: recipe.type,
-        },
-      });
-    } else if (recipe.type === RecipeType.public) {
-      navigate(`${ROUTE_RECIPE}/${recipe.uid}`, {
-        state: {
-          action: Action.VIEW,
-          recipeShort: recipe,
-          recipeType: recipe.type,
-        },
-      });
-    }
+    navigate(`${ROUTE_RECIPE}/${recipe.uid}`, {
+      state: {
+        action: Action.VIEW,
+        recipeShort: recipe,
+        recipeType: recipe.type,
+      },
+    });
   };
   /* ------------------------------------------
   // Snackbar schliessen

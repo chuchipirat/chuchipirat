@@ -14,6 +14,7 @@ import React from "react";
 import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
+import {MemoryRouter} from "react-router";
 
 import OverviewRecipePage from "../overviewRecipes";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
@@ -104,11 +105,13 @@ beforeEach(() => jest.clearAllMocks());
 
 const renderPage = () =>
   render(
-    <FirebaseContext.Provider value={mockFirebase}>
-      <DatabaseContext.Provider value={mockDatabase}>
-        <OverviewRecipePage />
-      </DatabaseContext.Provider>
-    </FirebaseContext.Provider>,
+    <MemoryRouter>
+      <FirebaseContext.Provider value={mockFirebase}>
+        <DatabaseContext.Provider value={mockDatabase}>
+          <OverviewRecipePage />
+        </DatabaseContext.Provider>
+      </FirebaseContext.Provider>
+    </MemoryRouter>,
   );
 
 /* ===================================================================

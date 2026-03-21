@@ -57,7 +57,6 @@ const HomePage = lazy(() => import("../Home/home"));
 const UserProfile = lazy(() => import("../User/userProfile"));
 const PrivacyPolicyPage = lazy(() => import("./privacyPolicy"));
 const TermOfUsePage = lazy(() => import("./termOfUse"));
-const Temp = lazy(() => import("../Temp/temp"));
 const Schema = lazy(() => import("../Temp/schema"));
 
 const Event = lazy(() => import("../Event/Event/event"));
@@ -77,17 +76,16 @@ const SystemMessage = lazy(() => import("../Admin/SystemMessage/systemMessage"))
 const WhereUsed = lazy(() => import("../Admin/whereUsed"));
 const MergeItems = lazy(() => import("../Admin/mergeItems"));
 const ConvertItem = lazy(() => import("../Admin/convertItem"));
-const Jobs = lazy(() => import("../Admin/executeJob"));
-const BuildDbIndices = lazy(() => import("../Admin/buildDbIndex"));
 const OverviewRecipes = lazy(() => import("../Admin/Overview/overviewRecipes"));
 const OverviewEvents = lazy(() => import("../Admin/Overview/overviewEvents"));
 const OverviewUsers = lazy(() => import("../Admin/Overview/overviewUsers"));
 const OverviewMailbox = lazy(() => import("../Admin/overviewMailbox"));
-const OverviewCloudFx = lazy(() => import("../Admin/overviewCloudFunctions"));
 const OverviewFeeds = lazy(() => import("../Admin/Overview/overviewFeeds"));
 const ActivateSupportUser = lazy(() => import("../Admin/activateSupportUser"));
 const MailConsole = lazy(() => import("../Admin/mailConsole"));
 const Migration = lazy(() => import("../Admin/migration"));
+const DataIntegrity = lazy(() => import("../Admin/DataIntegrity/dataIntegrity"));
+const CronJobs = lazy(() => import("../Admin/CronJobs/cronJobs"));
 
 /* ===================================================================
 // ====================== Authorization Conditions ===================
@@ -358,15 +356,6 @@ const App = () => {
                 }
               />
               <Route
-                path={ROUTES.RECIPE_USER_UID}
-                element={
-                  <GuardedRoute
-                    condition={isAuthenticated}
-                    element={<Recipe />}
-                  />
-                }
-              />
-              <Route
                 path={ROUTES.USER_PUBLIC_PROFILE_UID}
                 element={
                   <GuardedRoute
@@ -559,15 +548,6 @@ const App = () => {
                 }
               />
               <Route
-                path={ROUTES.SYSTEM_DB_INDICES}
-                element={
-                  <GuardedRoute
-                    condition={isAdminOrCommunityLeader}
-                    element={<BuildDbIndices />}
-                  />
-                }
-              />
-              <Route
                 path={ROUTES.SYSTEM_ACTIVATE_SUPPORT_USER}
                 element={
                   <GuardedRoute
@@ -593,15 +573,6 @@ const App = () => {
                   <GuardedRoute
                     condition={isAdmin}
                     element={<GlobalSettings />}
-                  />
-                }
-              />
-              <Route
-                path={ROUTES.SYSTEM_JOBS}
-                element={
-                  <GuardedRoute
-                    condition={isAdmin}
-                    element={<Jobs />}
                   />
                 }
               />
@@ -632,12 +603,22 @@ const App = () => {
                   />
                 }
               />
+
               <Route
-                path={ROUTES.SYSTEM_OVERVIEW_CLOUDFX}
+                path={ROUTES.SYSTEM_DATA_INTEGRITY}
                 element={
                   <GuardedRoute
                     condition={isAdmin}
-                    element={<OverviewCloudFx />}
+                    element={<DataIntegrity />}
+                  />
+                }
+              />
+              <Route
+                path={ROUTES.SYSTEM_CRON_JOBS}
+                element={
+                  <GuardedRoute
+                    condition={isAdmin}
+                    element={<CronJobs />}
                   />
                 }
               />
@@ -653,16 +634,7 @@ const App = () => {
                 }
               />
 
-              {/* Temp/Schema: admin only */}
-              <Route
-                path={ROUTES.TEMP}
-                element={
-                  <GuardedRoute
-                    condition={isAdmin}
-                    element={<Temp />}
-                  />
-                }
-              />
+              {/* Schema: admin only */}
               <Route
                 path={ROUTES.SCHEMA}
                 element={

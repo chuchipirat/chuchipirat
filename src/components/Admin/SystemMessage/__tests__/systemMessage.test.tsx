@@ -176,7 +176,7 @@ describe("SystemMessagePage", () => {
     test("Seitentitel zeigt 'Neue Systemmeldung'", () => {
       renderNewMode();
 
-      expect(screen.getByText("Neue Systemmeldung")).toBeInTheDocument();
+      expect(screen.getByRole("heading", {name: "Neue Systemmeldung"})).toBeInTheDocument();
     });
 
     test("Titel-Feld ist leer", () => {
@@ -239,7 +239,7 @@ describe("SystemMessagePage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Systemmeldung bearbeiten")
+          screen.getByRole("heading", {name: "Systemmeldung bearbeiten"})
         ).toBeInTheDocument();
       });
     });

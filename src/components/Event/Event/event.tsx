@@ -1,6 +1,6 @@
 import React, {SyntheticEvent} from "react";
 
-import {useNavigate, useLocation} from "react-router";
+import {useNavigate, useLocation, useSearchParams} from "react-router";
 import _ from "lodash";
 
 import {
@@ -857,20 +857,35 @@ interface LocationState {
 /* ===================================================================
 // =============================== Base ==============================
 // =================================================================== */
+/**
+ * Zuordnung von URL-Query-Parameter `?tab=` auf den passenden EventTabs-Wert.
+ * Ermöglicht Deep-Links auf bestimmte Tabs (z.B. aus dem Verwendungsnachweis).
+ */
+const TAB_QUERY_PARAM_MAP: Record<string, EventTabs> = {
+  menuplan: EventTabs.menuplan,
+  shoppinglist: EventTabs.shoppingList,
+  materiallist: EventTabs.materialList,
+  eventinfo: EventTabs.eventInfo,
+};
+
 const EventPage = () => {
   const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const theme = useTheme();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const {customDialog} = useCustomDialog();
   const navigate = useNavigate();
 
   const classes = useCustomStyles();
   let eventUid = "";
 
+  // Initialen Tab aus ?tab= Query-Parameter ableiten (Deep-Link-Unterstützung)
+  const initialTab = TAB_QUERY_PARAM_MAP[searchParams.get("tab") ?? ""] ?? EventTabs.menuplan;
+
   const [state, dispatch] = React.useReducer(eventReducer, INITITIAL_STATE);
-  const [activeTab, setActiveTab] = React.useState(EventTabs.menuplan);
+  const [activeTab, setActiveTab] = React.useState(initialTab);
   const [eventDraft, setEventDraft] = React.useState(INTITIAL_STATE_EVENT_DRAF);
   // Flag: Während ein Menuplan-Save läuft, soll die Realtime-Subscription
   // keine Reloads auslösen — das delete-all + re-insert würde sonst einen
@@ -2250,6 +2265,7 @@ const EventPage = () => {
                   fetchMissingData={fetchMissingData}
                   onShoppingListUpdate={onShoppingListUpdate}
                   onShoppingCollectionUpdate={onShoppingCollectionUpdate}
+                  initialListId={searchParams.get("listId") ?? undefined}
                 />
               </HighlightedShoppingListItemContext.Provider>
             </Container>

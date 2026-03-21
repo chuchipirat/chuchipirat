@@ -120,7 +120,7 @@ describe("SystemMessageOverviewPage", () => {
       renderOverviewPage();
 
       await waitFor(() => {
-        expect(screen.getByText("Systemmeldungen")).toBeInTheDocument();
+        expect(screen.getByRole("heading", {name: "Systemmeldungen"})).toBeInTheDocument();
       });
     });
 

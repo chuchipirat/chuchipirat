@@ -1,4 +1,12 @@
+/**
+ * ActivateSupportUserPage — Admin-Seite zum Aktivieren des Support-Modus.
+ *
+ * Der Support-User (konfiguriert via `VITE_SUPPORT_USER_ID`) wird als Koch
+ * zum angegebenen Event hinzugefügt. Die Admin-Person muss nur die Event-UID
+ * eingeben.
+ */
 import React from "react";
+import * as Sentry from "@sentry/browser";
 
 import {
   Container,
@@ -21,66 +29,74 @@ import {
   ACTIVATE_SUPPORT_MODE_DESCRIPTION as TEXT_ACTIVATE_SUPPORT_MODE_DESCRIPTION,
   SUPPORT_USER_REGISTERED as TEXT_SUPPORT_USER_REGISTERED,
 } from "../../constants/text";
-import Role from "../../constants/roles";
 
-import {useFirebase} from "../Firebase/firebaseContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
+import {useDatabase} from "../Database/DatabaseContext";
 import PageTitle from "../Shared/pageTitle";
-import Event from "../Event/Event/event.class";
+import {SYSTEM_BREADCRUMB} from "./system";
 import useCustomStyles from "../../constants/styles";
+
 /* ===================================================================
-// ======================== globale Funktionen =======================
+// ======================== Konfiguration ============================
 // =================================================================== */
+
+/** Support-User-ID aus Umgebungsvariable. */
+const SUPPORT_USER_ID = import.meta.env.VITE_SUPPORT_USER_ID as string | undefined;
+
+/* ===================================================================
+// ======================== Reducer ==================================
+// =================================================================== */
+
 enum ReducerActions {
   EVENT_UID_UPDATE,
   ACTIVATE_SUPPORT_USER_START,
   ACTIVATE_SUPPORT_USER_FINISHED,
   GENERIC_ERROR,
 }
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+
+/** Diskriminierte Union für typsichere Reducer-Aktionen. */
+type DispatchAction =
+  | {type: ReducerActions.EVENT_UID_UPDATE; payload: string}
+  | {type: ReducerActions.ACTIVATE_SUPPORT_USER_START}
+  | {type: ReducerActions.ACTIVATE_SUPPORT_USER_FINISHED}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
-  eventUid: Event["uid"];
+  eventUid: string;
   isActivating: boolean;
   activationComplete: boolean;
-  errorMessage: Error["message"];
+  error: Error | null;
 };
 
-const inititialState: State = {
+const initialState: State = {
   eventUid: "",
   isActivating: false,
   activationComplete: false,
-  errorMessage: "",
+  error: null,
 };
 
+/**
+ * Reducer für die Support-User-Aktivierung.
+ *
+ * @param state Aktueller State.
+ * @param action Typsichere Reducer-Aktion.
+ * @returns Neuer State.
+ */
 const activateSupportUserReducer = (
   state: State,
   action: DispatchAction
 ): State => {
   switch (action.type) {
-    case ReducerActions.ACTIVATE_SUPPORT_USER_START:
-      return {...state, isActivating: true};
-    case ReducerActions.ACTIVATE_SUPPORT_USER_FINISHED:
-      return {
-        ...state,
-        isActivating: false,
-        activationComplete: true,
-        errorMessage: action.payload.errorMessage,
-      };
     case ReducerActions.EVENT_UID_UPDATE:
-      return {...state, ...action.payload};
+      return {...state, eventUid: action.payload, activationComplete: false, error: null};
+    case ReducerActions.ACTIVATE_SUPPORT_USER_START:
+      return {...state, isActivating: true, activationComplete: false, error: null};
+    case ReducerActions.ACTIVATE_SUPPORT_USER_FINISHED:
+      return {...state, isActivating: false, activationComplete: true};
     case ReducerActions.GENERIC_ERROR:
-      return {
-        ...state,
-        errorMessage: action.payload.message as Error["message"],
-      };
+      return {...state, isActivating: false, activationComplete: true, error: action.payload};
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error("Unbekannter ActionType");
   }
 };
 
@@ -88,68 +104,66 @@ const activateSupportUserReducer = (
 // =============================== Page ==============================
 // =================================================================== */
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Seite zum Aktivieren des Support-Modus für einen Anlass.
+ * Der Support-User wird als Koch zum Event hinzugefügt.
+ */
 const ActivateSupportUserPage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
 
   const [state, dispatch] = React.useReducer(
     activateSupportUserReducer,
-    inititialState
+    initialState
   );
 
-  /* ------------------------------------------
-    // Delete Feeds Wert setzen
-    // ------------------------------------------ */
+  /** Event-UID Eingabefeld aktualisieren. */
   const onChangeEventUidField = (
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     dispatch({
       type: ReducerActions.EVENT_UID_UPDATE,
-      payload: {[event.target.name]: event.target.value},
+      payload: event.target.value,
     });
   };
-  /* ------------------------------------------
-    // markierte Feeds löschen
-    // ------------------------------------------ */
-  const onRegisterSupportUser = () => {
-    dispatch({
-      type: ReducerActions.ACTIVATE_SUPPORT_USER_START,
-      payload: {},
-    });
 
-    Event.activateSupportUser({
-      firebase: firebase,
-      eventUid: state.eventUid,
-      authUser: authUser!,
-      callback: (document) => {
-        dispatch({
-          type: ReducerActions.ACTIVATE_SUPPORT_USER_FINISHED,
-          payload: document,
-        });
-      },
-      errorCallback: (error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      },
-    }).catch((error) => {
-      console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-    });
+  /** Support-User für den angegebenen Anlass registrieren. */
+  const onRegisterSupportUser = async () => {
+    if (!SUPPORT_USER_ID) {
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: new Error("VITE_SUPPORT_USER_ID ist nicht konfiguriert."),
+      });
+      return;
+    }
+    if (!authUser) return;
+
+    dispatch({type: ReducerActions.ACTIVATE_SUPPORT_USER_START});
+
+    try {
+      await database.events.addCook(state.eventUid, SUPPORT_USER_ID, authUser);
+      dispatch({type: ReducerActions.ACTIVATE_SUPPORT_USER_FINISHED});
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
   };
+
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={TEXT_ACTIVATE_SUPPORT_USER} subTitle="" />
+      <PageTitle title={TEXT_ACTIVATE_SUPPORT_USER} subTitle="" breadcrumbs={[SYSTEM_BREADCRUMB]} />
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
         <Stack spacing={2}>
           <PanelActivateSupportUser
             eventUid={state.eventUid}
             activationComplete={state.activationComplete}
-            errorMessage={state.errorMessage}
+            error={state.error}
             isActivating={state.isActivating}
             onChangeField={onChangeEventUidField}
             onRegisterSupportUser={onRegisterSupportUser}
@@ -159,22 +173,31 @@ const ActivateSupportUserPage = () => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
-================== Feed Einträge nach Tagen löschen ===============
-=================================================================== */
-interface PanelActivateSupportUserProps {
-  eventUid: Event["uid"];
+// ====================== Aktivierungs-Panel =========================
+// =================================================================== */
+
+/** Eigenschaften für das Aktivierungs-Panel. */
+type PanelActivateSupportUserProps = {
+  eventUid: string;
   isActivating: boolean;
   activationComplete: boolean;
-  errorMessage: Error["message"];
+  error: Error | null;
   onChangeField: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onRegisterSupportUser: () => void;
-}
+};
+
+/**
+ * Panel mit Eingabefeld für Event-UID und Aktivierungs-Button.
+ *
+ * @param props Panel-Eigenschaften.
+ */
 const PanelActivateSupportUser = ({
   eventUid,
   isActivating,
   activationComplete,
-  errorMessage,
+  error,
   onChangeField,
   onRegisterSupportUser,
 }: PanelActivateSupportUserProps) => {
@@ -203,7 +226,7 @@ const PanelActivateSupportUser = ({
         />
         <Button
           fullWidth
-          disabled={eventUid.length !== 20 && !isActivating}
+          disabled={eventUid.length < 10 || isActivating}
           variant="contained"
           color="primary"
           onClick={onRegisterSupportUser}
@@ -213,8 +236,8 @@ const PanelActivateSupportUser = ({
         </Button>
         {isActivating && <LinearProgress />}
         {activationComplete &&
-          (errorMessage ? (
-            <Alert severity="error">{errorMessage}</Alert>
+          (error ? (
+            <Alert severity="error">{error.message}</Alert>
           ) : (
             <Alert severity="success">{TEXT_SUPPORT_USER_REGISTERED}</Alert>
           ))}

@@ -1,4 +1,5 @@
 import React from "react";
+import {useSearchParams} from "react-router";
 
 import {
   Container,
@@ -452,10 +453,20 @@ const PRODUCT_TABLE_COLUMS: Column[] = [
 /* ===================================================================
 // =============================== Base ==============================
 // =================================================================== */
+/**
+ * Zuordnung von URL-Query-Parameter `?tab=` auf den Tab-Index.
+ * Ermöglicht Deep-Links auf einen bestimmten Tab (z.B. aus dem Verwendungsnachweis).
+ */
+const TAB_QUERY_PARAM_MAP: Record<string, number> = {
+  basic: 0,
+  product: 1,
+};
+
 const UnitConversionPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
+  const [searchParams] = useSearchParams();
 
   const [state, dispatch] = React.useReducer(
     unitConversionReducer,
@@ -468,7 +479,11 @@ const UnitConversionPage = () => {
       unitConversionType: UnitConversionType.NONE,
     });
   const [editMode, setEditMode] = React.useState(false);
-  const [tabValue, setTabValue] = React.useState(0);
+
+  // Initialer Tab aus ?tab= Query-Parameter (Deep-Link-Unterstützung)
+  const [tabValue, setTabValue] = React.useState(
+    TAB_QUERY_PARAM_MAP[searchParams.get("tab") ?? ""] ?? 0
+  );
 
   // Snapshots speichern den Zustand beim Eintritt in den Bearbeitungsmodus
   const basicSnapshot = React.useRef<UnitConversion[]>([]);

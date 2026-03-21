@@ -1,8 +1,10 @@
 import React from "react";
 import {useNavigate, useParams} from "react-router";
 
+import * as Sentry from "@sentry/browser";
+import DOMPurify from "dompurify";
+
 import {useDatabase} from "../../Database/DatabaseContext";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../../Session/authUserContext";
 import {SystemMessageDomain} from "../../Database/Repository/SystemMessageRepository";
 import {
@@ -31,6 +33,7 @@ import {DatePicker} from "@mui/x-date-pickers/DatePicker";
 
 import AlertMessage from "../../Shared/AlertMessage";
 import PageTitle from "../../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "../system";
 
 import {
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
@@ -65,10 +68,14 @@ enum ReducerActions {
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
 }
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+/** Diskriminierte Union für typsichere Reducer-Aktionen. */
+type DispatchAction =
+  | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_INIT}
+  | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS; payload: SystemMessageDomain}
+  | {type: ReducerActions.SYSTEM_MESSAGE_FIELD_UPDATE; payload: {key: string; value: unknown}}
+  | {type: ReducerActions.SYSTEM_MESSAGE_SAVE}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
   systemMessage: SystemMessageDomain;
@@ -89,6 +96,13 @@ const emptySystemMessage: SystemMessageDomain = {
   validTo: new Date(),
 };
 
+/**
+ * Reducer für die Systemmeldungs-Seite.
+ *
+ * @param state Aktueller State.
+ * @param action Typsichere Reducer-Aktion.
+ * @returns Neuer State.
+ */
 const systemMessageReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.SYSTEM_MESSAGE_FETCH_INIT:
@@ -104,7 +118,7 @@ const systemMessageReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS:
       return {
         ...state,
-        systemMessage: action.payload as SystemMessageDomain,
+        systemMessage: action.payload,
         isLoading: false,
       };
     case ReducerActions.SYSTEM_MESSAGE_SAVE:
@@ -121,12 +135,10 @@ const systemMessageReducer = (state: State, action: DispatchAction): State => {
         ...state,
         snackbar: SNACKBAR_INITIAL_STATE_VALUES,
       };
-
     case ReducerActions.GENERIC_ERROR:
-      return {...state, error: action.payload as Error, isLoading: false};
+      return {...state, error: action.payload, isLoading: false};
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error("Unbekannter ActionType");
   }
 };
 
@@ -164,7 +176,7 @@ const SystemMessagePage = () => {
   React.useEffect(() => {
     if (isNewMode) return;
 
-    dispatch({type: ReducerActions.SYSTEM_MESSAGE_FETCH_INIT, payload: {}});
+    dispatch({type: ReducerActions.SYSTEM_MESSAGE_FETCH_INIT});
     database.systemMessages
       .findById(id!)
       .then((result) => {
@@ -181,8 +193,11 @@ const SystemMessagePage = () => {
         }
       })
       .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        Sentry.captureException(error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   }, [id]);
   /* ------------------------------------------
@@ -219,12 +234,12 @@ const SystemMessagePage = () => {
     const savePromise = isNewMode
       ? database.systemMessages.createMessage(
           state.systemMessage,
-          authUser as AuthUser
+          authUser!
         )
       : database.systemMessages.updateMessage(
           state.systemMessage.uid,
           state.systemMessage,
-          authUser as AuthUser
+          authUser!
         );
 
     savePromise
@@ -240,8 +255,11 @@ const SystemMessagePage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        Sentry.captureException(error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   };
   /* ------------------------------------------
@@ -254,10 +272,7 @@ const SystemMessagePage = () => {
     if (reason === "clickaway") {
       return;
     }
-    dispatch({
-      type: ReducerActions.SNACKBAR_CLOSE,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
 
   const pageTitle = isNewMode ? TEXT_NEW_SYSTEM_MESSAGE : TEXT_EDIT_SYSTEM_MESSAGE;
@@ -268,6 +283,7 @@ const SystemMessagePage = () => {
       <PageTitle
         title={pageTitle}
         subTitle={TEXT_ATENTION_IMPORTANT_ANNOUNCEMENT}
+        breadcrumbs={[SYSTEM_BREADCRUMB]}
       />
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
@@ -402,7 +418,8 @@ export const AlertSystemMessage = ({systemMessage}: PreviewProps) => {
   return (
     <Alert severity={systemMessage.type}>
       {systemMessage.title && <AlertTitle>{systemMessage.title}</AlertTitle>}
-      <div dangerouslySetInnerHTML={{__html: systemMessage.text}} />
+      {/* HTML wird bereinigt um XSS-Angriffe zu verhindern */}
+      <div dangerouslySetInnerHTML={{__html: DOMPurify.sanitize(systemMessage.text)}} />
     </Alert>
   );
 };

@@ -11,7 +11,6 @@ export const PASSWORD_CHANGE = "/passwordchange";
 export const HOME = "/home";
 export const RECIPE = "/recipe";
 export const RECIPE_UID = "/recipe/:id";
-export const RECIPE_USER_UID = "/recipe/:userid/:recipeid";
 export const RECIPES = "/recipes";
 
 export const EVENT = "/event";
@@ -21,7 +20,6 @@ export const EVENTS = "/events";
 export const DONATE = "/donate";
 
 export const SYSTEM = "/system";
-export const SYSTEM_JOBS = "/system/jobs";
 export const SYSTEM_WHERE_USED = "/system/whereused";
 export const SYSTEM_MERGE_ITEM = "/system/mergeitem";
 export const SYSTEM_CONVERT_ITEM = "/system/convertitem";
@@ -29,14 +27,14 @@ export const SYSTEM_GLOBAL_SETTINGS = "/system/globalsettings";
 export const SYSTEM_SYSTEM_MESSAGES = "/system/systemmessages";
 export const SYSTEM_SYSTEM_MESSAGE_NEW = "/system/systemmessage/new";
 export const SYSTEM_SYSTEM_MESSAGE_EDIT = "/system/systemmessage/:id";
-export const SYSTEM_DB_INDICES = "/system/dbIndices";
 export const SYSTEM_ACTIVATE_SUPPORT_USER = "/system/activatesupportuser";
+export const SYSTEM_CRON_JOBS = "/system/cronjobs";
+export const SYSTEM_DATA_INTEGRITY = "/system/dataintegrity";
 
 export const SYSTEM_OVERVIEW_RECIPES = "/system/overview/recipes";
 export const SYSTEM_OVERVIEW_EVENTS = "/system/overview/events";
 export const SYSTEM_OVERVIEW_USERS = "/system/overview/users";
 export const SYSTEM_OVERVIEW_MAILBOX = "/system/overview/mailbox";
-export const SYSTEM_OVERVIEW_CLOUDFX = "/system/overview/cloudfx";
 export const SYSTEM_OVERVIEW_FEEDS = "/system/overview/feeds";
 
 export const SYSTEM_MAIL_CONSOLE = "/system/mailconsole";
@@ -70,6 +68,4 @@ export const MATERIALS = "/materials";
 export const DEPARTMENTS = "/departments";
 export const NO_AUTH = "/noauth";
 
-//NEXT_FEATURE: Muss Raus
-export const TEMP = "/temp";
 export const SCHEMA = "/schema";

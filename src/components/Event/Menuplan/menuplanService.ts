@@ -762,6 +762,9 @@ export function recalculatePortions({
 
   // Produkte iterieren
   Object.values(menuplan.products).forEach((product) => {
+    // TOTAL-Modus: fixe Menge, keine Neuberechnung nötig
+    if (product.planMode === GoodsPlanMode.TOTAL) return;
+
     let totalPortions = 0;
     product.plan = product.plan.map((plan) => {
       if (
@@ -787,6 +790,9 @@ export function recalculatePortions({
 
   // Material iterieren
   Object.values(menuplan.materials).forEach((material) => {
+    // TOTAL-Modus: fixe Menge, keine Neuberechnung nötig
+    if (material.planMode === GoodsPlanMode.TOTAL) return;
+
     let totalPortions = 0;
     material.plan = material.plan.map((plan) => {
       if (

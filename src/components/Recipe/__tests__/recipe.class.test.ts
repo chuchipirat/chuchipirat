@@ -121,6 +121,68 @@ test("Recipe.createRecipeVariant(), erwartete Werte in den Attributen", () => {
   expect(recipeMock).not.toBe(recipeVariant); // Check if a new object is created
   expect(recipeMock.uid).toEqual("HWEvHBnRM56GDapkWtsd");
 });
+
+test("Recipe.createRecipeVariant(), Variante erhält neue UIDs für Zutaten, Schritte und Material", () => {
+  const eventUid = "YhrA1BfwES7SM61P1WdW";
+  const recipeMock = _.cloneDeep(recipe);
+
+  const originalIngredientUids = [...recipeMock.ingredients.order];
+  const originalStepUids = [...recipeMock.preparationSteps.order];
+  const originalMaterialUids = [...recipeMock.materials.order];
+
+  const recipeVariant = Recipe.createRecipeVariant({
+    recipe: recipeMock,
+    eventUid: eventUid,
+  });
+
+  // Variante muss gleich viele Einträge haben wie das Original
+  expect(recipeVariant.ingredients.order).toHaveLength(
+    originalIngredientUids.length,
+  );
+  expect(recipeVariant.preparationSteps.order).toHaveLength(
+    originalStepUids.length,
+  );
+  expect(recipeVariant.materials.order).toHaveLength(
+    originalMaterialUids.length,
+  );
+
+  // Keine UID der Variante darf mit einer UID des Originals übereinstimmen
+  for (const variantUid of recipeVariant.ingredients.order) {
+    expect(originalIngredientUids).not.toContain(variantUid);
+    // Eintrag muss unter der neuen UID in entries existieren
+    expect(recipeVariant.ingredients.entries[variantUid]).toBeDefined();
+    expect(recipeVariant.ingredients.entries[variantUid].uid).toBe(variantUid);
+  }
+
+  for (const variantUid of recipeVariant.preparationSteps.order) {
+    expect(originalStepUids).not.toContain(variantUid);
+    expect(recipeVariant.preparationSteps.entries[variantUid]).toBeDefined();
+    expect(recipeVariant.preparationSteps.entries[variantUid].uid).toBe(
+      variantUid,
+    );
+  }
+
+  for (const variantUid of recipeVariant.materials.order) {
+    expect(originalMaterialUids).not.toContain(variantUid);
+    expect(recipeVariant.materials.entries[variantUid]).toBeDefined();
+    expect(recipeVariant.materials.entries[variantUid].uid).toBe(variantUid);
+  }
+
+  // Original-Rezept darf nicht verändert worden sein
+  expect(recipeMock.ingredients.order).toEqual(originalIngredientUids);
+  expect(recipeMock.preparationSteps.order).toEqual(originalStepUids);
+  expect(recipeMock.materials.order).toEqual(originalMaterialUids);
+
+  // Inhalt der Einträge muss erhalten bleiben (nur UID ist anders)
+  const originalFirstIngredient =
+    recipeMock.ingredients.entries[originalIngredientUids[0]];
+  const variantFirstIngredient =
+    recipeVariant.ingredients.entries[recipeVariant.ingredients.order[0]];
+  expect(variantFirstIngredient.product).toEqual(
+    originalFirstIngredient.product,
+  );
+  expect(variantFirstIngredient.quantity).toBe(originalFirstIngredient.quantity);
+});
 /* =====================================================================
 // Leere Einträge erzeugen
 // ===================================================================== */

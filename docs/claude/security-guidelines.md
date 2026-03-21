@@ -7,23 +7,24 @@ Consult this file when implementing any form input, authentication flow, file up
 ## Security Review Summary (Phase 2–4 Migration)
 
 ### What was reviewed
+
 - `signUp.tsx`, `signIn.tsx`, `passwordChange.tsx`, `userProfile.tsx`
 - `BaseRepository.ts` (all CRUD + Realtime paths)
 - Supabase migrations (RLS policies, DB functions)
 
 ### Findings
 
-| Area | Status | Notes |
-|------|--------|-------|
-| SQL injection | ✅ Safe | PostgREST parameterized client used throughout |
-| XSS | ✅ Safe | React auto-escapes; no `dangerouslySetInnerHTML` |
-| CSRF | ✅ Safe | SPA with JWT auth; no cookie-based sessions |
-| Auth brute-force | ✅ Safe | Supabase rate-limits auth endpoints |
-| Input validation (email) | ⚠️ Fixed | signUp.tsx was missing `Utils.isEmail()` check |
-| Input validation (password) | ⚠️ Fixed | signUp.tsx was missing minimum length check |
-| Row Level Security | ✅ Safe | Enabled on all Postgres tables |
-| File upload MIME type | ⚠️ Partial | Only client-side `accept="image/*"`; needs storage policy |
-| `increment_field` RPC | ⚠️ Missing | DB function not created yet — calls will fail at runtime |
+| Area                        | Status     | Notes                                                     |
+| --------------------------- | ---------- | --------------------------------------------------------- |
+| SQL injection               | ✅ Safe    | PostgREST parameterized client used throughout            |
+| XSS                         | ✅ Safe    | React auto-escapes; no `dangerouslySetInnerHTML`          |
+| CSRF                        | ✅ Safe    | SPA with JWT auth; no cookie-based sessions               |
+| Auth brute-force            | ✅ Safe    | Supabase rate-limits auth endpoints                       |
+| Input validation (email)    | ⚠️ Fixed   | signUp.tsx was missing `Utils.isEmail()` check            |
+| Input validation (password) | ⚠️ Fixed   | signUp.tsx was missing minimum length check               |
+| Row Level Security          | ✅ Safe    | Enabled on all Postgres tables                            |
+| File upload MIME type       | ⚠️ Partial | Only client-side `accept="image/*"`; needs storage policy |
+| `increment_field` RPC       | ⚠️ Missing | DB function not created yet — calls will fail at runtime  |
 
 ---
 
@@ -39,6 +40,7 @@ constructs raw SQL strings. All values are passed as typed JavaScript parameters
 ```
 
 **Rules:**
+
 - Never concatenate user input into a query string.
 - Never use `.rpc()` with a function that executes `EXECUTE format(...)` from unvalidated parameters.
 - If a DB function takes `table_name` or `field_name` as a `TEXT` argument and uses dynamic SQL, add an allowlist guard inside the function (see `increment_field` below).
@@ -59,11 +61,11 @@ Client-side checks provide immediate UX feedback. They are **not** the security 
 
 **Mandatory checks before submitting auth forms:**
 
-| Field | Validation | Utility |
-|-------|-----------|---------|
-| Email | `Utils.isEmail(email)` | `src/components/Shared/utils.class.ts` |
-| Password (create/change) | `password.length >= 6` | Inline |
-| Required text fields | `value !== ""` | Inline |
+| Field                    | Validation             | Utility                                |
+| ------------------------ | ---------------------- | -------------------------------------- |
+| Email                    | `Utils.isEmail(email)` | `src/components/Shared/utils.class.ts` |
+| Password (create/change) | `password.length >= 6` | Inline                                 |
+| Required text fields     | `value !== ""`         | Inline                                 |
 
 **Button disabled pattern (matches signIn.tsx and passwordChange.tsx):**
 
@@ -80,11 +82,13 @@ Client-side checks provide immediate UX feedback. They are **not** the security 
 **Validation hint pattern (matches passwordChange.tsx):**
 
 ```tsx
-{formData.email && !Utils.isEmail(formData.email) && (
-  <Typography color="error" variant="body2">
-    {TEXT_GIVE_VALID_EMAIL}
-  </Typography>
-)}
+{
+  formData.email && !Utils.isEmail(formData.email) && (
+    <Typography color="error" variant="body2">
+      {TEXT_GIVE_VALID_EMAIL}
+    </Typography>
+  );
+}
 ```
 
 ### What has been fixed
@@ -114,6 +118,7 @@ with `signIn.tsx` and `passwordChange.tsx`.
 only — a malicious user can bypass it.
 
 **What is enforced server-side (bucket `media`):**
+
 - MIME types: `image/jpeg`, `image/png`, `image/webp` — set on the bucket via
   `allowed_mime_types` (migration `20260227000002`).
 - Max file size: **2 MB** — set on the bucket via `file_size_limit` (migration
@@ -123,6 +128,7 @@ only — a malicious user can bypass it.
   `users/{auth.uid()}.jpg` — a user can only write or delete their own file.
 
 **Required pattern for every new file upload:**
+
 1. Set `allowed_mime_types` and `file_size_limit` on the bucket (or in a migration).
 2. Add RLS policies scoping write/delete to `auth.uid()` within the path.
 3. Use the **regular Supabase client**, not the admin/service-role client, so that
@@ -134,6 +140,7 @@ This is intentional for the transition period. Once the migration is complete,
 switch to the regular client so RLS is enforced. See `docs/claude/post-migration-tasks.md`.
 
 **Policy template for user-scoped uploads:**
+
 ```sql
 -- INSERT: only allow writing to users/{auth.uid()}.jpg
 CREATE POLICY <bucket>_users_insert_own ON storage.objects

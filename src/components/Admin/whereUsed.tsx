@@ -1,4 +1,6 @@
-import React from "react";
+import React, {useCallback, useRef} from "react";
+import {useNavigate, useSearchParams} from "react-router";
+import * as Sentry from "@sentry/browser";
 
 import {
   Stack,
@@ -7,17 +9,32 @@ import {
   CircularProgress,
   Card,
   CardContent,
+  CardHeader,
   Typography,
-  LinearProgress,
   Button,
   Divider,
   TextField,
   List,
   ListItem,
+  ListItemButton,
   ListItemText,
+  ListItemIcon,
   Skeleton,
+  Autocomplete,
   AutocompleteChangeReason,
+  LinearProgress,
+  Chip,
 } from "@mui/material";
+import {
+  Fastfood as FastfoodIcon,
+  ShoppingCart as ShoppingCartIcon,
+  Restaurant as RestaurantIcon,
+  Build as BuildIcon,
+  SwapHoriz as SwapHorizIcon,
+  Event as EventIcon,
+  OpenInNew as OpenInNewIcon,
+  AccountTree as AccountTreeIcon,
+} from "@mui/icons-material";
 
 import {
   TRACE as TEXT_TRACE,
@@ -27,84 +44,116 @@ import {
   WHERE_USED as TEXT_WHERE_USED,
   OR as TEXT_OR,
   RECIPE as TEXT_RECIPE,
-  UID as TEXT_UID,
-  FOUND_DOCUMENTS as TEXT_FOUND_DOCUMENTS,
+  FOUND_REFERENCE as TEXT_FOUND_REFERENCES,
 } from "../../constants/text";
-import Role from "../../constants/roles";
+import {
+  RECIPE as ROUTE_RECIPE,
+  EVENT as ROUTE_EVENT,
+  UNITCONVERSION as ROUTE_UNITCONVERSION,
+} from "../../constants/routes";
 
 import useCustomStyles from "../../constants/styles";
 import PageTitle from "../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "./system";
 
 import Product from "../Product/product.class";
-import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {
-  SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
-} from "../Shared/customSnackbar";
 import Material from "../Material/material.class";
 import AlertMessage from "../Shared/AlertMessage";
-import Utils from "../Shared/utils.class";
 import ItemAutocomplete, {
   MaterialItem,
   ProductItem,
 } from "../Event/ShoppingList/itemAutocomplete";
-import WhereUsed, {TraceObject} from "./whereUsed.class";
-import Recipe from "../Recipe/recipe.class";
 import {ItemType} from "../Event/ShoppingList/shoppingList.class";
 import {TextFieldSize} from "../../constants/defaultValues";
+import {useDatabase} from "../Database/DatabaseContext";
+import {WhereUsedEntry} from "../Database/Repository/AdminOperationsRepository";
+import {RecipeShortDomain} from "../Database/Repository/RecipeRepository";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
+
+/**
+ * Zuordnung von Tabellennamen auf den Query-Parameter für den Event-Tab-Deep-Link.
+ * Einträge ohne Mapping landen auf dem Standard-Tab (Menüplan).
+ */
+const TAB_PARAM_BY_TABLE: Record<string, string> = {
+  event_shopping_list_items: "shoppinglist",
+  event_material_list_items: "materiallist",
+};
+
+/**
+ * Typ des zu suchenden Objekts für den Verwendungsnachweis.
+ */
+type WhereUsedItemType = "product" | "material" | "recipe";
+
 enum ReducerActions {
-  PRODUCTS_FETCH_INIT,
-  PRODUCTS_FETCH_SUCCESS,
-  MATERIALS_FETCH_INIT,
-  MATERIALS_FETCH_SUCCESS,
-  UPDATE_SELECTION,
-  TRACE_START,
-  TRACE_DONE,
-  SNACKBAR_CLOSE,
-  GENERIC_ERROR,
+  PRODUCTS_FETCH_INIT = "PRODUCTS_FETCH_INIT",
+  PRODUCTS_FETCH_SUCCESS = "PRODUCTS_FETCH_SUCCESS",
+  MATERIALS_FETCH_INIT = "MATERIALS_FETCH_INIT",
+  MATERIALS_FETCH_SUCCESS = "MATERIALS_FETCH_SUCCESS",
+  RECIPES_FETCH_INIT = "RECIPES_FETCH_INIT",
+  RECIPES_FETCH_SUCCESS = "RECIPES_FETCH_SUCCESS",
+  UPDATE_SELECTION = "UPDATE_SELECTION",
+  TRACE_START = "TRACE_START",
+  TRACE_DONE = "TRACE_DONE",
+  SNACKBAR_CLOSE = "SNACKBAR_CLOSE",
+  GENERIC_ERROR = "GENERIC_ERROR",
 }
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+type DispatchAction =
+  | {type: ReducerActions.PRODUCTS_FETCH_INIT}
+  | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
+  | {type: ReducerActions.MATERIALS_FETCH_INIT}
+  | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
+  | {type: ReducerActions.RECIPES_FETCH_INIT}
+  | {type: ReducerActions.RECIPES_FETCH_SUCCESS; payload: RecipeShortDomain[]}
+  | {
+      type: ReducerActions.UPDATE_SELECTION;
+      payload: Partial<Pick<State, "selectedItem" | "selectedRecipe">>;
+    }
+  | {type: ReducerActions.TRACE_START}
+  | {type: ReducerActions.TRACE_DONE; payload: WhereUsedEntry[]}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
   selectedItem: ProductItem | MaterialItem | null;
-  selectedRecipeUid: Recipe["uid"];
+  selectedRecipe: RecipeShortDomain | null;
   products: Product[];
   materials: Material[];
+  recipes: RecipeShortDomain[];
   isTracing: boolean;
   isLoading: boolean;
   loadingComponents: {
     materials: boolean;
     products: boolean;
+    recipes: boolean;
   };
   error: Error | null;
-  snackbar: Snackbar;
-  tracedFiles: {document: string; name: string}[];
+  tracedEntries: WhereUsedEntry[];
   noOfFoundFiles: number;
 };
 
-const inititialState: State = {
+const initialState: State = {
   selectedItem: null,
-  selectedRecipeUid: "",
+  selectedRecipe: null,
   products: [],
   materials: [],
+  recipes: [],
   isTracing: false,
   isLoading: false,
-  loadingComponents: {materials: false, products: false},
+  loadingComponents: {materials: false, products: false, recipes: false},
   error: null,
-  snackbar: SNACKBAR_INITIAL_STATE_VALUES,
-  tracedFiles: [],
+  tracedEntries: [],
   noOfFoundFiles: -1,
 };
+
+/**
+ * Hilfsfunktion: Prüft ob mindestens eine Ladeoperation noch läuft.
+ */
+const deriveIsLoading = (components: State["loadingComponents"]): boolean =>
+  Object.values(components).some(Boolean);
 
 const whereUsedReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
@@ -115,11 +164,10 @@ const whereUsedReducer = (state: State, action: DispatchAction): State => {
         loadingComponents: {...state.loadingComponents, products: true},
       };
     case ReducerActions.PRODUCTS_FETCH_SUCCESS:
-      // Produkte geholt
       return {
         ...state,
-        products: action.payload as Product[],
-        isLoading: Utils.deriveIsLoading({
+        products: action.payload,
+        isLoading: deriveIsLoading({
           ...state.loadingComponents,
           products: false,
         }),
@@ -132,43 +180,59 @@ const whereUsedReducer = (state: State, action: DispatchAction): State => {
         loadingComponents: {...state.loadingComponents, materials: true},
       };
     case ReducerActions.MATERIALS_FETCH_SUCCESS:
-      // Materiale geholt
       return {
         ...state,
-        materials: action.payload as Material[],
-        isLoading: Utils.deriveIsLoading({
+        materials: action.payload,
+        isLoading: deriveIsLoading({
           ...state.loadingComponents,
           materials: false,
         }),
         loadingComponents: {...state.loadingComponents, materials: false},
       };
+    case ReducerActions.RECIPES_FETCH_INIT:
+      return {
+        ...state,
+        isLoading: true,
+        loadingComponents: {...state.loadingComponents, recipes: true},
+      };
+    case ReducerActions.RECIPES_FETCH_SUCCESS:
+      return {
+        ...state,
+        recipes: action.payload,
+        isLoading: deriveIsLoading({
+          ...state.loadingComponents,
+          recipes: false,
+        }),
+        loadingComponents: {...state.loadingComponents, recipes: false},
+      };
     case ReducerActions.UPDATE_SELECTION:
       return {...state, ...action.payload};
     case ReducerActions.TRACE_START:
-      // Ladebalken anzeigen
+      // Ladebalken anzeigen, vorherige Ergebnisse zurücksetzen
       return {
         ...state,
         isTracing: true,
-        tracedFiles: inititialState.tracedFiles,
-        noOfFoundFiles: inititialState.noOfFoundFiles,
+        tracedEntries: initialState.tracedEntries,
+        noOfFoundFiles: initialState.noOfFoundFiles,
       };
     case ReducerActions.TRACE_DONE:
       return {
         ...state,
         isTracing: false,
-        tracedFiles: action.payload as State["tracedFiles"],
+        tracedEntries: action.payload,
         noOfFoundFiles: action.payload.length,
       };
+    case ReducerActions.SNACKBAR_CLOSE:
+      return state;
     case ReducerActions.GENERIC_ERROR:
-      // Allgemeiner Fehler
       return {
         ...state,
         isTracing: false,
-        error: action.payload as Error,
+        error: action.payload,
       };
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      // Sollte nie auftreten — alle Aktionen sind abgedeckt
+      throw new Error("Unbekannter ReducerAction-Typ");
   }
 };
 
@@ -176,89 +240,113 @@ const whereUsedReducer = (state: State, action: DispatchAction): State => {
 // =============================== Page ==============================
 // =================================================================== */
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Admin-Seite für den Verwendungsnachweis (Where-Used).
+ *
+ * Ermöglicht die Suche nach Referenzen eines Produkts, Materials oder
+ * Rezepts in der gesamten Datenbank. Der Benutzer wählt ein Produkt/Material
+ * aus der Autocomplete-Liste oder gibt eine Rezept-UID ein und erhält
+ * eine Liste aller Fundstellen.
+ *
+ * @returns React-Komponente für die Where-Used-Seite.
+ */
 const WhereUsedPage = () => {
-  const firebase = useFirebase();
-  const authUser = useAuthUser();
+  const database = useDatabase();
   const classes = useCustomStyles();
+  const [searchParams, setSearchParams] = useSearchParams();
 
-  const [state, dispatch] = React.useReducer(whereUsedReducer, inititialState);
+  const [state, dispatch] = React.useReducer(whereUsedReducer, initialState);
+
+  // Verhindert doppeltes Wiederherstellen aus URL-Parametern
+  const restoredFromUrl = useRef(false);
 
   /* ------------------------------------------
-  // Produkte, Materialien
+  // Produkte laden
   // ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT, payload: {}});
-    Product.getAllProducts({
-      firebase: firebase,
-      onlyUsable: false,
-      withDepartmentName: false,
-    })
+    dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT});
+    database.products
+      .getAllProducts()
       .then((result) => {
+        // Domain-Objekte auf Product-Klasse casten (strukturell kompatibel)
         dispatch({
           type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-          payload: result,
+          payload: result as unknown as Product[],
         });
       })
       .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
-  }, []);
-
-  React.useEffect(() => {
-    dispatch({type: ReducerActions.MATERIALS_FETCH_INIT, payload: {}});
-
-    Material.getAllMaterials({firebase: firebase, onlyUsable: false})
-      .then((result) => {
-        dispatch({
-          type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-          payload: result,
-        });
-      })
-      .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
   }, []);
 
   /* ------------------------------------------
-	// Felder Updatem
-	// ------------------------------------------ */
+  // Materialien laden
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    dispatch({type: ReducerActions.MATERIALS_FETCH_INIT});
+    database.materials
+      .getAllMaterials()
+      .then((result) => {
+        // Domain-Objekte auf Material-Klasse casten (strukturell kompatibel)
+        dispatch({
+          type: ReducerActions.MATERIALS_FETCH_SUCCESS,
+          payload: result as unknown as Material[],
+        });
+      })
+      .catch((error) => {
+        Sentry.captureException(error);
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      });
+  }, []);
+
+  /* ------------------------------------------
+  // Rezepte laden
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    dispatch({type: ReducerActions.RECIPES_FETCH_INIT});
+    database.recipes
+      .getAllRecipeShorts()
+      .then((result) => {
+        dispatch({
+          type: ReducerActions.RECIPES_FETCH_SUCCESS,
+          payload: result,
+        });
+      })
+      .catch((error) => {
+        Sentry.captureException(error);
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      });
+  }, []);
+
+  /* ------------------------------------------
+  // Felder aktualisieren
+  // ------------------------------------------ */
   const onFieldUpdate = (
-    event:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLInputElement>,
+    event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | MaterialItem | ProductItem | null,
     action?: AutocompleteChangeReason,
   ) => {
-    let updatedValues = {};
+    let updatedValues: Partial<Pick<State, "selectedItem" | "selectedRecipe">> =
+      {};
     switch (event.target.id.split("_")[0]) {
-      case "recipeUid":
-        updatedValues = {
-          selectedRecipeUid: event.target?.value,
-        };
-        break;
       case "item":
         if (action === "blur" && typeof newValue === "string") {
-          // Der Blur, bringt nur den Text-Eintrag
+          // Der Blur bringt nur den Text-Eintrag
           // --> nicht das Objekt, daher Abbruch
           return;
         }
         updatedValues = {
-          selectedItem: newValue,
+          selectedItem: newValue as ProductItem | MaterialItem | null,
         };
         break;
       default:
-        if (action == "clear") {
+        if (action === "clear") {
           // Autocomplete wurde gelöscht
           updatedValues = {
             selectedItem: null,
           };
         } else {
-          console.warn("Target-ID unbekannt: ", event.target.id);
           return;
         }
     }
@@ -266,48 +354,133 @@ const WhereUsedPage = () => {
     dispatch({type: ReducerActions.UPDATE_SELECTION, payload: updatedValues});
   };
 
+  /** Callback für die Rezept-Autocomplete-Auswahl. */
+  const onRecipeChange = (
+    _event: React.SyntheticEvent,
+    newValue: RecipeShortDomain | null,
+  ) => {
+    dispatch({
+      type: ReducerActions.UPDATE_SELECTION,
+      payload: {selectedRecipe: newValue},
+    });
+  };
+
   /* ------------------------------------------
-  // Trace starten
+  // Objekttyp aus der Auswahl ableiten
   // ------------------------------------------ */
+  const deriveItemType = (): WhereUsedItemType | null => {
+    if (state.selectedRecipe) {
+      return "recipe";
+    }
+    if (state.selectedItem?.itemType === ItemType.food) {
+      return "product";
+    }
+    if (state.selectedItem?.itemType === ItemType.material) {
+      return "material";
+    }
+    return null;
+  };
+
+  /* ------------------------------------------
+  // Verwendungsnachweis starten
+  // ------------------------------------------ */
+
+  /**
+   * Führt den Trace aus und schreibt die Suchparameter in die URL.
+   * Bei Back-Navigation werden diese Parameter ausgelesen und die Suche
+   * automatisch wiederholt.
+   */
+  const runTrace = useCallback(
+    async (itemId: string, itemType: WhereUsedItemType) => {
+      dispatch({type: ReducerActions.TRACE_START});
+
+      // Suchparameter in URL schreiben (replace, um History nicht aufzublähen)
+      setSearchParams({itemId, itemType}, {replace: true});
+
+      try {
+        const entries = await database.adminOps.whereUsed(itemId, itemType);
+        dispatch({type: ReducerActions.TRACE_DONE, payload: entries});
+      } catch (error) {
+        Sentry.captureException(error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
+      }
+    },
+    [database.adminOps, setSearchParams],
+  );
+
   const onStartTrace = async () => {
-    if (
-      !state.selectedRecipeUid &&
-      (state.selectedItem === null || state.selectedItem.uid == "")
-    ) {
+    const itemId = state.selectedRecipe
+      ? state.selectedRecipe.uid
+      : (state.selectedItem?.uid ?? "");
+
+    const itemType = deriveItemType();
+
+    if (!itemId || !itemType) {
       return;
     }
 
-    dispatch({type: ReducerActions.TRACE_START, payload: {}});
-    WhereUsed.trace({
-      uid:
-        state.selectedRecipeUid !== ""
-          ? state.selectedRecipeUid
-          : state.selectedItem!.uid,
-      callback: (documentList) => {
-        dispatch({type: ReducerActions.TRACE_DONE, payload: documentList});
-      },
-      objectType: state.selectedRecipeUid
-        ? TraceObject.recipe
-        : state.selectedItem?.itemType === ItemType.food
-          ? TraceObject.product
-          : state.selectedItem?.itemType === ItemType.material
-            ? TraceObject.material
-            : TraceObject.none,
-      firebase: firebase,
-      authUser: authUser!,
-    }).catch((error) => {
-      console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-    });
+    await runTrace(itemId, itemType);
   };
+
   /* ------------------------------------------
-  // Trace Resultat löschen
+  // URL-Parameter restaurieren (Back-Navigation)
   // ------------------------------------------ */
+  React.useEffect(() => {
+    if (restoredFromUrl.current || state.isLoading) {
+      return;
+    }
+
+    const urlItemId = searchParams.get("itemId");
+    const urlItemType = searchParams.get("itemType") as WhereUsedItemType | null;
+
+    if (!urlItemId || !urlItemType) {
+      return;
+    }
+
+    restoredFromUrl.current = true;
+
+    // Auswahl im Autocomplete wiederherstellen
+    if (urlItemType === "recipe") {
+      const recipe = state.recipes.find((recipe) => recipe.uid === urlItemId);
+      if (recipe) {
+        dispatch({
+          type: ReducerActions.UPDATE_SELECTION,
+          payload: {selectedRecipe: recipe},
+        });
+      }
+    } else if (urlItemType === "product") {
+      const product = state.products.find((product) => product.uid === urlItemId);
+      if (product) {
+        dispatch({
+          type: ReducerActions.UPDATE_SELECTION,
+          payload: {selectedItem: {...product, itemType: ItemType.food} as ProductItem},
+        });
+      }
+    } else if (urlItemType === "material") {
+      const material = state.materials.find((material) => material.uid === urlItemId);
+      if (material) {
+        dispatch({
+          type: ReducerActions.UPDATE_SELECTION,
+          payload: {selectedItem: {...material, itemType: ItemType.material} as MaterialItem},
+        });
+      }
+    }
+
+    // Trace automatisch starten
+    runTrace(urlItemId, urlItemType);
+  }, [state.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={TEXT_TRACE} subTitle={TEXT_WHERE_ARE_YOUR} />
+      <PageTitle
+        title={TEXT_TRACE}
+        subTitle={TEXT_WHERE_ARE_YOUR}
+        breadcrumbs={[SYSTEM_BREADCRUMB]}
+      />
 
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
@@ -329,48 +502,78 @@ const WhereUsedPage = () => {
             <SearchPanel
               products={state.products}
               materials={state.materials}
+              recipes={state.recipes}
               selectedItem={state.selectedItem}
-              selectedRecipe={state.selectedRecipeUid}
+              selectedRecipe={state.selectedRecipe}
               isTracing={state.isTracing}
               onStartTrace={onStartTrace}
               onFieldUpdate={onFieldUpdate}
+              onRecipeChange={onRecipeChange}
             />
           )}
           {state.noOfFoundFiles >= 0 && (
-            <ResultPanel documentList={state.tracedFiles} />
+            <ResultPanel entries={state.tracedEntries} />
           )}
         </Stack>
       </Container>
     </React.Fragment>
   );
 };
+
 /* ===================================================================
-// =========================== Panel Suche ))=========================
+// =========================== Panel Suche ===========================
 // =================================================================== */
-interface SearchPanelProps {
+
+/**
+ * Props für das Such-Panel.
+ *
+ * @param products - Verfügbare Produkte für die Autocomplete-Auswahl.
+ * @param materials - Verfügbare Materialien für die Autocomplete-Auswahl.
+ * @param recipes - Verfügbare Rezepte für die Autocomplete-Auswahl.
+ * @param selectedItem - Aktuell ausgewähltes Produkt oder Material.
+ * @param selectedRecipe - Ausgewähltes Rezept (oder null).
+ * @param isTracing - Ob gerade eine Suche läuft.
+ * @param onFieldUpdate - Callback bei Änderungen am Produkt/Material-Feld.
+ * @param onRecipeChange - Callback bei Änderungen am Rezept-Feld.
+ * @param onStartTrace - Callback zum Starten der Suche.
+ */
+type SearchPanelProps = {
   products: Product[];
   materials: Material[];
+  recipes: RecipeShortDomain[];
   selectedItem: ProductItem | MaterialItem | null;
-  selectedRecipe: Recipe["uid"];
+  selectedRecipe: RecipeShortDomain | null;
   isTracing: boolean;
   onFieldUpdate: (
-    event:
-      | React.ChangeEvent<HTMLInputElement>
-      | React.ChangeEvent<HTMLInputElement>,
+    event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | MaterialItem | ProductItem | null,
   ) => void;
+  onRecipeChange: (
+    event: React.SyntheticEvent,
+    newValue: RecipeShortDomain | null,
+  ) => void;
   onStartTrace: () => void;
-}
+};
+
 const SearchPanel = ({
   products,
   materials,
+  recipes,
   selectedItem,
   selectedRecipe,
   isTracing,
   onFieldUpdate,
+  onRecipeChange,
   onStartTrace,
 }: SearchPanelProps) => {
   const classes = useCustomStyles();
+
+  // Genau eine Auswahl muss gesetzt sein (Produkt/Material ODER Rezept)
+  const hasItemSelected = !!selectedItem && selectedItem.uid !== "";
+  const hasRecipeSelected = !!selectedRecipe;
+  const canTrace =
+    (hasItemSelected || hasRecipeSelected) &&
+    !(hasItemSelected && hasRecipeSelected);
 
   return (
     <Card sx={classes.card} key={"cardProduct"}>
@@ -392,24 +595,33 @@ const SearchPanel = ({
             size={TextFieldSize.medium}
           />
           <Divider>{TEXT_OR.toLocaleUpperCase()}</Divider>
-          <TextField
-            margin="normal"
-            id="recipeUid"
-            key="recipeUid"
-            label={`${TEXT_RECIPE} ${TEXT_UID}`}
-            name={"recipeUid"}
+          <Autocomplete
+            id="recipe"
+            options={recipes}
+            getOptionLabel={(option) => option.name}
             value={selectedRecipe}
-            fullWidth
-            onChange={onFieldUpdate}
+            onChange={onRecipeChange}
+            renderOption={(props, option) => (
+              <li {...props} key={option.uid}>
+                <ListItemText
+                  primary={option.name}
+                  secondary={option.uid}
+                  slotProps={{
+                    secondary: {
+                      variant: "caption",
+                      color: "text.secondary",
+                    },
+                  }}
+                />
+              </li>
+            )}
+            isOptionEqualToValue={(option, value) => option.uid === value.uid}
+            renderInput={(params) => (
+              <TextField {...params} label={TEXT_RECIPE} />
+            )}
           />
           <Button
-            disabled={
-              (selectedRecipe === "" &&
-                (!selectedItem || selectedItem.uid === "")) ||
-              (!!selectedItem &&
-                selectedRecipe !== "" &&
-                selectedItem.uid !== "")
-            }
+            disabled={!canTrace}
             fullWidth
             variant="contained"
             color="primary"
@@ -424,35 +636,175 @@ const SearchPanel = ({
     </Card>
   );
 };
+
 /* ===================================================================
 // =========================== Panel Ergebnis =========================
 // =================================================================== */
-interface ResultPanelProps {
-  documentList: State["tracedFiles"];
-}
-const ResultPanel = ({documentList}: ResultPanelProps) => {
+
+/**
+ * Zuordnung von Tabellennamen zu menschenlesbaren Gruppentiteln und Icons.
+ */
+const TABLE_GROUP_CONFIG: Record<
+  string,
+  {label: string; icon: React.ReactElement}
+> = {
+  recipe_ingredients: {label: "Rezepte (Zutaten)", icon: <FastfoodIcon />},
+  recipe_materials: {label: "Rezepte (Material)", icon: <BuildIcon />},
+  event_shopping_list_items: {
+    label: "Einkaufslisten",
+    icon: <ShoppingCartIcon />,
+  },
+  event_material_list_items: {label: "Materiallisten", icon: <BuildIcon />},
+  event_menue_products: {
+    label: "Menüpläne (Produkte)",
+    icon: <RestaurantIcon />,
+  },
+  event_menue_materials: {
+    label: "Menüpläne (Material)",
+    icon: <RestaurantIcon />,
+  },
+  event_menue_recipes: {label: "Menüpläne (Rezepte)", icon: <RestaurantIcon />},
+  unit_conversion_products: {
+    label: "Einheitenumrechnungen",
+    icon: <SwapHorizIcon />,
+  },
+  recipe_variants: {label: "Varianten", icon: <AccountTreeIcon />},
+  recipe_original: {label: "Original-Rezept", icon: <AccountTreeIcon />},
+};
+
+/**
+ * Gruppiert Einträge nach table_name.
+ *
+ * @param entries Flache Liste aller Fundstellen.
+ * @returns Map: table_name → Einträge.
+ */
+const groupByTable = (
+  entries: WhereUsedEntry[],
+): Map<string, WhereUsedEntry[]> => {
+  const groups = new Map<string, WhereUsedEntry[]>();
+  for (const entry of entries) {
+    const existing = groups.get(entry.table_name) ?? [];
+    existing.push(entry);
+    groups.set(entry.table_name, existing);
+  }
+  return groups;
+};
+
+/**
+ * Props für das Ergebnis-Panel.
+ *
+ * @param entries Gefundene Verwendungsstellen aus der Datenbank.
+ */
+type ResultPanelProps = {
+  entries: WhereUsedEntry[];
+};
+
+/**
+ * Zeigt die Ergebnisse des Verwendungsnachweises gruppiert nach Tabelle an.
+ *
+ * Jede Gruppe wird als eigene Card dargestellt. Die Einträge zeigen den
+ * Namen des Rezepts/Events als Primärtext und die UID als Sekundärtext.
+ * Klickbare Einträge navigieren zum jeweiligen Rezept oder Event.
+ */
+const ResultPanel = ({entries}: ResultPanelProps) => {
   const classes = useCustomStyles();
+  const navigate = useNavigate();
+
+  /** Navigiert zum übergeordneten Objekt (Rezept oder Event). */
+  const handleNavigate = useCallback(
+    (entry: WhereUsedEntry) => {
+      if (entry.table_name === "unit_conversion_products") {
+        navigate(`${ROUTE_UNITCONVERSION}?tab=product`);
+      } else if (entry.parent_type === "recipe") {
+        navigate(`${ROUTE_RECIPE}/${entry.parent_id}`);
+      } else if (entry.parent_type === "event") {
+        // Tab-Parameter für Deep-Link auf den passenden Event-Tab
+        const tabParam = TAB_PARAM_BY_TABLE[entry.table_name] ?? "";
+        const query = tabParam ? `?tab=${tabParam}` : "";
+        // Bei Einkaufslisten zusätzlich die Listen-ID übergeben
+        const listParam = entry.list_id ? `&listId=${entry.list_id}` : "";
+        navigate(`${ROUTE_EVENT}/${entry.parent_id}${query}${listParam}`);
+      }
+    },
+    [navigate],
+  );
+
+  const grouped = groupByTable(entries);
 
   return (
-    <Card sx={classes.card} key={"cardProduct"}>
-      <CardContent sx={classes.cardContent} key={"cardContentProduct"}>
-        <Stack spacing={2}>
-          <Typography gutterBottom={true} variant="h5" component="h2">
-            {`${TEXT_FOUND_DOCUMENTS}: ${documentList.length}`}
-          </Typography>
-          <List sx={classes.root}>
-            {documentList.map((document, counter) => (
-              <ListItem divider key={"listItem_" + counter}>
-                <ListItemText
-                  primary={document.name}
-                  secondary={document.document}
+    <Stack spacing={2}>
+      <Typography variant="h5" component="h2">
+        {`${TEXT_FOUND_REFERENCES}: ${entries.length}`}
+      </Typography>
+
+      {Array.from(grouped.entries()).map(([tableName, tableEntries]) => {
+        const config = TABLE_GROUP_CONFIG[tableName] ?? {
+          label: tableName,
+          icon: <EventIcon />,
+        };
+        const isNavigable =
+          tableEntries[0]?.parent_type === "recipe" ||
+          tableEntries[0]?.parent_type === "event" ||
+          tableName === "unit_conversion_products";
+
+        return (
+          <Card sx={classes.card} key={tableName}>
+            <CardHeader
+              avatar={config.icon}
+              title={config.label}
+              action={
+                <Chip
+                  label={tableEntries.length}
+                  size="small"
+                  color="primary"
                 />
-              </ListItem>
-            ))}
-          </List>
-        </Stack>
-      </CardContent>
-    </Card>
+              }
+            />
+            <CardContent sx={{pt: 0}}>
+              <List dense disablePadding>
+                {tableEntries.map((entry, index) =>
+                  isNavigable ? (
+                    <ListItemButton
+                      key={`${tableName}_${index}`}
+                      divider={index < tableEntries.length - 1}
+                      onClick={() => handleNavigate(entry)}
+                    >
+                      <ListItemText
+                        primary={entry.context}
+                        secondary={entry.parent_id}
+                      />
+                      <ListItemIcon sx={{minWidth: "auto"}}>
+                        <OpenInNewIcon fontSize="small" color="action" />
+                      </ListItemIcon>
+                    </ListItemButton>
+                  ) : (
+                    <ListItem
+                      key={`${tableName}_${index}`}
+                      divider={index < tableEntries.length - 1}
+                    >
+                      <ListItemText
+                        primary={entry.context}
+                        secondary={entry.record_id}
+                      />
+                    </ListItem>
+                  ),
+                )}
+              </List>
+            </CardContent>
+          </Card>
+        );
+      })}
+
+      {entries.length === 0 && (
+        <Card sx={classes.card}>
+          <CardContent>
+            <Typography color="textSecondary" align="center">
+              Keine Verwendung gefunden.
+            </Typography>
+          </CardContent>
+        </Card>
+      )}
+    </Stack>
   );
 };
 

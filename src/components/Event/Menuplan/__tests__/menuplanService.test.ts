@@ -1349,6 +1349,98 @@ describe("recalculatePortions (Randfälle)", () => {
 });
 
 /* =====================================================================
+// recalculatePortions — TOTAL-Modus
+// ===================================================================== */
+describe("recalculatePortions (TOTAL-Modus)", () => {
+  it("sollte TOTAL-Produkte nicht neu berechnen", () => {
+    const mp = buildPopulatedMenuplan();
+    const gc = buildGroupConfig();
+
+    mp.menues["menue-1"].productOrder = ["prod-total"];
+    mp.products["prod-total"] = {
+      uid: "prod-total",
+      productName: "Sonnencreme",
+      productUid: "p-total",
+      quantity: 5,
+      unit: "Stk",
+      planMode: GoodsPlanMode.TOTAL,
+      plan: [],
+      totalQuantity: 5,
+    };
+
+    const result = recalculatePortions({menuplan: mp, groupConfig: gc});
+
+    // TOTAL-Modus: totalQuantity bleibt unverändert
+    expect(result.products["prod-total"].totalQuantity).toBe(5);
+    expect(result.products["prod-total"].quantity).toBe(5);
+  });
+
+  it("sollte TOTAL-Materialien nicht neu berechnen", () => {
+    const mp = buildPopulatedMenuplan();
+    const gc = buildGroupConfig();
+
+    mp.menues["menue-1"].materialOrder = ["mat-total"];
+    mp.materials["mat-total"] = {
+      uid: "mat-total",
+      materialName: "Zeltplachen",
+      materialUid: "m-total",
+      quantity: 3,
+      unit: "Stk",
+      planMode: GoodsPlanMode.TOTAL,
+      plan: [],
+      totalQuantity: 3,
+    };
+
+    const result = recalculatePortions({menuplan: mp, groupConfig: gc});
+
+    // TOTAL-Modus: totalQuantity bleibt unverändert
+    expect(result.materials["mat-total"].totalQuantity).toBe(3);
+    expect(result.materials["mat-total"].quantity).toBe(3);
+  });
+
+  it("sollte PER_PORTION-Produkte weiterhin korrekt berechnen neben TOTAL-Produkten", () => {
+    const mp = buildPopulatedMenuplan();
+    const gc = buildGroupConfig();
+
+    mp.menues["menue-1"].productOrder = ["prod-total", "prod-portion"];
+    mp.products["prod-total"] = {
+      uid: "prod-total",
+      productName: "Sonnencreme",
+      productUid: "p-total",
+      quantity: 5,
+      unit: "Stk",
+      planMode: GoodsPlanMode.TOTAL,
+      plan: [],
+      totalQuantity: 5,
+    };
+    mp.products["prod-portion"] = {
+      uid: "prod-portion",
+      productName: "Brot",
+      productUid: "p-portion",
+      quantity: 2,
+      unit: "Stk",
+      planMode: GoodsPlanMode.PER_PORTION,
+      plan: [
+        {
+          diet: PlanedDiet.ALL,
+          intolerance: PlanedIntolerances.ALL,
+          factor: 1,
+          totalPortions: 0,
+        },
+      ],
+      totalQuantity: 0,
+    };
+
+    const result = recalculatePortions({menuplan: mp, groupConfig: gc});
+
+    // TOTAL bleibt unverändert
+    expect(result.products["prod-total"].totalQuantity).toBe(5);
+    // PER_PORTION wird neu berechnet: quantity(2) × totalPortions(15) = 30
+    expect(result.products["prod-portion"].totalQuantity).toBe(30);
+  });
+});
+
+/* =====================================================================
 // sortSelectedMenues — Zusätzliche Randfälle
 // ===================================================================== */
 describe("sortSelectedMenues (Randfälle)", () => {

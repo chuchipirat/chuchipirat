@@ -40,12 +40,14 @@ import {
 import {GlobalSettingsDomain} from "../../Database/Repository/GlobalSettingsRepository";
 
 import PageTitle from "../../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "../system";
 import ButtonRow from "../../Shared/buttonRow";
 import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
 
 import AlertMessage from "../../Shared/AlertMessage";
 
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import * as Sentry from "@sentry/browser";
+
 import {useAuthUser} from "../../Session/authUserContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {supabase} from "../../Database/supabaseClient";
@@ -64,10 +66,15 @@ enum ReducerActions {
   CLOSE_SNACKBAR,
   GENERIC_ERROR,
 }
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+/** Diskriminierte Union für typsichere Reducer-Aktionen. */
+type DispatchAction =
+  | {type: ReducerActions.GLOBAL_SETTINGS_FETCH_INIT}
+  | {type: ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS; payload: GlobalSettingsDomain}
+  | {type: ReducerActions.GLOBAL_SETTINGS_ON_CHANGE; payload: Partial<GlobalSettingsDomain>}
+  | {type: ReducerActions.GLOBAL_SETTINGS_SAVE_SUCCESS}
+  | {type: ReducerActions.SIGN_OUT_ALL_USERS; payload: {count: number}}
+  | {type: ReducerActions.CLOSE_SNACKBAR}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
   globalSettings: GlobalSettingsDomain;
@@ -85,6 +92,13 @@ const inititialState: State = {
   snackbar: {open: false, severity: "success", message: ""},
 };
 
+/**
+ * Reducer für die globale Einstellungsseite.
+ *
+ * @param state Aktueller State.
+ * @param action Typsichere Reducer-Aktion.
+ * @returns Neuer State.
+ */
 const globalSettingsReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.GLOBAL_SETTINGS_FETCH_INIT:
@@ -96,7 +110,7 @@ const globalSettingsReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS:
       return {
         ...state,
-        globalSettings: action.payload as GlobalSettingsDomain,
+        globalSettings: action.payload,
         isLoading: false,
         isError: false,
       };
@@ -109,11 +123,10 @@ const globalSettingsReducer = (state: State, action: DispatchAction): State => {
         },
       };
     case ReducerActions.GENERIC_ERROR:
-      // Allgemeiner Fehler
       return {
         ...state,
         isError: true,
-        error: action.payload as Error,
+        error: action.payload,
       };
     case ReducerActions.GLOBAL_SETTINGS_SAVE_SUCCESS:
       return {
@@ -147,8 +160,7 @@ const globalSettingsReducer = (state: State, action: DispatchAction): State => {
         },
       };
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error("Unbekannter ActionType");
   }
 };
 
@@ -176,10 +188,7 @@ const GlobalSettingsPage = () => {
   // Globale Einstellungen holen
   // ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.GLOBAL_SETTINGS_FETCH_INIT,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.GLOBAL_SETTINGS_FETCH_INIT});
     database.globalSettings
       .getSettings()
       .then((result) => {
@@ -189,10 +198,10 @@ const GlobalSettingsPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
-          payload: error,
+          payload: error instanceof Error ? error : new Error(String(error)),
         });
       });
   }, []);
@@ -246,7 +255,11 @@ const GlobalSettingsPage = () => {
         });
       })
       .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        Sentry.captureException(error);
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: error instanceof Error ? error : new Error(String(error)),
+        });
       });
   };
   /* ------------------------------------------
@@ -254,17 +267,15 @@ const GlobalSettingsPage = () => {
   // ------------------------------------------ */
   const onSaveClick = () => {
     database.globalSettings
-      .saveSettings(state.globalSettings, authUser as AuthUser)
+      .saveSettings(state.globalSettings, authUser!)
       .then(() => {
-        dispatch({
-          type: ReducerActions.GLOBAL_SETTINGS_SAVE_SUCCESS,
-          payload: {},
-        });
+        dispatch({type: ReducerActions.GLOBAL_SETTINGS_SAVE_SUCCESS});
       })
       .catch((error) => {
+        Sentry.captureException(error);
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
-          payload: error,
+          payload: error instanceof Error ? error : new Error(String(error)),
         });
       });
   };
@@ -278,16 +289,13 @@ const GlobalSettingsPage = () => {
     if (reason === "clickaway") {
       return;
     }
-    dispatch({
-      type: ReducerActions.CLOSE_SNACKBAR,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.CLOSE_SNACKBAR});
   };
 
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={TEXT_GLOBAL_SETTINGS} />
+      <PageTitle title={TEXT_GLOBAL_SETTINGS} breadcrumbs={[SYSTEM_BREADCRUMB]} />
 
       <ButtonRow
         key="buttons_edit"

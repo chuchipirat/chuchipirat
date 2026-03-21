@@ -1,95 +1,100 @@
-# CLAUDE.md
+# Chuchipirat – CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+## Project
 
-## Project Overview
+Chuchipirat is a free, open-source web app for Swiss youth organizations (scouts, guides) to plan camp kitchens. React/TypeScript frontend with Material UI, Supabase/Postgres backend. Non-profit, volunteer-run.
 
-Chuchipirat is a German-language event and recipe management web application. It allows users to plan events with menus, generate shopping lists, manage recipes, and export documents as PDFs.
+The app is **multi-user**: multiple cooks collaborate on the same camp (event). This affects every architectural decision — RLS policies, Realtime subscriptions, and state management must account for concurrent access by different users on the same data.
+
+The app is used on **desktop/tablet** during camp preparation and on **mobile** during the camp itself. All UI must be responsive and functional on both.
+
+## Core Principles
+
+1. **Plan first, code second.** Always create a plan before writing code. Discuss the approach, outline the steps, get confirmation. Never jump straight into implementation. **If something goes sideways during implementation, STOP immediately.** Don't push forward with workarounds — switch back to planning and re-plan including verification steps.
+2. **Prove it works.** No task is complete without verification. Run tests, check the browser, validate the migration chain. If you can't prove it works, it's not done.
+3. **Use subagents for complex tasks.** Offload heavy subtasks (research, testing, refactoring) to subagents to keep the main context clean and focused.
+4. **Fix bugs autonomously.** If you encounter a bug during work — fix it. Don't stop to ask, don't wait for instructions. Fix it, test it, move on.
+5. **Learn from mistakes.** When something goes wrong, add it to the Anti-Patterns section below so future sessions don't repeat the same error.
+6. **Track tech debt.** When you encounter code that violates current conventions during work — don't fix it unless it's part of the current task. Instead, append it to `.claude/docs/tech-debt.md` under the matching category. Include the file path, a short description of the violation, priority (hoch/mittel/tief), and complexity (klein/mittel/gross). If no matching category exists, create one.
+7. **Demand elegance, not over-engineering.** For non-trivial changes, pause and ask: "Is there a simpler, more elegant way?" If a fix feels hacky, step back and implement the clean solution. But skip this for obvious, isolated fixes — don't over-engineer simple things.
+8. **Minimal impact.** Only touch what's necessary for the current task. No side effects, no "while I'm here" refactors that introduce new bugs. Find root causes instead of temporary fixes.
+
+## Development Workflow
+
+1. Make changes
+2. Typecheck: `npm run typecheck`
+3. Run tests: `npm run test -- --filter "test name"`
+4. Lint: `npm run lint`
+5. Before PR: `npm run lint && npm run test`
+
+## Environments
+
+Three environments: **DEV / TEST / PROD** (Coolify on Hetzner).
+
+**NEVER work directly against the PROD environment.** No migrations, no queries, no data changes in production. All work happens in DEV or TEST first.
+
+## TypeScript / React
+
+- Strict mode, no `any` — use `unknown` and narrow
+- Prefer `type` over `interface`
+- New enums **must** use string values matching the PostgreSQL ENUM labels (e.g. `enum Diet { meat = 'meat', vegetarian = 'vegetarian' }`). Never create numeric enums. Existing numeric enums are migration debt (see `migration.md`).
+- Functions: max 20 lines, single responsibility, descriptive names
+- Named exports only, no default exports
+- JSDoc/TSDoc on all public functions — **in German**
+- Data Access Layer (DAL): all Supabase calls go through Repository/DAL functions, never direct in components
+- **Material UI only** — do not introduce other UI frameworks (no Tailwind, Chakra, Ant Design, etc.)
+
+## Naming
+
+- Components: PascalCase (`MenuPlanCard.tsx`)
+- Hooks: camelCase with `use` prefix (`useMenuPlan.ts`)
+- Utilities: camelCase (`formatQuantity.ts`)
+- Constants: UPPER_SNAKE_CASE
+- Files match their primary export name
+- **No single-letter or cryptic variable names** — not even in arrow functions, lambdas, or short callbacks. Use descriptive names (e.g. `material` not `m`, `recipe` not `r`).
+
+## Anti-Patterns (Fehler, die nicht wiederholt werden dürfen)
+
+- This project uses `npm`. Do NOT suggest switching to bun, yarn, or pnpm.
+- Do NOT create Firestore references — all new code targets Supabase/Postgres
+- Do NOT skip RLS policies on any new table
+- Do NOT use `console.log` for error handling — errors are logged via Sentry. Use proper error boundaries and Sentry captures.
+- Do NOT modify migration files that have already been applied
+- Do NOT hardcode environment-specific values — use env variables
+- Do NOT write English comments in code — comments and JSDoc/TSDoc are in **German**. Code (variable names, function names) is in English. UI strings are in German (Swiss).
+- Do NOT use single-letter variable names. Use Clean Code naming conventions. Name things properly and descriptively.
+- Do NOT introduce UI libraries other than Material UI
+- Do NOT run any operation against the PROD environment
+
+## Git
+
+- Branch naming: `feature/`, `fix/`, `refactor/`, `migration/`
+- Commit messages: conventional commits (feat, fix, refactor, docs, chore)
+- One logical change per commit
+- Always rebase on main before PR
+
+## Verification
+
+- After schema changes: run `supabase db reset` and verify migration chain
+- After UI changes: check in browser, test responsive behavior on **desktop and mobile viewports**
+- After DAL changes: run related integration tests
+- After RLS changes: test with different user roles
+
+## Detailed Docs
+
+For deeper context, see `.claude/docs/`:
+
+| File                        | When to consult                                                   |
+| --------------------------- | ----------------------------------------------------------------- |
+| `architecture.md`           | Creating new features, understanding the 3-layer pattern          |
+| `conventions.md`            | Email templates, language rules, error logging                    |
+| `database-and-supabase.md`  | Creating/modifying tables, writing Repositories, RLS, enums       |
+| `migration.md`              | Firebase → Supabase migration work (temporary)                    |
+| `tech-debt.md`              | Tracking and reviewing convention violations and cleanup tasks    |
+| `manual-testcases.md`       | Writing or generating integration test cases                      |
+| `refactoring-guidelines.md` | Refactoring code (naming, functions, performance, React patterns) |
+| `security-guidelines.md`    | Forms, auth flows, file uploads, RLS, input validation            |
 
 ## Commands
 
-- **Dev server**: `npm start` (port 3000)
-- **Build**: `npm run build` (production), `npm run build:dev`, `npm run build:test`
-- **Lint**: `npm run lint`
-- **Test**: `npm run test` (Jest with watch mode)
-- **Bundle analysis**: `npm run analyze`
-
-Environment-specific builds use `env-cmd` with `.env.development`, `.env.test`, `.env.production`.
-
-## Tech Stack
-
-- **React 17** with **TypeScript 4.5**, bootstrapped with CRA (react-scripts 4)
-- **MUI v5** (@mui/material) with Emotion for styling
-- **React Router v5** with lazy-loaded routes and role-based authorization
-- **Supabase Auth** (primary) with Firebase Auth fallback during migration
-- **Supabase/Postgres** for all data: auth, users, masterdata, events, recipes, requests, feeds, shopping lists, material lists, products, materials, and more. Data migration from Firebase is **complete**.
-- **Firebase v10** — Cloud Functions (some still active, migration pending), Storage (legacy, being replaced by Supabase Storage), Analytics, Authentication fallback during transition
-- **@react-pdf/renderer** for PDF export (menu plans, recipes, shopping/material lists)
-- **@atlaskit/pragmatic-drag-and-drop** for drag-and-drop reordering
-- **Fuse.js** for fuzzy search, **date-fns** for dates, **Sentry** for error monitoring
-- **Supabase** (local dev via Docker Compose, **not** Supabase CLI) — configuration lives in `supabase/.env` and `supabase/docker-compose.yml`. Do **not** edit `supabase/config.toml` for local config — it is only used by the Supabase CLI which is not in use.
-
-## Architecture
-
-### State Management
-
-React Context API only (no Redux). Five contexts:
-
-- `FirebaseContext` — singleton Firebase instance
-- `AuthUserContext` — authenticated user state (Supabase Auth primary)
-- `DatabaseContext` — Supabase `DatabaseService` singleton, accessed via `useDatabase()` hook
-- `CustomDialogContext` — dialog management with Promise-based confirmation API
-- `NavigationValuesContext` — navigation state
-
-HOCs (`withAuthentication`, `withAuthorization`, `withFirebase`) wrap components to inject context.
-
-### Service Layer
-
-Two persistence layers coexist during the transition (Firebase removal pending):
-
-- **Supabase** (`src/components/Database/`): `DatabaseService` bundles all repositories (via `BaseRepository`). UI accesses them via `useDatabase()`. **All data is now in Supabase.**
-- **Firebase** (`src/components/Firebase/`): `firebase.class.ts` — still used for Cloud Functions (some not yet migrated to Supabase Edge Functions), Authentication fallback, Analytics, and some UI pages not yet fully switched over.
-
-### Component Pattern
-
-- **Feature-based folders**: `Event/`, `Recipe/`, `User/`, `Admin/`, etc.
-- **Class-based models** (`.class.ts`) for business logic — `Recipe`, `Event`, `Menuplan`, `ShoppingListCollection`, `User`, `Product`, `Material`, `Unit`, `Department`
-- **Functional React components** with hooks for UI
-- Shared utilities in `src/components/Shared/utils.class.ts`
-
-### Constants
-
-All in `src/constants/`:
-
-- `text.ts` — German UI text (all `TEXT_*` constants)
-- `routes.ts` — route path definitions
-- `styles.ts` — theme/styling constants
-- `defaultValues.ts` — default configuration
-- `firebaseEvent.ts` — analytics event names
-- `styles*Pdf.ts` — PDF-specific styling
-
-### PDF Generation
-
-React-PDF renderer creates exportable documents: menu plans, scaled recipes, shopping lists, material lists, event receipts. Each has dedicated style constants.
-
-## Conventions
-
-- **File naming**: `.class.ts` for model/logic classes, `.tsx` for components, `firebase.db.*.class.ts` for DB operations
-- **All UI text is German** — centralized in `text.ts` as exported constants
-- **Git branches**: `<issue-number>-<description>`, commits reference GitHub issues
-- **TypeScript strict mode** enabled with `strictNullChecks`
-- **Three Firebase environments**: dev (`chuchipirat-dev`), test (`chuchipirat-tst`), prod (`chuchipirat`)
-- **Clean Code**: use clean-code principles.
-
-## Detailed Instructions
-
-Topic-specific guidelines are in `docs/claude/`. Consult them when working on the relevant area:
-
-- **Database & Supabase**: `docs/claude/database-and-supabase.md` — Table conventions (audit columns, triggers, RLS, singleton tables), Repository pattern, BaseRepository, DatabaseService, app-level access
-- **Migration Guide**: `docs/claude/migration-guide.md` — 3-layer pattern (UI → Domain Service → Repository), migration workflow, current progress
-- **Refactoring**: `docs/claude/refactoring-guidelines.md` — Code organization, naming, type safety, performance, state management, error handling, React best practices
-- **Email Templates**: `docs/claude/email-templates.md` — Font, colors, logo, footer conventions for Supabase auth emails
-- **Post-Migration Tasks**: `docs/claude/post-migration-tasks.md` — Cleanup tasks to complete once Firebase is fully removed (enum type changes, lookup map removal, etc.)
-- **Security Guidelines**: `docs/claude/security-guidelines.md` — Input validation conventions, SQL injection protection, XSS, file uploads, RLS checklist. Consult when implementing forms, repositories, or file uploads.
-- **Testcases**: `docs/claude/manual-testcases.md`- How to generate manual testcases. Conventions, rules, filepath. Consult this when creating manual Testcases for in the Obsidian Vault.
-- **Firebase Auth Migration**: `docs/claude/firebase-auth-migration.md` — Step-by-step playbook for importing Firebase Auth users into Supabase Auth and linking them to `public.users`. Required before migrating tables with `FK → auth.users(id)`.
+Reusable workflows live in `.claude/commands/`. Check there before building new ones.

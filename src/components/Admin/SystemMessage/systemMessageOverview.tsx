@@ -26,6 +26,7 @@ import {deDE} from "@mui/x-data-grid/locales";
 import isEqual from "lodash/isEqual";
 
 import PageTitle from "../../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "../system";
 import AlertMessage from "../../Shared/AlertMessage";
 import CustomSnackbar, {
   SNACKBAR_INITIAL_STATE_VALUES,
@@ -54,6 +55,7 @@ import {
 } from "../../../constants/text";
 import * as ROUTES from "../../../constants/routes";
 import useCustomStyles from "../../../constants/styles";
+import * as Sentry from "@sentry/browser";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -165,7 +167,7 @@ const SystemMessageOverviewPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
   }, [showExpired]);
@@ -205,7 +207,7 @@ const SystemMessageOverviewPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
   };
@@ -302,6 +304,7 @@ const SystemMessageOverviewPage = () => {
       <PageTitle
         title={TEXT_SYSTEM_MESSAGES}
         subTitle={TEXT_ATENTION_IMPORTANT_ANNOUNCEMENT}
+        breadcrumbs={[SYSTEM_BREADCRUMB]}
       />
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="md">

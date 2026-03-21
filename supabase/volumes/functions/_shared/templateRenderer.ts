@@ -222,6 +222,12 @@ const BODY_TEMPLATES: Record<string, string> = {
                 Vielen Dank für deinen Beitrag!
               </p>`,
 
+  /* ── Admin-Konsole (generischer Newsletter) ─────────────────── */
+  "admin-console": `{{titleBlock}}
+              {{subtitleBlock}}
+              <div style="font-size: 15px; color: #212121; line-height: 1.6;">{{body}}</div>
+              {{buttonBlock}}`,
+
   /* ── Fehlermeldung wurde bearbeitet ──────────────────────────── */
   "request-error-fixed": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
                 Hallo {{authorDisplayName}},

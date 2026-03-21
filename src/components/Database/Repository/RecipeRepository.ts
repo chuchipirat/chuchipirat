@@ -521,6 +521,23 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   }
 
   /**
+   * Lädt alle Rezepte in Kurzform (öffentlich, privat, Varianten).
+   * Für Admin-Funktionen wie den Verwendungsnachweis, wo alle Rezepte
+   * durchsuchbar sein müssen.
+   *
+   * @returns Array aller Kurz-Rezepte, sortiert nach Name
+   */
+  async getAllRecipeShorts(): Promise<RecipeShortDomain[]> {
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .select(RECIPE_SHORT_COLUMNS)
+      .order("name", {ascending: true});
+
+    if (error) throw error;
+    return (data ?? []).map((row) => this.rowToShortDomain(row as unknown as Record<string, unknown>));
+  }
+
+  /**
    * Lädt alle öffentlichen Rezepte in Kurzform (nur für die Übersicht benötigte Felder).
    * Deutlich effizienter als getAllPublicRecipes(), da nur 14 statt 28 Spalten gelesen werden.
    *

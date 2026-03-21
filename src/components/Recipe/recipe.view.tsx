@@ -1206,7 +1206,7 @@ const RecipeButtonRow = ({
         (authUser.roles.includes(Role.admin) ||
           authUser.roles.includes(Role.communityLeader))) ||
       (recipe.type === RecipeType.private &&
-        (recipe.created.fromUid === authUser.uid ||
+        (recipe.created.fromUid === authUser.authUid ||
           // Falls das Rezept im Freigabeprozess ist, soll es von
           // der*m Community-Leader*in angepasst werden können
           (isInReview &&
@@ -1215,7 +1215,7 @@ const RecipeButtonRow = ({
       // Die DB-Regel fängt das ab, dass das Rezept nur angezeigt wird
       // wenn man auch Teil des Teams ist.
       (recipe.type === RecipeType.variant &&
-        (authUser.uid !== "" || authUser.roles.includes(Role.admin))),
+        (authUser.authUid !== "" || authUser.roles.includes(Role.admin))),
     variant: "outlined",
     color: "primary",
     onClick: switchEditMode!,
@@ -1283,7 +1283,7 @@ const RecipeButtonRow = ({
       hero: true,
       visible:
         recipe.type === RecipeType.private &&
-        recipe.created.fromUid === authUser.uid &&
+        recipe.created.fromUid === authUser.authUid &&
         isInReview,
       label: TEXT_SHOW_OPEN_REQUESTS,
       variant: "outlined",

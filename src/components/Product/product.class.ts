@@ -1,16 +1,11 @@
 import Utils from "../Shared/utils.class";
 import Stats, {StatsField} from "../Shared/stats.class";
-import * as TEXT from "../../constants/text";
-
 import Department from "../Department/department.class";
 import Unit from "../Unit/unit.class";
 import Firebase from "../Firebase/firebase.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
-import Material from "../Material/material.class";
-
-import {ERROR_PARAMETER_NOT_PASSED as TEXT_ERROR_PARAMETER_NOT_PASSED} from "../../constants/text";
 import {logEvent} from "firebase/analytics";
 
 interface GetAllProducts {
@@ -33,39 +28,6 @@ interface SaveAllProducts {
   authUser: AuthUser;
 }
 
-export interface ConvertMaterialToProductCallbackDocument {
-  date: Date;
-  documentList: {document: string; name: string}[];
-  done: boolean;
-  material: {uid: Material["uid"]; name: Material["name"]};
-  department: Department;
-  shoppingUnit: Unit;
-  dietProperties: DietProperties;
-}
-
-interface CreateProductFromMaterialProps {
-  firebase: Firebase;
-  material: {uid: Material["uid"]; name: Material["name"]};
-  department: Department;
-  shoppingUnit: Unit;
-  dietProperties: DietProperties;
-  authUser: AuthUser;
-  callbackDone?: (document: ConvertMaterialToProductCallbackDocument) => void;
-}
-export interface MergeProductsCallbackDocument {
-  date: Date;
-  documentList: {document: string; name: string}[];
-  done: boolean;
-  productToReplace: {uid: string; name: string};
-  productToReplaceWith: {uid: string; name: string};
-}
-interface MergeProducts {
-  firebase: Firebase;
-  authUser: AuthUser;
-  productToReplace: {uid: string; name: string};
-  productToReplaceWith: {uid: string; name: string};
-  callbackDone: (document: MergeProductsCallbackDocument) => void;
-}
 interface FindSimilarProducts {
   productName: Product["name"];
   existingProducts: Product[];
@@ -307,130 +269,6 @@ export default class Product {
     }
 
     return products;
-  };
-  // =====================================================================
-  /**
-   * Zwei Produkte mergen
-   * Über eine Cloud-Function werden zwei Produkte zusammengeführt und
-   * in allen relevanten Dokumenten wird das nachgeführt
-   * @param Objekt - Referenz auf Firebase, AuthUser, Produkt zu erstetzen,
-   *                 Ersatz-Produkt, Callback wenn Cloud-FX fertig.
-   */
-  static mergeProducts = async ({
-    firebase,
-    authUser,
-    productToReplace,
-    productToReplaceWith,
-    callbackDone,
-  }: MergeProducts) => {
-    if (!firebase || !productToReplace || !productToReplaceWith) {
-      throw new Error(TEXT.ERROR_PARAMETER_NOT_PASSED);
-    }
-    let unsubscribe: () => void;
-    let documentId = "";
-
-    firebase.cloudFunction.mergeProducts
-      .triggerCloudFunction({
-        values: {
-          productToReplace: productToReplace,
-          productToReplaceWith: productToReplaceWith,
-        },
-        authUser: authUser,
-      })
-      .then((result) => {
-        documentId = result;
-      })
-      .then(() => {
-        // Melden wenn fertig
-        const callback = (data) => {
-          if (data?.done) {
-            callbackDone(data);
-            unsubscribe();
-          }
-        };
-        const errorCallback = (error: Error) => {
-          throw error;
-        };
-
-        firebase.cloudFunction.mergeProducts
-          .listen({
-            uids: [documentId],
-            callback: callback,
-            errorCallback: errorCallback,
-          })
-          .then((result) => {
-            unsubscribe = result;
-          });
-      })
-      .catch((error) => {
-        throw error;
-      });
-  };
-  // =====================================================================
-  /**
-   * Aus einem Material ein Produkt erstellen -->
-   * Cloud-FX triggern, die das Material umwandelt.
-   * @param Objekt nach Interface CreateProductFromMaterialProps
-   * @returns void
-   */
-
-  static createProductFromMaterial = async ({
-    firebase,
-    material,
-    department,
-    shoppingUnit,
-    dietProperties,
-    authUser,
-    callbackDone,
-  }: CreateProductFromMaterialProps) => {
-    if (!firebase || !material || !department) {
-      throw new Error(TEXT_ERROR_PARAMETER_NOT_PASSED);
-    }
-    let unsubscribe: () => void;
-    let documentId = "";
-
-    firebase.cloudFunction.convertMaterialToProduct
-      .triggerCloudFunction({
-        values: {
-          material: material,
-          department: department,
-          shoppingUnit: shoppingUnit,
-          dietProperties: dietProperties,
-        },
-        authUser: authUser,
-      })
-      .then((result) => {
-        documentId = result;
-      })
-      .then(() => {
-        if (!callbackDone) {
-          return;
-        }
-        // Melden wenn fertig
-        const callback = (data) => {
-          if (data?.done) {
-            callbackDone(data);
-            unsubscribe();
-          }
-        };
-        const errorCallback = (error: Error) => {
-          throw error;
-        };
-
-        firebase.cloudFunction.convertMaterialToProduct
-          .listen({
-            uids: [documentId],
-            callback: callback,
-            errorCallback: errorCallback,
-          })
-          .then((result) => {
-            unsubscribe = result;
-          });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
   };
   // =====================================================================
   /**

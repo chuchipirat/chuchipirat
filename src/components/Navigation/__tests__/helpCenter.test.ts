@@ -184,10 +184,6 @@ describe("HelpCenter.getMatchingHelpPage()", () => {
       expectHelpPage(ROUTES.SYSTEM_OVERVIEW_RECIPES, "admin", "recipe_overview");
     });
 
-    test("CloudFx-Übersicht gibt admin/cloudfx_overview zurück", () => {
-      expectHelpPage(ROUTES.SYSTEM_OVERVIEW_CLOUDFX, "admin", "cloudfx_overview");
-    });
-
     test("Feed-Übersicht gibt admin/feeds_overview zurück", () => {
       expectHelpPage(ROUTES.SYSTEM_OVERVIEW_FEEDS, "admin", "feeds_overview");
     });
@@ -206,10 +202,6 @@ describe("HelpCenter.getMatchingHelpPage()", () => {
 
     test("Systemmeldungen gibt admin/system_message zurück", () => {
       expectHelpPage(ROUTES.SYSTEM_SYSTEM_MESSAGES, "admin", "system_message");
-    });
-
-    test("Jobs gibt admin/jobs zurück", () => {
-      expectHelpPage(ROUTES.SYSTEM_JOBS, "admin", "jobs");
     });
 
     test("Unbekannter System-Subpfad gibt admin/system zurück", () => {

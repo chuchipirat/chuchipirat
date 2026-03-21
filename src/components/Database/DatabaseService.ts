@@ -26,6 +26,9 @@ import {RequestRepository} from "./Repository/RequestRepository";
 import {RequestCommentRepository} from "./Repository/RequestCommentRepository";
 import {FeedRepository} from "./Repository/FeedRepository";
 import {StatsRepository} from "./Repository/StatsRepository";
+import {AdminOperationsRepository} from "./Repository/AdminOperationsRepository";
+import {CronJobLogRepository} from "./Repository/CronJobLogRepository";
+import {MailLogRepository} from "./Repository/MailLogRepository";
 import {supabaseAdmin} from "./supabaseClient";
 
 /* =====================================================================
@@ -69,6 +72,7 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property requestComments - Repository für Antrags-Kommentare
  * @property feeds - Repository für Feed-Einträge (Aktivitätsübersicht)
  * @property stats - Repository für Plattform-Statistiken (KPIs)
+ * @property adminOps - Repository für Admin-Operationen (Merge, Convert, Where-Used)
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
  * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
  *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
@@ -101,6 +105,9 @@ export class DatabaseService {
   requestComments: RequestCommentRepository;
   feeds: FeedRepository;
   stats: StatsRepository;
+  adminOps: AdminOperationsRepository;
+  cronJobLog: CronJobLogRepository;
+  mailLog: MailLogRepository;
   storage: {users: UserStorageRepository; events: EventStorageRepository};
   admin: {
     users: UserRepository;
@@ -158,6 +165,9 @@ export class DatabaseService {
     this.requestComments = new RequestCommentRepository();
     this.feeds = new FeedRepository();
     this.stats = new StatsRepository();
+    this.adminOps = new AdminOperationsRepository();
+    this.cronJobLog = new CronJobLogRepository();
+    this.mailLog = new MailLogRepository();
     this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
     this.admin = supabaseAdmin
       ? {

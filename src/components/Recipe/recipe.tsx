@@ -197,8 +197,6 @@ const RecipePage = () => {
 
   let action: Action;
   let recipeUid = "";
-  let recipeType: RecipeType;
-  let userUid: string;
   let scaledPortions = 0;
 
   const [editMode, setEditMode] = React.useState(false);
@@ -226,16 +224,9 @@ const RecipePage = () => {
         // Beispiel: /recipe/
         action = Action.NEW;
       } else if (urlParameter.length === 3) {
-        // öffentliches Rezepte
+        // Rezept anhand UID laden (öffentlich oder privat)
         // Beispiel: /recipe/HWEvHBnRM56GDapkWtsd
         recipeUid = urlParameter[2];
-        recipeType = RecipeType.public;
-      } else if (urlParameter.length === 4) {
-        // privates Rezept
-        // Beispiel: /recipe/tasT02c6mxOWDstBdvwzjbs5Tfc2/t3jKjgl5QnDpe9EHDWZ9
-        userUid = urlParameter[2];
-        recipeUid = urlParameter[3];
-        recipeType = RecipeType.private;
       }
     }
     // Wen das Ereignis NEW ist, wird ein neues Rezept angelegt.

@@ -123,9 +123,6 @@ export default class HelpCenter {
             case ROUTES.SYSTEM_OVERVIEW_RECIPES:
               page = "recipe_overview";
               break;
-            case ROUTES.SYSTEM_OVERVIEW_CLOUDFX:
-              page = "cloudfx_overview";
-              break;
             case ROUTES.SYSTEM_OVERVIEW_FEEDS:
               page = "feeds_overview";
               break;
@@ -140,9 +137,6 @@ export default class HelpCenter {
               break;
             case ROUTES.SYSTEM_SYSTEM_MESSAGES:
               page = "system_message";
-              break;
-            case ROUTES.SYSTEM_JOBS:
-              page = "jobs";
               break;
             default:
               console.info(actualPath);

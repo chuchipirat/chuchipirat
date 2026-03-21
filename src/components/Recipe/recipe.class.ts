@@ -329,7 +329,42 @@ export default class Recipe {
       fromDisplayName: "",
     };
 
+    // Neue UIDs für alle Kind-Einträge generieren, damit beim Speichern
+    // keine UPSERT-Kollision mit dem Original-Rezept entsteht.
+    recipeVariant.ingredients = Recipe.regenerateEntryUids(
+      recipeVariant.ingredients,
+    );
+    recipeVariant.preparationSteps = Recipe.regenerateEntryUids(
+      recipeVariant.preparationSteps,
+    );
+    recipeVariant.materials = Recipe.regenerateEntryUids(
+      recipeVariant.materials,
+    );
+
     return recipeVariant;
+  }
+
+  /**
+   * Generiert neue UIDs für alle Einträge einer RecipeObjectStructure.
+   * Wird verwendet, um bei Varianten UPSERT-Kollisionen mit dem
+   * Original-Rezept zu vermeiden.
+   *
+   * @param structure - Die Struktur mit Einträgen und Reihenfolge.
+   * @returns Neue RecipeObjectStructure mit frischen UIDs.
+   */
+  private static regenerateEntryUids<T extends {uid: string}>(
+    structure: RecipeObjectStructure<T>,
+  ): RecipeObjectStructure<T> {
+    const newEntries: Record<string, T> = {};
+    const newOrder: string[] = [];
+
+    for (const oldUid of structure.order) {
+      const newUid = crypto.randomUUID();
+      newEntries[newUid] = {...structure.entries[oldUid], uid: newUid};
+      newOrder.push(newUid);
+    }
+
+    return {entries: newEntries, order: newOrder};
   }
 
   /* =====================================================================

@@ -14,6 +14,7 @@ import React from "react";
 import {render, screen, waitFor, within, act} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
+import {MemoryRouter} from "react-router";
 
 import OverviewFeedsPage from "../overviewFeeds";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
@@ -141,9 +142,11 @@ const mockDatabase: any = {
 /** Hilfs-Render mit DatabaseContext. */
 const renderPage = () =>
   render(
-    <DatabaseContext.Provider value={mockDatabase}>
-      <OverviewFeedsPage />
-    </DatabaseContext.Provider>,
+    <MemoryRouter>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <OverviewFeedsPage />
+      </DatabaseContext.Provider>
+    </MemoryRouter>,
   );
 
 beforeEach(() => {

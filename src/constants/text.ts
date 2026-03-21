@@ -178,9 +178,6 @@ export const DELETE_FEED_DESCRIPTION =
   "Feed-Einträge löschen, welche älter als X Tage sind.";
 export const WHERE_USED_DESCRIPTION =
   "Verfolgungsnachweis für Produkte und Rezepte. ";
-export const JOBS = "Job-Übersicht";
-export const TEMP_JOBS = "Temporäre Job-Übersicht";
-export const JOBS_DESCRIPTION = "Jobs manuel ausführen.";
 export const MIGRATION = "Migration";
 export const MIGRATION_DESCRIPTION =
   "Daten von Firebase nach Postgres migrieren.";
@@ -421,6 +418,29 @@ export const BUTTON_LINK = "Link für Button (Ziel)";
 export const RECIPIENTS = "Empfänger";
 export const NO_RECIPIENTS = "Anzahl Empfänger";
 export const MAIL_TEMPLATE = "Mail-Template";
+export const MAIL_SEND_CONFIRMATION_TITLE = "Mail versenden?";
+export const MAIL_SEND_CONFIRMATION_TEXT = (count: number) =>
+  `Du sendest diese Mail an ${count} Empfänger. Möchtest du fortfahren?`;
+export const MAIL_RECIPIENTS_DETECTED = (count: number) =>
+  `${count} Empfänger erkannt`;
+export const MAIL_SEND_TO_N_RECIPIENTS = (count: number) =>
+  `Mail an ${count} Empfänger senden`;
+export const MAIL_SEND_RESULT_TITLE = "Versand-Ergebnis";
+export const MAIL_SEND_RESULT_SUCCESS = (count: number) =>
+  `${count} erfolgreich zugestellt`;
+export const MAIL_SEND_RESULT_ERRORS = (count: number) =>
+  `${count} fehlgeschlagen`;
+export const MAIL_TEMPLATE_EMPTY = "Leere Vorlage";
+export const MAIL_TEMPLATE_MAINTENANCE = "Wartungshinweis";
+export const MAIL_TEMPLATE_FEATURE = "Feature-Ankündigung";
+export const MAIL_TEMPLATE_EVENT = "Event-Erinnerung";
+export const MAIL_DRAFT_RESTORED = "Entwurf wiederhergestellt";
+export const MAIL_DRAFT_CLEAR = "Entwurf löschen";
+export const MAIL_TRANSPORT_HELP =
+  "Auto: Brevo bevorzugt, SMTP als Fallback. Erzwinge einen Kanal zum Testen.";
+export const SEND = "Senden";
+export const MAIL_SEND_REQUIRES_TEST =
+  "Sende zuerst eine Testmail an dich selbst, um die Mail zu prüfen.";
 export const TIMESTAMP = "Timestamp";
 export const MAILS = "E-Mails";
 /* =====================================================================
@@ -664,7 +684,7 @@ export const CONVERT_ITEM_EXPLANATION = (fromItem: string, toItem: string) =>
 export const MERGE_PRODUCT_A = "Produkt A";
 export const MERGE_PRODUCT_B = "Produkt B";
 export const CHANGED_DOCUMENTS = "Geänderte Dokumente";
-export const FOUND_DOCUMENTS = "Gefundene Dokumente";
+export const FOUND_REFERENCE = "Gefundene Verweise";
 export const MERGE_ERROR_SAME_ITEMS = (item: string) =>
   `${item} A und ${item} B sind identisch. Ein Zusammenführen macht daher keinen Sinn.`;
 export const GLOBAL_SETTINGS_ALLOW_SIGNUP_LABEL = "Neu-Anmeldung ermöglichen";
@@ -1126,8 +1146,21 @@ export const SUPABASE_MESSAGES: Record<string, string> = {
 /* =====================================================================
 // Texte zum Admin-Bereich
 // ===================================================================== */
-export const DB_INDICES = "DB Indizes";
-export const DB_INDICES_DESCRIPTION = "DB Indizes aufbauen";
+export const SECTION_SETTINGS = "Einstellungen";
+export const SECTION_DATA_OPERATIONS = "Datenoperationen";
+export const SECTION_OVERVIEWS = "Übersichten";
+export const SECTION_EXTERNAL = "Extern";
+export const OVERVIEW_USERS_DESCRIPTION = "Übersicht über alle Benutzer*innen";
+export const OVERVIEW_FEEDS_DESCRIPTION = "Übersicht über alle Feed-Einträge";
+export const OVERVIEW_MAILBOX_DESCRIPTION =
+  "Übersicht über alle versendeten E-Mails";
+export const CRON_JOBS = "Cron Jobs";
+export const CRON_JOBS_DESCRIPTION =
+  "Übersicht und Monitoring der geplanten Jobs";
+export const DATA_INTEGRITY = "Datenintegrität";
+export const DATA_INTEGRITY_DESCRIPTION = "Prüfung der Datenkonsistenz";
+export const SENTRY_DASHBOARD = "Sentry Dashboard";
+export const SUPABASE_DASHBOARD = "Supabase Dashboard";
 /* =====================================================================
 // Sonstiges
 // ===================================================================== */
@@ -1445,12 +1478,6 @@ export const DELETE_MAIL_PROTOCOLS_OLDER_THAN =
   "Mailprotokolle löschen, die älter als X Tage sind";
 export const MAIL_PROTOCOLS = "Mailprotokolle";
 export const MAIL_PROTOCOLS_DELETED = "Mailprotokolle gelöscht";
-export const CLOUD_FX = "Cloud-Functions";
-export const DELETE_CLOUD_FX_TRIGGER_DOCS = "Cloud-FX Dokumente löschen";
-export const DELETE_CLOUD_FX_TRIGGER_DOCS_OLDER_THAN =
-  "Cloud-FX Dokumente löschen, die älter als X Tage sind";
-export const CLOUD_FX_TRIGGER_DOCS = "Cloud-FX Triggerdokumente";
-export const CLOUD_FX_TRIGGER_DOCS_DELETED = "Mailprotokolle gelöscht";
 export const DATE = "Datum";
 export const INVOKED = "Ausgeführt";
 export const PROCESSED_DOCUMENTS = "Verarbeitete Dokumente";
@@ -1556,8 +1583,7 @@ export const REQUEST_DONE_COMMENT_LABEL = "Optionaler Kommentar";
 export const REQUEST_DONE_CONFIRM = "Antrag abschliessen";
 export const REQUEST_BACK_TO_AUTHOR_HINT =
   "Der/die Bearbeiter*in benötigt weitere Informationen von dir.";
-export const REQUEST_BACK_TO_AUTHOR_REASON_LABEL =
-  "Was muss angepasst werden?";
+export const REQUEST_BACK_TO_AUTHOR_REASON_LABEL = "Was muss angepasst werden?";
 export const REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED =
   "Bitte gib an, was angepasst werden muss.";
 export const REQUEST_BACK_TO_AUTHOR_CONFIRM = "Zurück an Autor*in";
