@@ -472,12 +472,22 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   }
 
   /**
-   * Löscht ein Rezept und alle zugehörigen Kind-Datensätze (via CASCADE).
+   * Löscht ein Rezept atomar: Sichert den Rezeptnamen in allen
+   * event_menue_recipes-Referenzen (deleted_recipe_name), setzt recipe_id
+   * auf NULL und löscht anschliessend das Rezept samt Kind-Datensätzen.
+   *
+   * Verwendet die RPC-Funktion delete_recipe(), da event_menue_recipes.recipe_id
+   * ON DELETE RESTRICT hat — der Menuplan soll den Rezeptnamen auch nach
+   * Löschung anzeigen können.
    *
    * @param recipeId - Die ID des zu löschenden Rezepts
+   * @throws {PostgrestError} bei Datenbankfehler
    */
   async deleteRecipe(recipeId: string): Promise<void> {
-    return this.remove(recipeId);
+    const {error} = await this.client.rpc("delete_recipe", {
+      p_recipe_id: recipeId,
+    });
+    if (error) throw error;
   }
 
   /* =====================================================================

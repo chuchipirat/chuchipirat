@@ -27,7 +27,6 @@ import {
   PlanedDiet,
   PlanedIntolerances,
   GoodsPlanMode,
-  MealRecipeDeletedPrefix,
 } from "../../Event/Menuplan/menuplan.types";
 import type {
   MealType,
@@ -1624,9 +1623,7 @@ export class MenuplanRepository extends BaseRepository<
         const mealRecipe = menuplan.mealRecipes[mealRecipeUid];
         if (!mealRecipe) return;
 
-        const isDeleted =
-          !mealRecipe.recipe.recipeUid ||
-          mealRecipe.recipe.name.startsWith(MealRecipeDeletedPrefix);
+        const isDeleted = !mealRecipe.recipe.recipeUid;
 
         menueRecipes.push({
           uid: mealRecipe.uid,

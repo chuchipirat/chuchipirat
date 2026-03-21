@@ -8,7 +8,7 @@
  * - _getUniqRecipes() entfernt Duplikate
  */
 import UsedRecipes from "../usedRecipes.class";
-import {MenuplanData, MealRecipeDeletedPrefix} from "../../Menuplan/menuplan.types";
+import {MenuplanData} from "../../Menuplan/menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import {UsedRecipeListDomain} from "../../../Database/Repository/UsedRecipeListRepository";
 
@@ -92,7 +92,7 @@ const createTestMenuplan = (): MenuplanData => {
       "mr-deleted": {
         uid: "mr-deleted",
         recipe: {
-          recipeUid: `${MealRecipeDeletedPrefix} Altes Rezept`,
+          recipeUid: "",
           name: "Altes Rezept",
           type: RecipeType.public,
           createdFromUid: "",
@@ -170,7 +170,7 @@ describe("UsedRecipes", () => {
         selectedMenues: ["menue-001"],
       });
 
-      // Nur recipe-001 (mr-deleted hat MealRecipeDeletedPrefix)
+      // Nur recipe-001 (mr-deleted hat leere recipeUid)
       expect(result).toHaveLength(1);
       expect(result[0].uid).toBe("recipe-001");
     });
@@ -196,9 +196,8 @@ describe("UsedRecipes", () => {
         selectedMenues: ["menue-001"],
       });
 
-      const deletedRecipe = result.find((r) =>
-        r.uid.includes(MealRecipeDeletedPrefix),
-      );
+      // Kein Rezept mit leerer UID darf zurückgegeben werden
+      const deletedRecipe = result.find((r) => !r.uid);
       expect(deletedRecipe).toBeUndefined();
     });
 

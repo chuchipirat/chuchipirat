@@ -14,7 +14,6 @@ import {
 } from "@mui/material";
 import {
   GoodsPlanMode,
-  MealRecipeDeletedPrefix,
   MealRecipes,
   Menue,
   MenueListOrderTypes,
@@ -269,16 +268,13 @@ export const MenueCardList = memo(function MenueCardList({
         if (!mealRecipes) {
           throw new Error("Keine eingeplanten Rezepte vorhanden");
         }
-        return mealRecipes[listEntryUid]?.recipe.recipeUid.includes(
-          MealRecipeDeletedPrefix
-        ) ? (
+        return !mealRecipes[listEntryUid]?.recipe.recipeUid ? (
           <span
             style={{
               color: theme.palette.text.secondary,
             }}
           >
-            {/* Das Rezept wurde gelöscht... */}
-            {mealRecipes[listEntryUid]?.recipe.name}
+            {`🗑️ ${mealRecipes[listEntryUid]?.recipe.name} (gelöscht)`}
           </span>
         ) : (
           <span>

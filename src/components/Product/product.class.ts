@@ -219,54 +219,11 @@ export default class Product {
     authUser,
   }: SaveAllProducts) => {
     // Dokument updaten mit neuem Produkt
-    let triggerCloudFx = false;
-    const changedProducts = [] as Product[];
-    // altes File holen und vergleichen. für die geänderten Produkte muss die Cloud-FX ausgelöst werden
-    await Product.getAllProducts({
-      firebase: firebase,
-      onlyUsable: false,
-      withDepartmentName: false,
-    })
-      .then((result) => {
-        products.forEach((product) => {
-          const dbProduct = result.find(
-            (dbProduct) => dbProduct.uid === product.uid
-          );
-
-          if (
-            dbProduct &&
-            (dbProduct.name != product.name ||
-              !Utils.areArraysIdentical<Allergen>(
-                dbProduct.dietProperties.allergens,
-                product.dietProperties.allergens
-              ) ||
-              dbProduct.dietProperties.diet !== product.dietProperties.diet)
-          ) {
-            // Das Produkt hat eine Änderung erfahren, die über alle
-            // Dokumente nachgeführt werden muss
-            triggerCloudFx = true;
-            delete product.departmentUid;
-            changedProducts.push(product);
-          }
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
     await firebase.masterdata.products.set<Array<Product>>({
       uids: [""], // Wird in der Klasse bestimmt
       value: products,
       authUser: authUser,
     });
-
-    if (triggerCloudFx) {
-      firebase.cloudFunction.updateProduct.triggerCloudFunction({
-        values: {changedProducts: changedProducts},
-        authUser: authUser,
-      });
-    }
 
     return products;
   };

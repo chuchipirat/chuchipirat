@@ -1,6 +1,5 @@
 import {HOME_STATS_CAPTIONS as TEXT_HOME_STATS_CAPTIONS} from "../../constants/text";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import {CloudFunctionRebuildStatsDocumentStructure} from "../Firebase/Db/firebase.db.cloudfunction.rebuildStats.class";
 import Firebase from "../Firebase/firebase.class";
 import Recipe from "../Recipe/recipe.class";
 
@@ -40,16 +39,6 @@ interface IncrementRecipeVariantCounter {
   firebase: Firebase;
   recipeUid: Recipe["uid"];
   value: number;
-}
-interface RebuildStats {
-  firebase: Firebase;
-  authUser: AuthUser;
-  callback: ({
-    date,
-    done,
-    errorMessage,
-    processedDocuments,
-  }: CloudFunctionRebuildStatsDocumentStructure) => void;
 }
 export interface Kpi {
   id: StatsField;
@@ -228,54 +217,5 @@ export default class Stats {
       field: recipeUid,
       value: value,
     });
-  };
-  /* =====================================================================
-  // Alle Zähler neu zählen
-  // ===================================================================== */
-  static rebuildStats = async ({
-    firebase,
-    authUser,
-    callback,
-  }: RebuildStats) => {
-    let unsubscribe: () => void;
-    let documentId = "";
-
-    await firebase.cloudFunction.rebuildStats
-      .triggerCloudFunction({
-        values: {},
-        authUser: authUser,
-      })
-      .then((result) => {
-        documentId = result;
-      })
-      .then(() => {
-        // Melden wenn fertig
-        const callbackCaller = (data) => {
-          if (data?.done) {
-            callback(data);
-            unsubscribe();
-          }
-        };
-
-        const errorCallback = (error: Error) => {
-          console.error(error);
-          throw error;
-        };
-
-        firebase.cloudFunction.rebuildStats
-          .listen({
-            uids: [documentId],
-            callback: callbackCaller,
-            errorCallback: errorCallback,
-          })
-          .then((result) => {
-            console.warn(result);
-            unsubscribe = result;
-          });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
   };
 }

@@ -243,16 +243,29 @@ describe("RecipeRepository", () => {
   // deleteRecipe()
   // ------------------------------------------ */
   describe("deleteRecipe()", () => {
-    test("Löscht ein Rezept anhand der ID", async () => {
-      supabaseMock.queryMock.eq = jest.fn().mockResolvedValue({
+    test("Löscht ein Rezept via delete_recipe RPC", async () => {
+      supabaseMock.client.rpc = jest.fn().mockResolvedValue({
         data: null,
         error: null,
       });
 
       await repo.deleteRecipe("recipe-uuid-001");
 
-      expect(supabaseMock.queryMock.delete).toHaveBeenCalled();
-      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith("id", "recipe-uuid-001");
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith("delete_recipe", {
+        p_recipe_id: "recipe-uuid-001",
+      });
+    });
+
+    test("Wirft Fehler bei DB-Error", async () => {
+      const dbError = {message: "RPC failed", code: "42000"};
+      supabaseMock.client.rpc = jest.fn().mockResolvedValue({
+        data: null,
+        error: dbError,
+      });
+
+      await expect(repo.deleteRecipe("recipe-uuid-001")).rejects.toEqual(
+        dbError,
+      );
     });
   });
 

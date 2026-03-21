@@ -70,9 +70,15 @@ const Donate = lazy(() => import("../Donate/donate"));
 const PasswordReset = lazy(() => import("../AuthServiceHandler/passwordReset"));
 
 const System = lazy(() => import("../Admin/system"));
-const GlobalSettings = lazy(() => import("../Admin/GlobalSettings/globalSettings"));
-const SystemMessageOverview = lazy(() => import("../Admin/SystemMessage/systemMessageOverview"));
-const SystemMessage = lazy(() => import("../Admin/SystemMessage/systemMessage"));
+const GlobalSettings = lazy(
+  () => import("../Admin/GlobalSettings/globalSettings"),
+);
+const SystemMessageOverview = lazy(
+  () => import("../Admin/SystemMessage/systemMessageOverview"),
+);
+const SystemMessage = lazy(
+  () => import("../Admin/SystemMessage/systemMessage"),
+);
 const WhereUsed = lazy(() => import("../Admin/whereUsed"));
 const MergeItems = lazy(() => import("../Admin/mergeItems"));
 const ConvertItem = lazy(() => import("../Admin/convertItem"));
@@ -84,7 +90,9 @@ const OverviewFeeds = lazy(() => import("../Admin/Overview/overviewFeeds"));
 const ActivateSupportUser = lazy(() => import("../Admin/activateSupportUser"));
 const MailConsole = lazy(() => import("../Admin/mailConsole"));
 const Migration = lazy(() => import("../Admin/migration"));
-const DataIntegrity = lazy(() => import("../Admin/DataIntegrity/dataIntegrity"));
+const DataIntegrity = lazy(
+  () => import("../Admin/DataIntegrity/dataIntegrity"),
+);
 const CronJobs = lazy(() => import("../Admin/CronJobs/cronJobs"));
 
 /* ===================================================================
@@ -175,9 +183,7 @@ const FOOTER_PATHS = [
 ];
 
 const pathMatches = (pathname, paths) =>
-  paths.some(
-    (p) => pathname === p || pathname.startsWith(p + "/")
-  );
+  paths.some((p) => pathname === p || pathname.startsWith(p + "/"));
 
 const ConditionalGoBackFab = () => {
   const {pathname} = useLocation();
@@ -201,7 +207,7 @@ const App = () => {
   // ------------------------------------------ */
   const theme = React.useMemo(
     () => createTheme({palette: CustomTheme.getTheme(prefersDarkMode)}),
-    [prefersDarkMode]
+    [prefersDarkMode],
   );
 
   React.useEffect(() => {
@@ -209,7 +215,7 @@ const App = () => {
       // Wenn auf Auffrischen geklickt wird, soll der Session-Storage gelöscht werden
       // Wir gehen davon aus, dass die Person über das Resultat irritiert ist und darum
       // laden wir die Daten frisch aus der DB.
-      // SessionStorageHandler.clearAll();
+      SessionStorageHandler.clearAll();
     };
 
     // Event Listener für das beforeunload-Ereignis hinzufügen
@@ -579,10 +585,7 @@ const App = () => {
               <Route
                 path={ROUTES.SYSTEM_MIGRATION}
                 element={
-                  <GuardedRoute
-                    condition={isAdmin}
-                    element={<Migration />}
-                  />
+                  <GuardedRoute condition={isAdmin} element={<Migration />} />
                 }
               />
               <Route
@@ -616,10 +619,7 @@ const App = () => {
               <Route
                 path={ROUTES.SYSTEM_CRON_JOBS}
                 element={
-                  <GuardedRoute
-                    condition={isAdmin}
-                    element={<CronJobs />}
-                  />
+                  <GuardedRoute condition={isAdmin} element={<CronJobs />} />
                 }
               />
 
@@ -638,10 +638,7 @@ const App = () => {
               <Route
                 path={ROUTES.SCHEMA}
                 element={
-                  <GuardedRoute
-                    condition={isAdmin}
-                    element={<Schema />}
-                  />
+                  <GuardedRoute condition={isAdmin} element={<Schema />} />
                 }
               />
 

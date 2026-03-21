@@ -31,7 +31,6 @@ import {
   MealRecipe,
   MenueCoordinates,
   MenuplanData,
-  MealRecipeDeletedPrefix,
 } from "../../Menuplan/menuplan.types";
 import Recipe, {RecipeType} from "../../../Recipe/recipe.class";
 import EventGroupConfiguration from "../../GroupConfiguration/groupConfiguration.class";
@@ -130,7 +129,7 @@ describe("EventUsedRecipes", () => {
     const mrDeleted = buildMealRecipe({
       uid: "mr-deleted",
       recipe: {
-        recipeUid: `${MealRecipeDeletedPrefix} Altes Rezept`,
+        recipeUid: "",
         name: "Altes Rezept",
         type: RecipeType.public,
         createdFromUid: "",
@@ -149,7 +148,7 @@ describe("EventUsedRecipes", () => {
     });
     const usedRecipes = {
       "r-1": buildRecipe("r-1", "Pasta"),
-      [`${MealRecipeDeletedPrefix} Altes Rezept`]: buildRecipe("deleted", "Altes Rezept"),
+      "deleted": buildRecipe("deleted", "Altes Rezept"),
     };
 
     render(

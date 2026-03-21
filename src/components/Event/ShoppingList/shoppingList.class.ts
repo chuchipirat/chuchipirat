@@ -10,7 +10,6 @@
 import Department from "../../Department/department.class";
 import Unit from "../../Unit/unit.class";
 import {
-  MealRecipeDeletedPrefix,
   Menue,
   MenuplanData,
 } from "../Menuplan/menuplan.types";
@@ -291,7 +290,8 @@ export default class ShoppingList {
     selectedMenues.forEach((menueUid) => {
       menueplan.menues[menueUid].mealRecipeOrder.forEach((mealRecipeUid) => {
         const mealRecipe = menueplan.mealRecipes[mealRecipeUid];
-        if (mealRecipe.recipe.recipeUid.includes(MealRecipeDeletedPrefix)) {
+        // Gelöschtes Rezept überspringen
+        if (!mealRecipe.recipe.recipeUid) {
           return;
         }
 

@@ -7,7 +7,6 @@
  */
 import {MenuplanRepository} from "../../../Database/Repository/MenuplanRepository";
 import {
-  MealRecipeDeletedPrefix,
   PlanedDiet,
   PlanedIntolerances,
   GoodsPlanMode,
@@ -622,21 +621,18 @@ describe("menuplanUiToDomain", () => {
     warnSpy.mockRestore();
   });
 
-  it("konvertiert gelöschte Rezepte (Name beginnt mit MealRecipeDeletedPrefix)", () => {
+  it("konvertiert gelöschte Rezepte (leere recipeUid)", () => {
     const mp = buildMenuplanData();
 
     mp.mealRecipes["mr-1"].recipe.recipeUid = "";
-    mp.mealRecipes["mr-1"].recipe.name =
-      `${MealRecipeDeletedPrefix} Altes Rezept`;
+    mp.mealRecipes["mr-1"].recipe.name = "Altes Rezept";
 
     const domain = repo.menuplanUiToDomain(mp, "event-1");
 
     const recipe = domain.menueRecipes[0];
     expect(recipe.recipeId).toBeNull();
     expect(recipe.recipeName).toBe("");
-    expect(recipe.deletedRecipeName).toBe(
-      `${MealRecipeDeletedPrefix} Altes Rezept`
-    );
+    expect(recipe.deletedRecipeName).toBe("Altes Rezept");
   });
 
   it("konvertiert Plan-Zeilen zurück: ALL, FIX und group-Scope", () => {

@@ -135,44 +135,11 @@ export default class Material {
     authUser,
   }: SaveAllMaterials) => {
     // Dokument updaten mit neuem Produkt
-    let triggerCloudFx = false;
-    const changedMaterials = [] as Material[];
-
-    await Material.getAllMaterials({
-      firebase: firebase,
-      onlyUsable: false,
-    })
-      .then((result) => {
-        materials.forEach((material) => {
-          const dbMaterial = result.find(
-            (dbMaterial) => dbMaterial.uid === material.uid
-          );
-
-          if (dbMaterial && dbMaterial.name != material.name) {
-            // Das Produkt hat eine Änderung erfahren, die über alle
-            // Dokumente nachgeführt werden muss
-            triggerCloudFx = true;
-            changedMaterials.push(material);
-          }
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
     firebase.masterdata.materials.update<Array<Material>>({
       uids: [""], // Wird in der Klasse bestimmt
       value: materials,
       authUser: authUser,
     });
-
-    if (triggerCloudFx) {
-      firebase.cloudFunction.updateMaterial.triggerCloudFunction({
-        values: {changedMaterials: changedMaterials},
-        authUser: authUser,
-      });
-    }
 
     return materials;
   };

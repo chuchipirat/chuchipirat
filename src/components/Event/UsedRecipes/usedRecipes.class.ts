@@ -16,7 +16,6 @@ import Event from "../Event/event.class";
 import _ from "lodash";
 import {
   Meal,
-  MealRecipeDeletedPrefix,
   Menue,
   MenuplanData,
 } from "../Menuplan/menuplan.types";
@@ -324,7 +323,7 @@ export default class UsedRecipes {
    * Leitet die Rezept-Identifikatoren aus den ausgewählten Menüs ab.
    *
    * Iteriert über alle Menüs → deren mealRecipeOrder → extrahiert Rezept-UIDs.
-   * Gelöschte Rezepte (MealRecipeDeletedPrefix) werden ignoriert.
+   * Gelöschte Rezepte (leere recipeUid) werden ignoriert.
    * Duplikate werden entfernt.
    *
    * @param object - Objekt mit Menüplan und ausgewählten Menüs
@@ -340,9 +339,7 @@ export default class UsedRecipes {
       menueplan.menues[menueUid].mealRecipeOrder.forEach((mealRecipeUid) => {
         if (
           menueplan.mealRecipes[mealRecipeUid].recipe &&
-          !menueplan.mealRecipes[
-            mealRecipeUid
-          ].recipe.recipeUid.includes(MealRecipeDeletedPrefix)
+          menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid
         ) {
           usedRecipesList.push({
             uid: menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid,

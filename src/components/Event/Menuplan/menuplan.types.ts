@@ -177,11 +177,6 @@ export interface PortionPlan {
 // ===================================================================== */
 
 /**
- * Prefix für gelöschte Rezepte im Menüplan.
- */
-export const MealRecipeDeletedPrefix = "[DELETED]";
-
-/**
  * Ein eingeplantes Rezept innerhalb eines Menüs.
  *
  * @param uid - Eindeutige ID

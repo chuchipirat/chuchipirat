@@ -76,7 +76,7 @@ class CacheableTestRepository extends BaseRepository<TestDomain, TestRow> {
   }
 
   getCacheConfig(): StorageObjectProperty {
-    return STORAGE_OBJECT_PROPERTY.EVENT;
+    return STORAGE_OBJECT_PROPERTY.DEPARTMENTS;
   }
 }
 

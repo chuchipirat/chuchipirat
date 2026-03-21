@@ -1,13 +1,11 @@
 import {Role} from "../../constants/roles";
 
 import Firebase from "../Firebase/firebase.class";
-import {logEvent} from "firebase/analytics";
 
 import {
   USER_PROFILE_ERROR_DISPLAYNAME_MISSING as TEXT_USER_PROFILE_ERROR_DISPLAYNAME_MISSING,
   NO_USER_WITH_THIS_EMAIL as TEXT_NO_USER_WITH_THIS_EMAIL,
 } from "../../constants/text";
-import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
 import UserPublicProfile from "./user.public.profile.class";
 import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
@@ -62,14 +60,6 @@ interface CreateUser {
   /** Nachname */
   lastName: string;
   /** E-Mail-Adresse */
-  email: string;
-}
-
-/** Parameter für {@link User.createUserPublicData} */
-interface CreateUserPublicData {
-  /** Firebase-Instanz (für Cloud Function Trigger) */
-  firebase: Firebase;
-  /** E-Mail-Adresse des neuen Users */
   email: string;
 }
 
@@ -189,8 +179,7 @@ interface UpdateStats {
  * Zentrale Service-Klasse für Benutzeroperationen.
  *
  * Delegiert die meisten DB-Operationen an das UserRepository (Supabase/Postgres).
- * Firebase wird noch für Storage, Cloud Functions, Analytics und einige
- * Legacy-Abfragen verwendet.
+ * Firebase wird noch für Storage und einige Legacy-Abfragen verwendet.
  */
 export default class User {
   uid: string;
@@ -292,36 +281,6 @@ export default class User {
         },
         authUser: {} as AuthUser,
       });
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
-  }
-  /* =====================================================================
-  // Öffentliches Profil anlegen
-  // ===================================================================== */
-  // With Supabase, public profile data is part of the users table,
-  // so this is handled by createUser(). Keep for Firebase cloud function
-  // trigger during transition.
-  /**
-   * Löst die Cloud Function zum Erstellen der öffentlichen Profildaten aus.
-   * Wird während der Übergangsphase noch für Firebase benötigt.
-   *
-   * @param firebase - Firebase-Instanz (für Cloud Function)
-   * @param email - E-Mail-Adresse des neuen Users
-   * @throws Error bei Cloud-Function-Fehler
-   */
-  static async createUserPublicData({firebase, email}: CreateUserPublicData) {
-    const anonymousUser = new AuthUser();
-    anonymousUser.email = email;
-    anonymousUser.publicProfile.displayName = email;
-
-    try {
-      await firebase.cloudFunction.createUserPublicData.triggerCloudFunction({
-        values: {email: email},
-        authUser: anonymousUser,
-      });
-      logEvent(firebase.analytics, FirebaseAnalyticEvent.userCreated);
     } catch (error) {
       console.error(error);
       throw error;
@@ -471,10 +430,9 @@ export default class User {
   // Aber nur diejeinige, die der User auch selbst ändern kann.
   /**
    * Speichert die vom Benutzer änderbaren Profilwerte.
-   * Lädt optional ein neues Profilbild hoch und löst Cloud Functions
-   * aus, wenn displayName oder Motto geändert wurden.
+   * Lädt optional ein neues Profilbild hoch.
    *
-   * @param firebase - Firebase-Instanz (für Storage/Cloud Functions)
+   * @param firebase - Firebase-Instanz (für Storage)
    * @param database - DatabaseService-Instanz
    * @param userProfile - Das zu speichernde Profil
    * @param authUser - Der angemeldete Benutzer
@@ -492,13 +450,6 @@ export default class User {
     if (userProfile.displayName === "") {
       userProfile.displayName = userProfile.firstName;
     }
-
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const usersRead = database.admin?.users ?? database.users;
-    // Alte Werte holen um zu vergleichen ob die Cloud Function gestartet werden muss
-    const actualPublicProfile = await usersRead.findPublicProfile(
-      authUser.uid,
-    );
 
     // Bild hochladen wenn vorhanden
     if (localPicture instanceof File) {
@@ -536,32 +487,6 @@ export default class User {
       authUser: authUser,
     });
 
-    // CloudFunction starten wenn displayname oder motto geändert wurde
-    if (
-      actualPublicProfile &&
-      (actualPublicProfile.displayName !== userProfile.displayName ||
-        actualPublicProfile.motto !== userProfile.motto)
-    ) {
-      if (actualPublicProfile.displayName !== userProfile.displayName) {
-        firebase.cloudFunction.updateUserDisplayName.triggerCloudFunction({
-          values: {
-            uid: userProfile.uid,
-            newDisplayName: userProfile.displayName,
-          },
-          authUser: authUser,
-        });
-      }
-      if (actualPublicProfile.motto !== userProfile.motto) {
-        firebase.cloudFunction.updateUserMotto.triggerCloudFunction({
-          values: {
-            uid: userProfile.uid,
-            newValue: userProfile.motto,
-          },
-          authUser: authUser,
-        });
-      }
-      logEvent(firebase.analytics, FirebaseAnalyticEvent.cloudFunctionExecuted);
-    }
   };
   /* =====================================================================
   // Profilbild hochladen
@@ -595,13 +520,11 @@ export default class User {
   /**
    * Löscht das Profilbild aus Supabase Storage und leert die DB-Spalte.
    *
-   * @param firebase - Firebase-Instanz (für Cloud Function)
    * @param database - DatabaseService-Instanz
    * @param authUser - Der angemeldete Benutzer
    * @throws Error bei Storage- oder DB-Fehler
    */
   static deletePicture = async ({
-    firebase,
     database,
     authUser,
   }: DeletePicture) => {
@@ -619,14 +542,6 @@ export default class User {
       authUser: authUser,
     });
 
-    // CloudFunction Triggern — leerer String statt Picture-Objekt
-    firebase.cloudFunction.updateUserPictureSrc.triggerCloudFunction({
-      values: {
-        uid: authUser.uid,
-        pictureSrc: "",
-      },
-      authUser: authUser,
-    });
   };
   /* =====================================================================
   // Berechtigungen aktualisieren

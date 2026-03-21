@@ -3,7 +3,6 @@ import Material, {MaterialType} from "../../Material/material.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import Utils from "../../Shared/utils.class";
 import {
-  MealRecipeDeletedPrefix,
   Meal,
   Menue,
   MenuplanData,
@@ -177,11 +176,8 @@ export default class MaterialList {
     selectedMenues.forEach((menueUid) => {
       // Über alle Rezepte dieses Menü loopen
       menueplan.menues[menueUid].mealRecipeOrder.forEach((mealRecipeUid) => {
-        if (
-          menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid.includes(
-            MealRecipeDeletedPrefix,
-          )
-        ) {
+        // Gelöschtes Rezept überspringen
+        if (!menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid) {
           return;
         }
 
@@ -472,11 +468,8 @@ export default class MaterialList {
 
     selectedMenues.forEach((menueUid) => {
       menueplan.menues[menueUid]?.mealRecipeOrder.forEach((mealRecipeUid) => {
-        if (
-          menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid.includes(
-            MealRecipeDeletedPrefix,
-          )
-        ) {
+        // Gelöschtes Rezept überspringen
+        if (!menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid) {
           return;
         }
 

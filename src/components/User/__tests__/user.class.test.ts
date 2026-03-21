@@ -82,12 +82,6 @@ const mockFirebase = {
       deleteFile: jest.fn(),
     },
   },
-  cloudFunction: {
-    createUserPublicData: {triggerCloudFunction: jest.fn()},
-    updateUserDisplayName: {triggerCloudFunction: jest.fn()},
-    updateUserMotto: {triggerCloudFunction: jest.fn()},
-    updateUserPictureSrc: {triggerCloudFunction: jest.fn()},
-  },
 };
 
 /* ------------------------------------------
@@ -182,44 +176,6 @@ describe("createUser()", () => {
         email: "a@b.ch",
       })
     ).rejects.toThrow("DB error");
-  });
-});
-
-/* =====================================================================
-// createUserPublicData()
-// ===================================================================== */
-describe("createUserPublicData()", () => {
-  test("Cloud Function auslösen und Analytics-Event loggen", async () => {
-    mockFirebase.cloudFunction.createUserPublicData.triggerCloudFunction.mockResolvedValue(
-      undefined
-    );
-
-    await User.createUserPublicData({
-      firebase: mockFirebase as any,
-      email: "new@test.ch",
-    });
-
-    expect(
-      mockFirebase.cloudFunction.createUserPublicData.triggerCloudFunction
-    ).toHaveBeenCalledWith(
-      expect.objectContaining({
-        values: {email: "new@test.ch"},
-      })
-    );
-    expect(logEvent).toHaveBeenCalled();
-  });
-
-  test("Fehler propagieren", async () => {
-    mockFirebase.cloudFunction.createUserPublicData.triggerCloudFunction.mockRejectedValue(
-      new Error("CF error")
-    );
-
-    await expect(
-      User.createUserPublicData({
-        firebase: mockFirebase as any,
-        email: "fail@test.ch",
-      })
-    ).rejects.toThrow("CF error");
   });
 });
 
@@ -497,11 +453,6 @@ describe("saveFullProfile()", () => {
   } as UserFullProfile;
 
   beforeEach(() => {
-    // Standard: Profil hat sich nicht geändert
-    const existingProfile = new UserPublicProfile();
-    existingProfile.displayName = "MaxM";
-    existingProfile.motto = "Old motto";
-    mockDatabase.users.findPublicProfile.mockResolvedValue(existingProfile);
     mockDatabase.users.patch.mockResolvedValue(undefined);
   });
 
@@ -553,12 +504,7 @@ describe("saveFullProfile()", () => {
     );
   });
 
-  test("Cloud Function bei displayName-Änderung auslösen", async () => {
-    const existingProfile = new UserPublicProfile();
-    existingProfile.displayName = "AlterName";
-    existingProfile.motto = "Old motto";
-    mockDatabase.users.findPublicProfile.mockResolvedValue(existingProfile);
-
+  test("DisplayName-Änderung wird direkt gespeichert (keine Cloud Function)", async () => {
     await User.saveFullProfile({
       firebase: mockFirebase as any,
       database: mockDatabase as any,
@@ -566,22 +512,16 @@ describe("saveFullProfile()", () => {
       authUser: authUser,
     });
 
-    expect(
-      mockFirebase.cloudFunction.updateUserDisplayName.triggerCloudFunction
-    ).toHaveBeenCalledWith(
+    expect(mockDatabase.users.patch).toHaveBeenCalledWith(
       expect.objectContaining({
-        values: {uid: "u1", newDisplayName: "NeuerName"},
+        fields: expect.objectContaining({
+          display_name: "NeuerName",
+        }),
       })
     );
-    expect(logEvent).toHaveBeenCalled();
   });
 
-  test("Cloud Function bei Motto-Änderung auslösen", async () => {
-    const existingProfile = new UserPublicProfile();
-    existingProfile.displayName = "MaxM";
-    existingProfile.motto = "Old motto";
-    mockDatabase.users.findPublicProfile.mockResolvedValue(existingProfile);
-
+  test("Motto-Änderung wird direkt gespeichert (keine Cloud Function)", async () => {
     await User.saveFullProfile({
       firebase: mockFirebase as any,
       database: mockDatabase as any,
@@ -589,11 +529,11 @@ describe("saveFullProfile()", () => {
       authUser: authUser,
     });
 
-    expect(
-      mockFirebase.cloudFunction.updateUserMotto.triggerCloudFunction
-    ).toHaveBeenCalledWith(
+    expect(mockDatabase.users.patch).toHaveBeenCalledWith(
       expect.objectContaining({
-        values: {uid: "u1", newValue: "New motto"},
+        fields: expect.objectContaining({
+          motto: "New motto",
+        }),
       })
     );
   });
@@ -631,7 +571,7 @@ describe("uploadPicture()", () => {
 // deletePicture()
 // ===================================================================== */
 describe("deletePicture()", () => {
-  test("Bild aus Supabase Storage löschen, DB patchen und CF auslösen", async () => {
+  test("Bild aus Supabase Storage löschen und DB patchen", async () => {
     const authUser = createMockAuthUser();
     mockDatabase.storage.users.remove.mockResolvedValue(undefined);
     mockDatabase.users.patch.mockResolvedValue(undefined);
@@ -655,11 +595,6 @@ describe("deletePicture()", () => {
       },
       authUser: authUser,
     });
-
-    // Cloud Function getriggert
-    expect(
-      mockFirebase.cloudFunction.updateUserPictureSrc.triggerCloudFunction
-    ).toHaveBeenCalled();
   });
 });
 

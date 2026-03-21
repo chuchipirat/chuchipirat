@@ -1313,7 +1313,7 @@ const RecipeEdit = ({
         if (switchEditMode) {
           switchEditMode({ignoreState: true});
         }
-        navigate(`${ROUTES.RECIPE}/${result.created.fromUid}/${result.uid}`, {
+        navigate(`${ROUTES.RECIPE}/${result.uid}`, {
           replace: true,
           state: {action: Action.VIEW, recipe: result},
         });

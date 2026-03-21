@@ -624,7 +624,7 @@ export function useMenuplanHandlers({
           const updatedMealRecipes = {} as MealRecipes;
           recipeDrawerData.mealPlan.forEach((mealPlan) => {
             if (
-              updatedMealRecipes[mealPlan.mealPlanRecipe].recipe.variantName !=
+              menuplan.mealRecipes[mealPlan.mealPlanRecipe]?.recipe.variantName !=
               recipe.variantProperties?.variantName
             ) {
               updatedMealRecipes[mealPlan.mealPlanRecipe] =
@@ -701,9 +701,17 @@ export function useMenuplanHandlers({
   }, []);
   const onRecipeSwitchEditMode = useCallback(() => {
     const {recipeDrawerData} = ctx.current;
+    // Beim Wechsel in den Edit-Modus sicherstellen, dass leere Zeilen
+    // für Zutaten, Zubereitungsschritte und Material vorhanden sind.
+    const enteringEditMode = !recipeDrawerData.editMode;
+    const recipe = enteringEditMode
+      ? Recipe.createEmptyListEntries({recipe: recipeDrawerData.recipe})
+      : recipeDrawerData.recipe;
+
     setRecipeDrawerData({
       ...recipeDrawerData,
-      editMode: !recipeDrawerData.editMode,
+      recipe: recipe,
+      editMode: enteringEditMode,
     });
   }, []);
   const onRecipeDelete = useCallback(() => {
@@ -1311,6 +1319,12 @@ export function useMenuplanHandlers({
   // ------------------------------------------ */
   const onMealRecipeOpen = useCallback((mealRecipeUid: MealRecipe["uid"]) => {
     const {menuplan, recipes, recipeDrawerData, fetchMissingData} = ctx.current;
+
+    // Gelöschtes Rezept — Drawer nicht öffnen
+    if (!menuplan.mealRecipes[mealRecipeUid]?.recipe.recipeUid) {
+      return;
+    }
+
     let loadingData = false;
     const mealPlan: Array<PlanedMealsRecipe> = [];
 
