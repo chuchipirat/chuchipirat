@@ -299,7 +299,6 @@ describe("SignUpPage", () => {
         expect(mockCreateUser).toHaveBeenCalledWith(
           expect.objectContaining({
             uid: "new-supabase-uuid",
-            authUid: "new-supabase-uuid",
             firstName: "Max",
             lastName: "Muster",
             email: "max@example.com",

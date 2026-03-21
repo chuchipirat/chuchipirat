@@ -179,7 +179,7 @@ const PublicProfilePage = () => {
   // Zu eigenem Profil wechseln
   // ------------------------------------------ */
   const onEditClick = () => {
-    navigate(`${ROUTES.USER_PROFILE}/${authUser!.authUid}`, {
+    navigate(`${ROUTES.USER_PROFILE}/${authUser!.uid}`, {
       state: {action: Action.VIEW},
     });
   };
@@ -200,7 +200,7 @@ const PublicProfilePage = () => {
               label: TEXT_EDIT,
               variant: "contained",
               color: "primary",
-              visible: authUser.authUid === urlUid,
+              visible: authUser.uid === urlUid,
               onClick: onEditClick,
             },
           ]}

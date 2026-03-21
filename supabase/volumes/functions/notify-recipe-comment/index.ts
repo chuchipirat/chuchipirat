@@ -148,7 +148,7 @@ serve(async (req: Request) => {
     const {data: author, error: authorError} = await supabaseAdmin
       .from("users")
       .select("email, display_name")
-      .eq("auth_uid", recipe.created_by)
+      .eq("id", recipe.created_by)
       .single();
 
     if (authorError || !author?.email) {
@@ -163,7 +163,7 @@ serve(async (req: Request) => {
     const {data: commenter} = await supabaseAdmin
       .from("users")
       .select("display_name")
-      .eq("auth_uid", comment.created_by)
+      .eq("id", comment.created_by)
       .maybeSingle();
 
     const commenterName = commenter?.display_name || "Jemand";

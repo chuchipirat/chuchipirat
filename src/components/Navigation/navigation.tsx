@@ -258,7 +258,7 @@ const NavigationAuth: React.FC = () => {
 
     switch (pressedButton[0]) {
       case BUTTONTEXT.ACCOUNT:
-        navigate(`${ROUTES.USER_PROFILE}/${authUser.authUid}`, {
+        navigate(`${ROUTES.USER_PROFILE}/${authUser.uid}`, {
           state: {action: Action.VIEW},
         });
         break;

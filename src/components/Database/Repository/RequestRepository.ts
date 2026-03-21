@@ -355,7 +355,7 @@ export class RequestRepository extends BaseRepository<
         .insert({
           status: "created",
           request_type: params.requestType,
-          author_uid: authUser.authUid,
+          author_uid: authUser.uid,
           request_object_uid: params.recipeUid,
           change_log: params.changeLog,
         })

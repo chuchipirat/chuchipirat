@@ -47,7 +47,7 @@ const VerifyEmailPage = () => {
         // Admin-Client verwenden, da die Session nach PKCE-Austausch
         // möglicherweise noch nicht vollständig für RLS-Abfragen bereit ist.
         const users = database.admin?.users ?? database.users;
-        const userDomain = await users.findByAuthUid(user.id);
+        const userDomain = await users.findById(user.id);
         if (!userDomain || cancelled) return;
 
         // Login-Zähler hochzählen (erster Login nach E-Mail-Verifizierung)
@@ -65,9 +65,20 @@ const VerifyEmailPage = () => {
                 sourceObjectType: "user",
                 sourceObjectUid: user.id,
               },
-              {uid: userDomain.uid, authUid: user.id, publicProfile: {displayName: userDomain.displayName, pictureSrc: userDomain.pictureSrc ?? ""}} as any,
+              {uid: user.id, publicProfile: {displayName: userDomain.displayName, pictureSrc: userDomain.pictureSrc ?? ""}} as any,
             )
             .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+        }
+
+        // Willkommens-E-Mail senden (nur bei Erstregistrierung)
+        if (isSignup) {
+          supabase.functions
+            .invoke("send-welcome-email", {
+              body: {user_id: user.id},
+            })
+            .catch((err) =>
+              console.warn("Willkommens-E-Mail konnte nicht gesendet werden:", err),
+            );
         }
 
         // Vestaboard-Benachrichtigung (nicht kritisch)

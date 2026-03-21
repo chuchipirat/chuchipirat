@@ -95,7 +95,7 @@ const testDomain: TestDomain = {
   active: true,
 };
 
-const authUser = {uid: "user-123", authUid: "auth-uuid-456"} as any;
+const authUser = {uid: "auth-uuid-456"} as any;
 
 /* =====================================================================
 // Tests

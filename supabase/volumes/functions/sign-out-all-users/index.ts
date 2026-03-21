@@ -82,7 +82,7 @@ serve(async (req: Request) => {
   const {data: callerUser, error: callerError} = await supabaseAdmin
     .from("users")
     .select("roles")
-    .eq("auth_uid", callerAuthUid)
+    .eq("id", callerAuthUid)
     .single();
 
   if (callerError || !callerUser) {
@@ -101,10 +101,10 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Alle Nicht-Admin-Benutzer mit auth_uid laden
+    // Alle Nicht-Admin-Benutzer laden
     const {data: users, error: usersError} = await supabaseAdmin
       .from("users")
-      .select("id, auth_uid, roles");
+      .select("id, roles");
 
     if (usersError) throw usersError;
 
@@ -113,8 +113,7 @@ serve(async (req: Request) => {
 
     for (const user of users ?? []) {
       if ((user.roles as string[]).includes("admin")) continue;
-      if (!user.auth_uid) continue;
-      nonAdminAuthUids.push(user.auth_uid);
+      nonAdminAuthUids.push(user.id);
       signedOutUsers.push(user.id);
     }
 

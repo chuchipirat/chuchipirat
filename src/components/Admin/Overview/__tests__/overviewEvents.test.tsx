@@ -137,7 +137,7 @@ const mockDatabase: any = {
     getAllEventsShort: mockGetAllEventsShort,
   },
   users: {
-    findDisplayNamesByAuthUids: mockFindDisplayNamesByAuthUids,
+    findDisplayNamesByIds: mockFindDisplayNamesByAuthUids,
   },
 };
 

@@ -72,7 +72,7 @@ interface PasswordMigrationDialogProps {
  * Ablauf:
  * 1. Benutzer gibt neues Passwort + Bestätigung ein
  * 2. authService.signUp(email, password) erstellt Supabase Auth Account
- * 3. auth_uid wird in der users-Tabelle verknüpft
+ * 3. Supabase Auth Account wird erstellt
  * 4. onSuccess-Callback wird aufgerufen (Firebase Sign-Out + Weiterleitung)
  */
 const PasswordMigrationDialog: React.FC<PasswordMigrationDialogProps> = ({
@@ -106,13 +106,9 @@ const PasswordMigrationDialog: React.FC<PasswordMigrationDialogProps> = ({
 
     try {
       // Supabase Auth Account erstellen (mit Anzeigename in user_metadata)
-      const session = await database.auth.signUp(email, password, {
+      await database.auth.signUp(email, password, {
         displayName: displayName || undefined,
       });
-
-      // auth_uid in der users-Tabelle verknüpfen (Admin-Client umgeht RLS)
-      const usersRepo = database.admin?.users ?? database.users;
-      await usersRepo.linkAuthUid(firebaseUid, session.user.id);
 
       setSuccess(true);
 

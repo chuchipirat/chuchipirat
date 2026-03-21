@@ -30,9 +30,8 @@ jest.mock("react-router", () => ({
 
 jest.mock("../../../Session/authUserContext", () => ({
   useAuthUser: () => ({
-    uid: "admin-firebase-uid",
+    uid: "admin-auth-uuid",
     email: "admin@test.ch",
-    authUid: "admin-auth-uuid",
   }),
 }));
 
@@ -48,8 +47,7 @@ const mockPatch = jest.fn().mockResolvedValue(undefined);
 /** Beispiel-Benutzer für findOverview() */
 const overviewUsers = [
   {
-    uid: "firebase-uid-1",
-    authUid: "supabase-auth-uuid-1",
+    uid: "supabase-auth-uuid-1",
     firstName: "Anna",
     lastName: "Meier",
     displayName: "AnnaM",
@@ -58,8 +56,7 @@ const overviewUsers = [
     memberSince: new Date("2024-01-15"),
   },
   {
-    uid: "firebase-uid-2",
-    authUid: undefined,
+    uid: "supabase-auth-uuid-2",
     firstName: "Beat",
     lastName: "Müller",
     displayName: "BeatM",
@@ -71,8 +68,7 @@ const overviewUsers = [
 
 /** Beispiel-UserDomain für findById() */
 const userDomainMock = {
-  uid: "firebase-uid-1",
-  authUid: "supabase-auth-uuid-1",
+  uid: "supabase-auth-uuid-1",
   email: "anna@test.ch",
   firstName: "Anna",
   lastName: "Meier",
@@ -149,10 +145,10 @@ test("1 – DataGrid wird nach Laden der User angezeigt", async () => {
   expect(await screen.findByText("BeatM")).toBeInTheDocument();
 });
 
-test("2 – authUid-Spalte zeigt Supabase-UUID des ersten Users", async () => {
+test("2 – UID-Spalte zeigt UUID des ersten Users", async () => {
   renderPage();
 
-  // authUid des ersten Users erscheint (als Zelleninhalt)
+  // uid des ersten Users erscheint (als Zelleninhalt)
   expect(
     await screen.findByText("supabase-auth-uuid-1")
   ).toBeInTheDocument();
@@ -169,7 +165,7 @@ test("3 – Klick auf Öffnen-Button öffnet Dialog und ruft findById + findReci
   await userEvent.click(openButtons[0]);
 
   await waitFor(() => {
-    expect(mockFindById).toHaveBeenCalledWith("firebase-uid-1");
+    expect(mockFindById).toHaveBeenCalledWith("supabase-auth-uuid-1");
     expect(mockFindRecipeCountsByCreator).toHaveBeenCalledWith(
       "supabase-auth-uuid-1"
     );
@@ -239,7 +235,7 @@ test("6 – Klick auf + ruft incrementFoundBugs auf und aktualisiert den Wert", 
   await userEvent.click(addButton);
 
   await waitFor(() => {
-    expect(mockIncrementFoundBugs).toHaveBeenCalledWith("firebase-uid-1", 1);
+    expect(mockIncrementFoundBugs).toHaveBeenCalledWith("supabase-auth-uuid-1", 1);
     // Wert erhöht auf 4
     expect(screen.getByText("4")).toBeInTheDocument();
   });

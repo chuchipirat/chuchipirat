@@ -81,7 +81,7 @@ const testDomain: UnitConversionProductDomain = {
   productName: "Tomate",
 };
 
-const authUser = {uid: "user-123", authUid: "auth-uuid-123"} as AuthUser;
+const authUser = {uid: "auth-uuid-123"} as AuthUser;
 
 /* =====================================================================
 // Tests

@@ -76,7 +76,7 @@ export interface RecipeCommentDomain {
 
 /** Hilftyp für eine Zeile aus get_comment_author_profiles() */
 interface CommentAuthorProfileRow {
-  auth_uid: string;
+  id: string;
   display_name: string;
   picture_src: string;
 }
@@ -212,7 +212,7 @@ export class RecipeCommentRepository extends BaseRepository<
 
       if (profiles) {
         for (const p of profiles as CommentAuthorProfileRow[]) {
-          profileMap[p.auth_uid] = {
+          profileMap[p.id] = {
             displayName: p.display_name ?? "",
             pictureSrc: p.picture_src ?? "",
           };

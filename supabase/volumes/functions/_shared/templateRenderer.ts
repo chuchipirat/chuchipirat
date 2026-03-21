@@ -228,6 +228,146 @@ const BODY_TEMPLATES: Record<string, string> = {
               <div style="font-size: 15px; color: #212121; line-height: 1.6;">{{body}}</div>
               {{buttonBlock}}`,
 
+  /* ── Willkommen (bei Registrierung) ──────────────────────────── */
+  "welcome": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Ahoi {{displayName}},
+              </p>
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Willkommen an Bord von <strong>chuchipirat</strong>! 🎉
+              </p>
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Schön, dass du dabei bist! Chuchipirat hilft dir, das Kochen in Lagern und
+                Gruppenaktivitäten entspannt zu planen — von der ersten Idee bis zur
+                fertigen Einkaufsliste.
+              </p>
+
+              <p style="margin: 0 0 8px; font-size: 16px; color: #212121; line-height: 1.5; font-weight: 600;">
+                So legst du am besten los:
+              </p>
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="margin: 0 0 16px;">
+                <tr>
+                  <td style="padding: 6px 0; font-size: 15px; color: #212121; line-height: 1.5;">
+                    🍽️&nbsp; <strong>Anlass erstellen</strong> — Lege dein erstes Lager oder deinen ersten Anlass an und lade weitere Köch*innen ein.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; font-size: 15px; color: #212121; line-height: 1.5;">
+                    📋&nbsp; <strong>Menuplan zusammenstellen</strong> — Plane Mahlzeiten und weise Rezepte zu. Die Mengen werden automatisch berechnet.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; font-size: 15px; color: #212121; line-height: 1.5;">
+                    🛒&nbsp; <strong>Einkaufsliste generieren</strong> — Per Knopfdruck erhältst du eine nach Abteilungen sortierte Liste.
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0; font-size: 15px; color: #212121; line-height: 1.5;">
+                    📖&nbsp; <strong>Rezepte entdecken</strong> — Stöbere in öffentlichen Rezepten anderer Köch*innen oder erfasse deine eigenen.
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Falls du Fragen hast, findest du im
+                <a href="{{helpcenterUrl}}" target="_blank" style="color: #006064; text-decoration: underline;">Helpcenter</a>
+                Anleitungen und Tipps. Oder schreib uns einfach an
+                <a href="mailto:hallo@chuchipirat.ch" style="color: #006064; text-decoration: underline;">hallo@chuchipirat.ch</a>
+                — wir helfen gerne!
+              </p>
+
+              <!-- CTA Button -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 24px 0 0;">
+                    <a href="{{appUrl}}"
+                       target="_blank"
+                       style="display: inline-block; background-color: #006064; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 36px; border-radius: 8px; letter-spacing: 0.3px;">
+                      Jetzt loslegen
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 24px 0 0; font-size: 14px; color: #757575; line-height: 1.5;">
+                Viel Spass beim Planen — wind in den Segeln! 🏴‍☠️
+              </p>`,
+
+  /* ── Tägliche Aktivitäts-Zusammenfassung ────────────────────── */
+  "daily-digest": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Hallo {{recipientName}},
+              </p>
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Hier ist die Aktivitäts-Zusammenfassung für den <strong>{{date}}</strong>:
+              </p>
+
+              {{contentSections}}
+
+              {{openRequestsBlock}}
+
+              <p style="margin: 24px 0 0; font-size: 14px; color: #757575; line-height: 1.5;">
+                Diese Zusammenfassung wird täglich automatisch an alle Community Leaders versandt.
+              </p>`,
+
+  /* ── Event-Review (Feedback nach Anlass-Ende) ──────────────── */
+  "event-review": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Hallo {{cookName}},
+              </p>
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Euer Anlass <strong>«{{eventName}}»</strong> ist vorbei — wir hoffen, ihr hattet eine
+                tolle Zeit in der Lagerküche und konntet gemeinsam leckere Gerichte zaubern! 🍽️
+              </p>
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Jetzt sind wir gespannt auf euer Feedback! Was hat euch gefallen,
+                was könnten wir besser machen? Eure Rückmeldungen helfen uns,
+                chuchipirat noch besser auf euch abzustimmen.
+              </p>
+
+              <!-- Primärer CTA: Feedback -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 24px 0 0;">
+                    <a href="https://forms.gle/6vkknRiVftbwaEe87"
+                       target="_blank"
+                       style="display: inline-block; background-color: #006064; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 36px; border-radius: 8px; letter-spacing: 0.3px;">
+                      Feedback geben
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 16px 0 0; font-size: 14px; color: #757575; line-height: 1.5; text-align: center;">
+                Dauert nur ein paar Minuten — versprochen! 😊
+              </p>
+
+              <!-- Trennlinie -->
+              <hr style="margin: 32px 0; border: none; border-top: 1px solid #e0e0e0;" />
+
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Falls ihr euren Anlass genossen habt und noch etwas Budget übrig ist:
+                chuchipirat ist ein ehrenamtliches Projekt — jede Spende hilft uns, die
+                App weiterzuentwickeln und für alle gratis zu halten.
+              </p>
+
+              <!-- Sekundärer CTA: Spende -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 0;">
+                    <a href="https://pay.raisenow.io/nntnc"
+                       target="_blank"
+                       style="display: inline-block; background-color: #ffffff; color: #006064; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 32px; border-radius: 8px; border: 2px solid #006064; letter-spacing: 0.3px;">
+                      Jetzt spenden
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Trennlinie -->
+              <hr style="margin: 32px 0; border: none; border-top: 1px solid #e0e0e0;" />
+
+              <p style="margin: 0; font-size: 14px; color: #757575; line-height: 1.5;">
+                Danke, dass ihr dabei wart — und hoffentlich bis bald wieder im chuchipirat!
+              </p>`,
+
   /* ── Fehlermeldung wurde bearbeitet ──────────────────────────── */
   "request-error-fixed": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
                 Hallo {{authorDisplayName}},

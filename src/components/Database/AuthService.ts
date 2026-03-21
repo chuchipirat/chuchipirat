@@ -155,7 +155,7 @@ export class AuthService {
    * Nach erfolgreicher Firebase-Validierung wird das Supabase-Passwort
    * synchronisiert.
    * //FIXME: muss nach der Migration entfernt werden, da dann alle Benutzer über Supabase Auth
-   * @param userId - Supabase Auth User-ID (auth_uid)
+   * @param userId - Supabase Auth User-ID
    * @param newPassword - Das neue Passwort (vom Firebase-Login validiert)
    * @throws {Error} Wenn der Admin-Client nicht verfügbar ist
    * @throws {AuthError} Bei ungültigem Passwort oder Netzwerkfehler

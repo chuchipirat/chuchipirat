@@ -587,7 +587,7 @@ const buildDataGridColumns = (
  * Admin-Übersichtsseite für alle Anlässe.
  *
  * Lädt alle Events beim Seitenaufruf via Supabase (EventRepository.getAllEventsShort).
- * Ersteller-Namen werden über UserRepository.findDisplayNamesByAuthUids aufgelöst.
+ * Ersteller-Namen werden über UserRepository.findDisplayNamesByIds aufgelöst.
  * Zeigt Ergebnisse wahlweise als Karten oder im DataGrid an.
  * Beim Klick öffnet sich ein Detail-Dialog; von dort aus kann eine Quittung
  * erstellt oder der Anlass geöffnet werden.
@@ -629,7 +629,7 @@ const OverviewEventsPage = () => {
         ];
         const nameMap =
           creatorUids.length > 0
-            ? await database.users.findDisplayNamesByAuthUids(creatorUids)
+            ? await database.users.findDisplayNamesByIds(creatorUids)
             : new Map<string, string>();
 
         // Domain → flache UI-Struktur (absteigend nach createdAt)

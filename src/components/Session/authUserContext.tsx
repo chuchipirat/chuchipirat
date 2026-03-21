@@ -27,7 +27,7 @@ export const useAuthUser = (): AuthUser | null => {
  * AuthUserProvider — Stellt den authentifizierten Benutzer via Context bereit.
  *
  * Hört primär auf Supabase Auth State-Änderungen. Bei einem Supabase-Login
- * wird das Benutzerprofil via findByAuthUid geladen. Wenn kein Supabase-User
+ * wird das Benutzerprofil via findById geladen. Wenn kein Supabase-User
  * gefunden wird, fällt der Provider auf den Firebase-Listener zurück
  * (für User, die noch nicht migriert wurden).
  */
@@ -55,12 +55,12 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
         if (session?.user) {
           // Prüfe zuerst den LocalStorage-Cache — aber nur wenn er zum aktuellen
           // Session-User gehört. Sonst würde ein anderer User (z.B. nach Benutzer-
-          // wechsel ohne expliziten Logout) den falschen authUid erhalten, was zu
+          // wechsel ohne expliziten Logout) den falschen uid erhalten, was zu
           // RLS-Verletzungen führt (user_id != auth.uid()).
           const cachedString = localStorage.getItem(LocalStorageKey.AUTH_USER);
           if (cachedString) {
             const cached = JSON.parse(cachedString) as AuthUser;
-            if (cached.authUid === session.user.id) {
+            if (cached.uid === session.user.id) {
               // emailVerified aus Supabase Session ableiten
               cached.emailVerified = !!session.user.email_confirmed_at;
 
@@ -79,19 +79,18 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
             localStorage.removeItem(LocalStorageKey.AUTH_USER);
           }
 
-          // Benutzerprofil via auth_uid laden
+          // Benutzerprofil via User-ID laden
           // Admin-Client verwenden, da RLS den eigenen User erst nach vollständigem
           // Session-Setup erlaubt (Timing-Problem beim Auth-State-Change)
           const usersRepo = database.admin?.users ?? database.users;
           try {
-            const userDomain = await usersRepo.findByAuthUid(
+            const userDomain = await usersRepo.findById(
               session.user.id
             );
 
             if (userDomain) {
               const newAuthUser: AuthUser = {
-                uid: userDomain.uid,
-                authUid: session.user.id,
+                uid: session.user.id,
                 email: userDomain.email,
                 emailVerified: !!session.user.email_confirmed_at,
                 firstName: userDomain.firstName,
@@ -124,8 +123,7 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
               const fullProfile = await usersRepo.findFullProfile(userId);
 
               const newAuthUser: AuthUser = {
-                uid: fullProfile.uid,
-                authUid: session.user.id,
+                uid: session.user.id,
                 email: fullProfile.email,
                 emailVerified: !!session.user.email_confirmed_at,
                 firstName: fullProfile.firstName,

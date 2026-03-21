@@ -85,7 +85,7 @@ const mockDatabase = {} as any;
 // ======================== Testdaten ==================================
 // =================================================================== */
 
-/** Öffentliches Profil als Testdaten (uid = Firebase UID, wie von der DB zurückgegeben) */
+/** Öffentliches Profil als Testdaten (uid = Supabase UUID, wie von der DB zurückgegeben) */
 const publicProfile: UserPublicProfile = {
   uid: "user-123",
   displayName: "Koch Guru",
@@ -118,8 +118,7 @@ const profileNoBugs: UserPublicProfile = {
  * Rendert die PublicProfilePage mit allen nötigen Context-Providern.
  * Verwendet Routes/Route damit useParams() die :id korrekt parsed.
  *
- * @param uid - UID im URL-Parameter — seit der Supabase-Migration ist das die
- *              Supabase Auth UUID (authUid), nicht mehr die Firebase UID.
+ * @param uid - UID im URL-Parameter (Supabase Auth UUID).
  *              Default: "user-123"
  * @param authUser - Optionaler AuthUser (Default: authUserMock)
  * @param locationState - Optionaler Location-State für Pre-Population
@@ -231,8 +230,7 @@ describe("PublicProfilePage", () => {
     });
 
     test("Übergibt die Supabase-Auth-UUID aus dem URL als uid an getPublicProfile", async () => {
-      // Seit der Supabase-Migration enthält die URL die auth_uid (Supabase UUID),
-      // nicht mehr die alte Firebase UID.
+      // Die URL enthält die Supabase UUID (id).
       const supabaseUid = "abc-supabase-123";
       mockGetPublicProfile.mockResolvedValue({
         ...publicProfile,
@@ -269,17 +267,15 @@ describe("PublicProfilePage", () => {
   });
 
   describe("Edit-Button", () => {
-    test("Sichtbar nur beim eigenen Profil (profileUid === authUser.uid, urlUid === authUser.authUid)", async () => {
-      // Die Profil-UID (data.id, Firebase UID) muss dem authUser.uid entsprechen.
-      // Die URL-UID (Supabase auth UUID) muss dem authUser.authUid entsprechen.
+    test("Sichtbar nur beim eigenen Profil (profileUid === authUser.uid)", async () => {
+      // Die Profil-UID muss dem authUser.uid entsprechen.
       const ownProfile = {
         ...publicProfile,
-        uid: authUserMock.uid,           // Firebase UID aus DB
+        uid: authUserMock.uid,
       };
       mockGetPublicProfile.mockResolvedValue(ownProfile);
 
-      // URL enthält die Supabase auth UUID (neues Format seit Migration)
-      renderPublicProfilePage({uid: authUserMock.authUid});
+      renderPublicProfilePage({uid: authUserMock.uid});
 
       await waitFor(() => {
         expect(
@@ -301,12 +297,12 @@ describe("PublicProfilePage", () => {
       ).not.toBeInTheDocument();
     });
 
-    test("Edit-Button navigiert zur UserProfile-Seite mit authUser.authUid", async () => {
+    test("Edit-Button navigiert zur UserProfile-Seite mit authUser.uid", async () => {
       // Profil so setzen, dass es als eigenes Profil erkannt wird
       const ownProfile = {...publicProfile, uid: authUserMock.uid};
       mockGetPublicProfile.mockResolvedValue(ownProfile);
 
-      renderPublicProfilePage({uid: authUserMock.authUid});
+      renderPublicProfilePage({uid: authUserMock.uid});
 
       await waitFor(() => {
         expect(screen.getByRole("button", {name: /anpassen/i})).toBeInTheDocument();
@@ -314,9 +310,9 @@ describe("PublicProfilePage", () => {
 
       await userEvent.click(screen.getByRole("button", {name: /anpassen/i}));
 
-      // Die Navigation soll die Supabase auth UUID in der URL verwenden
+      // Die Navigation soll die UID in der URL verwenden
       expect(mockNavigate).toHaveBeenCalledWith(
-        expect.stringContaining(authUserMock.authUid),
+        expect.stringContaining(authUserMock.uid),
         expect.anything(),
       );
     });

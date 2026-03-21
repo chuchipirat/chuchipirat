@@ -33,8 +33,7 @@ jest.mock("react-router", () => ({
 
 /** Mock: useAuthUser */
 const mockAuthUser = {
-  uid: "user-123",
-  authUid: "auth-uuid-123",
+  uid: "auth-uuid-123",
   email: "test@chuchipirat.ch",
   roles: [],
 };

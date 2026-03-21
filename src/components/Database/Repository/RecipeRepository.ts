@@ -668,18 +668,18 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
    * Sucht Rezepte eines Erstellers anhand seiner Auth-UUID.
    * Für die Admin-Übersicht — erfordert Service Role Client.
    *
-   * @param authUid - Auth-UUID des Erstellers
+   * @param userId - Auth-UUID des Erstellers
    * @param typeFilter - Optionaler Rezepttyp-Filter (default: 'all')
    * @returns Array der gefundenen Kurz-Rezepte, sortiert nach Name
    */
   async searchByCreatorId(
-    authUid: string,
+    userId: string,
     typeFilter: "all" | "public" | "private" = "all",
   ): Promise<RecipeShortDomain[]> {
     let query = this.client
       .from(this.tableName)
       .select(RECIPE_SHORT_COLUMNS)
-      .eq("created_by", authUid);
+      .eq("created_by", userId);
 
     query = this.applyTypeFilter(query, typeFilter);
 
@@ -695,24 +695,24 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
    * Wird für die Admin-Benutzerübersicht verwendet, um Rezeptstatistiken
    * live aus der Datenbank zu lesen (keine denormalisierte Speicherung).
    *
-   * @param creatorAuthUid - Supabase Auth UUID des Erstellers (created_by-Spalte)
+   * @param userId - Supabase Auth UUID des Erstellers (created_by-Spalte)
    * @returns Anzahl öffentlicher und privater Rezepte
    * @throws {PostgrestError} bei Datenbankfehler
    */
   async findRecipeCountsByCreator(
-    creatorAuthUid: string,
+    userId: string,
   ): Promise<{noRecipesPublic: number; noRecipesPrivate: number}> {
     // Zwei COUNT-Queries parallel statt alle Zeilen laden + in JS filtern
     const [publicResult, privateResult] = await Promise.all([
       this.client
         .from(this.tableName)
         .select("*", {count: "exact", head: true})
-        .eq("created_by", creatorAuthUid)
+        .eq("created_by", userId)
         .eq("recipe_type", "public"),
       this.client
         .from(this.tableName)
         .select("*", {count: "exact", head: true})
-        .eq("created_by", creatorAuthUid)
+        .eq("created_by", userId)
         .eq("recipe_type", "private"),
     ]);
 
@@ -727,24 +727,24 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
 
   /**
    * Sucht Rezepte einer Menge von Ersteller-UUIDs (zweistufige Namenssuche).
-   * Wird aufgerufen nachdem `UserRepository.findAuthUidsByDisplayName()` die
+   * Wird aufgerufen nachdem `UserRepository.findIdsByDisplayName()` die
    * passenden Auth-UUIDs geliefert hat.
    * Für die Admin-Übersicht — erfordert Service Role Client.
    *
-   * @param authUids - Array von Auth-UUIDs der Ersteller
+   * @param userIds - Array von Auth-UUIDs der Ersteller
    * @param typeFilter - Optionaler Rezepttyp-Filter (default: 'all')
    * @returns Array der gefundenen Kurz-Rezepte, sortiert nach Name
    */
   async searchByCreatorIds(
-    authUids: string[],
+    userIds: string[],
     typeFilter: "all" | "public" | "private" = "all",
   ): Promise<RecipeShortDomain[]> {
-    if (authUids.length === 0) return [];
+    if (userIds.length === 0) return [];
 
     let query = this.client
       .from(this.tableName)
       .select(RECIPE_SHORT_COLUMNS)
-      .in("created_by", authUids);
+      .in("created_by", userIds);
 
     query = this.applyTypeFilter(query, typeFilter);
 

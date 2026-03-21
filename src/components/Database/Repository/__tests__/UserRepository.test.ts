@@ -2,8 +2,8 @@
  * Unit-Tests für UserRepository.
  *
  * Testet toRow/toDomain-Mapping sowie die user-spezifischen Methoden
- * (findOverview, findByEmail, findByAuthUid, findPublicProfile,
- * findFullProfile, linkAuthUid, registerSignIn).
+ * (findOverview, findByEmail, findPublicProfile,
+ * findFullProfile, registerSignIn).
  * Der Supabase-Client wird vollständig gemockt.
  */
 import {UserRepository} from "../UserRepository";
@@ -146,11 +146,10 @@ describe("UserRepository", () => {
   // findOverview()
   // ------------------------------------------ */
   describe("findOverview()", () => {
-    test("Alle User als Übersicht laden inkl. auth_uid", async () => {
+    test("Alle User als Übersicht laden", async () => {
       const overviewRows = [
         {
           id: userRow.id,
-          auth_uid: userRow.auth_uid,
           first_name: userRow.first_name,
           last_name: userRow.last_name,
           email: userRow.email,
@@ -160,7 +159,6 @@ describe("UserRepository", () => {
         },
         {
           id: userRow2.id,
-          auth_uid: userRow2.auth_uid,
           first_name: userRow2.first_name,
           last_name: userRow2.last_name,
           email: userRow2.email,
@@ -179,18 +177,16 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
       expect(supabaseMock.queryMock.select).toHaveBeenCalledWith(
-        "id, auth_uid, first_name, last_name, email, display_name, member_id, created_at",
+        "id, first_name, last_name, email, display_name, member_id, created_at",
       );
       expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("first_name", {
         ascending: true,
       });
       expect(result).toHaveLength(2);
       expect(result[0].uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
-      expect(result[0].authUid).toBeUndefined(); // userRow.auth_uid is null
       expect(result[0].firstName).toBe("Test");
       expect(result[0].displayName).toBe("TestUser");
       expect(result[1].uid).toBe("X8kLmN3pQrStUvWxYz1234abcde");
-      expect(result[1].authUid).toBe("a1b2c3d4-e5f6-7890-abcd-ef1234567890");
     });
 
     test("Fehler bei findOverview() werfen", async () => {
@@ -264,7 +260,7 @@ describe("UserRepository", () => {
   // findPublicProfile()
   // ------------------------------------------ */
   describe("findPublicProfile()", () => {
-    test("Öffentliches Profil anhand auth_uid laden", async () => {
+    test("Öffentliches Profil anhand ID laden", async () => {
       supabaseMock.queryMock.maybeSingle.mockResolvedValue({
         data: userProfileRow,
         error: null,
@@ -276,7 +272,7 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.client.from).toHaveBeenCalledWith("user_profiles");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
-        "auth_uid",
+        "id",
         "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       );
       expect(result.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
@@ -370,93 +366,6 @@ describe("UserRepository", () => {
   });
 
   /* ------------------------------------------
-  // findByAuthUid()
-  // ------------------------------------------ */
-  describe("findByAuthUid()", () => {
-    test("User anhand Auth-UID finden und als Domain-Objekt zurückgeben", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: userRow,
-        error: null,
-      });
-
-      const result = await repo.findByAuthUid("supabase-auth-uuid-123");
-
-      expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
-      expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("*");
-      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
-        "auth_uid",
-        "supabase-auth-uuid-123",
-      );
-      expect(supabaseMock.queryMock.single).toHaveBeenCalled();
-      expect(result).not.toBeNull();
-      expect(result!.uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
-      expect(result!.email).toBe("test@chuchipirat.ch");
-      expect(result!.firstName).toBe("Test");
-    });
-
-    test("null zurückgeben wenn Auth-UID nicht gefunden (PGRST116)", async () => {
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: null,
-        error: {code: "PGRST116", message: "No rows found"},
-      });
-
-      const result = await repo.findByAuthUid("nonexistent-auth-uid");
-
-      expect(result).toBeNull();
-    });
-
-    test("Fehler bei anderem Fehlercode werfen", async () => {
-      const dbError = {code: "42000", message: "Database error"};
-      supabaseMock.queryMock.single.mockResolvedValue({
-        data: null,
-        error: dbError,
-      });
-
-      await expect(repo.findByAuthUid("some-auth-uid")).rejects.toEqual(
-        dbError,
-      );
-    });
-  });
-
-  /* ------------------------------------------
-  // linkAuthUid()
-  // ------------------------------------------ */
-  describe("linkAuthUid()", () => {
-    test("Auth-UID mit bestehendem User verknüpfen", async () => {
-      supabaseMock.queryMock.eq.mockResolvedValue({
-        data: null,
-        error: null,
-      });
-
-      await repo.linkAuthUid(
-        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
-        "new-supabase-auth-uid",
-      );
-
-      expect(supabaseMock.client.from).toHaveBeenCalledWith("users");
-      expect(supabaseMock.queryMock.update).toHaveBeenCalledWith({
-        auth_uid: "new-supabase-auth-uid",
-      });
-      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
-        "id",
-        "T02c6mxOWDstBdvwzjbs5Tfc2abc",
-      );
-    });
-
-    test("Fehler bei linkAuthUid() werfen", async () => {
-      const updateError = {message: "Update failed", code: "23505"};
-      supabaseMock.queryMock.eq.mockResolvedValue({
-        data: null,
-        error: updateError,
-      });
-
-      await expect(
-        repo.linkAuthUid("some-user-id", "some-auth-uid"),
-      ).rejects.toEqual(updateError);
-    });
-  });
-
-  /* ------------------------------------------
   // registerSignIn()
   // ------------------------------------------ */
   describe("registerSignIn()", () => {
@@ -522,71 +431,4 @@ describe("UserRepository", () => {
     });
   });
 
-  /* ------------------------------------------
-  // findAuthUidsByDisplayName() — Admin-Suchmethode
-  // ------------------------------------------ */
-  describe("findAuthUidsByDisplayName()", () => {
-    test("Ruft ilike mit eingebettetem Begriff auf und gibt auth_uid-Array zurück", async () => {
-      supabaseMock.queryMock.ilike = jest.fn().mockResolvedValue({
-        data: [
-          {auth_uid: "auth-uuid-1"},
-          {auth_uid: "auth-uuid-2"},
-        ],
-        error: null,
-      });
-
-      const result = await repo.findAuthUidsByDisplayName("Max");
-
-      expect(supabaseMock.queryMock.ilike).toHaveBeenCalledWith(
-        "display_name",
-        "%Max%",
-      );
-      expect(result).toEqual(["auth-uuid-1", "auth-uuid-2"]);
-    });
-
-    test("Gibt leeres Array zurück wenn keine Treffer", async () => {
-      supabaseMock.queryMock.ilike = jest.fn().mockResolvedValue({
-        data: [],
-        error: null,
-      });
-
-      const result = await repo.findAuthUidsByDisplayName("NICHT_VORHANDEN");
-      expect(result).toHaveLength(0);
-    });
-  });
-
-  /* ------------------------------------------
-  // findDisplayNamesByAuthUids() — Admin-Suchmethode
-  // ------------------------------------------ */
-  describe("findDisplayNamesByAuthUids()", () => {
-    test("Ruft in('auth_uid', uids) auf und gibt Map uid→name zurück", async () => {
-      supabaseMock.queryMock.in = jest.fn().mockResolvedValue({
-        data: [
-          {auth_uid: "auth-uuid-1", display_name: "Max Muster"},
-          {auth_uid: "auth-uuid-2", display_name: "Anna Meier"},
-        ],
-        error: null,
-      });
-
-      const result = await repo.findDisplayNamesByAuthUids([
-        "auth-uuid-1",
-        "auth-uuid-2",
-      ]);
-
-      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("auth_uid", [
-        "auth-uuid-1",
-        "auth-uuid-2",
-      ]);
-      expect(result.get("auth-uuid-1")).toBe("Max Muster");
-      expect(result.get("auth-uuid-2")).toBe("Anna Meier");
-    });
-
-    test("Gibt leere Map zurück wenn authUids leer", async () => {
-      const result = await repo.findDisplayNamesByAuthUids([]);
-
-      expect(result.size).toBe(0);
-      // Kein DB-Aufruf
-      expect(supabaseMock.client.from).not.toHaveBeenCalled();
-    });
-  });
 });

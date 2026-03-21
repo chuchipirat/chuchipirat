@@ -34,8 +34,7 @@ jest.mock("../../../constants/imageRepository", () => ({
 
 /** Erstellt einen AuthUser mit den angegebenen Rollen. */
 const createMockAuthUser = (roles: string[]) => ({
-  uid: "user-123",
-  authUid: "auth-uuid-123",
+  uid: "auth-uuid-123",
   email: "test@chuchipirat.ch",
   roles,
   displayName: "Test User",

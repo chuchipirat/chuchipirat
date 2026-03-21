@@ -1157,6 +1157,12 @@ export const OVERVIEW_MAILBOX_DESCRIPTION =
 export const CRON_JOBS = "Cron Jobs";
 export const CRON_JOBS_DESCRIPTION =
   "Übersicht und Monitoring der geplanten Jobs";
+export const CRON_JOBS_FILTER_ALL = "Alle Jobs";
+export const CRON_JOBS_TRIGGER_NOW = "Jetzt auslösen";
+export const CRON_JOBS_TRIGGER_SUCCESS = "Job wurde ausgelöst";
+export const CRON_JOBS_TRIGGER_ERROR = "Job konnte nicht ausgelöst werden";
+export const CRON_JOBS_DETAILS_TITLE = "Job-Details";
+export const CRON_JOBS_NO_DETAILS = "Keine Details vorhanden";
 export const DATA_INTEGRITY = "Datenintegrität";
 export const DATA_INTEGRITY_DESCRIPTION = "Prüfung der Datenkonsistenz";
 export const SENTRY_DASHBOARD = "Sentry Dashboard";

@@ -435,7 +435,7 @@ const RequestOverviewPage = () => {
       const changeLog = Request.createChangeLogEntry(
         request.changeLog,
         RequestAction.changeState,
-        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {uid: authUser.uid, displayName: authUser.publicProfile.displayName},
         {status: nextStatus},
       );
 
@@ -488,13 +488,13 @@ const RequestOverviewPage = () => {
       const changeLog = Request.createChangeLogEntry(
         request.changeLog,
         RequestAction.assign,
-        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {uid: authUser.uid, displayName: authUser.publicProfile.displayName},
         {assignee: authUser.publicProfile.displayName},
       );
 
       const updated = await database.requests.assignRequest(
         request.uid,
-        authUser.authUid,
+        authUser.uid,
         changeLog,
         authUser,
       );

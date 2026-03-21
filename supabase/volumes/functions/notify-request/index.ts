@@ -496,7 +496,7 @@ async function getUser(
   const {data, error} = await supabaseAdmin
     .from("users")
     .select("email, display_name")
-    .eq("auth_uid", authUid)
+    .eq("id", authUid)
     .maybeSingle();
 
   if (error || !data) return null;

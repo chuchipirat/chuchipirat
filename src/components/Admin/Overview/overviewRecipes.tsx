@@ -115,7 +115,7 @@ enum ReducerActions {
 /** Interner Zustand der Seite. */
 type State = {
   recipes: RecipeShortDomain[];
-  /** Zuordnung auth_uid → display_name für Ersteller-Anzeige auf Karten. */
+  /** Zuordnung user_id → display_name für Ersteller-Anzeige auf Karten. */
   creatorNames: Map<string, string>;
   isLoading: boolean;
   hasSearched: boolean;
@@ -497,7 +497,7 @@ const OverviewRecipePage = () => {
         case SearchMode.creatorName: {
           // Zweistufige Suche: zuerst Auth-UUIDs via Display-Name, dann Rezepte
           // database.users ist für Community-Leader und Admins via RLS zugänglich.
-          const uids = await database.users.findAuthUidsByDisplayName(
+          const uids = await database.users.findIdsByDisplayName(
             searchTerm.trim(),
           );
           domains =
@@ -514,7 +514,7 @@ const OverviewRecipePage = () => {
       ];
       const nameMap =
         creatorUids.length > 0
-          ? await database.users.findDisplayNamesByAuthUids(creatorUids)
+          ? await database.users.findDisplayNamesByIds(creatorUids)
           : new Map<string, string>();
 
       dispatch({

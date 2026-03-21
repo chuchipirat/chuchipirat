@@ -90,7 +90,7 @@ const testDomain: RecipeDomain = {
   createdBy: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
 };
 
-const authUser = {uid: "user-123", authUid: "auth-uuid-123"} as AuthUser;
+const authUser = {uid: "auth-uuid-123"} as AuthUser;
 
 /* =====================================================================
 // Tests
@@ -348,7 +348,7 @@ describe("RecipeRepository", () => {
   // searchByCreatorId() — Admin-Suchmethode
   // ------------------------------------------ */
   describe("searchByCreatorId()", () => {
-    test("Ruft eq('created_by', authUid) auf und gibt Array zurück", async () => {
+    test("Ruft eq('created_by', uid) auf und gibt Array zurück", async () => {
       supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
         data: [shortRow],
         error: null,

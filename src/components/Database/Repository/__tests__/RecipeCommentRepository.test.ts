@@ -57,8 +57,7 @@ const testDomain: RecipeCommentDomain = {
 };
 
 const authUser = {
-  uid: "user-123",
-  authUid: "auth-uuid-123",
+  uid: "auth-uuid-123",
   publicProfile: {displayName: "Müller, Anna", pictureSrc: "https://example.com/avatar.jpg", motto: ""},
 } as unknown as AuthUser;
 
@@ -137,7 +136,7 @@ describe("RecipeCommentRepository", () => {
       supabaseMock.client.rpc = jest.fn().mockResolvedValue({
         data: [
           {
-            auth_uid: testRow.created_by,
+            id: testRow.created_by,
             display_name: "Müller, Anna",
             picture_src: "https://example.com/avatar.jpg",
           },

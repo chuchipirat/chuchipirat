@@ -188,12 +188,9 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
   ): Promise<void> {
     const data = record.data;
 
-    // auth_uid bleibt undefined (→ null in DB) für migrierte User.
-    // Wird beim ersten Supabase-Login durch den Migrations-Dialog gesetzt.
     const memberSince = this.toDate(data.memberSince);
     const userDomain: UserDomain = {
       uid: record.id,
-      authUid: undefined,
       email: data.email,
       firstName: data.firstName,
       lastName: data.lastName,

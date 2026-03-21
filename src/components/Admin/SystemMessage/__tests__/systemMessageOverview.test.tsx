@@ -26,8 +26,7 @@ import * as ROUTES from "../../../../constants/routes";
 
 /** Mock: useAuthUser — gibt einen Admin-Benutzer zurück */
 const mockAuthUser = {
-  uid: "user-123",
-  authUid: "auth-uuid-123",
+  uid: "auth-uuid-123",
   email: "admin@chuchipirat.ch",
   roles: ["admin"],
 };

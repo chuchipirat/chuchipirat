@@ -17,9 +17,8 @@ import UserPublicProfile from "../../User/user.public.profile.class";
  */
 export interface UserRow {
   [key: string]: unknown;
+  /** UUID — identisch mit auth.users.id */
   id: string;
-  /** Supabase Auth UUID — wird beim ersten Supabase-Login gesetzt */
-  auth_uid: string | null;
   email: string;
   first_name: string;
   last_name: string;
@@ -43,9 +42,8 @@ export interface UserRow {
  * in einer flachen Struktur. Alle Felder in camelCase.
  */
 export interface UserDomain {
+  /** UUID — identisch mit auth.users.id */
   uid: string;
-  /** Supabase Auth UUID — wird beim ersten Supabase-Login gesetzt */
-  authUid?: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -97,7 +95,6 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   toRow(user: UserDomain): Partial<UserRow> {
     const row: Partial<UserRow> = {
       id: user.uid,
-      auth_uid: user.authUid ?? null,
       email: user.email.toLocaleLowerCase(),
       first_name: user.firstName,
       last_name: user.lastName,
@@ -130,7 +127,6 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   toDomain(row: UserRow): UserDomain {
     return {
       uid: row.id,
-      authUid: row.auth_uid ?? undefined,
       email: row.email,
       firstName: row.first_name,
       lastName: row.last_name,
@@ -169,7 +165,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const {data, error} = await this.client
       .from(this.tableName)
       .select(
-        "id, auth_uid, first_name, last_name, email, display_name, member_id, created_at"
+        "id, first_name, last_name, email, display_name, member_id, created_at"
       )
       .order("first_name", {ascending: true});
 
@@ -178,7 +174,6 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     return (data as Pick<
       UserRow,
       | "id"
-      | "auth_uid"
       | "first_name"
       | "last_name"
       | "email"
@@ -187,7 +182,6 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       | "created_at"
     >[]).map((row) => ({
       uid: row.id,
-      authUid: row.auth_uid ?? undefined,
       firstName: row.first_name,
       lastName: row.last_name,
       email: row.email,
@@ -248,23 +242,23 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
    * und die Statistiken über die RPC-Funktion `get_user_profile_stats()`.
    * Beide Abfragen laufen parallel (Promise.all).
    *
-   * @param authUid - Supabase Auth UUID (auth_uid-Spalte)
+   * @param userId - Benutzer-UUID (= auth.users.id = public.users.id)
    * @returns UserPublicProfile-Objekt
    */
-  async findPublicProfile(authUid: string): Promise<UserPublicProfile> {
+  async findPublicProfile(userId: string): Promise<UserPublicProfile> {
     // Profildaten und Statistiken parallel laden
     const [profileResult, statsResult] = await Promise.all([
       this.client
         .from("user_profiles")
         .select("*")
-        .eq("auth_uid", authUid)
+        .eq("id", userId)
         .maybeSingle(),
-      this.client.rpc("get_user_profile_stats", {p_auth_uid: authUid}),
+      this.client.rpc("get_user_profile_stats", {p_user_id: userId}),
     ]);
 
     if (profileResult.error) throw profileResult.error;
     if (!profileResult.data)
-      throw new Error(`Benutzerprofil nicht gefunden: ${authUid}`);
+      throw new Error(`Benutzerprofil nicht gefunden: ${userId}`);
     if (statsResult.error) throw statsResult.error;
 
     const data = profileResult.data;
@@ -304,23 +298,21 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     const user = await this.findById(userId);
     if (!user) throw new Error(`User not found: ${userId}`);
 
-    // Stats über RPC laden, falls authUid vorhanden
+    // Stats über RPC laden
     let stats = UserRepository.emptyStats();
 
-    if (user.authUid) {
-      const {data, error} = await this.client.rpc("get_user_profile_stats", {
-        p_auth_uid: user.authUid,
-      });
+    const {data, error} = await this.client.rpc("get_user_profile_stats", {
+      p_user_id: user.uid,
+    });
 
-      if (!error && data) {
-        const statsMap = new Map<string, number>(
-          data.map((row: {field: string; value: number}) => [
-            row.field,
-            Number(row.value),
-          ]),
-        );
-        stats = UserRepository.mapStatsFromRpc(statsMap);
-      }
+    if (!error && data) {
+      const statsMap = new Map<string, number>(
+        data.map((row: {field: string; value: number}) => [
+          row.field,
+          Number(row.value),
+        ]),
+      );
+      stats = UserRepository.mapStatsFromRpc(statsMap);
     }
 
     return {...user, stats};
@@ -359,52 +351,6 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   }
 
   /* =====================================================================
-  // Benutzer anhand der Supabase Auth UUID suchen
-  // ===================================================================== */
-  /**
-   * Sucht einen Benutzer anhand der Supabase Auth UUID.
-   * Wird vom Auth-State-Listener verwendet, um den Benutzer nach dem
-   * Supabase-Login zu laden.
-   *
-   * @param authUid - Supabase Auth UUID
-   * @returns Das Domain-Objekt oder null, falls nicht gefunden
-   */
-  async findByAuthUid(authUid: string): Promise<UserDomain | null> {
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select("*")
-      .eq("auth_uid", authUid)
-      .single();
-
-    if (error) {
-      if (error.code === "PGRST116") return null;
-      throw error;
-    }
-
-    return this.toDomain(data as UserRow);
-  }
-
-  /* =====================================================================
-  // Supabase Auth UUID mit bestehendem Benutzer verknüpfen
-  // ===================================================================== */
-  /**
-   * Verknüpft einen bestehenden Benutzer mit einem Supabase Auth Account.
-   * Wird beim Passwort-Migrations-Schritt aufgerufen, nachdem der Benutzer
-   * seinen Supabase Auth Account erstellt hat.
-   *
-   * @param userId - Die bestehende Firebase-UID des Benutzers
-   * @param authUid - Die neue Supabase Auth UUID
-   */
-  async linkAuthUid(userId: string, authUid: string): Promise<void> {
-    const {error} = await this.client
-      .from(this.tableName)
-      .update({auth_uid: authUid})
-      .eq("id", userId);
-
-    if (error) throw error;
-  }
-
-  /* =====================================================================
   // Login registrieren (no_logins hochzählen)
   // Ersetzt: User.registerSignIn()
   // ===================================================================== */
@@ -429,22 +375,22 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   // ===================================================================== */
 
   /**
-   * Findet Auth-UUIDs aller Benutzer, deren display_name den Begriff enthält.
+   * Findet IDs aller Benutzer, deren display_name den Begriff enthält.
    * Wird als erste Stufe der Ersteller-Namens-Suche in der Admin-Rezeptübersicht
    * eingesetzt.
    *
    * @param term - Suchbegriff (case-insensitive Teilstring)
-   * @returns Array von auth_uid-Werten der gefundenen Benutzer
+   * @returns Array von Benutzer-UUIDs der gefundenen Benutzer
    */
-  async findAuthUidsByDisplayName(term: string): Promise<string[]> {
+  async findIdsByDisplayName(term: string): Promise<string[]> {
     const {data, error} = await this.client
       .from(this.tableName)
-      .select("auth_uid")
+      .select("id")
       .ilike("display_name", `%${term}%`);
 
     if (error) throw error;
     return (data ?? [])
-      .map((r: {auth_uid: string | null}) => r.auth_uid)
+      .map((row: {id: string}) => row.id)
       .filter((uid): uid is string => uid !== null && uid !== "");
   }
 
@@ -466,47 +412,47 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   }
 
   /**
-   * Gibt eine Map von auth_uid → display_name für eine Menge von UUIDs zurück.
+   * Gibt eine Map von id → display_name für eine Menge von UUIDs zurück.
    * Wird verwendet, um Ersteller-Namen auf Admin-Karten anzuzeigen.
    *
-   * @param authUids - Array von Auth-UUIDs
-   * @returns Map<auth_uid, display_name>
+   * @param userIds - Array von Benutzer-UUIDs
+   * @returns Map<id, display_name>
    */
-  async findDisplayNamesByAuthUids(
-    authUids: string[],
+  async findDisplayNamesByIds(
+    userIds: string[],
   ): Promise<Map<string, string>> {
-    if (authUids.length === 0) return new Map();
+    if (userIds.length === 0) return new Map();
 
     const {data, error} = await this.client
       .from(this.tableName)
-      .select("auth_uid, display_name")
-      .in("auth_uid", authUids);
+      .select("id, display_name")
+      .in("id", userIds);
 
     if (error) throw error;
     return new Map(
-      (data ?? []).map((r: {auth_uid: string; display_name: string}) => [
-        r.auth_uid,
-        r.display_name,
+      (data ?? []).map((row: {id: string; display_name: string}) => [
+        row.id,
+        row.display_name,
       ]),
     );
   }
 
   /**
    * Gibt die minimalen Anzeige-Felder (display_name, picture_src) für eine
-   * Menge von Auth-UUIDs zurück. Verwendet die SECURITY DEFINER Funktion
+   * Menge von Benutzer-UUIDs zurück. Verwendet die SECURITY DEFINER Funktion
    * `get_comment_author_profiles`, die RLS auf public.users umgeht und
    * ausschliesslich öffentliche Felder exponiert.
    *
-   * @param authUids - Array von Supabase Auth-UUIDs
-   * @returns Map<auth_uid, {displayName, pictureSrc}>
+   * @param userIds - Array von Benutzer-UUIDs
+   * @returns Map<id, {displayName, pictureSrc}>
    */
   async getUserDisplayInfo(
-    authUids: string[],
+    userIds: string[],
   ): Promise<Map<string, {displayName: string; pictureSrc: string}>> {
-    if (authUids.length === 0) return new Map();
+    if (userIds.length === 0) return new Map();
 
     const {data, error} = await this.client.rpc("get_comment_author_profiles", {
-      uids: authUids,
+      uids: userIds,
     });
 
     if (error) throw error;
@@ -514,13 +460,13 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     return new Map(
       (
         data as Array<{
-          auth_uid: string;
+          id: string;
           display_name: string;
           picture_src: string;
         }>
-      ).map((p) => [
-        p.auth_uid,
-        {displayName: p.display_name ?? "", pictureSrc: p.picture_src ?? ""},
+      ).map((profile) => [
+        profile.id,
+        {displayName: profile.display_name ?? "", pictureSrc: profile.picture_src ?? ""},
       ]),
     );
   }

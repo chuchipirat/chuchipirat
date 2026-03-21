@@ -22,7 +22,7 @@ jest.mock("../../../Database/supabaseClient", () => ({
 /* =====================================================================
 // Test-Daten
 // ===================================================================== */
-const authUser = {uid: "user-123", authUid: "auth-uuid-123"} as AuthUser;
+const authUser = {uid: "auth-uuid-123"} as AuthUser;
 
 /** Minimaler Firebase-Rezept-Datensatz für die Migration */
 const makeFirebaseRecord = (

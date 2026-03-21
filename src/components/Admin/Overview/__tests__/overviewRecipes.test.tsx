@@ -81,8 +81,8 @@ const mockDatabase: any = {
     getRecipe: jest.fn(),
   },
   users: {
-    findAuthUidsByDisplayName: mockFindAuthUids,
-    findDisplayNamesByAuthUids: mockFindDisplayNames,
+    findIdsByDisplayName: mockFindAuthUids,
+    findDisplayNamesByIds: mockFindDisplayNames,
   },
   recipeIngredients: {
     getIngredientsForRecipe: jest.fn().mockResolvedValue([]),

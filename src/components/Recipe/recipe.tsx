@@ -256,9 +256,9 @@ const RecipePage = () => {
           database.recipeIngredients.getIngredientsForRecipe(recipeUid),
           database.recipePreparationSteps.getStepsForRecipe(recipeUid),
           database.recipeMaterials.getMaterialsForRecipe(recipeUid),
-          // Eigene Bewertung laden (authUser.authUid = Supabase-UUID)
+          // Eigene Bewertung laden (authUser.uid = Supabase-UUID)
           authUser
-            ? database.recipeRatings.getRatingForUser(recipeUid, authUser.authUid)
+            ? database.recipeRatings.getRatingForUser(recipeUid, authUser.uid)
             : Promise.resolve(null),
         ])
           .then(async ([header, ingredients, steps, materials, myRatingDomain]) => {
@@ -274,7 +274,7 @@ const RecipePage = () => {
             recipe.rating.myRating = myRatingDomain?.rating ?? 0;
             // Ersteller-Anzeigenamen nachladen (fromRepositoryData setzt fromDisplayName="")
             if (header.createdBy) {
-              const creatorNameMap = await database.users.findDisplayNamesByAuthUids([
+              const creatorNameMap = await database.users.findDisplayNamesByIds([
                 header.createdBy,
               ]);
               recipe.created.fromDisplayName =

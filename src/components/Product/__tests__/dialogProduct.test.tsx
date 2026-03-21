@@ -59,8 +59,7 @@ jest.mock("../../Unit/unitAutocomplete", () => {
 // =================================================================== */
 
 const mockAuthUser = {
-  uid: "user-123",
-  authUid: "auth-uuid-123",
+  uid: "auth-uuid-123",
   email: "admin@chuchipirat.ch",
   roles: ["admin"],
 } as AuthUser;

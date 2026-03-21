@@ -370,7 +370,7 @@ const UserProfilePage = () => {
           {
             feedType: FeedType.profilePictureChanged,
             sourceObjectType: "user",
-            sourceObjectUid: authUser!.authUid,
+            sourceObjectUid: authUser!.uid,
           },
           authUser!,
         )

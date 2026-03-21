@@ -150,14 +150,12 @@ describe("createUser()", () => {
       firstName: "Anna",
       lastName: "Test",
       email: "ANNA@Test.CH",
-      authUid: "auth-uuid",
     });
 
     expect(mockDatabase.users.upsert).toHaveBeenCalledWith({
       id: "new-user",
       value: expect.objectContaining({
         uid: "new-user",
-        authUid: "auth-uuid",
         firstName: "Anna",
         lastName: "Test",
         email: "anna@test.ch",

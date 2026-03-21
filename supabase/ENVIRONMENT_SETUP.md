@@ -70,6 +70,8 @@ Die Migrationen unter `supabase/migrations/` müssen in Reihenfolge ausgeführt 
 | `20260320000003_create_cron_job_log.sql`                     | Tabelle `cron_job_log` für Cron-Job-Monitoring: speichert Ausführungshistorie (job_name, started_at, finished_at, status, duration_ms, records_processed, error_message, details). RLS + Indizes. Wird in Phase 14 von migrierten Cron Jobs befüllt                                                                                                                    |
 | `20260320000004_data_integrity_checks.sql`                   | 7 SECURITY DEFINER Prüffunktionen: `check_orphaned_recipes()`, `check_orphaned_event_cooks()`, `check_events_without_dates()`, `check_unused_products()`, `check_unused_materials()`, `check_duplicate_emails()`, `check_auth_users_sync()`. Jede gibt Anomalien als JSONB-Array zurück                                                                               |
 | `20260320000005_create_mail_log.sql`                         | Tabelle `mail_log` für Mail-Versand-Historie: recipients (JSONB), recipient_type, subject, body, template_name, sent_at, sent_by (UUID FK), delivery_status, error_message, details. RLS + Indizes. Wird von der `send-mail` Edge Function befüllt                                                                                                                    |
+| `20260322000001_welcome_email_trigger.sql`                   | pg_net Extension + Trigger-Funktion `notify_welcome_email()` auf `users` INSERT/UPDATE — ruft `send-welcome-email` Edge Function via HTTP POST auf. Grants für `cron_job_log`                                                                                                                                                                                         |
+| `20260322000002_enable_pg_cron_schedule_jobs.sql`            | pg_cron Extension + 3 Cron-Job-Zeitpläne: `cron-event-review-email` (01:00 UTC), `cron-daily-digest` (02:15 UTC), `cron-support-user-cleanup` (02:30 UTC). Alle via pg_net HTTP POST an Edge Functions                                                                                                                                                                |
 
 In Docker-Umgebung: Migrationen werden beim `docker compose up` **nicht** automatisch ausgeführt. Sie müssen manuell über das Supabase Studio SQL Editor (`http://localhost:8000`) oder via `psql` eingespielt werden.
 
@@ -108,6 +110,20 @@ Edge Functions liegen in `supabase/volumes/functions/` und werden vom Edge Runti
 | `notify-recipe-comment` | Sendet E-Mail an Rezeptautor wenn ein Kommentar eingefügt wird. Wird automatisch von `RecipeCommentRepository.insertComment()` als Fire-and-Forget aufgerufen. Primär über Brevo API, Fallback auf SMTP für lokale Entwicklung. | `SUPABASE_SERVICE_ROLE_KEY`, `BREVO_API_KEY` (Produktion) oder `SMTP_HOST`/`SMTP_PORT` (lokale Entwicklung) |
 | `notify-request`        | Sendet E-Mail-Benachrichtigungen bei Antrags-Aktionen (neuer Antrag, Kommentar, Status-Änderung)                                                                                                                                | `SUPABASE_SERVICE_ROLE_KEY`, `BREVO_API_KEY` oder `SMTP_HOST`/`SMTP_PORT`                                  |
 | `send-mail`             | Generische Mail-Versand-Funktion für die Admin-Mail-Konsole. Unterstützt Empfänger per E-Mail, UID oder Rolle. Protokolliert in `mail_log`-Tabelle                                                                              | `SUPABASE_SERVICE_ROLE_KEY`, `BREVO_API_KEY` oder `SMTP_HOST`/`SMTP_PORT`                                  |
+| `send-welcome-email`    | Willkommens-E-Mail bei neuer Registrierung. Wird automatisch via Postgres-Trigger (pg_net) bei User-INSERT ausgelöst                                                                                                            | `SUPABASE_SERVICE_ROLE_KEY`, `APP_URL`, `BREVO_API_KEY` oder `SMTP_HOST`/`SMTP_PORT`                       |
+| `cron-daily-digest`     | Tägliche Aktivitäts-Zusammenfassung für Community Leaders (02:15 UTC). Aggregiert Feeds + offene Anträge                                                                                                                         | `SUPABASE_SERVICE_ROLE_KEY`, `SENTRY_DSN`, `BREVO_API_KEY` oder `SMTP_HOST`/`SMTP_PORT`                    |
+| `cron-support-user-cleanup` | Tägliches Entfernen des Support-Users aus beendeten Events (02:30 UTC)                                                                                                                                                       | `SUPABASE_SERVICE_ROLE_KEY`, `SUPPORT_USER_ID`, `SENTRY_DSN`                                                |
+| `cron-event-review-email` | Tägliche Feedback-E-Mail an Köche von gestern beendeten Events (01:00 UTC)                                                                                                                                                     | `SUPABASE_SERVICE_ROLE_KEY`, `APP_URL`, `SENTRY_DSN`, `BREVO_API_KEY` oder `SMTP_HOST`/`SMTP_PORT`         |
+
+### Cron-Job-Konfiguration (pg_cron + pg_net)
+
+Die Cron-Jobs werden via `pg_cron` in der Datenbank registriert und rufen Edge Functions über `pg_net.http_post()` auf. Dazu müssen folgende Postgres-Einstellungen gesetzt werden:
+
+```sql
+ALTER SYSTEM SET app.supabase_url = 'http://kong:8000';       -- Docker-interne URL
+ALTER SYSTEM SET app.service_role_key = 'eyJ...';             -- Service Role JWT
+SELECT pg_reload_conf();
+```
 
 ### Produktions-Checkliste Edge Functions
 
@@ -115,6 +131,10 @@ Edge Functions liegen in `supabase/volumes/functions/` und werden vom Edge Runti
 - [ ] `FUNCTIONS_VERIFY_JWT` auf `true` setzen (produktiv JWT-Verifizierung aktivieren)
 - [ ] `BREVO_API_KEY` in `.env` setzen (Brevo Transactional Email für `notify-recipe-comment`)
 - [ ] Brevo Sender-Adresse `hallo@chuchipirat.ch` im Brevo-Konto als verifizierte Absenderadresse einrichten
+- [ ] `APP_URL` in `.env` setzen (z.B. `https://chuchipirat.ch`) — für Welcome- und Review-E-Mails
+- [ ] `SENTRY_DSN` in `.env` setzen — für Sentry Crons Monitoring der Cron-Jobs
+- [ ] `SUPPORT_USER_ID` in `.env` setzen — Auth-UUID des Support-Benutzers (gleicher Wert wie `VITE_SUPPORT_USER_ID`)
+- [ ] `app.supabase_url` und `app.service_role_key` in Postgres setzen — für pg_cron/pg_net Aufrufe
 
 ---
 

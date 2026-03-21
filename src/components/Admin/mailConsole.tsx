@@ -594,7 +594,7 @@ const MailConsolePage = () => {
   };
 
   const onSendTestMail = () => {
-    sendMail(authUser.authUid, RecipientType.uid, true);
+    sendMail(authUser.uid, RecipientType.uid, true);
   };
 
   const onSendMail = async () => {

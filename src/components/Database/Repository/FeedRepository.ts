@@ -115,7 +115,7 @@ export interface FeedDomain {
  *
  * @param feedType - Typ des Feed-Eintrags
  * @param visibility - Sichtbarkeitsstufe (Standard: basic)
- * @param userUid - Supabase Auth UUID der angezeigten Person (Standard: authUser.authUid)
+ * @param userUid - Supabase Auth UUID der angezeigten Person (Standard: authUser.uid)
  * @param sourceObjectType - Typ des Quellobjekts
  * @param sourceObjectUid - UID des Quellobjekts
  * @param sourceObjectData - Zusatzdaten, die nicht aus der View ableitbar sind
@@ -382,7 +382,7 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
     authUser: AuthUser,
   ): Promise<FeedDomain> {
     try {
-      const userUid = params.userUid ?? authUser.authUid;
+      const userUid = params.userUid ?? authUser.uid;
       const visibility = params.visibility ?? Role.basic;
 
       const {data, error} = await this.client

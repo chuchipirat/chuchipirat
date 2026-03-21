@@ -230,7 +230,7 @@ export class RequestCommentRepository extends BaseRepository<
         uid: data.id,
         requestId,
         comment,
-        userUid: authUser.authUid ?? "",
+        userUid: authUser.uid ?? "",
         userDisplayName: authUser.publicProfile?.displayName ?? "",
         userPictureSrc: authUser.publicProfile?.pictureSrc ?? "",
         createdAt: data.created_at ? new Date(data.created_at) : new Date(),

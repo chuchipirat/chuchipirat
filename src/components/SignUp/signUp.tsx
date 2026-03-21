@@ -233,7 +233,6 @@ const SignUpPage = () => {
         firebase: firebase,
         database: database,
         uid: user.id,
-        authUid: user.id,
         firstName: state.signUpData.firstName,
         lastName: state.signUpData.lastName,
         email: state.signUpData.email,

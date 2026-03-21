@@ -184,8 +184,8 @@ const DialogRequest = ({
     React.useState(false);
 
   const isCommunityLeader = authUser.roles.includes(Role.communityLeader);
-  const isAssignee = request?.assigneeUid === authUser.authUid;
-  const isAuthor = authUser?.authUid === request?.authorUid;
+  const isAssignee = request?.assigneeUid === authUser.uid;
+  const isAuthor = authUser?.uid === request?.authorUid;
   // Community Leader kann zuweisen, wenn nicht Assignee und nicht Autor
   const canAssignToMe = isCommunityLeader && !isAssignee && !isAuthor;
 

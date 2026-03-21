@@ -275,9 +275,9 @@ const SignInPage = () => {
       // Admin-Client verwenden, da RLS beim ersten Login Timing-Probleme hat
       const usersRepo = database.admin?.users ?? database.users;
       try {
-        const user = await usersRepo.findByAuthUid(session.user.id);
+        const user = await usersRepo.findById(session.user.id);
         if (user) {
-          await usersRepo.registerSignIn(user.uid);
+          await usersRepo.registerSignIn(session.user.id);
         }
       } catch (profileError) {
         console.warn("Profil konnte nicht geladen werden:", profileError);
@@ -310,50 +310,14 @@ const SignInPage = () => {
         if (firebaseUser.user) {
           const usersRepo = database.admin?.users ?? database.users;
           let displayName = "";
-          let authUid = "";
 
           try {
             const profile = await usersRepo.findById(firebaseUser.user.uid);
             if (profile) {
               displayName = profile.displayName;
-              authUid = profile.authUid ?? "";
             }
           } catch {
             // Nicht kritisch — displayName bleibt leer
-          }
-
-          if (authUid) {
-            // Passwort in Supabase synchronisieren und erneut anmelden
-            try {
-              await database.auth.updateUserPassword(
-                authUid,
-                state.signInData.password,
-              );
-              await database.auth.signInWithPassword(
-                state.signInData.email,
-                state.signInData.password,
-              );
-
-              // Login registrieren
-              try {
-                const user = await usersRepo.findByAuthUid(authUid);
-                if (user) await usersRepo.registerSignIn(user.uid);
-              } catch {
-                // Nicht kritisch
-              }
-
-              await firebase.signOut();
-              await new Promise((resolve) => setTimeout(resolve, 2000));
-              navigate(ROUTE_HOME);
-            } catch (syncError) {
-              console.error("Passwort-Sync fehlgeschlagen:", syncError);
-              await firebase.signOut();
-              dispatch({
-                type: ReducerActions.GENERIC_ERROR,
-                payload: supabaseError as AuthErrorLike,
-              });
-            }
-            return;
           }
 
           // Stille Migration: Bestätigten Supabase-Account erstellen
@@ -363,12 +327,6 @@ const SignInPage = () => {
               state.signInData.email,
               state.signInData.password,
               {displayName: displayName || undefined},
-            );
-
-            // auth_uid in DB verknüpfen (Admin-Client umgeht RLS)
-            await usersRepo.linkAuthUid(
-              firebaseUser.user.uid,
-              supabaseUser.id,
             );
 
             // Supabase-Session abmelden (Race-Condition mit Auth-Context vermeiden)
@@ -382,7 +340,7 @@ const SignInPage = () => {
             // Firebase abmelden
             await firebase.signOut();
 
-            // Über Supabase einloggen (auth_uid ist jetzt verknüpft)
+            // Über Supabase einloggen
             await database.auth.signInWithPassword(
               state.signInData.email,
               state.signInData.password,
@@ -390,8 +348,8 @@ const SignInPage = () => {
 
             // Login registrieren
             try {
-              const user = await usersRepo.findByAuthUid(supabaseUser.id);
-              if (user) await usersRepo.registerSignIn(user.uid);
+              const user = await usersRepo.findById(supabaseUser.id);
+              if (user) await usersRepo.registerSignIn(supabaseUser.id);
             } catch {
               // Nicht kritisch
             }

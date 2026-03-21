@@ -43,7 +43,7 @@ const mockDatabase = {
     getSession: jest.fn(),
   },
   users: {
-    findByAuthUid: mockFindByAuthUid,
+    findById: mockFindByAuthUid,
   },
   globalSettings: {
     getSettings: jest.fn().mockResolvedValue({

@@ -173,7 +173,6 @@ export default class Firebase {
             console.warn("user-Full-Profile read");
             authUser = {
               uid: user.uid,
-              authUid: "",
               email: result.email,
               emailVerified: user.emailVerified,
               firstName: result.firstName,

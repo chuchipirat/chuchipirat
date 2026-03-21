@@ -425,11 +425,11 @@ const CreateEventPage = () => {
 
       // 2. Ersteller als Koch hinzufügen (vor Bild-Upload, damit
       //    is_event_cook() für die Storage-Policy true ergibt).
-      //    authUser.authUid ist die Supabase Auth UUID (event_cooks.user_id
-      //    erwartet UUID, nicht die Firebase UID aus authUser.uid).
+      //    authUser.uid ist die Supabase Auth UUID (event_cooks.user_id
+      //    erwartet UUID).
       await database.events.addCook(
         eventDomain.uid,
-        authUser.authUid,
+        authUser.uid,
         authUser,
       );
 
@@ -439,10 +439,10 @@ const CreateEventPage = () => {
       for (const cook of state.event.cooks) {
         if (cook.uid !== authUser.uid) {
           const userDomain = await usersRepo.findById(cook.uid);
-          if (userDomain?.authUid) {
+          if (userDomain?.uid) {
             await database.events.addCook(
               eventDomain.uid,
-              userDomain.authUid,
+              userDomain.uid,
               authUser,
             );
           }
@@ -508,13 +508,13 @@ const CreateEventPage = () => {
           usersForFeed
             .findById(cook.uid)
             .then((userDomain) => {
-              if (!userDomain?.authUid) return;
+              if (!userDomain?.uid) return;
               return database.feeds.insertFeed(
                 {
                   feedType: FeedType.eventCookAdded,
                   sourceObjectType: "event",
                   sourceObjectUid: eventDomain.uid,
-                  userUid: userDomain.authUid,
+                  userUid: userDomain.uid,
                 },
                 authUser,
               );

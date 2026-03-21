@@ -308,7 +308,7 @@ const RecipesPage = () => {
     // Nur die für die Übersicht benötigten Spalten laden (Kurz-Abfrage)
     Promise.all([
       database.recipes.getAllPublicRecipeShorts(),
-      database.recipes.getPrivateRecipeShortsForUser(authUser.authUid),
+      database.recipes.getPrivateRecipeShortsForUser(authUser.uid),
     ])
       .then(([publicRecipes, privateRecipes]) => {
         const all = [...publicRecipes, ...privateRecipes].map(
@@ -570,7 +570,7 @@ export const RecipeSearch = ({
 
       if (
         searchSettings.showOnlyMyRecipes &&
-        recipe.created.fromUid !== authUser.authUid
+        recipe.created.fromUid !== authUser.uid
       ) {
         return false;
       }

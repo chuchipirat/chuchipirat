@@ -2,8 +2,7 @@ import Role from "../../../../constants/roles";
 import {AuthUser} from "../authUser.class";
 
 export const authUser: AuthUser = {
-  uid: "RvLIR9NDGOWPwos8PrSZVgfIZvj9",
-  authUid: "supabase-auth-uuid-mock",
+  uid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   email: "test@chuchipirat.ch",
   emailVerified: true,
   firstName: "Test",

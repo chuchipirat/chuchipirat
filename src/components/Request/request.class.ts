@@ -212,12 +212,12 @@ export class Request {
   static createChangeLogEntry(
     changeLog: ChangeLogEntry[],
     action: RequestAction,
-    authUser: {authUid: string; displayName: string},
+    authUser: {uid: string; displayName: string},
     newValue: Record<string, unknown>,
   ): ChangeLogEntry[] {
     const entry: ChangeLogEntry = {
       date: new Date().toISOString(),
-      userUid: authUser.authUid,
+      userUid: authUser.uid,
       userDisplayName: authUser.displayName,
       action,
       newValue,

@@ -251,11 +251,11 @@ const OverviewUsersPage = () => {
 
       const [domain, counts, events] = await Promise.all([
         repo.findById(user.uid ?? ""),
-        user.authUid
-          ? recipeRepo.findRecipeCountsByCreator(user.authUid)
+        user.uid
+          ? recipeRepo.findRecipeCountsByCreator(user.uid)
           : Promise.resolve({noRecipesPublic: 0, noRecipesPrivate: 0}),
-        user.authUid
-          ? database.events.getAllEventsForUser(user.authUid)
+        user.uid
+          ? database.events.getAllEventsForUser(user.uid)
           : Promise.resolve([]),
       ]);
 
@@ -448,7 +448,7 @@ const UsersTable = ({dbUsers, onUserSelect}: UsersTableProps) => {
       },
     },
     {
-      field: "authUid",
+      field: "uid",
       headerName: "Supabase-ID",
       editable: false,
       width: 290,
@@ -509,7 +509,7 @@ const UsersTable = ({dbUsers, onUserSelect}: UsersTableProps) => {
     return list.filter(
       (u) =>
         u.uid?.toLowerCase().includes(lower) ||
-        u.authUid?.toLowerCase().includes(lower) ||
+        u.uid?.toLowerCase().includes(lower) ||
         u.firstName.toLowerCase().includes(lower) ||
         u.lastName.toLowerCase().includes(lower) ||
         u.displayName.toLowerCase().includes(lower) ||
@@ -557,7 +557,7 @@ const UsersTable = ({dbUsers, onUserSelect}: UsersTableProps) => {
               <DataGrid
                 rows={filteredUsers}
                 columns={DATA_GRID_COLUMNS}
-                getRowId={(row) => row.uid ?? row.authUid ?? row.email}
+                getRowId={(row) => row.uid ?? row.email}
                 localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
                 onSortModelChange={(model) => {
                   if (!isEqual(model, sortModel)) setSortModel(model);
@@ -675,11 +675,11 @@ const DialogUser = ({
                   value={user.email}
                   label={TEXT_EMAIL}
                 />
-                {user.authUid && (
+                {user.uid && (
                   <FormListItem
-                    key="authUid"
-                    id="authUid"
-                    value={user.authUid}
+                    key="uid"
+                    id="uid"
+                    value={user.uid}
                     label="Supabase-ID"
                     displayAsCode
                   />

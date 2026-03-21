@@ -36,8 +36,6 @@ export interface UserShort {
  */
 export interface UserOverviewStructure {
   uid?: User["uid"];
-  /** Supabase Auth UUID — vorhanden sobald der User sich einmal per Supabase eingeloggt hat. */
-  authUid?: string;
   firstName: User["firstName"];
   lastName: User["lastName"];
   displayName: UserPublicProfile["displayName"];
@@ -65,8 +63,6 @@ interface CreateUser {
   lastName: string;
   /** E-Mail-Adresse */
   email: string;
-  /** Supabase Auth UUID (optional, für neue Benutzer über Supabase Auth) */
-  authUid?: string;
 }
 
 /** Parameter für {@link User.createUserPublicData} */
@@ -263,11 +259,10 @@ export default class User {
    * Legt einen neuen Benutzer in der Datenbank an.
    *
    * @param database - DatabaseService-Instanz
-   * @param uid - UID des neuen Users
+   * @param uid - UUID des neuen Users (= auth.users.id)
    * @param firstName - Vorname
    * @param lastName - Nachname
    * @param email - E-Mail-Adresse
-   * @param authUid - Supabase Auth UUID (optional)
    * @throws Error bei Datenbankfehler
    */
   static async createUser({
@@ -276,7 +271,6 @@ export default class User {
     firstName,
     lastName,
     email,
-    authUid,
   }: CreateUser) {
     // Admin-Client verwenden (umgeht RLS, da User noch nicht via Supabase Auth authentifiziert)
     const users = database.admin?.users ?? database.users;
@@ -285,7 +279,6 @@ export default class User {
         id: uid,
         value: {
           uid: uid,
-          authUid: authUid ?? uid,
           firstName: firstName,
           lastName: lastName,
           email: email.toLocaleLowerCase(),
@@ -503,9 +496,8 @@ export default class User {
     // Admin-Client verwenden (umgeht RLS während Übergangsphase)
     const usersRead = database.admin?.users ?? database.users;
     // Alte Werte holen um zu vergleichen ob die Cloud Function gestartet werden muss
-    // findPublicProfile erwartet die Supabase Auth UUID (auth_uid-Spalte)
     const actualPublicProfile = await usersRead.findPublicProfile(
-      authUser.authUid,
+      authUser.uid,
     );
 
     // Bild hochladen wenn vorhanden

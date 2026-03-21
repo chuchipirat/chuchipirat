@@ -323,14 +323,14 @@ const RecipeView = ({
   React.useEffect(() => {
     if (
       recipe.type === RecipeType.private &&
-      recipe.created.fromUid === authUser.authUid
+      recipe.created.fromUid === authUser.uid
     ) {
       database.requests
         .hasActivePublishRequest(recipe.uid)
         .then(setIsInReview)
         .catch(() => setIsInReview(false));
     }
-  }, [recipe.uid, recipe.type, recipe.created.fromUid, authUser.authUid]);
+  }, [recipe.uid, recipe.type, recipe.created.fromUid, authUser.uid]);
 
   if (!isEmbedded) {
     document.title = recipe.name;
@@ -381,7 +381,7 @@ const RecipeView = ({
   const onSetRating = async (value: number) => {
     try {
       await database.recipeRatings.upsertRating(
-        {uid: "", recipeId: recipe.uid, userId: authUser.authUid, rating: value},
+        {uid: "", recipeId: recipe.uid, userId: authUser.uid, rating: value},
         authUser,
       );
       // Feed-Eintrag: Rezept bewertet
@@ -695,7 +695,7 @@ const RecipeView = ({
       const changeLog = RequestClass.createChangeLogEntry(
         [],
         RequestAction.created,
-        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {uid: authUser.uid, displayName: authUser.publicProfile.displayName},
         {status: "created"},
       );
 
@@ -765,7 +765,7 @@ const RecipeView = ({
       const changeLog = RequestClass.createChangeLogEntry(
         [],
         RequestAction.created,
-        {authUid: authUser.authUid, displayName: authUser.publicProfile.displayName},
+        {uid: authUser.uid, displayName: authUser.publicProfile.displayName},
         {status: "created"},
       );
 
@@ -1206,7 +1206,7 @@ const RecipeButtonRow = ({
         (authUser.roles.includes(Role.admin) ||
           authUser.roles.includes(Role.communityLeader))) ||
       (recipe.type === RecipeType.private &&
-        (recipe.created.fromUid === authUser.authUid ||
+        (recipe.created.fromUid === authUser.uid ||
           // Falls das Rezept im Freigabeprozess ist, soll es von
           // der*m Community-Leader*in angepasst werden können
           (isInReview &&
@@ -1215,7 +1215,7 @@ const RecipeButtonRow = ({
       // Die DB-Regel fängt das ab, dass das Rezept nur angezeigt wird
       // wenn man auch Teil des Teams ist.
       (recipe.type === RecipeType.variant &&
-        (authUser.authUid !== "" || authUser.roles.includes(Role.admin))),
+        (authUser.uid !== "" || authUser.roles.includes(Role.admin))),
     variant: "outlined",
     color: "primary",
     onClick: switchEditMode!,
@@ -1259,7 +1259,7 @@ const RecipeButtonRow = ({
       visible:
         recipe.type === RecipeType.private &&
         !isInReview &&
-        recipe.created.fromUid === authUser.authUid,
+        recipe.created.fromUid === authUser.uid,
       label: TEXT_PUBLISH_RECIPE,
       variant: "outlined",
       color: "primary",
@@ -1283,7 +1283,7 @@ const RecipeButtonRow = ({
       hero: true,
       visible:
         recipe.type === RecipeType.private &&
-        recipe.created.fromUid === authUser.authUid &&
+        recipe.created.fromUid === authUser.uid &&
         isInReview,
       label: TEXT_SHOW_OPEN_REQUESTS,
       variant: "outlined",
@@ -1295,7 +1295,7 @@ const RecipeButtonRow = ({
     hero: true,
     visible:
       (recipe.type === RecipeType.private &&
-        recipe.created.fromUid === authUser.authUid &&
+        recipe.created.fromUid === authUser.uid &&
         !isEmbedded) ||
       (recipe.type === RecipeType.public &&
         authUser.roles.includes(Role.admin) &&
@@ -1303,7 +1303,7 @@ const RecipeButtonRow = ({
       // Wenn Embeded, nur Varianten löschen
       (recipe.type === RecipeType.variant &&
         isEmbedded &&
-        recipe.created.fromUid === authUser.authUid),
+        recipe.created.fromUid === authUser.uid),
     label: TEXT_DELETE_RECIPE,
     variant: "outlined",
     color: "primary",
@@ -1480,7 +1480,7 @@ export const RecipeInfoPanel = ({
                               authUser.roles.includes(Role.communityLeader)
                               ? () => onTagDelete(tag)
                               : recipe.type === RecipeType.private &&
-                                  recipe.created.fromUid === authUser.authUid
+                                  recipe.created.fromUid === authUser.uid
                                 ? () => onTagDelete(tag)
                                 : undefined
                             : undefined
@@ -2396,11 +2396,11 @@ const RecipeComments = ({
   // Berechtigungsprüfungen
   // ------------------------------------------ */
   const canEdit = (comment: RecipeCommentDomain) =>
-    !disableFunctionality && comment.createdBy === authUser?.authUid;
+    !disableFunctionality && comment.createdBy === authUser?.uid;
 
   const canDelete = (comment: RecipeCommentDomain) =>
     !disableFunctionality &&
-    (comment.createdBy === authUser?.authUid ||
+    (comment.createdBy === authUser?.uid ||
       authUser?.roles?.includes(Role.admin) ||
       authUser?.roles?.includes(Role.communityLeader));
 

@@ -16,11 +16,14 @@ import {DatabaseContext} from "../../Database/DatabaseContext";
 /** Mock für auth.getUser — gibt standardmässig einen User zurück */
 const mockGetUser = jest.fn().mockResolvedValue({id: "test-auth-uid"});
 
-/** Mock für users.findByAuthUid — gibt ein User-Domain-Objekt zurück */
+/** Mock für users.findById — gibt ein User-Domain-Objekt zurück */
 const mockFindByAuthUid = jest.fn().mockResolvedValue({
   uid: "domain-uid-42",
   firstName: "Testina",
   memberId: "M-007",
+  noLogins: 0,
+  displayName: "Testina Test",
+  pictureSrc: "",
 });
 
 /** Mock für users.registerSignIn */
@@ -32,17 +35,25 @@ const mockDatabase = {
     getUser: mockGetUser,
   },
   users: {
-    findByAuthUid: mockFindByAuthUid,
+    findById: mockFindByAuthUid,
     registerSignIn: mockRegisterSignIn,
+  },
+  feeds: {
+    insertFeed: jest.fn().mockResolvedValue(undefined),
   },
   admin: null,
 } as any;
 
-/** Mock: supabaseClient — Edge-Function-Aufruf simulieren */
+/** Mock: supabaseClient — Edge-Function-Aufruf und Auth-Session simulieren */
 jest.mock("../../Database/supabaseClient", () => ({
   supabase: {
     functions: {
       invoke: jest.fn().mockResolvedValue({data: null, error: null}),
+    },
+    auth: {
+      getSession: jest.fn().mockResolvedValue({
+        data: {session: {user: {app_metadata: {provider: "email"}}}},
+      }),
     },
   },
 }));
@@ -88,6 +99,9 @@ beforeEach(() => {
     uid: "domain-uid-42",
     firstName: "Testina",
     memberId: "42",
+    noLogins: 0,
+    displayName: "Testina Test",
+    pictureSrc: "",
   });
   mockRegisterSignIn.mockResolvedValue(undefined);
 });
@@ -108,7 +122,7 @@ describe("VerifyEmailPage", () => {
     /**
      * Stellt sicher, dass nach dem Rendern der Seite die gesamte
      * Post-Verification-Kette aufgerufen wird:
-     * getUser → findByAuthUid → registerSignIn.
+     * getUser → findById → registerSignIn.
      */
     renderVerifyEmailPage();
 

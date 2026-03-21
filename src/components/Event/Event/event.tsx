@@ -1745,7 +1745,7 @@ const EventPage = () => {
         // Rezepte aus Supabase laden (öffentliche + private + Varianten dieses Events)
         Promise.all([
           database.recipes.getAllPublicRecipeShorts(),
-          database.recipes.getPrivateRecipeShortsForUser(authUser.authUid),
+          database.recipes.getPrivateRecipeShortsForUser(authUser.uid),
           database.recipes.getVariantShortsForEvent(state.event.uid),
         ])
           .then(([publicRecipes, privateRecipes, variantRecipes]) => {
