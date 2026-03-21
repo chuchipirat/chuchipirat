@@ -2,7 +2,7 @@ import React from "react";
 import {createRoot} from "react-dom/client";
 import * as Sentry from "@sentry/react";
 
-import App from "../src/components/App/App";
+import {App} from "../src/components/App/App";
 import {FirebaseContext} from "./components/Firebase/firebaseContext";
 import {AuthUserProvider} from "./components/Session/authUserContext";
 import packageJson from "../package.json";
@@ -15,7 +15,7 @@ import {NavigationContextProvider} from "./components/Navigation/navigationConte
 import Firebase from "./components/Firebase/firebase.class";
 import {DatabaseContext} from "./components/Database/DatabaseContext";
 import DatabaseService from "./components/Database/DatabaseService";
-import ErrorInfo from "./components/500/500";
+import {ErrorPage} from "./components/500/500";
 import Utils from "./components/Shared/utils.class";
 import {LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDateFns} from "@mui/x-date-pickers/AdapterDateFns";
@@ -46,7 +46,7 @@ Sentry.init({
 const root = createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <Sentry.ErrorBoundary fallback={<ErrorInfo />}>
+    <Sentry.ErrorBoundary fallback={<ErrorPage />}>
       <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={de}>
         <DatabaseContext.Provider value={new DatabaseService()}>
           <FirebaseContext.Provider value={new Firebase()}>
