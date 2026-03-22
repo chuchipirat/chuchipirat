@@ -37,7 +37,8 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 
 ## Naming
 
-_(Claude Code: append entries here when you encounter single-letter variables, cryptic abbreviations, or misleading names during work.)_
+- **`dialogDepartment.tsx`** — Verwendet `authUser`-Prop mit Typ `AuthUser` (Firebase-Klasse). Funktioniert, ist aber irreführend, da die App jetzt Supabase-Auth nutzt. Alle Dialog-Komponenten, die `authUser` akzeptieren, sollten einen gemeinsamen Supabase-kompatiblen Typ verwenden.
+  **Priorität:** tief · **Komplexität:** mittel (codebase-weit, viele Dialoge)
 
 ## Error Handling
 
@@ -46,6 +47,68 @@ _(Claude Code: append entries here when you encounter `console.log` / `console.e
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_
+
+## Firebase Class Removal
+
+- **`src/components/Department/department.class.ts`** — Legacy-Firebase-Klasse, Shape identisch mit `DepartmentDomain`. Wird als Typ in ~20 Dateien importiert. Nur `product.class.ts` ruft eine statische Methode (`Department.getAllDepartments()`) auf. Sobald die Products-Migration abgeschlossen ist, Klasse löschen und alle Typ-Imports durch `DepartmentDomain` ersetzen.
+  **Priorität:** mittel · **Komplexität:** mittel (20+ Dateien, mechanisches Suchen-und-Ersetzen)
+
+- **`src/components/Event/Event/event.tsx`** — Aktiver `firebase.analytics`-Aufruf für Event-Logging. Zu Supabase Analytics migrieren oder eigenständigen Firebase-Analytics-Import verwenden.
+  **Priorität:** mittel · **Komplexität:** klein
+
+- **`src/components/Event/Event/receipt.class.ts` + `eventInfo.tsx`** — Aktive Firestore-Lese-/Schreiboperationen für Quittungen. Erfordert ReceiptRepository-Migration nach Supabase.
+  **Priorität:** mittel · **Komplexität:** mittel
+
+## Navigation Guards
+
+- **In-App-Navigationsblockierung** — `react-router useBlocker` für Seiten mit ungespeicherten Änderungen fehlt. Derzeit deckt nur `beforeunload` das Schliessen/Aktualisieren des Browsers ab. Betroffene Seiten: `departments.tsx`, `units.tsx` und weitere Seiten mit Bearbeitungsmodus.
+  **Priorität:** tief · **Komplexität:** mittel
+
+## MUI Deprecated APIs
+
+- **`InputProps` → `slotProps.input`** — Multiple components use the deprecated `InputProps` prop on MUI `<TextField>`. MUI 7 renamed this to `slotProps: { input: { ... } }`. Known locations: `src/components/AuthServiceHandler/resetPassword.tsx` (line ~166). Likely present in many more form-heavy files (SignIn, SignUp, UserProfile, Recipe, Event, etc.). Codebase-wide search + replace needed.
+  **Priorität:** mittel · **Komplexität:** mittel
+
+- **`departmentAutocomplete.tsx` Zeile 89** — Unsicherer Cast `event as unknown as React.ChangeEvent<HTMLInputElement>`. Fix erfordert Änderung des `onChange`-Prop-Typs zu `React.SyntheticEvent` und Aktualisierung von 2 Konsumenten (`dialogProduct.tsx`, `convertItem.tsx`).
+  **Priorität:** tief · **Komplexität:** klein
+
+## Large Files / Component Splitting
+
+Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Änderungen am Logikfluss erforderlich — nur bei gezieltem Refactoring angehen.
+
+- **`src/components/Event/Event/event.tsx`** (2'365 LOC) — Zentrale Event-Seite mit Tab-Navigation, allen Sub-Komponenten-Importen und komplexem State-Management. Aufteilen in separate Tab-Komponenten.
+  **Priorität:** tief · **Komplexität:** gross
+
+- **`src/components/Event/ShoppingList/useShoppingListHandlers.tsx`** (1'786 LOC) — Handler-Hook mit 13+ Operationen. Aufteilen in domänenspezifische Hooks (CRUD, PDF, Department-Logik).
+  **Priorität:** tief · **Komplexität:** gross
+
+- **`src/components/Event/Menuplan/useMenuplanHandlers.tsx`** (1'535 LOC) — Handler-Hook mit Menü-, Mahlzeit- und Rezept-Operationen. Aufteilen in spezialisierte Hooks.
+  **Priorität:** tief · **Komplexität:** gross
+
+- **`src/components/Event/ShoppingList/shoppingList.tsx`** (1'329 LOC) — Seiten-Komponente mit eingebetteten Dialogen und PDF-Generierung. Dialoge extrahieren.
+  **Priorität:** tief · **Komplexität:** gross
+
+- **`src/components/Event/Menuplan/dialogPlanPortions.tsx`** (1'301 LOC) — Einzelner Dialog mit komplexer Portionsmatrix. Unterkomponenten extrahieren.
+  **Priorität:** tief · **Komplexität:** gross
+
+- **`src/components/Event/GroupConfiguration/groupConfiguration.tsx`** (1'017 LOC) — Gruppenkonfigurationsseite mit eingebetteten Dialogen.
+  **Priorität:** tief · **Komplexität:** gross
+
+- **`src/components/Event/MaterialList/materialList.tsx`** (1'006 LOC) — Materiallisten-Seite mit eingebetteten Dialogen.
+  **Priorität:** tief · **Komplexität:** gross
+
+## Type Safety
+
+- **`any`-Typ in Testdateien** — Folgende Testdateien verwenden `any` statt typisierter Mocks: `eventUsedRecipes.test.tsx`, `usedRecipesPdf.test.tsx`, `menuplan.menucard.test.ts`, `menuplanPdf.test.tsx`, `eventInfo.test.tsx`. Mit `unknown` und Type-Narrowing oder korrekt typisierten Mocks ersetzen.
+  **Priorität:** tief · **Komplexität:** klein
+
+## UX/UI Improvements
+
+- **Drag-and-Drop Tastatur-Zugänglichkeit** — `src/components/Event/Menuplan/useMenuplanDragDrop.ts` implementiert Maus-DnD, aber Tastatur-Zugänglichkeit fehlt. Keyboard-Drag-Support für Accessibility-Compliance hinzufügen.
+  **Priorität:** mittel · **Komplexität:** mittel
+
+- **ShoppingList Offline-Modus** — Während des Lagers (mobile Nutzung) kann das Netzwerk unzuverlässig sein. Die Einkaufsliste könnte von optimistischen Updates oder Local-First-Patterns profitieren.
+  **Priorität:** tief · **Komplexität:** gross
 
 ## Other
 
