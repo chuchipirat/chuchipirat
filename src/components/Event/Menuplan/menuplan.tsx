@@ -15,13 +15,13 @@ import {
   NavigationObject,
 } from "../../Navigation/navigationContext";
 import {DialogSelectMeals} from "./dialogSelectMeals";
-import MenuplanHeaderRow from "./menuplan.headerRow";
-import MealTypeRows from "./menuplan.mealTypeRows";
-import RecipeSearchDrawer from "./menuplan.recipeSearchDrawer";
-import DialogPlanPortions from "./dialogPlanPortions";
+import {MenuplanHeaderRow} from "./menuplan.headerRow";
+import {MealTypeRows} from "./menuplan.mealTypeRows";
+import {RecipeSearchDrawer} from "./menuplan.recipeSearchDrawer";
+import {DialogPlanPortions} from "./dialogPlanPortions";
 import {DialogEditMenue} from "./dialogEditMenue";
 import {DialogGoods} from "./dialogGoods";
-import DialogMenuplanPdfOptions from "./dialogMenuplanPdfOptions";
+import {DialogMenuplanPdfOptions} from "./dialogMenuplanPdfOptions";
 
 import {MenuplanSettings} from "./menuplan.constants";
 import type {MenuplanPageProps} from "./menuplan.page.types";
@@ -373,7 +373,6 @@ const MenuplanPage = ({
         departments={departments}
         productToUpdate={dialogGoodsData.product}
         materialToUpdate={dialogGoodsData.material}
-        firebase={firebase}
         authUser={authUser}
         onCancel={handlers.onDialogGoodsCancel}
         onOk={handlers.onDialogGoodsOk}

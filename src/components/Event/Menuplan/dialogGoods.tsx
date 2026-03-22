@@ -46,7 +46,6 @@ import DialogMaterial, {
   MaterialDialog,
 } from "../../Material/dialogMaterial";
 import Department from "../../Department/department.class";
-import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
 import {
@@ -83,7 +82,6 @@ import {
  * @param onOk - Callback beim Bestätigen.
  * @param onMaterialCreate - Callback wenn ein neues Material erstellt wird.
  * @param onProductCreate - Callback wenn ein neues Produkt erstellt wird.
- * @param firebase - Firebase-Instanz.
  */
 interface DialogGoodsProps {
   open: boolean;
@@ -105,7 +103,6 @@ interface DialogGoodsProps {
   }: OnAddGoodToMenuProps) => void;
   onMaterialCreate: (material: Material) => void;
   onProductCreate: (product: Product) => void;
-  firebase: Firebase;
 }
 
 /**
@@ -140,7 +137,6 @@ export const DialogGoods = ({
   productToUpdate,
   materialToUpdate,
   departments,
-  firebase,
   authUser,
   onCancel: onCancelSuper,
   onOk: onOkSuper,

@@ -94,9 +94,6 @@ import {
   KEEP_INDIVIDUAL_DIETS as TEXT_KEEP_INDIVIDUAL_DIETS,
 } from "../../../constants/text";
 
-/* ===================================================================
-// ========================= Hilfsfunktionen =========================
-// =================================================================== */
 
 /**
  * Erstellt die Planungseinträge für eine einzelne Diät (alle Intoleranzen).
@@ -205,9 +202,6 @@ export function hasDietActiveEntries(
   return Object.values(dietPlan).some((entry) => entry.active);
 }
 
-/* ===================================================================
-// ==================== Einplanung der Portionen =====================
-// =================================================================== */
 interface DialogPlanPortionsProps {
   open: boolean;
   selectedMenues: DialogSelectMenuesForRecipeDialogValues | null;
@@ -494,7 +488,7 @@ const DialogPlanPortions = ({
       }
 
       // Prüfen: aktive Einträge ohne Faktor
-      if (allActiveEntries.some((e) => !e.factor)) {
+      if (allActiveEntries.some((entry) => !entry.factor)) {
         dialogValidationMessages.push({
           priority: 1,
           fieldName: menueUid,
@@ -505,7 +499,7 @@ const DialogPlanPortions = ({
       // Prüfen: Faktor > 100
       if (
         allActiveEntries.some(
-          (e) => e.factor && parseFloat(e.factor) > 100,
+          (entry) => entry.factor && parseFloat(entry.factor) > 100,
         )
       ) {
         dialogValidationMessages.push({
@@ -912,9 +906,6 @@ const DialogPlanPortions = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ========== Einplanung der Portionen - Block pro Mahlzeit===========
-// =================================================================== */
 interface DialogPlanPortionsMealBlockProps {
   menueUid: Menue["uid"];
   activeDietUid: string;
@@ -1004,7 +995,7 @@ const DialogPlanPortionsMealBlock = ({
   // «Alle» ausblenden wenn individuelle Diäten vorhanden — Konflikt
   // wird erst beim Absenden gelöst, Daten bleiben erhalten
   const dietSummary = allDietEntries.filter(
-    (e) => !(e.dietUid === PlanedDiet.ALL && hasIndividualDiets),
+    (entry) => !(entry.dietUid === PlanedDiet.ALL && hasIndividualDiets),
   );
   const grandTotal = dietSummary.reduce((sum, d) => sum + d.portions, 0);
 
@@ -1161,9 +1152,6 @@ const DialogPlanPortionsMealBlock = ({
     </Grid>
   );
 };
-/* ===================================================================
-// ================ Einplanung der Portionen - Reihe =================
-// =================================================================== */
 interface DialogPlanPortionsMealBlockRowProps {
   active: boolean | undefined;
   menueUid: Menue["uid"];
@@ -1298,4 +1286,4 @@ export const DialogPlanPortionsMealBlockRow = ({
   );
 };
 
-export default DialogPlanPortions;
+export {DialogPlanPortions};

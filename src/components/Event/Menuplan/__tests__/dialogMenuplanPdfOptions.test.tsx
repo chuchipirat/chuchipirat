@@ -12,7 +12,7 @@ import React from "react";
 import {render, screen, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import DialogMenuplanPdfOptions, {
+import {DialogMenuplanPdfOptions,
   MENUPLAN_PDF_OPTIONS_INITIAL,
 } from "../dialogMenuplanPdfOptions";
 

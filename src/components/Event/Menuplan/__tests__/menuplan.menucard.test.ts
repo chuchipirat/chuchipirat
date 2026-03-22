@@ -80,9 +80,6 @@ const mockMenueCard: TMenueCard = {
   type: MenuplanDragDropTypes.MENU,
 };
 
-/* ===================================================================
-// ========================= getMenueCardData ========================
-// =================================================================== */
 describe("getMenueCardData", () => {
   it("gibt ein Objekt mit den uebergebenen Feldern zurueck", () => {
     const data = getMenueCardData({
@@ -110,9 +107,6 @@ describe("getMenueCardData", () => {
   });
 });
 
-/* ===================================================================
-// ========================= isMenueCardData =========================
-// =================================================================== */
 describe("isMenueCardData", () => {
   it("gibt true zurueck fuer gueltige Daten (via Getter erzeugt)", () => {
     const data = getMenueCardData({
@@ -140,9 +134,6 @@ describe("isMenueCardData", () => {
   });
 });
 
-/* ===================================================================
-// ====================== isDraggingAMenueCard =======================
-// =================================================================== */
 describe("isDraggingAMenueCard", () => {
   it("gibt true zurueck fuer gueltige Menue-Karten-Daten", () => {
     const data = getMenueCardData({
@@ -159,9 +150,6 @@ describe("isDraggingAMenueCard", () => {
   });
 });
 
-/* ===================================================================
-// ========================= isMenueCardType =========================
-// =================================================================== */
 describe("isMenueCardType", () => {
   it("gibt true zurueck wenn itemType uebereinstimmt", () => {
     const data = getMenueCardData({
@@ -188,9 +176,6 @@ describe("isMenueCardType", () => {
   });
 });
 
-/* ===================================================================
-// =================== Drop-Target-Daten-Getter ======================
-// =================================================================== */
 describe("getMenueCardDropTargetData", () => {
   it("gibt ein Objekt zurueck, das isMenueCardDropTargetData erkennt", () => {
     const data = getMenueCardDropTargetData({
@@ -227,9 +212,6 @@ describe("isMenueCardContainerDropTargetData", () => {
   });
 });
 
-/* ===================================================================
-// ========================= isShallowEqual ==========================
-// =================================================================== */
 describe("isShallowEqual", () => {
   it("gibt true fuer gleiche Objekte", () => {
     expect(isShallowEqual({a: 1, b: "x"}, {a: 1, b: "x"})).toBe(true);

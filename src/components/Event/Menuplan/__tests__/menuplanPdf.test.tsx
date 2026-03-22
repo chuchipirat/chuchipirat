@@ -59,7 +59,7 @@ import {
   findNoteForDate,
   findNoteForMenu,
 } from "../menuplanPdf";
-import MenuplanPdf from "../menuplanPdf";
+import {MenuplanPdf} from "../menuplanPdf";
 import {
   MENUPLAN_PDF_OPTIONS_INITIAL,
   MenuplanPdfOptions,
@@ -285,7 +285,7 @@ describe("splitDatesIntoPages", () => {
     expect(result).toHaveLength(2);
     // Erste Seite: 4 Daten
     expect(result[0]).toHaveLength(4);
-    expect(result[0].every((d) => d !== null)).toBe(true);
+    expect(result[0].every((date) => date !== null)).toBe(true);
     // Zweite Seite: 2 Daten + 2 null
     expect(result[1]).toHaveLength(4);
     expect(result[1][0]).toEqual(dates[4]);
@@ -308,7 +308,7 @@ describe("splitDatesIntoPages", () => {
     expect(result).toHaveLength(2);
     expect(result[0]).toHaveLength(4);
     expect(result[1]).toHaveLength(4);
-    expect(result.flat().every((d) => d !== null)).toBe(true);
+    expect(result.flat().every((date) => date !== null)).toBe(true);
   });
 
   it("ein einzelner Tag ergibt eine Seite mit Padding", () => {

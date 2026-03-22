@@ -94,9 +94,6 @@ import {
 import Action from "../../../constants/actions";
 import Utils from "../../Shared/utils.class";
 
-/* ===================================================================
-// ================== Global Defintion & Type Guards =================
-// =================================================================== */
 
 export type TMenueCard = {
   id: Menue["uid"];
@@ -238,9 +235,6 @@ export function isShallowEqual(
   return keys1.every((key1) => Object.is(obj1[key1], obj2[key1]));
 }
 
-/* ===================================================================
-// ======================= Menüs einer Mahlzeit ======================
-// =================================================================== */
 interface MenueListOfMealProps {
   meal: Meal;
   menues: MenuplanData["menues"];
@@ -379,9 +373,6 @@ export const MenueListOfMeal = memo(function MenueListOfMeal({
     </>
   );
 });
-/* ===================================================================
-// =============== Drag & Drop Menü-Card-Listeneintrag ===============
-// =================================================================== */
 interface DraggableMenueCardProps extends Omit<
   MenueCardProps,
   "menue" | "outerRef" | "innerRef" | "state"
@@ -645,9 +636,6 @@ const DraggableMenueCard = memo(function DraggableMenueCard({
   );
 });
 
-/* ===================================================================
-// ===================== Menü-Card-Listen-Eintrag ====================
-// =================================================================== */
 interface MenueCardProps {
   menue: Menue;
   meal: Meal;
@@ -1050,9 +1038,6 @@ const MenueCard = ({
     </>
   );
 };
-/* ===================================================================
-// ======================= Menü-Karte-Schatten =======================
-// =================================================================== */
 /**
  * Menü-Card-Schatten: Wird angezeigt, wenn der Drag&Drop
  * ausgeführt wird.

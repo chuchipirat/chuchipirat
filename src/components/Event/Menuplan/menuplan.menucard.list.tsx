@@ -204,9 +204,6 @@ type onListElementClick = (itemUid: string) => void;
 const STYLE_LIST_MIN_HEIGHT: React.CSSProperties = {minHeight: "3em"};
 const STYLE_LIST_ITEM_TEXT: React.CSSProperties = {margin: 0, flex: 1};
 
-/* ===================================================================
-// ========================= Menü-Card-Liste =========================
-// =================================================================== */
 interface MenucardListProps {
   menue: Menue;
   mealRecipes?: MealRecipes;
@@ -461,9 +458,6 @@ export const MenueCardList = memo(function MenueCardList({
     </>
   );
 });
-/* ===================================================================
-// =============== Drag & Drop Menü-Card-Listeneintrag ===============
-// =================================================================== */
 interface DraggableListItemProps {
   index: number;
   lastElement: boolean;
@@ -652,9 +646,6 @@ const DraggableListItem = memo(function DraggableListItem({
   );
 });
 
-/* ===================================================================
-// ===================== Menü-Card-Listen-Eintrag ====================
-// =================================================================== */
 interface MenuCardListItemProps {
   index: number;
   lastElement: boolean;

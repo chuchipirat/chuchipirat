@@ -6,9 +6,6 @@ import invariant from "tiny-invariant";
 import useCustomStyles from "../../../constants/styles";
 import {Meal} from "./menuplan.types";
 
-/* ===================================================================
-// ===================== Type Guards & Data ==========================
-// =================================================================== */
 const emptyContainerKey = Symbol("empty-container");
 
 export type TEmptyContainerData = {
@@ -36,9 +33,6 @@ function getEmptyContainerData({
 type StateType = "idle" | "draggedOver";
 const idleState: StateType = "idle";
 const draggedOverState: StateType = "draggedOver";
-/* ===================================================================
-// ==================== Empty Container Component ====================
-// =================================================================== */
 interface EmptyMealContainerProps {
   mealUid: Meal["uid"];
   buttonText: string;

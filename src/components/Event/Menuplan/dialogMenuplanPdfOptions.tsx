@@ -148,4 +148,4 @@ const DialogMenuplanPdfOptions = ({
   );
 };
 
-export default DialogMenuplanPdfOptions;
+export {DialogMenuplanPdfOptions};

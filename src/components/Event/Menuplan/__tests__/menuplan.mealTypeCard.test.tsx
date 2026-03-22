@@ -7,7 +7,7 @@ import React from "react";
 import "@testing-library/jest-dom";
 import {render, screen, fireEvent} from "@testing-library/react";
 
-import MealTypeCard from "../menuplan.mealTypeCard";
+import {MealTypeCard} from "../menuplan.mealTypeCard";
 import type {MealType} from "../menuplan.types";
 import {
   RENAME as TEXT_RENAME,

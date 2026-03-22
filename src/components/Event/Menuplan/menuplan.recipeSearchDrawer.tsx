@@ -107,4 +107,4 @@ const RecipeSearchDrawer = ({
   );
 };
 
-export default RecipeSearchDrawer;
+export {RecipeSearchDrawer};

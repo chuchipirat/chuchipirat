@@ -77,7 +77,7 @@ import {MenueListOfMeal} from "./menuplan.menucard";
 import {EmptyMealContainer} from "./menuplan.emptycontainer";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
-import MealTypeCard from "./menuplan.mealTypeCard";
+import {MealTypeCard} from "./menuplan.mealTypeCard";
 
 // Stabile Style-Konstante (verhindert neue Objekt-Referenz bei jedem Render)
 const STYLE_MEAL_ROW: React.CSSProperties = {
@@ -87,9 +87,6 @@ const STYLE_MEAL_ROW: React.CSSProperties = {
   alignItems: "stretch",
 };
 
-/* ===================================================================
-// ========================= Mahlzeit-Reihen =========================
-// =================================================================== */
 /**
  * Props für die MealTypeRows-Komponente.
  */
@@ -306,9 +303,6 @@ const MealTypeRows = memo(function MealTypeRows({
   );
 });
 
-/* ===================================================================
-// ========================== Mahlzeit-Reihe =========================
-// =================================================================== */
 /**
  * Props für die MealTypeRow-Komponente.
  */
@@ -678,5 +672,5 @@ const MealTypeRow = memo(function MealTypeRow({
   );
 });
 
-export default MealTypeRows;
+export {MealTypeRows};
 export {MealTypeRow};

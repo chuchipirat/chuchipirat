@@ -380,4 +380,4 @@ const MenuplanHeaderRow = memo(function MenuplanHeaderRow({
   );
 });
 
-export default MenuplanHeaderRow;
+export {MenuplanHeaderRow};

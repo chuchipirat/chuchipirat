@@ -56,7 +56,7 @@ import {
   OnMasterdataCreateProps,
 } from "../Event/event";
 
-import MenuplanPdf from "./menuplanPdf";
+import {MenuplanPdf} from "./menuplanPdf";
 import type {MenuplanPdfOptions} from "./dialogMenuplanPdfOptions";
 import Action from "../../../constants/actions";
 

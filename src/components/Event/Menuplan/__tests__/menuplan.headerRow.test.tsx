@@ -8,7 +8,7 @@ import React from "react";
 import "@testing-library/jest-dom";
 import {render, screen, fireEvent} from "@testing-library/react";
 
-import MenuplanHeaderRow from "../menuplan.headerRow";
+import {MenuplanHeaderRow} from "../menuplan.headerRow";
 import type {Note} from "../menuplan.types";
 import type {MenuplanSettings} from "../menuplan.constants";
 import {

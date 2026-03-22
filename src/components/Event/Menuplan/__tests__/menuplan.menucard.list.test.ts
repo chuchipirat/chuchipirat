@@ -57,9 +57,6 @@ const mockListItem: TListItem = {
   type: MenuplanDragDropTypes.PRODUCT,
 };
 
-/* ===================================================================
-// ======================== getCardListItemData =======================
-// =================================================================== */
 /** Getter fuer Drag-Daten eines Listeneintrags */
 describe("getCardListItemData", () => {
   it("gibt ein Objekt mit den uebergebenen Feldern zurueck", () => {
@@ -88,9 +85,6 @@ describe("getCardListItemData", () => {
   });
 });
 
-/* ===================================================================
-// =========================== isCardListData ========================
-// =================================================================== */
 /** Type Guard fuer Listeneintrag-Drag-Daten */
 describe("isCardListData", () => {
   it("gibt true zurueck fuer gueltige Daten (via Getter erzeugt)", () => {
@@ -120,9 +114,6 @@ describe("isCardListData", () => {
   });
 });
 
-/* ===================================================================
-// ===================== isDraggingACardListItem ======================
-// =================================================================== */
 /** Prueft, ob eine Drag-Quelle ein Listeneintrag ist */
 describe("isDraggingACardListItem", () => {
   it("gibt true zurueck, wenn source.data gueltige Listeneintrag-Daten enthaelt", () => {
@@ -141,9 +132,6 @@ describe("isDraggingACardListItem", () => {
   });
 });
 
-/* ===================================================================
-// ========================== isCardListType =========================
-// =================================================================== */
 /** Prueft, ob der itemType einer Drag-Quelle dem gewuenschten Typ entspricht */
 describe("isCardListType", () => {
   it("gibt true zurueck, wenn itemType mit cardType uebereinstimmt", () => {
@@ -185,9 +173,6 @@ describe("isCardListType", () => {
   });
 });
 
-/* ===================================================================
-// =================== getCardListDropTargetData =====================
-// =================================================================== */
 /** Getter fuer Drop-Target-Daten eines Listeneintrags */
 describe("getCardListDropTargetData", () => {
   it("gibt ein Objekt mit den uebergebenen Feldern zurueck", () => {
@@ -210,9 +195,6 @@ describe("getCardListDropTargetData", () => {
   });
 });
 
-/* ===================================================================
-// ==================== isCardListDropTargetData ======================
-// =================================================================== */
 /** Type Guard fuer Listeneintrag-Drop-Target-Daten */
 describe("isCardListDropTargetData", () => {
   it("gibt true zurueck fuer gueltige Daten (via Getter erzeugt)", () => {
@@ -238,9 +220,6 @@ describe("isCardListDropTargetData", () => {
   });
 });
 
-/* ===================================================================
-// ================ getListContainerDropTargetData ===================
-// =================================================================== */
 /** Getter fuer Container-Drop-Target-Daten einer Listencontainer */
 describe("getListContainerDropTargetData", () => {
   it("gibt ein Objekt mit den uebergebenen Feldern zurueck", () => {
@@ -266,9 +245,6 @@ describe("getListContainerDropTargetData", () => {
   });
 });
 
-/* ===================================================================
-// ================ isListContainerDropTargetData ====================
-// =================================================================== */
 /** Type Guard fuer Container-Drop-Target-Daten */
 describe("isListContainerDropTargetData", () => {
   it("gibt true zurueck fuer gueltige Daten (via Getter erzeugt)", () => {
@@ -296,9 +272,6 @@ describe("isListContainerDropTargetData", () => {
   });
 });
 
-/* ===================================================================
-// ========================= isShallowEqual ==========================
-// =================================================================== */
 /** Flacher Objektvergleich */
 describe("isShallowEqual", () => {
   it("gibt true zurueck fuer zwei gleiche Objekte", () => {

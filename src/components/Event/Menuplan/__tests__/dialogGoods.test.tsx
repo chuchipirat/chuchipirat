@@ -11,7 +11,6 @@ import {render, screen, fireEvent} from "@testing-library/react";
 import {DialogGoods} from "../dialogGoods";
 import {GoodsType, GoodsPlanMode} from "../menuplan.types";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
-import Firebase from "../../../Firebase/firebase.class";
 import Product from "../../../Product/product.class";
 import Material from "../../../Material/material.class";
 import Unit from "../../../Unit/unit.class";
@@ -30,10 +29,7 @@ import {
 // Mocks
 // ===================================================================== */
 
-// Firebase und Supabase Mocks
-jest.mock("../../../Firebase/firebase.class", () => {
-  return jest.fn().mockImplementation(() => ({}));
-});
+// Supabase Mocks
 jest.mock("../../../Product/dialogProduct", () => ({
   __esModule: true,
   default: () => null,
@@ -98,7 +94,6 @@ const defaultProps = {
   onOk: jest.fn(),
   onMaterialCreate: jest.fn(),
   onProductCreate: jest.fn(),
-  firebase: new Firebase() as any,
 };
 
 /* =====================================================================

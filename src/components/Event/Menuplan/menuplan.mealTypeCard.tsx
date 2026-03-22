@@ -191,4 +191,4 @@ const MealTypeCard = memo(function MealTypeCard({
   );
 });
 
-export default MealTypeCard;
+export {MealTypeCard};
