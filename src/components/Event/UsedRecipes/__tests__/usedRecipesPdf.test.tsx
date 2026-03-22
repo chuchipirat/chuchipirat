@@ -103,7 +103,7 @@ jest.mock("../../../Recipe/recipe.class", () => {
 
 import React from "react";
 import {render, screen} from "@testing-library/react";
-import UsedRecipesPdf from "../usedRecipesPdf";
+import {UsedRecipesPdf} from "../usedRecipesPdf";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import type Recipe from "../../../Recipe/recipe.class";
 import type {

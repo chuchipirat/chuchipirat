@@ -4,9 +4,6 @@ import Recipe from "../../Recipe/recipe.class";
 import {DialogSelectMenuesForRecipeDialogValues} from "../Menuplan/dialogSelectMenues";
 import {OperationType} from "../Event/eventSharedComponents";
 
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 
 export enum ReducerActions {
   SHOW_LOADING,

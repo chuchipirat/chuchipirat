@@ -129,9 +129,6 @@ const UsedRecipesPdf = ({
   );
 };
 
-/* ===================================================================
-// =========================== Rezept-Seite ==========================
-// =================================================================== */
 
 /**
  * Einzelne PDF-Seite für ein Rezept.
@@ -248,6 +245,6 @@ const RecipePage = ({
     </Page>
   );
 };
-export default UsedRecipesPdf;
+export {UsedRecipesPdf};
 
 const styles = pdfStyles;

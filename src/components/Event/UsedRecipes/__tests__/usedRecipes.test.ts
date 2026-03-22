@@ -7,7 +7,7 @@
  * - defineSelectedRecipes() leitet Rezept-UIDs aus dem Menüplan ab
  * - _getUniqRecipes() entfernt Duplikate
  */
-import UsedRecipes from "../usedRecipes.class";
+import {UsedRecipes} from "../usedRecipes.class";
 import {MenuplanData} from "../../Menuplan/menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import {UsedRecipeListDomain} from "../../../Database/Repository/UsedRecipeListRepository";
@@ -184,8 +184,8 @@ describe("UsedRecipes", () => {
       });
 
       expect(result).toHaveLength(2);
-      expect(result.map((r) => r.uid)).toContain("recipe-001");
-      expect(result.map((r) => r.uid)).toContain("recipe-002");
+      expect(result.map((recipe) => recipe.uid)).toContain("recipe-001");
+      expect(result.map((recipe) => recipe.uid)).toContain("recipe-002");
     });
 
     it("should exclude deleted recipes", () => {
@@ -197,7 +197,7 @@ describe("UsedRecipes", () => {
       });
 
       // Kein Rezept mit leerer UID darf zurückgegeben werden
-      const deletedRecipe = result.find((r) => !r.uid);
+      const deletedRecipe = result.find((recipe) => !recipe.uid);
       expect(deletedRecipe).toBeUndefined();
     });
 
@@ -233,7 +233,7 @@ describe("UsedRecipes", () => {
         selectedMenues: ["menue-001", "menue-002"],
       });
 
-      const pastaCount = result.filter((r) => r.uid === "recipe-001").length;
+      const pastaCount = result.filter((recipe) => recipe.uid === "recipe-001").length;
       expect(pastaCount).toBe(1);
     });
   });
@@ -454,7 +454,7 @@ describe("UsedRecipes", () => {
       const result = UsedRecipes._getUniqRecipes(recipes);
 
       expect(result).toHaveLength(2);
-      expect(result.map((r) => r.uid)).toEqual(["r1", "r2"]);
+      expect(result.map((recipe) => recipe.uid)).toEqual(["r1", "r2"]);
     });
 
     it("should return empty array for empty input", () => {

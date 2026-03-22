@@ -9,7 +9,7 @@ import {
 } from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 
-import UsedRecipes from "../UsedRecipes/usedRecipes.class";
+import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 
 import {ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND} from "../../../constants/text";
 import Recipe, {RecipeMaterialPosition, Recipes} from "../../Recipe/recipe.class";

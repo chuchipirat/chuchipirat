@@ -14,8 +14,8 @@
  * <EventListCard onCreateList={handlers.onCreateList} ... />
  */
 import React, {useCallback} from "react";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
@@ -38,14 +38,14 @@ import {
 } from "../Menuplan/dialogSelectMenues";
 import {Menue, MenuplanData} from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals, sortSelectedMenues} from "../Menuplan/menuplanService";
-import UsedRecipes from "./usedRecipes.class";
+import {UsedRecipes} from "./usedRecipes.class";
 import {
   DialogType,
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
 import Recipe from "../../Recipe/recipe.class";
-import UsedRecipesPdf from "./usedRecipesPdf";
+import {UsedRecipesPdf} from "./usedRecipesPdf";
 import {
   NavigationValuesContext,
   NavigationObject,
@@ -63,9 +63,6 @@ import {
   DIALOG_SELECT_MENUE_DATA_INITIAL_DATA,
 } from "./usedRecipesReducer";
 
-/* ===================================================================
-// ========================== Interfaces =============================
-// =================================================================== */
 
 export interface UseUsedRecipesHandlersParams {
   authUser: AuthUser;
@@ -95,9 +92,6 @@ export interface UseUsedRecipesHandlersReturn {
   };
 }
 
-/* ===================================================================
-// ============================== Hook ===============================
-// =================================================================== */
 
 export const useUsedRecipesHandlers = ({
   authUser,
@@ -162,7 +156,7 @@ export const useUsedRecipesHandlers = ({
           await database.usedRecipeLists.getRecipesForList(listId);
         const uniqueRecipeIds = [
           ...new Set(
-            recipeRefs.map((r) => r.recipeId).filter((id) => id !== ""),
+            recipeRefs.map((ref) => ref.recipeId).filter((recipeId) => recipeId !== ""),
           ),
         ];
 
@@ -632,7 +626,7 @@ export const useUsedRecipesHandlers = ({
       return;
     }
 
-    pdf(
+    generateAndDownloadPdf(
       <UsedRecipesPdf
         list={{
           properties: usedRecipes.lists[state.selectedListItem!].properties,
@@ -647,17 +641,11 @@ export const useUsedRecipesHandlers = ({
         unitConversionProducts={unitConversionProducts}
         authUser={authUser}
       />,
-    )
-      .toBlob()
-      .then((result) => {
-        fileSaver.saveAs(
-          result,
-          event.name + " " + TEXT_QUANTITY_CALCULATION + TEXT_SUFFIX_PDF,
-        );
-      })
-      .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
-      });
+      event.name + " " + TEXT_QUANTITY_CALCULATION + TEXT_SUFFIX_PDF,
+      (error) =>
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+      {eventUid: event.uid},
+    );
   }, [
     state.loadedRecipes,
     state.selectedListItem,

@@ -13,7 +13,7 @@ import {
   Menue,
   MenuplanData,
 } from "../Menuplan/menuplan.types";
-import UsedRecipes from "../UsedRecipes/usedRecipes.class";
+import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {
   ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND as TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND,
 } from "../../../constants/text";

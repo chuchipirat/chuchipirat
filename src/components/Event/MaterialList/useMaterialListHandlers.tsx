@@ -61,7 +61,7 @@ import {
 } from "../../../constants/text";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {MaterialListEditSource} from "../../Database/Repository/MaterialListRepository";
-import UsedRecipes from "../UsedRecipes/usedRecipes.class";
+import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {ProductTrace} from "../ShoppingList/shoppingListCollection.class";
 import {ItemType} from "../ShoppingList/shoppingList.class";
 import MaterialListPdf from "./materialListPdf";

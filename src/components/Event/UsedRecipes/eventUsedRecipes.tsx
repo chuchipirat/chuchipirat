@@ -20,10 +20,6 @@ import {
 import Recipe from "../../Recipe/recipe.class";
 import {EventUsedMealRecipe} from "./eventUsedMealRecipe";
 
-/* ===================================================================
-// ======================== Rezepte-Übersicht ========================
-// =================================================================== */
-
 interface RecipeCard {
   mrUid: string;
   coord: MenueCoordinates;

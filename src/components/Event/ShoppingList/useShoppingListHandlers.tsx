@@ -80,7 +80,7 @@ import {FeedType} from "../../Shared/feed.class";
 import {
   shoppingListToInsertRows,
 } from "./shoppingListAdapter";
-import UsedRecipes from "../UsedRecipes/usedRecipes.class";
+import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {AutocompleteChangeReason} from "@mui/material";
 
 /* ===================================================================

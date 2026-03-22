@@ -29,15 +29,11 @@ import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.cl
 import AlertMessage from "../../Shared/AlertMessage";
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
 import {MenuplanData} from "../Menuplan/menuplan.types";
-import UsedRecipes from "./usedRecipes.class";
+import {UsedRecipes} from "./usedRecipes.class";
 import {FetchMissingDataProps} from "../Event/event";
 import {EventListCard} from "../Event/eventSharedComponents";
 import {useUsedRecipesHandlers} from "./useUsedRecipesHandlers";
 import {EventUsedRecipes} from "./eventUsedRecipes";
-
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 
 interface EventUsedRecipesPageProps {
   authUser: AuthUser;
@@ -120,4 +116,4 @@ const EventUsedRecipesPage = ({
   );
 };
 
-export default EventUsedRecipesPage;
+export {EventUsedRecipesPage};

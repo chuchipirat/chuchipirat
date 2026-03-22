@@ -108,7 +108,7 @@ export interface UsedRecipeListEntry {
  * In-Memory-Transformationen, Rezept-Identifikation).
  * Persistenz erfolgt über das UsedRecipeListRepository.
  */
-export default class UsedRecipes {
+export class UsedRecipes {
   uid: string;
   noOfLists: number;
   lists: {[key: string]: UsedRecipeListEntry};

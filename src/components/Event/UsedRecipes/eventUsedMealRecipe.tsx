@@ -44,9 +44,6 @@ import {
 } from "../../Recipe/recipe.view";
 import {useEventMasterData} from "../Event/eventMasterDataContext";
 
-/* ===================================================================
-// ======================== Einzelnes Rezept =========================
-// =================================================================== */
 
 interface EventUsedMealRecipeProps {
   recipe: Recipe;
@@ -143,9 +140,6 @@ const EventUsedMealRecipe = React.memo(function EventUsedMealRecipe({
   );
 });
 
-/* ===================================================================
-// =========================  Rezept Title ===========================
-// =================================================================== */
 
 interface EventUsedMealRecipeTitleProps {
   recipe: Recipe;
@@ -207,9 +201,6 @@ const EventUsedMealRecipeTitle = React.memo(function EventUsedMealRecipeTitle({
   );
 });
 
-/* ===================================================================
-// =========================  Rezept Info ============================
-// =================================================================== */
 
 interface EventUsedMealRecipeInfoBlockProps {
   recipe: Recipe;
@@ -281,9 +272,6 @@ const EventUsedMealRecipeInfoBlock = React.memo(
   },
 );
 
-/* ===================================================================
-// =======================  Rezept Zutaten ===========================
-// =================================================================== */
 
 interface EventUsedMealRecipeIngredientBlockProps {
   recipe: Recipe;
@@ -335,9 +323,6 @@ const EventUsedMealRecipeIngredientBlock = React.memo(
   },
 );
 
-/* ===================================================================
-// =======================  Rezept Material ==========================
-// =================================================================== */
 
 interface EventUsedMealRecipeMaterialBlockProps {
   recipe: Recipe;

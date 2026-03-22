@@ -77,7 +77,7 @@ jest.mock("../../../Shared/utils.class", () => {
   };
 });
 
-import UsedRecipes from "../../UsedRecipes/usedRecipes.class";
+import {UsedRecipes} from "../../UsedRecipes/usedRecipes.class";
 import {getMealsOfMenues, getMenuesOfMeals} from "../../Menuplan/menuplanService";
 
 const mockedDefineSelectedRecipes = UsedRecipes.defineSelectedRecipes as jest.Mock;
