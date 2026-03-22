@@ -8,9 +8,6 @@ import {createContext, useContext} from "react";
 import invariant from "tiny-invariant";
 import {ListContextValue, ItemEntry} from "../../../constants/dragAndDrop";
 
-/* ===================================================================
-// ================== MealTypesRow DnD-Kontext =======================
-// =================================================================== */
 
 /**
  * Kontext für die Drag-&-Drop-Logik der Mahlzeitentyp-Reihen.
@@ -31,9 +28,6 @@ export function useMealTypeRowContext() {
   return rowContext;
 }
 
-/* ===================================================================
-// =================== Item-Daten für DnD ============================
-// =================================================================== */
 
 /**
  * Symbol-Key zum Identifizieren von DnD-Item-Daten.
@@ -92,9 +86,6 @@ export function isItemData<T>(
   return data[itemKey] === true;
 }
 
-/* ===================================================================
-// =================== Item-Registry =================================
-// =================================================================== */
 
 /**
  * Erstellt eine Registry für DnD-Items, um DOM-Elemente per UID nachzuschlagen.

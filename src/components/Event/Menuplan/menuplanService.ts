@@ -5,6 +5,7 @@
  * frei von Seiteneffekten. Ersetzt die statischen Methoden der
  * ehemaligen Menuplan-Klasse.
  */
+import * as Sentry from "@sentry/react";
 import Utils from "../../Shared/utils.class";
 import * as DEFAULT_VALUES from "../../../constants/defaultValues";
 import Event from "../Event/event.class";
@@ -1015,7 +1016,7 @@ function adjustConsistencyForOrderAndKeys({
  *
  * @example
  * const { menuplan: fixed, isConsistent, report } = fixMenuplan(menuplan);
- * if (!isConsistent) console.log("Bereinigt:", report);
+ * if (!isConsistent) Sentry.captureMessage("Menuplan bereinigt", {extra: report});
  */
 export function fixMenuplan(menuplan: MenuplanData): FixMenuplanResult {
   const report: ConsistencyReport = {
@@ -1037,7 +1038,7 @@ export function fixMenuplan(menuplan: MenuplanData): FixMenuplanResult {
 
   // Materials
   if (fixedMaterials.removed.length > 0) {
-    console.debug("Removed materials:", fixedMaterials.removed);
+    Sentry.addBreadcrumb({category: "menuplan.fix", message: "Removed materials", data: {removed: fixedMaterials.removed}});
     didFix = true;
     report.materials = fixedMaterials.removed;
     Object.values(fixedMenuplan.menues).forEach((menue) => {
@@ -1058,7 +1059,7 @@ export function fixMenuplan(menuplan: MenuplanData): FixMenuplanResult {
   });
 
   if (fixedProducts.removed.length > 0) {
-    console.debug("Removed products:", fixedProducts.removed);
+    Sentry.addBreadcrumb({category: "menuplan.fix", message: "Removed products", data: {removed: fixedProducts.removed}});
     didFix = true;
     report.products = fixedProducts.removed;
     Object.values(fixedMenuplan.menues).forEach((menue) => {
@@ -1079,7 +1080,7 @@ export function fixMenuplan(menuplan: MenuplanData): FixMenuplanResult {
   });
 
   if (fixedMealRecipes.removed.length > 0) {
-    console.debug("Removed mealRecipes:", fixedMealRecipes.removed);
+    Sentry.addBreadcrumb({category: "menuplan.fix", message: "Removed mealRecipes", data: {removed: fixedMealRecipes.removed}});
     didFix = true;
     report.mealRecipes = fixedMealRecipes.removed;
     Object.values(fixedMenuplan.menues).forEach((menue) => {

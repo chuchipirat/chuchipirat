@@ -38,9 +38,6 @@ import {
 import EventClass from "../Event/event.class";
 import {PlanedDiet} from "./menuplan.types";
 
-/* ===================================================================
-// ========================= Menuplan-Callback =======================
-// =================================================================== */
 
 /**
  * Typisiertes Update-Objekt für den Menüplan.
@@ -48,9 +45,6 @@ import {PlanedDiet} from "./menuplan.types";
  */
 export type OnMenuplanUpdate = Partial<MenuplanData>;
 
-/* ===================================================================
-// ========================= Page Props ==============================
-// =================================================================== */
 
 /**
  * Props für die MenuplanPage-Komponente.
@@ -89,9 +83,6 @@ export interface MenuplanPageProps {
   onRecipeUpdate: (recipe: Recipe) => void;
 }
 
-/* ===================================================================
-// ========================= Drawer-State ============================
-// =================================================================== */
 
 /**
  * Daten für den Rezept-Suchen-Drawer.
@@ -113,9 +104,6 @@ export interface OnRecipeSelection {
   recipe: RecipeShort;
 }
 
-/* ===================================================================
-// ========================= Dialog States ===========================
-// =================================================================== */
 
 /**
  * State für den Menü-Auswahl-Dialog.
@@ -203,9 +191,6 @@ export interface DialogGoodsData {
   material: MenuplanMaterial | null;
 }
 
-/* ===================================================================
-// ============= Dialog-interne Typen (Portionenplanung) =============
-// =================================================================== */
 
 /**
  * Planungsinfo für eine einzelne Intoleranz/Gruppe innerhalb des Portionenplans.
@@ -262,9 +247,6 @@ export interface DialogPlanPortionsDialogValues {
   plan: DialogPlanPortionsMealPlan | null;
 }
 
-/* ===================================================================
-// ==================== Dialog Goods Typen ===========================
-// =================================================================== */
 
 /**
  * Interner State des Produkt/Material-Dialogs.

@@ -609,9 +609,9 @@ describe("menuplanUiToDomain", () => {
     expect(domain.menues[0].uid).toBe("menue-1");
 
     // Rezepte/Produkte/Materialien des verwaisten Menüs werden ebenfalls übersprungen
-    expect(domain.menueRecipes.map((r) => r.uid)).not.toContain("orphan-mr");
-    expect(domain.menueProducts.map((p) => p.uid)).not.toContain("orphan-prod");
-    expect(domain.menueMaterials.map((m) => m.uid)).not.toContain("orphan-mat");
+    expect(domain.menueRecipes.map((recipe) => recipe.uid)).not.toContain("orphan-mr");
+    expect(domain.menueProducts.map((product) => product.uid)).not.toContain("orphan-prod");
+    expect(domain.menueMaterials.map((entry) => entry.uid)).not.toContain("orphan-mat");
 
     // Warnung wird geloggt
     expect(warnSpy).toHaveBeenCalledWith(
@@ -828,20 +828,20 @@ describe("Round-Trip: domainToUi → uiToDomain", () => {
     );
 
     // Meals: gleiche UIDs (Reihenfolge kann abweichen)
-    const originalMealUids = originalDomain.meals.map((m) => m.uid).sort();
-    const rtMealUids = roundTripped.meals.map((m) => m.uid).sort();
+    const originalMealUids = originalDomain.meals.map((entry) => entry.uid).sort();
+    const rtMealUids = roundTripped.meals.map((entry) => entry.uid).sort();
     expect(rtMealUids).toEqual(originalMealUids);
 
     // Menues: gleiche UIDs und Namen
-    const originalMenueUids = originalDomain.menues.map((m) => m.uid).sort();
-    const rtMenueUids = roundTripped.menues.map((m) => m.uid).sort();
+    const originalMenueUids = originalDomain.menues.map((entry) => entry.uid).sort();
+    const rtMenueUids = roundTripped.menues.map((entry) => entry.uid).sort();
     expect(rtMenueUids).toEqual(originalMenueUids);
 
     // Rezepte: UIDs und Namen erhalten
     const originalRecipeUids = originalDomain.menueRecipes
-      .map((r) => r.uid)
+      .map((recipe) => recipe.uid)
       .sort();
-    const rtRecipeUids = roundTripped.menueRecipes.map((r) => r.uid).sort();
+    const rtRecipeUids = roundTripped.menueRecipes.map((recipe) => recipe.uid).sort();
     expect(rtRecipeUids).toEqual(originalRecipeUids);
 
     const rtMr1 = roundTripped.menueRecipes.find((r) => r.uid === "mr-1")!;

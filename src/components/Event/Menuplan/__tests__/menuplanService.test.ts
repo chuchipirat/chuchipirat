@@ -360,7 +360,7 @@ describe("addMealType", () => {
     // 2 Meals (eines pro Tag) erstellt
     const newMeals = Object.values(result.meals);
     expect(newMeals).toHaveLength(2);
-    expect(newMeals.every((m) => m.mealType === "mt-new")).toBe(true);
+    expect(newMeals.every((meal) => meal.mealType === "mt-new")).toBe(true);
 
     // Jedes Meal hat ein Menü
     newMeals.forEach((meal) => {
@@ -1011,7 +1011,7 @@ describe("adjustMenuplanWithNewDays", () => {
 
     // Neue Meals für Tag 12 (2 MealTypes × 1 neuer Tag = 2 neue Meals)
     const newMeals = Object.values(result.meals).filter(
-      (m) => m.date === "2026-03-12"
+      (meal) => meal.date === "2026-03-12"
     );
     expect(newMeals).toHaveLength(2);
 
@@ -1504,7 +1504,7 @@ describe("adjustMenuplanWithNewDays (Randfälle)", () => {
 
     // Neue Meals für Tag 15
     const newMeals = Object.values(result.meals).filter(
-      (m) => m.date === "2026-03-15"
+      (meal) => meal.date === "2026-03-15"
     );
     expect(newMeals).toHaveLength(2); // 2 MealTypes
   });
