@@ -6,11 +6,11 @@
  * indem die Supabase-Daten in das bestehende UI-Format konvertiert
  * werden und umgekehrt.
  */
-import ShoppingListCollection, {
+import {ShoppingListCollection,
   ShoppingListEntry,
   ShoppingListProperties,
 } from "./shoppingListCollection.class";
-import ShoppingList, {
+import {ShoppingList,
   ItemType,
   ShoppingListDepartment,
   ShoppingListItem,

@@ -61,7 +61,7 @@ import Unit from "../../Unit/unit.class";
 
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
-import MenuplanPage from "../Menuplan/menuplan";
+import {MenuplanPage} from "../Menuplan/menuplan";
 import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
 import {EventUsedRecipesPage} from "../UsedRecipes/usedRecipes";
 import {MenuplanData} from "../Menuplan/menuplan.types";
@@ -79,9 +79,9 @@ import UnitConversion, {
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
-import EventShoppingListPage from "../ShoppingList/shoppingList";
-import ShoppingListCollection from "../ShoppingList/shoppingListCollection.class";
-import ShoppingList, {ShoppingListItem} from "../ShoppingList/shoppingList.class";
+import {EventShoppingListPage} from "../ShoppingList/shoppingList";
+import {ShoppingListCollection} from "../ShoppingList/shoppingListCollection.class";
+import {ShoppingList,ShoppingListItem} from "../ShoppingList/shoppingList.class";
 import {
   headersDomainToCollection,
   itemsDomainToShoppingList,

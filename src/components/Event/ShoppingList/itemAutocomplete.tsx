@@ -368,4 +368,4 @@ const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
     />
   );
 };
-export default ItemAutocomplete;
+export {ItemAutocomplete};

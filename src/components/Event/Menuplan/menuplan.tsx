@@ -39,9 +39,6 @@ import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
 import {useMenuplanDialogs} from "./useMenuplanDialogs";
 import {useMenuplanDragDrop} from "./useMenuplanDragDrop";
 import {useMenuplanHandlers} from "./useMenuplanHandlers";
-/* ===================================================================
-// ============================= Menüplan ============================
-// =================================================================== */
 const MenuplanPage = ({
   menuplan,
   groupConfiguration,
@@ -389,4 +386,4 @@ const MenuplanPage = ({
   );
 };
 
-export default MenuplanPage;
+export {MenuplanPage};

@@ -7,6 +7,7 @@
  */
 import {useCallback, useEffect, useRef} from "react";
 import invariant from "tiny-invariant";
+import * as Sentry from "@sentry/react";
 import {monitorForElements} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {extractClosestEdge} from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import {reorder} from "@atlaskit/pragmatic-drag-and-drop/reorder";
@@ -45,9 +46,6 @@ import type {
   DialogSelectMealData,
 } from "./menuplan.page.types";
 
-/* ===================================================================
-// ========================= Interfaces ==============================
-// =================================================================== */
 
 /**
  * Eingangsparameter für den useMenuplanDragDrop-Hook.
@@ -84,9 +82,6 @@ interface UseMenuplanDragDropReturn {
   onMoveDragAndDropElement: OnMoveDragAndDropElementFx;
 }
 
-/* ===================================================================
-// ============================== Hook ===============================
-// =================================================================== */
 
 /**
  * Kapselt die gesamte Drag-&-Drop-Logik für den Menüplan.
@@ -196,7 +191,7 @@ export const useMenuplanDragDrop = ({
             }
             // unable to find destination
             if (!destinationMenue) {
-              console.warn("Drag & Drop kein Ziel gefunden");
+              Sentry.addBreadcrumb({category: "menuplan.dnd", message: "Drag & Drop kein Ziel gefunden"});
               return;
             }
 

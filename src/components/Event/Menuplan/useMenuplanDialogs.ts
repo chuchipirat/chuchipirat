@@ -37,9 +37,6 @@ import {
 import {DialogSelectMenuesForRecipeDialogValues} from "./dialogSelectMenues";
 import RecipeShort from "../../Recipe/recipeShort.class";
 
-/* ===================================================================
-// ===================== Initiale Dialog-Werte =======================
-// =================================================================== */
 
 /** Initialwerte für den Rezeptsuche-Drawer. */
 const RECIPE_SEARCH_DRAWER_INITIAL_DATA: RecipeSearchDrawerData = {
@@ -108,9 +105,6 @@ export interface DialogPdfOptionsData {
   open: boolean;
 }
 
-/* ===================================================================
-// ======================== Return-Typ ===============================
-// =================================================================== */
 
 /**
  * Rückgabetyp des useMenuplanDialogs-Hooks.
@@ -180,9 +174,6 @@ export interface UseMenuplanDialogsReturn {
   >;
 }
 
-/* ===================================================================
-// =========================== Hook ==================================
-// =================================================================== */
 
 /**
  * Bündelt alle Dialog-bezogenen useState-Hooks der Menüplan-Seite.

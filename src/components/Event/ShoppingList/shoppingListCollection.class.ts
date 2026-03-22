@@ -17,7 +17,7 @@ import Product from "../../Product/product.class";
 import {Meal, Menue, MenuplanData} from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 import Recipe from "../../Recipe/recipe.class";
-import ShoppingList, {
+import {ShoppingList,
   ItemType,
   ShoppingListItem,
   ShoppingListTrace,
@@ -149,7 +149,7 @@ interface EditListNameParams {
  * Aktualisieren und Löschen. Keine Persistenz-Logik enthalten —
  * der aufrufende Code (Handler-Hook) speichert über das Repository.
  */
-export default class ShoppingListCollection {
+export class ShoppingListCollection {
   noOfLists: number;
   lists: {[key: string]: ShoppingListEntry};
   lastChange: ChangeRecord;

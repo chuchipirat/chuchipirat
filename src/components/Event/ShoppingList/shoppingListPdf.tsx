@@ -12,14 +12,11 @@ import {
 } from "../../../constants/text";
 
 import {Footer, Header} from "../../Shared/pdfComponents";
-import ShoppingList, {ShoppingListItem} from "./shoppingList.class";
+import {ShoppingList,ShoppingListItem} from "./shoppingList.class";
 import {ShoppingListProperties} from "./shoppingListCollection.class";
 
 const styles = pdfStyles;
 
-/* ===================================================================
-// ======================== globale Funktionen =======================
-// =================================================================== */
 
 /** Zahlenformat für Mengenangaben (Schweizer Locale, max. 3 signifikante Stellen). */
 const QUANTITY_FORMAT = new Intl.NumberFormat("de-CH", {
@@ -287,9 +284,6 @@ function formatShoppingList(
   return pages;
 }
 
-/* ===================================================================
-// ========================= PDF Einkaufsliste =======================
-// =================================================================== */
 /**
  * PDF-Dokument für die Einkaufsliste.
  *
@@ -342,9 +336,6 @@ const ShoppingListPdf = ({
   );
 };
 
-/* ===================================================================
-// =========================== Einkaufsliste-Seite ===================
-// =================================================================== */
 /**
  * Einzelne Seite der Einkaufsliste im PDF.
  *
@@ -388,9 +379,6 @@ const ShoppingListPage = ({
     </Page>
   );
 };
-/* ===================================================================
-// ============================== Titel ==============================
-// =================================================================== */
 /**
  * Titelbereich der Einkaufsliste mit Name, Zeitraum und Artikelanzahl.
  *
@@ -419,9 +407,6 @@ const ShoppingListTitle = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ============================ Item-Liste ===========================
-// =================================================================== */
 /**
  * Zweispaltige Tabelle mit den Einkaufslistenpositionen.
  *
@@ -460,9 +445,6 @@ const ShoppingListList = ({
   );
 };
 
-/* ===================================================================
-// ======================== Einzelne Spalte ===========================
-// =================================================================== */
 
 /**
  * Gibt den Zellenstil für einen Eintrag zurück — durchgestrichen und grau
@@ -557,4 +539,4 @@ const ShoppingListColumn = ({
   );
 };
 
-export default ShoppingListPdf;
+export {ShoppingListPdf};

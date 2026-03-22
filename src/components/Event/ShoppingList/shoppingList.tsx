@@ -1,6 +1,6 @@
 import React, {SyntheticEvent} from "react";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
   Stack,
@@ -73,13 +73,13 @@ import {
 } from "../../Navigation/navigationContext";
 import Action from "../../../constants/actions";
 import AlertMessage from "../../Shared/AlertMessage";
-import ShoppingListCollection from "./shoppingListCollection.class";
-import ShoppingList, {ItemType, ShoppingListItem} from "./shoppingList.class";
+import {ShoppingListCollection} from "./shoppingListCollection.class";
+import {ShoppingList,ItemType, ShoppingListItem} from "./shoppingList.class";
 
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
 import Event from "../Event/event.class";
 import UnitAutocomplete from "../../Unit/unitAutocomplete";
-import ItemAutocomplete, {MaterialItem, ProductItem} from "./itemAutocomplete";
+import {ItemAutocomplete,MaterialItem, ProductItem} from "./itemAutocomplete";
 import Unit from "../../Unit/unit.class";
 import Product from "../../Product/product.class";
 import Department from "../../Department/department.class";
@@ -95,7 +95,7 @@ import DialogProduct, {
 } from "../../Product/dialogProduct";
 import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
-import ShoppingListPdf from "./shoppingListPdf";
+import {ShoppingListPdf} from "./shoppingListPdf";
 import {
   DialogTraceItem,
   EventListCard,
@@ -111,17 +111,14 @@ import {useFirebase} from "../../Firebase/firebaseContext";
 import {HighlightedShoppingListItemContext} from "./shoppingListHighlightContext";
 
 // Custom hooks
-import useRecipeDrawer from "./useRecipeDrawer";
-import useShoppingListHandlers, {
+import {useRecipeDrawer} from "./useRecipeDrawer";
+import {useShoppingListHandlers,
   DialogSelectDepartmentsCaller,
   OnDialogAddItemOk,
   ItemChange,
 } from "./useShoppingListHandlers";
 // import * as Sentry from "@sentry/react";
 
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 enum ReducerActions {
   SHOW_LOADING,
   SET_SELECTED_LIST_ITEM,
@@ -193,15 +190,11 @@ const shoppingListReducer = (state: State, action: DispatchAction): State => {
       };
     default: {
       const _exhaustiveCheck: never = action;
-      console.error("Unbekannter ActionType: ", _exhaustiveCheck);
-      throw new Error();
+      throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
     }
   }
 };
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 interface EventShoppingListPageProps {
   authUser: AuthUser;
   menuplan: MenuplanData;
@@ -366,7 +359,7 @@ const EventShoppingListPage = ({
     const pdfData = onGeneratePrintVersion();
     if (!pdfData) return;
 
-    pdf(
+    generateAndDownloadPdf(
       <ShoppingListPdf
         shoppingList={shoppingList!}
         shoppingListName={pdfData.shoppingListName}
@@ -374,21 +367,11 @@ const EventShoppingListPage = ({
         eventName={event.name}
         authUser={authUser}
       />,
-    )
-      .toBlob()
-      .then((result) => {
-        fileSaver.saveAs(
-          result,
-          event.name + " " + TEXT_SHOPPING_LIST + TEXT_SUFFIX_PDF,
-        );
-      })
-      .catch((error) => {
-        console.error("PDF generation failed:", error);
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error instanceof Error ? error : new Error(String(error)),
-        });
-      });
+      event.name + " " + TEXT_SHOPPING_LIST + TEXT_SUFFIX_PDF,
+      (error) =>
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+      {eventUid: event.uid},
+    );
   }, [onGeneratePrintVersion, shoppingList, event.name, authUser]);
 
   /* ------------------------------------------
@@ -621,9 +604,6 @@ const EventShoppingListPage = ({
     </Stack>
   );
 };
-/* ===================================================================
-// ========================= Einkaufsliste ===========================
-// =================================================================== */
 interface EventShoppingListListProps {
   shoppingList: ShoppingList;
   units: Unit[];
@@ -635,9 +615,6 @@ interface EventShoppingListListProps {
   onChangeItem: (change: ItemChange) => void;
 }
 
-/* ===================================================================
-// ==================== Quantity Field with local state ==============
-// =================================================================== */
 interface QuantityFieldProps {
   departmentKey: string;
   itemUid: string;
@@ -685,9 +662,6 @@ const QuantityField = React.memo(
 );
 QuantityField.displayName = "QuantityField";
 
-/* ===================================================================
-// ========================= Einkaufsliste ===========================
-// =================================================================== */
 const EventShoppingListList = React.memo(
   ({
     shoppingList,
@@ -1045,9 +1019,6 @@ const EventShoppingListList = React.memo(
 );
 EventShoppingListList.displayName = "EventShoppingListList";
 
-/* ===================================================================
-// ==================== Dialog Artikel hinzufügen ====================
-// =================================================================== */
 interface DialogHandleItemProps {
   dialogOpen: boolean;
   item: null | ProductItem | MaterialItem;
@@ -1326,4 +1297,4 @@ const DialogHandleItem = ({
   );
 };
 
-export default EventShoppingListPage;
+export {EventShoppingListPage};

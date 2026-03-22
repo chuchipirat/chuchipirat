@@ -13,6 +13,7 @@
  *   useShoppingListHandlers({...});
  */
 import React from "react";
+import * as Sentry from "@sentry/react";
 import {AlertColor} from "@mui/material";
 import {
   DialogSelectMenuesForRecipeDialogValues,
@@ -32,10 +33,10 @@ import {
   MenuplanData,
 } from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals, sortSelectedMenues} from "../Menuplan/menuplanService";
-import ShoppingListCollection, {
+import {ShoppingListCollection,
   ShoppingListTrace,
 } from "./shoppingListCollection.class";
-import ShoppingList, {
+import {ShoppingList,
   ItemType,
   ShoppingListItem,
 } from "./shoppingList.class";
@@ -83,9 +84,6 @@ import {
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {AutocompleteChangeReason} from "@mui/material";
 
-/* ===================================================================
-// ========================= Types & Constants =======================
-// =================================================================== */
 
 export interface ContextMenuSelectedItemProps {
   anchor: HTMLElement | null;
@@ -167,9 +165,6 @@ enum AddItemAction {
   ADD,
 }
 
-/* ===================================================================
-// ======================= Hook Props ================================
-// =================================================================== */
 
 interface UseShoppingListHandlersProps {
   authUser: AuthUser;
@@ -196,9 +191,6 @@ interface UseShoppingListHandlersProps {
   onDispatchSnackbar: (severity: AlertColor, message: string) => void;
 }
 
-/* ===================================================================
-// ========================= Helper Functions ========================
-// =================================================================== */
 
 /**
  * Prüft, ob eine Einkaufsliste manuell bearbeitete Artikel enthält.
@@ -333,9 +325,6 @@ const handleDuplicateItem = async ({
   })) as SingleTextInputResult;
 };
 
-/* ===================================================================
-// ================================ Hook =============================
-// =================================================================== */
 
 /**
  * Konsolidierter Hook für alle Einkaufslisten-Handler.
@@ -654,7 +643,7 @@ const useShoppingListHandlers = ({
           result.shoppingListCollection.lists[shoppingList.uid].properties,
         );
       } catch (error) {
-        console.error(error);
+        Sentry.captureException(error);
         onDispatchError(error as Error);
       }
     },
@@ -811,7 +800,7 @@ const useShoppingListHandlers = ({
                   },
                   authUser,
                 )
-                .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+                .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
             }
 
             // Liste laden und anzeigen
@@ -824,7 +813,7 @@ const useShoppingListHandlers = ({
             if ((error as Error).toString().includes(TEXT_ERROR_NO_RECIPES_FOUND)) {
               onDispatchSnackbar("info", TEXT_ERROR_NO_RECIPES_FOUND);
             } else {
-              console.error(error);
+              Sentry.captureException(error);
               onDispatchError(error as Error);
             }
           } finally {
@@ -924,7 +913,7 @@ const useShoppingListHandlers = ({
 
       // In Supabase löschen (CASCADE entfernt Items)
       database.shoppingLists.deleteList(selectedList).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         onDispatchError(error);
       });
     },
@@ -1273,7 +1262,7 @@ const useShoppingListHandlers = ({
               shoppingListItem.quantity = quantity;
               break;
             default:
-              console.warn("ENUM unbekannt:", userInput.input);
+              Sentry.captureMessage("ENUM unbekannt", {extra: {input: userInput.input}});
               return;
           }
           shoppingListItem.manualEdit = true;
@@ -1361,7 +1350,7 @@ const useShoppingListHandlers = ({
 
       // In Supabase persistieren
       persistListItems(selectedListItem!, shoppingList!).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         onDispatchError(error);
       });
 
@@ -1370,7 +1359,7 @@ const useShoppingListHandlers = ({
         database.shoppingLists.updateListHeader(selectedListItem!, {
           has_manually_added_items: true,
         }).catch((error) => {
-          console.error(error);
+          Sentry.captureException(error);
         });
       }
 
@@ -1461,12 +1450,12 @@ const useShoppingListHandlers = ({
           })
           .catch((error) => {
             saveInProgressRef.current = false;
-            console.error(error);
+            Sentry.captureException(error);
           });
       } else {
         // Fallback: alle Items neu speichern
         persistListItems(shoppingList.uid, shoppingList).catch((error) => {
-          console.error(error);
+          Sentry.captureException(error);
         });
       }
     },
@@ -1546,7 +1535,7 @@ const useShoppingListHandlers = ({
             )!;
           }
           if (!department) {
-            console.error("Abteilung für Artikel nicht gefunden!");
+            Sentry.captureMessage("Abteilung für Artikel nicht gefunden", {level: "error"});
             return;
           }
 
@@ -1634,7 +1623,7 @@ const useShoppingListHandlers = ({
                   existingShoppingListItem.quantity = item.quantity;
                   break;
                 default:
-                  console.warn("ENUM unbekannt:", userInput.input);
+                  Sentry.captureMessage("ENUM unbekannt", {extra: {input: userInput.input}});
                   return;
               }
 
@@ -1712,7 +1701,7 @@ const useShoppingListHandlers = ({
       // Änderungen in Supabase persistieren
       persistListItems(updatedShoppingList.uid, updatedShoppingList).catch(
         (error) => {
-          console.error(error);
+          Sentry.captureException(error);
         },
       );
 
@@ -1728,7 +1717,7 @@ const useShoppingListHandlers = ({
             has_manually_added_items: true,
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
           });
       }
     },
@@ -1783,4 +1772,4 @@ const useShoppingListHandlers = ({
   };
 };
 
-export default useShoppingListHandlers;
+export {useShoppingListHandlers};

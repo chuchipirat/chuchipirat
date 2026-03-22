@@ -91,9 +91,6 @@ import Department from "../../Department/department.class";
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
-/* ===================================================================
-// ========================= Parameter-Typ ===========================
-// =================================================================== */
 
 /**
  * Eingangsparameter für den useMenuplanHandlers-Hook.
@@ -147,9 +144,6 @@ export interface UseMenuplanHandlersParams {
   userDidChangeDnD: React.MutableRefObject<boolean>;
 }
 
-/* ===================================================================
-// ========================= Rückgabe-Typ ============================
-// =================================================================== */
 
 /**
  * Rückgabetyp des useMenuplanHandlers-Hooks.
@@ -240,9 +234,6 @@ export interface UseMenuplanHandlersReturn {
   onMenuplanUpdate: (valuesToUpdate: OnMenuplanUpdate) => void;
 }
 
-/* ===================================================================
-// ============================== Hook ===============================
-// =================================================================== */
 
 /**
  * Bündelt alle nicht-DnD Event-Handler der Menüplan-Seite.

@@ -182,7 +182,7 @@ interface AddTraceEntryParams {
  * Generiert Listen aus dem Menüplan, verwaltet Positionen und bietet
  * Hilfsmethoden für die UI. Keine Persistenz-Logik enthalten.
  */
-export default class ShoppingList {
+export class ShoppingList {
   uid: string;
   list: {
     [key: Department["pos"]]: ShoppingListDepartment;
