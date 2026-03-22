@@ -11,7 +11,7 @@ import Event from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {RecipeType} from "../../Recipe/recipe.class";
 import RecipeShort from "../../Recipe/recipeShort.class";
-import EventGroupConfiguration, {
+import {EventGroupConfiguration,
   Intolerance,
   Diet,
 } from "../GroupConfiguration/groupConfiguration.class";

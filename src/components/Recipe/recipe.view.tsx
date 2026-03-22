@@ -167,7 +167,7 @@ import {
   PlanedIntolerances,
   MealRecipe,
 } from "../Event/Menuplan/menuplan.types";
-import EventGroupConfiguration from "../Event/GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfiguration.class";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {
   NavigationValuesContext,

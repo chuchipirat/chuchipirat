@@ -16,7 +16,7 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
-import EventGroupConfiguration, {
+import {EventGroupConfiguration,
   Diet,
   Intolerance,
 } from "../../Event/GroupConfiguration/groupConfiguration.class";

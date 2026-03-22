@@ -16,7 +16,7 @@ import {
   PlanedDiet,
   PlanedIntolerances,
 } from "./menuplan.types";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import Action from "../../../constants/actions";
 import {
   ALL as TEXT_ALL,

@@ -47,7 +47,7 @@ export interface Portions {
   [key: Diet["uid"]]: IntolerancePortions;
 }
 
-export default class EventGroupConfiguration {
+export class EventGroupConfiguration {
   uid: string;
   diets: GroupConfigObjectStructure<Diet>;
   intolerances: GroupConfigObjectStructure<Intolerance>;
@@ -55,9 +55,7 @@ export default class EventGroupConfiguration {
   totalPortions: number;
   created: ChangeRecord;
   lastChange: ChangeRecord;
-  /* =====================================================================
-  // Constructor
-  // ===================================================================== */
+
   constructor() {
     this.uid = "";
     this.diets = {
@@ -73,7 +71,6 @@ export default class EventGroupConfiguration {
     this.created = {date: new Date(0), fromUid: "", fromDisplayName: ""};
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
   }
-  // ===================================================================== */
   /**
    * Factory-Methode
    * erzeugt ein fix-fertigs Objekt vom Typ Group-Config
@@ -113,7 +110,6 @@ export default class EventGroupConfiguration {
 
     return groupConfig;
   }
-  // ===================================================================== */
   /**
    * Unverträglichkeit hinzufügen
    * @param Objekt mit Unverträglichkeit-Array und Name der neuen Unverträglichkeit
@@ -137,7 +133,6 @@ export default class EventGroupConfiguration {
 
     return groupConfig;
   }
-  // ===================================================================== */
   /**
    * Intoleranz löschen
    * @param Objekt mit groupConfig und UID der Intoleranz, die gelöscht werden muss
@@ -162,7 +157,6 @@ export default class EventGroupConfiguration {
 
     return groupConfig;
   }
-  // ===================================================================== */
   /**
    * Diät-Gruppe hinzufügen
    * @param Objekt mit Diät-Array und Name der neuen Diätgruppe
@@ -186,7 +180,6 @@ export default class EventGroupConfiguration {
 
     return groupConfig;
   }
-  // ===================================================================== */
   /**
    * Diät aus Diät-Array löschen
    * @param Objekt mit groupConfig und UID der Diät, die gelöscht werden muss
@@ -206,7 +199,6 @@ export default class EventGroupConfiguration {
 
     return groupConfig;
   }
-  // ===================================================================== */
   /**
    * Die Totale der Diäten und Intoleranzen neu berechnen
    * @param groupConfig

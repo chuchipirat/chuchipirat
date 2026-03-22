@@ -31,7 +31,7 @@ import {
 import {ImageRepository} from "../../../constants/imageRepository";
 import useCustomStyles from "../../../constants/styles";
 
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {MealRecipe, MenueCoordinates} from "../Menuplan/menuplan.types";
 import {generatePlanedPortionsText} from "../Menuplan/menuplan";
 import Recipe, {RecipeType} from "../../Recipe/recipe.class";

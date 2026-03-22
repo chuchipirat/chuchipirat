@@ -33,7 +33,7 @@ import {
   MenuplanData,
 } from "../../Menuplan/menuplan.types";
 import Recipe, {RecipeType} from "../../../Recipe/recipe.class";
-import EventGroupConfiguration from "../../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 
 /* =====================================================================
 // Test-Hilfsfunktionen

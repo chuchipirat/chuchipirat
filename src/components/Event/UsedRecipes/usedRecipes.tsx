@@ -25,7 +25,7 @@ import useCustomStyles from "../../../constants/styles";
 
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Event from "../Event/event.class";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import AlertMessage from "../../Shared/AlertMessage";
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
 import {MenuplanData} from "../Menuplan/menuplan.types";

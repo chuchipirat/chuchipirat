@@ -59,7 +59,7 @@ import {
   TOOLTIP_MOVE_DOWN as TEXT_TOOLTIP_MOVE_DOWN,
   TOOLTIP_MOVE_OTHER_MENU as TEXT_TOOLTIP_MOVE_OTHER_MENU,
 } from "../../../constants/text";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 
 export type TListItem = {
   id: string;

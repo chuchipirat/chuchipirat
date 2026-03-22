@@ -84,7 +84,7 @@ import type {
   OnAddGoodToMenuProps,
 } from "./menuplan.page.types";
 import type {UseMenuplanDialogsReturn} from "./useMenuplanDialogs";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import EventClass from "../Event/event.class";
 import Unit from "../../Unit/unit.class";
 import Department from "../../Department/department.class";

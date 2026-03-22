@@ -94,7 +94,7 @@ import DialogProduct, {
   ProductDialog,
 } from "../../Product/dialogProduct";
 import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import ShoppingListPdf from "./shoppingListPdf";
 import {
   DialogTraceItem,

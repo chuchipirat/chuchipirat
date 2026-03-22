@@ -42,7 +42,7 @@ import useCustomStyles from "../../../constants/styles";
 
 import PageTitle from "../../Shared/pageTitle";
 import EventInfoPage from "./eventInfo";
-import EventGroupConfigurationPage from "../GroupConfiguration/groupConfiguration";
+import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
 import Event from "./event.class";
 
 import {
@@ -63,7 +63,7 @@ import AlertMessage from "../../Shared/AlertMessage";
 import FieldValidationError, {
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {useAuthUser} from "../../Session/authUserContext";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ImageRepository} from "../../../constants/imageRepository";

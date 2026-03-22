@@ -54,7 +54,7 @@ import {
 import {PlanedObject} from "./menuplan.constants";
 import {MenuplanData} from "./menuplan.types";
 import {findMealOfMenu} from "./menuplanService";
-import EventGroupConfiguration, {
+import {EventGroupConfiguration,
   Intolerance,
 } from "../GroupConfiguration/groupConfiguration.class";
 import {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";

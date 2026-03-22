@@ -58,7 +58,7 @@ import useCustomStyles from "../../../constants/styles";
 import {ButtonAction} from "../../Shared/global.interface";
 import AlertMessage from "../../Shared/AlertMessage";
 import Event from "../Event/event.class";
-import EventGroupConfiguration from "./groupConfiguration.class";
+import {EventGroupConfiguration} from "./groupConfiguration.class";
 
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
@@ -75,12 +75,6 @@ import {
 import Action from "../../../constants/actions";
 import {useDatabase} from "../../Database/DatabaseContext";
 // Bridge-Import eliminiert — Konvertierung erfolgt direkt im Repository
-/* ===================================================================
-// ============================== Global =============================
-// =================================================================== */
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 /** Alle verfügbaren Aktionstypen für den Gruppen-Konfiguration-Reducer. */
 enum ReducerActions {
   UPDATE_FIELD = "UPDATE_FIELD",
@@ -185,15 +179,11 @@ const groupConfigurationReducer = (
       };
     default: {
       const _exhaustiveCheck: never = action;
-      console.error("Unbekannter ActionType: ", _exhaustiveCheck);
-      throw new Error();
+      throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
     }
   }
 };
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 /** Props für die Gruppenkonfiguration-Seite. */
 interface EventGroupConfigurationPageProps {
   /** Firebase-Instanz für DB-Zugriffe. */
@@ -598,9 +588,6 @@ const EventGroupConfigurationPage = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ========================= Group-Config-Card =======================
-// =================================================================== */
 /** Props für die Gruppenkonfiguration-Karte. */
 interface EventGroupConfigurationCardProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -731,9 +718,6 @@ const EventGroupConfigurationCard = ({
     </div>
   );
 };
-/* ===================================================================
-// ============================ Lead-Spalte ==========================
-// =================================================================== */
 /** Props für die Lead-Spalte (Intoleranzen + Total-Label). */
 interface EventGroupConfigLeadColumnProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -814,9 +798,6 @@ const EventGroupConfigLeadColumn = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// =========================== Diät-Spalte ===========================
-// =================================================================== */
 /** Props für die Diät-Spalten (je eine pro Diätgruppe). */
 interface EventGroupConfigDietColumnProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -931,9 +912,6 @@ const EventGroupConfigDietColumn = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// =========================== Total-Spalte ==========================
-// =================================================================== */
 /** Props für die Total-Spalte. */
 interface EventGroupConfigTotalColumnProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -1014,4 +992,4 @@ const EventGroupConfigTotalColumn = ({
   );
 };
 
-export default EventGroupConfigurationPage;
+export {EventGroupConfigurationPage};

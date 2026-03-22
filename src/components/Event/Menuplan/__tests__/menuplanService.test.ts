@@ -57,7 +57,7 @@ import {
 } from "../menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import RecipeShort from "../../../Recipe/recipeShort.class";
-import EventGroupConfiguration from "../../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 import Event from "../../Event/event.class";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
 

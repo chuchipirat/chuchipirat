@@ -21,7 +21,7 @@ import RecipeShort from "../../Recipe/recipeShort.class";
 import {MenuplanDragDropTypes} from "./menuplan.constants";
 import {Recipes} from "../../Recipe/recipe.class";
 import Recipe from "../../Recipe/recipe.class";
-import EventGroupConfiguration, {
+import {EventGroupConfiguration,
   Diet,
   Intolerance,
 } from "../GroupConfiguration/groupConfiguration.class";

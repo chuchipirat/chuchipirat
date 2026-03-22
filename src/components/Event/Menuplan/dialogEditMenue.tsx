@@ -34,7 +34,7 @@ import {
   EditMenueObjectManipulation,
   generatePlanedPortionsText,
 } from "./menuplan.constants";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {RecipeType} from "../../Recipe/recipe.class";
 import {
   RECIPES as TEXT_RECIPES,

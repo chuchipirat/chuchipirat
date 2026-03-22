@@ -18,7 +18,7 @@ import {
   DialogPlanPortionsDietPlanning,
   DialogPlanPortionsPlanningInfo,
 } from "../menuplan.page.types";
-import EventGroupConfiguration from "../../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 
 /* =====================================================================
 // Testdaten-Hilfsfunktion

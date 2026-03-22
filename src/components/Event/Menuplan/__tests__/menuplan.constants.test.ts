@@ -19,7 +19,7 @@ import {
   PlanedIntolerances,
   PortionPlan,
 } from "../menuplan.types";
-import EventGroupConfiguration from "../../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 
 /* =====================================================================
 // Test-Hilfsfunktionen

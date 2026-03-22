@@ -11,7 +11,7 @@ import React from "react";
 
 import {Stack, Container, useTheme, Box} from "@mui/material";
 
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {
   MealRecipe,
   MenueCoordinates,
