@@ -78,7 +78,7 @@ interface CheckIfDeletedDayArePlanned {
  * Enthält Validierung, Datenaufbereitung und reine Geschäftslogik.
  * Persistenz wird durch Supabase-Repositories und Bridge-Funktionen abgedeckt.
  */
-export default class Event {
+export class Event {
   uid: string;
   name: string;
   motto: string;

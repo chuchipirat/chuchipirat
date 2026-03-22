@@ -16,7 +16,7 @@ import {
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 import {supabase} from "../supabaseClient";
-import Event, {Cook, EventDate} from "../../Event/Event/event.class";
+import {Event,Cook, EventDate} from "../../Event/Event/event.class";
 
 /* =====================================================================
 // DB-Zeilenstrukturen (snake_case, entspricht den Postgres-Spalten)

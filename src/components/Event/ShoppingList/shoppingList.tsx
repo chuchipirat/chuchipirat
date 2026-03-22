@@ -77,7 +77,7 @@ import {ShoppingListCollection} from "./shoppingListCollection.class";
 import {ShoppingList,ItemType, ShoppingListItem} from "./shoppingList.class";
 
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
-import Event from "../Event/event.class";
+import {Event} from "../Event/event.class";
 import UnitAutocomplete from "../../Unit/unitAutocomplete";
 import {ItemAutocomplete,MaterialItem, ProductItem} from "./itemAutocomplete";
 import Unit from "../../Unit/unit.class";

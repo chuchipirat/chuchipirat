@@ -13,9 +13,8 @@
  * <MenuplanHeaderRow onPrint={handlers.onPrint} ... />
  */
 import React, {useCallback, useRef} from "react";
-import {pdf} from "@react-pdf/renderer";
-import {saveAs} from "file-saver";
 import * as Sentry from "@sentry/react";
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
   Menue,
@@ -470,21 +469,17 @@ export function useMenuplanHandlers({
   const onPrintConfirm = useCallback((options: MenuplanPdfOptions) => {
     setDialogPdfOptionsData({open: false});
     const {event, menuplan, authUser} = ctx.current;
-    pdf(
+    generateAndDownloadPdf(
       <MenuplanPdf
         event={event}
         menuplan={menuplan}
         authUser={authUser}
         pdfOptions={options}
-      />
-    )
-      .toBlob()
-      .then((result) => {
-        saveAs(result, "Menueplan " + event.name + TEXT_SUFFIX_PDF);
-      })
-      .catch((error) => {
-        Sentry.captureException(error, {extra: {eventUid: event.uid}});
-      });
+      />,
+      "Menueplan " + event.name + TEXT_SUFFIX_PDF,
+      undefined,
+      {eventUid: event.uid},
+    );
   }, []);
 
   const onPrintCancel = useCallback(() => {

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import React, {SyntheticEvent} from "react";
 
 import {useNavigate, useLocation, useSearchParams} from "react-router";
@@ -19,7 +20,7 @@ import {
 
 import useCustomStyles from "../../../constants/styles";
 
-import Event, {EventRefDocuments} from "./event.class";
+import {Event,EventRefDocuments} from "./event.class";
 // Bridge-Importe eliminiert — Konvertierung erfolgt direkt in den Repositories
 import {resizeImage} from "../../Shared/imageResize";
 import PageTitle from "../../Shared/pageTitle";
@@ -92,7 +93,7 @@ import {
   headersDomainToMaterialList,
   itemsDomainToMaterialListItems,
 } from "../MaterialList/materialListAdapter";
-import EventInfoPage from "./eventInfo";
+import {EventInfoPage} from "./eventInfo";
 import FieldValidationError, {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
 import {
   DialogType,
@@ -111,11 +112,8 @@ import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
 import {EventDomain} from "../../Database/Repository/EventRepository";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
-import EventMasterDataContext, {EventMasterData} from "./eventMasterDataContext";
+import {EventMasterDataContext,EventMasterData} from "./eventMasterDataContext";
 
-/* ===================================================================
-// ============================== Global =============================
-// =================================================================== */
 enum EventTabs {
   menuplan,
   quantityCalculation,
@@ -266,9 +264,6 @@ function tabProps(index: number) {
     "aria-controls": `scrollable-auto-tabpanel-${index}`,
   };
 }
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 enum ReducerActions {
   EVENT_FETCH_INIT,
   EVENT_FETCH_SUCCESS,
@@ -784,7 +779,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.GENERIC_ERROR:
       // Allgemeiner Fehler
-      console.warn(action.payload);
+      Sentry.captureException(action.payload);
       return {
         ...state,
         isLoading: false,
@@ -792,7 +787,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       };
     default: {
       const _exhaustiveCheck: never = action;
-      console.error("Unbekannter ActionType: ", _exhaustiveCheck);
+      
       throw new Error();
     }
   }
@@ -849,14 +844,8 @@ const INTITIAL_STATE_EVENT_DRAF: EventDraftState = {
 interface LocationState {
   event: Event;
 }
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 /**
  * Zuordnung von URL-Query-Parameter `?tab=` auf den passenden EventTabs-Wert.
  * Ermöglicht Deep-Links auf bestimmte Tabs (z.B. aus dem Verwendungsnachweis).
@@ -983,7 +972,7 @@ const EventPage = () => {
         });
       },
       (error) => {
-        console.warn("Realtime event subscription error:", error.message);
+        Sentry.captureException(error, {extra: {context: "Realtime event subscription"}});
       },
     );
 
@@ -1019,7 +1008,7 @@ const EventPage = () => {
         });
       },
       (error) => {
-        console.warn("Realtime groupconfig subscription error:", error.message);
+        Sentry.captureException(error, {extra: {context: "Realtime groupconfig subscription"}});
       },
     );
 
@@ -1089,7 +1078,7 @@ const EventPage = () => {
       eventUid,
       debouncedReload,
       (error) => {
-        console.warn("Realtime menuplan subscription error:", error.message);
+        Sentry.captureException(error, {extra: {context: "Realtime menuplan subscription"}});
       },
     );
 
@@ -1133,7 +1122,7 @@ const EventPage = () => {
           });
         },
         (error) => {
-          console.warn("Realtime shopping list subscription error:", error.message);
+          Sentry.captureException(error, {extra: {context: "Realtime shopping list subscription"}});
         },
       );
 
@@ -1351,10 +1340,7 @@ const EventPage = () => {
           });
         },
         (error) => {
-          console.warn(
-            "Realtime usedrecipelists subscription error:",
-            error.message,
-          );
+          Sentry.captureException(error, {extra: {context: "Realtime usedrecipelists subscription"}});
         },
       );
 
@@ -1410,10 +1396,7 @@ const EventPage = () => {
           });
         },
         (error) => {
-          console.warn(
-            "Realtime materiallists subscription error:",
-            error.message,
-          );
+          Sentry.captureException(error, {extra: {context: "Realtime materiallists subscription"}});
         },
       );
 
@@ -1460,7 +1443,7 @@ const EventPage = () => {
       })
       .catch((error) => {
         menuplanSaveInProgress.current = false;
-        console.error("Menuplan-Speichern fehlgeschlagen:", error);
+        Sentry.captureException(error, {extra: {context: "Menuplan-Speichern"}});
         // Rollback: vorherigen Zustand wiederherstellen, damit keine Daten verloren gehen
         dispatch({
           type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
@@ -1561,7 +1544,7 @@ const EventPage = () => {
       setEventDraft((prev) => ({...prev, event: event, localPicture: null, formValidation: []}));
       dispatch({type: ReducerActions.EVENT_SAVE_SUCCESS, payload: {}});
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
@@ -1691,12 +1674,12 @@ const EventPage = () => {
         });
       }, 500);
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
   const onEventConsistencyCheck = () => {
-    console.debug("Starte Konsistenzprüfung für Event:");
+    Sentry.addBreadcrumb({category: "event.consistency", message: "Starte Konsistenzprüfung"});
     const fixedMenuplan = fixMenuplan(state.menuplan);
 
     if (!fixedMenuplan.isConsistent) {
@@ -1728,7 +1711,7 @@ const EventPage = () => {
         FirebaseAnalyticEvent.menuplanConsistencyCheckNoErrors,
       );
     }
-    console.debug;
+    Sentry.addBreadcrumb({category: "event.consistency", message: "Konsistenzprüfung abgeschlossen"});
     ("Konsistenzprüfung abgeschlossen.");
   };
   /* ------------------------------------------
@@ -1782,7 +1765,7 @@ const EventPage = () => {
             });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -2012,7 +1995,7 @@ const EventPage = () => {
             });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
             dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
           });
 
@@ -2069,10 +2052,7 @@ const EventPage = () => {
               });
             },
             (error) => {
-              console.warn(
-                "Realtime shopping list items subscription error:",
-                error.message,
-              );
+              Sentry.captureException(error, {extra: {context: "Realtime shopping list items subscription"}});
             },
           );
           dispatch({
@@ -2362,4 +2342,4 @@ const EventPage = () => {
   );
 };
 
-export default EventPage;
+export {EventPage};

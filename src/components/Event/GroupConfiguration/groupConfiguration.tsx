@@ -57,7 +57,7 @@ import {
 import useCustomStyles from "../../../constants/styles";
 import {ButtonAction} from "../../Shared/global.interface";
 import AlertMessage from "../../Shared/AlertMessage";
-import Event from "../Event/event.class";
+import {Event} from "../Event/event.class";
 import {EventGroupConfiguration} from "./groupConfiguration.class";
 
 import Firebase from "../../Firebase/firebase.class";

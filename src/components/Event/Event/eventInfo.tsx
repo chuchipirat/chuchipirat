@@ -1,7 +1,7 @@
+import * as Sentry from "@sentry/react";
 import React from "react";
 import {useTheme} from "@mui/material/styles";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
   Card,
@@ -60,7 +60,7 @@ import useCustomStyles from "../../../constants/styles";
 
 import {ImageRepository} from "../../../constants/imageRepository";
 
-import Event, {EventRefDocuments} from "./event.class";
+import {Event,EventRefDocuments} from "./event.class";
 import User from "../../User/user.class";
 
 import Firebase from "../../Firebase/firebase.class";
@@ -80,15 +80,12 @@ import {
   NavigationValuesContext,
 } from "../../Navigation/navigationContext";
 import Action from "../../../constants/actions";
-import Receipt from "./receipt.class";
-import EventReceiptPdf from "./eventRecipePdf";
+import {Receipt} from "./receipt.class";
+import {EventReceiptPdf} from "./eventRecipePdf";
 import {EventDate} from "./event.class";
 import {DatePicker} from "@mui/x-date-pickers";
 import {resizeImage} from "../../Shared/imageResize";
 
-/* ===================================================================
-// ============================== Global =============================
-// =================================================================== */
 
 /** Epoch-Zeitstempel (1.1.1970) für Vergleiche mit leeren Datumsfeldern. */
 const EPOCH_TIME = new Date(0).getTime();
@@ -147,9 +144,6 @@ const autoAppendDateRow = (
   return dates;
 };
 
-/* ===================================================================
-// ============================ Event-Info ===========================
-// =================================================================== */
 /** Props für die Event-Informationsseite. */
 interface EventInfoPageProps {
   /** Das aktuelle Event-Objekt. */
@@ -348,7 +342,7 @@ const EventInfoPage = ({
             },
             authUser,
           )
-          .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+          .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
       }
 
       onUpdateEvent({...event, cooks: updatedCooks} as Event);
@@ -399,15 +393,14 @@ const EventInfoPage = ({
         firebase: firebase,
         eventUid: event.uid,
       });
-      const blob = await pdf(
+      await generateAndDownloadPdf(
         <EventReceiptPdf receiptData={receiptData} authUser={authUser} />,
-      ).toBlob();
-      fileSaver.saveAs(
-        blob,
         event.name + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
+        (error) => onError?.(error),
+        {eventUid: event.uid},
       );
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       onError?.(error as Error);
     }
   };
@@ -447,9 +440,6 @@ const EventInfoPage = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ============================= Info-Card ===========================
-// =================================================================== */
 /** Props für die Basis-Informationskarte des Events. */
 interface EventBasicInfoCardProps {
   /** Das aktuelle Event-Objekt. */
@@ -601,9 +591,6 @@ const EventBasicInfoCard = ({
     </Card>
   );
 };
-/* ===================================================================
-// ========================= Datums-Bereich ==========================
-// =================================================================== */
 /** Props für den Datums-Bereich. */
 interface EventDatesSectionProps {
   /** Das aktuelle Event-Objekt. */
@@ -723,9 +710,6 @@ const EventDatesSection = ({
     </Grid>
   );
 };
-/* ===================================================================
-// =========================== Bild-Bereich ==========================
-// =================================================================== */
 /** Erlaubte MIME-Typen für Event-Bilder. */
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 /** Maximale Dateigrösse für Event-Bilder (10 MB, wird vor Upload auf <2 MB skaliert). */
@@ -841,9 +825,6 @@ const EventImageSection = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ============================ Koch-Team ============================
-// =================================================================== */
 /** Props für die Koch-Team-Karte. */
 interface EventCookingTeamCardProps {
   /** Das aktuelle Event-Objekt. */
@@ -964,4 +945,4 @@ const EventCookingTeamCard = ({
   );
 };
 
-export default EventInfoPage;
+export {EventInfoPage};

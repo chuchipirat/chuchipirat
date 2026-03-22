@@ -14,8 +14,6 @@ import {
 
 import {FormListItem} from "../../Shared/formListItem";
 
-import Firebase from "../../Firebase/firebase.class";
-
 import {
   LOCATION as TEXT_LOCATION,
   UID as TEXT_UID,
@@ -27,7 +25,7 @@ import {
   CREATED_FROM as TEXT_CREATED_FROM,
 } from "../../../constants/text";
 
-import EventShort from "./eventShort.class";
+import {EventShort} from "./eventShort.class";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {useNavigate} from "react-router";
 import Action from "../../../constants/actions";
@@ -43,11 +41,7 @@ export interface DialogQuickViewActions {
   ) => void;
 }
 
-/* ===================================================================
-// ==================== Pop Up Event Kurzübersicht ==================
-// =================================================================== */
 interface DialogEventQuickViewProps {
-  firebase: Firebase;
   eventShort: EventShort;
   dialogOpen: boolean;
   handleClose: (event, reason) => void;
@@ -201,4 +195,4 @@ const DialogEventQuickView = ({
   );
 };
 
-export default DialogEventQuickView;
+export {DialogEventQuickView};

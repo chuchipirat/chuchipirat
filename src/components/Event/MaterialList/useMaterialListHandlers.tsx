@@ -20,7 +20,7 @@ import {
 import {OperationType} from "../Event/eventSharedComponents";
 import Material, {MaterialType} from "../../Material/material.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Event, {Cook} from "../Event/event.class";
+import {Event,Cook} from "../Event/event.class";
 import {
   Menue,
   MenueCoordinates,

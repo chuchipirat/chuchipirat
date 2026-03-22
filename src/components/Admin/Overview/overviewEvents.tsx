@@ -15,8 +15,7 @@
  * const OverviewEvents = lazy(() => import("../Admin/Overview/overviewEvents"));
  */
 import React from "react";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 import {useNavigate} from "react-router";
 
 import {
@@ -65,8 +64,8 @@ import {useAuthUser} from "../../Session/authUserContext";
 
 import type {EventDomain} from "../../Database/Repository/EventRepository";
 import {getMaxDate} from "../../Database/Repository/EventRepository";
-import EventReceiptPdf from "../../Event/Event/eventRecipePdf";
-import Receipt from "../../Event/Event/receipt.class";
+import {EventReceiptPdf} from "../../Event/Event/eventRecipePdf";
+import {Receipt} from "../../Event/Event/receipt.class";
 import User from "../../User/user.class";
 import Action from "../../../constants/actions";
 import {EVENT as ROUTE_EVENT} from "../../../constants/routes";
@@ -749,21 +748,12 @@ const OverviewEventsPage = () => {
       fromUid: authUser.uid,
     };
 
-    pdf(<EventReceiptPdf receiptData={receiptData} authUser={authUser} />)
-      .toBlob()
-      .then((result) => {
-        fileSaver.saveAs(
-          result,
-          dialogValues.eventName + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
-        );
-      })
-      .catch((error) => {
-        Sentry.captureException(error);
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error instanceof Error ? error : new Error(String(error)),
-        });
-      });
+    generateAndDownloadPdf(
+      <EventReceiptPdf receiptData={receiptData} authUser={authUser} />,
+      dialogValues.eventName + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
+      (error) =>
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+    );
 
     Receipt.save({firebase, receipt: receiptData, authUser}).catch((error) => {
       Sentry.captureException(error);

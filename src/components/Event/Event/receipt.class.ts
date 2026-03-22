@@ -1,7 +1,8 @@
+import * as Sentry from "@sentry/react";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Firebase from "../../Firebase/firebase.class";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Event, {EventRefDocuments} from "./event.class";
+import {Event,EventRefDocuments} from "./event.class";
 
 interface Save {
   firebase: Firebase;
@@ -13,7 +14,7 @@ interface GetReceipt {
   eventUid: Event["uid"];
 }
 
-export default class Receipt {
+export class Receipt {
   eventUid: Event["uid"];
   eventName: Event["name"];
   payDate: Date;
@@ -62,7 +63,7 @@ export default class Receipt {
             event: result,
             authUser: authUser,
           }).catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
             throw error;
           });
         }

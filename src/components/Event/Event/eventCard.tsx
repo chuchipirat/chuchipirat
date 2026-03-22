@@ -170,9 +170,6 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
     </Card>
   );
 };
-/* ===================================================================
-// =====================Rezept Karte am laden ========================
-// =================================================================== */
 const EventCardLoading = () => {
   const classes = useCustomStyles();
 
@@ -193,5 +190,5 @@ const EventCardLoading = () => {
   );
 };
 
-export default EventCard;
+export {EventCard};
 export {EventCardLoading};

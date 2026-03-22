@@ -26,7 +26,7 @@ import Department from "../../Department/department.class";
 import Unit from "../../Unit/unit.class";
 import Material from "../../Material/material.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Event from "../Event/event.class";
+import {Event} from "../Event/event.class";
 import {
   Menue,
   MenueCoordinates,

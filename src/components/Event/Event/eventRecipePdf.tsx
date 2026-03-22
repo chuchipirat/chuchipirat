@@ -2,7 +2,7 @@ import React from "react";
 import {Document, Page, View, Text, Image} from "@react-pdf/renderer";
 import "../../Shared/pdfFontRegistration";
 
-import Receipt from "./receipt.class";
+import {Receipt} from "./receipt.class";
 import {pdfStyles} from "../../../constants/stylesEventReceiptPdf";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
@@ -20,9 +20,6 @@ import {Footer} from "../../Shared/pdfComponents";
 import {ImageRepository} from "../../../constants/imageRepository";
 import Utils from "../../Shared/utils.class";
 
-/* ===================================================================
-// =========================== Quittung PDF ==========================
-// =================================================================== */
 /**
  * PDF-Dokument für eine Event-Quittung (Spendenbeleg).
  *
@@ -64,9 +61,6 @@ const EventReceiptPdf = ({receiptData, authUser}: EventRecipePdfProps) => {
     </Document>
   );
 };
-/* ===================================================================
-// ========================== Quittung Page ==========================
-// =================================================================== */
 /**
  * Einzelne Seite der Quittung im A5-Querformat.
  *
@@ -119,9 +113,6 @@ const EventReceiptPdfPage = ({
     </Page>
   );
 };
-/* ===================================================================
-// =========================== Daten Block ===========================
-// =================================================================== */
 /**
  * Datenblock der Quittung mit Event-Name, Datum, Spender und Betrag.
  *
@@ -218,4 +209,4 @@ const DataBlock = ({receiptData}: DataBlockProps) => {
 };
 
 const styles = pdfStyles;
-export default EventReceiptPdf;
+export {EventReceiptPdf};

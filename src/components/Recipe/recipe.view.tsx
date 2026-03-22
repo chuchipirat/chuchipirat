@@ -1,6 +1,5 @@
 import React from "react";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+import {generateAndDownloadPdf} from "../Shared/pdfUtils";
 import Recipe, {
   RecipeType,
   Ingredient,
@@ -659,7 +658,7 @@ const RecipeView = ({
       recipe.ingredients,
     );
     pdfRecipeData.materials = Recipe.deleteEmptyMaterials(recipe.materials);
-    pdf(
+    generateAndDownloadPdf(
       <RecipePdf
         recipe={pdfRecipeData}
         scaledPortions={scalingInformation.portions}
@@ -667,18 +666,10 @@ const RecipeView = ({
         scaledMaterials={scalingInformation.materials}
         authUser={authUser}
       />,
-    )
-      .toBlob()
-      .then((result) => {
-        fileSaver.saveAs(result, recipe.name + TEXT_SUFFIX_PDF);
-      })
-      .catch((error) => {
-        console.error("PDF generation failed:", error);
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error instanceof Error ? error : new Error(String(error)),
-        });
-      });
+      recipe.name + TEXT_SUFFIX_PDF,
+      (error) =>
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+    );
   };
   /* ------------------------------------------
   // Veröffentlichungsrequest

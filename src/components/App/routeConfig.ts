@@ -8,7 +8,6 @@ import * as ROUTES from "../../constants/routes";
 import LandingPage from "../Landing/landing";
 import SignInPage from "../SignIn/signIn";
 import SignUpPage from "../SignUp/signUp";
-import AuthServiceHandler from "../AuthServiceHandler/authServiceHandler";
 import {NotFoundPage} from "../404/404";
 import NoAuthPage from "../Session/noAuth";
 import PublicProfile from "../User/publicProfile";
@@ -19,21 +18,38 @@ const Units = lazy(() => import("../Unit/units"));
 const UnitConversion = lazy(() => import("../Unit/unitConversion"));
 const Products = lazy(() => import("../Product/products"));
 const Materials = lazy(() => import("../Material/materials"));
-const Departments = lazy(() => import("../Department/departments"));
+const Departments = lazy(() =>
+  import("../Department/departments").then((module) => ({default: module.DepartmentsPage}))
+);
 const RequestOverview = lazy(() => import("../Request/requestOverview"));
 const HomePage = lazy(() => import("../Home/home"));
 const UserProfile = lazy(() => import("../User/userProfile"));
-const PrivacyPolicyPage = lazy(() => import("./privacyPolicy"));
-const TermOfUsePage = lazy(() => import("./termOfUse"));
+const PrivacyPolicyPage = lazy(() =>
+  import("./privacyPolicy").then((module) => ({default: module.PrivacyPolicyPage}))
+);
+const TermOfUsePage = lazy(() =>
+  import("./termOfUse").then((module) => ({default: module.TermOfUsePage}))
+);
 const Schema = lazy(() => import("../Temp/schema"));
-const Event = lazy(() => import("../Event/Event/event"));
-const Events = lazy(() => import("../Event/Event/events"));
+const Event = lazy(() =>
+  import("../Event/Event/event").then((module) => ({default: module.EventPage}))
+);
+const Events = lazy(() =>
+  import("../Event/Event/events").then((module) => ({default: module.EventsPage}))
+);
 const Recipe = lazy(() => import("../Recipe/recipe"));
-const CreateNewEvent = lazy(() => import("../Event/Event/createNewEvent"));
+const CreateNewEvent = lazy(() =>
+  import("../Event/Event/createNewEvent").then((module) => ({default: module.CreateEventPage}))
+);
 const Recipes = lazy(() => import("../Recipe/recipes"));
 const Donate = lazy(() => import("../Donate/donate"));
-const PasswordReset = lazy(
-  () => import("../AuthServiceHandler/passwordReset")
+const AuthServiceHandler = lazy(() =>
+  import("../AuthServiceHandler/authServiceHandler").then((module) => ({default: module.AuthServiceHandlerPage}))
+);
+const PasswordReset = lazy(() =>
+  import("../AuthServiceHandler/passwordReset").then((module) => ({
+    default: module.PasswordResetPage,
+  }))
 );
 const System = lazy(() => import("../Admin/system"));
 const GlobalSettings = lazy(

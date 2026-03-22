@@ -33,15 +33,15 @@ const mockDatabase = {
 } as any;
 
 /** DepartmentAutocomplete wird durch ein einfaches Input ersetzt */
-jest.mock("../../Department/departmentAutocomplete", () => {
-  return ({department}: any) => (
+jest.mock("../../Department/departmentAutocomplete", () => ({
+  DepartmentAutocomplete: ({department}: any) => (
     <input
       data-testid="department-autocomplete"
       readOnly
       value={department?.name || ""}
     />
-  );
-});
+  ),
+}));
 
 /** UnitAutocomplete wird durch ein einfaches Input ersetzt */
 jest.mock("../../Unit/unitAutocomplete", () => {

@@ -13,7 +13,7 @@ import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
-import EventsPage from "../events";
+import {EventsPage} from "../events";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 import {EventDomain, EventDateDomain} from "../../../Database/Repository/EventRepository";
 

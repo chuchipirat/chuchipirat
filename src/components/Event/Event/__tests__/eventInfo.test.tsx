@@ -12,7 +12,7 @@ import React from "react";
 import {render, screen, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import EventInfoPage from "../eventInfo";
+import {EventInfoPage} from "../eventInfo";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================
@@ -56,8 +56,8 @@ jest.mock("../event.class", () => {
   const actual = jest.requireActual("../event.class");
   return {
     ...actual,
-    default: {
-      ...actual.default,
+    Event: {
+      ...(actual.Event || {}),
       validateDates: jest.fn().mockReturnValue([]),
       createDateEntry: jest.fn().mockReturnValue({
         uid: "new-date",
@@ -76,13 +76,13 @@ jest.mock("../event.class", () => {
 /** Mock: Receipt-Klasse */
 jest.mock("../receipt.class", () => ({
   __esModule: true,
-  default: {getReceipt: jest.fn()},
+  Receipt: {getReceipt: jest.fn()},
 }));
 
 /** Mock: EventReceiptPdf-Komponente */
 jest.mock("../eventRecipePdf", () => ({
   __esModule: true,
-  default: () => null,
+  EventReceiptPdf: () => null,
 }));
 
 /** Mock: User-Klasse */

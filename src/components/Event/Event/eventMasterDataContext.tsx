@@ -53,4 +53,4 @@ export function useEventMasterData(): EventMasterData {
   return ctx;
 }
 
-export default EventMasterDataContext;
+export {EventMasterDataContext};

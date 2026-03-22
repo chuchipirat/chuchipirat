@@ -48,7 +48,7 @@ import {
 } from "@mui/icons-material";
 
 import {decodeSelectedMeals} from "../Menuplan/dialogSelectMenues";
-import ShoppingListCollection, {
+import {ShoppingListCollection,
   ProductTrace,
 } from "../ShoppingList/shoppingListCollection.class";
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
@@ -56,9 +56,6 @@ import {MaterialList} from "../MaterialList/materialList.class";
 import Action from "../../../constants/actions";
 import Recipe from "../../Recipe/recipe.class";
 import useCustomStyles from "../../../constants/styles";
-/* ===================================================================
-// ===================== Globale Einstellungen ======================
-// =================================================================== */
 export enum OperationType {
   none,
   Create,
@@ -68,9 +65,6 @@ export enum ListMode {
   VIEW = "view",
   EDIT = "edit",
 }
-/* ===================================================================
-// ======================= Einstellungen-Card ========================
-// =================================================================== */
 interface EventListCardProps {
   cardTitle: string;
   cardDescription: string;
@@ -201,9 +195,6 @@ export const EventListCard = ({
     </Card>
   );
 };
-/* ===================================================================
-// ========================== Kontext-Menü ===========================
-// =================================================================== */
 interface PositionContextMenuProps {
   itemType: string;
   listMode?: ListMode;
@@ -260,9 +251,6 @@ export const PositionContextMenu = ({
     </Menu>
   );
 };
-/* ===================================================================
-// ================== Dialog Artikel Nachverfolgung ==================
-// =================================================================== */
 interface DialogTraceItem {
   itemType: string;
   dialogOpen: boolean;

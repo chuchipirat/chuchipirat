@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import React from "react";
 import {useNavigate} from "react-router";
 
@@ -41,9 +42,9 @@ import {
 import useCustomStyles from "../../../constants/styles";
 
 import PageTitle from "../../Shared/pageTitle";
-import EventInfoPage from "./eventInfo";
+import {EventInfoPage} from "./eventInfo";
 import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
-import Event from "./event.class";
+import {Event} from "./event.class";
 
 import {
   HOME as ROUTE_HOME,
@@ -73,18 +74,12 @@ import {
   GroupConfigDomain,
   PortionEntryDomain,
 } from "../../Database/Repository/EventGroupConfigRepository";
-/* ===================================================================
-// ============================== Global =============================
-// =================================================================== */
 /** Schritte des Event-Erstellungsassistenten. */
 enum WizardSteps {
   info,
   groupConfig,
   completion,
 }
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 /** Alle verfügbaren Aktionstypen für den Event-Reducer. */
 enum ReducerActions {
   SET_EVENT,
@@ -239,9 +234,6 @@ const eventReducer = (state: State, action: DispatchAction): State => {
   }
 };
 
-/* ===================================================================
-// ======================== Mapping-Funktion =========================
-// =================================================================== */
 
 /**
  * Konvertiert die lokale EventGroupConfiguration (verschachtelte Map-Struktur)
@@ -286,9 +278,6 @@ function mapGroupConfigToGroupConfigDomain(
   return {eventId, diets, intolerances, portions};
 }
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 
 /**
  * Hauptkomponente für den 3-Schritt-Event-Erstellungsassistenten.
@@ -498,7 +487,7 @@ const CreateEventPage = () => {
           },
           authUser,
         )
-        .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+        .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
 
       // Feed für jeden weiteren Koch (nicht den Ersteller selbst)
       // cook.uid ist die Firebase-UID → auth UUID über users-Tabelle auflösen
@@ -519,7 +508,7 @@ const CreateEventPage = () => {
                 authUser,
               );
             })
-            .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+            .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
         }
       }
 
@@ -528,7 +517,7 @@ const CreateEventPage = () => {
       dispatch({type: ReducerActions.SAVE_EVENT_SUCCESS, payload: savedEvent});
       navigate(`${ROUTE_EVENT}/${eventDomain.uid}`);
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
       window.scrollTo({top: 0, behavior: "smooth"});
     }
@@ -641,9 +630,6 @@ const CreateEventPage = () => {
     </React.Fragment>
   );
 };
-/* ===================================================================
-// =============================== Resume ============================
-// =================================================================== */
 /**
  * Props für die Abschluss-Seite des Event-Erstellungsassistenten.
  */
@@ -730,9 +716,6 @@ const CreateEventCompletion = ({
     </Container>
   );
 };
-/* ===================================================================
-// ============================== Stepper ============================
-// =================================================================== */
 /** Props für die Stepper-Komponente. */
 interface CreateEventStepperProps {
   /** Aktuell aktiver Wizard-Schritt. */
@@ -757,4 +740,4 @@ const CreateEventStepper = ({activeStep}: CreateEventStepperProps) => {
   );
 };
 
-export default CreateEventPage;
+export {CreateEventPage};

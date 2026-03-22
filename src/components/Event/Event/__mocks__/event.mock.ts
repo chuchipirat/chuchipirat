@@ -1,4 +1,4 @@
-import Event from "../event.class";
+import {Event} from "../event.class";
 
 export const event: Event = {
   uid: "wGhsPDH0WI9IKvg9ERXg",
@@ -45,4 +45,4 @@ export const event: Event = {
   refDocuments: [],
 };
 
-export default event;
+export {event};

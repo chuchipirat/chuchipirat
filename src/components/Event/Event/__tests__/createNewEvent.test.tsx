@@ -17,7 +17,7 @@ import {render, screen, fireEvent, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
-import CreateEventPage from "../createNewEvent";
+import {CreateEventPage} from "../createNewEvent";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 
 /* ===================================================================
@@ -74,13 +74,13 @@ jest.mock("../../../Navigation/navigationContext", () => ({
 /** Mock: EventInfoPage (Stub) */
 jest.mock("../eventInfo", () => ({
   __esModule: true,
-  default: () => <div data-testid="event-info-page">EventInfoPage</div>,
+  EventInfoPage: () => <div data-testid="event-info-page">EventInfoPage</div>,
 }));
 
 /** Mock: EventGroupConfigurationPage (Stub) */
 jest.mock("../../GroupConfiguration/groupConfiguration", () => ({
   __esModule: true,
-  default: () => <div data-testid="group-config-page">GroupConfigPage</div>,
+  EventGroupConfigurationPage: () => <div data-testid="group-config-page">GroupConfigPage</div>,
 }));
 
 /** Mock: TwintButton (Stub) */
@@ -108,7 +108,7 @@ jest.mock("../event.class", () => {
     mockDeleteEmptyDates(...args);
   return {
     __esModule: true,
-    default: EventMock,
+    Event: EventMock,
   };
 });
 
@@ -116,7 +116,7 @@ jest.mock("../event.class", () => {
 jest.mock("../../GroupConfiguration/groupConfiguration.class", () => {
   return {
     __esModule: true,
-    default: jest.fn().mockImplementation(() => ({
+    EventGroupConfiguration: jest.fn().mockImplementation(() => ({
       diets: {entries: {}, order: []},
       intolerances: {entries: {}, order: []},
       portions: {},

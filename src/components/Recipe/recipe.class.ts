@@ -5,7 +5,7 @@ import {ChangeRecord} from "../Shared/global.interface";
 import * as TEXT from "../../constants/text";
 import Unit, {UnitDimension} from "../Unit/unit.class";
 import Product, {Diet, DietProperties} from "../Product/product.class";
-import Event from "../Event/Event/event.class";
+import {Event} from "../Event/Event/event.class";
 import _ from "lodash";
 import UnitConversion, {
   UnitConversionBasic,

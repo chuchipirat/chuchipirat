@@ -12,7 +12,7 @@ import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Recipe, {RecipeIndetifier} from "../../Recipe/recipe.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import Utils from "../../Shared/utils.class";
-import Event from "../Event/event.class";
+import {Event} from "../Event/event.class";
 import _ from "lodash";
 import {
   Meal,

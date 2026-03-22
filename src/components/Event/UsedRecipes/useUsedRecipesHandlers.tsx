@@ -32,7 +32,7 @@ import {
 
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {useDatabase} from "../../Database/DatabaseContext";
-import Event from "../Event/event.class";
+import {Event} from "../Event/event.class";
 import {
   DialogSelectMenuesForRecipeDialogValues,
 } from "../Menuplan/dialogSelectMenues";

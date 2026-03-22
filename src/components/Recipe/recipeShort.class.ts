@@ -1,5 +1,5 @@
 import Recipe, {MenuType, RecipeType} from "./recipe.class";
-import Event from "../Event/Event/event.class";
+import {Event} from "../Event/Event/event.class";
 import Firebase from "../Firebase/firebase.class";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
 import Utils from "../Shared/utils.class";

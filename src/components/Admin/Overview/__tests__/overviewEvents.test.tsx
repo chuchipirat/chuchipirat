@@ -83,7 +83,7 @@ jest.mock("file-saver", () => ({
 // EventReceiptPdf mock
 jest.mock("../../../Event/Event/eventRecipePdf", () => ({
   __esModule: true,
-  default: () => <div data-testid="receipt-pdf" />,
+  EventReceiptPdf: () => <div data-testid="receipt-pdf" />,
 }));
 
 // DatePicker mock (benötigt sonst LocalizationProvider)

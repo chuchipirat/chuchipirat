@@ -11,7 +11,7 @@
  */
 import {ChangeRecord} from "../../Shared/global.interface";
 import Unit from "../../Unit/unit.class";
-import Event from "../Event/event.class";
+import {Event} from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Product from "../../Product/product.class";
 import {Meal, Menue, MenuplanData} from "../Menuplan/menuplan.types";

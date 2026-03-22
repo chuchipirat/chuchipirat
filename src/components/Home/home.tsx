@@ -49,7 +49,7 @@ import * as ROUTES from "../../constants/routes";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import {EventDomain, getMaxDate} from "../Database/Repository/EventRepository";
-import EventCard, {EventCardLoading} from "../Event/Event/eventCard";
+import {EventCard,EventCardLoading} from "../Event/Event/eventCard";
 
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";

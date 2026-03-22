@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import React from "react";
 
 import {useNavigate} from "react-router";
@@ -28,7 +29,7 @@ import useCustomStyles from "../../../constants/styles";
 import AlertMessage from "../../Shared/AlertMessage";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {EventDomain, getMaxDate} from "../../Database/Repository/EventRepository";
-import EventCard, {EventCardLoading, EventCardData} from "./eventCard";
+import {EventCard,EventCardLoading, EventCardData} from "./eventCard";
 import Action from "../../../constants/actions";
 import {
   EVENT as ROUTES_EVENT,
@@ -37,9 +38,6 @@ import {
 import {useAuthUser} from "../../Session/authUserContext";
 import {ImageRepository} from "../../../constants/imageRepository";
 
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 enum ReducerActions {
   EVENTS_FETCH_INIT,
   EVENTS_FETCH_SUCCESS,
@@ -78,9 +76,6 @@ const eventsReducer = (state: State, action: DispatchAction): State => {
   }
 };
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 const EventsPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
@@ -102,7 +97,7 @@ const EventsPage = () => {
           dispatch({type: ReducerActions.EVENTS_FETCH_SUCCESS, payload: result});
         })
         .catch((error) => {
-          console.error("Fehler beim Laden der Events:", error);
+          Sentry.captureException(error, {extra: {context: "Events laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error instanceof Error ? error : new Error(String(error)),
@@ -193,9 +188,6 @@ const EventsPage = () => {
   );
 };
 
-/* ===================================================================
-// =========================== Event-Cards ===========================
-// =================================================================== */
 interface EventGridProps {
   events: EventCardData[];
   isLoading: boolean;
@@ -280,4 +272,4 @@ const EventsGrid = ({
   );
 };
 
-export default EventsPage;
+export {EventsPage};

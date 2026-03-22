@@ -79,7 +79,7 @@ import type {
 } from "../menuplan.types";
 import {GoodsPlanMode} from "../menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
-import Event from "../../Event/event.class";
+import {Event} from "../../Event/event.class";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
 
 /* =====================================================================
