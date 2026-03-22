@@ -20,9 +20,6 @@ import {
   ADD as TEXT_ADD,
 } from "../../../../constants/text";
 
-/* =====================================================================
-// Mocks
-// ===================================================================== */
 const mockCustomDialog = jest.fn().mockResolvedValue({valid: false, input: ""});
 jest.mock("../../../Shared/customDialogContext", () => ({
   useCustomDialog: () => ({customDialog: mockCustomDialog}),
@@ -34,9 +31,6 @@ jest.mock("../../../../constants/styles", () => () => ({
   cardDate: {},
 }));
 
-/* =====================================================================
-// Hilfsfunktionen
-// ===================================================================== */
 function buildDates(): Date[] {
   return [new Date(2026, 2, 10), new Date(2026, 2, 11)];
 }
@@ -60,9 +54,6 @@ const defaultProps = {
   onPrint: jest.fn(),
 };
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 describe("MenuplanHeaderRow", () => {
   afterEach(() => {
     jest.clearAllMocks();

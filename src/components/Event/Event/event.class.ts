@@ -91,11 +91,7 @@ export class Event {
   authUsers: string[];
   created: ChangeRecord;
   lastChange: ChangeRecord;
-  refDocuments?: EventRefDocuments[];
-  /* =====================================================================
-  // Constructor
-  // ===================================================================== */
-  /**
+  refDocuments?: EventRefDocuments[];  /**
    * Erstellt eine neue, leere Event-Instanz mit Standardwerten.
    */
   constructor() {
@@ -111,11 +107,7 @@ export class Event {
     this.authUsers = [];
     this.created = {date: new Date(0), fromUid: "", fromDisplayName: ""};
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
-  }
-  /* =====================================================================
-  // Factory
-  // ===================================================================== */
-  /**
+  }  /**
    * Erzeugt ein neues Event mit dem angemeldeten Benutzer als erstem Koch
    * und einer leeren Datumszeile.
    *
@@ -139,11 +131,7 @@ export class Event {
     emptyDateLine.pos = 1;
     event.dates = [emptyDateLine];
     return event;
-  }
-  /* =====================================================================
-  // Leere Datumszeile erzeugen
-  // ===================================================================== */
-  /**
+  }  /**
    * Erzeugt einen leeren Datumseintrag mit generierter UID.
    *
    * @returns Neuer Datumseintrag mit Epoch-Daten (1.1.1970) und Position 0.
@@ -155,11 +143,7 @@ export class Event {
       from: new Date(0),
       to: new Date(0),
     };
-  }
-  /* =====================================================================
-  // Datumsfelder validieren (Von/Bis-Konsistenz und Überlappungen)
-  // ===================================================================== */
-  /**
+  }  /**
    * Validiert die Datumseinträge eines Events auf Konsistenz und Überlappungen.
    * Prüft ob Von-/Bis-Daten gesetzt sind, ob Von vor Bis liegt und ob sich
    * Zeitscheiben überschneiden.
@@ -256,11 +240,7 @@ export class Event {
     });
 
     return errors;
-  }
-  /* =====================================================================
-  // Daten prüfen
-  // ===================================================================== */
-  /**
+  }  /**
    * Prüft die Pflichtfelder eines Events und wirft eine Exception bei Fehlern.
    * Validiert Name, Köche und Datumsangaben.
    *
@@ -307,11 +287,7 @@ export class Event {
         formValidation,
       );
     }
-  }
-  /* =====================================================================
-  // Speichern vorbereiten
-  // ===================================================================== */
-  /**
+  }  /**
    * Bereitet einen Event fürs Speichern vor: berechnet maxDate,
    * Anzahl Tage, sortiert Dates und extrahiert berechtigte Benutzer.
    *
@@ -341,11 +317,7 @@ export class Event {
     });
     event.authUsers = this.getAuthUsersFromCooks(event.cooks);
     return event;
-  }
-  /* =====================================================================
-  // Dauer des Events bestimmen
-  // ===================================================================== */
-  /**
+  }  /**
    * Berechnet die Gesamtdauer eines Events in Tagen anhand der Zeitscheiben.
    *
    * @param dates Array der Datumseinträge des Events.
@@ -364,11 +336,7 @@ export class Event {
 
       return result;
     }, 0);
-  }
-  /* =====================================================================
-  // Berechtigte Benutzer aus Kochmannschaft extrahieren
-  // ===================================================================== */
-  /**
+  }  /**
    * Extrahiert die UIDs aller Köche als Array berechtigter Benutzer.
    *
    * @param cooks Array der Köche des Events.
@@ -376,11 +344,7 @@ export class Event {
    */
   static getAuthUsersFromCooks(cooks: Cook[]) {
     return cooks.map((cook) => cook.uid);
-  }
-  /* =====================================================================
-  // Leere Daten löschen
-  // ===================================================================== */
-  /**
+  }  /**
    * Entfernt leere Datumszeilen (Von und Bis = 1.1.1970), behält aber immer
    * den ersten Eintrag, damit mindestens eine Zeile vorhanden bleibt.
    *
@@ -394,11 +358,7 @@ export class Event {
         date.to.getFullYear() !== 1970 ||
         index === 0,
     );
-  }
-  /* =====================================================================
-  // Neuen Dokumententyp hinzufügen
-  // ===================================================================== */
-  /**
+  }  /**
    * Fügt einen neuen Dokumententyp zur Liste der Referenzdokumente eines Events hinzu.
    *
    * @param refDocuments Bisherige Liste der Referenzdokumente.
@@ -412,11 +372,7 @@ export class Event {
     }
     updatedDocuments.push(newDocumentType);
     return updatedDocuments;
-  }
-  /* =====================================================================
-  // Prüfen ob gelöschte Tage bereits geplant sind
-  // ===================================================================== */
-  /**
+  }  /**
    * Prüft, ob durch die Anpassung der Event-Daten bereits geplante Menüplan-Tage
    * gelöscht würden. Vergleicht die neuen Datumsangaben mit den bestehenden
    * Menüplan-Daten.

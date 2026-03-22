@@ -41,9 +41,6 @@ import {
   FixMenuplanResult,
 } from "./menuplan.types";
 
-/* =====================================================================
-// Parameter-Interfaces
-// ===================================================================== */
 
 interface CreateMealTypeParams {
   newMealName: MealType["name"];
@@ -157,9 +154,6 @@ interface SortSelectedMenuesParams {
   menuplan: MenuplanData;
 }
 
-/* =====================================================================
-// Factory: Leeren Menüplan erstellen
-// ===================================================================== */
 
 /**
  * Erstellt einen leeren Menüplan mit der korrekten Grundstruktur.
@@ -235,9 +229,6 @@ export function createMenuplan(event: Event, authUser: AuthUser): MenuplanData {
   return menuplan;
 }
 
-/* =====================================================================
-// MealType-Operationen
-// ===================================================================== */
 
 /**
  * Erstellt einen neuen Mahlzeitentyp mit generierter UID.
@@ -356,9 +347,6 @@ export function deleteMealType({
   };
 }
 
-/* =====================================================================
-// Meal- & Menu-Operationen
-// ===================================================================== */
 
 /**
  * Erstellt eine leere Notiz mit generierter UID.
@@ -413,9 +401,6 @@ export function createMenu(): Menue {
   };
 }
 
-/* =====================================================================
-// Such-Funktionen
-// ===================================================================== */
 
 /**
  * Findet die Mahlzeit, zu der ein bestimmtes Menü gehört.
@@ -534,9 +519,6 @@ export function getMenuesOfMeals({
   return menuesOfMeals;
 }
 
-/* =====================================================================
-// Rezept-, Material- & Produkt-Operationen
-// ===================================================================== */
 
 /**
  * Erstellt ein neues MealRecipe (eingeplantes Rezept) mit Portionsplan.
@@ -653,9 +635,6 @@ export function createProduct(): MenuplanProduct {
   };
 }
 
-/* =====================================================================
-// Portionsberechnung
-// ===================================================================== */
 
 /**
  * Berechnet eine einzelne Portion anhand der GroupConfig neu.
@@ -820,9 +799,6 @@ export function recalculatePortions({
   return menuplan;
 }
 
-/* =====================================================================
-// Sortierung & Datumslogik
-// ===================================================================== */
 
 /**
  * Sortiert übergebene Menüs in die Reihenfolge, in der sie im Menüplan eingeplant sind.
@@ -976,9 +952,6 @@ export function adjustMenuplanWithNewDays({
   return updatedMenuplan;
 }
 
-/* =====================================================================
-// Konsistenz-Check
-// ===================================================================== */
 
 /**
  * Entfernt aus einem Order-Array alle Einträge, deren Key nicht in objectKeys enthalten ist.

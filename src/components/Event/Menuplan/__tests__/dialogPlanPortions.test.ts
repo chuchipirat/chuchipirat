@@ -20,9 +20,6 @@ import {
 } from "../menuplan.page.types";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 
-/* =====================================================================
-// Testdaten-Hilfsfunktion
-// ===================================================================== */
 
 /**
  * Erstellt eine Gruppen-Konfiguration mit zwei Diäten und zwei Intoleranzen
@@ -83,9 +80,6 @@ function makePlanningInfo(
   };
 }
 
-/* =====================================================================
-// buildDietPlan
-// ===================================================================== */
 
 /** Erstellt die Planungsstruktur für eine einzelne Diät. */
 describe("buildDietPlan", () => {
@@ -177,9 +171,6 @@ describe("buildDietPlan", () => {
   });
 });
 
-/* =====================================================================
-// buildMenuPlan
-// ===================================================================== */
 
 /** Erstellt die vollständige Planungsstruktur für ein Menü (alle Diäten × Intoleranzen). */
 describe("buildMenuPlan", () => {
@@ -228,9 +219,6 @@ describe("buildMenuPlan", () => {
   });
 });
 
-/* =====================================================================
-// getDietTabPortions
-// ===================================================================== */
 
 /** Berechnet die Gesamtportionen eines Diät-Tabs (Summe der aktiven Einträge). */
 describe("getDietTabPortions", () => {
@@ -276,9 +264,6 @@ describe("getDietTabPortions", () => {
   });
 });
 
-/* =====================================================================
-// hasDietActiveEntries
-// ===================================================================== */
 
 /** Prüft ob eine Diät aktive Einträge hat. */
 describe("hasDietActiveEntries", () => {

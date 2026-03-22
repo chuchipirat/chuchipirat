@@ -47,9 +47,6 @@ interface EventCardProps {
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 
-/* =====================================================================
-// Hilfsfunktionen: Datumsformatierung
-// ===================================================================== */
 
 const formatDay = (d: Date) =>
   `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.`;

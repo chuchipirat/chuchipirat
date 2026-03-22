@@ -21,9 +21,6 @@ import {
 } from "../menuplan.types";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 
-/* =====================================================================
-// Test-Hilfsfunktionen
-// ===================================================================== */
 
 /**
  * Erstellt eine EventGroupConfiguration mit vordefinierten Diäten und Intoleranzen.
@@ -63,9 +60,6 @@ const renderToText = (elements: React.ReactElement[]): string => {
   return container.textContent ?? "";
 };
 
-/* =====================================================================
-// getOrderListNameFromDragAndDropTypes
-// ===================================================================== */
 
 /** Testet die korrekte Zuordnung von DnD-Typen zu Order-Listen-Typen. */
 describe("getOrderListNameFromDragAndDropTypes", () => {
@@ -114,9 +108,6 @@ describe("getOrderListNameFromDragAndDropTypes", () => {
   });
 });
 
-/* =====================================================================
-// generatePlanedPortionsText
-// ===================================================================== */
 
 /** Testet die Generierung von Portionsplan-Texten für die UI-Anzeige. */
 describe("generatePlanedPortionsText", () => {

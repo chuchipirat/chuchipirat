@@ -17,9 +17,6 @@ import {
 } from "../../Database/Repository/MaterialListRepository";
 import Material, {MaterialType} from "../../Material/material.class";
 
-/* =====================================================================
-// Supabase → Legacy: Kopfzeilen → MaterialList
-// ===================================================================== */
 
 /**
  * Konvertiert Supabase-Header-Domain-Objekte in eine MaterialList.
@@ -73,9 +70,6 @@ export function headersDomainToMaterialList(
   return materialList;
 }
 
-/* =====================================================================
-// Supabase → Legacy: Items → MaterialListMaterial[]
-// ===================================================================== */
 
 /**
  * Konvertiert Supabase-Item-Domain-Objekte in ein Array von
@@ -115,9 +109,6 @@ export function itemsDomainToMaterialListItems(
   });
 }
 
-/* =====================================================================
-// Legacy → Supabase: MaterialListMaterial[] → InsertRows
-// ===================================================================== */
 
 /**
  * Leitet die edit_source aus einem Legacy-MaterialListMaterial ab.

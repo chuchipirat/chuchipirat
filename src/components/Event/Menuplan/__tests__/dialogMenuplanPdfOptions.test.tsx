@@ -25,9 +25,6 @@ import {
   PRINTVERSION,
 } from "../../../../constants/text";
 
-/* =====================================================================
-// Hilfsfunktionen
-// ===================================================================== */
 
 /** Standard-Props für den Dialog erstellen. */
 const createDefaultProps = (overrides: Record<string, unknown> = {}) => ({
@@ -37,9 +34,6 @@ const createDefaultProps = (overrides: Record<string, unknown> = {}) => ({
   ...overrides,
 });
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 
 /** Prüft die Struktur und Standardwerte der Exportoptionen-Konstante. */
 describe("MENUPLAN_PDF_OPTIONS_INITIAL", () => {

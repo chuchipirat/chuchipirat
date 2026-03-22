@@ -20,9 +20,6 @@ import {
 import {RecipeMaterialPosition} from "../../../Recipe/recipe.class";
 import Recipe from "../../../Recipe/recipe.class";
 
-/* =====================================================================
-// Mocks
-// ===================================================================== */
 
 jest.mock("@sentry/react", () => ({
   captureException: jest.fn(),
@@ -84,9 +81,6 @@ const mockedScaleMaterials = Recipe.scaleMaterials as jest.Mock;
 const mockedGetMealsOfMenues = getMealsOfMenues as jest.Mock;
 const mockedGetMenuesOfMeals = getMenuesOfMeals as jest.Mock;
 
-/* =====================================================================
-// Test-Hilfsdaten
-// ===================================================================== */
 
 const createMaterial = (
   uid: string,
@@ -168,19 +162,11 @@ function createMinimalMenuplan(): MenuplanData {
   };
 }
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 
 describe("MaterialList (Domain-Klasse)", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-  });
-
-  /* =====================================================================
-  // createNewList
-  // ===================================================================== */
-  describe("createNewList", () => {
+  });  describe("createNewList", () => {
     it("should generate items from menuplan recipes using Math.max aggregation", () => {
       const menueplan = createMinimalMenuplan();
 
@@ -325,12 +311,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         }),
       ).toThrow("Die Auswahl beinhaltet keine Rezepte.");
     });
-  });
-
-  /* =====================================================================
-  // refreshList
-  // ===================================================================== */
-  describe("refreshList", () => {
+  });  describe("refreshList", () => {
     it("should detect drift when selectedMeals mismatch and recompute menues", () => {
       const menueplan = createMinimalMenuplan();
       const materialList = new MaterialList();
@@ -459,12 +440,7 @@ describe("MaterialList (Domain-Klasse)", () => {
       const itemNames = result.lists["list-001"].items.map((item) => item.name);
       expect(itemNames).toContain("Manuell hinzugefügt");
     });
-  });
-
-  /* =====================================================================
-  // deleteList
-  // ===================================================================== */
-  describe("deleteList", () => {
+  });  describe("deleteList", () => {
     it("should remove list from deep copy without mutating original", () => {
       const materialList = new MaterialList();
       materialList.lists["list-001"] = {
@@ -500,12 +476,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         "list-002",
       ]);
     });
-  });
-
-  /* =====================================================================
-  // editListName
-  // ===================================================================== */
-  describe("editListName", () => {
+  });  describe("editListName", () => {
     it("should change name in deep copy without mutating original", () => {
       const materialList = new MaterialList();
       materialList.lists["list-001"] = {
@@ -529,12 +500,7 @@ describe("MaterialList (Domain-Klasse)", () => {
       // Original bleibt unverändert
       expect(materialList.lists["list-001"].properties.name).toBe("Alt");
     });
-  });
-
-  /* =====================================================================
-  // addMaterialToList
-  // ===================================================================== */
-  describe("addMaterialToList", () => {
+  });  describe("addMaterialToList", () => {
     it("should add a new material to an empty list", () => {
       const result = MaterialList.addMaterialToList({
         material: matPfanne,
@@ -610,12 +576,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         itemType: ItemType.material,
       });
     });
-  });
-
-  /* =====================================================================
-  // deleteMaterialFromList
-  // ===================================================================== */
-  describe("deleteMaterialFromList", () => {
+  });  describe("deleteMaterialFromList", () => {
     it("should filter out material by uid", () => {
       const list: MaterialListMaterial[] = [
         {
@@ -664,12 +625,7 @@ describe("MaterialList (Domain-Klasse)", () => {
 
       expect(result).toHaveLength(0);
     });
-  });
-
-  /* =====================================================================
-  // computeTrace
-  // ===================================================================== */
-  describe("computeTrace", () => {
+  });  describe("computeTrace", () => {
     it("should find recipe materials matching materialUid", () => {
       const menueplan = createMinimalMenuplan();
 
@@ -719,12 +675,7 @@ describe("MaterialList (Domain-Klasse)", () => {
       expect(menuTrace).toBeDefined();
       expect(menuTrace?.quantity).toBe(3);
     });
-  });
-
-  /* =====================================================================
-  // countItems
-  // ===================================================================== */
-  describe("countItems", () => {
+  });  describe("countItems", () => {
     it("should sum items across all lists", () => {
       const materialList = new MaterialList();
       materialList.lists["list-001"] = {

@@ -11,9 +11,6 @@
  * ohne Laufzeitfehler aufgebaut wird (Props, Lookups, Bedingungen).
  */
 
-/* =====================================================================
-// Mock: @react-pdf/renderer & @react-pdf/types
-// ===================================================================== */
 jest.mock("@react-pdf/renderer", () => {
   const React = require("react");
   const createComponent = (name: string) =>
@@ -82,9 +79,6 @@ import {RecipeType} from "../../../Recipe/recipe.class";
 import {Event} from "../../Event/event.class";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
 
-/* =====================================================================
-// Test-Hilfsfunktionen
-// ===================================================================== */
 
 /** Erzeugt ein Datum ohne Zeitzone-Probleme. */
 function date(year: number, month: number, day: number): Date {
@@ -248,9 +242,6 @@ function buildMenuplanData(
   };
 }
 
-/* =====================================================================
-// splitDatesIntoPages
-// ===================================================================== */
 describe("splitDatesIntoPages", () => {
   it("gibt leeres Array zurück bei leerer Datumsliste", () => {
     expect(splitDatesIntoPages([], 4)).toEqual([]);
@@ -319,9 +310,6 @@ describe("splitDatesIntoPages", () => {
   });
 });
 
-/* =====================================================================
-// buildMealLookup
-// ===================================================================== */
 describe("buildMealLookup", () => {
   it("gibt leere Map zurück bei leeren Meals", () => {
     const map = buildMealLookup({});
@@ -378,9 +366,6 @@ describe("buildMealLookup", () => {
   });
 });
 
-/* =====================================================================
-// getCellBorderStyle
-// ===================================================================== */
 describe("getCellBorderStyle", () => {
   it("gibt nur tableCol20 zurück für Null-Zelle", () => {
     const result = getCellBorderStyle({
@@ -440,9 +425,6 @@ describe("getCellBorderStyle", () => {
   });
 });
 
-/* =====================================================================
-// findNoteForDate
-// ===================================================================== */
 describe("findNoteForDate", () => {
   const day = date(2026, 3, 10);
   const dayString = dateStr(day);
@@ -490,9 +472,6 @@ describe("findNoteForDate", () => {
   });
 });
 
-/* =====================================================================
-// findNoteForMenu
-// ===================================================================== */
 describe("findNoteForMenu", () => {
   const day = date(2026, 3, 10);
   const dayString = dateStr(day);
@@ -566,9 +545,6 @@ describe("findNoteForMenu", () => {
   });
 });
 
-/* =====================================================================
-// MenuplanPdf — Komponenten-Smoke-Tests
-// ===================================================================== */
 describe("MenuplanPdf Komponente", () => {
   it("rendert ohne Fehler mit minimalen Daten", () => {
     expect(() =>

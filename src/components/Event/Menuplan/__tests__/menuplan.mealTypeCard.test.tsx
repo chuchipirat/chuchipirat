@@ -16,9 +16,6 @@ import {
   TOOLTIP_MOVE_DOWN as TEXT_TOOLTIP_MOVE_DOWN,
 } from "../../../../constants/text";
 
-/* =====================================================================
-// Mocks
-// ===================================================================== */
 const mockCustomDialog = jest.fn().mockResolvedValue({valid: false, input: ""});
 jest.mock("../../../Shared/customDialogContext", () => ({
   useCustomDialog: () => ({customDialog: mockCustomDialog}),
@@ -29,9 +26,6 @@ jest.mock("../../../../constants/styles", () => () => ({
   cardMealType: {},
 }));
 
-/* =====================================================================
-// Hilfsfunktionen
-// ===================================================================== */
 const defaultMealType: MealType = {uid: "mt-1", name: "Frühstück"};
 
 const defaultProps = {
@@ -42,9 +36,6 @@ const defaultProps = {
   onMoveDragAndDropElement: jest.fn(),
 };
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 describe("MealTypeCard", () => {
   afterEach(() => {
     jest.clearAllMocks();

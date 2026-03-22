@@ -116,21 +116,11 @@ export class MaterialList {
   lists: {
     [key: string]: MaterialListEntry;
   };
-  lastChange: ChangeRecord;
-
-  /* =====================================================================
-  // Konstruktor
-  // ===================================================================== */
-  constructor() {
+  lastChange: ChangeRecord;  constructor() {
     this.uid = "";
     this.lists = {};
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
   }
-
-  /* =====================================================================
-  // Neue Liste erstellen (synchron — Rezepte werden vorgeladen übergeben)
-  // ===================================================================== */
-
   /**
    * Erstellt eine neue Materialliste aus dem Menüplan.
    *
@@ -241,11 +231,6 @@ export class MaterialList {
 
     return listEntry;
   }
-
-  /* =====================================================================
-  // Bestehende Liste aktualisieren (synchron)
-  // ===================================================================== */
-
   /**
    * Aktualisiert eine bestehende Materialliste mit dem aktuellen Menüplan.
    *
@@ -319,11 +304,6 @@ export class MaterialList {
 
     return updatedMaterialList;
   }
-
-  /* =====================================================================
-  // Liste löschen
-  // ===================================================================== */
-
   /**
    * Entfernt eine Liste aus der MaterialList-Struktur.
    *
@@ -335,11 +315,6 @@ export class MaterialList {
     delete updatedMaterialList.lists[listUidToDelete];
     return updatedMaterialList;
   };
-
-  /* =====================================================================
-  // Listenname bearbeiten
-  // ===================================================================== */
-
   /**
    * Ändert den Namen einer bestehenden Liste.
    *
@@ -355,11 +330,6 @@ export class MaterialList {
     updatedMaterialList.lists[listUidToEdit].properties.name = newName;
     return updatedMaterialList;
   };
-
-  /* =====================================================================
-  // Material zur Liste hinzufügen
-  // ===================================================================== */
-
   /**
    * Fügt ein Material zur Liste hinzu oder passt die Menge an.
    *
@@ -416,11 +386,6 @@ export class MaterialList {
 
     return list;
   };
-
-  /* =====================================================================
-  // Material aus Liste entfernen
-  // ===================================================================== */
-
   /**
    * Entfernt ein Material aus der Liste.
    *
@@ -433,11 +398,6 @@ export class MaterialList {
   }: DeleteMaterialFromList) => {
     return list.filter((material) => material.uid !== materialUid);
   };
-
-  /* =====================================================================
-  // Trace on-demand berechnen
-  // ===================================================================== */
-
   /**
    * Berechnet den Herkunfts-Trace für ein Material on-demand.
    *
@@ -524,11 +484,6 @@ export class MaterialList {
 
     return traces;
   }
-
-  /* =====================================================================
-  // Hilfsmethoden
-  // ===================================================================== */
-
   /**
    * Zählt die Gesamtanzahl der Items über alle Listen.
    *

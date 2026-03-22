@@ -14,9 +14,6 @@ import "@testing-library/jest-dom";
 
 import {EventInfoPage} from "../eventInfo";
 
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
 
 /** Mock: useCustomDialog */
 jest.mock("../../../Shared/customDialogContext", () => ({
@@ -118,9 +115,6 @@ jest.mock("@mui/x-date-pickers", () => ({
   ),
 }));
 
-/* ===================================================================
-// ======================== Testdaten =================================
-// =================================================================== */
 
 /** Testdaten: Ein Event mit einem Koch und einer Datumsperiode. */
 const mockEvent = {
@@ -156,9 +150,6 @@ const mockOnUpdatePicture = jest.fn();
 const mockOnFormValidationUpdate = jest.fn();
 const mockOnError = jest.fn();
 
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
 
 /**
  * Rendert die EventInfoPage mit Standard-Props.
@@ -184,9 +175,6 @@ const renderEventInfoPage = (overrides: Record<string, any> = {}) => {
   return render(<EventInfoPage {...defaultProps} {...overrides} />);
 };
 
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();

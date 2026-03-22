@@ -23,9 +23,6 @@ import {
 } from "../../Database/Repository/ShoppingListRepository";
 import Department from "../../Department/department.class";
 
-/* =====================================================================
-// Supabase → Legacy: Kopfzeilen → ShoppingListCollection
-// ===================================================================== */
 
 /**
  * Konvertiert Supabase-Header-Domain-Objekte in eine ShoppingListCollection.
@@ -85,9 +82,6 @@ export function headersDomainToCollection(
   return collection;
 }
 
-/* =====================================================================
-// Supabase → Legacy: Items → ShoppingList
-// ===================================================================== */
 
 /**
  * Leitet den ItemType aus einem Supabase-Domain-Item ab.
@@ -162,9 +156,6 @@ export function itemsDomainToShoppingList(
   return shoppingList;
 }
 
-/* =====================================================================
-// Legacy → Supabase: ShoppingList → InsertRows
-// ===================================================================== */
 
 /**
  * Leitet die edit_source aus einem Legacy-ShoppingListItem ab.

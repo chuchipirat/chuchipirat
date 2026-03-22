@@ -20,9 +20,6 @@ import {MemoryRouter} from "react-router";
 import {CreateEventPage} from "../createNewEvent";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
 
 /** Mock: useNavigate */
 const mockNavigate = jest.fn();
@@ -166,9 +163,6 @@ jest.mock("../../../Database/DatabaseContext", () => ({
 /** Mock-DatabaseService */
 const mockDatabase = {} as any;
 
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
 
 /**
  * Rendert die CreateEventPage innerhalb eines MemoryRouters und
@@ -184,9 +178,6 @@ const renderCreateEventPage = () => {
   );
 };
 
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();

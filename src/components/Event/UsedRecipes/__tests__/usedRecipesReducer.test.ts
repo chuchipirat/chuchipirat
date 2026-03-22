@@ -18,9 +18,6 @@ import {
 import {MenueCoordinates} from "../../Menuplan/menuplan.types";
 import Recipe from "../../../Recipe/recipe.class";
 
-/* =====================================================================
-// Test-Daten
-// ===================================================================== */
 
 const createModifiedState = (overrides: Partial<State>): State => ({
   ...initialState,
@@ -42,15 +39,8 @@ const mockRecipes: Record<string, Recipe> = {
   "recipe-002": {uid: "recipe-002", name: "Risotto"} as unknown as Recipe,
 };
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 
-describe("usedRecipesReducer", () => {
-  /* =====================================================================
-  // SHOW_LOADING
-  // ===================================================================== */
-  describe("SHOW_LOADING", () => {
+describe("usedRecipesReducer", () => {  describe("SHOW_LOADING", () => {
     it("should set isLoading to true and clear error", () => {
       const stateWithError = createModifiedState({
         error: new Error("vorheriger Fehler"),
@@ -90,12 +80,7 @@ describe("usedRecipesReducer", () => {
       expect(result.loadedRecipes).toBe(mockRecipes);
       expect(result.selectedListItem).toBe("list-1");
     });
-  });
-
-  /* =====================================================================
-  // SET_SELECTED_LIST_ITEM
-  // ===================================================================== */
-  describe("SET_SELECTED_LIST_ITEM", () => {
+  });  describe("SET_SELECTED_LIST_ITEM", () => {
     it("should set selectedListItem and sortedMenueList", () => {
       const result = usedRecipesReducer(initialState, {
         type: ReducerActions.SET_SELECTED_LIST_ITEM,
@@ -135,12 +120,7 @@ describe("usedRecipesReducer", () => {
       expect(result.isLoading).toBe(true);
       expect(result.error).toEqual(new Error("test"));
     });
-  });
-
-  /* =====================================================================
-  // RECIPES_LOADED
-  // ===================================================================== */
-  describe("RECIPES_LOADED", () => {
+  });  describe("RECIPES_LOADED", () => {
     it("should populate loadedRecipes and clear isLoading", () => {
       const loadingState = createModifiedState({isLoading: true});
 
@@ -179,12 +159,7 @@ describe("usedRecipesReducer", () => {
       expect(result.loadedRecipes).toBe(newRecipes);
       expect(result.loadedRecipes["recipe-001"]).toBeUndefined();
     });
-  });
-
-  /* =====================================================================
-  // GENERIC_ERROR
-  // ===================================================================== */
-  describe("GENERIC_ERROR", () => {
+  });  describe("GENERIC_ERROR", () => {
     it("should set error and clear isLoading", () => {
       const loadingState = createModifiedState({isLoading: true});
       const error = new Error("Netzwerkfehler");
@@ -212,12 +187,7 @@ describe("usedRecipesReducer", () => {
       expect(result.selectedListItem).toBe("list-1");
       expect(result.loadedRecipes).toBe(mockRecipes);
     });
-  });
-
-  /* =====================================================================
-  // SNACKBAR_SHOW
-  // ===================================================================== */
-  describe("SNACKBAR_SHOW", () => {
+  });  describe("SNACKBAR_SHOW", () => {
     it("should open snackbar with severity and message", () => {
       const result = usedRecipesReducer(initialState, {
         type: ReducerActions.SNACKBAR_SHOW,
@@ -240,12 +210,7 @@ describe("usedRecipesReducer", () => {
       expect(result.snackbar.open).toBe(true);
       expect(result.snackbar.severity).toBe("success");
     });
-  });
-
-  /* =====================================================================
-  // SNACKBAR_CLOSE
-  // ===================================================================== */
-  describe("SNACKBAR_CLOSE", () => {
+  });  describe("SNACKBAR_CLOSE", () => {
     it("should reset snackbar to initial values", () => {
       const openSnackbar = createModifiedState({
         snackbar: {open: true, severity: "error", message: "Fehler!"},
@@ -261,23 +226,13 @@ describe("usedRecipesReducer", () => {
         message: "",
       });
     });
-  });
-
-  /* =====================================================================
-  // Default (unbekannte Action)
-  // ===================================================================== */
-  describe("default case", () => {
+  });  describe("default case", () => {
     it("should throw on unknown action type", () => {
       expect(() =>
         usedRecipesReducer(initialState, {type: 999} as any),
       ).toThrow();
     });
-  });
-
-  /* =====================================================================
-  // initialState
-  // ===================================================================== */
-  describe("initialState", () => {
+  });  describe("initialState", () => {
     it("should have correct default values", () => {
       expect(initialState).toEqual({
         selectedListItem: null,

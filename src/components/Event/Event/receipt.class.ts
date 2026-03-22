@@ -31,11 +31,7 @@ export class Receipt {
     this.donorEmail = "";
     this.donorName = "";
     this.created = {date: new Date(0), fromUid: "", fromDisplayName: ""};
-  }
-  /* =====================================================================
-  // Quittung anlegen
-  // ===================================================================== */
-  static save = async ({firebase, authUser, receipt}: Save) => {
+  }  static save = async ({firebase, authUser, receipt}: Save) => {
     receipt.created = {
       fromDisplayName: authUser.publicProfile.displayName,
       fromUid: authUser.uid,
@@ -69,11 +65,7 @@ export class Receipt {
         }
       }
     );
-  };
-  /* =====================================================================
-  // Lesen
-  // ===================================================================== */
-  static getReceipt = async ({firebase, eventUid}: GetReceipt) => {
+  };  static getReceipt = async ({firebase, eventUid}: GetReceipt) => {
     return firebase.event.receipt
       .read<Receipt>({uids: [eventUid]})
       .then((result) => {

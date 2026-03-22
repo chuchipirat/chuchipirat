@@ -29,9 +29,6 @@ import {getMealForMealTypeAndDate} from "./dialogSelectMenues";
 // ============================== Global =============================
 // =================================================================== */
 
-/* ===================================================================
-   Dialog-Mahlzeit-Auswahl
-=================================================================== */
 interface DialogSelectMealsProps {
   open: boolean;
   title: string;

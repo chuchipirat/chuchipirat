@@ -30,9 +30,6 @@ import Material, {MaterialType} from "../../Material/material.class";
 import _ from "lodash";
 import Utils from "../../Shared/utils.class";
 
-/* =====================================================================
-// Konstanten
-// ===================================================================== */
 
 /** Abteilungsname für Non-Food-Artikel (Materialien). */
 const NON_FOOD_DEPARTMENT_NAME = "NON FOOD";
@@ -45,9 +42,6 @@ const UNASSIGNED_DEPARTMENT: Department = {
   usable: true,
 };
 
-/* =====================================================================
-// Enums & Interfaces
-// ===================================================================== */
 
 /** Art einer Einkaufslistenposition. */
 export enum ItemType {
@@ -125,9 +119,6 @@ export interface ShoppingListTrace {
   [key: Product["uid"]]: ProductTrace[];
 }
 
-/* =====================================================================
-// Interfaces für Methoden-Parameter
-// ===================================================================== */
 
 interface CreateNewListParams {
   selectedMenues: Menue["uid"][];
@@ -172,9 +163,6 @@ interface AddTraceEntryParams {
   itemType: ItemType;
 }
 
-/* =====================================================================
-// ShoppingList
-// ===================================================================== */
 
 /**
  * Domain-Service für Einkaufslisten.
@@ -192,11 +180,6 @@ export class ShoppingList {
     this.uid = "";
     this.list = {0: {departmentUid: "", departmentName: "", items: []}};
   }
-
-  /* =====================================================================
-  // Neue Liste aus Menüplan generieren
-  // ===================================================================== */
-
   /**
    * Generiert eine neue Einkaufsliste aus dem Menüplan.
    *
@@ -249,11 +232,6 @@ export class ShoppingList {
 
     return {shoppingList, trace};
   }
-
-  /* =====================================================================
-  // Zutaten aus Rezepten hinzufügen (Teilschritt von createNewList)
-  // ===================================================================== */
-
   /**
    * Skaliert Rezept-Zutaten auf geplante Portionen und fügt sie zur Liste hinzu.
    */
@@ -391,11 +369,6 @@ export class ShoppingList {
 
     return {trace, itemCount};
   }
-
-  /* =====================================================================
-  // Produkte aus dem Menüplan hinzufügen (Teilschritt von createNewList)
-  // ===================================================================== */
-
   /**
    * Fügt Produkte, die direkt im Menüplan eingetragen sind, zur Liste hinzu.
    */
@@ -444,11 +417,6 @@ export class ShoppingList {
 
     return {trace, itemCount};
   }
-
-  /* =====================================================================
-  // Materialien aus dem Menüplan hinzufügen (Teilschritt von createNewList)
-  // ===================================================================== */
-
   /**
    * Fügt Materialien, die direkt im Menüplan eingetragen sind, zur Liste hinzu.
    */
@@ -502,11 +470,6 @@ export class ShoppingList {
 
     return {trace, itemCount};
   }
-
-  /* =====================================================================
-  // Item zur Liste hinzufügen (mit Akkumulation bei Duplikaten)
-  // ===================================================================== */
-
   /**
    * Fügt ein Produkt oder Material zur Liste hinzu.
    * Bei gleicher UID + Einheit wird die Menge addiert.
@@ -566,11 +529,6 @@ export class ShoppingList {
       shoppingListReference.list[department.pos].items.push(shoppingListItem);
     }
   };
-
-  /* =====================================================================
-  // Trace-Eintrag hinzufügen
-  // ===================================================================== */
-
   /**
    * Fügt einen Trace-Eintrag für ein Item hinzu.
    * Zeigt, aus welchem Menü/Rezept die Menge stammt.
@@ -606,11 +564,6 @@ export class ShoppingList {
     trace[item.uid].push(traceEntry);
     return trace;
   };
-
-  /* =====================================================================
-  // Trace-Eintrag löschen
-  // ===================================================================== */
-
   /**
    * Entfernt den Trace-Eintrag eines Items.
    *
@@ -626,11 +579,6 @@ export class ShoppingList {
     delete updatedTrace[itemUid];
     return updatedTrace;
   };
-
-  /* =====================================================================
-  // Item aus der Liste entfernen
-  // ===================================================================== */
-
   /**
    * Entfernt ein Item aus der Liste. Löscht die Abteilung, wenn sie leer ist.
    *
@@ -655,11 +603,6 @@ export class ShoppingList {
     }
     return updatedShoppingList;
   };
-
-  /* =====================================================================
-  // Abteilung zur Liste hinzufügen
-  // ===================================================================== */
-
   /**
    * Fügt eine Abteilung zur Einkaufsliste hinzu, falls diese noch nicht existiert.
    *
@@ -691,11 +634,6 @@ export class ShoppingList {
 
     return shoppingList;
   };
-
-  /* =====================================================================
-  // Leere Einträge für Edit-Modus erstellen
-  // ===================================================================== */
-
   /**
    * Fügt pro Abteilung einen leeren Eintrag am Ende hinzu (für den Edit-Modus).
    */
@@ -724,11 +662,6 @@ export class ShoppingList {
     manualEdit: false,
     manualAdd: true,
   });
-
-  /* =====================================================================
-  // Leere Einträge entfernen
-  // ===================================================================== */
-
   /**
    * Entfernt alle Items ohne Menge, Einheit und Name.
    */
@@ -742,11 +675,6 @@ export class ShoppingList {
     });
     return shoppingList;
   };
-
-  /* =====================================================================
-  // Checked-Items extrahieren und wiederherstellen
-  // ===================================================================== */
-
   /**
    * Liefert alle abgehakten Items gruppiert nach Department zurück.
    */
@@ -805,11 +733,6 @@ export class ShoppingList {
     });
     return shoppingList;
   };
-
-  /* =====================================================================
-  // Manuelle Items extrahieren (für Refresh-Preserve)
-  // ===================================================================== */
-
   /**
    * Extrahiert manuell hinzugefügte und/oder manuell bearbeitete Items
    * aus einer Einkaufsliste. Wird beim Refresh verwendet, um diese Items
@@ -925,11 +848,6 @@ export class ShoppingList {
       });
     });
   }
-
-  /* =====================================================================
-  // Trace on-demand berechnen
-  // ===================================================================== */
-
   /**
    * Berechnet den Trace on-demand, indem die Liste intern neu generiert
    * wird (ohne Persistenz). Ergänzt manualAdd- und manualEdit-Einträge
@@ -994,11 +912,6 @@ export class ShoppingList {
 
     return trace;
   }
-
-  /* =====================================================================
-  // Items zählen
-  // ===================================================================== */
-
   /**
    * Zählt die Gesamtanzahl der Items in der Liste.
    */

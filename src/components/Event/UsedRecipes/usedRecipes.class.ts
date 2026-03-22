@@ -24,9 +24,6 @@ import {UsedRecipeListDomain} from "../../Database/Repository/UsedRecipeListRepo
 
 import {ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND} from "../../../constants/text";
 
-/* =====================================================================
-// Interfaces
-// ===================================================================== */
 
 interface Factory {
   event: Event;
@@ -97,9 +94,6 @@ export interface UsedRecipeListEntry {
   recipes: {[key: Recipe["uid"]]: Recipe};
 }
 
-/* =====================================================================
-// UsedRecipes
-// ===================================================================== */
 
 /**
  * Domain-Klasse für benannte Rezeptlisten eines Events.
@@ -112,22 +106,12 @@ export class UsedRecipes {
   uid: string;
   noOfLists: number;
   lists: {[key: string]: UsedRecipeListEntry};
-  lastChange: ChangeRecord;
-
-  /* =====================================================================
-  // Constructor
-  // ===================================================================== */
-  constructor() {
+  lastChange: ChangeRecord;  constructor() {
     this.uid = "";
     this.noOfLists = 0;
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
     this.lists = {};
-  }
-
-  /* =====================================================================
-  // Factory
-  // ===================================================================== */
-  /**
+  }  /**
    * Erstellt eine leere UsedRecipes-Instanz für ein Event.
    *
    * @param object - Objekt mit dem Event
@@ -137,12 +121,7 @@ export class UsedRecipes {
     const usedRecipes = new UsedRecipes();
     usedRecipes.uid = event.uid;
     return usedRecipes;
-  }
-
-  /* =====================================================================
-  // Aus Supabase-Domain-Listen aufbauen
-  // ===================================================================== */
-  /**
+  }  /**
    * Erstellt ein UsedRecipes-Objekt aus Supabase-Domain-Listen.
    *
    * Konvertiert `UsedRecipeListDomain[]` in die UI-erwartete Struktur.
@@ -194,12 +173,7 @@ export class UsedRecipes {
     }
 
     return usedRecipes;
-  }
-
-  /* =====================================================================
-  // Drift-Erkennung
-  // ===================================================================== */
-  /**
+  }  /**
    * Erkennt, ob Menüs im Menüplan zwischen Tagen/Mahlzeiten verschoben wurden.
    *
    * Vergleicht die gespeicherten Meals mit den aktuell aus den Menüs abgeleiteten
@@ -231,12 +205,7 @@ export class UsedRecipes {
       selectedMenues.length !== currentMenuesFromMeals.length;
 
     return {hasDrift, currentMealsFromMenues, currentMenuesFromMeals};
-  }
-
-  /* =====================================================================
-  // Liste löschen
-  // ===================================================================== */
-  /**
+  }  /**
    * Entfernt eine Liste aus dem UsedRecipes-Objekt (in-memory).
    *
    * @param object - Objekt mit UsedRecipes und UID der zu löschenden Liste
@@ -255,12 +224,7 @@ export class UsedRecipes {
     updatedUsedRecipes.noOfLists--;
 
     return updatedUsedRecipes;
-  };
-
-  /* =====================================================================
-  // Listenname anpassen
-  // ===================================================================== */
-  /**
+  };  /**
    * Ändert den Namen einer Liste (in-memory).
    *
    * @param object - Objekt mit UsedRecipes, Listen-UID, neuem Namen und AuthUser
@@ -278,12 +242,7 @@ export class UsedRecipes {
     updatedUsedRecipes.lastChange = Utils.createChangeRecord(authUser);
 
     return updatedUsedRecipes;
-  };
-
-  /* =====================================================================
-  // Neue Listeneigenschaften erstellen (für Repository-Pfad)
-  // ===================================================================== */
-  /**
+  };  /**
    * Validiert die Eingaben und erstellt die Eigenschaften für eine neue Liste.
    *
    * Prüft, ob die ausgewählten Menüs Rezepte enthalten. Die tatsächliche
@@ -314,12 +273,7 @@ export class UsedRecipes {
       selectedMenues,
       generated: {date: new Date(0), fromUid: "", fromDisplayName: ""},
     };
-  };
-
-  /* =====================================================================
-  // Rezepte aus den ausgewählten Menüs bestimmen
-  // ===================================================================== */
-  /**
+  };  /**
    * Leitet die Rezept-Identifikatoren aus den ausgewählten Menüs ab.
    *
    * Iteriert über alle Menüs → deren mealRecipeOrder → extrahiert Rezept-UIDs.
@@ -353,12 +307,7 @@ export class UsedRecipes {
     });
     // Doppelte Werte löschen
     return UsedRecipes._getUniqRecipes(usedRecipesList);
-  };
-
-  /* =====================================================================
-  // Doppelte Rezepte entfernen
-  // ===================================================================== */
-  /**
+  };  /**
    * Entfernt doppelte Rezepte aus einer Liste (nach UID).
    *
    * @param usedRecipesList - Array mit allen Rezepten (kann Duplikate enthalten)

@@ -29,9 +29,6 @@ import {FormValidationFieldError} from "../../Shared/fieldValidation.error.class
 // ============================== Global =============================
 // =================================================================== */
 
-/* ===================================================================
-//   Dialog-Abteilungen wählen
-//=================================================================== */
 export interface SelectedDepartmentsForShoppingList {
   [key: Department["uid"]]: boolean;
 }

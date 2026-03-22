@@ -19,9 +19,6 @@ jest.mock("../../../Recipe/RecipeDrawer", () => ({
 // Hook erst nach dem Mock importieren
 import {useMenuplanDialogs} from "../useMenuplanDialogs";
 
-/* ===================================================================
-// ===================== Initialwerte prüfen =========================
-// =================================================================== */
 
 /** Prüft, ob alle Dialog-Zustände korrekt initialisiert werden. */
 describe("useMenuplanDialogs – Initialwerte", () => {
@@ -120,9 +117,6 @@ describe("useMenuplanDialogs – Initialwerte", () => {
   });
 });
 
-/* ===================================================================
-// ====================== Setter prüfen =============================
-// =================================================================== */
 
 /** Prüft, ob jeder Setter seinen Dialog-Zustand korrekt aktualisiert. */
 describe("useMenuplanDialogs – Setter", () => {
@@ -291,9 +285,6 @@ describe("useMenuplanDialogs – Setter", () => {
   });
 });
 
-/* ===================================================================
-// ============== GOODS_DATA_DIALOG_INITIAL_DATA prüfen ==============
-// =================================================================== */
 
 /** Prüft, ob die Konstante GOODS_DATA_DIALOG_INITIAL_DATA korrekt exponiert wird. */
 describe("useMenuplanDialogs – GOODS_DATA_DIALOG_INITIAL_DATA", () => {

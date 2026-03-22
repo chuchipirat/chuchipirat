@@ -12,9 +12,6 @@ import {MenuplanData} from "../../Menuplan/menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import {UsedRecipeListDomain} from "../../../Database/Repository/UsedRecipeListRepository";
 
-/* =====================================================================
-// Test-Daten
-// ===================================================================== */
 
 /**
  * Erzeugt eine minimale MenuplanData-Struktur für Tests.
@@ -108,15 +105,8 @@ const createTestMenuplan = (): MenuplanData => {
   } as unknown as MenuplanData;
 };
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 
-describe("UsedRecipes", () => {
-  /* =====================================================================
-  // factory
-  // ===================================================================== */
-  describe("factory", () => {
+describe("UsedRecipes", () => {  describe("factory", () => {
     it("should create an empty UsedRecipes instance with the event UID", () => {
       const event = {uid: "event-001"} as any;
       const result = UsedRecipes.factory({event});
@@ -126,12 +116,7 @@ describe("UsedRecipes", () => {
       expect(result.noOfLists).toBe(0);
       expect(result.lists).toEqual({});
     });
-  });
-
-  /* =====================================================================
-  // createNewListProperties
-  // ===================================================================== */
-  describe("createNewListProperties", () => {
+  });  describe("createNewListProperties", () => {
     it("should return list properties when recipes are found", () => {
       const menueplan = createTestMenuplan();
 
@@ -156,12 +141,7 @@ describe("UsedRecipes", () => {
         }),
       ).toThrow();
     });
-  });
-
-  /* =====================================================================
-  // defineSelectedRecipes
-  // ===================================================================== */
-  describe("defineSelectedRecipes", () => {
+  });  describe("defineSelectedRecipes", () => {
     it("should return recipe identifiers from selected menues", () => {
       const menueplan = createTestMenuplan();
 
@@ -236,12 +216,7 @@ describe("UsedRecipes", () => {
       const pastaCount = result.filter((recipe) => recipe.uid === "recipe-001").length;
       expect(pastaCount).toBe(1);
     });
-  });
-
-  /* =====================================================================
-  // deleteList
-  // ===================================================================== */
-  describe("deleteList", () => {
+  });  describe("deleteList", () => {
     it("should remove the specified list and decrement noOfLists", () => {
       const usedRecipes = new UsedRecipes();
       usedRecipes.uid = "event-001";
@@ -266,12 +241,7 @@ describe("UsedRecipes", () => {
       // Original unverändert
       expect(usedRecipes.noOfLists).toBe(2);
     });
-  });
-
-  /* =====================================================================
-  // editListName
-  // ===================================================================== */
-  describe("editListName", () => {
+  });  describe("editListName", () => {
     it("should change the list name without mutating the original", () => {
       const usedRecipes = new UsedRecipes();
       usedRecipes.lists = {
@@ -287,12 +257,7 @@ describe("UsedRecipes", () => {
       expect(result.lists["list-1"].properties.name).toBe("Neuer Name");
       expect(usedRecipes.lists["list-1"].properties.name).toBe("Alter Name");
     });
-  });
-
-  /* =====================================================================
-  // detectDrift
-  // ===================================================================== */
-  describe("detectDrift", () => {
+  });  describe("detectDrift", () => {
     it("should report no drift when meals match derived meals", () => {
       const menuplan = createTestMenuplan();
 
@@ -352,12 +317,7 @@ describe("UsedRecipes", () => {
 
       expect(result.hasDrift).toBe(false);
     });
-  });
-
-  /* =====================================================================
-  // fromDomainLists
-  // ===================================================================== */
-  describe("fromDomainLists", () => {
+  });  describe("fromDomainLists", () => {
     it("should use persisted selectedMeals when available", () => {
       const menuplan = createTestMenuplan();
       const lists: UsedRecipeListDomain[] = [
@@ -438,12 +398,7 @@ describe("UsedRecipes", () => {
       expect(result.uid).toBe("event-001");
       expect(result.noOfLists).toBe(2);
     });
-  });
-
-  /* =====================================================================
-  // _getUniqRecipes
-  // ===================================================================== */
-  describe("_getUniqRecipes", () => {
+  });  describe("_getUniqRecipes", () => {
     it("should remove duplicates by uid", () => {
       const recipes = [
         {uid: "r1", recipeType: RecipeType.public, createdFromUid: "", eventUid: "e1"},

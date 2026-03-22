@@ -29,9 +29,6 @@ import {
   MENUPLAN_PDF_SHOW_PORTIONS as TEXT_MENUPLAN_PDF_SHOW_PORTIONS,
 } from "../../../constants/text";
 
-/* =====================================================================
-// Typen
-// ===================================================================== */
 
 /**
  * Optionen für den Menüplan-PDF-Export.
@@ -66,9 +63,6 @@ interface DialogMenuplanPdfOptionsProps {
   onCancel: () => void;
 }
 
-/* =====================================================================
-// Komponente
-// ===================================================================== */
 
 /**
  * Dialog mit Schaltern für die Menüplan-PDF-Exportoptionen.

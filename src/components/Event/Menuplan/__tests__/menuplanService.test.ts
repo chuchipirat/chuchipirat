@@ -61,9 +61,6 @@ import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfigurati
 import {Event} from "../../Event/event.class";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
 
-/* =====================================================================
-// Test-Hilfsfunktionen
-// ===================================================================== */
 
 let uuidCounter = 0;
 
@@ -233,9 +230,6 @@ function buildPopulatedMenuplan(): MenuplanData {
   return mp;
 }
 
-/* =====================================================================
-// createEmptyMenuplan
-// ===================================================================== */
 describe("createEmptyMenuplan", () => {
   it("sollte ein leeres MenuplanData-Objekt erstellen", () => {
     const mp = createEmptyMenuplan();
@@ -265,9 +259,6 @@ describe("createEmptyMenuplan", () => {
   });
 });
 
-/* =====================================================================
-// createMealType
-// ===================================================================== */
 describe("createMealType", () => {
   it("sollte einen MealType mit generierter UID erstellen", () => {
     const mt = createMealType({newMealName: "Brunch"});
@@ -277,9 +268,6 @@ describe("createMealType", () => {
   });
 });
 
-/* =====================================================================
-// createMeal
-// ===================================================================== */
 describe("createMeal", () => {
   it("sollte ein Meal mit Date-Objekt erstellen", () => {
     const meal = createMeal({
@@ -300,9 +288,6 @@ describe("createMeal", () => {
   });
 });
 
-/* =====================================================================
-// createMenu
-// ===================================================================== */
 describe("createMenu", () => {
   it("sollte ein leeres Menü erstellen", () => {
     const menu = createMenu();
@@ -315,9 +300,6 @@ describe("createMenu", () => {
   });
 });
 
-/* =====================================================================
-// createEmptyNote
-// ===================================================================== */
 describe("createEmptyNote", () => {
   it("sollte eine leere Notiz mit generierter UID erstellen", () => {
     const note = createEmptyNote();
@@ -329,9 +311,6 @@ describe("createEmptyNote", () => {
   });
 });
 
-/* =====================================================================
-// addMealType
-// ===================================================================== */
 describe("addMealType", () => {
   it("sollte einen MealType hinzufügen und für jeden Tag Meal+Menü erstellen", () => {
     const day1 = new Date(2026, 2, 10);
@@ -370,9 +349,6 @@ describe("addMealType", () => {
   });
 });
 
-/* =====================================================================
-// deleteMealType
-// ===================================================================== */
 describe("deleteMealType", () => {
   it("sollte MealType, zugehörige Meals, Menüs, Rezepte, Produkte und Materialien löschen", () => {
     const mp = buildPopulatedMenuplan();
@@ -461,9 +437,6 @@ describe("deleteMealType", () => {
   });
 });
 
-/* =====================================================================
-// Finder-Funktionen
-// ===================================================================== */
 describe("findMealOfMenu", () => {
   it("sollte die zugehörige Meal finden", () => {
     const mp = buildPopulatedMenuplan();
@@ -528,9 +501,6 @@ describe("findMenueOfMealMaterial", () => {
   });
 });
 
-/* =====================================================================
-// getMealsOfMenues / getMenuesOfMeals
-// ===================================================================== */
 describe("getMealsOfMenues", () => {
   it("sollte die Meals zurückgeben, die zu den übergebenen Menüs gehören", () => {
     const mp = buildPopulatedMenuplan();
@@ -578,9 +548,6 @@ describe("getMenuesOfMeals", () => {
   });
 });
 
-/* =====================================================================
-// createMealRecipe
-// ===================================================================== */
 describe("createMealRecipe", () => {
   it("sollte ein MealRecipe mit korrektem Portionsplan erstellen", () => {
     const recipe = buildRecipeShort();
@@ -638,9 +605,6 @@ describe("createMealRecipe", () => {
   });
 });
 
-/* =====================================================================
-// createMaterial / createProduct
-// ===================================================================== */
 describe("createMaterial", () => {
   it("sollte ein leeres Material erstellen", () => {
     const mat = createMaterial();
@@ -667,9 +631,6 @@ describe("createProduct", () => {
   });
 });
 
-/* =====================================================================
-// addPlanToGood
-// ===================================================================== */
 describe("addPlanToGood", () => {
   it("sollte einen Portionsplan zu einem Material hinzufügen", () => {
     const mat = createMaterial();
@@ -724,9 +685,6 @@ describe("addPlanToGood", () => {
   });
 });
 
-/* =====================================================================
-// recalculatePortions
-// ===================================================================== */
 describe("recalculatePortions", () => {
   it("sollte Portionen für MealRecipes neu berechnen (ALL/ALL)", () => {
     const mp = buildPopulatedMenuplan();
@@ -934,9 +892,6 @@ describe("recalculatePortions", () => {
   });
 });
 
-/* =====================================================================
-// getEventDateList
-// ===================================================================== */
 describe("getEventDateList", () => {
   it("sollte eine flache Datumsliste aus Event-Zeitscheiben generieren", () => {
     const event = buildEvent();
@@ -983,9 +938,6 @@ describe("getEventDateList", () => {
   });
 });
 
-/* =====================================================================
-// adjustMenuplanWithNewDays
-// ===================================================================== */
 describe("adjustMenuplanWithNewDays", () => {
   it("sollte neue Tage hinzufügen und für jeden Tag×MealType Meals+Menüs erstellen", () => {
     const mp = buildPopulatedMenuplan();
@@ -1097,9 +1049,6 @@ describe("adjustMenuplanWithNewDays", () => {
   });
 });
 
-/* =====================================================================
-// sortSelectedMenues
-// ===================================================================== */
 describe("sortSelectedMenues", () => {
   it("sollte Menüs nach Datum und MealType sortieren", () => {
     const mp = buildPopulatedMenuplan();
@@ -1130,9 +1079,6 @@ describe("sortSelectedMenues", () => {
   });
 });
 
-/* =====================================================================
-// fixMenuplan (Konsistenz-Check)
-// ===================================================================== */
 describe("fixMenuplan", () => {
   it("sollte bei konsistentem Menüplan isConsistent=true zurückgeben", () => {
     const mp = buildPopulatedMenuplan();
@@ -1223,9 +1169,6 @@ describe("fixMenuplan", () => {
   });
 });
 
-/* =====================================================================
-// recalculatePortions — Zusätzliche Randfälle
-// ===================================================================== */
 describe("recalculatePortions (Randfälle)", () => {
   it("sollte bei leerem Menüplan (keine Rezepte/Produkte/Materialien) nichts ändern", () => {
     const mp = buildPopulatedMenuplan();
@@ -1348,9 +1291,6 @@ describe("recalculatePortions (Randfälle)", () => {
   });
 });
 
-/* =====================================================================
-// recalculatePortions — TOTAL-Modus
-// ===================================================================== */
 describe("recalculatePortions (TOTAL-Modus)", () => {
   it("sollte TOTAL-Produkte nicht neu berechnen", () => {
     const mp = buildPopulatedMenuplan();
@@ -1440,9 +1380,6 @@ describe("recalculatePortions (TOTAL-Modus)", () => {
   });
 });
 
-/* =====================================================================
-// sortSelectedMenues — Zusätzliche Randfälle
-// ===================================================================== */
 describe("sortSelectedMenues (Randfälle)", () => {
   it("sollte bei leerer Menüliste ein leeres Array zurückgeben", () => {
     const mp = buildPopulatedMenuplan();
@@ -1474,9 +1411,6 @@ describe("sortSelectedMenues (Randfälle)", () => {
   });
 });
 
-/* =====================================================================
-// adjustMenuplanWithNewDays — Zusätzliche Randfälle
-// ===================================================================== */
 describe("adjustMenuplanWithNewDays (Randfälle)", () => {
   it("sollte mehrere Zeitscheiben korrekt verarbeiten", () => {
     const mp = buildPopulatedMenuplan();
@@ -1540,9 +1474,6 @@ describe("adjustMenuplanWithNewDays (Randfälle)", () => {
   });
 });
 
-/* =====================================================================
-// createMealRecipe — Zusätzliche Randfälle
-// ===================================================================== */
 describe("createMealRecipe (Randfälle)", () => {
   it("sollte leeren Plan korrekt verarbeiten", () => {
     const recipe = buildRecipeShort();

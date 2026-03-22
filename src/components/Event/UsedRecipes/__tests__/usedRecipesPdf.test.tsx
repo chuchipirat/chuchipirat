@@ -11,9 +11,6 @@
  * @react-pdf/renderer wird gemockt (wie menuplanPdf.test.tsx).
  */
 
-/* =====================================================================
-// Mocks
-// ===================================================================== */
 
 jest.mock("@react-pdf/renderer", () => {
   const React = require("react");
@@ -114,9 +111,6 @@ import type {
 import type AuthUser from "../../../Firebase/Authentication/authUser.class";
 import type {UsedRecipeListEntry} from "../usedRecipes.class";
 
-/* =====================================================================
-// Test-Hilfsfunktionen
-// ===================================================================== */
 
 const buildAuthUser = (): AuthUser =>
   ({
@@ -203,20 +197,12 @@ const buildDefaultProps = () => {
   };
 };
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 
 describe("UsedRecipesPdf", () => {
   beforeEach(() => {
     mockScaleIngredients.mockClear();
     mockScaleMaterials.mockClear();
-  });
-
-  /* =====================================================================
-  // Dokumenten-Metadaten
-  // ===================================================================== */
-  describe("Dokumenten-Metadaten", () => {
+  });  describe("Dokumenten-Metadaten", () => {
     it("should set correct title, subject and keywords with 'Mengenberechnung'", () => {
       const props = buildDefaultProps();
 
@@ -247,12 +233,7 @@ describe("UsedRecipesPdf", () => {
       const doc = container.querySelector("Document");
       expect(doc!.getAttribute("author")).toBe("Test Koch");
     });
-  });
-
-  /* =====================================================================
-  // Filter-Logik
-  // ===================================================================== */
-  describe("Filter-Logik", () => {
+  });  describe("Filter-Logik", () => {
     it("should render a RecipePage for each valid meal recipe", () => {
       const props = buildDefaultProps();
 
@@ -334,12 +315,7 @@ describe("UsedRecipesPdf", () => {
       expect(screen.getByTestId("recipe-header-r-1")).toBeDefined();
       expect(screen.getByTestId("recipe-header-r-2")).toBeDefined();
     });
-  });
-
-  /* =====================================================================
-  // Scaling-Aufrufe
-  // ===================================================================== */
-  describe("Scaling", () => {
+  });  describe("Scaling", () => {
     it("should call scaleIngredients with correct portions", () => {
       const props = buildDefaultProps();
 
@@ -366,12 +342,7 @@ describe("UsedRecipesPdf", () => {
         }),
       );
     });
-  });
-
-  /* =====================================================================
-  // Bedingte Darstellung
-  // ===================================================================== */
-  describe("Bedingte Darstellung", () => {
+  });  describe("Bedingte Darstellung", () => {
     it("should render RecipeNote when recipe has note", () => {
       const props = buildDefaultProps();
       props.list.recipes["r-1"] = buildRecipe("r-1", {
@@ -481,12 +452,7 @@ describe("UsedRecipesPdf", () => {
 
       expect(screen.queryByTestId("recipe-material")).toBeNull();
     });
-  });
-
-  /* =====================================================================
-  // Smoke-Tests
-  // ===================================================================== */
-  describe("Smoke-Tests", () => {
+  });  describe("Smoke-Tests", () => {
     it("should render without error with empty sortedMenueList", () => {
       const props = buildDefaultProps();
       props.sortedMenueList = [];

@@ -12,9 +12,6 @@ import Unit from "../../Unit/unit.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {Diet, Intolerance} from "../GroupConfiguration/groupConfiguration.class";
 
-/* =====================================================================
-// Generische Hilfstypen
-// ===================================================================== */
 
 /**
  * Generische Map-Struktur mit Einträgen und Reihenfolge-Array.
@@ -27,9 +24,6 @@ export interface MenuplanObjectStructure<T> {
   order: string[];
 }
 
-/* =====================================================================
-// Mahlzeitentypen (MealType)
-// ===================================================================== */
 
 /**
  * Ein Mahlzeitentyp (z.B. Frühstück, Mittagessen, Abendessen).
@@ -42,9 +36,6 @@ export interface MealType {
   name: string;
 }
 
-/* =====================================================================
-// Menüs (Menue)
-// ===================================================================== */
 
 /**
  * Order-Typen für die verschiedenen Listen innerhalb eines Menüs oder Menüplans.
@@ -82,9 +73,6 @@ export interface Menues {
   [key: Menue["uid"]]: Menue;
 }
 
-/* =====================================================================
-// Mahlzeiten (Meal)
-// ===================================================================== */
 
 /**
  * Eine Mahlzeit — Kombination aus Datum und Mahlzeitentyp.
@@ -111,9 +99,6 @@ export interface Meals {
   [key: Meal["uid"]]: Meal;
 }
 
-/* =====================================================================
-// Notizen (Note)
-// ===================================================================== */
 
 /**
  * Eine Notiz im Menüplan, optional einem Menü zugeordnet.
@@ -137,9 +122,6 @@ export interface Notes {
   [key: Note["uid"]]: Note;
 }
 
-/* =====================================================================
-// Portionsplanung (Plan)
-// ===================================================================== */
 
 /**
  * Geplante Unverträglichkeit — Scope-Typ für die Portionsplanung.
@@ -172,9 +154,6 @@ export interface PortionPlan {
   totalPortions: number;
 }
 
-/* =====================================================================
-// Menüplan-Rezepte (MealRecipe)
-// ===================================================================== */
 
 /**
  * Ein eingeplantes Rezept innerhalb eines Menüs.
@@ -204,9 +183,6 @@ export interface MealRecipes {
   [key: MealRecipe["uid"]]: MealRecipe;
 }
 
-/* =====================================================================
-// Materialien & Produkte im Menüplan
-// ===================================================================== */
 
 /**
  * Gütertyp: Material, Produkt oder keines.
@@ -285,9 +261,6 @@ export interface Products {
   [key: MenuplanProduct["uid"]]: MenuplanProduct;
 }
 
-/* =====================================================================
-// Koordinaten & Hilfstypen
-// ===================================================================== */
 
 /**
  * Koordinaten eines Menüs innerhalb des Menüplans.
@@ -322,9 +295,6 @@ export interface PlanedMealsRecipe {
   mealPlan: PortionPlan[];
 }
 
-/* =====================================================================
-// Konsistenz-Check
-// ===================================================================== */
 
 /**
  * Bericht über entfernte Elemente beim Konsistenz-Check.
@@ -354,9 +324,6 @@ export interface FixMenuplanResult {
   isConsistent: boolean;
 }
 
-/* =====================================================================
-// MenuplanData — Hauptinterface (ersetzt die Menuplan-Klasse)
-// ===================================================================== */
 
 /**
  * Vollständige Datenstruktur eines Menüplans.

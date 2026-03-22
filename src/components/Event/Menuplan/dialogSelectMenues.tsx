@@ -177,9 +177,6 @@ export const getMealForMealTypeAndDate = (
   );
 };
 
-/* ===================================================================
-   Dialog-Datums-Wahl-Einplanung
-=================================================================== */
 
 /**
  * Props für den Menü-Auswahldialog.

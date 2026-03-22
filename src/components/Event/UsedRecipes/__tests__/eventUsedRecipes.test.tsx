@@ -35,9 +35,6 @@ import {
 import Recipe, {RecipeType} from "../../../Recipe/recipe.class";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 
-/* =====================================================================
-// Test-Hilfsfunktionen
-// ===================================================================== */
 
 const buildMealRecipe = (
   overrides: Partial<MealRecipe> = {},
@@ -92,9 +89,6 @@ const buildMenuplanData = (
     ...overrides,
   }) as unknown as MenuplanData;
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 
 describe("EventUsedRecipes", () => {
   it("should render recipe cards for valid meal recipes", () => {

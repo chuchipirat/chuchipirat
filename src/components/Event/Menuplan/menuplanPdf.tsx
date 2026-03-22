@@ -33,9 +33,6 @@ import {RecipeType} from "../../Recipe/recipe.class";
 import {Footer, Header} from "../../Shared/pdfComponents";
 import "../../Shared/pdfFontRegistration";
 
-/* =====================================================================
-// Hilfsfunktionen
-// ===================================================================== */
 
 /**
  * Teilt die Datumsarray in Seiten-Chunks auf und füllt die letzte Seite

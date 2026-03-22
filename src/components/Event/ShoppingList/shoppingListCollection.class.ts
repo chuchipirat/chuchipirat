@@ -31,9 +31,6 @@ import Material from "../../Material/material.class";
 import _ from "lodash";
 import Utils from "../../Shared/utils.class";
 
-/* =====================================================================
-// Interfaces
-// ===================================================================== */
 
 /**
  * Properties einer einzelnen Einkaufsliste.
@@ -84,9 +81,6 @@ export interface ShoppingListEntry {
   trace: ShoppingListTrace;
 }
 
-/* =====================================================================
-// Interfaces für Methoden-Parameter
-// ===================================================================== */
 
 interface CreateNewListParams {
   name: string;
@@ -138,9 +132,6 @@ interface EditListNameParams {
   authUser: AuthUser;
 }
 
-/* =====================================================================
-// ShoppingListCollection
-// ===================================================================== */
 
 /**
  * Domain-Modell für die Übersicht aller Einkaufslisten eines Events.
@@ -168,11 +159,6 @@ export class ShoppingListCollection {
     this.lists = {};
     this.eventUid = "";
   }
-
-  /* =====================================================================
-  // Factory
-  // ===================================================================== */
-
   /**
    * Erstellt eine leere ShoppingListCollection für ein Event.
    *
@@ -184,11 +170,6 @@ export class ShoppingListCollection {
     collection.eventUid = event.uid;
     return collection;
   };
-
-  /* =====================================================================
-  // Neue Liste erstellen (reine Geschäftslogik)
-  // ===================================================================== */
-
   /**
    * Erstellt eine neue Einkaufsliste und aktualisiert die Collection.
    *
@@ -244,11 +225,6 @@ export class ShoppingListCollection {
 
     return {shoppingList, trace, shoppingListCollection: updatedCollection};
   }
-
-  /* =====================================================================
-  // Liste aktualisieren (Refresh)
-  // ===================================================================== */
-
   /**
    * Aktualisiert eine bestehende Einkaufsliste (Refresh).
    *
@@ -341,11 +317,6 @@ export class ShoppingListCollection {
       shoppingListCollection: updatedCollection,
     };
   }
-
-  /* =====================================================================
-  // Liste löschen (reine Geschäftslogik)
-  // ===================================================================== */
-
   /**
    * Entfernt eine Liste aus der Collection (optimistisches UI-Update).
    * Der Caller muss die Löschung im Repository separat durchführen.
@@ -375,11 +346,6 @@ export class ShoppingListCollection {
 
     return collection;
   }
-
-  /* =====================================================================
-  // Listenname ändern (reine Geschäftslogik)
-  // ===================================================================== */
-
   /**
    * Ändert den Namen einer Liste in der Collection (optimistisches UI-Update).
    *

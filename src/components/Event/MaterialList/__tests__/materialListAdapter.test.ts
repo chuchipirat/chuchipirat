@@ -19,9 +19,6 @@ import {MaterialType} from "../../../Material/material.class";
 import Material from "../../../Material/material.class";
 import {ItemType} from "../../ShoppingList/shoppingList.class";
 
-/* =====================================================================
-// Test-Daten
-// ===================================================================== */
 
 const EVENT_ID = "event-001";
 
@@ -93,15 +90,8 @@ const itemDomainManualEdit: MaterialListItemDomain = {
   assignedCookUserId: null,
 };
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 
-describe("materialListAdapter", () => {
-  /* =====================================================================
-  // headersDomainToMaterialList
-  // ===================================================================== */
-  describe("headersDomainToMaterialList", () => {
+describe("materialListAdapter", () => {  describe("headersDomainToMaterialList", () => {
     it("should convert headers to MaterialList with correct structure", () => {
       const result = headersDomainToMaterialList([header1, header2], EVENT_ID);
 
@@ -144,12 +134,7 @@ describe("materialListAdapter", () => {
       expect(Object.keys(result.lists)).toHaveLength(0);
       expect(result.lastChange.date).toEqual(new Date(0));
     });
-  });
-
-  /* =====================================================================
-  // itemsDomainToMaterialListItems
-  // ===================================================================== */
-  describe("itemsDomainToMaterialListItems", () => {
+  });  describe("itemsDomainToMaterialListItems", () => {
     it("should map domain items to MaterialListMaterial with correct uid", () => {
       const result = itemsDomainToMaterialListItems([itemDomain1]);
 
@@ -200,12 +185,7 @@ describe("materialListAdapter", () => {
       expect(result[0].assignedCookName).toBeNull();
       expect(result[0].resolvedCookName).toBe("Max Muster");
     });
-  });
-
-  /* =====================================================================
-  // deriveEditSource
-  // ===================================================================== */
-  describe("deriveEditSource", () => {
+  });  describe("deriveEditSource", () => {
     it("should return 'manual_add' when manualAdd is true", () => {
       const item = {manualAdd: true} as MaterialListMaterial;
       expect(deriveEditSource(item)).toBe("manual_add");
@@ -228,12 +208,7 @@ describe("materialListAdapter", () => {
       } as MaterialListMaterial;
       expect(deriveEditSource(item)).toBe("manual_add");
     });
-  });
-
-  /* =====================================================================
-  // materialListItemsToInsertRows
-  // ===================================================================== */
-  describe("materialListItemsToInsertRows", () => {
+  });  describe("materialListItemsToInsertRows", () => {
     const knownMaterial: Material = Object.assign(new Material(), {
       uid: "mat-001",
       name: "Pfanne gross",

@@ -25,9 +25,6 @@ import {
   MATERIAL as TEXT_MATERIAL,
 } from "../../../../constants/text";
 
-/* =====================================================================
-// Mocks
-// ===================================================================== */
 
 // Supabase Mocks
 jest.mock("../../../Product/dialogProduct", () => ({
@@ -65,9 +62,6 @@ jest.mock("../../../Unit/unitAutocomplete", () => ({
   default: () => <div data-testid="unit-autocomplete" />,
 }));
 
-/* =====================================================================
-// Hilfsfunktionen
-// ===================================================================== */
 
 function buildAuthUser(): AuthUser {
   const user = new AuthUser();
@@ -96,9 +90,6 @@ const defaultProps = {
   onProductCreate: jest.fn(),
 };
 
-/* =====================================================================
-// Tests
-// ===================================================================== */
 describe("DialogGoods", () => {
   afterEach(() => {
     jest.clearAllMocks();
