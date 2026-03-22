@@ -1,4 +1,5 @@
 import React from "react";
+import * as Sentry from "@sentry/react";
 
 import {
   Stack,
@@ -71,7 +72,7 @@ import {
   MasterDataCreateType,
   OnMasterdataCreateProps,
 } from "../Event/event";
-import MaterialList, {
+import {MaterialList,
   MaterialListEntry,
   MaterialListMaterial,
 } from "./materialList.class";
@@ -100,9 +101,6 @@ import {useMaterialListHandlers} from "./useMaterialListHandlers";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {itemsDomainToMaterialListItems} from "./materialListAdapter";
 
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 enum ReducerActions {
   SHOW_LOADING,
   SET_SELECTED_LIST_ITEM,
@@ -182,9 +180,6 @@ const materialListReducer = (state: State, action: DispatchAction): State => {
 
 const CENTER_BOX_SX = {justifyContent: "center", display: "flex"};
 
-/* ===================================================================
-// ========================= Inline Change Types =====================
-// =================================================================== */
 export type MaterialItemChange =
   | {
       source: "textfield";
@@ -207,9 +202,6 @@ const createEmptyMaterialListItem = (): MaterialListMaterial => ({
   manualAdd: true,
 });
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 interface EventMaterialListPageProps {
   authUser: AuthUser;
   materialList: MaterialList;
@@ -384,7 +376,7 @@ const EventMaterialListPage = ({
         onMaterialListUpdate(updatedMaterialList);
       },
       (error) => {
-        console.warn("Realtime materiallistitems subscription error:", error.message);
+        Sentry.captureException(error, {extra: {context: "Realtime materiallistitems subscription"}});
       },
     );
 
@@ -566,9 +558,6 @@ const EventMaterialListPage = ({
   );
 };
 
-/* ===================================================================
-// ==================== Quantity Field with local state ==============
-// =================================================================== */
 interface QuantityFieldProps {
   materialUid: string;
   quantity: number;
@@ -614,9 +603,6 @@ const QuantityField = React.memo(
 );
 QuantityField.displayName = "QuantityField";
 
-/* ===================================================================
-// ======================= Liste der Materialien =====================
-// =================================================================== */
 interface EventMaterialListListProps {
   materialList: MaterialListEntry;
   materials: Material[];
@@ -824,9 +810,6 @@ const EventMaterialListList = React.memo(
 );
 EventMaterialListList.displayName = "EventMaterialListList";
 
-/* ===================================================================
-// ==================== Dialog Material hinzufügen ===================
-// =================================================================== */
 interface DialogHandleMaterialProps {
   dialogOpen: boolean;
   material: Material | null;
@@ -1003,4 +986,4 @@ const DialogHandleMaterial = ({
   );
 };
 
-export default EventMaterialListPage;
+export {EventMaterialListPage};

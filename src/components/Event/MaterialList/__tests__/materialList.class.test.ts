@@ -5,7 +5,7 @@
  * deleteList, editListName, addMaterialToList, deleteMaterialFromList,
  * computeTrace, countItems.
  */
-import MaterialList, {
+import {MaterialList,
   MaterialListEntry,
   MaterialListMaterial,
 } from "../materialList.class";
@@ -31,8 +31,7 @@ jest.mock("@sentry/react", () => ({
 
 // UsedRecipes.defineSelectedRecipes mocken
 jest.mock("../../UsedRecipes/usedRecipes.class", () => ({
-  __esModule: true,
-  default: {
+  UsedRecipes: {
     defineSelectedRecipes: jest.fn(),
   },
 }));
@@ -457,7 +456,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         },
       });
 
-      const itemNames = result.lists["list-001"].items.map((i) => i.name);
+      const itemNames = result.lists["list-001"].items.map((item) => item.name);
       expect(itemNames).toContain("Manuell hinzugefügt");
     });
   });
@@ -716,7 +715,7 @@ describe("MaterialList (Domain-Klasse)", () => {
 
       // Schüssel ist als Menü-Material (mm-001) referenziert
       expect(traces.length).toBeGreaterThanOrEqual(1);
-      const menuTrace = traces.find((t) => t.recipe.uid === "");
+      const menuTrace = traces.find((trace) => trace.recipe.uid === "");
       expect(menuTrace).toBeDefined();
       expect(menuTrace?.quantity).toBe(3);
     });

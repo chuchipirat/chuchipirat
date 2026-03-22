@@ -32,9 +32,6 @@ const checkedCellStyle = (checked: boolean) =>
     ? {...styles.tableCell, ...styles.gray, ...styles.strikeTrough}
     : styles.tableCell;
 
-/* ===================================================================
-// ========================= PDF Materialliste =======================
-// =================================================================== */
 /**
  * PDF-Dokument für die Materialliste eines Events.
  *
@@ -77,9 +74,6 @@ const MaterialListPdf = ({
   );
 };
 
-/* ===================================================================
-// ========================= Materialliste-Seite =====================
-// =================================================================== */
 /**
  * Einzelne Seite der Materialliste im PDF.
  *
@@ -118,9 +112,6 @@ const MaterialListPage = ({
   );
 };
 
-/* ===================================================================
-// ============================== Titel ==============================
-// =================================================================== */
 /**
  * Titelbereich der Materialliste mit Name, Zeitraum und Item-Anzahl.
  *
@@ -150,9 +141,6 @@ const MaterialListTitle = ({
   );
 };
 
-/* ===================================================================
-// ============================ Item-Liste ===========================
-// =================================================================== */
 /**
  * Tabelle mit den Materiallistenpositionen, alphabetisch sortiert.
  * Zeigt optional eine Koch-Spalte an, wenn mindestens ein Item eine
@@ -208,4 +196,4 @@ const MaterialListList = ({materialList}: MaterialListListProps) => {
   );
 };
 
-export default MaterialListPdf;
+export {MaterialListPdf};

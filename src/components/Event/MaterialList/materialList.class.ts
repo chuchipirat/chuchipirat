@@ -111,7 +111,7 @@ interface RefreshListParams {
  * Enthält reine Business-Logik (kein Firebase/Supabase). Persistenz
  * erfolgt über MaterialListRepository via useMaterialListHandlers.
  */
-export default class MaterialList {
+export class MaterialList {
   uid: string;
   lists: {
     [key: string]: MaterialListEntry;

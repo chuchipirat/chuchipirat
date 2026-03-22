@@ -86,8 +86,8 @@ import {
   headersDomainToCollection,
   itemsDomainToShoppingList,
 } from "../ShoppingList/shoppingListAdapter";
-import EventMaterialListPage from "../MaterialList/materialList";
-import MaterialList from "../MaterialList/materialList.class";
+import {EventMaterialListPage} from "../MaterialList/materialList";
+import {MaterialList} from "../MaterialList/materialList.class";
 import {
   headersDomainToMaterialList,
   itemsDomainToMaterialListItems,

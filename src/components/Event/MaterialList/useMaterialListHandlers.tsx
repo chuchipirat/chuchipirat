@@ -11,9 +11,8 @@
  */
 import React from "react";
 import {AlertColor} from "@mui/material";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
 import * as Sentry from "@sentry/react";
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 import {
   DialogSelectMenuesForRecipeDialogValues,
   decodeSelectedMeals,
@@ -28,7 +27,7 @@ import {
   MenuplanData,
 } from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals, sortSelectedMenues} from "../Menuplan/menuplanService";
-import MaterialList, {
+import {MaterialList,
   MaterialListEntry,
   MaterialListMaterial,
 } from "./materialList.class";
@@ -64,11 +63,8 @@ import {MaterialListEditSource} from "../../Database/Repository/MaterialListRepo
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {ProductTrace} from "../ShoppingList/shoppingListCollection.class";
 import {ItemType} from "../ShoppingList/shoppingList.class";
-import MaterialListPdf from "./materialListPdf";
+import {MaterialListPdf} from "./materialListPdf";
 
-/* ===================================================================
-// ========================= Types & Constants =======================
-// =================================================================== */
 
 export interface ContextMenuSelectedItemProps {
   anchor: HTMLElement | null;
@@ -100,9 +96,6 @@ export const TRACE_ITEM_DIALOG_INITIAL_VALUES = {
   hasBeenManuallyEdited: false,
 };
 
-/* ===================================================================
-// ========================= Hook Props ==============================
-// =================================================================== */
 
 interface UseMaterialListHandlersProps {
   authUser: AuthUser;
@@ -121,9 +114,6 @@ interface UseMaterialListHandlersProps {
   onDispatchSnackbar: (severity: AlertColor, message: string) => void;
 }
 
-/* ===================================================================
-// ========================= Hook ====================================
-// =================================================================== */
 
 /**
  * Hook für alle Materiallisten-Operationen.
@@ -909,7 +899,7 @@ export function useMaterialListHandlers({
       return;
     }
 
-    pdf(
+    generateAndDownloadPdf(
       <MaterialListPdf
         materialList={materialList.lists[selectedListItem]}
         materialListSelectedTimeSlice={decodeSelectedMeals({
@@ -920,18 +910,10 @@ export function useMaterialListHandlers({
         eventName={event.name}
         authUser={authUser}
       />,
-    )
-      .toBlob()
-      .then((result) => {
-        fileSaver.saveAs(
-          result,
-          event.name + " " + TEXT_MATERIAL_LIST + TEXT_SUFFIX_PDF,
-        );
-      })
-      .catch((error) => {
-        Sentry.captureException(error);
-        onDispatchError(error instanceof Error ? error : new Error(String(error)));
-      });
+      event.name + " " + TEXT_MATERIAL_LIST + TEXT_SUFFIX_PDF,
+      (error) => onDispatchError(error),
+      {eventUid: event.uid},
+    );
   }, [materialList, selectedListItem, menuplan, event.name, authUser, onDispatchError]);
 
   /* ------------------------------------------

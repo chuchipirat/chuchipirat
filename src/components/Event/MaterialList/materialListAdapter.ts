@@ -6,7 +6,7 @@
  * Supabase-Daten in das bestehende UI-Format konvertiert werden
  * und umgekehrt.
  */
-import MaterialList, {
+import {MaterialList,
   MaterialListEntry,
   MaterialListMaterial,
 } from "./materialList.class";
