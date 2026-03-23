@@ -24,12 +24,12 @@ import AuthUser from "../../Firebase/Authentication/authUser.class";
 
 jest.mock("../recipe.view", () => ({
   __esModule: true,
-  default: () => <div data-testid="recipe-view" />,
+  RecipeView: () => <div data-testid="recipe-view" />,
 }));
 
 jest.mock("../recipe.edit", () => ({
   __esModule: true,
-  default: () => <div data-testid="recipe-edit" />,
+  RecipeEdit: () => <div data-testid="recipe-edit" />,
 }));
 
 /* ===================================================================

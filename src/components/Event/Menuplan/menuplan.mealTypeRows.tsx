@@ -35,14 +35,14 @@ import {triggerPostMoveFlash} from "@atlaskit/pragmatic-drag-and-drop-flourish/t
 import {DropIndicator} from "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator/box";
 import mergeRefs from "@atlaskit/ds-lib/merge-refs";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {
   NEW_MENU as TEXT_NEW_MENU,
   DELETE as TEXT_DELETE,
   ATTENTION as TEXT_ATTENTION,
   ALL_RECIPES_AND_VALUES_WILL_BE_DELETED as TEXT_ALL_RECIPES_AND_VALUES_WILL_BE_DELETED,
 } from "../../../constants/text";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {
   MealType,
   Meal,

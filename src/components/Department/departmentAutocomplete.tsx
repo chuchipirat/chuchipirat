@@ -8,18 +8,30 @@ import {
   DEPARTMENT,
   ERROR_NO_OPTIONS,
 } from "../../constants/text";
-import Department from "./department.class";
+import {DepartmentDomain} from "../Database/Repository/DepartmentRepository";
 import {TextFieldSize} from "../../constants/defaultValues";
 
+/**
+ * Props für die {@link DepartmentAutocomplete}-Komponente.
+ *
+ * @param componentKey - Optionaler Schlüssel zur Unterscheidung mehrerer Instanzen.
+ * @param department - Aktuell ausgewählte Abteilung (oder null).
+ * @param departments - Liste aller verfügbaren Abteilungen.
+ * @param label - Optionales Label (Standard: "Abteilung").
+ * @param disabled - Ob das Feld deaktiviert ist.
+ * @param onChange - Callback bei Auswahl einer neuen Abteilung.
+ * @param error - Optionales Fehlerobjekt mit isError-Flag und Fehlertext.
+ * @param size - Optionale Textfeldgrösse (Standard: medium).
+ */
 interface DepartmentAutocompleteProps {
   componentKey?: string;
-  department: Department | null;
-  departments: Department[];
+  department: DepartmentDomain | null;
+  departments: DepartmentDomain[];
   label?: string;
   disabled: boolean;
   onChange: (
     event: React.ChangeEvent<HTMLInputElement>,
-    newValue: Department | null,
+    newValue: DepartmentDomain | null,
     action: AutocompleteChangeReason,
     objectId: string
   ) => void;
@@ -27,13 +39,23 @@ interface DepartmentAutocompleteProps {
   size?: TextFieldSize;
 }
 
-// ===================================================================== */
 /**
- * Autocomplete Feld für Abteilung
- * @param param0
- * @returns
+ * Autocomplete-Feld zur Auswahl einer Abteilung.
+ *
+ * Zeigt alle verfügbaren Abteilungen als Dropdown an und erlaubt die
+ * Auswahl per Eingabe oder Klick. Im deaktivierten Zustand wird ein
+ * Hinweistext angezeigt.
+ *
+ * @param componentKey - Optionaler Schlüssel zur Unterscheidung mehrerer Instanzen.
+ * @param department - Aktuell ausgewählte Abteilung (oder null).
+ * @param departments - Liste aller verfügbaren Abteilungen.
+ * @param label - Optionales Label (Standard: "Abteilung").
+ * @param disabled - Ob das Feld deaktiviert ist.
+ * @param onChange - Callback bei Auswahl einer neuen Abteilung.
+ * @param error - Optionales Fehlerobjekt mit isError-Flag und Fehlertext.
+ * @param size - Optionale Textfeldgrösse (Standard: medium).
  */
-const DepartmentAutocomplete = ({
+export const DepartmentAutocomplete = ({
   componentKey,
   department,
   departments,
@@ -89,4 +111,3 @@ const DepartmentAutocomplete = ({
     />
   );
 };
-export default DepartmentAutocomplete;

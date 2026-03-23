@@ -31,8 +31,8 @@ import {
 
 import {DatePicker} from "@mui/x-date-pickers/DatePicker";
 
-import AlertMessage from "../../Shared/AlertMessage";
-import PageTitle from "../../Shared/pageTitle";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
 
 import {
@@ -49,12 +49,12 @@ import {
   EDIT_SYSTEM_MESSAGE as TEXT_EDIT_SYSTEM_MESSAGE,
 } from "../../../constants/text";
 import * as ROUTES from "../../../constants/routes";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
-import CustomSnackbar, {
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../../Shared/customSnackbar";
 
 /* ===================================================================
@@ -82,7 +82,7 @@ type State = {
   isLoading: boolean;
   isNewMode: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 /**

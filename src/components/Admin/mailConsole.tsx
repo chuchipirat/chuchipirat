@@ -47,9 +47,9 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
 
 import Grid from "@mui/material/Grid";
 
-import AlertMessage from "../Shared/AlertMessage";
-import PageTitle from "../Shared/pageTitle";
-import Utils from "../Shared/utils.class";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {PageTitle} from "../Shared/pageTitle";
+import {Utils} from "../Shared/utils.class";
 import {SYSTEM_BREADCRUMB} from "./system";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 
@@ -86,14 +86,14 @@ import {
   SEND as TEXT_SEND,
   MAIL_SEND_REQUIRES_TEST as TEXT_MAIL_SEND_REQUIRES_TEST,
 } from "../../constants/text";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 import ReactQuill from "react-quill-new";
 import "react-quill-new/dist/quill.snow.css";
-import CustomSnackbar, {
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../Shared/customSnackbar";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 /* ===================================================================
 // ======================== Typen & Reducer ==========================
@@ -201,7 +201,7 @@ type State = {
   testMailSent: boolean;
   isLoading: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
   sendResult: SendResult | null;
 };
 

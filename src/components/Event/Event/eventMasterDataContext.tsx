@@ -10,8 +10,8 @@
  */
 import React from "react";
 
-import Product from "../../Product/product.class";
-import Unit from "../../Unit/unit.class";
+import {Product} from "../../Product/product.types";
+import {Unit} from "../../Unit/unit.class";
 import Department from "../../Department/department.class";
 import {
   UnitConversionBasic,

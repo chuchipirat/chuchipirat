@@ -14,7 +14,7 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
 
-import ProductsPage from "../products";
+import {ProductsPage} from "../products";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
 /* ===================================================================

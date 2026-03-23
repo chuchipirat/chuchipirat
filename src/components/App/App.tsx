@@ -8,11 +8,12 @@ import {
 import {CssBaseline, useMediaQuery} from "@mui/material";
 import * as Sentry from "@sentry/react";
 
-import Navigation from "../Navigation/navigation";
-import ScrollToTop from "../Navigation/scrollToTop";
-import FallbackLoading from "../Shared/fallbackLoading";
-import CustomDialog from "../Shared/customDialog";
-import CustomTheme from "./customTheme.class";
+import "./App.css";
+import {Navigation} from "../Navigation/Navigation";
+import {ScrollToTop} from "../Navigation/ScrollToTop";
+import {FallbackLoading} from "../Shared/fallbackLoading";
+import {CustomDialog} from "../Shared/customDialog";
+import {getTheme} from "./customTheme";
 import {AppRoutes} from "./AppRoutes";
 import {
   ConditionalGoBackFab,
@@ -38,7 +39,7 @@ const App = () => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
 
   const theme = useMemo(
-    () => createTheme({palette: CustomTheme.getTheme(prefersDarkMode)}),
+    () => createTheme({palette: getTheme(prefersDarkMode)}),
     [prefersDarkMode]
   );
 

@@ -18,12 +18,12 @@ import {
   SnackbarCloseReason,
 } from "@mui/material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {Event,EventRefDocuments} from "./event.class";
 // Bridge-Importe eliminiert — Konvertierung erfolgt direkt in den Repositories
 import {resizeImage} from "../../Shared/imageResize";
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 
 import {
   MENUPLAN as TEXT_MENUPLAN,
@@ -58,7 +58,7 @@ import {
 import {HOME as ROUTE_HOME} from "../../../constants/routes";
 
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
-import Unit from "../../Unit/unit.class";
+import {Unit} from "../../Unit/unit.class";
 
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
@@ -68,15 +68,16 @@ import {EventUsedRecipesPage} from "../UsedRecipes/usedRecipes";
 import {MenuplanData} from "../Menuplan/menuplan.types";
 import {createEmptyMenuplan, recalculatePortions, adjustMenuplanWithNewDays, fixMenuplan} from "../Menuplan/menuplanService";
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
-import Utils from "../../Shared/utils.class";
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {Utils} from "../../Shared/utils.class";
+import {RecipeShort, createEmptyRecipeShort, createShortRecipeFromRecipe} from "../../Recipe/recipe.types";
 import {RecipeType} from "../../Recipe/recipe.class";
 import {RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
-import Material from "../../Material/material.class";
-import Product from "../../Product/product.class";
-import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
+import {Material} from "../../Material/material.types";
+import {Product} from "../../Product/product.types";
+import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import Department from "../../Department/department.class";
-import UnitConversion, {
+import {
+  UnitConversion,
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
@@ -94,21 +95,21 @@ import {
   itemsDomainToMaterialListItems,
 } from "../MaterialList/materialListAdapter";
 import {EventInfoPage} from "./eventInfo";
-import FieldValidationError, {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
+import {FieldValidationError, FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
 import {
   DialogType,
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
 import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
-import AlertMessage from "../../Shared/AlertMessage";
-import Stats, {StatsField} from "../../Shared/stats.class";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {Stats, StatsField} from "../../Shared/stats.class";
 import {logEvent} from "firebase/analytics";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
+import {FirebaseAnalyticEvent} from "../../../constants/firebaseEvent";
 import {EventDomain} from "../../Database/Repository/EventRepository";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
@@ -368,7 +369,7 @@ type DispatchAction =
     }
   | {
       type: ReducerActions.SNACKBAR_SHOW;
-      payload: {severity: Snackbar["severity"]; message: string};
+      payload: {severity: SnackbarState["severity"]; message: string};
     }
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -389,7 +390,7 @@ type State = {
   departments: Department[];
   unitConversionBasic: UnitConversionBasic | null;
   unitConversionProducts: UnitConversionProducts | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
   isLoading: boolean;
   isSaving: boolean;
   loadingComponents: {
@@ -721,11 +722,11 @@ const eventReducer = (state: State, action: DispatchAction): State => {
 
       if (arrayIndex !== -1) {
         updatedRecipeList[arrayIndex] =
-          RecipeShort.createShortRecipeFromRecipe(newRecipe);
+          createShortRecipeFromRecipe(newRecipe);
       } else {
         // Neues Rezept aufnehmen
         updatedRecipeList.push(
-          RecipeShort.createShortRecipeFromRecipe(newRecipe),
+          createShortRecipeFromRecipe(newRecipe),
         );
       }
       // Array sortieren
@@ -807,7 +808,7 @@ const INITITIAL_STATE: State = {
   products: [],
   materials: [],
   departments: [],
-  snackbar: {} as Snackbar,
+  snackbar: {} as SnackbarState,
   unitConversionBasic: null,
   unitConversionProducts: null,
   isLoading: false,
@@ -1193,16 +1194,14 @@ const EventPage = () => {
       database.products
         .getAllProducts({onlyUsable: true, withDepartmentName: false})
         .then((productDomains) => {
-          const products: Product[] = productDomains.map((d) => {
-            const p = new Product();
-            p.uid = d.uid;
-            p.name = d.name;
-            p.department = d.department;
-            p.shoppingUnit = d.shoppingUnit;
-            p.dietProperties = d.dietProperties;
-            p.usable = d.usable;
-            return p;
-          });
+          const products: Product[] = productDomains.map((d) => ({
+            uid: d.uid,
+            name: d.name,
+            department: d.department,
+            shoppingUnit: d.shoppingUnit,
+            dietProperties: d.dietProperties,
+            usable: d.usable,
+          }));
           dispatch({
             type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
             payload: products,
@@ -1255,17 +1254,9 @@ const EventPage = () => {
       database.materials
         .getAllMaterials(true)
         .then((materialDomains) => {
-          const materials: Material[] = materialDomains.map((d) => {
-            const m = new Material();
-            m.uid = d.uid;
-            m.name = d.name;
-            m.type = d.type;
-            m.usable = d.usable;
-            return m;
-          });
           dispatch({
             type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-            payload: materials,
+            payload: materialDomains,
           });
         })
         .catch((error) => {
@@ -1734,7 +1725,7 @@ const EventPage = () => {
           .then(([publicRecipes, privateRecipes, variantRecipes]) => {
             // RecipeShortDomain → RecipeShort konvertieren
             const toRecipeShort = (d: RecipeShortDomain): RecipeShort => {
-              const rs = new RecipeShort();
+              const rs = createEmptyRecipeShort();
               rs.uid = d.uid;
               rs.name = d.name;
               rs.source = d.source;
@@ -1849,16 +1840,14 @@ const EventPage = () => {
         database.products
           .getAllProducts({onlyUsable: true, withDepartmentName: false})
           .then((productDomains) => {
-            const products: Product[] = productDomains.map((d) => {
-              const p = new Product();
-              p.uid = d.uid;
-              p.name = d.name;
-              p.department = d.department;
-              p.shoppingUnit = d.shoppingUnit;
-              p.dietProperties = d.dietProperties;
-              p.usable = d.usable;
-              return p;
-            });
+            const products: Product[] = productDomains.map((d) => ({
+              uid: d.uid,
+              name: d.name,
+              department: d.department,
+              shoppingUnit: d.shoppingUnit,
+              dietProperties: d.dietProperties,
+              usable: d.usable,
+            }));
             dispatch({
               type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
               payload: products,
@@ -1881,17 +1870,9 @@ const EventPage = () => {
         database.materials
           .getAllMaterials(true)
           .then((materialDomains) => {
-            const materials: Material[] = materialDomains.map((d) => {
-              const m = new Material();
-              m.uid = d.uid;
-              m.name = d.name;
-              m.type = d.type;
-              m.usable = d.usable;
-              return m;
-            });
             dispatch({
               type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-              payload: materials,
+              payload: materialDomains,
             });
           })
           .catch((error) => {

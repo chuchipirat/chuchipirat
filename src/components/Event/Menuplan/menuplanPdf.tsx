@@ -8,7 +8,7 @@
 import React from "react";
 import {Document, Page, View, Text} from "@react-pdf/renderer";
 import {Style} from "@react-pdf/types";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {MENUPLAN_NO_OF_COLUMS_PRINT} from "../../../constants/defaultValues";
 import {
   MENUPLAN as TEXT_MENUPLAN,

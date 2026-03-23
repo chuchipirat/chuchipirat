@@ -12,7 +12,7 @@ import {
 
 import {Footer, Header} from "../../Shared/pdfComponents";
 import {MaterialListEntry} from "./materialList.class";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
 const styles = pdfStyles;
 

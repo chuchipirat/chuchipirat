@@ -14,6 +14,7 @@ import {MemoryRouter} from "react-router";
 
 /** Mock für den AuthService (database.auth) */
 const mockUpdatePassword = jest.fn();
+const mockUpdateEmail = jest.fn();
 const mockSignInWithPassword = jest.fn();
 const mockGetUser = jest.fn();
 
@@ -25,6 +26,7 @@ const mockDatabase = {
     signOut: jest.fn(),
     resetPassword: jest.fn(),
     updatePassword: mockUpdatePassword,
+    updateEmail: mockUpdateEmail,
     onAuthStateChange: jest.fn(),
     getUser: mockGetUser,
     getSession: jest.fn(),
@@ -90,7 +92,7 @@ jest.mock("../../AuthServiceHandler/passwordReset", () => ({
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
-import PasswordChangePage from "../passwordChange";
+import {PasswordChangePage} from "../passwordChange";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
@@ -133,6 +135,22 @@ const getPasswordField = () => {
   return el as HTMLInputElement;
 };
 
+/** Hilfsfunktion: Passwort-Bestätigungs-Feld via ID holen */
+const getPasswordConfirmField = () => {
+  const el = document.getElementById("passwordConfirm");
+  if (!el) throw new Error("Passwort-Bestätigungs-Feld nicht gefunden");
+  return el as HTMLInputElement;
+};
+
+/**
+ * Hilfsfunktion: Passwort und Bestätigung eingeben.
+ * Füllt beide Felder mit demselben Wert.
+ */
+const typePasswordWithConfirm = async (password: string) => {
+  await userEvent.type(getPasswordField(), password);
+  await userEvent.type(getPasswordConfirmField(), password);
+};
+
 /**
  * Hilfsfunktion: Reauthentifizierung durchführen.
  * Bei Rendering ohne oobCode erscheint der ReauthDialog zuerst.
@@ -142,7 +160,7 @@ const completeReauthentication = async () => {
   mockSignInWithPassword.mockResolvedValueOnce({user: {id: "uuid"}});
 
   // Passwort im Reauthentifizierungs-Dialog eingeben und absenden
-  const dialogPasswordField = document.getElementById("password");
+  const dialogPasswordField = document.getElementById("reauth-password");
   if (!dialogPasswordField)
     throw new Error("Dialog-Passwort-Feld nicht gefunden");
 
@@ -241,11 +259,25 @@ describe("PasswordChangePage", () => {
       expect(changeButton).toBeDisabled();
     });
 
-    test("Passwort-ändern-Button ist aktiviert bei ausreichend langem Passwort", async () => {
+    test("Passwort-ändern-Button ist deaktiviert wenn Bestätigung nicht übereinstimmt", async () => {
       mockGetUser.mockResolvedValue({email: "test@example.com"});
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
       await userEvent.type(getPasswordField(), "neuesPasswort123");
+      await userEvent.type(getPasswordConfirmField(), "anderes");
+
+      const changeButton = screen.getByRole("button", {
+        name: /passwort ändern/i,
+      });
+      expect(changeButton).toBeDisabled();
+      expect(screen.getByText(/stimmen nicht überein/i)).toBeInTheDocument();
+    });
+
+    test("Passwort-ändern-Button ist aktiviert bei übereinstimmenden Passwörtern", async () => {
+      mockGetUser.mockResolvedValue({email: "test@example.com"});
+      renderPasswordChangePage({oobCode: "reset-code-123"});
+
+      await typePasswordWithConfirm("neuesPasswort123");
 
       const changeButton = screen.getByRole("button", {
         name: /passwort ändern/i,
@@ -258,7 +290,7 @@ describe("PasswordChangePage", () => {
       mockUpdatePassword.mockResolvedValueOnce(undefined);
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
-      await userEvent.type(getPasswordField(), "neuesPasswort123");
+      await typePasswordWithConfirm("neuesPasswort123");
       await userEvent.click(
         screen.getByRole("button", {name: /passwort ändern/i}),
       );
@@ -275,13 +307,30 @@ describe("PasswordChangePage", () => {
       mockUpdatePassword.mockResolvedValueOnce(undefined);
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
-      await userEvent.type(getPasswordField(), "neuesPasswort123");
+      await typePasswordWithConfirm("neuesPasswort123");
       await userEvent.click(
         screen.getByRole("button", {name: /passwort ändern/i}),
       );
 
       await waitFor(() => {
         expect(mockUpdatePassword).toHaveBeenCalledWith("neuesPasswort123");
+      });
+    });
+
+    test("'Zur Anmeldung'-Button erscheint nach erfolgreichem Reset", async () => {
+      mockGetUser.mockResolvedValue({email: "test@example.com"});
+      mockUpdatePassword.mockResolvedValueOnce(undefined);
+      renderPasswordChangePage({oobCode: "reset-code-123"});
+
+      await typePasswordWithConfirm("neuesPasswort123");
+      await userEvent.click(
+        screen.getByRole("button", {name: /passwort ändern/i}),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole("button", {name: /anmeldung/i}),
+        ).toBeInTheDocument();
       });
     });
   });
@@ -294,7 +343,7 @@ describe("PasswordChangePage", () => {
       );
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
-      await userEvent.type(getPasswordField(), "altesPasswort");
+      await typePasswordWithConfirm("altesPasswort");
       await userEvent.click(
         screen.getByRole("button", {name: /passwort ändern/i}),
       );
@@ -317,8 +366,7 @@ describe("PasswordChangePage", () => {
       );
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
-      const passwordField = getPasswordField();
-      await userEvent.type(passwordField, "altesPasswort");
+      await typePasswordWithConfirm("altesPasswort");
       await userEvent.click(
         screen.getByRole("button", {name: /passwort ändern/i}),
       );
@@ -334,8 +382,12 @@ describe("PasswordChangePage", () => {
 
       // Zweiter Versuch: Erfolg (neues Passwort)
       mockUpdatePassword.mockResolvedValueOnce(undefined);
+      const passwordField = getPasswordField();
+      const confirmField = getPasswordConfirmField();
       await userEvent.clear(passwordField);
+      await userEvent.clear(confirmField);
       await userEvent.type(passwordField, "neuesPasswort456");
+      await userEvent.type(confirmField, "neuesPasswort456");
       await userEvent.click(
         screen.getByRole("button", {name: /passwort ändern/i}),
       );
@@ -358,7 +410,7 @@ describe("PasswordChangePage", () => {
       mockUpdatePassword.mockRejectedValueOnce(new Error("Network error"));
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
-      await userEvent.type(getPasswordField(), "neuesPasswort123");
+      await typePasswordWithConfirm("neuesPasswort123");
       await userEvent.click(
         screen.getByRole("button", {name: /passwort ändern/i}),
       );
@@ -375,6 +427,89 @@ describe("PasswordChangePage", () => {
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
       expect(screen.getByTestId("password-strength")).toBeInTheDocument();
+    });
+  });
+
+  describe("E-Mail ändern", () => {
+    test("updateEmail wird mit neuer E-Mail aufgerufen", async () => {
+      mockUpdateEmail.mockResolvedValueOnce(undefined);
+      renderPasswordChangePage();
+      await completeReauthentication();
+
+      const emailField = await waitFor(() => screen.getByLabelText(/e-mail/i));
+      await userEvent.clear(emailField);
+      await userEvent.type(emailField, "neu@example.com");
+      await userEvent.click(
+        screen.getByRole("button", {name: /e-mail.*ändern/i}),
+      );
+
+      await waitFor(() => {
+        expect(mockUpdateEmail).toHaveBeenCalledWith("neu@example.com");
+      });
+    });
+
+    test("Erfolgsmeldung wird nach E-Mail-Änderung angezeigt", async () => {
+      mockUpdateEmail.mockResolvedValueOnce(undefined);
+      renderPasswordChangePage();
+      await completeReauthentication();
+
+      const emailField = await waitFor(() => screen.getByLabelText(/e-mail/i));
+      await userEvent.clear(emailField);
+      await userEvent.type(emailField, "neu@example.com");
+      await userEvent.click(
+        screen.getByRole("button", {name: /e-mail.*ändern/i}),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Bestätigung/i),
+        ).toBeInTheDocument();
+      });
+    });
+
+    test("Fehlermeldung bei identischer E-Mail", async () => {
+      renderPasswordChangePage();
+      await completeReauthentication();
+
+      // E-Mail ist bereits mit authUser-E-Mail vorausgefüllt — direkt absenden
+      await waitFor(() => {
+        expect(screen.getByLabelText(/e-mail/i)).toHaveValue(authUserMock.email);
+      });
+      await userEvent.click(
+        screen.getByRole("button", {name: /e-mail.*ändern/i}),
+      );
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/identisch/i),
+        ).toBeInTheDocument();
+      });
+    });
+
+    test("Fehlermeldung bei API-Fehler", async () => {
+      mockUpdateEmail.mockRejectedValueOnce(new Error("Rate limit exceeded"));
+      renderPasswordChangePage();
+      await completeReauthentication();
+
+      const emailField = await waitFor(() => screen.getByLabelText(/e-mail/i));
+      await userEvent.clear(emailField);
+      await userEvent.type(emailField, "neu@example.com");
+      await userEvent.click(
+        screen.getByRole("button", {name: /e-mail.*ändern/i}),
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/Rate limit exceeded/i)).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe("Passwort-Hinweis", () => {
+    test("Passwort-Anforderungshinweis wird angezeigt", () => {
+      mockGetUser.mockResolvedValue({email: "test@example.com"});
+      renderPasswordChangePage({oobCode: "reset-code-123"});
+
+      expect(screen.getByText(/Mindestens 6 Zeichen/i)).toBeInTheDocument();
     });
   });
 });

@@ -23,7 +23,7 @@ jest.mock("../../../Shared/customDialogContext", () => ({
 }));
 
 /** Mock: NavigationValuesContext */
-jest.mock("../../../Navigation/navigationContext", () => {
+jest.mock("../../../Navigation/NavigationContext", () => {
   const ReactMock = require("react");
   return {
     NavigationValuesContext: ReactMock.createContext({

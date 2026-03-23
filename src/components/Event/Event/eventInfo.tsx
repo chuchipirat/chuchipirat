@@ -56,20 +56,20 @@ import {
   IMAGE_TOO_LARGE as TEXT_IMAGE_TOO_LARGE,
 } from "../../../constants/text";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {ImageRepository} from "../../../constants/imageRepository";
 
 import {Event,EventRefDocuments} from "./event.class";
-import User from "../../User/user.class";
+import {User} from "../../User/user.class";
 
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import {FeedType} from "../../Shared/feed.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
-import DialogAddUser from "../../User/dialogAddUser";
+import {DialogAddUser} from "../../User/dialogAddUser";
 import {
   FormValidationFieldError,
   FormValidatorUtil,
@@ -78,8 +78,8 @@ import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {
   NavigationObject,
   NavigationValuesContext,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
 import {Receipt} from "./receipt.class";
 import {EventReceiptPdf} from "./eventRecipePdf";
 import {EventDate} from "./event.class";

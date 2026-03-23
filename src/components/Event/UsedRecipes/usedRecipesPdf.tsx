@@ -39,13 +39,13 @@ import {
   MenuplanData,
 } from "../Menuplan/menuplan.types";
 import Recipe, {RecipeType} from "../../Recipe/recipe.class";
-import Product from "../../Product/product.class";
+import {Product} from "../../Product/product.types";
 import {
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
 import {Footer, Header} from "../../Shared/pdfComponents";
-import Unit from "../../Unit/unit.class";
+import {Unit} from "../../Unit/unit.class";
 
 /**
  * Props für das UsedRecipes-PDF-Dokument.

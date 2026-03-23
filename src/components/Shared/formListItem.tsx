@@ -1,5 +1,5 @@
 import React from "react";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 import {
   ListItem,
@@ -10,6 +10,25 @@ import {
   TextField,
 } from "@mui/material";
 
+/**
+ * Eigenschaften für ein einzelnes Formularelement in einer Liste.
+ *
+ * @param value Anzuzeigender Wert (Text, Zahl, Datum oder JSX).
+ * @param id Eindeutige ID des Feldes.
+ * @param label Beschriftung / Label.
+ * @param icon Optionales Icon links.
+ * @param type HTML-Input-Typ (z.B. "number", "text").
+ * @param multiLine Mehrzeilige Eingabe erlauben.
+ * @param disabled Feld deaktivieren.
+ * @param required Feld als Pflichtfeld markieren.
+ * @param editMode Bearbeitungsmodus (TextField) statt Anzeige (ListItemText).
+ * @param helperText Hilfetext unter dem Feld.
+ * @param onChange Änderungs-Handler.
+ * @param displayAsCode Wert als Code-Schrift anzeigen.
+ * @param withDivider Trennlinie nach dem Eintrag anzeigen.
+ * @param secondaryAction Optionale sekundäre Aktion (z.B. IconButton).
+ * @param endAdornment Optionales Element am Ende des Eingabefeldes.
+ */
 interface FormListItemProps {
   value: string | number | Date | JSX.Element | JSX.Element[];
   id: string;
@@ -28,6 +47,10 @@ interface FormListItemProps {
   endAdornment?: JSX.Element;
 }
 
+/**
+ * Formular-Listeneintrag — zeigt im Bearbeitungsmodus ein TextField,
+ * im Ansichtsmodus einen ListItemText mit Label und Wert.
+ */
 export const FormListItem = ({
   value,
   id,
@@ -56,9 +79,11 @@ export const FormListItem = ({
             key={id}
             name={id}
             type={type}
-            InputProps={{
-              ...{endAdornment: endAdornment},
-              ...{inputProps: {min: 0}},
+            slotProps={{
+              input: {
+                endAdornment: endAdornment,
+                inputProps: {min: 0},
+              },
             }}
             label={label}
             disabled={disabled}

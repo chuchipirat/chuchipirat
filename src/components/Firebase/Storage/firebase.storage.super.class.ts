@@ -1,7 +1,7 @@
 import Firebase from "../firebase.class";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {ERROR_PARAMETER_NOT_PASSED} from "../../../constants/text";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
+import {FirebaseAnalyticEvent} from "../../../constants/firebaseEvent";
 import {
   ref,
   deleteObject,

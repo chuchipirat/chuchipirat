@@ -6,7 +6,7 @@
  * Unterstützt Suchen, Filtern (aktiv/alle) und Statusübergänge.
  */
 import React from "react";
-import {useNavigate, useParams} from "react-router";
+import {useParams} from "react-router";
 import * as Sentry from "@sentry/browser";
 
 import {
@@ -46,86 +46,43 @@ import {
 
 import {RECIPE as ROUTES_RECIPE} from "../../constants/routes";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 
 import {Request, RequestStatus, RequestType, RequestAction} from "./request.class";
 import {RequestService} from "./requestService";
 import {RequestDomain} from "../Database/Repository/RequestRepository";
 import {RequestCommentDomain} from "../Database/Repository/RequestCommentRepository";
 
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
-import AlertMessage from "../Shared/AlertMessage";
-import EnhancedTable, {
+import {CustomSnackbar} from "../Shared/customSnackbar";
+import {
+  ReducerActions,
+  RequestStateFilter,
+  requestReducer,
+  initialState,
+} from "./requestOverviewReducer";
+import type {State} from "./requestOverviewReducer";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {EnhancedTable,
   TableColumnTypes,
   ColumnTextAlign,
 } from "../Shared/enhancedTable";
 
-import DialogRequest from "./dialogRequest";
-import SearchPanel from "../Shared/searchPanel";
+import {DialogRequest} from "./dialogRequest";
+import {SearchPanel} from "../Shared/searchPanel";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/navigationContext";
-import Action from "../../constants/actions";
+} from "../Navigation/NavigationContext";
+import {Action} from "../../constants/actions";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import Recipe, {Recipes} from "../Recipe/recipe.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
-enum ReducerActions {
-  FETCH_INIT,
-  FETCH_SUCCESS,
-  FETCH_CLOSED_REQUESTS,
-  FETCH_RECIPE_INIT,
-  FETCH_RECIPE_SUCCESS,
-  UPDATE_REQUEST_SELECTION,
-  SNACKBAR_SHOW,
-  SNACKBAR_CLOSE,
-  GENERIC_ERROR,
-  UPDATE_SINGLE_REQUEST,
-}
-
-type DispatchAction =
-  | {type: ReducerActions.FETCH_INIT; payload: Record<string, never>}
-  | {type: ReducerActions.FETCH_SUCCESS; payload: RequestDomain[]}
-  | {type: ReducerActions.FETCH_CLOSED_REQUESTS; payload: RequestDomain[]}
-  | {
-      type: ReducerActions.UPDATE_REQUEST_SELECTION;
-      payload: {newStateFilter: string};
-    }
-  | {type: ReducerActions.FETCH_RECIPE_INIT; payload: Record<string, never>}
-  | {type: ReducerActions.FETCH_RECIPE_SUCCESS; payload: Recipe}
-  | {type: ReducerActions.SNACKBAR_SHOW; payload: {message: string}}
-  | {type: ReducerActions.SNACKBAR_CLOSE; payload: Record<string, never>}
-  | {type: ReducerActions.UPDATE_SINGLE_REQUEST; payload: RequestDomain}
-  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
-
-type State = {
-  requests: RequestDomain[];
-  recipes: Recipes;
-  activeRequests: RequestDomain[];
-  closedRequests: RequestDomain[];
-  isLoading: boolean;
-  snackbar: Snackbar;
-  closedRequestsFetched: boolean;
-  error: Error | null;
-};
-
-const initialState: State = {
-  requests: [],
-  recipes: {},
-  activeRequests: [],
-  closedRequests: [],
-  isLoading: false,
-  snackbar: {} as Snackbar,
-  closedRequestsFetched: false,
-  error: null,
-};
 
 /** UI-Darstellung eines Antrags in der Tabelle. */
 interface RequestUi {
@@ -140,10 +97,6 @@ interface RequestUi {
   _domain: RequestDomain;
 }
 
-enum RequestStateFilter {
-  Active = "active",
-  All = "all",
-}
 
 interface RequestTableProps {
   requests: RequestDomain[];
@@ -154,7 +107,7 @@ interface RequestTableProps {
   isLoading: State["isLoading"];
   requestStateFilter: RequestStateFilter;
   handleStateFilterChange: (
-    event: React.MouseEvent<HTMLElement>,
+    event: React.MouseEvent<HTMLElement> | null,
     newStateFilter: string,
   ) => void;
   isCommunityLeader: boolean;
@@ -164,97 +117,14 @@ interface StatusChipsProps {
   status: string;
 }
 
-const requestReducer = (state: State, action: DispatchAction): State => {
-  let tmpRequests: RequestDomain[] = [];
-  let index: number;
-  switch (action.type) {
-    case ReducerActions.FETCH_INIT:
-      return {
-        ...state,
-        isLoading: true,
-      };
-    case ReducerActions.FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoading: false,
-        requests: action.payload,
-        activeRequests: action.payload,
-      };
-    case ReducerActions.FETCH_CLOSED_REQUESTS:
-      return {
-        ...state,
-        isLoading: false,
-        closedRequestsFetched: true,
-        requests: [...state.activeRequests, ...action.payload],
-        closedRequests: action.payload,
-      };
-    case ReducerActions.UPDATE_REQUEST_SELECTION:
-      action.payload.newStateFilter == RequestStateFilter.All
-        ? (tmpRequests = [...state.activeRequests, ...state.closedRequests])
-        : (tmpRequests = state.activeRequests);
-      return {
-        ...state,
-        requests: tmpRequests,
-      };
-    case ReducerActions.FETCH_RECIPE_INIT:
-      return {...state, isLoading: true};
-    case ReducerActions.FETCH_RECIPE_SUCCESS:
-      return {
-        ...state,
-        isLoading: false,
-        recipes: {...state.recipes, [action.payload.uid]: action.payload},
-      };
-    case ReducerActions.SNACKBAR_SHOW:
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: action.payload.message,
-          open: true,
-        },
-      };
-    case ReducerActions.SNACKBAR_CLOSE:
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: "",
-          open: false,
-        },
-      };
-    case ReducerActions.UPDATE_SINGLE_REQUEST:
-      tmpRequests = [...state.requests];
-      index = tmpRequests.findIndex(
-        (request) => request.uid === action.payload.uid,
-      );
-      if (index !== -1) {
-        tmpRequests[index] = action.payload;
-      }
-      return {
-        ...state,
-        requests: tmpRequests,
-      };
-    case ReducerActions.GENERIC_ERROR:
-      return {
-        ...state,
-        error: action.payload,
-        isLoading: false,
-      };
-    default: {
-      const _exhaustiveCheck: never = action;
-      throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
-    }
-  }
-};
 
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
-const RequestOverviewPage = () => {
+export const RequestOverviewPage = () => {
   const authUser = useAuthUser();
   const database = useDatabase();
   const classes = useCustomStyles();
-  const navigate = useNavigate();
   const {id: deepLinkRequestId} = useParams<{id: string}>();
 
   const navigationValuesContext = React.useContext(NavigationValuesContext);
@@ -306,7 +176,7 @@ const RequestOverviewPage = () => {
     if (!deepLinkRequestId || state.isLoading || requestPopupValues.open) return;
 
     // Antrag in aktiven Requests suchen
-    let targetRequest = state.requests.find((r) => r.uid === deepLinkRequestId);
+    let targetRequest = state.requests.find((request) => request.uid === deepLinkRequestId);
 
     if (targetRequest) {
       // Gefunden — Dialog öffnen
@@ -338,7 +208,7 @@ const RequestOverviewPage = () => {
           });
 
           targetRequest = closedRequests.find(
-            (r) => r.uid === deepLinkRequestId,
+            (request) => request.uid === deepLinkRequestId,
           );
           if (!targetRequest) return;
 
@@ -642,6 +512,73 @@ const RequestOverviewPage = () => {
   );
 };
 
+/* =====================================================================
+// Status-Chip
+// ===================================================================== */
+/**
+ * Zeigt den Status als farbigen Chip an.
+ *
+ * @param status - Status-Wert für den Chip
+ */
+export const StatusChips = ({status}: StatusChipsProps) => {
+  const classes = useCustomStyles();
+
+  const chipStyle = (() => {
+    switch (status) {
+      case RequestStatus.done:
+        return classes.workflowChipDone;
+      case RequestStatus.declined:
+        return classes.workflowChipAborted;
+      case RequestStatus.backToAuthor:
+        return classes.workflowChipBackToAuthor;
+      default:
+        return classes.workflowChipActive;
+    }
+  })();
+
+  return (
+    <Chip
+      label={Request.translateStatus(status)}
+      sx={chipStyle}
+      size="small"
+    />
+  );
+};
+
+/* ===================================================================
+// =================== Hilfsfunktion für UI-Darstellung ==============
+// =================================================================== */
+/** Wandelt RequestDomain-Objekte in die Tabellen-Darstellung um. */
+const createRequestsForUi = (
+  requests: RequestDomain[],
+  searchString: string,
+): RequestUi[] => {
+  let filteredRequests: RequestDomain[] = [];
+  if (searchString) {
+    const search = searchString.toLowerCase();
+    filteredRequests = requests.filter(
+      (request) =>
+        request.number.toString().includes(search) ||
+        request.recipeName.toLowerCase().includes(search) ||
+        request.assigneeDisplayName.toLowerCase().includes(search) ||
+        request.authorDisplayName.toLowerCase().includes(search),
+    );
+  } else {
+    filteredRequests = requests;
+  }
+
+  return filteredRequests.map((request) => ({
+    uid: request.uid,
+    number: request.number,
+    status: <StatusChips status={request.status} />,
+    recipeName: request.recipeName,
+    createDate: request.createdAt,
+    assigneeDisplayName: request.assigneeDisplayName,
+    authorDisplayName: request.authorDisplayName,
+    _domain: request,
+  }));
+};
+
 /* ===================================================================
 // ========================= Request-Tabelle =========================
 // =================================================================== */
@@ -715,7 +652,6 @@ const RequestTable = ({
   const theme = useTheme();
 
   const [searchString, setSearchString] = React.useState("");
-  const [requestsUi, setRequestsUi] = React.useState<RequestUi[]>([]);
 
   const clearSearchString = () => {
     setSearchString("");
@@ -725,52 +661,12 @@ const RequestTable = ({
     event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
   ) => {
     setSearchString(event.target.value);
-    setRequestsUi(createRequestsForUi(requests, event.target.value));
   };
 
-  /** Wandelt RequestDomain-Objekte in die Tabellen-Darstellung um. */
-  const createRequestsForUi = (
-    requests: RequestDomain[],
-    searchString: string,
-  ): RequestUi[] => {
-    let filteredRequests: RequestDomain[] = [];
-    if (searchString) {
-      const search = searchString.toLowerCase();
-      filteredRequests = requests.filter(
-        (r) =>
-          r.number.toString().includes(search) ||
-          r.recipeName.toLowerCase().includes(search) ||
-          r.assigneeDisplayName.toLowerCase().includes(search) ||
-          r.authorDisplayName.toLowerCase().includes(search),
-      );
-    } else {
-      filteredRequests = requests;
-    }
-
-    return filteredRequests.map((r) => ({
-      uid: r.uid,
-      number: r.number,
-      status: <StatusChips status={r.status} />,
-      recipeName: r.recipeName,
-      createDate: r.createdAt,
-      assigneeDisplayName: r.assigneeDisplayName,
-      authorDisplayName: r.authorDisplayName,
-      _domain: r,
-    }));
-  };
-
-  if (!searchString && requests.length > 0 && requestsUi.length === 0) {
-    setRequestsUi(createRequestsForUi(requests, searchString));
-  } else if (
-    !searchString &&
-    requests.length > 0 &&
-    requests.length !== requestsUi.length
-  ) {
-    setRequestsUi(createRequestsForUi(requests, searchString));
-  } else if (requests.length === 0 && requestsUi.length > 0) {
-    // Requests-Liste wurde geleert (z.B. Wechsel zurück auf «Aktiv» ohne aktive Anträge)
-    setRequestsUi([]);
-  }
+  const requestsUi = React.useMemo(
+    () => createRequestsForUi(requests, searchString),
+    [requests, searchString],
+  );
 
   return (
     <Card sx={classes.card} key={"requestTablePanel"}>
@@ -840,38 +736,3 @@ const RequestTable = ({
     </Card>
   );
 };
-
-/* =====================================================================
-// Status-Chip
-// ===================================================================== */
-/**
- * Zeigt den Status als farbigen Chip an.
- *
- * @param status - Status-Wert für den Chip
- */
-export const StatusChips = ({status}: StatusChipsProps) => {
-  const classes = useCustomStyles();
-
-  const chipStyle = (() => {
-    switch (status) {
-      case RequestStatus.done:
-        return classes.workflowChipDone;
-      case RequestStatus.declined:
-        return classes.workflowChipAborted;
-      case RequestStatus.backToAuthor:
-        return classes.workflowChipBackToAuthor;
-      default:
-        return classes.workflowChipActive;
-    }
-  })();
-
-  return (
-    <Chip
-      label={Request.translateStatus(status)}
-      sx={chipStyle}
-      size="small"
-    />
-  );
-};
-
-export default RequestOverviewPage;

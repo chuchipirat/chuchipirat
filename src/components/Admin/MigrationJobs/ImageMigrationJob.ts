@@ -90,12 +90,15 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
     const records: SourceRecord<ImageSourceData>[] = [];
 
     for (const user of allUsers) {
-      // Firestore Public Profile lesen, um die Bild-URL zu erhalten
+      // Firestore Public Profile lesen, um die Bild-URL zu erhalten.
+      // Firestore-Dokumente liegen unter users/{firebaseUid}/public/profile,
+      // daher wird die legacy_firebase_uid für den Firestore-Zugriff benötigt.
+      const firestoreUid = user.legacyFirebaseUid ?? user.uid;
       let pictureUrl = "";
       try {
         const profile = await firebase.user.public.profile.read<{
           pictureSrc: FirebasePicture | string;
-        }>({uids: [user.uid]});
+        }>({uids: [firestoreUid]});
 
         pictureUrl = this.extractBestPictureUrl(profile.pictureSrc);
       } catch {
@@ -110,6 +113,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
 
       if (pictureUrl) {
         records.push({
+          // id = Supabase UUID (für checkExists und migrateRecord)
           id: user.uid,
           label: user.displayName || user.uid,
           data: {

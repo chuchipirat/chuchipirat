@@ -52,14 +52,15 @@ import {
   UNITCONVERSION as ROUTE_UNITCONVERSION,
 } from "../../constants/routes";
 
-import useCustomStyles from "../../constants/styles";
-import PageTitle from "../Shared/pageTitle";
+import {useCustomStyles} from "../../constants/styles";
+import {PageTitle} from "../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "./system";
 
-import Product from "../Product/product.class";
-import Material from "../Material/material.class";
-import AlertMessage from "../Shared/AlertMessage";
-import ItemAutocomplete, {
+import {Product} from "../Product/product.types";
+import {Material} from "../Material/material.types";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {
+  ItemAutocomplete,
   MaterialItem,
   ProductItem,
 } from "../Event/ShoppingList/itemAutocomplete";

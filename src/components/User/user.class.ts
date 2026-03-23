@@ -1,3 +1,5 @@
+import * as Sentry from "@sentry/browser";
+
 import {Role} from "../../constants/roles";
 
 import Firebase from "../Firebase/firebase.class";
@@ -7,7 +9,7 @@ import {
   NO_USER_WITH_THIS_EMAIL as TEXT_NO_USER_WITH_THIS_EMAIL,
 } from "../../constants/text";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
-import UserPublicProfile from "./user.public.profile.class";
+import {UserPublicProfile} from "./user.public.profile.class";
 import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
 
 import {resizeImage} from "../Shared/imageResize";
@@ -49,11 +51,9 @@ export interface UserFullProfile extends User, UserPublicProfile {}
 
 /** Parameter für {@link User.createUser} */
 interface CreateUser {
-  /** Firebase-Instanz (noch benötigt für Analytics/Storage während Übergangsphase) */
-  firebase: Firebase;
   /** DatabaseService-Instanz für Supabase-Zugriff */
   database: DatabaseService;
-  /** UID des neuen Users (von Supabase Auth oder Firebase Auth) */
+  /** UID des neuen Users (von Supabase Auth) */
   uid: string;
   /** Vorname */
   firstName: string;
@@ -181,7 +181,7 @@ interface UpdateStats {
  * Delegiert die meisten DB-Operationen an das UserRepository (Supabase/Postgres).
  * Firebase wird noch für Storage und einige Legacy-Abfragen verwendet.
  */
-export default class User {
+export class User {
   uid: string;
   firstName: string;
   lastName: string;
@@ -237,7 +237,7 @@ export default class User {
         ignoreCache: true,
       });
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       throw error;
     }
   }
@@ -282,7 +282,7 @@ export default class User {
         authUser: {} as AuthUser,
       });
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       throw error;
     }
   }

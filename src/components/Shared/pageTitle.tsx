@@ -3,8 +3,7 @@ import {useNavigate} from "react-router";
 
 import Typography from "@mui/material/Typography";
 import {Breadcrumbs, Link} from "@mui/material";
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 import {Box} from "@mui/material";
 
 /**
@@ -19,28 +18,45 @@ export type BreadcrumbEntry = {
 };
 
 /**
- * PageTitle-Eingenschaften
- * @param title - Seitentitel
- * @param smallTitle - Seitentitel klein
- * @param subTitle - Untertitel
- * @param pictureSrc - URL für Bild
- * @param ribbon - JSX-Element -> Ribbon
- * @param breadcrumbs - Breadcrumb-Pfad (ohne aktuelle Seite)
+ * Daten für das Ribbon-Banner (z.B. Test-Umgebung).
+ *
+ * @param text Anzuzeigter Text im Ribbon.
+ * @param class CSS-Klasse für das Ribbon-Styling.
+ */
+type RibbonData = {
+  text: string;
+  class: string;
+};
+
+/**
+ * Eigenschaften der PageTitle-Komponente.
+ *
+ * @param title Grosser Seitentitel.
+ * @param smallTitle Kleiner Seitentitel.
+ * @param subTitle Untertitel.
+ * @param windowTitle Fenstertitel (Browser-Tab).
+ * @param ribbon Ribbon-Daten (z.B. Test-Banner).
+ * @param breadcrumbs Breadcrumb-Pfad (ohne aktuelle Seite).
  */
 interface PageTitleProps {
   title?: string;
   smallTitle?: string;
   subTitle?: string;
   windowTitle?: string;
-  ribbon?: ValueObject;
+  ribbon?: RibbonData;
   breadcrumbs?: BreadcrumbEntry[];
 }
 
-/* =====================================================================
 /**
- * Standard Seitentitel
- * @param object --> PageTitleProps
- * @returns JSX-Element
+ * Standard-Seitentitel mit optionalen Breadcrumbs, Untertitel und Ribbon.
+ * Setzt auch den Browser-Tab-Titel via `document.title`.
+ *
+ * @param title Grosser Seitentitel.
+ * @param smallTitle Kleiner Seitentitel.
+ * @param subTitle Untertitel.
+ * @param windowTitle Fenstertitel (Browser-Tab).
+ * @param ribbon Ribbon-Daten (z.B. Test-Banner).
+ * @param breadcrumbs Breadcrumb-Pfad.
  */
 const PageTitle = ({
   title,
@@ -52,13 +68,16 @@ const PageTitle = ({
 }: PageTitleProps) => {
   const classes = useCustomStyles();
 
-  window.document.title = windowTitle
-    ? windowTitle
-    : title
-    ? title
-    : smallTitle
-    ? smallTitle
-    : "";
+  // Fenstertitel als Side-Effect in useEffect setzen
+  React.useEffect(() => {
+    window.document.title = windowTitle
+      ? windowTitle
+      : title
+        ? title
+        : smallTitle
+          ? smallTitle
+          : "";
+  }, [windowTitle, title, smallTitle]);
 
   return (
     <React.Fragment>
@@ -157,4 +176,4 @@ interface RibbonProps {
 export const Ribbon = ({text, cssProperty}: RibbonProps) => {
   return <div className={cssProperty}>{text}</div>;
 };
-export default PageTitle;
+export {PageTitle};

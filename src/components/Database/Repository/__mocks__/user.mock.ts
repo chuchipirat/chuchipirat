@@ -2,7 +2,7 @@
  * Mock-Daten für UserRepository-Tests.
  */
 import {UserDomain, UserRow} from "../UserRepository";
-import Role from "../../../../constants/roles";
+import {Role} from "../../../../constants/roles";
 
 /** Mock: Datenbank-Zeile (snake_case) wie sie aus Postgres kommt */
 export const userRow: UserRow = {

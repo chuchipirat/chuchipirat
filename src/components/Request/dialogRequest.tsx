@@ -34,7 +34,7 @@ import {
 import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import AssignmentIndIcon from "@mui/icons-material/AssignmentInd";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 import {FormListItem} from "../Shared/formListItem";
 
@@ -70,17 +70,18 @@ import {
   REQUEST_STEPPER_CREATED as TEXT_REQUEST_STEPPER_CREATED,
   REQUEST_STEPPER_IN_REVIEW as TEXT_REQUEST_STEPPER_IN_REVIEW,
   REQUEST_STEPPER_DONE as TEXT_REQUEST_STEPPER_DONE,
+  REQUEST_RESOLVE_DATE as TEXT_REQUEST_RESOLVE_DATE,
   STATUS_NAME as TEXT_STATUS_NAME,
 } from "../../constants/text";
 
 import {USER_PUBLIC_PROFILE as ROUTES_USER_PUBLIC_PROFILE} from "../../constants/routes";
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 
 import {Request, RequestStatus, RequestAction} from "./request.class";
 import {RequestDomain, ChangeLogEntry} from "../Database/Repository/RequestRepository";
 import {RequestCommentDomain} from "../Database/Repository/RequestCommentRepository";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 import {StatusChips} from "./requestOverview";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 
@@ -157,7 +158,7 @@ const translateChangeLogAction = (entry: ChangeLogEntry): string => {
   }
 };
 
-const DialogRequest = ({
+export const DialogRequest = ({
   request,
   comments,
   dialogOpen,
@@ -290,7 +291,8 @@ const DialogRequest = ({
   };
 
   const saveComment = () => {
-    handleAddComment(comment);
+    if (!comment.trim()) return;
+    handleAddComment(comment.trim());
     setComment("");
   };
 
@@ -314,11 +316,11 @@ const DialogRequest = ({
       aria-labelledby="dialog Request"
       fullWidth={true}
       maxWidth="sm"
-      style={{zIndex: 500}}
+      sx={{zIndex: 500}}
     >
       <DialogTitle
-        sx={classes.dialogHeaderWithPicture}
-        style={{
+        sx={{
+          ...classes.dialogHeaderWithPicture,
           backgroundImage: `url(${request?.recipePictureSrc})`,
           backgroundPosition: "center",
           backgroundSize: "cover",
@@ -328,8 +330,7 @@ const DialogRequest = ({
         <Typography
           variant="h4"
           component="h1"
-          sx={classes.dialogHeaderWithPictureTitle}
-          style={{paddingLeft: "2ex"}}
+          sx={{...classes.dialogHeaderWithPictureTitle, pl: "2ex"}}
         >
           {TEXT_REQUEST} #{request.number}
         </Typography>
@@ -352,7 +353,7 @@ const DialogRequest = ({
         ))}
       </Stepper>
 
-      <DialogContent style={{overflow: "unset"}}>
+      <DialogContent sx={{overflow: "unset"}}>
         {/* Hinweis bei backToAuthor */}
         {request.status === RequestStatus.backToAuthor && (
           <Alert severity="info" sx={{mb: 2}}>
@@ -384,7 +385,7 @@ const DialogRequest = ({
             id={"RequestName"}
             value={
               <Link
-                style={{cursor: "pointer"}}
+                sx={{cursor: "pointer"}}
                 onClick={() => handleRecipeOpen(request.recipeUid)}
               >
                 {request.recipeName}
@@ -453,7 +454,7 @@ const DialogRequest = ({
                         {counter > 0 && " | "}
                         <Link
                           key={`transitionLink_${counter}`}
-                          style={{cursor: "pointer"}}
+                          sx={{cursor: "pointer"}}
                           onClick={() =>
                             onClickNextStatus(possibleTransition.toState)
                           }
@@ -481,9 +482,9 @@ const DialogRequest = ({
                       variant="outlined"
                       fullWidth
                       value={declineReason}
-                      onChange={(e) => {
-                        setDeclineReason(e.target.value);
-                        if (e.target.value.trim()) setDeclineReasonError(false);
+                      onChange={(event) => {
+                        setDeclineReason(event.target.value);
+                        if (event.target.value.trim()) setDeclineReasonError(false);
                       }}
                       error={declineReasonError}
                       helperText={
@@ -492,14 +493,14 @@ const DialogRequest = ({
                           : ""
                       }
                       autoFocus
-                      style={{marginBottom: "8px"}}
+                      sx={{mb: 1}}
                     />
                     <Button
                       size="small"
                       color="error"
                       variant="contained"
                       onClick={onConfirmDecline}
-                      style={{marginRight: "8px"}}
+                      sx={{mr: 1}}
                     >
                       {TEXT_REQUEST_DECLINE_CONFIRM}
                     </Button>
@@ -524,16 +525,16 @@ const DialogRequest = ({
                       variant="outlined"
                       fullWidth
                       value={doneComment}
-                      onChange={(e) => setDoneComment(e.target.value)}
+                      onChange={(event) => setDoneComment(event.target.value)}
                       autoFocus
-                      style={{marginBottom: "8px"}}
+                      sx={{mb: 1}}
                     />
                     <Button
                       size="small"
                       color="primary"
                       variant="contained"
                       onClick={onConfirmDone}
-                      style={{marginRight: "8px"}}
+                      sx={{mr: 1}}
                     >
                       {TEXT_REQUEST_DONE_CONFIRM}
                     </Button>
@@ -558,9 +559,9 @@ const DialogRequest = ({
                       variant="outlined"
                       fullWidth
                       value={backToAuthorReason}
-                      onChange={(e) => {
-                        setBackToAuthorReason(e.target.value);
-                        if (e.target.value.trim())
+                      onChange={(event) => {
+                        setBackToAuthorReason(event.target.value);
+                        if (event.target.value.trim())
                           setBackToAuthorReasonError(false);
                       }}
                       error={backToAuthorReasonError}
@@ -570,14 +571,14 @@ const DialogRequest = ({
                           : ""
                       }
                       autoFocus
-                      style={{marginBottom: "8px"}}
+                      sx={{mb: 1}}
                     />
                     <Button
                       size="small"
                       color="warning"
                       variant="contained"
                       onClick={onConfirmBackToAuthor}
-                      style={{marginRight: "8px"}}
+                      sx={{mr: 1}}
                     >
                       {TEXT_REQUEST_BACK_TO_AUTHOR_CONFIRM}
                     </Button>
@@ -600,6 +601,19 @@ const DialogRequest = ({
             })}
             label={TEXT_REQUEST_CREATION_DATE}
           />
+          {/* Abschlussdatum (nur bei abgeschlossenen Anträgen) */}
+          {request.resolveDate && (
+            <FormListItem
+              key={"RequestResolveDate"}
+              id={"RequestResolveDate"}
+              value={request.resolveDate.toLocaleString("de-CH", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+              })}
+              label={TEXT_REQUEST_RESOLVE_DATE}
+            />
+          )}
 
           {/* Autor*in */}
           <FormListItem
@@ -607,7 +621,7 @@ const DialogRequest = ({
             id={"RequestAuthor"}
             value={
               <Link
-                style={{cursor: "pointer"}}
+                sx={{cursor: "pointer"}}
                 onClick={() =>
                   navigate(
                     `${ROUTES_USER_PUBLIC_PROFILE}/${request.authorUid}`,
@@ -633,7 +647,7 @@ const DialogRequest = ({
             id={"RequestAsignee"}
             value={
               <Link
-                style={{cursor: "pointer"}}
+                sx={{cursor: "pointer"}}
                 onClick={() =>
                   navigate(
                     `${ROUTES_USER_PUBLIC_PROFILE}/${request.assigneeUid}`,
@@ -655,29 +669,29 @@ const DialogRequest = ({
         </List>
 
         {/* Kommentare — immer sichtbar */}
-        <Typography variant="subtitle1" style={{marginTop: "4ex"}}>
+        <Typography variant="subtitle1" sx={{mt: "4ex"}}>
           {TEXT_COMMENTS}
         </Typography>
         {comments.length > 0 ? (
           <List>
-            {comments.map((c, counter) => (
-              <React.Fragment key={`comment_${counter}`}>
+            {comments.map((requestComment, commentIndex) => (
+              <React.Fragment key={`comment_${commentIndex}`}>
                 <ListItem alignItems="flex-start">
                   <ListItemAvatar>
-                    {c.userPictureSrc ? (
+                    {requestComment.userPictureSrc ? (
                       <Avatar
-                        alt={c.userDisplayName}
-                        src={c.userPictureSrc}
+                        alt={requestComment.userDisplayName}
+                        src={requestComment.userPictureSrc}
                       />
                     ) : (
-                      <Avatar alt={c.userDisplayName}>
-                        {c.userDisplayName?.charAt(0)}
+                      <Avatar alt={requestComment.userDisplayName}>
+                        {requestComment.userDisplayName?.charAt(0)}
                       </Avatar>
                     )}
                   </ListItemAvatar>
 
                   <ListItemText
-                    primary={c.comment}
+                    primary={requestComment.comment}
                     secondary={
                       <React.Fragment>
                         <Typography
@@ -685,9 +699,9 @@ const DialogRequest = ({
                           variant="body2"
                           color="textPrimary"
                         >
-                          {c.userDisplayName}
+                          {requestComment.userDisplayName}
                         </Typography>
-                        {` — ${c.createdAt.toLocaleString("de-CH", {
+                        {` — ${requestComment.createdAt.toLocaleString("de-CH", {
                           year: "numeric",
                           month: "2-digit",
                           day: "2-digit",
@@ -698,7 +712,7 @@ const DialogRequest = ({
                     }
                   />
                 </ListItem>
-                {counter !== comments.length - 1 && (
+                {commentIndex !== comments.length - 1 && (
                   <Divider variant="inset" component="li" />
                 )}
               </React.Fragment>
@@ -708,7 +722,7 @@ const DialogRequest = ({
           <Typography
             variant="body2"
             color="textSecondary"
-            style={{marginTop: "1ex", marginBottom: "2ex"}}
+            sx={{mt: "1ex", mb: "2ex"}}
           >
             {TEXT_REQUEST_NO_COMMENTS_YET}
           </Typography>
@@ -724,7 +738,7 @@ const DialogRequest = ({
           value={comment}
           onChange={onChangeComment}
         />
-        <Button size="small" onClick={saveComment}>
+        <Button size="small" onClick={saveComment} disabled={!comment.trim()}>
           {TEXT_BUTTON_ADD_COMMENT}
         </Button>
         <Button size="small" onClick={clearComment}>
@@ -778,4 +792,3 @@ const DialogRequest = ({
     </Dialog>
   );
 };
-export default DialogRequest;

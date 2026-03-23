@@ -59,7 +59,6 @@ export class RequestService {
       }
     } catch (error) {
       // Post-Actions dürfen den Hauptfluss nicht blockieren
-      console.error("RequestService.executePostAction Fehler:", error);
       Sentry.captureException(error);
     }
   }
@@ -89,7 +88,6 @@ export class RequestService {
             authUser: authUser!,
           });
         } catch (err) {
-          console.error("Rezept konnte nicht veröffentlicht werden:", err);
           Sentry.captureException(err);
         }
 
@@ -112,7 +110,6 @@ export class RequestService {
               authUser,
             )
             .catch((err) => {
-              console.error("Feed-Eintrag konnte nicht erstellt werden:", err);
               Sentry.captureException(err);
             });
         }
@@ -189,10 +186,6 @@ export class RequestService {
         body: {scenario, requestId, commentId},
       })
       .catch((err: unknown) => {
-        console.error(
-          `notify-request (${scenario}) konnte nicht aufgerufen werden:`,
-          err,
-        );
         Sentry.captureException(err);
       });
   }

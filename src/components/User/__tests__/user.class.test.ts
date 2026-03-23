@@ -4,10 +4,10 @@
  * Testet alle statischen Methoden der User-Klasse. Die Abhängigkeiten
  * (DatabaseService, Firebase) werden vollständig gemockt.
  */
-import User, {UserFullProfile} from "../user.class";
+import {User, UserFullProfile} from "../user.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 import {Role} from "../../../constants/roles";
-import UserPublicProfile from "../user.public.profile.class";
+import {UserPublicProfile} from "../user.public.profile.class";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 
 /* ------------------------------------------
@@ -138,7 +138,6 @@ describe("createUser()", () => {
     mockDatabase.users.upsert.mockResolvedValue(undefined);
 
     await User.createUser({
-      firebase: mockFirebase as any,
       database: mockDatabase as any,
       uid: "new-user",
       firstName: "Anna",
@@ -168,7 +167,6 @@ describe("createUser()", () => {
 
     await expect(
       User.createUser({
-        firebase: mockFirebase as any,
         database: mockDatabase as any,
         uid: "x",
         firstName: "A",

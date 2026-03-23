@@ -2,9 +2,11 @@
  * DepartmentsPage — Übersichtsseite für Abteilungen (Stammdaten).
  *
  * Zeigt alle Abteilungen tabellarisch an, erlaubt das Bearbeiten von
- * Namen und Sortierreihenfolge sowie das Anlegen neuer Abteilungen.
+ * Namen, Sortierreihenfolge und Aktiv-Status sowie das Anlegen neuer
+ * Abteilungen.
  */
 import React, {SyntheticEvent} from "react";
+import * as Sentry from "@sentry/react";
 
 import {
   DEPARTMENTS as TEXT_DEPARTMENTS,
@@ -12,26 +14,28 @@ import {
   ADD_DEPARTMENT as TEXT_ADD_DEPARTMENT,
   EDIT as TEXT_EDIT,
   SAVE as TEXT_SAVE,
+  CANCEL as TEXT_CANCEL,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   UID as TEXT_UID,
   DEPARTMENT as TEXT_DEPARTMENT,
   RANK as TEXT_RANK,
   ORDER as TEXT_ORDER,
+  ACTIVE as TEXT_ACTIVE,
   DEPARTMENT_CREATED as TEXT_DEPARTMENT_CREATED,
   SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
 } from "../../constants/text";
 
 import {useDatabase} from "../Database/DatabaseContext";
-import CustomSnackbar, {
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../Shared/customSnackbar";
 
-import Roles from "../../constants/roles";
+import {Role as Roles} from "../../constants/roles";
 import {DepartmentDomain} from "../Database/Repository/DepartmentRepository";
-import ButtonRow from "../Shared/buttonRow";
-import PageTitle from "../Shared/pageTitle";
-import useCustomStyles from "../../constants/styles";
+import {ButtonRow} from "../Shared/buttonRow";
+import {PageTitle} from "../Shared/pageTitle";
+import {useCustomStyles} from "../../constants/styles";
 import {
   Backdrop,
   Card,
@@ -46,21 +50,19 @@ import {
   Select,
   SelectChangeEvent,
   SnackbarCloseReason,
+  Switch,
   TextField,
   Typography,
 } from "@mui/material";
-import AlertMessage from "../Shared/AlertMessage";
-import EnhancedTable, {
+import {AlertMessage} from "../Shared/AlertMessage";
+import {EnhancedTable,
   Column,
   ColumnTextAlign,
   TableColumnTypes,
 } from "../Shared/enhancedTable";
-import DialogDepartment from "./dialogDepartment";
+import {DialogDepartment} from "./dialogDepartment";
 import {useAuthUser} from "../Session/authUserContext";
 
-/* ===================================================================
-// ======================== globale Funktionen =======================
-// =================================================================== */
 enum ReducerActions {
   FETCH_INIT,
   DEPARTMENTS_FETCH_SUCCESS,
@@ -68,6 +70,7 @@ enum ReducerActions {
   DEPARTMENTS_SAVED,
   NEW_DEPARTMENT_CREATED,
   SET_NEW_POSITION_FOR_DEPARTMENT,
+  EDIT_CANCELLED,
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
 }
@@ -83,7 +86,7 @@ type ReducerAction =
     }
   | {
       type: ReducerActions.DEPARTMENT_ON_CHANGE;
-      payload: {field: string; key: string; value: string};
+      payload: {field: string; key: string; value: string | boolean};
     }
   | {
       type: ReducerActions.SET_NEW_POSITION_FOR_DEPARTMENT;
@@ -91,6 +94,7 @@ type ReducerAction =
     }
   | {type: ReducerActions.DEPARTMENTS_SAVED}
   | {type: ReducerActions.NEW_DEPARTMENT_CREATED; payload: DepartmentDomain}
+  | {type: ReducerActions.EDIT_CANCELLED; payload: DepartmentDomain[]}
   | {type: ReducerActions.SNACKBAR_CLOSE}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -99,6 +103,7 @@ type ReducerAction =
  *
  * @param departments - Liste aller Abteilungen
  * @param positionList - Verfügbare Positionen (1..N als Strings)
+ * @param changedKeys - UIDs der seit dem letzten Speichern geänderten Abteilungen
  * @param error - Letzter aufgetretener Fehler (oder null)
  * @param isLoading - Ob gerade Daten geladen werden
  * @param snackbar - Zustand der Snackbar-Benachrichtigung
@@ -106,22 +111,20 @@ type ReducerAction =
 interface State {
   departments: DepartmentDomain[];
   positionList: string[];
+  changedKeys: Set<string>;
   error: Error | null;
   isLoading: boolean;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 }
 
 const initialState: State = {
   departments: [],
   positionList: [],
+  changedKeys: new Set<string>(),
   error: null,
   isLoading: false,
   snackbar: SNACKBAR_INITIAL_STATE_VALUES,
 };
-
-/* ===================================================================
-// ======================== Hilfsfunktionen ==========================
-// =================================================================== */
 
 /**
  * Normalisiert die Positionen aller Abteilungen auf lückenlose 1..N-Werte.
@@ -181,10 +184,6 @@ const reorderDepartment = (
   return sorted.map((dept, index) => ({...dept, pos: index + 1}));
 };
 
-/* ===================================================================
-// ======================== Reducer ==================================
-// =================================================================== */
-
 /**
  * Reducer für die DepartmentsPage.
  *
@@ -203,19 +202,23 @@ const departmentsReducer = (state: State, action: ReducerAction): State => {
         isLoading: true,
       };
     case ReducerActions.DEPARTMENTS_FETCH_SUCCESS: {
-      // Abteilungen geholt — Positionen normalisieren
+      // Abteilungen geholt — Positionen normalisieren, changedKeys zurücksetzen
       const normalized = normalizeDepartmentPositions(action.payload);
       return {
         ...state,
         departments: normalized,
         positionList: createPositionList(normalized.length),
+        changedKeys: new Set<string>(),
         isLoading: false,
       };
     }
-    case ReducerActions.DEPARTMENT_ON_CHANGE:
-      // Feldwert geändert (immutabel)
+    case ReducerActions.DEPARTMENT_ON_CHANGE: {
+      // Feldwert geändert (immutabel) — Key als geändert markieren
+      const updatedKeys = new Set(state.changedKeys);
+      updatedKeys.add(action.payload.key);
       return {
         ...state,
+        changedKeys: updatedKeys,
         departments: state.departments.map((department) => {
           if (department.uid === action.payload.key) {
             return {
@@ -226,14 +229,22 @@ const departmentsReducer = (state: State, action: ReducerAction): State => {
           return department;
         }),
       };
-    case ReducerActions.SET_NEW_POSITION_FOR_DEPARTMENT:
-      // Position geändert
-      return {...state, departments: action.payload};
+    }
+    case ReducerActions.SET_NEW_POSITION_FOR_DEPARTMENT: {
+      // Position geändert — alle Abteilungen als geändert markieren
+      const allKeys = new Set(action.payload.map((department) => department.uid));
+      return {
+        ...state,
+        departments: action.payload,
+        changedKeys: allKeys,
+      };
+    }
     case ReducerActions.DEPARTMENTS_SAVED:
-      // Alle Einträge gespeichert
+      // Alle Einträge gespeichert — changedKeys zurücksetzen
       return {
         ...state,
         error: null,
+        changedKeys: new Set<string>(),
         snackbar: {
           severity: "success",
           message: TEXT_SAVE_SUCCESS,
@@ -241,7 +252,7 @@ const departmentsReducer = (state: State, action: ReducerAction): State => {
         },
       };
     case ReducerActions.NEW_DEPARTMENT_CREATED: {
-      // Neue Abteilung wurde angelegt — Liste normalisieren
+      // Neue Abteilung wurde angelegt — Liste normalisieren, changedKeys zurücksetzen
       const withNew = normalizeDepartmentPositions(
         state.departments.concat([action.payload]),
       );
@@ -249,11 +260,22 @@ const departmentsReducer = (state: State, action: ReducerAction): State => {
         ...state,
         departments: withNew,
         positionList: createPositionList(withNew.length),
+        changedKeys: new Set<string>(),
         snackbar: {
           severity: "success",
           message: TEXT_DEPARTMENT_CREATED(action.payload.name),
           open: true,
         },
+      };
+    }
+    case ReducerActions.EDIT_CANCELLED: {
+      // Änderungen verwerfen — Snapshot wiederherstellen, Positionen normalisieren
+      const restored = normalizeDepartmentPositions(action.payload);
+      return {
+        ...state,
+        departments: restored,
+        positionList: createPositionList(restored.length),
+        changedKeys: new Set<string>(),
       };
     }
     case ReducerActions.SNACKBAR_CLOSE:
@@ -280,7 +302,7 @@ const departmentsReducer = (state: State, action: ReducerAction): State => {
   }
 };
 
-const TABLE_COLUMS: Column[] = [
+const TABLE_COLUMNS: Column[] = [
   {
     id: "uid",
     type: TableColumnTypes.string,
@@ -307,18 +329,15 @@ const TABLE_COLUMS: Column[] = [
   },
 ];
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
-
 /**
  * Hauptkomponente für die Abteilungsverwaltung.
  *
  * Lädt alle Abteilungen beim Mount, bietet einen Bearbeitungsmodus
- * zum Umbenennen und Umsortieren und erlaubt das Anlegen neuer
- * Abteilungen über einen Dialog.
+ * zum Umbenennen, Umsortieren und Aktivieren/Deaktivieren und erlaubt
+ * das Anlegen neuer Abteilungen über einen Dialog. Beim Speichern
+ * werden nur tatsächlich geänderte Abteilungen in die DB geschrieben.
  */
-const DepartmentsPage = () => {
+export const DepartmentsPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
@@ -327,9 +346,10 @@ const DepartmentsPage = () => {
   const [state, dispatch] = React.useReducer(departmentsReducer, initialState);
   const [addDepartmentPopUp, setAddDepartmentPopUp] = React.useState(false);
 
-  /* ------------------------------------------
-  // Daten aus der DB holen
-  // ------------------------------------------ */
+  // Snapshot der Abteilungen beim Wechsel in den Bearbeitungsmodus —
+  // wird bei Abbruch verwendet, um Änderungen zu verwerfen.
+  const departmentsSnapshot = React.useRef<DepartmentDomain[]>([]);
+
   React.useEffect(() => {
     dispatch({type: ReducerActions.FETCH_INIT});
 
@@ -342,7 +362,7 @@ const DepartmentsPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: error,
@@ -350,31 +370,72 @@ const DepartmentsPage = () => {
       });
   }, [database]);
 
+  // Warnung bei ungespeicherten Änderungen, wenn der Benutzer die Seite verlässt
+  React.useEffect(() => {
+    if (!editMode || state.changedKeys.size === 0) return;
+    const handler = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [editMode, state.changedKeys.size]);
+
   if (!authUser) {
     return null;
   }
-  /* ------------------------------------------
-  // Edit Mode wechsel
-  // ------------------------------------------ */
-  const toggleEditMode = () => {
-    setEditMode(!editMode);
+
+  /**
+   * Wechselt in den Bearbeitungsmodus und speichert einen Snapshot
+   * der aktuellen Abteilungen, damit Änderungen bei Abbruch
+   * verworfen werden können.
+   */
+  const onEditClick = () => {
+    departmentsSnapshot.current = state.departments.map((department) => ({...department}));
+    setEditMode(true);
   };
-  /* ------------------------------------------
-  // PopUp Handler
-  // ------------------------------------------ */
+
+  /**
+   * Bricht den Bearbeitungsmodus ab und stellt den Snapshot
+   * der Abteilungen wieder her.
+   */
+  const onCancelEdit = () => {
+    dispatch({
+      type: ReducerActions.EDIT_CANCELLED,
+      payload: departmentsSnapshot.current,
+    });
+    setEditMode(false);
+  };
+
+  /**
+   * Öffnet den Dialog zum Anlegen einer neuen Abteilung.
+   */
   const onAddDepartment = () => {
     setAddDepartmentPopUp(true);
   };
+
+  /**
+   * Schliesst den Dialog zum Anlegen einer neuen Abteilung.
+   */
   const onPopUpClose = () => {
     setAddDepartmentPopUp(false);
   };
+
+  /**
+   * Behandelt einen Fehler aus dem Abteilungs-Dialog.
+   *
+   * @param error - Der aufgetretene Fehler
+   */
   const onPopUpError = (error: Error) => {
     dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
     setAddDepartmentPopUp(false);
   };
-  /* ------------------------------------------
-  // Abteilung wurde angelegt
-  // ------------------------------------------ */
+
+  /**
+   * Übernimmt eine neu angelegte Abteilung in den State und
+   * schliesst den Dialog.
+   *
+   * @param department - Die neu erstellte Abteilung
+   */
   const onCreateDepartment = (department: DepartmentDomain) => {
     dispatch({
       type: ReducerActions.NEW_DEPARTMENT_CREATED,
@@ -382,9 +443,14 @@ const DepartmentsPage = () => {
     });
     setAddDepartmentPopUp(false);
   };
-  /* ------------------------------------------
-  // Feldwert geändert
-  // ------------------------------------------ */
+
+  /**
+   * Verarbeitet Änderungen an Textfeldern (z.B. Abteilungsname).
+   *
+   * Erwartet, dass die Feld-ID aus «feldname_uid» besteht.
+   *
+   * @param event - Das Change-Event des Textfeldes
+   */
   const onChangeField = (event: React.ChangeEvent<HTMLInputElement>) => {
     const departmentField = event.target.id.split("_");
     dispatch({
@@ -396,9 +462,14 @@ const DepartmentsPage = () => {
       },
     });
   };
-  /* ------------------------------------------
-  //  Position von Abteilung ändern
-  // ------------------------------------------ */
+
+  /**
+   * Verarbeitet Änderungen am Positions-Select (Umsortierung).
+   *
+   * Erwartet, dass der Name aus «feldname_uid» besteht.
+   *
+   * @param event - Das Change-Event des Select-Feldes
+   */
   const onChangeSelect = (event: SelectChangeEvent) => {
     const selectedItem = event.target?.name?.split("_");
     if (!selectedItem || selectedItem?.length === 0) {
@@ -419,12 +490,35 @@ const DepartmentsPage = () => {
       payload: reordered,
     });
   };
-  /* ------------------------------------------
-  // Speichern
-  // ------------------------------------------ */
+
+  /**
+   * Schaltet den Aktiv-Status einer Abteilung um.
+   *
+   * @param departmentUid - UID der betroffenen Abteilung
+   * @param checked - Neuer Wert des Switches
+   */
+  const onToggleUsable = (departmentUid: string, checked: boolean) => {
+    dispatch({
+      type: ReducerActions.DEPARTMENT_ON_CHANGE,
+      payload: {field: "usable", key: departmentUid, value: checked},
+    });
+  };
+
+  /**
+   * Speichert nur die seit dem letzten Speichern geänderten Abteilungen.
+   * Unveränderte Abteilungen werden nicht in die DB geschrieben.
+   */
   const onSave = () => {
+    if (state.changedKeys.size === 0) {
+      return;
+    }
+
+    const changedDepartments = state.departments.filter((department) =>
+      state.changedKeys.has(department.uid),
+    );
+
     database.departments
-      .saveAllDepartments(state.departments, authUser)
+      .saveAllDepartments(changedDepartments, authUser)
       .then(() => {
         dispatch({type: ReducerActions.DEPARTMENTS_SAVED});
       })
@@ -435,9 +529,13 @@ const DepartmentsPage = () => {
         });
       });
   };
-  /* ------------------------------------------
-  // Snackbar schliessen
-  // ------------------------------------------ */
+
+  /**
+   * Schliesst die Snackbar-Benachrichtigung.
+   *
+   * @param _event - Das auslösende Event (nicht verwendet)
+   * @param reason - Der Grund für das Schliessen
+   */
   const onSnackbarClose = (
     _event: Event | SyntheticEvent,
     reason: SnackbarCloseReason,
@@ -449,8 +547,7 @@ const DepartmentsPage = () => {
   };
 
   return (
-    <React.Fragment>
-      {/*===== HEADER ===== */}
+    <>
       <PageTitle
         title={TEXT_DEPARTMENTS}
         subTitle={TEXT_SO_YOU_DONT_GET_LOST_IN_THE_STORE}
@@ -466,7 +563,7 @@ const DepartmentsPage = () => {
             label: TEXT_EDIT,
             variant: "contained",
             color: "primary",
-            onClick: toggleEditMode,
+            onClick: onEditClick,
           },
           {
             id: "save",
@@ -476,6 +573,15 @@ const DepartmentsPage = () => {
             variant: "contained",
             color: "primary",
             onClick: onSave,
+          },
+          {
+            id: "cancel",
+            hero: true,
+            visible: editMode && authUser.roles.includes(Roles.communityLeader),
+            label: TEXT_CANCEL,
+            variant: "outlined",
+            color: "primary",
+            onClick: onCancelEdit,
           },
           {
             id: "add",
@@ -488,13 +594,11 @@ const DepartmentsPage = () => {
           },
         ]}
       />
-      {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
         <Backdrop sx={classes.backdrop} open={state.isLoading}>
           <CircularProgress color="inherit" />
         </Backdrop>
         <Grid container spacing={2}>
-          {/* Fehler anzeigen? */}
           {state.error && (
             <Grid key={"error"} size={12}>
               <AlertMessage
@@ -503,13 +607,13 @@ const DepartmentsPage = () => {
               />
             </Grid>
           )}
-          <Grid key={"DepartmentsPanel"} size={12}>
-            <br />
+          <Grid key={"DepartmentsPanel"} size={12} sx={{mt: 2}}>
             <DepartmentTable
               departments={state.departments}
               positionList={state.positionList}
               onChangeField={onChangeField}
               onChangeSelect={onChangeSelect}
+              onToggleUsable={onToggleUsable}
               editMode={editMode}
             />
           </Grid>
@@ -517,6 +621,7 @@ const DepartmentsPage = () => {
       </Container>
       <DialogDepartment
         dialogOpen={addDepartmentPopUp}
+        existingNames={state.departments.map((department) => department.name)}
         nextHigherPos={state.positionList.length + 1}
         handleCreate={onCreateDepartment}
         handleClose={onPopUpClose}
@@ -529,24 +634,21 @@ const DepartmentsPage = () => {
         snackbarOpen={state.snackbar.open}
         handleClose={onSnackbarClose}
       />
-    </React.Fragment>
+    </>
   );
 };
-
-/* ===================================================================
-// ========================= Departments Tabelle =====================
-// =================================================================== */
 
 /**
  * Tabellenkomponente für die Abteilungsliste.
  *
  * Zeigt im Lesemodus eine EnhancedTable, im Bearbeitungsmodus
- * editierbare Textfelder und Positions-Dropdowns.
+ * editierbare Textfelder, Positions-Dropdowns und einen Aktiv-Toggle.
  *
  * @param departments - Liste der Abteilungen
  * @param positionList - Verfügbare Positionen als Strings
  * @param onChangeField - Handler für Namensänderungen
  * @param onChangeSelect - Handler für Positionsänderungen
+ * @param onToggleUsable - Handler für das Umschalten des Aktiv-Status
  * @param editMode - Ob der Bearbeitungsmodus aktiv ist
  */
 interface DepartmentTableProps {
@@ -554,6 +656,7 @@ interface DepartmentTableProps {
   positionList: string[];
   onChangeField: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onChangeSelect: (event: SelectChangeEvent) => void;
+  onToggleUsable: (departmentUid: string, checked: boolean) => void;
   editMode: boolean;
 }
 const DepartmentTable = ({
@@ -561,6 +664,7 @@ const DepartmentTable = ({
   positionList,
   onChangeField,
   onChangeSelect,
+  onToggleUsable,
   editMode,
 }: DepartmentTableProps) => {
   const classes = useCustomStyles();
@@ -569,11 +673,14 @@ const DepartmentTable = ({
       <CardContent sx={classes.cardContent} key={"cardDepartments"}>
         {editMode ? (
           <Grid container spacing={2}>
-            <Grid size={8}>
+            <Grid size={6}>
               <Typography variant="subtitle1">{TEXT_DEPARTMENT}</Typography>
             </Grid>
-            <Grid size={4}>
+            <Grid size={3}>
               <Typography variant="subtitle1">{TEXT_ORDER}</Typography>
+            </Grid>
+            <Grid size={3}>
+              <Typography variant="subtitle1">{TEXT_ACTIVE}</Typography>
             </Grid>
             <Grid size={12}>
               <Divider />
@@ -581,7 +688,7 @@ const DepartmentTable = ({
 
             {departments.map((department) => (
               <React.Fragment key={"departmentFragment_" + department.uid}>
-                <Grid key={"gridItemName_" + department.uid} size={8}>
+                <Grid key={"gridItemName_" + department.uid} size={6}>
                   <TextField
                     id={"name_" + department.uid}
                     key={"name_" + department.uid}
@@ -591,7 +698,7 @@ const DepartmentTable = ({
                     fullWidth
                   />
                 </Grid>
-                <Grid key={"gridItemPos_" + department.uid} size={4}>
+                <Grid key={"gridItemPos_" + department.uid} size={3}>
                   <FormControl fullWidth sx={classes.formControl}>
                     <InputLabel key="label_pos">{TEXT_ORDER}</InputLabel>
                     <Select
@@ -614,6 +721,15 @@ const DepartmentTable = ({
                     </Select>
                   </FormControl>
                 </Grid>
+                <Grid key={"gridItemUsable_" + department.uid} size={3}>
+                  <Switch
+                    checked={department.usable}
+                    onChange={(_event, checked) =>
+                      onToggleUsable(department.uid, checked)
+                    }
+                    inputProps={{"aria-label": TEXT_ACTIVE}}
+                  />
+                </Grid>
                 <Grid key={"gridItemDivider_" + department.uid} size={12}>
                   <Divider />
                 </Grid>
@@ -623,7 +739,7 @@ const DepartmentTable = ({
         ) : (
           <EnhancedTable
             tableData={departments}
-            tableColumns={TABLE_COLUMS}
+            tableColumns={TABLE_COLUMNS}
             keyColum={"uid"}
           />
         )}
@@ -631,5 +747,3 @@ const DepartmentTable = ({
     </Card>
   );
 };
-
-export default DepartmentsPage;

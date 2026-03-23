@@ -53,9 +53,9 @@ import {ShoppingListCollection,
 } from "../ShoppingList/shoppingListCollection.class";
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {MaterialList} from "../MaterialList/materialList.class";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import Recipe from "../../Recipe/recipe.class";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 export enum OperationType {
   none,
   Create,

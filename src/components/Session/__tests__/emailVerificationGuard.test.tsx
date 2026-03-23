@@ -9,8 +9,9 @@ import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
 
 import {DatabaseContext} from "../../Database/DatabaseContext";
+import {DatabaseService} from "../../Database/DatabaseService";
 import {AuthUserContext} from "../authUserContext";
-import LocalStorageKey from "../../../constants/localStorage";
+import {LocalStorageKey} from "../../../constants/localStorage";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================
@@ -33,7 +34,7 @@ const mockDatabase = {
     getSession: jest.fn(),
   },
   users: {},
-} as any;
+} as unknown as DatabaseService;
 
 /** Mock: ImageRepository — wird von pageTitle und buttonRow indirekt benoetigt */
 jest.mock("../../../constants/imageRepository", () => ({
@@ -44,10 +45,15 @@ jest.mock("../../../constants/imageRepository", () => ({
   },
 }));
 
+/** Mock: Sentry — wird fuer die Fehlerbehandlung bei resendConfirmationEmail verwendet */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
 /* ===================================================================
 // ======================== Import nach Mocks =========================
 // =================================================================== */
-import EmailVerificationGuard from "../emailVerificationGuard";
+import {EmailVerificationGuard} from "../emailVerificationGuard";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
 /* ===================================================================
@@ -270,6 +276,38 @@ describe("EmailVerificationGuard", () => {
           name: /Bestätigungs-E-Mail erneut senden/i,
         }),
       ).toBeDisabled();
+    });
+
+    /**
+     * Wenn resendConfirmationEmail fehlschlaegt, soll der Fehler via
+     * Sentry erfasst werden und der Button aktiviert bleiben.
+     */
+    test("Fehlerbehandlung wenn resendConfirmationEmail fehlschlaegt", async () => {
+      const Sentry = jest.requireMock("@sentry/react");
+      const networkError = new Error("Network error");
+      mockResendConfirmationEmail.mockRejectedValueOnce(networkError);
+      const authUser = createAuthUser({
+        emailVerified: false,
+        email: "fail@chuchipirat.ch",
+      });
+      localStorage.setItem(
+        LocalStorageKey.AUTH_USER,
+        JSON.stringify({emailVerified: false}),
+      );
+
+      renderGuard(authUser);
+
+      const resendButton = screen.getByRole("button", {
+        name: /Bestätigungs-E-Mail erneut senden/i,
+      });
+      await userEvent.click(resendButton);
+
+      await waitFor(() => {
+        expect(Sentry.captureException).toHaveBeenCalledWith(networkError);
+      });
+
+      // Button bleibt aktiviert, da der Versand fehlgeschlagen ist
+      expect(resendButton).toBeEnabled();
     });
   });
 });

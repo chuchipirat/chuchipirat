@@ -33,7 +33,7 @@ jest.mock("../user.class", () => {
   MockUser.deletePicture = jest.fn();
   MockUser.checkUserProfileData = jest.fn();
 
-  return {__esModule: true, default: MockUser};
+  return {__esModule: true, User: MockUser};
 });
 
 /** Mock: ImageRepository */
@@ -90,11 +90,11 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
-import UserProfilePage from "../userProfile";
+import {UserProfilePage} from "../userProfile";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
-import User from "../user.class";
+import {User} from "../user.class";
 import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
 
 // Typisierte Referenzen auf die Mock-Funktionen

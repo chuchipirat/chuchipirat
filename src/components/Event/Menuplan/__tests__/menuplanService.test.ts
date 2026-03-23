@@ -56,7 +56,7 @@ import {
   GoodsPlanMode,
 } from "../menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
-import RecipeShort from "../../../Recipe/recipeShort.class";
+import {RecipeShort, createEmptyRecipeShort} from "../../../Recipe/recipe.types";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 import {Event} from "../../Event/event.class";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
@@ -143,7 +143,7 @@ function buildGroupConfig(): EventGroupConfiguration {
  * Erzeugt ein minimales RecipeShort-Objekt.
  */
 function buildRecipeShort(overrides: Partial<RecipeShort> = {}): RecipeShort {
-  const recipe = new RecipeShort();
+  const recipe = createEmptyRecipeShort();
   recipe.uid = "recipe-1";
   recipe.name = "Testrezept";
   recipe.type = RecipeType.public;

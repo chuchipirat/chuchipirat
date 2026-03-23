@@ -83,7 +83,7 @@ export const pdfStyles = StyleSheet.create({
     ...PDF_TOKENS.table,
   },
   tableNoMargin: {
-    display: "table" as any,
+    display: "table" as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- @react-pdf/renderer typisiert Display nicht mit "table"
     width: "auto",
   },
   // Zweispaltige Zeile ohne vertikale Margins — minimiert den vertikalen

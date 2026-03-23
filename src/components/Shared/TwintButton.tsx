@@ -2,7 +2,7 @@ import React from "react";
 
 import {Button, Box, useMediaQuery} from "@mui/material";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 import {TWINT_PAYLINK} from "../../constants/defaultValues";
 
 /**
@@ -40,4 +40,4 @@ const TwintButton = () => {
   );
 };
 
-export default TwintButton;
+export {TwintButton};

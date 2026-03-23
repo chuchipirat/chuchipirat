@@ -25,12 +25,12 @@ import {DataGrid, GridColDef, GridSortModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import isEqual from "lodash/isEqual";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
-import AlertMessage from "../../Shared/AlertMessage";
-import CustomSnackbar, {
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../../Shared/customSnackbar";
 
 import {useDatabase} from "../../Database/DatabaseContext";
@@ -54,7 +54,7 @@ import {
   DELETE as TEXT_DELETE,
 } from "../../../constants/text";
 import * as ROUTES from "../../../constants/routes";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import * as Sentry from "@sentry/browser";
 
 /* ===================================================================
@@ -73,7 +73,7 @@ type DispatchAction =
   | {type: ReducerActions.MESSAGES_FETCH_INIT}
   | {type: ReducerActions.MESSAGES_FETCH_SUCCESS; payload: SystemMessageDomain[]}
   | {type: ReducerActions.MESSAGE_DELETED; payload: string}
-  | {type: ReducerActions.SNACKBAR_SET; payload: Snackbar}
+  | {type: ReducerActions.SNACKBAR_SET; payload: SnackbarState}
   | {type: ReducerActions.SNACKBAR_CLOSE}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -81,7 +81,7 @@ type State = {
   messages: SystemMessageDomain[];
   isLoading: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {

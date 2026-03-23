@@ -32,9 +32,9 @@ import {
 
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "./system";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 /* ===================================================================
 // ======================== Konfiguration ============================

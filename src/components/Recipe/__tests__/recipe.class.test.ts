@@ -2,7 +2,7 @@ import Recipe, {PositionType, RecipeType} from "../recipe.class";
 import recipe from "../__mocks__/recipe.mock";
 import products from "../../Product/__mocks__/products.mock";
 import units from "../../Unit/__mocks__/units.mock";
-import {Allergen, Diet} from "../../Product/product.class";
+import {Allergen, Diet} from "../../Product/product.types";
 import {
   RECIPE_NAME_CANT_BE_EMPTY as TEXT_RECIPE_NAME_CANT_BE_EMPTY,
   RECIPE_VARIANT_NAME_CANT_BE_EMPTY as TEXT_RECIPE_VARIANT_NAME_CANT_BE_EMPTY,

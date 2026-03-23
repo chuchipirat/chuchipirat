@@ -1,8 +1,8 @@
 import {useLocation} from "react-router";
 import {useMediaQuery, useTheme} from "@mui/material";
 
-import GoBackFab from "../Navigation/goBack";
-import Footer from "../Footer/footer";
+import {GoBackFab} from "../Navigation/GoBackFab";
+import {Footer} from "../Footer/Footer";
 import {FeedbackFab} from "./FeedbackFab";
 import {routeConfig} from "./routeConfig";
 import type {RouteLayout} from "./routeConfig";

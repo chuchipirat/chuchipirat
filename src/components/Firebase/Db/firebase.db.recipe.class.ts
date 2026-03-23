@@ -12,7 +12,7 @@ import {
   ERROR_WRONG_DB_CLASS,
   ERROR_NOT_IMPLEMENTED_YET,
 } from "../../../constants/text";
-import {Diet} from "../../Product/product.class";
+import {Diet} from "../../Product/product.types";
 import {
   Ingredient,
   PositionType,

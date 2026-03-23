@@ -18,7 +18,7 @@ import {
   decodeSelectedMeals,
 } from "../Menuplan/dialogSelectMenues";
 import {OperationType} from "../Event/eventSharedComponents";
-import Material, {MaterialType} from "../../Material/material.class";
+import {Material, MaterialType} from "../../Material/material.types";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {Event,Cook} from "../Event/event.class";
 import {
@@ -37,8 +37,8 @@ import {
   itemsDomainToMaterialListItems,
 } from "./materialListAdapter";
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
-import Action from "../../../constants/actions";
-import Utils from "../../Shared/utils.class";
+import {Action} from "../../../constants/actions";
+import {Utils} from "../../Shared/utils.class";
 import {
   DialogType,
   SingleTextInputResult,
@@ -351,7 +351,7 @@ export function useMaterialListHandlers({
       )
     ) {
       const userInput = (await customDialog({
-        dialogType: DialogType.selectOptions,
+        dialogType: DialogType.SelectOptions,
         title: TEXT_MANUALLY_ADDED_PRODUCTS,
         text: TEXT_KEEP_MANUALLY_ADDED_PRODUCTS(TEXT_MATERIAL_LIST),
         options: [

@@ -1,14 +1,26 @@
 import React from "react";
 import * as TEXT from "../../constants/text";
 
-import {Typography, LinearProgress} from "@mui/material";
+import {
+  Typography,
+  LinearProgress,
+  LinearProgressProps,
+  Box,
+} from "@mui/material";
 
 import zxcvbn from "zxcvbn";
-// ===================================================================
-// ============================= Global ============================
-// ===================================================================
-// Kategorien Passwort
-const getPasswordLabel = (result) => {
+
+/* ===================================================================
+// ============================= Hilfsfunktionen =====================
+// =================================================================== */
+
+/**
+ * Gibt das Label zur Passwortstärke zurück.
+ *
+ * @param result Ergebnis von zxcvbn mit Score-Wert.
+ * @returns Lokalisiertes Label (z.B. «schwach», «stark»).
+ */
+const getPasswordLabel = (result: {score: number}): string => {
   switch (result.score) {
     case 0:
       return TEXT.PASSWORD_STRENGTH_METER.WEAK;
@@ -24,13 +36,38 @@ const getPasswordLabel = (result) => {
       return TEXT.PASSWORD_STRENGTH_METER.WEAK;
   }
 };
-// ===================================================================
-// ====================== Password-Strengh-Meter =====================
-// ===================================================================
+
+/**
+ * Bestimmt die Fortschrittsbalken-Farbe basierend auf dem Score.
+ *
+ * @param score zxcvbn-Score (0–4).
+ * @param hasPassword Ob ein Passwort eingegeben wurde.
+ * @returns MUI LinearProgress Farbwert.
+ */
+const getProgressColor = (
+  score: number,
+  hasPassword: boolean
+): LinearProgressProps["color"] => {
+  if (!hasPassword) return "primary";
+  if (score <= 1) return "error";
+  if (score === 2) return "warning";
+  if (score === 3) return "info";
+  if (score === 4) return "success";
+  return "primary";
+};
+
+/* ===================================================================
+// ====================== Password-Strength-Meter =====================
+// =================================================================== */
 interface PasswordStrengthMeterProps {
   password: string;
 }
 
+/**
+ * Zeigt einen Fortschrittsbalken und ein Label zur Passwortstärke an.
+ *
+ * @param password Das zu bewertende Passwort.
+ */
 const PasswordStrengthMeter = ({password}: PasswordStrengthMeterProps) => {
   const testedResult = zxcvbn(password);
 
@@ -39,23 +76,9 @@ const PasswordStrengthMeter = ({password}: PasswordStrengthMeterProps) => {
       <LinearProgress
         variant="determinate"
         value={(100 / 4) * testedResult.score}
-        color={
-          !password
-            ? "primary"
-            : testedResult.score === 0 && password.length > 0
-            ? "error"
-            : testedResult.score === 1
-            ? "error"
-            : testedResult.score === 2
-            ? "warning"
-            : testedResult.score === 3
-            ? "info"
-            : testedResult.score === 4
-            ? "success"
-            : "primary"
-        }
+        color={getProgressColor(testedResult.score, password.length > 0)}
       />
-      <br />
+      <Box sx={{mt: 1}} />
 
       <Typography>
         {TEXT.PASSWORD_HOW_STRONG_IS_IT}
@@ -67,4 +90,4 @@ const PasswordStrengthMeter = ({password}: PasswordStrengthMeterProps) => {
   );
 };
 
-export default PasswordStrengthMeter;
+export {PasswordStrengthMeter};

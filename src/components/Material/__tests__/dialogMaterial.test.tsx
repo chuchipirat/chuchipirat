@@ -14,8 +14,9 @@ import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 
-import DialogMaterial, {MaterialDialog} from "../dialogMaterial";
-import {MaterialType} from "../material.class";
+import * as Sentry from "@sentry/react";
+import {DialogMaterial, MaterialDialog} from "../dialogMaterial";
+import {MaterialType} from "../material.types";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
@@ -349,9 +350,9 @@ describe("DialogMaterial — CREATE", () => {
   test("insertMaterial-Fehler fuehrt nicht zum Absturz", async () => {
     const handleOk = jest.fn();
     mockInsertMaterial.mockRejectedValueOnce(new Error("DB-Fehler"));
-    const consoleSpy = jest
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
+    const sentrySpy = jest
+      .spyOn(Sentry, "captureException")
+      .mockImplementation(() => "");
 
     renderCreateDialog({materialName: "Pfanne", handleOk});
 
@@ -366,6 +367,6 @@ describe("DialogMaterial — CREATE", () => {
     await waitFor(() => expect(mockInsertMaterial).toHaveBeenCalledTimes(1));
     expect(handleOk).not.toHaveBeenCalled();
 
-    consoleSpy.mockRestore();
+    sentrySpy.mockRestore();
   });
 });

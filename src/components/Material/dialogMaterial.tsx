@@ -19,10 +19,10 @@ import {
   useTheme,
 } from "@mui/material";
 
-import Material, {MaterialType} from "./material.class";
+import {Material, MaterialType} from "./material.types";
 import {useDatabase} from "../Database/DatabaseContext";
 import {FeedType} from "../Shared/feed.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 
 import {
   DIALOG_TITLE_MATERIAL_ADD,
@@ -43,8 +43,8 @@ import {
   USABLE,
 } from "../../constants/text";
 
+import * as Sentry from "@sentry/react";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -61,10 +61,6 @@ export enum MaterialDialog {
   CREATE = "create",
   EDIT = "edit",
 }
-export const MATERIAL_DIALOG_TYPE = {
-  CREATE: "create",
-  EDIT: "edit",
-};
 
 /* ===================================================================
 // ===================== Pop Up Material hinzufügen ==================
@@ -143,18 +139,11 @@ const DialogMaterial = ({
    * @param event - Change-Event des Eingabefelds
    */
   const onChangeField = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const field = event.target.id.split("-")[0];
-    switch (field) {
-      case "name":
-        setMaterialPopUpValues({
-          ...materialPopUpValues,
-          name: event.target.value,
-          clear: false,
-        });
-        break;
-      default:
-        return;
-    }
+    setMaterialPopUpValues({
+      ...materialPopUpValues,
+      name: event.target.value,
+      clear: false,
+    });
   };
 
   /**
@@ -218,7 +207,7 @@ const DialogMaterial = ({
       !materialPopUpValues.uid &&
       materials.find(
         (material) =>
-          material.name.toLowerCase() ==
+          material.name.toLowerCase() ===
           materialPopUpValues.name.toLowerCase().trim()
       ) !== undefined
     ) {
@@ -233,7 +222,7 @@ const DialogMaterial = ({
       setMaterialPopUpValues({...materialPopUpValues});
     } else {
       switch (dialogType) {
-        case MATERIAL_DIALOG_TYPE.CREATE:
+        case MaterialDialog.CREATE:
           // Neues Material in Supabase anlegen
           database.materials
             .insertMaterial(
@@ -245,13 +234,12 @@ const DialogMaterial = ({
               authUser
             )
             .then((domain) => {
-              // Domain → Material-Instanz für Rückgabe an den Aufrufer
-              const result = new Material();
-              result.uid = domain.uid;
-              result.name = domain.name;
-              result.type = domain.type;
-              result.usable = domain.usable;
-              handleOk(result);
+              handleOk({
+                uid: domain.uid,
+                name: domain.name,
+                type: domain.type,
+                usable: domain.usable,
+              });
               setMaterialPopUpValues({
                 ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
                 clear: true,
@@ -268,19 +256,19 @@ const DialogMaterial = ({
                   },
                   authUser,
                 )
-                .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+                .catch((err) => Sentry.captureException(err, {extra: {context: "Material erstellen: Feed-Eintrag"}}));
             })
             .catch((error) => {
-              console.error("Fehler beim Anlegen des Materials:", error);
+              Sentry.captureException(error, {extra: {context: "Material erstellen"}});
             });
           break;
-        case MATERIAL_DIALOG_TYPE.EDIT: {
-          const material = new Material();
-          material.uid = materialPopUpValues.uid;
-          material.name = materialPopUpValues.name;
-          material.type = materialPopUpValues.type;
-          material.usable = materialPopUpValues.usable;
-          handleOk(material);
+        case MaterialDialog.EDIT: {
+          handleOk({
+            uid: materialPopUpValues.uid,
+            name: materialPopUpValues.name,
+            type: materialPopUpValues.type,
+            usable: materialPopUpValues.usable,
+          });
           setMaterialPopUpValues({
             ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
             clear: true,
@@ -293,27 +281,26 @@ const DialogMaterial = ({
   /* ------------------------------------------
   // Dialog schliessen (Backdrop / ESC)
   // ------------------------------------------ */
-  const onClose = (_event: ValueObject, reason: string) => {
-    if (reason !== "backdropClick" && reason !== "escapeKeyDown") {
-      handleClose();
-    }
+  const onClose = (_event: object, reason: string) => {
+    if (reason === "backdropClick") return;
+    onCancelClick();
   };
 
   return (
     <Dialog
       open={dialogOpen}
       onClose={onClose}
-      aria-labelledby="dialog Add Material"
+      aria-labelledby="dialogMaterial"
     >
-      <DialogTitle id="dialogAddMaterial">
-        {dialogType === MATERIAL_DIALOG_TYPE.CREATE
+      <DialogTitle id="dialogMaterial">
+        {dialogType === MaterialDialog.CREATE
           ? DIALOG_TITLE_MATERIAL_ADD
           : DIALOG_TITLE_MATERIAL_EDIT}
       </DialogTitle>
 
       <DialogContent>
         <DialogContentText sx={{marginBottom: theme.spacing(2)}}>
-          {dialogType === MATERIAL_DIALOG_TYPE.CREATE && DIALOG_TEXT_MATERIAL}
+          {dialogType === MaterialDialog.CREATE && DIALOG_TEXT_MATERIAL}
         </DialogContentText>
         <Stack spacing={2}>
           <TextField
@@ -363,7 +350,7 @@ const DialogMaterial = ({
           <FormHelperText>
             {DIALOG_EXPLANATION_MATERIAL_TYPE_USAGE}
           </FormHelperText>
-          {dialogType == MATERIAL_DIALOG_TYPE.EDIT && (
+          {dialogType === MaterialDialog.EDIT && (
             <FormControlLabel
               control={
                 <Checkbox
@@ -382,7 +369,7 @@ const DialogMaterial = ({
           {BUTTON_CANCEL}
         </Button>
         <Button onClick={onOkClick} color="primary" variant="contained">
-          {dialogType === MATERIAL_DIALOG_TYPE.CREATE
+          {dialogType === MaterialDialog.CREATE
             ? TEXT_CREATE
             : BUTTON_SAVE}
         </Button>
@@ -391,4 +378,4 @@ const DialogMaterial = ({
   );
 };
 
-export default DialogMaterial;
+export {DialogMaterial};

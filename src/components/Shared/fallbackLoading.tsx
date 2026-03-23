@@ -2,7 +2,7 @@ import React from "react";
 
 import {Backdrop, CircularProgress} from "@mui/material";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 /* ===================================================================
 // ======================= Ladeanzeige für Seite =====================
@@ -17,4 +17,4 @@ const FallbackLoading = () => {
   );
 };
 
-export default FallbackLoading;
+export {FallbackLoading};

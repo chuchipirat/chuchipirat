@@ -53,23 +53,23 @@ import {
   Event as EventIcon,
 } from "@mui/icons-material";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
-import AlertMessage from "../../Shared/AlertMessage";
-import SearchPanel from "../../Shared/searchPanel";
-import CustomSnackbar, {
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {SearchPanel} from "../../Shared/searchPanel";
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../../Shared/customSnackbar";
 import {FormListItem} from "../../Shared/formListItem";
 
-import User, {UserOverviewStructure} from "../../User/user.class";
+import {User, UserOverviewStructure} from "../../User/user.class";
 import {UserDomain} from "../../Database/Repository/UserRepository";
 import {EventDomain} from "../../Database/Repository/EventRepository";
-import Role from "../../../constants/roles";
+import {Role} from "../../../constants/roles";
 import {EVENT as ROUTE_EVENT} from "../../../constants/routes";
-import Action from "../../../constants/actions";
-import useCustomStyles from "../../../constants/styles";
+import {Action} from "../../../constants/actions";
+import {useCustomStyles} from "../../../constants/styles";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 
@@ -128,7 +128,7 @@ enum ReducerActions {
 type DispatchAction =
   | {type: ReducerActions.FETCH_INIT}
   | {type: ReducerActions.FETCH_SUCCESS; payload: UserOverviewStructure[]}
-  | {type: ReducerActions.SNACKBAR_SET; payload: Snackbar}
+  | {type: ReducerActions.SNACKBAR_SET; payload: SnackbarState}
   | {type: ReducerActions.SNACKBAR_CLOSE}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -136,7 +136,7 @@ type State = {
   users: UserOverviewStructure[];
   isLoading: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {

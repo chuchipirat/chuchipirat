@@ -17,11 +17,11 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {RECIPES_DRAWER_TITLE as TEXT_RECIPES_DRAWER_TITLE} from "../../../constants/text";
 import {DrawerSettings} from "../../Recipe/RecipeDrawer";
 import {RecipeSearch} from "../../Recipe/recipes";
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeShort} from "../../Recipe/recipe.types";
 import {OnRecipeCardClickProps} from "../../Recipe/recipes";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import type {OnRecipeSelection} from "./menuplan.page.types";

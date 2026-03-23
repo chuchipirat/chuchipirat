@@ -11,7 +11,7 @@ import {
 } from "@mui/material";
 
 import {ImageRepository} from "../../../constants/imageRepository";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 /**
  * Minimale Datumsangabe fuer die EventCard-Anzeige.

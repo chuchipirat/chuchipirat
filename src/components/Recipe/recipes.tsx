@@ -30,7 +30,7 @@ import {
 import AddIcon from "@mui/icons-material/Add";
 
 import {RECIPE as ROUTE_RECIPE} from "../../constants/routes";
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 import {
   ALL as TEXT_ALL,
   PUBLIC as TEXT_PUBLIC,
@@ -61,23 +61,23 @@ import {
   RESET as TEXT_RESET,
 } from "../../constants/text";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import RecipeShort from "./recipeShort.class";
+import {RecipeShort, createEmptyRecipeShort} from "./recipe.types";
 import {MenuType, RecipeType} from "./recipe.class";
 
-import PageTitle from "../Shared/pageTitle";
-import SearchPanel from "../Shared/searchPanel";
+import {PageTitle} from "../Shared/pageTitle";
+import {SearchPanel} from "../Shared/searchPanel";
 
-import RecipeCard, {RecipeCardLoading} from "./recipeCard";
-import AlertMessage from "../Shared/AlertMessage";
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
+import {RecipeCard, RecipeCardLoading} from "./recipeCard";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 
 import {Lock as LockIcon, Category as CategoryIcon} from "@mui/icons-material";
 
 import {useDatabase} from "../Database/DatabaseContext";
 import type {RecipeShortDomain} from "../Database/Repository/RecipeRepository";
-import {Allergen, Diet} from "../Product/product.class";
+import {Allergen, Diet} from "../Product/product.types";
 import {
   STORAGE_OBJECT_PROPERTY,
   SessionStorageHandler,
@@ -106,7 +106,7 @@ type DispatchAction =
   | {type: ReducerActions.RECIPES_FETCH_INIT}
   | {type: ReducerActions.RECIPES_FETCH_SUCCESS; payload: RecipeShort[]}
   | {type: ReducerActions.RECIPES_FETCH_ERROR; payload: Error}
-  | {type: ReducerActions.SET_SNACKBAR; payload: Snackbar}
+  | {type: ReducerActions.SET_SNACKBAR; payload: SnackbarState}
   | {type: ReducerActions.CLOSE_SNACKBAR};
 
 /**
@@ -120,14 +120,14 @@ type DispatchAction =
 type State = {
   recipes: RecipeShort[];
   isLoading: boolean;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
   error: Error | null;
 };
 
 const initialState: State = {
   recipes: [],
   isLoading: false,
-  snackbar: {} as Snackbar,
+  snackbar: {} as SnackbarState,
   error: null,
 };
 
@@ -239,7 +239,7 @@ const MenuProps = {
  * @returns Ein RecipeShort-Objekt für die UI.
  */
 const domainToRecipeShort = (domain: RecipeShortDomain): RecipeShort => {
-  const recipeShort = new RecipeShort();
+  const recipeShort = createEmptyRecipeShort();
   recipeShort.uid = domain.uid;
   recipeShort.name = domain.name;
   recipeShort.source = domain.source;
@@ -274,10 +274,13 @@ const domainToRecipeShort = (domain: RecipeShortDomain): RecipeShort => {
 // =================================================================== */
 
 /**
- * Hauptseite für die Rezeptübersicht. Lädt alle Rezepte und zeigt sie
- * mit Suchfunktion und Filtermöglichkeiten an.
+ * Hauptseite für die Rezeptübersicht. Lädt alle öffentlichen und privaten Rezepte
+ * des angemeldeten Benutzers und zeigt sie mit Suchfunktion, erweiterten Filtern
+ * und Kartenraster an.
+ *
+ * @returns JSX-Element der Rezeptübersichtsseite.
  */
-const RecipesPage = () => {
+export const RecipesPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
@@ -1240,4 +1243,3 @@ const RecipeResultsGrid = ({
   );
 };
 
-export default RecipesPage;

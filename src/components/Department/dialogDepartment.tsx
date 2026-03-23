@@ -13,32 +13,51 @@ import {
   GIVE_DEPARTMENT_NAME as TEXT_GIVE_DEPARTMENT_NAME,
   CREATE_DEPARTMENT as TEXT_CREATE_DEPARTMENT,
   DEPARTMENT as TEXT_DEPARTMENT,
+  DEPARTMENT_ALREADY_EXISTS as TEXT_DEPARTMENT_ALREADY_EXISTS,
   CANCEL as TEXT_CANCEL,
   CREATE as TEXT_CREATE,
 } from "../../constants/text";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
 
-/* ===================================================================
-// ======================== globale Funktionen =======================
-// =================================================================== */
+/**
+ * Initialzustand des Formulars für den Abteilungs-Dialog.
+ */
 export const DEPARTMENT_INITIAL_STATE = {
   name: "",
 };
-/* ===================================================================
-// ==================== Pop Up Abteilung hinzufügen ==================
-// =================================================================== */
+
+/**
+ * Props für den Dialog zum Erstellen einer neuen Abteilung.
+ *
+ * @param authUser - Der aktuell authentifizierte Benutzer.
+ * @param dialogOpen - Ob der Dialog geöffnet ist.
+ * @param existingNames - Liste der bereits vorhandenen Abteilungsnamen (für Duplikat-Prüfung).
+ * @param handleCreate - Callback, der nach erfolgreicher Erstellung aufgerufen wird.
+ * @param handleClose - Callback zum Schliessen des Dialogs.
+ * @param handleError - Callback für Fehlerbehandlung.
+ * @param nextHigherPos - Nächste freie Position für die Sortierung.
+ */
 interface DialogDepartmentProps {
   authUser: AuthUser;
   dialogOpen: boolean;
+  existingNames: string[];
   handleCreate: (department: DepartmentDomain) => void;
   handleClose: () => void;
   handleError: (error: Error) => void;
   nextHigherPos: number;
 }
-const DialogDepartment = ({
+
+/**
+ * Dialog-Komponente zum Erstellen einer neuen Abteilung.
+ * Validiert den Namen auf Pflichtfeld und Duplikate,
+ * erstellt die Abteilung über die Datenbank und gibt das
+ * Ergebnis an den Eltern-Callback zurück.
+ */
+export const DialogDepartment = ({
   authUser,
   dialogOpen,
+  existingNames,
   handleCreate,
   handleClose,
   handleError,
@@ -50,9 +69,14 @@ const DialogDepartment = ({
     name: {hasError: false, errorText: ""},
   });
 
-  /* ------------------------------------------
-  // Change Ereignis Felder
-  // ------------------------------------------ */
+  // Formular und Validierung zurücksetzen, wenn der Dialog geöffnet wird
+  React.useEffect(() => {
+    if (dialogOpen) {
+      setFormFields(DEPARTMENT_INITIAL_STATE);
+      setValidation({name: {hasError: false, errorText: ""}});
+    }
+  }, [dialogOpen]);
+
   const onChangeField = (event: React.ChangeEvent<HTMLInputElement>) => {
     const field = event.target.id.split("-")[0];
 
@@ -61,12 +85,11 @@ const DialogDepartment = ({
       [field]: event.target.value,
     });
   };
-  /* ------------------------------------------
-  // PopUp Ok
-  // ------------------------------------------ */
+
   const onOkClick = () => {
-    //  Prüfung Name ausgefüllt
     let hasError = false;
+
+    // Prüfung: Name ausgefüllt
     if (!formFields.name) {
       setValidation({
         ...validation,
@@ -78,9 +101,28 @@ const DialogDepartment = ({
       hasError = true;
     }
 
+    // Prüfung: Duplikat (case-insensitive)
+    const trimmedName = formFields.name.trim();
+    if (
+      !hasError &&
+      existingNames.some(
+        (name) => name.toLowerCase() === trimmedName.toLowerCase()
+      )
+    ) {
+      setValidation({
+        ...validation,
+        name: {
+          hasError: true,
+          errorText: TEXT_DEPARTMENT_ALREADY_EXISTS,
+        },
+      });
+      hasError = true;
+    }
+
     if (hasError) {
       return;
     }
+
     // Neue Abteilung anlegen
     database.departments
       .createDepartment(formFields.name, nextHigherPos, authUser)
@@ -97,9 +139,7 @@ const DialogDepartment = ({
         handleError(error);
       });
   };
-  /* ------------------------------------------
-  // PopUp Abbrechen
-  // ------------------------------------------ */
+
   const onCancelClick = () => {
     handleClose();
   };
@@ -141,5 +181,3 @@ const DialogDepartment = ({
     </Dialog>
   );
 };
-
-export default DialogDepartment;

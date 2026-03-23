@@ -3,8 +3,8 @@ import * as Sentry from "@sentry/react";
 
 import {Box, useTheme, useMediaQuery} from "@mui/material";
 
-import Utils from "../../Shared/utils.class";
-import Action from "../../../constants/actions";
+import {Utils} from "../../Shared/utils.class";
+import {Action} from "../../../constants/actions";
 
 import {useCustomDialog} from "../../Shared/customDialogContext";
 import {
@@ -13,7 +13,7 @@ import {
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/navigationContext";
+} from "../../Navigation/NavigationContext";
 import {DialogSelectMeals} from "./dialogSelectMeals";
 import {MenuplanHeaderRow} from "./menuplan.headerRow";
 import {MealTypeRows} from "./menuplan.mealTypeRows";

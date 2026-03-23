@@ -2,14 +2,14 @@ import Recipe, {MenuType, RecipeType} from "./recipe.class";
 import {Event} from "../Event/Event/event.class";
 import Firebase from "../Firebase/firebase.class";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 import {ChangeRecord} from "../Shared/global.interface";
 
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 
 import {ERROR_PARAMETER_NOT_PASSED} from "../../constants/text";
-import {Rating} from "./recipe.rating.class";
-import Product, {Diet, DietProperties} from "../Product/product.class";
+import {Rating, PublicRecipeRating} from "./recipe.types";
+import {Diet, DietProperties, createEmptyDietProperty} from "../Product/product.types";
 interface GetShortRecipes {
   firebase: Firebase;
   authUser: AuthUser;
@@ -47,10 +47,6 @@ interface DeleteAllVariants {
   firebase: Firebase;
 }
 
-interface PublicRecipeRating {
-  avgRating: Rating["avgRating"];
-  noRatings: Rating["noRatings"];
-}
 
 // ===================================================================== */
 /**
@@ -90,7 +86,7 @@ export class RecipeShort {
     this.pictureSrc = "";
     this.tags = [];
     this.linkedRecipes = [];
-    this.dietProperties = Product.createEmptyDietProperty();
+    this.dietProperties = createEmptyDietProperty();
     this.menuTypes = [];
     this.outdoorKitchenSuitable = false;
     this.created = {date: new Date(), fromUid: "", fromDisplayName: ""};

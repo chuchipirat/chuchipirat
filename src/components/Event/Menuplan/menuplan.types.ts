@@ -6,9 +6,9 @@
  * in menuplanService.ts.
  */
 import Recipe from "../../Recipe/recipe.class";
-import Product from "../../Product/product.class";
-import Material from "../../Material/material.class";
-import Unit from "../../Unit/unit.class";
+import {Product} from "../../Product/product.types";
+import {Material} from "../../Material/material.types";
+import {Unit} from "../../Unit/unit.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {Diet, Intolerance} from "../GroupConfiguration/groupConfiguration.class";
 

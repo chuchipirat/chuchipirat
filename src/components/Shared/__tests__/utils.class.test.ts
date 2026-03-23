@@ -1,4 +1,4 @@
-import Utils, {Environment} from "../utils.class";
+import {Utils, Environment} from "../utils.class";
 import authUser from "../../Firebase/Authentication/__mocks__/authuser.mock";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 

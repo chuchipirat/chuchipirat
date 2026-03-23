@@ -17,7 +17,7 @@ import {
   PlanedIntolerances,
 } from "./menuplan.types";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import {
   ALL as TEXT_ALL,
   FIX_PORTIONS as TEXT_FIX_PORTIONS,

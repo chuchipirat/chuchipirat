@@ -31,17 +31,18 @@ import {
 } from "./menuplan.types";
 import type {DialogGoodsValues, OnAddGoodToMenuProps} from "./menuplan.page.types";
 
-import Unit from "../../Unit/unit.class";
-import UnitAutocomplete from "../../Unit/unitAutocomplete";
-import Product from "../../Product/product.class";
-import ProductAutocomplete from "../../Product/productAutocomplete";
-import DialogProduct, {
+import {Unit} from "../../Unit/unit.class";
+import {UnitAutocomplete} from "../../Unit/unitAutocomplete";
+import {Product, createEmptyProduct} from "../../Product/product.types";
+import {ProductAutocomplete} from "../../Product/productAutocomplete";
+import {
+  DialogProduct,
   PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   ProductDialog,
 } from "../../Product/dialogProduct";
-import Material from "../../Material/material.class";
-import MaterialAutocomplete from "../../Material/materialAutocomplete";
-import DialogMaterial, {
+import {Material} from "../../Material/material.types";
+import {MaterialAutocomplete} from "../../Material/materialAutocomplete";
+import {DialogMaterial,
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
@@ -468,7 +469,7 @@ export const DialogGoods = ({
                 <ProductAutocomplete
                   componentKey={""}
                   product={
-                    dialogValues.product ? dialogValues.product : new Product()
+                    dialogValues.product ? dialogValues.product : createEmptyProduct()
                   }
                   products={products}
                   onChange={onChangeField}

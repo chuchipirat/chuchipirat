@@ -8,13 +8,24 @@ import {
 } from "@mui/material";
 
 import {IngredientProduct} from "../Recipe/recipe.class";
-import Product, {DietProperties} from "./product.class";
-import Department from "../Department/department.class";
-import Unit from "../Unit/unit.class";
-import Utils from "../Shared/utils.class";
+import {Product, DietProperties, createEmptyProduct} from "./product.types";
+import {ProductDepartment} from "./product.types";
+import {Unit} from "../Unit/unit.class";
+import {Utils} from "../Shared/utils.class";
 import {ADD, INGREDIENT} from "../../constants/text";
 import {TextFieldSize} from "../../constants/defaultValues";
 
+/**
+ * Props fuer die Produkt-Autocomplete-Komponente.
+ *
+ * @param componentKey - Eindeutiger Schluessel fuer die Komponente (wird als Suffix fuer id/key verwendet).
+ * @param product - Aktuell ausgewaehltes Produkt oder IngredientProduct.
+ * @param products - Liste aller verfuegbaren Produkte fuer die Auswahl.
+ * @param label - Optionales Label fuer das Textfeld (Standard: "Zutat").
+ * @param allowCreateNewProduct - Ob die Option "Hinzufuegen" angezeigt wird (Standard: true).
+ * @param size - Groesse des Textfelds (Standard: medium).
+ * @param onChange - Callback bei Aenderung der Auswahl.
+ */
 interface ProductAutocompleteProps {
   componentKey: string;
   product: Product | IngredientProduct;
@@ -26,25 +37,32 @@ interface ProductAutocompleteProps {
     event: React.ChangeEvent<HTMLInputElement>,
     newValue: string | Product | null,
     action: AutocompleteChangeReason,
-    objectId: string
+    objectId: string,
   ) => void;
 }
 
-interface filterHelpWithSortRank {
+/**
+ * Hilfstyp fuer die Sortierung der gefilterten Produkte.
+ */
+interface FilterHelpWithSortRank {
   uid: string;
   name: string;
-  department: Department;
+  department: ProductDepartment;
   shoppingUnit: Unit["key"];
   dietProperties: DietProperties;
   usable: boolean;
   sortRank?: number;
 }
 
-// ===================================================================== */
+// Filter-Instanz auf Modul-Ebene erstellen (Performance: nicht bei jedem Render)
+const productFilter = createFilterOptions<Product>();
+
 /**
- * Autocomplete Feld für Produkt
- * @param param0
- * @returns
+ * Autocomplete-Feld fuer die Produkt-/Zutatenauswahl.
+ * Bietet Freitext-Eingabe, Filterung und optional die Moeglichkeit,
+ * neue Produkte direkt aus dem Dropdown anzulegen.
+ *
+ * @param props - Siehe {@link ProductAutocompleteProps}.
  */
 const ProductAutocomplete = ({
   componentKey,
@@ -55,8 +73,6 @@ const ProductAutocomplete = ({
   allowCreateNewProduct = true,
   size = TextFieldSize.medium,
 }: ProductAutocompleteProps) => {
-  // Handler für Zutaten/Produkt hinzufügen
-  const filter = createFilterOptions<Product>();
   return (
     <Autocomplete
       id={"product_" + componentKey}
@@ -67,43 +83,42 @@ const ProductAutocomplete = ({
           event as unknown as React.ChangeEvent<HTMLInputElement>,
           newValue,
           reason,
-          "product_" + componentKey
+          "product_" + componentKey,
         );
       }}
       filterOptions={(options, params) => {
-        let filtered = filter(options, params) as Product[];
+        let filtered = productFilter(options, params) as Product[];
         if (
           params.inputValue !== "" &&
           // Sicherstellen, dass kein Produkt mit gleichem Namen erfasst wird
           products.find(
-            (product) =>
-              product.name.toLowerCase() === params.inputValue.toLowerCase()
+            (existingProduct) =>
+              existingProduct.name.toLowerCase() ===
+              params.inputValue.toLowerCase(),
           ) === undefined &&
           !params.inputValue.endsWith(ADD)
         ) {
           if (allowCreateNewProduct) {
-            // Hinzufügen-Möglichkeit auch als Produkt reinschmuggeln
-            const newProduct = new Product();
-            newProduct.name = `"${params.inputValue}" ${ADD}`;
+            // Hinzufuegen-Moeglichkeit auch als Produkt reinschmuggeln
+            const newProduct = {
+              ...createEmptyProduct(),
+              name: `"${params.inputValue}" ${ADD}`,
+            };
             filtered.push(newProduct);
           }
         }
         // So sortieren, dass Zutaten, die mit den gleichen Zeichen beginnen
-        // vorher angezeigt werden (Salz vor Erdnüsse, gesalzen)
+        // vorher angezeigt werden (Salz vor Erdnuesse, gesalzen)
         let tempFiltered = filtered.map((entry) => {
-          let sortRank: number;
+          const sortRank =
+            entry.name
+              .substring(0, params.inputValue.length)
+              .toLowerCase() === params.inputValue.toLowerCase()
+              ? 1
+              : 100;
 
-          if (
-            entry.name.substring(0, params.inputValue.length).toLowerCase() ===
-            params.inputValue.toLowerCase()
-          ) {
-            sortRank = 1;
-          } else {
-            sortRank = 100;
-          }
-
-          return {...entry, ...{sortRank: sortRank}};
-        }) as filterHelpWithSortRank[];
+          return {...entry, sortRank};
+        }) as FilterHelpWithSortRank[];
 
         tempFiltered = Utils.sortArray({
           array: tempFiltered,
@@ -151,4 +166,4 @@ const ProductAutocomplete = ({
   );
 };
 
-export default ProductAutocomplete;
+export {ProductAutocomplete};

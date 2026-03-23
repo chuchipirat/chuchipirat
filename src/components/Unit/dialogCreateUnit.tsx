@@ -19,12 +19,12 @@ import {
   CANCEL as TEXT_CANCEL,
   CREATE as TEXT_CREATE,
 } from "../../constants/text";
-import Unit, {UnitDimension} from "./unit.class";
+import {Unit, UnitDimension} from "./unit.class";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
-export const UNIT_ADD_INITIAL_STATE = {
+const UNIT_ADD_INITIAL_STATE = {
   key: "",
   name: "",
 };
@@ -63,27 +63,21 @@ const DialogCreateUnit = ({
   // PopUp Ok
   // ------------------------------------------ */
   const onOkClick = () => {
-    // Prüfung Abteilung und Name gesetzt
+    // Prüfung ob Abkürzung und Name gesetzt sind
+    const nameError = !formFields.name;
+    const keyError = !formFields.key;
 
-    let hasError = false;
-    if (!formFields.name) {
+    if (nameError || keyError) {
       setValidation({
-        ...validation,
-        name: {hasError: true, errorText: TEXT_GIVE_UNIT},
-      });
-      hasError = true;
-    }
-    if (!formFields.key) {
-      setValidation({
-        ...validation,
+        name: {
+          hasError: nameError,
+          errorText: nameError ? TEXT_GIVE_UNIT : "",
+        },
         key: {
-          hasError: true,
-          errorText: TEXT_GIVE_UNIT,
+          hasError: keyError,
+          errorText: keyError ? TEXT_GIVE_UNIT : "",
         },
       });
-      hasError = true;
-    }
-    if (hasError) {
       return;
     }
     handleCreate({
@@ -97,57 +91,70 @@ const DialogCreateUnit = ({
   // PopUp Abbrechen
   // ------------------------------------------ */
   const onCancelClick = () => {
+    setFormFields(UNIT_ADD_INITIAL_STATE);
+    setValidation({
+      key: {hasError: false, errorText: ""},
+      name: {hasError: false, errorText: ""},
+    });
     handleClose();
+  };
+
+  /** Formular-Submit — verhindert Seitenreload und delegiert an onOkClick. */
+  const onSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    onOkClick();
   };
 
   return (
     <Dialog
       open={dialogOpen}
-      onClose={handleClose}
+      onClose={onCancelClick}
       aria-labelledby="dialogAddUnit"
     >
-      <DialogTitle id="dialogAddProduct">{TEXT_UNIT_CREATE}</DialogTitle>
-      <DialogContent>
-        <DialogContentText>{TEXT_UNIT_CREATE_EXPLANATION}</DialogContentText>
-        <TextField
-          error={validation.key.hasError}
-          margin="dense"
-          id="key"
-          name="key"
-          value={formFields.key}
-          required
-          fullWidth
-          onChange={onChangeField}
-          label={TEXT_UNIT_ABREVIATION}
-          type="text"
-          helperText={validation.key.errorText}
-          autoComplete="off"
-        />
-        <TextField
-          error={validation.name.hasError}
-          margin="dense"
-          id="name"
-          name="name"
-          value={formFields.name}
-          required
-          fullWidth
-          onChange={onChangeField}
-          label={TEXT_UNIT}
-          type="text"
-          helperText={validation.name.errorText}
-          autoComplete="off"
-        />
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onCancelClick} color="primary" variant="outlined">
-          {TEXT_CANCEL}
-        </Button>
-        <Button onClick={onOkClick} color="primary" variant="contained">
-          {TEXT_CREATE}
-        </Button>
-      </DialogActions>
+      <form onSubmit={onSubmit}>
+        <DialogTitle id="dialogAddUnit">{TEXT_UNIT_CREATE}</DialogTitle>
+        <DialogContent>
+          <DialogContentText>{TEXT_UNIT_CREATE_EXPLANATION}</DialogContentText>
+          <TextField
+            error={validation.key.hasError}
+            margin="dense"
+            id="key"
+            name="key"
+            value={formFields.key}
+            required
+            fullWidth
+            onChange={onChangeField}
+            label={TEXT_UNIT_ABREVIATION}
+            type="text"
+            helperText={validation.key.errorText}
+            autoComplete="off"
+          />
+          <TextField
+            error={validation.name.hasError}
+            margin="dense"
+            id="name"
+            name="name"
+            value={formFields.name}
+            required
+            fullWidth
+            onChange={onChangeField}
+            label={TEXT_UNIT}
+            type="text"
+            helperText={validation.name.errorText}
+            autoComplete="off"
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onCancelClick} color="primary" variant="outlined" type="button">
+            {TEXT_CANCEL}
+          </Button>
+          <Button color="primary" variant="contained" type="submit">
+            {TEXT_CREATE}
+          </Button>
+        </DialogActions>
+      </form>
     </Dialog>
   );
 };
 
-export default DialogCreateUnit;
+export {DialogCreateUnit};

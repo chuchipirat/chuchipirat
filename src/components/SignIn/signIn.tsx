@@ -20,11 +20,12 @@ import {
   VisibilityOff as VisibilityOffIcon,
 } from "@mui/icons-material";
 
-import PageTitle from "../Shared/pageTitle";
+import * as Sentry from "@sentry/react";
+
+import {PageTitle} from "../Shared/pageTitle";
 import {SignUpLink} from "../SignUp/signUp";
-import AlertMessage from "../Shared/AlertMessage";
+import {AlertMessage} from "../Shared/AlertMessage";
 import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
-import PasswordMigrationDialog from "./passwordMigrationDialog";
 
 import {
   COME_IN as TEXT_COME_IN,
@@ -40,17 +41,17 @@ import {
   RESEND_CONFIRMATION_EMAIL as TEXT_RESEND_CONFIRMATION_EMAIL,
   RESEND_CONFIRMATION_EMAIL_SUCCESS as TEXT_RESEND_CONFIRMATION_EMAIL_SUCCESS,
 } from "../../constants/text";
-import {AuthMessages} from "../../constants/firebaseMessages";
 import {HOME as ROUTE_HOME} from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
 
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import User from "../User/user.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useNavigate} from "react-router";
-import Utils from "../Shared/utils.class";
-import useCustomStyles from "../../constants/styles";
+import {Utils} from "../Shared/utils.class";
+import {useCustomStyles} from "../../constants/styles";
+
+/** Supabase-Fehlercodes für Auth-Operationen */
+const SUPABASE_ERROR_EMAIL_NOT_CONFIRMED = "email_not_confirmed";
+const SUPABASE_ERROR_INVALID_CREDENTIALS = "invalid_credentials";
 
 /* ===================================================================
 // ======================== State Management ==========================
@@ -62,8 +63,6 @@ enum ReducerActions {
   UPDATE_FIELD,
   SIGN_IN,
   GENERIC_ERROR,
-  SHOW_MIGRATION_DIALOG,
-  HIDE_MIGRATION_DIALOG,
   RESEND_EMAIL_SENT,
   RESEND_EMAIL_ERROR,
 }
@@ -79,20 +78,8 @@ type SignInData = {
   password: string;
 };
 
-/** Fehlertyp, der sowohl Firebase- als auch Supabase-Fehler abdeckt */
+/** Fehlertyp für Supabase-Auth-Fehler (enthält optionalen Fehlercode) */
 type AuthErrorLike = Error & {code?: string};
-
-/**
- * State für die Passwort-Migration bei Firebase-Fallback.
- *
- * @param open - Ob der Dialog geöffnet ist
- * @param firebaseUid - Firebase UID des zu migrierenden Users
- */
-type MigrationDialogState = {
-  open: boolean;
-  firebaseUid: string;
-  displayName: string;
-};
 
 /**
  * State für die Sign-In-Seite.
@@ -101,7 +88,6 @@ type MigrationDialogState = {
  * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
  * @param error - Fehlerobjekt bei gescheitertem Login
  * @param isSigningIn - Ob gerade ein Login-Request läuft
- * @param migrationDialog - State des Passwort-Migrations-Dialogs
  * @param resendEmailSent - Ob die Bestätigungs-E-Mail erneut gesendet wurde
  */
 type State = {
@@ -109,7 +95,6 @@ type State = {
   maintenanceMode: boolean;
   error: AuthErrorLike | null;
   isSigningIn: boolean;
-  migrationDialog: MigrationDialogState;
   resendEmailSent: boolean;
 };
 
@@ -120,11 +105,6 @@ type DispatchAction =
   | {type: ReducerActions.OVERWRITE_MAINTENANCE_MODE}
   | {type: ReducerActions.SIGN_IN}
   | {type: ReducerActions.GENERIC_ERROR; payload: AuthErrorLike}
-  | {
-      type: ReducerActions.SHOW_MIGRATION_DIALOG;
-      payload: {firebaseUid: string; displayName: string};
-    }
-  | {type: ReducerActions.HIDE_MIGRATION_DIALOG}
   | {type: ReducerActions.RESEND_EMAIL_SENT}
   | {type: ReducerActions.RESEND_EMAIL_ERROR; payload: Error};
 
@@ -136,13 +116,12 @@ const initialState: State = {
   maintenanceMode: false,
   isSigningIn: false,
   error: null,
-  migrationDialog: {open: false, firebaseUid: "", displayName: ""},
   resendEmailSent: false,
 };
 
 /**
  * Reducer für die Sign-In-Seite.
- * Verwaltet Login-Daten, Wartungsmodus, Ladezustand, Fehler und Migration.
+ * Verwaltet Login-Daten, Wartungsmodus, Ladezustand und Fehler.
  *
  * @param state - Aktueller State
  * @param action - Auszuführende Aktion
@@ -174,21 +153,6 @@ const signInReducer = (state: State, action: DispatchAction): State => {
         isSigningIn: false,
         resendEmailSent: false,
       };
-    case ReducerActions.SHOW_MIGRATION_DIALOG:
-      return {
-        ...state,
-        isSigningIn: false,
-        migrationDialog: {
-          open: true,
-          firebaseUid: action.payload.firebaseUid,
-          displayName: action.payload.displayName,
-        },
-      };
-    case ReducerActions.HIDE_MIGRATION_DIALOG:
-      return {
-        ...state,
-        migrationDialog: {open: false, firebaseUid: "", displayName: ""},
-      };
     case ReducerActions.RESEND_EMAIL_SENT:
       return {...state, resendEmailSent: true};
     case ReducerActions.RESEND_EMAIL_ERROR:
@@ -203,16 +167,14 @@ const signInReducer = (state: State, action: DispatchAction): State => {
 /**
  * Seite zum Anmelden (Sign-In).
  *
- * Implementiert einen Hybrid-Login-Flow:
- * 1. Supabase Auth versuchen
- * 2. Bei Fehler: Firebase-Fallback → Passwort-Migration-Dialog
- * 3. Beide fehlgeschlagen: Fehlermeldung anzeigen
+ * Authentifiziert den Benutzer über Supabase Auth. Nach erfolgreichem
+ * Login wird das Benutzerprofil geladen, der Login registriert und
+ * zur Home-Seite navigiert.
  *
  * @example
  * <SignInPage />
  */
 const SignInPage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const classes = useCustomStyles();
   const navigate = useNavigate();
@@ -252,27 +214,36 @@ const SignInPage = () => {
   /* ------------------------------------------
   // Feld-Änderungen
   // ------------------------------------------ */
+  /**
+   * Aktualisiert ein Formularfeld im State.
+   *
+   * @param event - Change-Event des Eingabefelds
+   */
   const onFieldChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     dispatch({
       type: ReducerActions.UPDATE_FIELD,
       payload: {field: event.target.name, value: event.target.value},
     });
   };
+
   /* ------------------------------------------
-  // Anmelden (Hybrid: Supabase zuerst, Firebase-Fallback)
+  // Anmelden (Supabase Auth)
   // ------------------------------------------ */
+  /**
+   * Führt den Login über Supabase Auth durch.
+   * Bei Erfolg wird das Benutzerprofil geladen, der Login registriert
+   * und zur Home-Seite navigiert.
+   */
   const onSignIn = async () => {
     dispatch({type: ReducerActions.SIGN_IN});
 
     try {
-      // 1. Supabase Auth versuchen
       const session = await database.auth.signInWithPassword(
         state.signInData.email,
         state.signInData.password,
       );
 
-      // Supabase-Login erfolgreich → User-Daten laden und Login registrieren
-      // Admin-Client verwenden, da RLS beim ersten Login Timing-Probleme hat
+      // User-Daten laden und Login registrieren
       const usersRepo = database.admin?.users ?? database.users;
       try {
         const user = await usersRepo.findById(session.user.id);
@@ -280,124 +251,28 @@ const SignInPage = () => {
           await usersRepo.registerSignIn(session.user.id);
         }
       } catch (profileError) {
-        console.warn("Profil konnte nicht geladen werden:", profileError);
-      }
-
-      // Parallel Firebase-Session aufbauen, damit Firestore-Reads
-      // funktionieren, solange die Daten noch nicht nach Supabase
-      // migriert sind. Fehler werden bewusst ignoriert (z.B. wenn
-      // der User kein Firebase-Konto hat oder das Passwort abweicht).
-      try {
-        await firebase.signInWithEmailAndPassword({
-          email: state.signInData.email,
-          password: state.signInData.password,
+        Sentry.captureException(profileError, {
+          extra: {context: "SignIn - Profil laden"},
         });
-      } catch {
-        // Nicht kritisch — Firestore-Zugriff ist nur Übergangsphase
       }
 
-      // Kurz warten, damit der Auth-Context nachmag
+      // Kurz warten, damit der Auth-Context nachziehen kann
       await new Promise((resolve) => setTimeout(resolve, 2000));
       navigate(ROUTE_HOME);
-    } catch (supabaseError) {
-      // 2. Supabase fehlgeschlagen → Firebase-Fallback versuchen
-      try {
-        const firebaseUser = await firebase.signInWithEmailAndPassword({
-          email: state.signInData.email,
-          password: state.signInData.password,
-        });
-
-        if (firebaseUser.user) {
-          const usersRepo = database.admin?.users ?? database.users;
-          let displayName = "";
-
-          try {
-            const profile = await usersRepo.findById(firebaseUser.user.uid);
-            if (profile) {
-              displayName = profile.displayName;
-            }
-          } catch {
-            // Nicht kritisch — displayName bleibt leer
-          }
-
-          // Stille Migration: Bestätigten Supabase-Account erstellen
-          // (kein Verifizierungsmail, da bereits über Firebase verifiziert)
-          try {
-            const supabaseUser = await database.auth.createConfirmedUser(
-              state.signInData.email,
-              state.signInData.password,
-              {displayName: displayName || undefined},
-            );
-
-            // Supabase-Session abmelden (Race-Condition mit Auth-Context vermeiden)
-            await database.auth.signOut();
-
-            // Firebase Auth deaktivieren (fire-and-forget)
-            firebase.disableAuthAccount().catch((err) =>
-              console.warn("Firebase Auth deaktivieren fehlgeschlagen:", err),
-            );
-
-            // Firebase abmelden
-            await firebase.signOut();
-
-            // Über Supabase einloggen
-            await database.auth.signInWithPassword(
-              state.signInData.email,
-              state.signInData.password,
-            );
-
-            // Login registrieren
-            try {
-              const user = await usersRepo.findById(supabaseUser.id);
-              if (user) await usersRepo.registerSignIn(supabaseUser.id);
-            } catch {
-              // Nicht kritisch
-            }
-
-            // Kurz warten, damit der Auth-Context nachmag
-            await new Promise((resolve) => setTimeout(resolve, 2000));
-            navigate(ROUTE_HOME);
-          } catch (migrationError) {
-            // signUp fehlgeschlagen (z.B. Passwort-Policy) → Fallback auf Dialog
-            console.warn(
-              "Stille Migration fehlgeschlagen, zeige Dialog:",
-              migrationError,
-            );
-            dispatch({
-              type: ReducerActions.SHOW_MIGRATION_DIALOG,
-              payload: {firebaseUid: firebaseUser.user.uid, displayName},
-            });
-          }
-        }
-      } catch (firebaseError) {
-        // Beide Login-Versuche fehlgeschlagen
-        // Supabase ist der primäre Auth-Provider — dessen Fehler bevorzugen
-        console.error(firebaseError);
-        const primaryError = supabaseError as AuthErrorLike;
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: primaryError,
-        });
-      }
+    } catch (error) {
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as AuthErrorLike,
+      });
     }
-  };
-
-  /* ------------------------------------------
-  // Callback nach erfolgreicher Passwort-Migration
-  // ------------------------------------------ */
-  const onMigrationSuccess = async () => {
-    // Firebase abmelden (Supabase ist jetzt aktiv)
-    await firebase.signOut();
-    dispatch({type: ReducerActions.HIDE_MIGRATION_DIALOG});
-
-    // Kurz warten, damit der Auth-Context nachmag
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    navigate(ROUTE_HOME);
   };
 
   /* ------------------------------------------
   // Bestätigungs-E-Mail erneut senden
   // ------------------------------------------ */
+  /**
+   * Sendet die Bestätigungs-E-Mail erneut an die eingegebene Adresse.
+   */
   const onResendConfirmationEmail = async () => {
     try {
       await database.auth.resendConfirmationEmail(state.signInData.email);
@@ -410,15 +285,6 @@ const SignInPage = () => {
     }
   };
 
-  const onMigrationClose = () => {
-    // Dialog schliessen, Firebase abmelden und Passwort-Feld leeren
-    firebase.signOut();
-    dispatch({type: ReducerActions.HIDE_MIGRATION_DIALOG});
-    dispatch({
-      type: ReducerActions.UPDATE_FIELD,
-      payload: {field: "password", value: ""},
-    });
-  };
   return (
     <React.Fragment>
       <PageTitle smallTitle={TEXT_COME_IN} />
@@ -446,7 +312,7 @@ const SignInPage = () => {
                 maintenanceMode={state.maintenanceMode}
               />
               {state.error &&
-                (state.error.code === AuthMessages.EMAIL_NOT_CONFIRMED ? (
+                (state.error.code === SUPABASE_ERROR_EMAIL_NOT_CONFIRMED ? (
                   <EmailNotConfirmedAlert
                     resendEmailSent={state.resendEmailSent}
                     onResend={onResendConfirmationEmail}
@@ -457,8 +323,7 @@ const SignInPage = () => {
                     severity={"error"}
                     messageTitle={TEXT_ALERT_TITLE_UUPS}
                     body={
-                      state.error.code === AuthMessages.WRONG_PASSWORD ||
-                      state.error.code === AuthMessages.INVALID_CREDENTIALS ? (
+                      state.error.code === SUPABASE_ERROR_INVALID_CREDENTIALS ? (
                         <ForgotPasswordLink email={state.signInData.email} />
                       ) : (
                         ""
@@ -471,16 +336,6 @@ const SignInPage = () => {
           </Card>
         </Stack>
       </Container>
-      {/* Passwort-Migrations-Dialog für bestehende Firebase-User */}
-      <PasswordMigrationDialog
-        open={state.migrationDialog.open}
-        email={state.signInData.email}
-        firebaseUid={state.migrationDialog.firebaseUid}
-        displayName={state.migrationDialog.displayName}
-        database={database}
-        onSuccess={onMigrationSuccess}
-        onClose={onMigrationClose}
-      />
     </React.Fragment>
   );
 };
@@ -528,7 +383,13 @@ const SignInForm = ({
   };
 
   return (
-    <React.Fragment>
+    <form
+      onSubmit={(event) => {
+        event.preventDefault();
+        onSignIn();
+      }}
+      noValidate
+    >
       <Typography
         gutterBottom={true}
         variant="h5"
@@ -561,7 +422,7 @@ const SignInForm = ({
         id="password"
         name="password"
         label={TEXT_PASSWORD}
-        autoComplete="new-password"
+        autoComplete="current-password"
         value={signInData.password}
         onChange={onFieldChange}
         disabled={maintenanceMode}
@@ -593,11 +454,10 @@ const SignInForm = ({
         variant="contained"
         color="primary"
         sx={classes.submit}
-        onClick={onSignIn}
       >
         {TEXT_SIGN_IN}
       </Button>
-    </React.Fragment>
+    </form>
   );
 };
 /* ===================================================================
@@ -672,4 +532,4 @@ export const EmailNotConfirmedAlert = ({
   );
 };
 
-export default SignInPage;
+export {SignInPage};

@@ -49,17 +49,8 @@ export const USER_PROFILE = "/profile";
 export const NOT_FOUND = "/404";
 export const PRIVACY_POLICY = "/privacypolicy";
 export const TERM_OF_USE = "/termofuse";
-// export const MENUPLAN = "/menuplan";
-// export const MENUPLAN_UID = "/menuplan/:id";
-
-// export const QUANTITY_CALCULATION = "/quantitycalculation";
-// export const QUANTITY_CALCULATION_UID = "/quantitycalculation/:id";
-
 export const REQUEST_OVERVIEW = "/requestoverview";
 export const REQUEST_OVERVIEW_UID = "/requestoverview/:id";
-
-// export const SHOPPINGLIST = "/shoppinglist";
-// export const SHOPPINGLIST_UID = "/shoppinglist/:id";
 
 export const UNITS = "/units";
 export const UNITCONVERSION = "/unitconversion";

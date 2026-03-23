@@ -1,16 +1,11 @@
-import Utils from "../Shared/utils.class";
-// import * as FIREBASE_EVENTS from "../../constants/firebaseEvents";
-import Firebase from "../Firebase/firebase.class";
-import Unit from "./unit.class";
-import Product from "../Product/product.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
-
-interface GetAllConversionBasic {
-  firebase: Firebase;
-}
-interface GetAllConversionProducts {
-  firebase: Firebase;
-}
+/**
+ * Einheitenumrechnungs-Klasse für Basis- und Produktspezifische Umrechnungen.
+ *
+ * Stellt statische Methoden bereit zum Erstellen, Löschen und Ausführen
+ * von Einheitenumrechnungen (z.B. kg → g, Stk → g für ein bestimmtes Produkt).
+ */
+import {Unit, UnitDimension} from "./unit.class";
+import {Product} from "../Product/product.types";
 
 export interface UnitConversionBasic {
   [key: string]: SingleUnitConversionBasic;
@@ -38,6 +33,8 @@ interface ConvertQuantity {
   units: Unit[];
   unitConversionBasic: UnitConversionBasic;
   unitConversionProducts?: UnitConversionProducts;
+  /** Maximale Rekursionstiefe zum Schutz vor Endlosschleifen bei zyklischen Regeln. */
+  maxDepth?: number;
 }
 
 interface CreateUnitConversionBasic {
@@ -59,19 +56,21 @@ interface DeleteUnitConversion {
   unitConversionUidToDelete: UnitConversion["uid"];
 }
 
-interface SaveUnitConversions {
-  firebase: Firebase;
-  unitConversionBasic: UnitConversion[];
-  unitConversionProducts: UnitConversion[];
-  authUser: AuthUser;
-}
-
+/**
+ * Art der Umrechnung: Basis (allgemeingültig) oder Produkt-spezifisch.
+ */
 export enum ConversionType {
-  basic,
-  product,
+  basic = "basic",
+  product = "product",
 }
 
-export default class UnitConversion {
+/**
+ * Repräsentiert eine einzelne Einheitenumrechnung.
+ *
+ * Kann sowohl eine Basis-Umrechnung (z.B. kg → g) als auch eine
+ * produktspezifische Umrechnung (z.B. 1 Stk Butter = 250 g) sein.
+ */
+export class UnitConversion {
   uid: string;
   fromUnit: Unit["key"];
   toUnit: Unit["key"];
@@ -89,29 +88,23 @@ export default class UnitConversion {
     this.productUid = "";
   }
 
-  // =====================================================================
-  /**
-   * Alle Standard-Umrechnungen holen
-   * @param Objekt Objekt mit Firebase-Referenz
-   * @returns Objekt, mit den Stanardumrechnungen
-   */
-  static getAllConversionBasic = async ({firebase}: GetAllConversionBasic) => {
-    let conversionData: UnitConversionBasic = {};
-
-    await firebase.masterdata.unitConversionBasic
-      .read<UnitConversionBasic>({uids: []})
-      .then((result) => {
-        conversionData = result;
-      })
-      .catch((error: Error) => {
-        console.error(error);
-        throw error;
-      });
-    return conversionData;
-  };
   /* =====================================================================
   // Neue Umrechnung Basic anlegen
   // ===================================================================== */
+  /**
+   * Erstellt eine neue Basis-Umrechnung (z.B. kg → g).
+   *
+   * @param fromUnit - Quell-Einheit.
+   * @param toUnit - Ziel-Einheit.
+   * @param numerator - Zähler der Umrechnung.
+   * @param denominator - Nenner der Umrechnung.
+   * @returns Neues UnitConversion-Objekt mit generierter UUID.
+   *
+   * @example
+   * UnitConversion.createUnitConversionBasic({
+   *   fromUnit: "kg", toUnit: "g", numerator: 1000, denominator: 1
+   * })
+   */
   static createUnitConversionBasic = ({
     denominator,
     numerator,
@@ -129,69 +122,34 @@ export default class UnitConversion {
   /* =====================================================================
   // Umrechnung löschen
   // ===================================================================== */
+  /**
+   * Entfernt eine Umrechnung aus der Liste anhand ihrer UID.
+   *
+   * @param unitConversion - Aktuelle Liste der Umrechnungen.
+   * @param unitConversionUidToDelete - UID der zu löschenden Umrechnung.
+   * @returns Neue Liste ohne die gelöschte Umrechnung.
+   */
   static deleteUnitConversion = ({
     unitConversion,
     unitConversionUidToDelete,
   }: DeleteUnitConversion) => {
     return unitConversion.filter(
-      (unitConversion) => unitConversion.uid !== unitConversionUidToDelete
+      (conversion) => conversion.uid !== unitConversionUidToDelete
     );
   };
   /* =====================================================================
-  // Umrechnungen Basic speichern
+  // Neue Umrechnung Produkt anlegen
   // ===================================================================== */
-  static saveUnitConversions = async ({
-    firebase,
-    unitConversionBasic,
-    unitConversionProducts,
-    authUser,
-  }: SaveUnitConversions) => {
-    await firebase.masterdata.unitConversionBasic
-      .set({
-        uids: [],
-        value: Utils.convertArrayToObject({
-          array: unitConversionBasic,
-          keyName: "uid",
-        }),
-        authUser: authUser,
-      })
-      .then(async () => {
-        await firebase.masterdata.unitConversionProducts.set({
-          uids: [],
-          value: Utils.convertArrayToObject({
-            array: unitConversionProducts,
-            keyName: "uid",
-          }),
-          authUser,
-        });
-      })
-      .catch((error: Error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  /* =====================================================================
-  // Alle Umrechnungen Basic holen
-  // ===================================================================== */
-  static getAllConversionProducts = async ({
-    firebase,
-  }: GetAllConversionProducts) => {
-    let conversionData: UnitConversionProducts = {};
-
-    await firebase.masterdata.unitConversionProducts
-      .read({uids: []})
-      .then((result) => {
-        conversionData = result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    return conversionData;
-  };
-  /* =====================================================================
-  // Neue Umrechnung Basic anlegen
-  // ===================================================================== */
+  /**
+   * Erstellt eine neue produktspezifische Umrechnung (z.B. 1 Stk Butter = 250 g).
+   *
+   * @param product - Das Produkt, für das die Umrechnung gilt.
+   * @param fromUnit - Quell-Einheit.
+   * @param toUnit - Ziel-Einheit.
+   * @param numerator - Zähler der Umrechnung.
+   * @param denominator - Nenner der Umrechnung.
+   * @returns Neues UnitConversion-Objekt mit Produktreferenz und generierter UUID.
+   */
   static createUnitConversionProduct = ({
     product,
     fromUnit,
@@ -210,8 +168,26 @@ export default class UnitConversion {
     };
   };
   /* =====================================================================
-// Menge umrechnen
-// ===================================================================== */
+  // Menge umrechnen
+  // ===================================================================== */
+  /**
+   * Rechnet eine Menge von einer Einheit in eine andere um.
+   *
+   * Sucht zuerst nach einer produktspezifischen Umrechnung, dann nach einer
+   * Basis-Umrechnung. Falls keine direkte Umrechnung gefunden wird, wird
+   * rekursiv über Zwischeneinheiten gesucht (z.B. EL → ml → dl).
+   * Eine Tiefenbegrenzung schützt vor Endlosschleifen bei zyklischen Regeln.
+   *
+   * @param quantity - Umzurechnende Menge.
+   * @param productUid - Optionale Produkt-UID für produktspezifische Umrechnungen.
+   * @param fromUnit - Quell-Einheit.
+   * @param toUnit - Ziel-Einheit.
+   * @param units - Liste aller verfügbaren Einheiten.
+   * @param unitConversionBasic - Basis-Umrechnungsregeln.
+   * @param unitConversionProducts - Optionale produktspezifische Umrechnungsregeln.
+   * @param maxDepth - Maximale Rekursionstiefe (Standard: 10).
+   * @returns Objekt mit umgerechneter Menge und Ziel-Einheit.
+   */
   static convertQuantity = ({
     quantity,
     productUid,
@@ -220,16 +196,22 @@ export default class UnitConversion {
     units,
     unitConversionBasic,
     unitConversionProducts,
+    maxDepth = 10,
   }: ConvertQuantity): {convertedQuantity: number; convertedUnit: string} => {
     let convertedUnit: Unit["key"];
     let convertedQuantity = 0;
 
     const toUnitDimension = Unit.getDimensionOfUnit(units, toUnit);
 
-    if (toUnit == fromUnit) {
-      // Umrechnen
+    if (toUnit === fromUnit) {
       return {convertedQuantity: quantity, convertedUnit: toUnit};
     }
+
+    // Tiefenbegrenzung erreicht — Originalwerte zurückgeben
+    if (maxDepth <= 0) {
+      return {convertedQuantity: quantity, convertedUnit: fromUnit};
+    }
+
     let conversionRule:
       | SingleUnitConversionProduct
       | SingleUnitConversionBasic
@@ -266,7 +248,6 @@ export default class UnitConversion {
     }
 
     if (conversionRule.toUnit === toUnit) {
-      // Umrechnen
       return {
         convertedQuantity: convertedQuantity,
         convertedUnit: convertedUnit,
@@ -279,7 +260,9 @@ export default class UnitConversion {
         toUnit: toUnit,
         units: units,
         unitConversionBasic: unitConversionBasic,
+        maxDepth: maxDepth - 1,
       });
     }
   };
 }
+

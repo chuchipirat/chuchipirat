@@ -21,10 +21,10 @@ import {
 } from "../Menuplan/dialogSelectMenues";
 import {SelectedDepartmentsForShoppingList} from "./dialogSelectDepartments";
 import {OperationType} from "../Event/eventSharedComponents";
-import Product from "../../Product/product.class";
+import {Product} from "../../Product/product.types";
 import Department from "../../Department/department.class";
-import Unit from "../../Unit/unit.class";
-import Material from "../../Material/material.class";
+import {Unit} from "../../Unit/unit.class";
+import {Material} from "../../Material/material.types";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {Event} from "../Event/event.class";
 import {
@@ -45,8 +45,8 @@ import {
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
 import Recipe from "../../Recipe/recipe.class";
-import Action from "../../../constants/actions";
-import Utils from "../../Shared/utils.class";
+import {Action} from "../../../constants/actions";
+import {Utils} from "../../Shared/utils.class";
 import {
   DialogType,
   SingleTextInputResult,
@@ -310,7 +310,7 @@ const handleDuplicateItem = async ({
   customDialog: ReturnType<typeof useCustomDialog>["customDialog"];
 }): Promise<SingleTextInputResult> => {
   return (await customDialog({
-    dialogType: DialogType.selectOptions,
+    dialogType: DialogType.SelectOptions,
     title: TEXT_ARTICLE_ALREADY_ADDED,
     text: ADD_OR_REPLACE_ARTICLE(
       newItem.item.name,
@@ -520,7 +520,7 @@ const useShoppingListHandlers = ({
           .hasManuallyAddedItems
       ) {
         const userInput = (await customDialog({
-          dialogType: DialogType.selectOptions,
+          dialogType: DialogType.SelectOptions,
           title: TEXT_MANUALLY_ADDED_PRODUCTS,
           text: TEXT_KEEP_MANUALLY_ADDED_PRODUCTS(TEXT_SHOPPING_LIST),
           options: [
@@ -539,7 +539,7 @@ const useShoppingListHandlers = ({
 
       if (shoppingList && hasManuallyEditedItems(shoppingList)) {
         const userInput = (await customDialog({
-          dialogType: DialogType.selectOptions,
+          dialogType: DialogType.SelectOptions,
           title: TEXT_MANUALLY_EDITED_PRODUCTS,
           text: TEXT_KEEP_MANUALLY_EDITED_PRODUCTS(TEXT_SHOPPING_LIST),
           options: [
@@ -556,7 +556,7 @@ const useShoppingListHandlers = ({
 
       if (Object.values(checkedItems).length > 0) {
         const userInput = (await customDialog({
-          dialogType: DialogType.selectOptions,
+          dialogType: DialogType.SelectOptions,
           title: TEXT_CHECKED_ITEMS,
           text: TEXT_CHECKED_ITEMS_EXPLANATION(TEXT_SHOPPING_LIST),
           options: [
@@ -1232,7 +1232,7 @@ const useShoppingListHandlers = ({
 
         if (shoppingListItem && quantity > 0) {
           userInput = (await customDialog({
-            dialogType: DialogType.selectOptions,
+            dialogType: DialogType.SelectOptions,
             title: TEXT_ARTICLE_ALREADY_ADDED,
             text: ADD_OR_REPLACE_ARTICLE(
               shoppingListItem.item.name,

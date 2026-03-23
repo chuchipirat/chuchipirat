@@ -22,7 +22,7 @@ import {render, screen, waitFor, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
-import HomePage from "../home";
+import {HomePage} from "../Home";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {EventDomain} from "../../Database/Repository/EventRepository";
 import {FeedDomain} from "../../Database/Repository/FeedRepository";
@@ -65,7 +65,7 @@ jest.mock("../../../constants/imageRepository", () => ({
 }));
 
 /** Mock: NavigationValuesContext */
-jest.mock("../../Navigation/navigationContext", () => ({
+jest.mock("../../Navigation/NavigationContext", () => ({
   NavigationValuesContext: React.createContext({
     setNavigationValues: jest.fn(),
   }),
@@ -266,7 +266,7 @@ describe("HomePage", () => {
       });
     });
 
-    test("zeigt 'Anlass erstellen' Button", async () => {
+    test("zeigt 'Anlass erstellen' Text in der Erstellen-Karte", async () => {
       renderHomePage();
 
       await waitFor(() => {
@@ -287,12 +287,12 @@ describe("HomePage", () => {
       });
     });
 
-    test("zeigt Button 'Zeige vergangene Anlässe'", async () => {
+    test("zeigt Button 'Zeige vergangene Anlässe' mit Anzahl", async () => {
       renderHomePage();
 
       await waitFor(() => {
         expect(
-          screen.getByText("Zeige vergangene Anlässe"),
+          screen.getByText("Zeige vergangene Anlässe (1)"),
         ).toBeInTheDocument();
       });
     });
@@ -306,7 +306,7 @@ describe("HomePage", () => {
       });
 
       // Auf "Zeige vergangene Anlaesse" klicken
-      const toggleButton = screen.getByText("Zeige vergangene Anlässe");
+      const toggleButton = screen.getByText("Zeige vergangene Anlässe (1)");
       fireEvent.click(toggleButton);
 
       await waitFor(() => {
@@ -395,7 +395,9 @@ describe("HomePage", () => {
 
       await waitFor(() => {
         expect(
-          screen.getByText("Noch keine Aktivitäten."),
+          screen.getByText(
+            "Noch keine Aktivitäten. Erstelle einen Anlass oder publiziere ein Rezept, um loszulegen.",
+          ),
         ).toBeInTheDocument();
       });
     });

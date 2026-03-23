@@ -1,6 +1,7 @@
 import React from "react";
 
 import {useNavigate} from "react-router";
+import * as Sentry from "@sentry/react";
 
 import {
   Container,
@@ -12,6 +13,7 @@ import {
   Button,
   IconButton,
   InputAdornment,
+  CircularProgress,
 } from "@mui/material";
 
 import Visibility from "@mui/icons-material/Visibility";
@@ -22,29 +24,23 @@ import {
   PASSWORD_RESET_SUCCESS_TITLE as TEXT_PASSWORD_RESET_SUCCESS_TITLE,
   PASSWORD_RESET_SUCCESS_TEXT as TEXT_PASSWORD_RESET_SUCCESS_TEXT,
   PASSWORD_RESET_SUCCESS_REDIRECT as TEXT_PASSWORD_RESET_SUCCESS_REDIRECT,
-  PASSWORD_RESET_GO_TO_HOME as TEXT_PASSWORD_RESET_GO_TO_HOME,
+  PASSWORD_RESET_GO_TO_SIGN_IN as TEXT_PASSWORD_RESET_GO_TO_SIGN_IN,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   PASSWORD as TEXT_PASSWORD,
   SHOW_PASSWORD as TEXT_SHOW_PASSWORD,
   CHANGE_PASSWORD as TEXT_CHANGE_PASSWORD,
   PASSWORD_RESET as TEXT_PASSWORD_RESET,
+  PLEASE_WAIT as TEXT_PLEASE_WAIT,
 } from "../../constants/text";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 import {useDatabase} from "../Database/DatabaseContext";
 import SupabaseMessageHandler from "../Database/supabaseMessageHandler.class";
-import PasswordStrengthMeter from "../Shared/passwordStrengthMeter";
-import PageTitle from "../Shared/pageTitle";
-
-/* ===================================================================
-// ======================== Typen & Konstanten ========================
-// =================================================================== */
+import {PasswordStrengthMeter} from "../Shared/passwordStrengthMeter";
+import {PageTitle} from "../Shared/pageTitle";
 
 /** Zustände der Passwort-Reset-Seite. */
 type ResetState = "waitingForSession" | "ready" | "success";
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 /**
  * Passwort-Reset-Seite nach Klick auf den Recovery-Link (Supabase).
  *
@@ -52,9 +48,9 @@ type ResetState = "waitingForSession" | "ready" | "success";
  * asynchron und etabliert eine Session. Diese Komponente wartet
  * via `onAuthStateChange` auf ein `SIGNED_IN`- oder `INITIAL_SESSION`-Event,
  * zeigt dann ein Passwortformular und leitet nach erfolgreichem Reset
- * mit Countdown zur Startseite weiter (der User ist bereits eingeloggt).
+ * mit Countdown zur Anmeldeseite weiter (der User ist bereits eingeloggt).
  */
-const ResetPasswordPage = () => {
+export const ResetPasswordPage = () => {
   const [resetState, setResetState] = React.useState<ResetState>(
     "waitingForSession",
   );
@@ -90,22 +86,19 @@ const ResetPasswordPage = () => {
     if (resetState !== "success") return;
 
     if (timer === 0) {
-      setTimeout(() => navigate(ROUTES.HOME), 500);
+      setTimeout(() => navigate(ROUTES.SIGN_IN), 500);
     } else {
       const timeout = setTimeout(() => setTimer(timer - 1), 1000);
       return () => clearTimeout(timeout);
     }
   }, [timer, navigate, resetState]);
 
-  /* ------------------------------------------
-  // Passwort ändern
-  // ------------------------------------------ */
   const onSubmit = async () => {
     try {
       await database.auth.updatePassword(password);
       setResetState("success");
     } catch (err) {
-      console.error("Password reset failed:", err);
+      Sentry.captureException(err);
       const message =
         err instanceof Error ? err.message : "Unbekannter Fehler";
       setError(SupabaseMessageHandler.translateMessage({message}));
@@ -117,7 +110,7 @@ const ResetPasswordPage = () => {
     event.preventDefault();
 
   return (
-    <React.Fragment>
+    <>
       <PageTitle title={TEXT_PASSWORD_RESET} />
       <Container sx={classes.container} component="main" maxWidth="sm">
         {resetState === "success" && (
@@ -128,8 +121,11 @@ const ResetPasswordPage = () => {
               {TEXT_PASSWORD_RESET_SUCCESS_REDIRECT(timer)}
             </Typography>
             <Typography sx={{mt: 1}}>
-              <Link component="button" onClick={() => navigate(ROUTES.HOME)}>
-                {TEXT_PASSWORD_RESET_GO_TO_HOME}
+              <Link
+                component="button"
+                onClick={() => navigate(ROUTES.SIGN_IN)}
+              >
+                {TEXT_PASSWORD_RESET_GO_TO_SIGN_IN}
               </Link>
             </Typography>
           </Alert>
@@ -138,12 +134,15 @@ const ResetPasswordPage = () => {
         {resetState === "waitingForSession" && (
           <Alert severity="info">
             <AlertTitle>{TEXT_PASSWORD_RESET}</AlertTitle>
-            <Typography>Einen Moment...</Typography>
+            <Typography sx={{display: "flex", alignItems: "center", gap: 1}}>
+              <CircularProgress size={16} />
+              {TEXT_PLEASE_WAIT}
+            </Typography>
           </Alert>
         )}
 
         {resetState === "ready" && (
-          <React.Fragment>
+          <>
             <Typography variant="h5" align="center" gutterBottom>
               {TEXT_PASSWORD_RESET}
             </Typography>
@@ -189,11 +188,9 @@ const ResetPasswordPage = () => {
             >
               {TEXT_CHANGE_PASSWORD}
             </Button>
-          </React.Fragment>
+          </>
         )}
       </Container>
-    </React.Fragment>
+    </>
   );
 };
-
-export default ResetPasswordPage;

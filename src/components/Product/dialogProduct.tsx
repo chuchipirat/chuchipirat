@@ -24,8 +24,11 @@ import {
   Typography,
 } from "@mui/material";
 
-import Product, {Allergen, Diet} from "./product.class";
-import AlertMessage from "../Shared/AlertMessage";
+import * as Sentry from "@sentry/react";
+
+import {Product, Allergen, Diet} from "./product.types";
+import {findSimilarProducts} from "./productUtils";
+import {AlertMessage} from "../Shared/AlertMessage";
 import {
   GIVE_PRODUCT as TEXT_GIVE_PRODUCT,
   GIVE_DEPARTMENT as TEXT_GIVE_DEPARTMENT,
@@ -57,15 +60,14 @@ import {
   THERE_ARE_SIMILAR_PRODUCTS as TEXT_THERE_ARE_SIMILAR_PRODUCTS,
 } from "../../constants/text";
 import Department from "../Department/department.class";
-import Unit, {UnitDimension} from "../Unit/unit.class";
+import {Unit, UnitDimension} from "../Unit/unit.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import UnitAutocomplete from "../Unit/unitAutocomplete";
+import {UnitAutocomplete} from "../Unit/unitAutocomplete";
 
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
-import DepartmentAutocomplete from "../Department/departmentAutocomplete";
+import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";
 import {useDatabase} from "../Database/DatabaseContext";
 import {FeedType} from "../Shared/feed.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -102,10 +104,6 @@ export enum ProductDialog {
   EDIT = "edit",
 }
 
-export const PRODUCT_DIALOG_TYPE = {
-  CREATE: "create",
-  EDIT: "edit",
-};
 
 /* ===================================================================
 // ===================== Pop Up Produkt hinzufügen ===================
@@ -196,7 +194,7 @@ const DialogProduct = ({
     }
     // Im CREATE-Modus auf ähnliche Produkte prüfen
     if (dialogType === ProductDialog.CREATE && productName) {
-      const similar = Product.findSimilarProducts({
+      const similar = findSimilarProducts({
         productName,
         existingProducts: products,
       });
@@ -229,11 +227,11 @@ const DialogProduct = ({
   // ------------------------------------------ */
   const onChangeField = (
     event: React.ChangeEvent<HTMLInputElement>,
-    newValue?: any,
+    newValue: string | Product | Department | Unit | boolean | null = null,
     action?: string,
     objectId?: string,
   ) => {
-    let value: string | ValueObject | boolean;
+    let value: string | Product | Department | Unit | boolean | null;
     let field: string;
 
     if (event.target.id) {
@@ -310,7 +308,7 @@ const DialogProduct = ({
       ...productPopUpValues,
       dietProperties: {
         ...productPopUpValues.dietProperties,
-        diet: parseInt(event.target.value),
+        diet: parseInt(event.target.value, 10),
       },
     });
   };
@@ -376,10 +374,8 @@ const DialogProduct = ({
     if (hasError) {
       return;
     }
-    const product = new Product();
-
     switch (dialogType) {
-      case PRODUCT_DIALOG_TYPE.CREATE:
+      case ProductDialog.CREATE:
         // Neues Produkt in Supabase einfügen
         database.products
           .insertProduct(
@@ -398,18 +394,19 @@ const DialogProduct = ({
             authUser,
           )
           .then((result) => {
-            // ProductDomain → Product konvertieren für den Aufrufer
-            const product = new Product();
-            product.uid = result.uid;
-            product.name = result.name;
-            product.department = Object.assign(
-              new Department(),
-              result.department,
-            );
-            product.shoppingUnit = result.shoppingUnit;
-            product.dietProperties = result.dietProperties;
-            product.usable = result.usable;
-            handleOk(product);
+            // ProductDomain → Product konvertieren fuer den Aufrufer
+            const createdProduct: Product = {
+              uid: result.uid,
+              name: result.name,
+              department: {
+                uid: result.department?.uid ?? "",
+                name: result.department?.name ?? "",
+              },
+              shoppingUnit: result.shoppingUnit,
+              dietProperties: result.dietProperties,
+              usable: result.usable,
+            };
+            handleOk(createdProduct);
             setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
 
             // Feed-Eintrag: Produkt erstellt
@@ -423,42 +420,44 @@ const DialogProduct = ({
                 },
                 authUser,
               )
-              .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+              .catch((err) => Sentry.captureException(err, {extra: {context: "Feed-Eintrag fuer neues Produkt"}}));
           })
           .catch((error) => {
-            console.error("Fehler beim Anlegen des Produkts:", error);
+            Sentry.captureException(error, {extra: {context: "Produkt anlegen"}});
           });
         break;
-      case PRODUCT_DIALOG_TYPE.EDIT:
-        // PopUp Werte aufbereiten für aufrufende Komponente
-        product.uid = productPopUpValues.uid;
-        product.name = productPopUpValues.name;
-        product.department = productPopUpValues.department;
-        product.shoppingUnit = productPopUpValues.shoppingUnit.key;
-        product.usable = productPopUpValues.usable;
-        product.dietProperties.diet = productPopUpValues.dietProperties.diet;
-        if (
-          productPopUpValues.dietProperties.allergens.includes(Allergen.Lactose)
-        ) {
-          product.dietProperties.allergens.push(Allergen.Lactose);
-        }
-        if (
-          productPopUpValues.dietProperties.allergens.includes(Allergen.Gluten)
-        ) {
-          product.dietProperties.allergens.push(Allergen.Gluten);
-        }
-        handleOk(product);
+      case ProductDialog.EDIT: {
+        // PopUp Werte aufbereiten fuer aufrufende Komponente
+        const editedProduct: Product = {
+          uid: productPopUpValues.uid,
+          name: productPopUpValues.name,
+          department: productPopUpValues.department,
+          shoppingUnit: productPopUpValues.shoppingUnit.key,
+          usable: productPopUpValues.usable,
+          dietProperties: {
+            diet: productPopUpValues.dietProperties.diet,
+            allergens: productPopUpValues.dietProperties.allergens.filter(
+              (allergen) =>
+                allergen === Allergen.Lactose || allergen === Allergen.Gluten,
+            ),
+          },
+        };
+        handleOk(editedProduct);
         setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
+        break;
+      }
     }
   };
 
   /* ------------------------------------------
   // Dialog schliessen (via Backdrop/Escape abfangen)
   // ------------------------------------------ */
-  const onClose = (_event: ValueObject, reason: string) => {
-    if (reason !== "backdropClick" && reason !== "escapeKeyDown") {
-      handleClose();
+  const onClose = (_event: object, reason: string) => {
+    // Nur Backdrop-Klick blockieren; ESC schliesst den Dialog
+    if (reason === "backdropClick") {
+      return;
     }
+    handleClose();
   };
 
   /* ------------------------------------------
@@ -492,7 +491,7 @@ const DialogProduct = ({
         maxWidth="sm"
       >
         <DialogTitle id="dialogAddProduct">
-          {dialogType === PRODUCT_DIALOG_TYPE.CREATE
+          {dialogType === ProductDialog.CREATE
             ? TEXT_PRODUCT_ADD
             : TEXT_PRODUCT_EDIT}
         </DialogTitle>
@@ -513,9 +512,9 @@ const DialogProduct = ({
             </Alert>
           )}
           <DialogContentText>
-            {dialogType === PRODUCT_DIALOG_TYPE.CREATE && TEXT_PRODUCT}
+            {dialogType === ProductDialog.CREATE && TEXT_PRODUCT}
           </DialogContentText>
-          {dialogType === PRODUCT_DIALOG_TYPE.EDIT &&
+          {dialogType === ProductDialog.EDIT &&
             productPopUpValues.showNameWarning && (
               <AlertMessage
                 severity="warning"
@@ -556,7 +555,7 @@ const DialogProduct = ({
                 />
               </FormControl>
             </Grid>
-            <Grid size={dialogType === PRODUCT_DIALOG_TYPE.EDIT ? 6 : 12}>
+            <Grid size={dialogType === ProductDialog.EDIT ? 6 : 12}>
               <FormControl fullWidth>
                 <UnitAutocomplete
                   componentKey={"shoppingUnit"}
@@ -567,7 +566,7 @@ const DialogProduct = ({
                 <FormHelperText>{TEXT_SHOPPING_UNIT_INFO}</FormHelperText>
               </FormControl>
             </Grid>
-            {dialogType === PRODUCT_DIALOG_TYPE.EDIT && (
+            {dialogType === ProductDialog.EDIT && (
               <Grid size={6}>
                 <FormControlLabel
                   control={
@@ -659,7 +658,7 @@ const DialogProduct = ({
             {TEXT_CANCEL}
           </Button>
           <Button onClick={onOkClick} color="primary" variant="contained">
-            {dialogType === PRODUCT_DIALOG_TYPE.CREATE ? TEXT_CREATE : TEXT_OK}
+            {dialogType === ProductDialog.CREATE ? TEXT_CREATE : TEXT_OK}
           </Button>
         </DialogActions>
       </Dialog>
@@ -704,4 +703,4 @@ const DialogProduct = ({
   );
 };
 
-export default DialogProduct;
+export {DialogProduct};

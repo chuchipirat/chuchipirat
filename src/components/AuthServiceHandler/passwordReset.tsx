@@ -12,9 +12,9 @@ import {
   CircularProgress,
 } from "@mui/material";
 
-import PageTitle from "../Shared/pageTitle";
-import useCustomStyles from "../../constants/styles";
-import AlertMessage from "../Shared/AlertMessage";
+import {PageTitle} from "../Shared/pageTitle";
+import {useCustomStyles} from "../../constants/styles";
+import {AlertMessage} from "../Shared/AlertMessage";
 import {PASSWORD_RESET as ROUTES_PASSWORD_RESET} from "../../constants/routes";
 import {
   PASSWORD_RESET as TEXT_PASSWORD_RESET,
@@ -27,13 +27,10 @@ import {
   HAVE_YOU_FORGOTEN_YOUR_PASSWORD as TEXT_HAVE_YOU_FORGOTEN_YOUR_PASSWORD,
 } from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
+import * as Sentry from "@sentry/react";
 import {useNavigate, useLocation} from "react-router";
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 import {useDatabase} from "../Database/DatabaseContext";
-
-/* ===================================================================
-// ======================== State Management ==========================
-// =================================================================== */
 
 enum ReducerActions {
   UPDATE_FIELD,
@@ -95,10 +92,6 @@ const passwordResetReducer = (state: State, action: DispatchAction): State => {
   }
 };
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
-
 /**
  * Seite zum Zurücksetzen des Passworts.
  *
@@ -108,7 +101,7 @@ const passwordResetReducer = (state: State, action: DispatchAction): State => {
  * @example
  * <PasswordResetPage />
  */
-const PasswordResetPage = () => {
+export const PasswordResetPage = () => {
   const database = useDatabase();
   const classes = useCustomStyles();
   const location = useLocation();
@@ -122,9 +115,6 @@ const PasswordResetPage = () => {
     email: prefillEmail,
   });
 
-  /* ------------------------------------------
-  // Feld-Handler
-  // ------------------------------------------ */
   const onFieldChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     dispatch({
       type: ReducerActions.UPDATE_FIELD,
@@ -132,9 +122,6 @@ const PasswordResetPage = () => {
     });
   };
 
-  /* ------------------------------------------
-  // Passwort-Reset auslösen
-  // ------------------------------------------ */
   const onResetPassword = async () => {
     dispatch({type: ReducerActions.RESET_STARTED});
 
@@ -142,7 +129,7 @@ const PasswordResetPage = () => {
       await database.auth.resetPassword(state.email);
       dispatch({type: ReducerActions.PASSWORD_LINK_SENT_SUCCESS});
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error instanceof Error ? error : new Error(String(error)),
@@ -151,7 +138,7 @@ const PasswordResetPage = () => {
   };
 
   return (
-    <React.Fragment>
+    <>
       <PageTitle
         title={TEXT_PASSWORD_RESET}
         subTitle={TEXT_EVERYBODY_FORGETS_SOMETHING}
@@ -166,13 +153,9 @@ const PasswordResetPage = () => {
           isLoading={state.isLoading}
         />
       </Container>
-    </React.Fragment>
+    </>
   );
 };
-
-/* ===================================================================
-// ============================= Formular ============================
-// =================================================================== */
 
 /**
  * Props für das Passwort-Zurücksetzen-Formular.
@@ -265,10 +248,6 @@ const PasswordResetForm = ({
   );
 };
 
-/* ===================================================================
-// =============================== Link ==============================
-// =================================================================== */
-
 /**
  * Props für den ForgotPasswordLink.
  *
@@ -304,5 +283,3 @@ export const ForgotPasswordLink = ({email}: ForgotPasswordLinkProps) => {
     </Typography>
   );
 };
-
-export default PasswordResetPage;

@@ -18,7 +18,7 @@
  * FK-Auflösung über `firebase_uid`-Spalten:
  * - `ingredient.product.uid` → `products.firebase_uid` → `products.id`
  * - `material.material.uid`  → `materials.firebase_uid` → `materials.id`
- * - `created.fromUid`        → `users.id`              → `users.auth_uid` (= auth UUID, für created_by)
+ * - `created.fromUid`        → `users.legacy_firebase_uid` → `users.id` (Supabase UUID, für created_by)
  *
  * Voraussetzungen (müssen vor dieser Migration ausgeführt worden sein):
  * - Abteilungen, Einheiten, Materialien, Produkte, Benutzer
@@ -528,19 +528,21 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       }
     }
 
-    // Benutzer: users.id IS der Firebase-UID (TEXT PRIMARY KEY), auth_uid ist die Supabase-UUID.
-    // Die users-Tabelle hat keine firebase_uid-Spalte — id dient direkt als Firebase-Identifier.
+    // Benutzer: legacy_firebase_uid → id (UUID, identisch mit auth.users.id)
+    // Nach der id-Vereinheitlichung (Phase 3) ist users.id die Supabase-UUID,
+    // die alten Firebase-UIDs stehen in legacy_firebase_uid.
     const {data: userRows, error: userError} = await client
       .from("users")
-      .select("id, auth_uid");
+      .select("id, legacy_firebase_uid")
+      .not("legacy_firebase_uid", "is", null);
 
     if (userError) throw userError;
 
     for (const row of userRows ?? []) {
-      if (row.id && row.auth_uid) {
+      if (row.legacy_firebase_uid && row.id) {
         this.userAuthUidByFirebaseUid.set(
+          row.legacy_firebase_uid as string,
           row.id as string,
-          row.auth_uid as string,
         );
       }
     }

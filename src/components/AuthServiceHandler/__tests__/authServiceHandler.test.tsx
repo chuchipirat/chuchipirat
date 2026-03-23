@@ -7,44 +7,36 @@ import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
-import AuthServiceHandlerPage from "../authServiceHandler";
+import {AuthServiceHandlerPage} from "../authServiceHandler";
 import * as TEXT from "../../../constants/text";
-
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
 
 /**
  * Mock: VerifyEmail — wird als einfaches div mit data-testid gerendert,
  * um die Kind-Komponente isoliert zu testen.
  */
 jest.mock("../verifyEmail", () => ({
-  __esModule: true,
-  default: () => <div data-testid="verify-email" />,
+  VerifyEmailPage: () => <div data-testid="verify-email" />,
 }));
 
 /**
  * Mock: ResetPassword — vereinfachtes div für die Passwort-Zurücksetzen-Ansicht.
  */
 jest.mock("../resetPassword", () => ({
-  __esModule: true,
-  default: () => <div data-testid="reset-password" />,
+  ResetPasswordPage: () => <div data-testid="reset-password" />,
 }));
 
 /**
  * Mock: ConfirmEmailChange — vereinfachtes div für die E-Mail-Änderungsbestätigung.
  */
 jest.mock("../confirmEmailChange", () => ({
-  __esModule: true,
-  default: () => <div data-testid="confirm-email-change" />,
+  ConfirmEmailChangePage: () => <div data-testid="confirm-email-change" />,
 }));
 
 /**
  * Mock: RecoverEmail — vereinfachtes div, das den oobCode als data-Attribut ausgibt.
  */
 jest.mock("../recoverEmail", () => ({
-  __esModule: true,
-  default: ({oobCode}: {oobCode: string}) => (
+  RecoverEmailPage: ({oobCode}: {oobCode: string}) => (
     <div data-testid="recover-email" data-oobcode={oobCode} />
   ),
 }));
@@ -63,10 +55,6 @@ jest.mock("../../../constants/styles", () => ({
   default: () => ({container: {}}),
 }));
 
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
-
 /**
  * Rendert die AuthServiceHandlerPage mit MemoryRouter und der gegebenen URL.
  *
@@ -79,10 +67,6 @@ const renderWithUrl = (url: string) => {
     </MemoryRouter>
   );
 };
-
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -99,7 +83,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(
         screen.queryByTestId("confirm-email-change")
       ).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Hash #type=signup rendert VerifyEmail", () => {
@@ -110,7 +94,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(
         screen.queryByTestId("confirm-email-change")
       ).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Hash #type=email_change rendert ConfirmEmailChange", () => {
@@ -121,7 +105,7 @@ describe("AuthServiceHandlerPage", () => {
       ).toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
   });
 
@@ -134,7 +118,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(
         screen.queryByTestId("confirm-email-change")
       ).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Query ?code=abc123&type=email_change rendert ConfirmEmailChange", () => {
@@ -145,7 +129,7 @@ describe("AuthServiceHandlerPage", () => {
       ).toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
   });
 
@@ -156,7 +140,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(screen.getByTestId("reset-password")).toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("recover-email")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Query ?mode=recoverEmail&oobCode=xyz rendert RecoverEmail mit oobCode", () => {
@@ -168,7 +152,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(recoverEmail).toHaveAttribute("data-oobcode", "xyz");
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
 
     test("Query ?mode=verifyEmail&oobCode=abc rendert VerifyEmail", () => {
@@ -177,7 +161,7 @@ describe("AuthServiceHandlerPage", () => {
       expect(screen.getByTestId("verify-email")).toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
       expect(screen.queryByTestId("recover-email")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
     });
   });
 
@@ -185,8 +169,8 @@ describe("AuthServiceHandlerPage", () => {
     test("Keine Parameter zeigt generische Fehlermeldung", () => {
       renderWithUrl("/action");
 
-      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).toBeInTheDocument();
-      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE)).toBeInTheDocument();
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).toBeInTheDocument();
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE)).toBeInTheDocument();
       // Keine Auth-Komponente darf angezeigt werden
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
@@ -199,8 +183,8 @@ describe("AuthServiceHandlerPage", () => {
     test("Unbekannter Hash-Typ zeigt generische Fehlermeldung", () => {
       renderWithUrl("/action#type=unknown_type");
 
-      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)).toBeInTheDocument();
-      expect(screen.getByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE)).toBeInTheDocument();
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).toBeInTheDocument();
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE)).toBeInTheDocument();
     });
   });
 
@@ -240,7 +224,7 @@ describe("AuthServiceHandlerPage", () => {
       );
 
       expect(
-        screen.queryByText(TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE)
+        screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)
       ).not.toBeInTheDocument();
     });
   });

@@ -11,9 +11,9 @@ import {render, screen, fireEvent} from "@testing-library/react";
 import {DialogGoods} from "../dialogGoods";
 import {GoodsType, GoodsPlanMode} from "../menuplan.types";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
-import Product from "../../../Product/product.class";
-import Material from "../../../Material/material.class";
-import Unit from "../../../Unit/unit.class";
+import {Product} from "../../../Product/product.types";
+import {Material} from "../../../Material/material.types";
+import {Unit} from "../../../Unit/unit.class";
 import Department from "../../../Department/department.class";
 
 import {
@@ -29,7 +29,7 @@ import {
 // Supabase Mocks
 jest.mock("../../../Product/dialogProduct", () => ({
   __esModule: true,
-  default: () => null,
+  DialogProduct: () => null,
   PRODUCT_POP_UP_VALUES_INITIAL_STATE: {
     name: "",
     uid: "",
@@ -40,7 +40,7 @@ jest.mock("../../../Product/dialogProduct", () => ({
 }));
 jest.mock("../../../Material/dialogMaterial", () => ({
   __esModule: true,
-  default: () => null,
+  DialogMaterial: () => null,
   MATERIAL_POP_UP_VALUES_INITIAL_STATE: {
     name: "",
     uid: "",
@@ -51,11 +51,11 @@ jest.mock("../../../Material/dialogMaterial", () => ({
 }));
 jest.mock("../../../Product/productAutocomplete", () => ({
   __esModule: true,
-  default: () => <div data-testid="product-autocomplete" />,
+  ProductAutocomplete: () => <div data-testid="product-autocomplete" />,
 }));
 jest.mock("../../../Material/materialAutocomplete", () => ({
   __esModule: true,
-  default: () => <div data-testid="material-autocomplete" />,
+  MaterialAutocomplete: () => <div data-testid="material-autocomplete" />,
 }));
 jest.mock("../../../Unit/unitAutocomplete", () => ({
   __esModule: true,

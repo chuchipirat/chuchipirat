@@ -4,9 +4,10 @@ import {useNavigate, useLocation} from "react-router";
 import * as Sentry from "@sentry/browser";
 
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
   Card,
-  CardMedia,
-  CardContent,
   CardHeader,
   CardActionArea,
   Container,
@@ -26,9 +27,10 @@ import {
 } from "@mui/material";
 
 import Grid from "@mui/material/Grid";
+import {Add as AddIcon, ExpandMore as ExpandMoreIcon} from "@mui/icons-material";
 
-import PageTitle from "../Shared/pageTitle";
-import AlertMessage from "../Shared/AlertMessage";
+import {PageTitle} from "../Shared/pageTitle";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import {
   PAGE_TITLE_HOME as TEXT_PAGE_TITLE_HOME,
@@ -45,20 +47,20 @@ import {
   HOME_EMPTY_RECIPES as TEXT_HOME_EMPTY_RECIPES,
   HOME_EMPTY_FEED as TEXT_HOME_EMPTY_FEED,
 } from "../../constants/text";
-import * as ROUTES from "../../constants/routes";
+import {EVENT, CREATE_NEW_EVENT, RECIPE, USER_PUBLIC_PROFILE} from "../../constants/routes";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import {EventDomain, getMaxDate} from "../Database/Repository/EventRepository";
-import {EventCard,EventCardLoading} from "../Event/Event/eventCard";
+import {EventCard, EventCardLoading} from "../Event/Event/eventCard";
 
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {FeedType} from "../Shared/feed.class";
 import {FeedDomain} from "../Database/Repository/FeedRepository";
 import {RecipeCardLoading} from "../Recipe/recipeCard";
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 import {RecipeType} from "../Recipe/recipe.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 import {
   FEEDS_DISPLAY as DEFAULT_VALUES_FEEDS_DISPLAY,
   RECIPE_DISPLAY as DEFAULT_RECIPE_DISPLAY,
@@ -67,175 +69,12 @@ import {Kpi, KpiGroup, StatsRepository} from "../Database/Repository/StatsReposi
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/navigationContext";
-import CustomSnackbar, {
-  Snackbar,
-  SNACKBAR_INITIAL_STATE_VALUES,
-} from "../Shared/customSnackbar";
+} from "../Navigation/NavigationContext";
+import {CustomSnackbar} from "../Shared/customSnackbar";
 import {useDatabase} from "../Database/DatabaseContext";
-import {SystemMessageDomain} from "../Database/Repository/SystemMessageRepository";
 import {AlertSystemMessage} from "../Admin/SystemMessage/systemMessage";
-import useCustomStyles from "../../constants/styles";
-
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
-
-/**
- * Aktionen für den Home-Reducer.
- */
-enum ReducerActions {
-  EVENTS_FETCH_INIT,
-  EVENTS_FETCH_SUCCESS,
-  EVENTS_FETCH_ERROR,
-  NEWEST_RECIPES_FETCH_INIT,
-  NEWEST_RECIPES_FETCH_SUCCESS,
-  NEWEST_RECIPES_FETCH_ERROR,
-  FEED_FETCH_INIT,
-  FEED_FETCH_SUCCESS,
-  FEED_FETCH_ERROR,
-  STATS_FETCH_INIT,
-  STATS_FETCH_SUCCESS,
-  STATS_FETCH_ERROR,
-  SYSTEM_MESSAGE_FETCH_SUCCESS,
-  TOGGLE_PASSED_EVENTS,
-  SNACKBAR_SET,
-  SNACKBAR_CLOSE,
-}
-
-/**
- * Diskriminierte Union für alle Dispatcher-Aktionen.
- * Stellt sicher, dass jede Aktion nur mit dem richtigen Payload aufgerufen wird.
- */
-type DispatchAction =
-  | {type: ReducerActions.EVENTS_FETCH_INIT}
-  | {type: ReducerActions.EVENTS_FETCH_SUCCESS; payload: {actual: EventDomain[]; passed: EventDomain[]}}
-  | {type: ReducerActions.EVENTS_FETCH_ERROR; payload: Error}
-  | {type: ReducerActions.NEWEST_RECIPES_FETCH_INIT}
-  | {type: ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS; payload: FeedDomain[]}
-  | {type: ReducerActions.NEWEST_RECIPES_FETCH_ERROR; payload: Error}
-  | {type: ReducerActions.FEED_FETCH_INIT}
-  | {type: ReducerActions.FEED_FETCH_SUCCESS; payload: FeedDomain[]}
-  | {type: ReducerActions.FEED_FETCH_ERROR; payload: Error}
-  | {type: ReducerActions.STATS_FETCH_INIT}
-  | {type: ReducerActions.STATS_FETCH_SUCCESS; payload: Kpi[]}
-  | {type: ReducerActions.STATS_FETCH_ERROR; payload: Error}
-  | {type: ReducerActions.TOGGLE_PASSED_EVENTS}
-  | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS; payload: SystemMessageDomain[]}
-  | {type: ReducerActions.SNACKBAR_SET; payload: Snackbar}
-  | {type: ReducerActions.SNACKBAR_CLOSE};
-
-/**
- * State der Startseite mit per-Section-Fehlern.
- *
- * @param events - Aktuelle (zukünftige) Anlässe des Benutzers
- * @param passedEvents - Vergangene Anlässe (aus demselben Fetch, clientseitig gefiltert)
- * @param showPassedEvents - Ob vergangene Anlässe angezeigt werden sollen
- * @param recipes - Neueste publizierte Rezepte
- * @param feed - Feed-Einträge (Aktivitäten)
- * @param stats - Plattform-KPIs
- * @param systemMessages - Systemmeldungen
- * @param snackbar - Snackbar-State
- * @param isLoadingEvents - Ladeindikator Anlässe
- * @param isLoadingNewestRecipes - Ladeindikator Rezepte
- * @param isLoadingFeed - Ladeindikator Feed
- * @param isLoadingStats - Ladeindikator Statistik
- * @param eventsError - Fehler beim Laden der Anlässe
- * @param recipesError - Fehler beim Laden der Rezepte
- * @param feedError - Fehler beim Laden des Feeds
- * @param statsError - Fehler beim Laden der Statistik
- */
-type State = {
-  events: EventDomain[];
-  passedEvents: EventDomain[];
-  showPassedEvents: boolean;
-  recipes: FeedDomain[];
-  feed: FeedDomain[];
-  stats: Kpi[];
-  systemMessages: SystemMessageDomain[];
-  snackbar: Snackbar;
-  isLoadingEvents: boolean;
-  isLoadingNewestRecipes: boolean;
-  isLoadingFeed: boolean;
-  isLoadingStats: boolean;
-  eventsError: Error | null;
-  recipesError: Error | null;
-  feedError: Error | null;
-  statsError: Error | null;
-};
-
-const initialState: State = {
-  events: [],
-  passedEvents: [],
-  showPassedEvents: false,
-  recipes: [],
-  feed: [],
-  stats: [],
-  systemMessages: [],
-  snackbar: SNACKBAR_INITIAL_STATE_VALUES,
-  isLoadingEvents: false,
-  isLoadingNewestRecipes: false,
-  isLoadingFeed: false,
-  isLoadingStats: false,
-  eventsError: null,
-  recipesError: null,
-  feedError: null,
-  statsError: null,
-};
-
-/**
- * Reducer für die Startseite. Verwaltet Lade- und Fehlerzustände
- * für alle 5 Datenquellen (Events, Rezepte, Feed, Stats, Systemmeldungen).
- *
- * @param state - Aktueller State
- * @param action - Diskriminierte Aktion
- * @returns Neuer State
- */
-const homeReducer = (state: State, action: DispatchAction): State => {
-  switch (action.type) {
-    case ReducerActions.EVENTS_FETCH_INIT:
-      return {...state, isLoadingEvents: true, eventsError: null};
-    case ReducerActions.EVENTS_FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoadingEvents: false,
-        events: action.payload.actual,
-        passedEvents: action.payload.passed,
-      };
-    case ReducerActions.EVENTS_FETCH_ERROR:
-      return {...state, isLoadingEvents: false, eventsError: action.payload};
-    case ReducerActions.NEWEST_RECIPES_FETCH_INIT:
-      return {...state, isLoadingNewestRecipes: true, recipesError: null};
-    case ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS:
-      return {...state, isLoadingNewestRecipes: false, recipes: action.payload};
-    case ReducerActions.NEWEST_RECIPES_FETCH_ERROR:
-      return {...state, isLoadingNewestRecipes: false, recipesError: action.payload};
-    case ReducerActions.FEED_FETCH_INIT:
-      return {...state, isLoadingFeed: true, feedError: null};
-    case ReducerActions.FEED_FETCH_SUCCESS:
-      return {...state, isLoadingFeed: false, feed: action.payload};
-    case ReducerActions.FEED_FETCH_ERROR:
-      return {...state, isLoadingFeed: false, feedError: action.payload};
-    case ReducerActions.STATS_FETCH_INIT:
-      return {...state, isLoadingStats: true, statsError: null};
-    case ReducerActions.STATS_FETCH_SUCCESS:
-      return {...state, isLoadingStats: false, stats: action.payload};
-    case ReducerActions.STATS_FETCH_ERROR:
-      return {...state, isLoadingStats: false, statsError: action.payload};
-    case ReducerActions.TOGGLE_PASSED_EVENTS:
-      return {...state, showPassedEvents: !state.showPassedEvents};
-    case ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS:
-      return {...state, systemMessages: action.payload};
-    case ReducerActions.SNACKBAR_SET:
-      return {...state, snackbar: action.payload};
-    case ReducerActions.SNACKBAR_CLOSE:
-      return {...state, snackbar: SNACKBAR_INITIAL_STATE_VALUES};
-    default: {
-      const exhaustiveCheck: never = action;
-      throw new Error(`Unbekannter ActionType: ${exhaustiveCheck}`);
-    }
-  }
-};
+import {useCustomStyles} from "../../constants/styles";
+import {ReducerActions, homeReducer, initialState} from "./homeReducer";
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -245,7 +84,7 @@ const homeReducer = (state: State, action: DispatchAction): State => {
  * Startseite nach dem Login. Lädt Events, Rezepte, Feed, Statistik
  * und Systemmeldungen parallel und zeigt sie in einem 2-Spalten-Layout an.
  */
-const HomePage = () => {
+export const HomePage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
   const location = useLocation();
@@ -276,6 +115,7 @@ const HomePage = () => {
       action: Action.NONE,
       object: NavigationObject.home,
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Nur beim Mount setzen; navigationValuesContext im Dep-Array löst eine Endlosschleife aus
   }, []);
 
   /* ------------------------------------------
@@ -301,7 +141,6 @@ const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        console.error(error);
         dispatch({type: ReducerActions.EVENTS_FETCH_ERROR, payload: error as Error});
       });
   }, [authUser]);
@@ -321,7 +160,6 @@ const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        console.error(error);
         dispatch({type: ReducerActions.NEWEST_RECIPES_FETCH_ERROR, payload: error as Error});
       });
   }, [authUser]);
@@ -341,7 +179,6 @@ const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        console.error(error);
         dispatch({type: ReducerActions.FEED_FETCH_ERROR, payload: error as Error});
       });
   }, [authUser]);
@@ -361,7 +198,6 @@ const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        console.error(error);
         dispatch({type: ReducerActions.STATS_FETCH_ERROR, payload: error as Error});
       });
   }, [authUser]);
@@ -383,7 +219,6 @@ const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        console.error(error);
       });
   }, [authUser]);
 
@@ -394,9 +229,9 @@ const HomePage = () => {
   /* ------------------------------------------
   // Vergangene Anlässe anzeigen/ausblenden
   // ------------------------------------------ */
-  const onShowPassedEvents = () => {
+  const onShowPassedEvents = React.useCallback(() => {
     dispatch({type: ReducerActions.TOGGLE_PASSED_EVENTS});
-  };
+  }, []);
 
   /* ------------------------------------------
   // Objekte öffnen
@@ -410,7 +245,7 @@ const HomePage = () => {
 
       if (!event) return;
 
-      navigate(`${ROUTES.EVENT}/${event.uid}`, {
+      navigate(`${EVENT}/${event.uid}`, {
         state: {
           action: Action.VIEW,
           event: event,
@@ -421,7 +256,7 @@ const HomePage = () => {
   );
 
   const onCreateNewEvent = React.useCallback(() => {
-    navigate(`${ROUTES.CREATE_NEW_EVENT}`);
+    navigate(`${CREATE_NEW_EVENT}`);
   }, [navigate]);
 
   const onRecipeClick = React.useCallback(
@@ -433,7 +268,7 @@ const HomePage = () => {
 
       if (!recipe) return;
 
-      navigate(`${ROUTES.RECIPE}/${recipeUid}`, {
+      navigate(`${RECIPE}/${recipeUid}`, {
         state: {
           action: Action.VIEW,
           recipeShort: {
@@ -460,13 +295,13 @@ const HomePage = () => {
         case FeedType.recipePublished:
         case FeedType.recipeRated:
         case FeedType.recipeCommented:
-          navigate(`${ROUTES.RECIPE}/${feedEntry.sourceObject.uid}`, {
+          navigate(`${RECIPE}/${feedEntry.sourceObject.uid}`, {
             state: {action: Action.VIEW},
           });
           break;
         default:
           navigate(
-            `${ROUTES.USER_PUBLIC_PROFILE}/${feedEntry.user.uid}`,
+            `${USER_PUBLIC_PROFILE}/${feedEntry.user.uid}`,
             {
               state: {
                 action: Action.VIEW,
@@ -489,10 +324,9 @@ const HomePage = () => {
       reason: SnackbarCloseReason,
     ) => {
       if (reason === "clickaway") return;
-      delete location.state?.snackbar;
       dispatch({type: ReducerActions.SNACKBAR_CLOSE});
     },
-    [location.state],
+    [],
   );
 
   return (
@@ -523,7 +357,7 @@ const HomePage = () => {
             />
           </Grid>
           <Grid size={12}>
-            <Divider style={{marginBottom: "2rem"}} />
+            <Divider sx={{mb: "2rem"}} />
           </Grid>
           <Grid size={{xs: 12, md: 8}}>
             <HomeNewestRecipes
@@ -627,7 +461,7 @@ const HomeNextEvents = React.memo(({
             <Typography
               align="center"
               color="textSecondary"
-              style={{marginBottom: "1rem"}}
+              sx={{mb: "1rem"}}
             >
               {TEXT_HOME_EMPTY_EVENTS}
             </Typography>
@@ -646,25 +480,30 @@ const HomeNextEvents = React.memo(({
           </Grid>
         ))}
         <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
-          <Card sx={classes.card} key={"eventCardNew"}>
-            <CardMedia
-              sx={classes.cardMedia}
-              image={
-                ImageRepository.getEnvironmentRelatedPicture()
-                  .CARD_PLACEHOLDER_MEDIA
-              }
-              title={TEXT_CREATE_EVENT}
-            />
-            <CardContent>
-              <Button
-                variant="contained"
-                color="primary"
-                fullWidth
-                onClick={onCreateNewEvent}
-              >
-                {TEXT_CREATE_EVENT}
-              </Button>
-            </CardContent>
+          <Card
+            sx={{
+              ...classes.card,
+              border: "2px dashed",
+              borderColor: "divider",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 200,
+            }}
+            key={"eventCardNew"}
+          >
+            <CardActionArea
+              onClick={onCreateNewEvent}
+              sx={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+              }}
+            >
+              <AddIcon sx={{fontSize: 48, color: "text.secondary", mb: 1}} />
+              <Typography color="text.secondary">{TEXT_CREATE_EVENT}</Typography>
+            </CardActionArea>
           </Card>
         </Grid>
       </Grid>
@@ -701,15 +540,17 @@ const HomePassedEvents = React.memo(({
   const classes = useCustomStyles();
   const theme = useTheme();
 
-  // Leere Container erzeugen, damit die Cards je nach Layout schön aufgelistet werden
-  let rowFiller: number[] = [];
   const breakpointIsXs = useMediaQuery(theme.breakpoints.down("sm"));
   const breakpointIsSm = useMediaQuery(theme.breakpoints.down("md"));
-  breakpointIsXs
-    ? (rowFiller = [])
-    : breakpointIsSm
-      ? (rowFiller = [...Array(events.length % 2).keys()])
-      : (rowFiller = [...Array(events.length % 3).keys()]);
+
+  // Korrekte Berechnung: fehlende Plätze = columns - remainder
+  const rowFiller = React.useMemo(() => {
+    if (breakpointIsXs) return [];
+    const columns = breakpointIsSm ? 2 : 3;
+    const remainder = events.length % columns;
+    if (remainder === 0) return [];
+    return [...Array(columns - remainder).keys()];
+  }, [breakpointIsXs, breakpointIsSm, events.length]);
 
   return (
     <React.Fragment>
@@ -721,7 +562,7 @@ const HomePassedEvents = React.memo(({
               sx={classes.button}
               onClick={onShowPassedEvents}
             >
-              {TEXT_EVENT_SHOW_PAST_EVENTS}
+              {TEXT_EVENT_SHOW_PAST_EVENTS(events.length)}
             </Button>
           </Grid>
         ) : (
@@ -730,7 +571,7 @@ const HomePassedEvents = React.memo(({
               variant="h5"
               align="center"
               color="textSecondary"
-              style={{marginTop: "1rem"}}
+              sx={{mt: "1rem"}}
             >
               {TEXT_EVENT_PAST_EVENTS}
             </Typography>
@@ -768,6 +609,7 @@ HomePassedEvents.displayName = "HomePassedEvents";
 
 /**
  * Abschnitt «Neueste Rezepte» mit Rezept-Cards.
+ * Hover-Effekt auf dem Bild ist per CSS gelöst (kein React-State nötig).
  *
  * @param recipes - Feed-Einträge der neuesten publizierten Rezepte
  * @param isLoadingRecipes - Ladeindikator
@@ -787,16 +629,6 @@ const HomeNewestRecipes = React.memo(({
   onCardClick,
 }: HomeNewestRecipesProps) => {
   const classes = useCustomStyles();
-  const [hoveredRecipeUid, setHoveredRecipeUid] = React.useState<string | null>(
-    null,
-  );
-
-  const handleHover = (recipeUid: string) => {
-    setHoveredRecipeUid(recipeUid);
-  };
-  const handleMouseOut = () => {
-    setHoveredRecipeUid(null);
-  };
 
   return (
     <Grid container spacing={2} justifyContent="center">
@@ -835,35 +667,37 @@ const HomeNewestRecipes = React.memo(({
         <Grid size={6} key={"recipeGrid_" + recipe.uid}>
           <Card
             sx={classes.card}
-            onMouseOver={() => handleHover(recipe.uid)}
-            onMouseOut={handleMouseOut}
             key={"recipeCard_" + recipe.uid}
           >
             <CardActionArea
               data-recipe-uid={recipe.sourceObject.uid}
               onClick={onCardClick}
-              style={{height: "100%"}}
+              sx={{
+                height: "100%",
+                "&:hover .MuiCardMedia-root": {
+                  transform: "scale(1.05)",
+                },
+              }}
             >
               <Box component={"div"} sx={classes.card}>
-                <div style={{overflow: "hidden"}}>
-                  <CardMedia
-                    sx={classes.cardMedia}
-                    image={
-                      recipe.sourceObject.pictureSrc
-                        ? recipe.sourceObject.pictureSrc
-                        : ImageRepository.getEnvironmentRelatedPicture()
-                            .CARD_PLACEHOLDER_MEDIA
-                    }
-                    title={recipe.sourceObject.name}
-                    style={{
-                      transform:
-                        hoveredRecipeUid === recipe.uid
-                          ? "scale(1.05)"
-                          : "scale(1)",
-                      transition: "0.5s ease",
+                <Box sx={{overflow: "hidden"}}>
+                  <Box
+                    className="MuiCardMedia-root"
+                    sx={{
+                      ...classes.cardMedia,
+                      backgroundImage: `url(${
+                        recipe.sourceObject.pictureSrc
+                          ? recipe.sourceObject.pictureSrc
+                          : ImageRepository.getEnvironmentRelatedPicture()
+                              .CARD_PLACEHOLDER_MEDIA
+                      })`,
+                      backgroundSize: "cover",
+                      backgroundPosition: "center",
+                      transition: "transform 0.5s ease",
                     }}
+                    title={recipe.sourceObject.name}
                   />
-                </div>
+                </Box>
                 <CardHeader title={recipe.sourceObject.name} />
               </Box>
             </CardActionArea>
@@ -987,6 +821,7 @@ const STATS_SKELETON_COUNT = 18;
 
 /**
  * Statistik-Sidebar — zeigt die Plattform-KPIs gruppiert an.
+ * Auf mobilen Geräten wird der Inhalt als klappbares Accordion angezeigt.
  *
  * @param stats - Flaches KPI-Array
  * @param isLoadingStats - Ladeindikator
@@ -997,70 +832,88 @@ interface HomeStatsProps {
 }
 const HomeStats = React.memo(({stats, isLoadingStats}: HomeStatsProps) => {
   const classes = useCustomStyles();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+
   const kpiGroups: KpiGroup[] = React.useMemo(
     () => StatsRepository.groupKpis(stats),
     [stats],
   );
 
+  const statsContent = (
+    <List>
+      {isLoadingStats &&
+        [...Array(STATS_SKELETON_COUNT).keys()].map((index) => (
+          <ListItem key={"statsListItem_skeleton_" + index}>
+            <ListItemText primary={<Skeleton />} />
+          </ListItem>
+        ))}
+      {!isLoadingStats &&
+        kpiGroups.map((group, groupIndex) => (
+          <React.Fragment key={"statsGroup_" + group.title}>
+            {groupIndex > 0 && (
+              <Divider
+                sx={{mx: "1rem"}}
+                component="li"
+              />
+            )}
+            <ListItem>
+              <ListItemText
+                primary={
+                  <Typography variant="subtitle2" color="textSecondary">
+                    {group.title}
+                  </Typography>
+                }
+              />
+            </ListItem>
+            {group.kpis.map((stat) => (
+              <ListItem
+                key={"statListItem_" + stat.id}
+                sx={{paddingTop: 0, paddingBottom: 0}}
+              >
+                <ListItemText primary={stat.caption} />
+                <ListItemText
+                  primary={stat.value.toLocaleString("de-CH")}
+                  sx={{textAlign: "right"}}
+                />
+              </ListItem>
+            ))}
+          </React.Fragment>
+        ))}
+    </List>
+  );
+
   return (
     <Grid container spacing={2} justifyContent="center">
+      {!isMobile && (
+        <Grid size={12}>
+          <Typography
+            align="center"
+            gutterBottom={true}
+            variant="h5"
+            component="h2"
+          >
+            {TEXT_STATS}
+          </Typography>
+        </Grid>
+      )}
       <Grid size={12}>
-        <Typography
-          align="center"
-          gutterBottom={true}
-          variant="h5"
-          component="h2"
-        >
-          {TEXT_STATS}
-        </Typography>
-      </Grid>
-      <Grid size={12}>
-        <Card sx={classes.card}>
-          <List>
-            {isLoadingStats &&
-              [...Array(STATS_SKELETON_COUNT).keys()].map((index) => (
-                <ListItem key={"statsListItem_skeleton_" + index}>
-                  <ListItemText primary={<Skeleton />} />
-                </ListItem>
-              ))}
-            {!isLoadingStats &&
-              kpiGroups.map((group, groupIndex) => (
-                <React.Fragment key={"statsGroup_" + group.title}>
-                  {groupIndex > 0 && (
-                    <Divider
-                      style={{marginLeft: "1rem", marginRight: "1rem"}}
-                      component="li"
-                    />
-                  )}
-                  <ListItem>
-                    <ListItemText
-                      primary={
-                        <Typography variant="subtitle2" color="textSecondary">
-                          {group.title}
-                        </Typography>
-                      }
-                    />
-                  </ListItem>
-                  {group.kpis.map((stat) => (
-                    <ListItem
-                      key={"statListItem_" + stat.id}
-                      sx={{paddingTop: 0, paddingBottom: 0}}
-                    >
-                      <ListItemText primary={stat.caption} />
-                      <ListItemText
-                        primary={stat.value.toLocaleString("de-CH")}
-                        style={{textAlign: "right"}}
-                      />
-                    </ListItem>
-                  ))}
-                </React.Fragment>
-              ))}
-          </List>
-        </Card>
+        {isMobile ? (
+          <Accordion defaultExpanded={false} sx={classes.card}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography>{TEXT_STATS}</Typography>
+            </AccordionSummary>
+            <AccordionDetails sx={{p: 0}}>
+              {statsContent}
+            </AccordionDetails>
+          </Accordion>
+        ) : (
+          <Card sx={classes.card}>
+            {statsContent}
+          </Card>
+        )}
       </Grid>
     </Grid>
   );
 });
 HomeStats.displayName = "HomeStats";
-
-export default HomePage;

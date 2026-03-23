@@ -14,6 +14,7 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {Material, MaterialType} from "../../Material/material.types";
 
 /* =====================================================================
 // Enum-Mapping: DB-String ↔ numerischer MaterialType
@@ -71,19 +72,11 @@ export interface MaterialRow {
 // Domain-Modell (camelCase, wird in der App verwendet)
 // ===================================================================== */
 /**
- * Domain-Modell für Materialien.
- *
- * @param uid - Eindeutige ID des Materials (entspricht DB-Spalte id)
- * @param name - Name des Materials
- * @param type - Materialtyp (0=none, 1=consumable, 2=usage)
- * @param usable - Ob das Material aktiv ist
+ * Alias für das Material-Domain-Modell aus material.types.ts.
+ * Wird für Abwärtskompatibilität beibehalten — neue Imports
+ * sollten direkt `Material` aus material.types.ts verwenden.
  */
-export interface MaterialDomain {
-  uid: string;
-  name: string;
-  type: number;
-  usable: boolean;
-}
+export type MaterialDomain = Material;
 
 /* =====================================================================
 // MaterialRepository
@@ -130,7 +123,7 @@ export class MaterialRepository extends BaseRepository<
       uid: row.id,
       name: row.name,
       // DB-ENUM-String in numerischen Typ übersetzen (z.B. 'consumable' → 1)
-      type: MATERIAL_TYPE_FROM_DB[row.type] ?? 0,
+      type: (MATERIAL_TYPE_FROM_DB[row.type] ?? 0) as MaterialType,
       usable: row.usable,
     };
   }

@@ -17,12 +17,12 @@ import {
   PLEASE_DONATE as TEXT_PLEASE_DONATE,
 } from "../../constants/text";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import TwintButton from "../Shared/TwintButton";
+import {TwintButton} from "../Shared/TwintButton";
 import {ImageRepository} from "../../constants/imageRepository";
 
 /* ===================================================================

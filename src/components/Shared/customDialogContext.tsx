@@ -5,12 +5,15 @@ import {ButtonOwnProps} from "@mui/material";
 
 // Danke an https://devrecipes.net/custom-confirm-dialog-with-react-hooks-and-the-context-api/
 
+/**
+ * Typ des angezeigten Dialogs.
+ */
 export enum DialogType {
   None,
   Confirm,
   SingleTextInput,
   ConfirmSecure,
-  selectOptions,
+  SelectOptions,
 }
 
 const CUSTOM_DIALOG_INITIAL_STATE: State = {
@@ -26,11 +29,17 @@ const CUSTOM_DIALOG_INITIAL_STATE: State = {
 
 const CustomDialogContext = React.createContext({
   dialogState: CUSTOM_DIALOG_INITIAL_STATE,
-  dispatch: (value: any) => {
-    return value;
+  dispatch: (_value: DispatchAction) => {
+    // Platzhalter — wird vom Provider überschrieben
   },
 });
 
+/**
+ * Ergebnis eines SingleTextInput-Dialogs.
+ *
+ * @param valid `true` wenn der Benutzer bestätigt hat, `false` bei Abbruch.
+ * @param input Der eingegebene Text.
+ */
 export interface SingleTextInputResult {
   valid: boolean;
   input: string;
@@ -45,7 +54,7 @@ enum ReducerActions {
 
 type DispatchAction = {
   type: ReducerActions;
-  payload: State;
+  payload?: State;
 };
 
 type Option = {
@@ -93,7 +102,7 @@ const reducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.SHOW_DIALOG:
       return {
-        ...action.payload,
+        ...action.payload!,
         visible: true,
       };
     case ReducerActions.HIDE_DIALOG:
@@ -107,6 +116,12 @@ interface CustomDialogContextProviderProps {
   children: JSX.Element;
 }
 
+/**
+ * Provider für den globalen Dialog-Kontext.
+ * Stellt `dialogState` und `dispatch` für alle Kinder bereit.
+ *
+ * @param children Kinder-Elemente, die Zugriff auf den Dialog-Kontext erhalten.
+ */
 export const CustomDialogContextProvider = ({
   children,
 }: CustomDialogContextProviderProps) => {
@@ -127,25 +142,33 @@ export const CustomDialogContextProvider = ({
 /* ===================================================================
 // ========================== Confirm Promise ========================
 // =================================================================== */
-let resolveCallback;
+let resolveCallback:
+  | ((value: boolean | SingleTextInputResult | string | number) => void)
+  | undefined;
 
+/**
+ * Hook für den Custom-Dialog. Stellt `customDialog`, `onConfirm`,
+ * `onCancel` und den aktuellen `dialogState` bereit.
+ *
+ * @returns Objekt mit Dialog-Funktionen und -Zustand.
+ */
 export const useCustomDialog = () => {
   const {dialogState, dispatch} = useContext(CustomDialogContext);
-  const onConfirm = (input?) => {
+  const onConfirm = (input?: string | number) => {
     closeDialog();
-    if (typeof input == "string" || typeof input == "number") {
-      resolveCallback({valid: true, input: input});
+    if (typeof input === "string" || typeof input === "number") {
+      resolveCallback?.({valid: true, input: String(input)});
     } else {
-      resolveCallback(true);
+      resolveCallback?.(true);
     }
   };
 
-  const onCancel = (input?) => {
+  const onCancel = (input?: string | number) => {
     closeDialog();
-    if (typeof input == "string" || typeof input == "number") {
-      resolveCallback({valid: false, input: ""});
+    if (typeof input === "string" || typeof input === "number") {
+      resolveCallback?.({valid: false, input: ""});
     } else {
-      resolveCallback(false);
+      resolveCallback?.(false);
     }
   };
   const customDialog = ({
@@ -171,7 +194,7 @@ export const useCustomDialog = () => {
         deletionDialogProperties: deletionDialogProperties,
         singleTextInputProperties: singleTextInputProperties,
         options: options,
-      },
+      } as State,
     });
     return new Promise((res) => {
       resolveCallback = res;
@@ -187,4 +210,4 @@ export const useCustomDialog = () => {
   return {customDialog, onConfirm, onCancel, dialogState};
 };
 
-export default CustomDialogContext;
+export {CustomDialogContext};

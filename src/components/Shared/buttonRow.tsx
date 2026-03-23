@@ -20,15 +20,28 @@ import ArrowDropDownIcon from "@mui/icons-material/ArrowDropDown";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 
 import {useTheme} from "@mui/material";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
+/**
+ * Konfiguration für einen einzelnen Button in der ButtonRow.
+ *
+ * @param id Eindeutige ID des Buttons.
+ * @param label Beschriftung des Buttons.
+ * @param hero Ob der Button als Hero-Button (grösser) dargestellt wird.
+ * @param variant MUI-Variante (contained, outlined, text).
+ * @param color MUI-Farbe.
+ * @param onClick Klick-Handler.
+ * @param disabled Ob der Button deaktiviert ist.
+ * @param visible Ob der Button sichtbar ist.
+ * @param startIcon Optionales Icon links vom Label.
+ */
 export interface CustomButton {
   id: string;
   label: string;
   hero: boolean;
   variant: ButtonTypeMap["props"]["variant"];
   color: ButtonTypeMap["props"]["color"];
-  onClick: (event?: React.MouseEvent<HTMLButtonElement>) => any;
+  onClick: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   visible: boolean;
   startIcon?: JSX.Element;
@@ -43,11 +56,18 @@ interface ButtonRowProps {
 /* ===================================================================
 // ============================= Button Row ==========================
 // =================================================================== */
+/**
+ * Responsive Button-Zeile mit optionalem Overflow-Menü, Button-Gruppen
+ * und Split-Buttons. Buttons werden je nach Bildschirmbreite in ein
+ * Overflow-Menü verschoben.
+ *
+ * @param buttons Hauptbuttons.
+ * @param buttonGroup Optionale zusammengehörende Buttons.
+ * @param splitButtons Optionale Split-Buttons (Haupt-Aktion + Dropdown).
+ */
 const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
-  let menuItems: Array<CustomButton> = [];
-  let noOfVisibleButtons = 0;
 
   /* ------------------------------------------
   // Split-Button
@@ -63,7 +83,7 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
     }
   };
   const handleSplitButtonMenuItemClick = (
-    event: React.MouseEvent<HTMLLIElement, MouseEvent>,
+    _event: React.MouseEvent<HTMLLIElement, MouseEvent>,
     index: number
   ) => {
     if (splitButtons) {
@@ -102,11 +122,12 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
     setVertMoreAnchor(null);
   };
 
-  // hat das Array Buttons mehr Buttons als die Screen-Breite zulässt
-  // werden diese in einem Menü zusammengefasst.
+  // Bestimme, wie viele Buttons sichtbar bleiben und welche ins Overflow wandern
   const isXSBreakPoint = useMediaQuery(theme.breakpoints.down("sm"));
   const isSMBreakPoint = useMediaQuery(theme.breakpoints.down("md"));
   const isMdBreakPoint = useMediaQuery(theme.breakpoints.down("lg"));
+
+  let noOfVisibleButtons: number;
   if (isXSBreakPoint && buttons.length > 1) {
     noOfVisibleButtons = 2;
   } else if (isSMBreakPoint && buttons.length > 3) {
@@ -116,14 +137,15 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
   } else {
     noOfVisibleButtons = buttons.length;
   }
-  menuItems = buttons.slice(noOfVisibleButtons);
-  buttons = buttons.slice(0, noOfVisibleButtons);
+
+  // Keine Mutation des Parameters — eigene Arrays für sichtbare und Overflow-Buttons
+  const visibleButtons = buttons.slice(0, noOfVisibleButtons);
+  const overflowItems = buttons.slice(noOfVisibleButtons);
 
   return (
     <React.Fragment>
-      {/* <div className={classes.heroButtons}> */}
       <Grid container justifyContent="center">
-        {buttons.map((button) => (
+        {visibleButtons.map((button) => (
           <Grid key={"grid_" + button.id}>
             {button.visible && (
               <Button
@@ -134,8 +156,6 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
                 variant={button.variant}
                 color={button.color}
                 onClick={button.onClick}
-                // type={button.type}
-                // form={button.form}
                 disabled={button.disabled}
                 startIcon={button.startIcon}
               >
@@ -145,7 +165,7 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
           </Grid>
         ))}
         {/* Nur sichtbare zählen */}
-        {menuItems.reduce(
+        {overflowItems.reduce(
           (counter, button) => (button.visible ? counter + 1 : counter),
           0
         ) > 0 && (
@@ -167,7 +187,7 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
               open={Boolean(vertMoreAnchor)}
               onClose={handleVertMoreMenuClose}
             >
-              {menuItems.map(
+              {overflowItems.map(
                 (menuItem) =>
                   menuItem.visible && (
                     <MenuItem
@@ -231,7 +251,6 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
               anchorEl={splitButtonAnchor.current}
               role={undefined}
               transition
-              // disablePortal
             >
               {({TransitionProps, placement}) => (
                 <Grow
@@ -272,4 +291,4 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
   );
 };
 
-export default ButtonRow;
+export {ButtonRow};

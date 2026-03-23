@@ -49,14 +49,14 @@ import {DataGrid, GridColDef, GridToolbar} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import * as Sentry from "@sentry/browser";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
-import AlertMessage from "../../Shared/AlertMessage";
-import SearchPanel from "../../Shared/searchPanel";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {SearchPanel} from "../../Shared/searchPanel";
 import {FormListItem} from "../../Shared/formListItem";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
@@ -66,8 +66,8 @@ import type {EventDomain} from "../../Database/Repository/EventRepository";
 import {getMaxDate} from "../../Database/Repository/EventRepository";
 import {EventReceiptPdf} from "../../Event/Event/eventRecipePdf";
 import {Receipt} from "../../Event/Event/receipt.class";
-import User from "../../User/user.class";
-import Action from "../../../constants/actions";
+import {User} from "../../User/user.class";
+import {Action} from "../../../constants/actions";
 import {EVENT as ROUTE_EVENT} from "../../../constants/routes";
 
 import DialogCreateReceipt, {

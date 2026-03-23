@@ -57,12 +57,12 @@ import {
 
 import {MenuplanPdf} from "./menuplanPdf";
 import type {MenuplanPdfOptions} from "./dialogMenuplanPdfOptions";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeShort, createShortRecipeFromRecipe} from "../../Recipe/recipe.types";
 import Recipe, {RecipeType, Recipes} from "../../Recipe/recipe.class";
-import Product from "../../Product/product.class";
-import Material from "../../Material/material.class";
+import {Product} from "../../Product/product.types";
+import {Material} from "../../Material/material.types";
 import {DialogType} from "../../Shared/customDialogContext";
 import {DialogSelectMenuesForRecipeDialogValues} from "./dialogSelectMenues";
 import {RECIPE_DRAWER_DATA_INITIAL_VALUES} from "../../Recipe/RecipeDrawer";
@@ -84,8 +84,8 @@ import type {
 } from "./menuplan.page.types";
 import type {UseMenuplanDialogsReturn} from "./useMenuplanDialogs";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
-import EventClass from "../Event/event.class";
-import Unit from "../../Unit/unit.class";
+import {Event as EventClass} from "../Event/event.class";
+import {Unit} from "../../Unit/unit.class";
 import Department from "../../Department/department.class";
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
@@ -596,7 +596,7 @@ export function useMenuplanHandlers({
         }
         setDialogSelectMenueData({
           ...dialogSelectMenueData,
-          selectedRecipe: RecipeShort.createShortRecipeFromRecipe(recipe),
+          selectedRecipe: createShortRecipeFromRecipe(recipe),
           singleSelection: false,
           caller: "onRecipeUpdate",
         });

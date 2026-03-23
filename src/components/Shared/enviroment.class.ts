@@ -11,7 +11,7 @@ interface GetActualVersion {
  * seinen Browser aktualisieren
  * @param object Objekt mit Firebase Referenz
  * @returns aktuelle Version
- */ export default class Environment {
+ */ export class Environment {
   static getActualVersion = async ({firebase}: GetActualVersion) => {
     let actualVersion = "";
     await firebase.configuration.version

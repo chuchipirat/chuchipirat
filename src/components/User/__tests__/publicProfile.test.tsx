@@ -15,7 +15,7 @@ import {MemoryRouter, Routes, Route} from "react-router";
 /** Mock: User-Klasse (statische Methoden) */
 jest.mock("../user.class", () => ({
   __esModule: true,
-  default: {
+  User: {
     getPublicProfile: jest.fn(),
   },
 }));
@@ -61,15 +61,16 @@ jest.mock("react-router", () => ({
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
-import PublicProfilePage, {
+import {
+  PublicProfilePage,
   PublicProfileList,
   AchievedRewardsList,
 } from "../publicProfile";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
-import User from "../user.class";
-import UserPublicProfile from "../user.public.profile.class";
+import {User} from "../user.class";
+import {UserPublicProfile} from "../user.public.profile.class";
 import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
 
 // Typisierte Referenz auf die Mock-Funktion

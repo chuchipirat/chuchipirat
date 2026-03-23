@@ -1,5 +1,5 @@
 import {MenueCoordinates} from "../Menuplan/menuplan.types";
-import {Snackbar} from "../../Shared/customSnackbar";
+import {SnackbarState} from "../../Shared/customSnackbar";
 import Recipe from "../../Recipe/recipe.class";
 import {DialogSelectMenuesForRecipeDialogValues} from "../Menuplan/dialogSelectMenues";
 import {OperationType} from "../Event/eventSharedComponents";
@@ -21,7 +21,7 @@ export type State = {
   loadedRecipes: Record<string, Recipe>;
   isLoading: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 export type DispatchAction =
@@ -37,7 +37,7 @@ export type DispatchAction =
   | {type: ReducerActions.GENERIC_ERROR; payload: Error}
   | {
       type: ReducerActions.SNACKBAR_SHOW;
-      payload: {severity: Snackbar["severity"]; message: string};
+      payload: {severity: SnackbarState["severity"]; message: string};
     }
   | {type: ReducerActions.SNACKBAR_CLOSE};
 

@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/react";
-import Material, {MaterialType} from "../../Material/material.class";
+import {Material, MaterialType} from "../../Material/material.types";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {
   Meal,
   Menue,

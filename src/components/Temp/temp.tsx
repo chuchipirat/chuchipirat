@@ -42,7 +42,7 @@ import {useFirebase} from "../Firebase/firebaseContext";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import useCustomStyles from "../../constants/styles";
 import Grid from "@mui/material/Grid";
 
@@ -70,7 +70,7 @@ import {reorder} from "@atlaskit/pragmatic-drag-and-drop/reorder";
 import {createPortal} from "react-dom";
 
 import invariant from "tiny-invariant";
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 
 // type Item = {
 //   label: string;

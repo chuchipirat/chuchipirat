@@ -1,17 +1,18 @@
-import Utils from "../Shared/utils.class";
-import RecipeShort from "./recipeShort.class";
-import {Rating} from "./recipe.rating.class";
+import {Utils} from "../Shared/utils.class";
+import {RecipeShort} from "./recipe.types";
+import {Rating} from "./recipe.types";
 import {ChangeRecord} from "../Shared/global.interface";
 import * as TEXT from "../../constants/text";
-import Unit, {UnitDimension} from "../Unit/unit.class";
-import Product, {Diet, DietProperties} from "../Product/product.class";
+import {Unit, UnitDimension} from "../Unit/unit.class";
+import {Product, Diet, DietProperties, createEmptyDietProperty} from "../Product/product.types";
 import {Event} from "../Event/Event/event.class";
 import _ from "lodash";
-import UnitConversion, {
+import {
+  UnitConversion,
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../Unit/unitConversion.class";
-import Material from "../Material/material.class";
+import {Material} from "../Material/material.types";
 import type {RecipeDomain} from "../Database/Repository/RecipeRepository";
 import type {RecipeIngredientDomain} from "../Database/Repository/RecipeIngredientRepository";
 import type {RecipePreparationStepDomain} from "../Database/Repository/RecipePreparationStepRepository";
@@ -145,7 +146,7 @@ export interface RecipeVariantProperties {
 /**
  * Eindeutige Identifikation eines Rezepts über alle Typen hinweg.
  */
-export interface RecipeIndetifier {
+export interface RecipeIdentifier {
   uid: Recipe["uid"];
   recipeType: RecipeType;
   createdFromUid: ChangeRecord["fromUid"];
@@ -266,7 +267,7 @@ export default class Recipe {
     this.ingredients = {entries: {}, order: []};
     this.preparationSteps = {entries: {}, order: []};
     this.materials = {entries: {}, order: []};
-    this.dietProperties = Product.createEmptyDietProperty();
+    this.dietProperties = createEmptyDietProperty();
     this.menuTypes = [];
     this.outdoorKitchenSuitable = false;
     this.usable = true;

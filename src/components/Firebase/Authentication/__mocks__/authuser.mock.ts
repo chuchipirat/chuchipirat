@@ -1,4 +1,4 @@
-import Role from "../../../../constants/roles";
+import {Role} from "../../../../constants/roles";
 import {AuthUser} from "../authUser.class";
 
 export const authUser: AuthUser = {

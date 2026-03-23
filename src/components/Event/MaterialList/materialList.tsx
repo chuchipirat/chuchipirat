@@ -43,13 +43,13 @@ import {
 
 import {MoreVert as MoreVertIcon} from "@mui/icons-material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {Event,Cook} from "../Event/event.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
-import {Snackbar} from "../../Shared/customSnackbar";
-import AlertMessage from "../../Shared/AlertMessage";
+import {SnackbarState} from "../../Shared/customSnackbar";
+import {AlertMessage} from "../../Shared/AlertMessage";
 import {
   DialogSelectMenues,
   decodeSelectedMeals,
@@ -60,12 +60,12 @@ import {
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
 import {
   FetchMissingDataProps,
   FetchMissingDataType,
@@ -76,24 +76,24 @@ import {MaterialList,
   MaterialListEntry,
   MaterialListMaterial,
 } from "./materialList.class";
-import Material, {MaterialType} from "../../Material/material.class";
+import {Material, MaterialType} from "../../Material/material.types";
 import {
   DialogTraceItem,
   EventListCard,
   PositionContextMenu,
 } from "../Event/eventSharedComponents";
-import DialogMaterial, {
+import {DialogMaterial,
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
-import MaterialAutocomplete from "../../Material/materialAutocomplete";
+import {MaterialAutocomplete} from "../../Material/materialAutocomplete";
 import {
   RECIPE_DRAWER_DATA_INITIAL_VALUES,
   RecipeDrawer,
   RecipeDrawerData,
 } from "../../Recipe/RecipeDrawer";
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeShort} from "../../Recipe/recipe.types";
 import {TextFieldSize} from "../../../constants/defaultValues";
 
 import {useEventMasterData} from "../Event/eventMasterDataContext";
@@ -113,7 +113,7 @@ type State = {
   isError: boolean;
   isLoading: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 type DispatchAction =
   | {type: ReducerActions.SHOW_LOADING; payload: {isLoading: boolean}}
@@ -897,11 +897,12 @@ const DialogHandleMaterial = ({
     if (!newValue) return;
 
     if (typeof newValue === "string") {
-      const freetextMaterial = new Material();
-      freetextMaterial.uid = Utils.generateUid(10);
-      freetextMaterial.name = newValue.trim();
-      freetextMaterial.type = MaterialType.usage;
-      freetextMaterial.usable = true;
+      const freetextMaterial: Material = {
+        uid: Utils.generateUid(10),
+        name: newValue.trim(),
+        type: MaterialType.usage,
+        usable: true,
+      };
       setDialogValues({...dialogValues, material: freetextMaterial});
       return;
     }

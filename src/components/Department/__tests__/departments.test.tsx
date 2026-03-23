@@ -15,12 +15,8 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
 
-import DepartmentsPage from "../departments";
+import {DepartmentsPage} from "../departments";
 import {DatabaseContext} from "../../Database/DatabaseContext";
-
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
 
 /** Mock: useAuthUser — gibt einen CommunityLeader-Benutzer zurueck */
 const mockAuthUser = {
@@ -46,6 +42,11 @@ jest.mock("../../../constants/imageRepository", () => ({
   },
 }));
 
+/** Mock: Sentry */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
 /** Mock-Abteilungen mit nicht-zusammenhaengenden Positionen */
 const mockDepartments = [
   {uid: "dept-1", name: "Gemuese", pos: 5, usable: true},
@@ -55,18 +56,16 @@ const mockDepartments = [
 /** Mock: DepartmentRepository-Methoden */
 const mockGetAllDepartments = jest.fn();
 const mockSaveAllDepartments = jest.fn();
+const mockCreateDepartment = jest.fn();
 
 /** Mock-DatabaseService (nur departments wird benoetigt) */
 const mockDatabase = {
   departments: {
     getAllDepartments: mockGetAllDepartments,
     saveAllDepartments: mockSaveAllDepartments,
+    createDepartment: mockCreateDepartment,
   },
 } as any;
-
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
 
 /**
  * Rendert die DepartmentsPage mit allen noetigen Providern.
@@ -80,10 +79,6 @@ const renderDepartmentsPage = () => {
     </MemoryRouter>
   );
 };
-
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -154,6 +149,11 @@ describe("DepartmentsPage", () => {
         screen.getByRole("button", {name: /anpassen/i})
       );
 
+      // Aenderung vornehmen, damit changedKeys nicht leer ist
+      const nameField = screen.getByDisplayValue("Gemuese");
+      await userEvent.clear(nameField);
+      await userEvent.type(nameField, "Gemuese");
+
       // Speichern klicken — gespeicherte Daten müssen normalisierte Positionen haben
       await userEvent.click(
         screen.getByRole("button", {name: /Speichern/i})
@@ -163,7 +163,6 @@ describe("DepartmentsPage", () => {
         expect(mockSaveAllDepartments).toHaveBeenCalledWith(
           expect.arrayContaining([
             expect.objectContaining({uid: "dept-1", pos: 1}),
-            expect.objectContaining({uid: "dept-2", pos: 2}),
           ]),
           mockAuthUser
         );
@@ -182,7 +181,7 @@ describe("DepartmentsPage", () => {
       });
     });
 
-    test("Speichern ruft saveAllDepartments auf", async () => {
+    test("Speichern ruft saveAllDepartments nur fuer geaenderte Eintraege auf", async () => {
       renderDepartmentsPage();
 
       // Warten bis Daten geladen sind
@@ -195,6 +194,11 @@ describe("DepartmentsPage", () => {
         screen.getByRole("button", {name: /anpassen/i})
       );
 
+      // Aenderung an einer Abteilung vornehmen
+      const nameField = screen.getByDisplayValue("Gemuese");
+      await userEvent.clear(nameField);
+      await userEvent.type(nameField, "Gemueserenamed");
+
       // Speichern klicken
       await userEvent.click(
         screen.getByRole("button", {name: /Speichern/i})
@@ -203,12 +207,100 @@ describe("DepartmentsPage", () => {
       await waitFor(() => {
         expect(mockSaveAllDepartments).toHaveBeenCalledWith(
           expect.arrayContaining([
-            expect.objectContaining({uid: "dept-1", name: "Gemuese"}),
-            expect.objectContaining({uid: "dept-2", name: "Fruechte"}),
+            expect.objectContaining({uid: "dept-1", name: "Gemueserenamed"}),
+          ]),
+          mockAuthUser
+        );
+        // Nur die geaenderte Abteilung wird gespeichert
+        expect(mockSaveAllDepartments.mock.calls[0][0]).toHaveLength(1);
+      });
+    });
+
+    test("Abbrechen stellt den urspruenglichen Zustand wieder her", async () => {
+      renderDepartmentsPage();
+
+      await waitFor(() => {
+        expect(mockGetAllDepartments).toHaveBeenCalled();
+      });
+
+      // Bearbeitungsmodus aktivieren
+      await userEvent.click(
+        screen.getByRole("button", {name: /anpassen/i})
+      );
+
+      // Name aendern
+      const nameField = screen.getByDisplayValue("Gemuese");
+      await userEvent.clear(nameField);
+      await userEvent.type(nameField, "Obst");
+
+      // Abbrechen klicken
+      await userEvent.click(
+        screen.getByRole("button", {name: /Abbrechen/i})
+      );
+
+      // Bearbeitungsmodus erneut aktivieren, um die Werte zu prüfen
+      await userEvent.click(
+        screen.getByRole("button", {name: /anpassen/i})
+      );
+
+      // Urspruenglicher Name muss wiederhergestellt sein
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("Gemuese")).toBeInTheDocument();
+      });
+    });
+
+    test("Usable-Toggle aendert den Aktiv-Status einer Abteilung", async () => {
+      renderDepartmentsPage();
+
+      await waitFor(() => {
+        expect(mockGetAllDepartments).toHaveBeenCalled();
+      });
+
+      // Bearbeitungsmodus aktivieren
+      await userEvent.click(
+        screen.getByRole("button", {name: /anpassen/i})
+      );
+
+      // Alle Switches finden (beide Abteilungen haben usable: true)
+      const switches = screen.getAllByRole("switch");
+      expect(switches).toHaveLength(2);
+
+      // Ersten Switch deaktivieren
+      await userEvent.click(switches[0]);
+
+      // Speichern klicken
+      await userEvent.click(
+        screen.getByRole("button", {name: /Speichern/i})
+      );
+
+      await waitFor(() => {
+        expect(mockSaveAllDepartments).toHaveBeenCalledWith(
+          expect.arrayContaining([
+            expect.objectContaining({uid: "dept-1", usable: false}),
           ]),
           mockAuthUser
         );
       });
+    });
+
+    test("Speichern ohne Aenderungen ruft saveAllDepartments nicht auf", async () => {
+      renderDepartmentsPage();
+
+      await waitFor(() => {
+        expect(mockGetAllDepartments).toHaveBeenCalled();
+      });
+
+      // Bearbeitungsmodus aktivieren
+      await userEvent.click(
+        screen.getByRole("button", {name: /anpassen/i})
+      );
+
+      // Direkt speichern ohne Aenderungen
+      await userEvent.click(
+        screen.getByRole("button", {name: /Speichern/i})
+      );
+
+      expect(mockSaveAllDepartments).not.toHaveBeenCalled();
     });
 
     test("Fehler beim Speichern zeigt AlertMessage an", async () => {
@@ -223,6 +315,11 @@ describe("DepartmentsPage", () => {
       await userEvent.click(
         screen.getByRole("button", {name: /anpassen/i})
       );
+
+      // Aenderung vornehmen, damit changedKeys nicht leer ist
+      const nameField = screen.getByDisplayValue("Gemuese");
+      await userEvent.clear(nameField);
+      await userEvent.type(nameField, "GemuseNeu");
 
       // Speichern klicken
       await userEvent.click(

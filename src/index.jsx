@@ -11,12 +11,12 @@ import "typeface-roboto";
 import "@fontsource/roboto-mono";
 
 import {CustomDialogContextProvider} from "./components/Shared/customDialogContext";
-import {NavigationContextProvider} from "./components/Navigation/navigationContext";
+import {NavigationContextProvider} from "./components/Navigation/NavigationContext";
 import Firebase from "./components/Firebase/firebase.class";
 import {DatabaseContext} from "./components/Database/DatabaseContext";
 import DatabaseService from "./components/Database/DatabaseService";
 import {ErrorPage} from "./components/500/500";
-import Utils from "./components/Shared/utils.class";
+import {Utils} from "./components/Shared/utils.class";
 import {LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDateFns} from "@mui/x-date-pickers/AdapterDateFns";
 import {de} from "date-fns/locale";

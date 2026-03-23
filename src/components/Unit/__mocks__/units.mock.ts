@@ -1,4 +1,4 @@
-import Unit, {UnitDimension} from "../unit.class";
+import {Unit, UnitDimension} from "../unit.class";
 
 export const units: Unit[] = [
   {key: "Blatt", name: "Blatt", dimension: UnitDimension.dimensionless},

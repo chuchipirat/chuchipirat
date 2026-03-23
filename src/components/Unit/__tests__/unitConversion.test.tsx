@@ -15,7 +15,7 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
 
-import UnitConversionPage from "../unitConversion";
+import {UnitConversionPage} from "../unitConversion";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
 /* ===================================================================
@@ -67,7 +67,7 @@ const mockDatabase = {
   units: {
     getAllUnits: mockGetAllUnits,
   },
-} as any;
+} as unknown as ReturnType<typeof import("../../Database/DatabaseContext").useDatabase>;
 
 /** Mock-Daten: Basis-Umrechnungen */
 const mockBasicConversions = [

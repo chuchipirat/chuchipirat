@@ -20,8 +20,8 @@ import {
 } from "@mui/material";
 
 import {Menue, Meal, MealType, MenuplanData} from "./menuplan.types";
-import Utils from "../../Shared/utils.class";
-import useCustomStyles from "../../../constants/styles";
+import {Utils} from "../../Shared/utils.class";
+import {useCustomStyles} from "../../../constants/styles";
 import {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
 
 import {DoneAll as DoneAllIcon} from "@mui/icons-material";

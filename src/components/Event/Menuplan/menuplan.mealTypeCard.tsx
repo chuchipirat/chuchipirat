@@ -23,7 +23,7 @@ import {
   ArrowUpward as ArrowUpwardIcon,
 } from "@mui/icons-material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {
   MEAL as TEXT_MEAL,
   EDIT as TEXT_EDIT,
@@ -32,7 +32,7 @@ import {
   TOOLTIP_MOVE_UP as TEXT_TOOLTIP_MOVE_UP,
   TOOLTIP_MOVE_DOWN as TEXT_TOOLTIP_MOVE_DOWN,
 } from "../../../constants/text";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import {MealType} from "./menuplan.types";
 import {
   DragAndDropDirections,

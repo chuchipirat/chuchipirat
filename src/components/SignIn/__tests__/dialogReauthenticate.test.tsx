@@ -27,12 +27,12 @@ const mockDatabase = {
     getSession: jest.fn(),
   },
   users: {},
-} as any;
+} as unknown as import("../../Database/DatabaseService").default;
 
 /** Mock: User.registerSignIn (kein Seiteneffekt nötig) */
 jest.mock("../../User/user.class", () => ({
   __esModule: true,
-  default: {
+  User: {
     registerSignIn: jest.fn(),
   },
 }));
@@ -56,8 +56,8 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
-import DialogReauthenticate from "../dialogReauthenticate";
-import User from "../../User/user.class";
+import {DialogReauthenticate} from "../dialogReauthenticate";
+import {User} from "../../User/user.class";
 import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
 
 // Typisierte Referenz auf Mock-Funktion
@@ -86,7 +86,7 @@ const renderDialog = (overrides: Partial<typeof defaultProps> = {}) => {
 
 /** Hilfsfunktion: Passwort-Feld via ID holen */
 const getPasswordField = () => {
-  const el = document.getElementById("password");
+  const el = document.getElementById("reauth-password");
   if (!el) throw new Error("Passwort-Feld nicht gefunden");
   return el as HTMLInputElement;
 };

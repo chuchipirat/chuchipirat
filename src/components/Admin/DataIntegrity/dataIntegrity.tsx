@@ -52,10 +52,10 @@ import {
   MEMBER_SINCE as TEXT_MEMBER_SINCE,
 } from "../../../constants/text";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {FormListItem} from "../../Shared/formListItem";
 import {SYSTEM_BREADCRUMB} from "../system";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {supabase} from "../../Database/supabaseClient";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useFirebase} from "../../Firebase/firebaseContext";

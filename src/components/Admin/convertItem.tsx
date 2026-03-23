@@ -8,25 +8,25 @@
 import React from "react";
 import * as Sentry from "@sentry/browser";
 
-import Product, {
+import {
+  Product,
   Allergen,
   Diet,
   DietProperties,
-} from "../Product/product.class";
-import {MaterialType} from "../Material/material.class";
-import Material from "../Material/material.class";
+} from "../Product/product.types";
+import {Material, MaterialType} from "../Material/material.types";
 import Department from "../Department/department.class";
-import Unit, {UnitDimension} from "../Unit/unit.class";
+import {Unit, UnitDimension} from "../Unit/unit.class";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "./system";
-import AlertMessage from "../Shared/AlertMessage";
-import ProductAutocomplete from "../Product/productAutocomplete";
-import MaterialAutocomplete from "../Material/materialAutocomplete";
-import DepartmentAutocomplete from "../Department/departmentAutocomplete";
-import UnitAutocomplete from "../Unit/unitAutocomplete";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {ProductAutocomplete} from "../Product/productAutocomplete";
+import {MaterialAutocomplete} from "../Material/materialAutocomplete";
+import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";
+import {UnitAutocomplete} from "../Unit/unitAutocomplete";
 import {MaterialDetailList, ProductDetailList} from "./mergeItems";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 import {useDatabase} from "../Database/DatabaseContext";
 
 import {
@@ -338,19 +338,20 @@ const ConvertItemPage = () => {
         // Domain-Objekte auf die Klassenstruktur mappen, da Autocomplete
         // Product-Instanzen erwartet
         const products = result.map((productDomain) => {
-          const product = new Product();
-          product.uid = productDomain.uid;
-          product.name = productDomain.name;
-          product.department = {
-            uid: productDomain.department.uid,
-            name: productDomain.department.name,
+          const product: Product = {
+            uid: productDomain.uid,
+            name: productDomain.name,
+            department: {
+              uid: productDomain.department.uid,
+              name: productDomain.department.name,
+            },
+            shoppingUnit: productDomain.shoppingUnit,
+            dietProperties: {
+              allergens: productDomain.dietProperties.allergens,
+              diet: productDomain.dietProperties.diet,
+            },
+            usable: productDomain.usable,
           };
-          product.shoppingUnit = productDomain.shoppingUnit;
-          product.dietProperties = {
-            allergens: productDomain.dietProperties.allergens,
-            diet: productDomain.dietProperties.diet,
-          };
-          product.usable = productDomain.usable;
           return product;
         });
         dispatch({
@@ -380,15 +381,7 @@ const ConvertItemPage = () => {
               database.units.getAllUnits(),
             ]);
 
-          // Domain-Objekte auf die Klassenstruktur mappen
-          const materials = materialDomains.map((materialDomain) => {
-            const material = new Material();
-            material.uid = materialDomain.uid;
-            material.name = materialDomain.name;
-            material.type = materialDomain.type;
-            material.usable = materialDomain.usable;
-            return material;
-          });
+          const materials = materialDomains;
 
           const departments: Department[] = departmentDomains.map(
             (departmentDomain) => ({

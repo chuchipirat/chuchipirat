@@ -15,7 +15,7 @@ import {
   MaterialListItemDomain,
   MaterialListItemInsertRow,
 } from "../../Database/Repository/MaterialListRepository";
-import Material, {MaterialType} from "../../Material/material.class";
+import {Material, MaterialType} from "../../Material/material.types";
 
 
 /**

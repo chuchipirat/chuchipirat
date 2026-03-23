@@ -1,7 +1,7 @@
 import Fab from "@mui/material/Fab";
 
 import {FeedbackIcon} from "../Shared/icons";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 /**
  * Schwebender Feedback-Button — wird von Sentry als Ankerpunkt für

@@ -11,7 +11,7 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "./sessionStorageHandler.class";
-import Unit from "../../Unit/unit.class";
+import {Unit} from "../../Unit/unit.class";
 import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export class FirebaseDbMasterDataUnits extends FirebaseDbSuper {

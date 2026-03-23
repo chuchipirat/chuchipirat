@@ -1,4 +1,4 @@
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
 import {
   ERROR_EVENT_NAME_CANT_BE_EMPTY as TEXT_ERROR_EVENT_NAME_CANT_BE_EMPTY,
@@ -16,7 +16,8 @@ import {
   AuthUserPublicProfile,
 } from "../../Firebase/Authentication/authUser.class";
 import {ChangeRecord} from "../../Shared/global.interface";
-import FieldValidationError, {
+import {
+  FieldValidationError,
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
 import {Menue, MenuplanData} from "../Menuplan/menuplan.types";

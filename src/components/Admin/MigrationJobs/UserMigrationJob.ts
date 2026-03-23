@@ -150,7 +150,9 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
   // Prüfen, ob ein Benutzer bereits in Postgres existiert
   // ===================================================================== */
   /**
-   * Prüft anhand der UID, ob der Benutzer bereits in Postgres existiert.
+   * Prüft anhand der E-Mail, ob der Benutzer bereits in Postgres existiert.
+   * Da die id-Spalte jetzt UUID ist (= auth.users.id), kann nicht mehr
+   * mit der Firebase-UID gesucht werden. Stattdessen wird per E-Mail geprüft.
    *
    * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
@@ -160,10 +162,9 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
     database: DatabaseService,
     record: SourceRecord<FirebaseUserData>
   ): Promise<boolean> {
-    // Admin-Client verwenden (umgeht RLS)
     const users = database.admin?.users ?? database.users;
-    const existing = await users.findById(record.id, true);
-    return existing !== null;
+    const existingId = await users.findByEmail(record.data.email);
+    return existingId !== null;
   }
 
   /* =====================================================================
@@ -173,6 +174,10 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
    * Mappt die zusammengeführten Firebase-Daten auf ein UserDomain-Objekt
    * und schreibt es per Upsert in die Postgres-Tabelle.
    *
+   * Da die id-Spalte jetzt UUID ist (= auth.users.id), wird zunächst
+   * die Supabase-UUID anhand der E-Mail-Adresse ermittelt. Die
+   * ursprüngliche Firebase-UID wird in legacy_firebase_uid gespeichert.
+   *
    * Behandelt Sonderfälle:
    * - pictureSrc als String vs. Picture-Objekt
    * - Firestore Timestamp vs. Date bei lastLogin/memberSince
@@ -180,6 +185,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
    * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
+   * @throws Error falls kein auth.users-Eintrag für die E-Mail existiert
    */
   async migrateRecord(
     database: DatabaseService,
@@ -188,9 +194,20 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
   ): Promise<void> {
     const data = record.data;
 
+    // Supabase-UUID anhand der E-Mail ermitteln
+    const users = database.admin?.users ?? database.users;
+    const supabaseUserId = await users.findByEmail(data.email);
+
+    if (!supabaseUserId) {
+      throw new Error(
+        `Kein auth.users-Eintrag für ${data.email} gefunden. ` +
+        `Der Benutzer muss zuerst in Supabase Auth importiert werden.`
+      );
+    }
+
     const memberSince = this.toDate(data.memberSince);
     const userDomain: UserDomain = {
-      uid: record.id,
+      uid: supabaseUserId,
       email: data.email,
       firstName: data.firstName,
       lastName: data.lastName,
@@ -202,12 +219,11 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
       motto: data.motto ?? "",
       pictureSrc: this.extractPictureSrc(data.pictureSrc),
       createdAt: memberSince,
+      legacyFirebaseUid: record.id,
     };
 
-    // Admin-Client verwenden (umgeht RLS für Migration)
-    const users = database.admin?.users ?? database.users;
     await users.upsert({
-      id: record.id,
+      id: supabaseUserId,
       value: userDomain,
       authUser: authUser,
     });

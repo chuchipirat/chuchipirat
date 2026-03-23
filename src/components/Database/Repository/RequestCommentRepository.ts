@@ -221,7 +221,7 @@ export class RequestCommentRepository extends BaseRepository<
             },
           })
           .catch((err: unknown) =>
-            console.error("notify-request (comment) konnte nicht aufgerufen werden:", err),
+            Sentry.captureException(err),
           );
       }
 

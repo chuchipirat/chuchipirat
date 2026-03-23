@@ -5,7 +5,7 @@ import useMediaQuery from "@mui/material/useMediaQuery";
 
 import {TextField, Autocomplete} from "@mui/material";
 
-import Unit from "./unit.class";
+import {Unit} from "./unit.class";
 
 import {
   FIELD_UNIT,
@@ -29,9 +29,16 @@ interface UnitAutocompleteProps {
 }
 // ===================================================================== */
 /**
- * Autocomplete Feld für Einheit
- * @param param0
- * @returns
+ * Autocomplete-Feld zur Auswahl einer Einheit.
+ *
+ * Zeigt alle verfügbaren Einheiten als Dropdown an. Auf kleinen Bildschirmen
+ * wird eine abgekürzte Bezeichnung als Label verwendet.
+ *
+ * @param componentKey - Optionaler Schlüssel zur Unterscheidung mehrerer Instanzen.
+ * @param unitKey - Schlüssel der aktuell ausgewählten Einheit.
+ * @param units - Liste aller verfügbaren Einheiten.
+ * @param onChange - Callback bei Auswahl einer neuen Einheit.
+ * @param size - Grösse des Textfeldes (Standard: medium).
  */
 const UnitAutocomplete = ({
   componentKey,
@@ -81,4 +88,4 @@ const UnitAutocomplete = ({
     />
   );
 };
-export default UnitAutocomplete;
+export {UnitAutocomplete};

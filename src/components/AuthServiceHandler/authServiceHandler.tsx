@@ -1,21 +1,17 @@
 import React from "react";
-import qs from "qs";
 import {useLocation} from "react-router";
 
 import {Alert, AlertTitle, Container, Typography} from "@mui/material";
 
-import VerifyEmail from "./verifyEmail";
-import ConfirmEmailChange from "./confirmEmailChange";
-import RecoverEmail from "./recoverEmail";
-import ResetPassword from "./resetPassword";
-import PageTitle from "../Shared/pageTitle";
+import {VerifyEmailPage} from "./verifyEmail";
+import {ConfirmEmailChangePage} from "./confirmEmailChange";
+import {RecoverEmailPage} from "./recoverEmail";
+import {ResetPasswordPage} from "./resetPassword";
+import {PageTitle} from "../Shared/pageTitle";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 import * as TEXT from "../../constants/text";
 
-/* ===================================================================
-// ======================== globale Funktionen =======================
-// =================================================================== */
 const AUTH_SERVICE_HANDLER_MODE = {
   VERIFY_EMAIL: "verifyEmail",
   RESET_PASSWORD: "resetPassword",
@@ -102,22 +98,15 @@ function detectMode(search: string, hash: string): DetectedMode {
 
   // 3. Firebase Query-Format prüfen (?mode=...&oobCode=...)
   if (search) {
-    let queryString = search;
-    if (queryString.charAt(0) === "?") {
-      queryString = queryString.slice(1);
-    }
-    const parsed = qs.parse(queryString);
-    const mode = (parsed.mode as string) || "";
-    const oobCode = (parsed.oobCode as string) || "";
+    const searchParams = new URLSearchParams(search);
+    const mode = searchParams.get("mode") || "";
+    const oobCode = searchParams.get("oobCode") || "";
     return {mode, oobCode, errorDescription: ""};
   }
 
   return {mode: "", oobCode: "", errorDescription: ""};
 }
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 /**
  * AuthServiceHandler — Routing für Auth-Aktionen (Passwort-Reset, E-Mail-Verifizierung).
  *
@@ -125,7 +114,7 @@ function detectMode(search: string, hash: string): DetectedMode {
  * Supabase-Style Hash-Fragmente. Bei Supabase wird die Session
  * automatisch vom Client etabliert, sodass kein oobCode benötigt wird.
  */
-const AuthServiceHandlerPage = () => {
+export const AuthServiceHandlerPage = () => {
   const location = useLocation();
   // Modus einmalig beim ersten Render erfassen, bevor Supabase
   // die URL-Parameter entfernt (PKCE code cleanup).
@@ -134,25 +123,21 @@ const AuthServiceHandlerPage = () => {
   ).current;
 
   return (
-    <React.Fragment>
-      {mode === AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL && <VerifyEmail />}
-      {mode === AUTH_SERVICE_HANDLER_MODE.RESET_PASSWORD && <ResetPassword />}
+    <>
+      {mode === AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL && <VerifyEmailPage />}
+      {mode === AUTH_SERVICE_HANDLER_MODE.RESET_PASSWORD && <ResetPasswordPage />}
       {mode === AUTH_SERVICE_HANDLER_MODE.EMAIL_CHANGE && (
-        <ConfirmEmailChange />
+        <ConfirmEmailChangePage />
       )}
       {mode === AUTH_SERVICE_HANDLER_MODE.RECOVER_EMAIL && (
-        <RecoverEmail oobCode={oobCode} />
+        <RecoverEmailPage oobCode={oobCode} />
       )}
       {!mode && (
         <AuthServiceHandlerError errorDescription={errorDescription} />
       )}
-    </React.Fragment>
+    </>
   );
 };
-
-/* ===================================================================
-// ======================== Fehler-Anzeige ============================
-// =================================================================== */
 
 /**
  * Props für die AuthServiceHandlerError-Komponente.
@@ -179,12 +164,12 @@ const AuthServiceHandlerError = ({
   const isExpiredLink = !!errorDescription;
 
   return (
-    <React.Fragment>
+    <>
       <PageTitle
         subTitle={
           isExpiredLink
             ? TEXT.AUTH_SERVICE_HANDLER_EXPIRED_LINK_SUBTITLE
-            : TEXT.AUTH_SERVICE_HANLDER_NO_MODE_SUBTITLE
+            : TEXT.AUTH_SERVICE_HANDLER_NO_MODE_SUBTITLE
         }
       />
       <Container sx={classes.container} component="main" maxWidth="xs">
@@ -192,17 +177,15 @@ const AuthServiceHandlerError = ({
           <AlertTitle>
             {isExpiredLink
               ? TEXT.AUTH_SERVICE_HANDLER_EXPIRED_LINK_TITLE
-              : TEXT.AUTH_SERVICE_HANLDER_NO_MODE_TITLE}
+              : TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE}
           </AlertTitle>
           <Typography>
             {isExpiredLink
               ? TEXT.AUTH_SERVICE_HANDLER_EXPIRED_LINK_TEXT
-              : TEXT.AUTH_SERVICE_HANLDER_NO_MODE}
+              : TEXT.AUTH_SERVICE_HANDLER_NO_MODE}
           </Typography>
         </Alert>
       </Container>
-    </React.Fragment>
+    </>
   );
 };
-
-export default AuthServiceHandlerPage;

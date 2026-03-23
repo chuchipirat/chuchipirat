@@ -22,7 +22,7 @@ import {
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 import {FeedType, getFeedTitle, getFeedText} from "../../Shared/feed.class";
-import Role from "../../../constants/roles";
+import {Role} from "../../../constants/roles";
 
 /* =====================================================================
 // DB-Zeilenstruktur (snake_case, entspricht den Postgres-Spalten der View)

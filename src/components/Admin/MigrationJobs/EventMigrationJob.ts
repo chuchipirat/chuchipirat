@@ -10,7 +10,7 @@
  * - Zeitscheiben in `event_dates`
  *
  * FK-Auflösung:
- * - `cook.uid` (Firebase UID) → `users.id` → `users.auth_uid` (Supabase Auth UUID)
+ * - `cook.uid` (Firebase UID) → `users.legacy_firebase_uid` → `users.id` (Supabase UUID)
  *
  * Voraussetzungen:
  * - Benutzer müssen vor Events migriert sein (FK event_cooks → auth.users)
@@ -290,17 +290,21 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
   private async buildLookupMaps(): Promise<void> {
     const client: SupabaseClient = supabaseAdmin ?? supabase;
 
+    // Benutzer: legacy_firebase_uid → id (UUID, identisch mit auth.users.id)
+    // Nach der id-Vereinheitlichung (Phase 3) ist users.id die Supabase-UUID,
+    // die alten Firebase-UIDs stehen in legacy_firebase_uid.
     const {data: userRows, error: userError} = await client
       .from("users")
-      .select("id, auth_uid");
+      .select("id, legacy_firebase_uid")
+      .not("legacy_firebase_uid", "is", null);
 
     if (userError) throw userError;
 
     for (const row of userRows ?? []) {
-      if (row.id && row.auth_uid) {
+      if (row.legacy_firebase_uid && row.id) {
         this.userAuthUidByFirebaseUid.set(
+          row.legacy_firebase_uid as string,
           row.id as string,
-          row.auth_uid as string,
         );
       }
     }

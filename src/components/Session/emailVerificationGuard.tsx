@@ -1,19 +1,21 @@
 import React, {useState} from "react";
+import * as Sentry from "@sentry/react";
 
-import { Container, Stack, Alert } from "@mui/material";
+import {Container, Stack, Alert} from "@mui/material";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
+import {PageTitle} from "../Shared/pageTitle";
+import {ButtonRow} from "../Shared/buttonRow";
 
 import {
   VERIFY_YOUR_EMAIL as TEXT_VERIFY_YOUR_EMAIL,
   VERIFICATION_EMAIL_SENT as TEXT_VERIFICATION_EMAIL_SENT,
   ISNT_THERE_A_CAPTAIN_MISSING_SOMEWHERE as TEXT_ISNT_THERE_A_CAPTAIN_MISSING_SOMEWHERE,
+  RESEND_CONFIRMATION_EMAIL as TEXT_RESEND_CONFIRMATION_EMAIL,
 } from "../../constants/text";
-import LocalStorageKey from "../../constants/localStorage";
+import {LocalStorageKey} from "../../constants/localStorage";
 import {useAuthUser} from "./authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 /* ===================================================================
 // ============== Prüfung ob Email-Verifizierung nötig ist ===========
@@ -24,22 +26,28 @@ import useCustomStyles from "../../constants/styles";
  * @param authUser - Der aktuelle AuthUser oder null
  * @returns `true`, wenn E-Mail-Verifizierung noch aussteht
  */
-const needsEmailVerification = (authUser: {emailVerified: boolean} | null) => {
-  if (authUser && !authUser.emailVerified) {
-    const storageContent = localStorage.getItem(LocalStorageKey.AUTH_USER);
-    if (!storageContent) {
-      return false;
-    }
+const needsEmailVerification = (
+  authUser: {emailVerified: boolean} | null,
+): boolean => {
+  if (!authUser || authUser.emailVerified) return false;
 
-    const storageAuthUser = JSON.parse(storageContent);
-    if (storageAuthUser && storageAuthUser.emailVerified) {
+  const storageContent = localStorage.getItem(LocalStorageKey.AUTH_USER);
+  if (!storageContent) return false;
+
+  try {
+    const parsed: unknown = JSON.parse(storageContent);
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      (parsed as {emailVerified?: boolean}).emailVerified
+    ) {
       return false;
-    } else {
-      return true;
     }
-  } else {
+  } catch {
     return false;
   }
+
+  return true;
 };
 
 /* ===================================================================
@@ -66,7 +74,10 @@ export const EmailVerificationGuard: React.FC<{
     if (authUser?.email) {
       database.auth
         .resendConfirmationEmail(authUser.email)
-        .then(() => setIsSent(true));
+        .then(() => setIsSent(true))
+        .catch((error) => {
+          Sentry.captureException(error);
+        });
     }
   };
 
@@ -77,8 +88,7 @@ export const EmailVerificationGuard: React.FC<{
           subTitle={TEXT_ISNT_THERE_A_CAPTAIN_MISSING_SOMEWHERE}
         />
         <Container sx={classes.container} component="main" maxWidth="xs">
-          <br />
-          <Stack spacing={2}>
+          <Stack spacing={2} sx={{pt: 2}}>
             {isSent ? (
               <Alert severity="success">
                 {TEXT_VERIFICATION_EMAIL_SENT}
@@ -91,7 +101,7 @@ export const EmailVerificationGuard: React.FC<{
                 {
                   id: "buttonResendConfirmationEmail",
                   hero: true,
-                  label: "Bestätigungs-E-Mail erneut senden",
+                  label: TEXT_RESEND_CONFIRMATION_EMAIL,
                   variant: "contained",
                   color: "primary",
                   onClick: onSendEmailVerification,
@@ -108,5 +118,3 @@ export const EmailVerificationGuard: React.FC<{
 
   return <>{children}</>;
 };
-
-export default EmailVerificationGuard;

@@ -1,5 +1,5 @@
 import React from "react";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 import {
   Button,
@@ -11,12 +11,12 @@ import {
   CardMedia,
 } from "@mui/material";
 
-import RecipeShort from "./recipeShort.class";
+import {RecipeShort} from "./recipe.types";
 import Recipe from "./recipe.class";
 import {DialogContent, Link, List} from "@mui/material";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {FormListItem} from "../Shared/formListItem";
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 import Firebase from "../Firebase/firebase.class";
 
 import {
@@ -28,7 +28,7 @@ import {
 
 import {USER_PUBLIC_PROFILE as ROUTES_USER_PUBLIC_PROFILE} from "../../constants/routes";
 import {useNavigate} from "react-router";
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 export interface DialogQuickViewActions {
   key: string;
   name: string;
@@ -51,7 +51,17 @@ interface DialogRecipeQuickViewProps {
   authUser: AuthUser;
 }
 
-const DialogRecipeQuickView = ({
+/**
+ * Dialog für die Kurzübersicht eines Rezepts.
+ *
+ * Lädt das vollständige Rezept anhand der Kurzinformationen und zeigt
+ * die wichtigsten Metadaten (UID, Quelle, Autor*in, Rezepttyp) in einer
+ * kompakten Ansicht an. Benutzerdefinierte Aktionen werden als Buttons
+ * im Footer dargestellt.
+ *
+ * @param props - Rezept-Kurzinfo, Dialog-Steuerung und verfügbare Aktionen.
+ */
+export const DialogRecipeQuickView = ({
   firebase,
   recipeShort,
   dialogOpen,
@@ -130,7 +140,7 @@ const DialogRecipeQuickView = ({
             id={"author"}
             value={
               <Link
-                style={{cursor: "pointer"}}
+                sx={{cursor: "pointer"}}
                 onClick={() =>
                   navigate(`${ROUTES_USER_PUBLIC_PROFILE}/${recipe.created.fromUid}`, {
                     state: {
@@ -179,4 +189,3 @@ const DialogRecipeQuickView = ({
   );
 };
 
-export default DialogRecipeQuickView;

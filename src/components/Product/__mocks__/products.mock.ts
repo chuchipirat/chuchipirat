@@ -1,4 +1,4 @@
-import Product, {Allergen, Diet} from "../product.class";
+import {Product, Allergen, Diet} from "../product.types";
 
 export const products: Product[] = [
   {

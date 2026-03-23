@@ -33,13 +33,13 @@ import {
 
 import {OpenInNew as OpenInNewIcon} from "@mui/icons-material";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "./system";
 
-import useCustomStyles from "../../constants/styles";
-import CustomSnackbar, {
+import {useCustomStyles} from "../../constants/styles";
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../Shared/customSnackbar";
 import {
   Backdrop,
@@ -63,8 +63,8 @@ import {
   Stack,
 } from "@mui/material";
 
-import AlertMessage from "../Shared/AlertMessage";
-import SearchPanel from "../Shared/searchPanel";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {SearchPanel} from "../Shared/searchPanel";
 
 import {FormListItem} from "../Shared/formListItem";
 import {DataGrid, GridColDef} from "@mui/x-data-grid";
@@ -99,7 +99,7 @@ type DispatchAction =
       type: ReducerActions.MAIL_DELETING_SUCCESS;
       payload: {counter: number; mailLog: MailLogDomain[]};
     }
-  | {type: ReducerActions.SNACKBAR_SET; payload: Snackbar}
+  | {type: ReducerActions.SNACKBAR_SET; payload: SnackbarState}
   | {type: ReducerActions.SNACKBAR_CLOSE}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -108,7 +108,7 @@ type State = {
   error: Error | null;
   isLoading: boolean;
   isDeleting: boolean;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {

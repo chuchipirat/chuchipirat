@@ -14,7 +14,7 @@ import {
   userProfileRow,
 } from "../__mocks__/user.mock";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
-import Role from "../../../../constants/roles";
+import {Role} from "../../../../constants/roles";
 
 describe("UserRepository", () => {
   let repo: UserRepository;

@@ -29,7 +29,7 @@ export enum LocalStoragePath {
  * Local-Storage Klasse
  * Holt und schreibt Werte in den Local Storage
  */
-export default class LocalStorageHandler {
+export class LocalStorageHandler {
   /**
    * Werte aus Local Storage lesen
    * @param uid - Eindeutige ID des Local-Storage
@@ -55,6 +55,13 @@ export default class LocalStorageHandler {
     localStorage.setItem(path, JSON.stringify(value));
   };
 
+  /**
+   * Prüft ob die Daten erneut geladen werden müssen
+   * (älter als 1 Stunde oder nicht vorhanden).
+   *
+   * @param values Gespeicherte Werte mit Zeitstempel.
+   * @returns `true` wenn die Daten neu geladen werden müssen.
+   */
   static hasDataToBeFetched = <T extends ValueObject>({
     values,
   }: HasDataToBeFetchedProps<T>) => {
@@ -63,7 +70,7 @@ export default class LocalStorageHandler {
         (new Date().getTime() - new Date(values?.date).getTime()) / 1000 >
         3600
       ) {
-        // Letzter Fetch ist über 24 Stunden her... neu holen
+        // Letzter Fetch ist über 1 Stunde her (3600s) — neu holen
         return true;
       } else {
         return false;

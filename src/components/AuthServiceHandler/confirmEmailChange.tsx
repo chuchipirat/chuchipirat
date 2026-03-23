@@ -2,7 +2,15 @@ import React from "react";
 
 import {useNavigate} from "react-router";
 
-import {Container, Typography, Alert, AlertTitle, Link} from "@mui/material";
+import {
+  Container,
+  Typography,
+  Alert,
+  AlertTitle,
+  Link,
+  CircularProgress,
+} from "@mui/material";
+import * as Sentry from "@sentry/react";
 
 import * as ROUTES from "../../constants/routes";
 import {
@@ -11,20 +19,15 @@ import {
   EMAIL_CHANGE_CONFIRMED_REDIRECT as TEXT_EMAIL_CHANGE_CONFIRMED_REDIRECT,
   EMAIL_CHANGE_CONFIRMED_GO_TO_PROFILE as TEXT_EMAIL_CHANGE_CONFIRMED_GO_TO_PROFILE,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
+  PLEASE_WAIT as TEXT_PLEASE_WAIT,
 } from "../../constants/text";
-import LocalStorageKey from "../../constants/localStorage";
-import useCustomStyles from "../../constants/styles";
-import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
+import {LocalStorageKey} from "../../constants/localStorage";
+import {useCustomStyles} from "../../constants/styles";
 import {useDatabase} from "../Database/DatabaseContext";
-import {useFirebase} from "../Firebase/firebaseContext";
-import {logEvent} from "firebase/analytics";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 /**
  * Bestätigungsseite nach E-Mail-Änderung (Supabase Implicit Flow).
  *
@@ -37,16 +40,15 @@ import PageTitle from "../Shared/pageTitle";
  * über den Datenbank-Trigger `trg_sync_auth_email` — kein manueller
  * DB-Patch nötig.
  */
-const ConfirmEmailChangePage = () => {
+export const ConfirmEmailChangePage = () => {
   const [timer, setTimer] = React.useState(10);
   const [error, setError] = React.useState<string>("");
   const [done, setDone] = React.useState(false);
   const navigate = useNavigate();
   const classes = useCustomStyles();
   const database = useDatabase();
-  const firebase = useFirebase();
 
-  // Auf neue Session warten, localStorage aktualisieren, Analytics-Event loggen.
+  // Auf neue Session warten, localStorage aktualisieren.
   React.useEffect(() => {
     let cancelled = false;
 
@@ -73,13 +75,10 @@ const ConfirmEmailChangePage = () => {
             );
           }
 
-          // Analytics-Event loggen
-          logEvent(firebase.analytics, FirebaseAnalyticEvent.userChangedEmail);
-
           if (!cancelled) setDone(true);
         } catch (err) {
           if (cancelled) return;
-          console.error("Post-email-change actions failed:", err);
+          Sentry.captureException(err);
           setError(err instanceof Error ? err.message : "Unbekannter Fehler");
         }
       },
@@ -89,21 +88,22 @@ const ConfirmEmailChangePage = () => {
       cancelled = true;
       unsubscribe();
     };
-  }, [database, firebase]);
+  }, [database]);
 
   // Nach 10 Sekunden auf Profil weiterleiten (erst nach erfolgreichem Update)
   React.useEffect(() => {
     if (!done) return;
 
     if (timer === 0) {
-      setTimeout(() => navigate(ROUTES.USER_PROFILE), 500);
-    } else {
-      setTimeout(() => setTimer(timer - 1), 1000);
+      const timeout = setTimeout(() => navigate(ROUTES.USER_PROFILE), 500);
+      return () => clearTimeout(timeout);
     }
+    const timeout = setTimeout(() => setTimer(timer - 1), 1000);
+    return () => clearTimeout(timeout);
   }, [timer, navigate, done]);
 
   return (
-    <React.Fragment>
+    <>
       <PageTitle title={TEXT_EMAIL_CHANGE_CONFIRMED_TITLE} />
       <Container sx={classes.container} component="main" maxWidth="sm">
         {error ? (
@@ -130,12 +130,13 @@ const ConfirmEmailChangePage = () => {
         ) : (
           <Alert severity="info">
             <AlertTitle>{TEXT_EMAIL_CHANGE_CONFIRMED_TITLE}</AlertTitle>
-            <Typography>Einen Moment...</Typography>
+            <Typography sx={{display: "flex", alignItems: "center", gap: 1}}>
+              <CircularProgress size={16} />
+              {TEXT_PLEASE_WAIT}
+            </Typography>
           </Alert>
         )}
       </Container>
-    </React.Fragment>
+    </>
   );
 };
-
-export default ConfirmEmailChangePage;

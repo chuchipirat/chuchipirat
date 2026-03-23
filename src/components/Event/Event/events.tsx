@@ -14,7 +14,7 @@ import {
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 
 import {
   EVENTS as TEXT_EVENTS,
@@ -25,12 +25,12 @@ import {
   EVENT_NO_PAST_EVENTS as TEXT_EVENT_NO_PAST_EVENTS,
   CREATE_EVENT as TEXT_CREATE_EVENT,
 } from "../../../constants/text";
-import useCustomStyles from "../../../constants/styles";
-import AlertMessage from "../../Shared/AlertMessage";
+import {useCustomStyles} from "../../../constants/styles";
+import {AlertMessage} from "../../Shared/AlertMessage";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {EventDomain, getMaxDate} from "../../Database/Repository/EventRepository";
 import {EventCard,EventCardLoading, EventCardData} from "./eventCard";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import {
   EVENT as ROUTES_EVENT,
   CREATE_NEW_EVENT as ROUTES_CREATE_NEW_EVENT,

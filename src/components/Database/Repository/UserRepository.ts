@@ -5,7 +5,7 @@ import {
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {Role} from "../../../constants/roles";
 import {UserOverviewStructure} from "../../User/user.class";
-import UserPublicProfile from "../../User/user.public.profile.class";
+import {UserPublicProfile} from "../../User/user.public.profile.class";
 
 /* =====================================================================
 // DB-Zeilenstruktur (snake_case, entspricht den Postgres-Spalten)
@@ -31,6 +31,8 @@ export interface UserRow {
   picture_src: string;
   created_at: string;
   updated_at: string;
+  /** Firebase-UID des Benutzers (nur bei migrierten Benutzern gesetzt) */
+  legacy_firebase_uid?: string;
 }
 
 /* =====================================================================
@@ -57,6 +59,8 @@ export interface UserDomain {
   pictureSrc: string;
   /** Erstellungsdatum (DB-Spalte created_at). Bei der Migration aus memberSince gesetzt. */
   createdAt?: Date;
+  /** Firebase-UID des Benutzers (nur bei migrierten Benutzern gesetzt) */
+  legacyFirebaseUid?: string;
 }
 
 /* =====================================================================
@@ -112,6 +116,11 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       row.created_at = user.createdAt.toISOString();
     }
 
+    // legacy_firebase_uid nur setzen, wenn vorhanden (Migration)
+    if (user.legacyFirebaseUid) {
+      row.legacy_firebase_uid = user.legacyFirebaseUid;
+    }
+
     return row;
   }
 
@@ -138,6 +147,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       motto: row.motto,
       pictureSrc: row.picture_src,
       createdAt: row.created_at ? new Date(row.created_at) : undefined,
+      legacyFirebaseUid: row.legacy_firebase_uid ?? undefined,
     };
   }
 

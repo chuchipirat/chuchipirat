@@ -1,35 +1,34 @@
-import Utils from "../Shared/utils.class";
-import Firebase from "../Firebase/firebase.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
+/**
+ * Einheiten-Klasse für Masseinheiten (kg, l, etc.).
+ *
+ * Definiert die Struktur einer Einheit sowie Hilfsfunktionen
+ * zur Bestimmung der physikalischen Dimension.
+ */
 
 interface Constructor {
   key: Unit["key"];
   name: Unit["name"];
 }
 
+/**
+ * Physikalische Dimension einer Einheit.
+ *
+ * Wird verwendet, um bei Umrechnungen nur kompatible Einheiten
+ * (z.B. Masse → Masse) zuzulassen.
+ */
 export enum UnitDimension {
   volume = "VOL",
   mass = "MAS",
   dimensionless = "DLS",
 }
 
-interface GetAllUnits {
-  firebase: Firebase;
-}
-
-interface CreateUnit {
-  firebase: Firebase;
-  unit: Unit;
-  authUser: AuthUser;
-}
-interface SaveUnits {
-  firebase: Firebase;
-  units: Unit[];
-  authUser: AuthUser;
-}
-
-export default class Unit {
+/**
+ * Repräsentiert eine Masseinheit (z.B. kg, l, Stk).
+ *
+ * @example
+ * const kg = new Unit({ key: "kg", name: "Kilogramm" });
+ */
+export class Unit {
   // HINT: Änderungen müssen auch im Cloud-FX-Type nachgeführt werden
   key: string;
   name: string;
@@ -43,60 +42,28 @@ export default class Unit {
     this.dimension = UnitDimension.dimensionless;
   }
   /* =====================================================================
-  // Alle Einheiten aus der DB holen
-  // ===================================================================== */
-  static async getAllUnits({firebase}: GetAllUnits) {
-    let units: Unit[] = [];
-
-    await firebase.masterdata.units
-      .read<ValueObject>({uids: []})
-      .then((result) => {
-        Object.keys(result).forEach((key) => {
-          units.push({
-            key: key,
-            name: result[key].name,
-            dimension: result[key].dimension,
-          });
-        });
-      })
-      .catch((error: Error) => {
-        throw error;
-      });
-
-    units = Utils.sortArray({array: units, attributeName: "name"});
-
-    return units;
-  }
-  /* =====================================================================
-  // Alle Einheite speichern
-  // ===================================================================== */
-  static saveUnits = async ({firebase, units, authUser}: SaveUnits) => {
-    await firebase.masterdata.units.update<Array<Unit>>({
-      uids: [""],
-      value: units,
-      authUser,
-    });
-    return units;
-  };
-  /* =====================================================================
-  // Neue Einheit anlegen
-  // ===================================================================== */
-  static createUnit = async ({firebase, unit, authUser}: CreateUnit) => {
-    await firebase.masterdata.units.update({
-      uids: [""],
-      value: [unit],
-      authUser: authUser,
-    });
-  };
-  /* =====================================================================
   // Dimension einer Einheit bestimmen
   // ===================================================================== */
+  /**
+   * Bestimmt die physikalische Dimension einer Einheit anhand ihres Schlüssels.
+   *
+   * Durchsucht die übergebene Einheitenliste nach dem gesuchten Schlüssel
+   * und gibt dessen Dimension zurück. Falls die Einheit nicht gefunden wird,
+   * wird `dimensionless` zurückgegeben.
+   *
+   * @param units - Liste aller verfügbaren Einheiten.
+   * @param unitToFind - Schlüssel der gesuchten Einheit.
+   * @returns Die Dimension der Einheit oder `dimensionless` als Fallback.
+   *
+   * @example
+   * Unit.getDimensionOfUnit([{key: "kg", dimension: UnitDimension.mass}], "kg")
+   * // UnitDimension.mass
+   */
   static getDimensionOfUnit = (units: Unit[], unitToFind: Unit["key"]) => {
-    let dimension = units.find((unit) => unit.key === unitToFind)?.dimension;
+    const dimension = units.find(
+      (unit) => unit.key === unitToFind
+    )?.dimension;
 
-    if (!dimension) {
-      dimension = UnitDimension.dimensionless;
-    }
-    return dimension;
+    return dimension ?? UnitDimension.dimensionless;
   };
 }

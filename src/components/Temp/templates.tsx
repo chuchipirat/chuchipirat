@@ -4,7 +4,7 @@ import React from "react";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/navigationContext";
+} from "../Navigation/NavigationContext";
 import Action from "../../constants/actions";
 
 const navigationValuesContext = React.useContext(NavigationValuesContext);

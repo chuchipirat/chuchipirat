@@ -1,7 +1,7 @@
 import {Operator, OrderBy, ValueObject, Where} from "./firebase.db.super.class";
 
 import {ERROR_NOT_IMPLEMENTED_YET} from "../../../constants/text";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
 export interface StorageObjectProperty {
   durationOfValidity: number; // in Minuten

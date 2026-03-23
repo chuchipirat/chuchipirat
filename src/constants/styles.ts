@@ -1,8 +1,14 @@
-// import {makeStyles} from "@mui/material/styles";
 import {alpha} from "@mui/system/colorManipulator";
 import {useTheme} from "@mui/material/styles";
-import Utils from "../components/Shared/utils.class";
+import {Utils} from "../components/Shared/utils.class";
 
+/**
+ * Zentrale MUI-Styles für die gesamte App.
+ *
+ * Verwendet `useTheme()` für dynamische Farbwerte.
+ *
+ * @returns Objekt mit allen Style-Definitionen.
+ */
 const useCustomStyles = () => {
   const theme = useTheme();
 
@@ -659,4 +665,8 @@ const useCustomStyles = () => {
   };
 };
 
-export default useCustomStyles;
+/** Typ-Definition für alle Custom-Styles der App. */
+type CustomStyles = ReturnType<typeof useCustomStyles>;
+
+export {useCustomStyles};
+export type {CustomStyles};

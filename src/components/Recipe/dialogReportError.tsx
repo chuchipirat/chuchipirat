@@ -25,7 +25,15 @@ interface DialogReportErrorProps {
   handleOk: (messageForReview: string) => void;
   handleClose: () => void;
 }
-const DialogReportError = ({
+/**
+ * Dialog zum Melden eines Fehlers in einem Rezept.
+ *
+ * Zeigt ein Textfeld für die Fehlerbeschreibung an. Das Feld ist
+ * Pflicht — bei leerem Inhalt wird eine Fehlermeldung angezeigt.
+ *
+ * @param props - Dialog-Steuerung und Callback-Handler.
+ */
+export const DialogReportError = ({
   dialogOpen,
   handleOk,
   handleClose,
@@ -107,4 +115,3 @@ const DialogReportError = ({
   );
 };
 
-export default DialogReportError;

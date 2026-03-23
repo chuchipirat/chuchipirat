@@ -6,12 +6,12 @@
  * ehemaligen Menuplan-Klasse.
  */
 import * as Sentry from "@sentry/react";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import * as DEFAULT_VALUES from "../../../constants/defaultValues";
 import {Event} from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {RecipeType} from "../../Recipe/recipe.class";
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeShort} from "../../Recipe/recipe.types";
 import {EventGroupConfiguration,
   Intolerance,
   Diet,

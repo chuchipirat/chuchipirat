@@ -9,10 +9,6 @@ import {MemoryRouter} from "react-router";
 
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
-
 /** Mock für auth.getUser — gibt standardmässig einen User zurück */
 const mockGetUser = jest.fn().mockResolvedValue({id: "test-auth-uid"});
 
@@ -58,17 +54,15 @@ jest.mock("../../Database/supabaseClient", () => ({
   },
 }));
 
+/** Mock: @sentry/react — captureException wird als noop-Spy erfasst. */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
 // Import nach Mock-Definition, damit die Mocks korrekt greifen
 import {supabase} from "../../Database/supabaseClient";
-
-/* ===================================================================
-// ======================== Import nach Mocks =========================
-// =================================================================== */
-import VerifyEmailPage from "../verifyEmail";
-
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
+import * as Sentry from "@sentry/react";
+import {VerifyEmailPage} from "../verifyEmail";
 
 /**
  * Rendert die VerifyEmailPage mit allen nötigen Context-Providern.
@@ -84,10 +78,6 @@ const renderVerifyEmailPage = () => {
     </MemoryRouter>,
   );
 };
-
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -162,24 +152,20 @@ describe("VerifyEmailPage", () => {
   test("Fängt Fehler bei Post-Verification ab", async () => {
     /**
      * Wenn getUser fehlschlägt, darf die Komponente nicht crashen.
-     * Der Fehler wird per console.warn protokolliert.
+     * Der Fehler wird per Sentry protokolliert.
      */
     mockGetUser.mockRejectedValueOnce(new Error("Auth service unavailable"));
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
 
     renderVerifyEmailPage();
 
     await waitFor(() => {
-      expect(warnSpy).toHaveBeenCalledWith(
-        "Post-verification actions failed:",
+      expect(Sentry.captureException).toHaveBeenCalledWith(
         expect.any(Error),
       );
     });
 
     // Komponente ist trotz Fehler noch gerendert
     expect(screen.getByText("Willkommen an Bord")).toBeInTheDocument();
-
-    warnSpy.mockRestore();
   });
 
   test("Zeigt Countdown-Timer", () => {

@@ -43,7 +43,16 @@ interface DialogPublishRecipeProps {
   handleClose: () => void;
 }
 
-const DialogPublishRecipe = ({
+/**
+ * Dialog zum Veröffentlichen eines Rezepts.
+ *
+ * Zeigt die Veröffentlichungsregeln an und ermöglicht das Hinzufügen
+ * einer Nachricht für die Review. Nach Bestätigung wird das Rezept
+ * zur Überprüfung eingereicht.
+ *
+ * @param props - Dialog-Steuerung und Callback-Handler.
+ */
+export const DialogPublishRecipe = ({
   dialogOpen,
   handleOk,
   handleClose,
@@ -138,4 +147,3 @@ const DialogPublishRecipe = ({
   );
 };
 
-export default DialogPublishRecipe;

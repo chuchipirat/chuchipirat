@@ -1,7 +1,7 @@
 import React from "react";
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
 import {MealRecipe, Menue, MenuplanData} from "../Menuplan/menuplan.types";
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeShort} from "../../Recipe/recipe.types";
 import {
   RECIPE_DRAWER_DATA_INITIAL_VALUES,
   RecipeDrawerData,

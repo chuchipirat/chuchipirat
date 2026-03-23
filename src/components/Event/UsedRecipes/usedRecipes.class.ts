@@ -9,9 +9,9 @@
  * const recipeIds = UsedRecipes.defineSelectedRecipes({menueplan, selectedMenues});
  */
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Recipe, {RecipeIndetifier} from "../../Recipe/recipe.class";
+import Recipe, {RecipeIdentifier} from "../../Recipe/recipe.class";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {Event} from "../Event/event.class";
 import _ from "lodash";
 import {
@@ -281,13 +281,13 @@ export class UsedRecipes {
    * Duplikate werden entfernt.
    *
    * @param object - Objekt mit Menüplan und ausgewählten Menüs
-   * @returns Array eindeutiger RecipeIndetifier
+   * @returns Array eindeutiger RecipeIdentifier
    */
   static defineSelectedRecipes = ({
     menueplan,
     selectedMenues,
   }: _DefineSelectedRecipes) => {
-    const usedRecipesList: RecipeIndetifier[] = [];
+    const usedRecipesList: RecipeIdentifier[] = [];
 
     selectedMenues.forEach((menueUid) => {
       menueplan.menues[menueUid].mealRecipeOrder.forEach((mealRecipeUid) => {
@@ -313,11 +313,11 @@ export class UsedRecipes {
    * @param usedRecipesList - Array mit allen Rezepten (kann Duplikate enthalten)
    * @returns Array ohne Duplikate
    */
-  static _getUniqRecipes = (usedRecipesList: RecipeIndetifier[]) => {
+  static _getUniqRecipes = (usedRecipesList: RecipeIdentifier[]) => {
     return Array.from(new Set(usedRecipesList.map((recipe) => recipe.uid))).map(
       (uid) => {
         return usedRecipesList.find((recipe) => recipe.uid == uid);
       },
-    ) as RecipeIndetifier[];
+    ) as RecipeIdentifier[];
   };
 }

@@ -18,7 +18,7 @@ import {
 } from "../../../constants/text";
 import {Footer} from "../../Shared/pdfComponents";
 import {ImageRepository} from "../../../constants/imageRepository";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
 /**
  * PDF-Dokument für eine Event-Quittung (Spendenbeleg).

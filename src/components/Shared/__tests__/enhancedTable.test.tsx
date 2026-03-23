@@ -16,7 +16,7 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import EditIcon from "@mui/icons-material/Edit";
 
-import EnhancedTable, {
+import {EnhancedTable,
   Column,
   ColumnTextAlign,
   TableColumnTypes,
@@ -313,7 +313,7 @@ describe("EnhancedTable", () => {
           type: TableColumnTypes.string,
         },
       ];
-      renderTable({tableData: data as any, tableColumns: columns});
+      renderTable({tableData: data, tableColumns: columns});
 
       expect(screen.getByText("Zürich")).toBeInTheDocument();
     });

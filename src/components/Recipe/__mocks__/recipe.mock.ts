@@ -1,4 +1,4 @@
-import {Diet} from "../../Product/product.class";
+import {Diet} from "../../Product/product.types";
 import Recipe, {PositionType, RecipeType} from "../recipe.class";
 
 export const recipe: Recipe = {

@@ -7,8 +7,8 @@
  * 3. Kommentare (eingebettet in Firebase-Dokumenten → separate Tabelle)
  *
  * FK-Auflösungen:
- * - author.uid (Firebase-UID) → auth_uid → auth.users.id
- * - assignee.uid (Firebase-UID) → auth_uid → auth.users.id
+ * - author.uid (Firebase-UID) → users.legacy_firebase_uid → users.id (Supabase UUID)
+ * - assignee.uid (Firebase-UID) → users.legacy_firebase_uid → users.id (Supabase UUID)
  * - requestObject.uid (Rezept-ID) → recipes.id (über firebase_uid)
  *
  * WICHTIG: Nach der Migration muss die Sequenz zurückgesetzt werden:
@@ -288,11 +288,13 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
   }
 
   /**
-   * Löst eine Firebase-UID zu einer auth.users.id auf.
+   * Löst eine Firebase-UID in die Supabase-UUID (users.id) auf.
+   * Nach der id-Vereinheitlichung (Phase 3) stehen die alten Firebase-UIDs
+   * in legacy_firebase_uid, die id ist die Supabase-UUID.
    *
    * @param client - Supabase-Client
    * @param firebaseUid - Firebase-UID des Benutzers
-   * @returns auth.users.id (UUID) oder null
+   * @returns users.id (UUID) oder null
    */
   private async resolveAuthUid(
     client: SupabaseClient,
@@ -300,14 +302,13 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
   ): Promise<string | null> {
     if (!firebaseUid) return null;
 
-    // users.id ist die Firebase-UID (TEXT-PK aus der User-Migration)
     const {data} = await client
       .from("users")
-      .select("auth_uid")
-      .eq("id", firebaseUid)
+      .select("id")
+      .eq("legacy_firebase_uid", firebaseUid)
       .maybeSingle();
 
-    return data?.auth_uid ?? null;
+    return data?.id ?? null;
   }
 
   /**

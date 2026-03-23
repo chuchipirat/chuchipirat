@@ -8,7 +8,7 @@
  * Persistenz erfolgt über das ShoppingListRepository.
  */
 import Department from "../../Department/department.class";
-import Unit from "../../Unit/unit.class";
+import {Unit} from "../../Unit/unit.class";
 import {
   Menue,
   MenuplanData,
@@ -21,14 +21,14 @@ import Recipe, {
   Ingredient,
   RecipeMaterialPosition,
 } from "../../Recipe/recipe.class";
-import Product from "../../Product/product.class";
+import {Product} from "../../Product/product.types";
 import {
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
-import Material, {MaterialType} from "../../Material/material.class";
+import {Material, MaterialType} from "../../Material/material.types";
 import _ from "lodash";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
 
 /** Abteilungsname für Non-Food-Artikel (Materialien). */

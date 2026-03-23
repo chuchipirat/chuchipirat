@@ -12,7 +12,7 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "./sessionStorageHandler.class";
-import {Diet} from "../../Product/product.class";
+import {Diet} from "../../Product/product.types";
 import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export class FirebaseDbMasterDataProducts extends FirebaseDbSuper {

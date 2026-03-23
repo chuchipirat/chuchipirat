@@ -29,7 +29,7 @@ import {
   Delete as DeleteIcon,
 } from "@mui/icons-material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {
   SHOW_DETAILS as TEXT_SHOW_DETAILS,
   ENABLE_DRAG_AND_DROP as TEXT_ENABLE_DRAG_AND_DROP,
@@ -41,8 +41,8 @@ import {
   DELETE as TEXT_DELETE,
   PRINTVERSION as TEXT_PRINTVERSION,
 } from "../../../constants/text";
-import Action from "../../../constants/actions";
-import Utils from "../../Shared/utils.class";
+import {Action} from "../../../constants/actions";
+import {Utils} from "../../Shared/utils.class";
 import {Note, MenuplanData} from "./menuplan.types";
 import {createMealType, createEmptyNote} from "./menuplanService";
 import {MenuplanSettings, OnNoteUpdate, OnMealTypeUpdate} from "./menuplan.constants";

@@ -3,7 +3,7 @@ import {Container, Button} from "@mui/material";
 import {dropTargetForElements} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {combine} from "@atlaskit/pragmatic-drag-and-drop/combine";
 import invariant from "tiny-invariant";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {Meal} from "./menuplan.types";
 
 const emptyContainerKey = Symbol("empty-container");

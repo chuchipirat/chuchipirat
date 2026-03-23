@@ -8,10 +8,6 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
 
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
-
 /** Mock: firebase/auth — checkActionCode */
 const mockCheckActionCode = jest.fn();
 jest.mock("firebase/auth", () => ({
@@ -48,14 +44,12 @@ jest.mock("../../Firebase/firebaseContext", () => ({
   useFirebase: () => mockFirebase,
 }));
 
-/* ===================================================================
-// ======================== Imports nach Mocks =========================
-// =================================================================== */
-import RecoverEmailPage from "../recoverEmail";
+/** Mock: @sentry/react — captureException wird als noop-Spy erfasst. */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
 
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
+import {RecoverEmailPage} from "../recoverEmail";
 
 /**
  * Rendert die RecoverEmailPage mit Router.
@@ -74,10 +68,6 @@ const renderRecoverEmailPage = ({
   );
 };
 
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
-
 beforeEach(() => {
   jest.clearAllMocks();
   localStorage.clear();
@@ -85,10 +75,12 @@ beforeEach(() => {
 
 describe("RecoverEmailPage", () => {
   describe("Fehlerbehandlung", () => {
-    test("Zeigt Fehler wenn kein authUser und kein localStorage-Eintrag", () => {
+    test("Zeigt Fehler wenn kein authUser und kein localStorage-Eintrag", async () => {
       renderRecoverEmailPage();
 
-      expect(screen.getByRole("alert")).toBeInTheDocument();
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toBeInTheDocument();
+      });
       expect(screen.getAllByText(/Uups/i).length).toBeGreaterThanOrEqual(1);
     });
 

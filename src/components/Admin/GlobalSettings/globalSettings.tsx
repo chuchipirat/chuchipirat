@@ -39,12 +39,12 @@ import {
 
 import {GlobalSettingsDomain} from "../../Database/Repository/GlobalSettingsRepository";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
-import ButtonRow from "../../Shared/buttonRow";
-import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
+import {ButtonRow} from "../../Shared/buttonRow";
+import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 
-import AlertMessage from "../../Shared/AlertMessage";
+import {AlertMessage} from "../../Shared/AlertMessage";
 
 import * as Sentry from "@sentry/browser";
 
@@ -52,7 +52,7 @@ import {useAuthUser} from "../../Session/authUserContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {supabase} from "../../Database/supabaseClient";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -81,7 +81,7 @@ type State = {
   isError: boolean;
   error: Error | null;
   isLoading: boolean;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const inititialState: State = {

@@ -1,20 +1,20 @@
 /**
- * Unit-Tests für HelpCenter.getMatchingHelpPage().
+ * Unit-Tests für getMatchingHelpPage().
  *
  * Testet das Routing-Matching von Anwendungspfaden auf Helpcenter-URLs
  * für alle unterstützten Routen, Navigations-Objekte und Aktionen.
  */
-import HelpCenter from "../helpCenter.class";
+import {getMatchingHelpPage} from "../helpCenter";
 import * as ROUTES from "../../../constants/routes";
 import {HELPCENTER_URL} from "../../../constants/defaultValues";
-import Action from "../../../constants/actions";
-import {NavigationObject} from "../navigationContext";
+import {Action} from "../../../constants/actions";
+import {NavigationObject} from "../NavigationContext";
 
 /* ===================================================================
 // ======================== Tests =====================================
 // =================================================================== */
 
-describe("HelpCenter.getMatchingHelpPage()", () => {
+describe("getMatchingHelpPage()", () => {
   /** Hilfsfunktion: Erwartet eine bestimmte Helpcenter-URL */
   const expectHelpPage = (
     actualPath: string,
@@ -22,7 +22,7 @@ describe("HelpCenter.getMatchingHelpPage()", () => {
     expectedPage: string,
     options?: {navigationObject?: NavigationObject; action?: Action}
   ) => {
-    const result = HelpCenter.getMatchingHelpPage({
+    const result = getMatchingHelpPage({
       actualPath,
       navigationObject: options?.navigationObject,
       action: options?.action,
@@ -228,12 +228,12 @@ describe("HelpCenter.getMatchingHelpPage()", () => {
   // ------------------------------------------ */
   describe("Fallback", () => {
     test("Unbekannter Pfad gibt nur die Helpcenter-Basis-URL zurück", () => {
-      const result = HelpCenter.getMatchingHelpPage({actualPath: "/unknown"});
+      const result = getMatchingHelpPage({actualPath: "/unknown"});
       expect(result).toBe(HELPCENTER_URL);
     });
 
     test("Landing-Seite gibt nur die Helpcenter-Basis-URL zurück", () => {
-      const result = HelpCenter.getMatchingHelpPage({actualPath: "/"});
+      const result = getMatchingHelpPage({actualPath: "/"});
       expect(result).toBe(HELPCENTER_URL);
     });
   });

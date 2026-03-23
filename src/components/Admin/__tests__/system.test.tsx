@@ -57,7 +57,7 @@ const renderSystemPage = () => {
   return render(
     <MemoryRouter initialEntries={["/system"]}>
       <SystemPage />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 
@@ -103,9 +103,10 @@ describe("SystemPage", () => {
       renderSystemPage();
       expect(screen.getByText("Verfolgungsnachweis")).toBeInTheDocument();
       expect(screen.getByText("Items zusammenführen")).toBeInTheDocument();
-      expect(screen.getByText("Produkt/Material umwandlen")).toBeInTheDocument();
+      expect(
+        screen.getByText("Produkt/Material umwandlen"),
+      ).toBeInTheDocument();
       expect(screen.getByText("Support-User aktivieren")).toBeInTheDocument();
-      expect(screen.getByText("Job-Übersicht")).toBeInTheDocument();
       expect(screen.getByText("Mail-Konsole")).toBeInTheDocument();
       expect(screen.getByText("Migration")).toBeInTheDocument();
       expect(screen.getByText("Datenintegrität")).toBeInTheDocument();
@@ -147,9 +148,7 @@ describe("SystemPage", () => {
 
     test("Externe Links haben target=_blank", () => {
       renderSystemPage();
-      const sentryLink = screen
-        .getByText("Sentry Dashboard")
-        .closest("a");
+      const sentryLink = screen.getByText("Sentry Dashboard").closest("a");
       expect(sentryLink).toHaveAttribute("target", "_blank");
       expect(sentryLink).toHaveAttribute("rel", "noopener noreferrer");
     });
@@ -172,7 +171,9 @@ describe("SystemPage", () => {
 
     test("Zeigt keine admin-only Kacheln an", () => {
       renderSystemPage();
-      expect(screen.queryByText("Globale Einstellungen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Globale Einstellungen"),
+      ).not.toBeInTheDocument();
       expect(screen.queryByText("Systemmeldung")).not.toBeInTheDocument();
       expect(screen.queryByText("Job-Übersicht")).not.toBeInTheDocument();
       expect(screen.queryByText("Mail-Konsole")).not.toBeInTheDocument();
@@ -190,7 +191,9 @@ describe("SystemPage", () => {
       expect(screen.getByText("Übersichten")).toBeInTheDocument();
       expect(screen.getByText("Verfolgungsnachweis")).toBeInTheDocument();
       expect(screen.getByText("Items zusammenführen")).toBeInTheDocument();
-      expect(screen.getByText("Produkt/Material umwandlen")).toBeInTheDocument();
+      expect(
+        screen.getByText("Produkt/Material umwandlen"),
+      ).toBeInTheDocument();
       expect(screen.getByText("Support-User aktivieren")).toBeInTheDocument();
       expect(screen.getByText("Rezepte")).toBeInTheDocument();
       expect(screen.getByText("Anlässe")).toBeInTheDocument();

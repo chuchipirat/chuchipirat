@@ -12,7 +12,7 @@ import {
 } from "./sessionStorageHandler.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {FeedType} from "../../Shared/feed.class";
-import Role from "../../../constants/roles";
+import {Role} from "../../../constants/roles";
 import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export interface FeedLogDocumemntStructure {

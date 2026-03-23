@@ -62,7 +62,7 @@ export enum Environment {
   production,
 }
 
-export default class Utils {
+export class Utils {
   /* =====================================================================
   // Domain aus URL herausholen
   // ===================================================================== */

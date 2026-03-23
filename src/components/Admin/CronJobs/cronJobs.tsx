@@ -44,14 +44,14 @@ import {
   BUTTON_OK as TEXT_BUTTON_OK,
 } from "../../../constants/text";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
-import AlertMessage from "../../Shared/AlertMessage";
-import useCustomStyles from "../../../constants/styles";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {useCustomStyles} from "../../../constants/styles";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {supabase} from "../../Database/supabaseClient";
 import {CronJobLogDomain} from "../../Database/Repository/CronJobLogRepository";
-import CustomSnackbar from "../../Shared/customSnackbar";
+import {CustomSnackbar} from "../../Shared/customSnackbar";
 
 /* ===================================================================
 // ======================== Konstanten ================================

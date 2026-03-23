@@ -61,7 +61,7 @@ jest.mock("../../../Firebase/firebaseContext", () => ({
 }));
 
 /** Mock: NavigationValuesContext */
-jest.mock("../../../Navigation/navigationContext", () => ({
+jest.mock("../../../Navigation/NavigationContext", () => ({
   NavigationValuesContext: React.createContext({
     setNavigationValues: jest.fn(),
   }),

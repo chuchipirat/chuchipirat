@@ -9,8 +9,7 @@ import {MaterialList,
   MaterialListEntry,
   MaterialListMaterial,
 } from "../materialList.class";
-import {MaterialType} from "../../../Material/material.class";
-import Material from "../../../Material/material.class";
+import {Material, MaterialType} from "../../../Material/material.types";
 import {ItemType} from "../../ShoppingList/shoppingList.class";
 import {
   MenuplanData,
@@ -87,12 +86,7 @@ const createMaterial = (
   name: string,
   type: MaterialType = MaterialType.usage,
 ): Material => {
-  const m = new Material();
-  m.uid = uid;
-  m.name = name;
-  m.type = type;
-  m.usable = true;
-  return m;
+  return {uid, name, type, usable: true};
 };
 
 const matPfanne = createMaterial("mat-pfanne", "Pfanne gross");

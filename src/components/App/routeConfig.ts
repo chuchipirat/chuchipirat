@@ -1,29 +1,45 @@
 import {lazy, type ComponentType, type LazyExoticComponent} from "react";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 import * as ROUTES from "../../constants/routes";
 
 // Eagerly loaded (above the fold / critical path)
-import LandingPage from "../Landing/landing";
-import SignInPage from "../SignIn/signIn";
-import SignUpPage from "../SignUp/signUp";
+import {LandingPage} from "../Landing/Landing";
+import {SignInPage} from "../SignIn/signIn";
+import {SignUpPage} from "../SignUp/signUp";
 import {NotFoundPage} from "../404/404";
-import NoAuthPage from "../Session/noAuth";
-import PublicProfile from "../User/publicProfile";
+import {NoAuthPage} from "../Session/noAuth";
+import {PublicProfilePage} from "../User/publicProfile";
 
 // Lazy loaded
-const PasswordChange = lazy(() => import("../PasswordChange/passwordChange"));
-const Units = lazy(() => import("../Unit/units"));
-const UnitConversion = lazy(() => import("../Unit/unitConversion"));
-const Products = lazy(() => import("../Product/products"));
-const Materials = lazy(() => import("../Material/materials"));
+const PasswordChange = lazy(() =>
+  import("../PasswordChange/passwordChange").then((module) => ({default: module.PasswordChangePage}))
+);
+const Units = lazy(() =>
+  import("../Unit/units").then((module) => ({default: module.UnitsPage}))
+);
+const UnitConversion = lazy(() =>
+  import("../Unit/unitConversion").then((module) => ({default: module.UnitConversionPage}))
+);
+const Products = lazy(() =>
+  import("../Product/products").then((module) => ({default: module.ProductsPage}))
+);
+const Materials = lazy(() =>
+  import("../Material/materials").then((module) => ({default: module.MaterialPage}))
+);
 const Departments = lazy(() =>
   import("../Department/departments").then((module) => ({default: module.DepartmentsPage}))
 );
-const RequestOverview = lazy(() => import("../Request/requestOverview"));
-const HomePage = lazy(() => import("../Home/home"));
-const UserProfile = lazy(() => import("../User/userProfile"));
+const RequestOverview = lazy(() =>
+  import("../Request/requestOverview").then((module) => ({default: module.RequestOverviewPage}))
+);
+const HomePage = lazy(() =>
+  import("../Home/Home").then((module) => ({default: module.HomePage}))
+);
+const UserProfile = lazy(() =>
+  import("../User/userProfile").then((module) => ({default: module.UserProfilePage}))
+);
 const PrivacyPolicyPage = lazy(() =>
   import("./privacyPolicy").then((module) => ({default: module.PrivacyPolicyPage}))
 );
@@ -37,11 +53,15 @@ const Event = lazy(() =>
 const Events = lazy(() =>
   import("../Event/Event/events").then((module) => ({default: module.EventsPage}))
 );
-const Recipe = lazy(() => import("../Recipe/recipe"));
+const Recipe = lazy(() =>
+  import("../Recipe/recipe").then((module) => ({default: module.RecipePage}))
+);
 const CreateNewEvent = lazy(() =>
   import("../Event/Event/createNewEvent").then((module) => ({default: module.CreateEventPage}))
 );
-const Recipes = lazy(() => import("../Recipe/recipes"));
+const Recipes = lazy(() =>
+  import("../Recipe/recipes").then((module) => ({default: module.RecipesPage}))
+);
 const Donate = lazy(() => import("../Donate/donate"));
 const AuthServiceHandler = lazy(() =>
   import("../AuthServiceHandler/authServiceHandler").then((module) => ({default: module.AuthServiceHandlerPage}))
@@ -261,7 +281,7 @@ const routeConfig: RouteDefinition[] = [
   },
   {
     path: ROUTES.USER_PUBLIC_PROFILE_UID,
-    component: PublicProfile,
+    component: PublicProfilePage,
     guard: isAuthenticated,
     layout: {showGoBackFab: true, showFeedbackFab: true},
   },

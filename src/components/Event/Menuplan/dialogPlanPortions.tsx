@@ -544,7 +544,7 @@ const DialogPlanPortions = ({
 
       if (alleHasActive && individualDietsHaveActive) {
         const result = (await customDialog({
-          dialogType: DialogType.selectOptions,
+          dialogType: DialogType.SelectOptions,
           title: TEXT_CONFLICT_ALLE_AND_DIETS_TITLE,
           text: TEXT_CONFLICT_ALLE_AND_DIETS_TEXT,
           options: [

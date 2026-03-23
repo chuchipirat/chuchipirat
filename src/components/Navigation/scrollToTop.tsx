@@ -1,7 +1,15 @@
 import {useEffect} from "react";
 import {useLocation} from "react-router";
 
-function ScrollToTop() {
+/**
+ * Hook-Komponente für automatisches Scrollen nach oben bei Routenwechsel.
+ *
+ * Wird in der App-Wurzel eingebunden und sorgt dafür, dass bei jedem
+ * Pfadwechsel die Seite sanft nach oben scrollt.
+ *
+ * @returns `null` — rendert kein JSX.
+ */
+export const ScrollToTop = () => {
   const location = useLocation();
 
   useEffect(() => {
@@ -9,6 +17,4 @@ function ScrollToTop() {
   }, [location.pathname]);
 
   return null;
-}
-
-export default ScrollToTop;
+};

@@ -1,6 +1,7 @@
 import React from "react";
 
 import {useNavigate} from "react-router";
+import * as Sentry from "@sentry/react";
 
 import Container from "@mui/material/Container";
 import * as ROUTES from "../../constants/routes";
@@ -10,17 +11,15 @@ import {
   AYE_AYE_CAPTAIN as TEXT_AYE_AYE_CAPTAIN,
   THANK_YOU_FOR_VERIFYING_YOUR_EMAIL as TEXT_THANK_YOU_FOR_VERIFYING_YOUR_EMAIL,
 } from "../../constants/text";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 import {useDatabase} from "../Database/DatabaseContext";
 import {supabase} from "../Database/supabaseClient";
 import {FeedType} from "../Shared/feed.class";
+import AuthUser from "../Firebase/Authentication/authUser.class";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {Typography, Alert, AlertTitle} from "@mui/material";
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 /**
  * Seite zur E-Mail-Verifizierung (Supabase PKCE-Flow).
  *
@@ -29,7 +28,7 @@ import {Typography, Alert, AlertTitle} from "@mui/material";
  * Erfolgsmeldung, löst die Vestaboard-Benachrichtigung aus und leitet
  * nach einem Countdown auf die Home-Seite weiter.
  */
-const VerifyEmailPage = () => {
+export const VerifyEmailPage = () => {
   const [timer, setTimer] = React.useState(10);
   const navigate = useNavigate();
   const classes = useCustomStyles();
@@ -58,6 +57,13 @@ const VerifyEmailPage = () => {
         const isSignup = sessionData?.session?.user?.app_metadata?.provider !== "email"
           || userDomain.noLogins <= 1;
         if (isSignup) {
+          const feedAuthUser = new AuthUser();
+          feedAuthUser.uid = user.id;
+          feedAuthUser.publicProfile = {
+            displayName: userDomain.displayName,
+            motto: "",
+            pictureSrc: userDomain.pictureSrc ?? "",
+          };
           database.feeds
             .insertFeed(
               {
@@ -65,9 +71,9 @@ const VerifyEmailPage = () => {
                 sourceObjectType: "user",
                 sourceObjectUid: user.id,
               },
-              {uid: user.id, publicProfile: {displayName: userDomain.displayName, pictureSrc: userDomain.pictureSrc ?? ""}} as any,
+              feedAuthUser,
             )
-            .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+            .catch((err) => Sentry.captureException(err));
         }
 
         // Willkommens-E-Mail senden (nur bei Erstregistrierung)
@@ -77,7 +83,7 @@ const VerifyEmailPage = () => {
               body: {user_id: user.id},
             })
             .catch((err) =>
-              console.warn("Willkommens-E-Mail konnte nicht gesendet werden:", err),
+              Sentry.captureException(err),
             );
         }
 
@@ -89,7 +95,7 @@ const VerifyEmailPage = () => {
           },
         });
       } catch (error) {
-        console.warn("Post-verification actions failed:", error);
+        Sentry.captureException(error);
       }
     };
 
@@ -103,14 +109,15 @@ const VerifyEmailPage = () => {
   // Nach 10 Sekunden auf Home weiterleiten
   React.useEffect(() => {
     if (timer === 0) {
-      setTimeout(() => navigate(ROUTES.HOME), 500);
-    } else {
-      setTimeout(() => setTimer(timer - 1), 1000);
+      const timeout = setTimeout(() => navigate(ROUTES.HOME), 500);
+      return () => clearTimeout(timeout);
     }
+    const timeout = setTimeout(() => setTimer(timer - 1), 1000);
+    return () => clearTimeout(timeout);
   }, [timer, navigate]);
 
   return (
-    <React.Fragment>
+    <>
       <PageTitle
         title={TEXT_AYE_AYE_CAPTAIN}
         subTitle={TEXT_THANK_YOU_FOR_VERIFYING_YOUR_EMAIL}
@@ -121,8 +128,6 @@ const VerifyEmailPage = () => {
           <Typography>{TEXT_WELCOME_ON_BOARD_REDIRECT(timer)}</Typography>
         </Alert>
       </Container>
-    </React.Fragment>
+    </>
   );
 };
-
-export default VerifyEmailPage;

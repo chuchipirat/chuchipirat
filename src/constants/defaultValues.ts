@@ -1,6 +1,6 @@
 // Default Werte für jegliche Parameter
 
-import Utils, {Environment} from "../components/Shared/utils.class";
+import {Utils, Environment} from "../components/Shared/utils.class";
 import {
   WITHOUT_INTOLERANCES as TEXT_WITHOUT_INTOLERANCES,
   LACTOSE_INTOLERANCE as TEXT_LACTOSE_INTOLERANCE,
@@ -40,8 +40,11 @@ export const INTOLERANCES = [
 
 export const DIETS = [TEXT_MEAT, TEXT_VEGETARIAN];
 
-// Support User bestimmen
-// HINT 💡: Muss auch in der Cloud-FX nachgeführt werden.
+/**
+ * Gibt die UID des Support-Users für die aktuelle Umgebung zurück.
+ *
+ * @returns UID des Support-Users (DEV/TEST/PROD).
+ */
 export const getSupportUserUid = () => {
   switch (Utils.getEnvironment()) {
     case Environment.development:

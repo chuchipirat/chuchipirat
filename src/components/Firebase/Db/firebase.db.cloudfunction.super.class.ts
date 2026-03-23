@@ -8,7 +8,7 @@ import {
   PrepareDataForDb,
   ValueObject,
 } from "./firebase.db.super.class";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
+import {FirebaseAnalyticEvent} from "../../../constants/firebaseEvent";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,

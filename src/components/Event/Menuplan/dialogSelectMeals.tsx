@@ -16,8 +16,8 @@ import {
 } from "@mui/material";
 
 import {Meal, MenuplanData} from "./menuplan.types";
-import Utils from "../../Shared/utils.class";
-import useCustomStyles from "../../../constants/styles";
+import {Utils} from "../../Shared/utils.class";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {
   CONTINUE as TEXT_CONTINUE,

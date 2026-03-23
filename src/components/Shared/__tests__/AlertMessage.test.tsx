@@ -6,7 +6,7 @@ import React from "react";
 import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import AlertMessage from "../AlertMessage";
+import {AlertMessage} from "../AlertMessage";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================

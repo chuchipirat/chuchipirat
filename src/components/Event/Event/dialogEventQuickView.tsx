@@ -1,5 +1,5 @@
 import React from "react";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {
   Button,
@@ -28,7 +28,7 @@ import {
 import {EventShort} from "./eventShort.class";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {useNavigate} from "react-router";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import {USER_PUBLIC_PROFILE as ROUTES_USER_PUBLIC_PROFILE} from "../../../constants/routes";
 
 export interface DialogQuickViewActions {

@@ -1,3 +1,6 @@
+/**
+ * Auth-Fehlercodes von Firebase/Supabase für die Fehlerbehandlung.
+ */
 export enum AuthMessages {
   WEAK_PASSWORD = "auth/weak-password",
   INVALID_EMAIL = "auth/invalid-email",
@@ -17,6 +20,9 @@ export enum AuthMessages {
   EMAIL_NOT_CONFIRMED = "email_not_confirmed",
 }
 
+/**
+ * Allgemeine Firebase/Supabase-Fehlercodes.
+ */
 export enum General {
   PERMISSION_DENIED = "permission-denied",
   UNAVAILABLE = "unavailable",

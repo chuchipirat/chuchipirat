@@ -54,9 +54,9 @@ import {
   SAVE as TEXT_SAVE,
 } from "../../../constants/text";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {ButtonAction} from "../../Shared/global.interface";
-import AlertMessage from "../../Shared/AlertMessage";
+import {AlertMessage} from "../../Shared/AlertMessage";
 import {Event} from "../Event/event.class";
 import {EventGroupConfiguration} from "./groupConfiguration.class";
 
@@ -67,12 +67,12 @@ import {
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
-import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
+import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
 import {useDatabase} from "../../Database/DatabaseContext";
 // Bridge-Import eliminiert — Konvertierung erfolgt direkt im Repository
 /** Alle verfügbaren Aktionstypen für den Gruppen-Konfiguration-Reducer. */
@@ -101,7 +101,7 @@ type DispatchAction =
   | {type: ReducerActions.GENERIC_ERROR; payload: Error}
   | {
       type: ReducerActions.SNACKBAR_SHOW;
-      payload: {severity: Snackbar["severity"]; message: string};
+      payload: {severity: SnackbarState["severity"]; message: string};
     }
   | {type: ReducerActions.SNACKBAR_CLOSE};
 /** Zustand der Gruppenkonfiguration-Komponente. */
@@ -115,7 +115,7 @@ type State = {
   /** Aktuelles Fehler-Objekt (falls vorhanden). */
   error: Error | null;
   /** Snackbar-Zustand für Benachrichtigungen. */
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {

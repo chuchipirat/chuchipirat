@@ -5,7 +5,8 @@
  * von Name, Typ und Verwendbarkeit. Nur geänderte Materialien werden
  * beim Speichern in die Datenbank geschrieben.
  */
-import React, {SyntheticEvent} from "react";
+import React, {SyntheticEvent, useCallback} from "react";
+import * as Sentry from "@sentry/react";
 
 import {
   Container,
@@ -38,28 +39,28 @@ import {
   SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
   FROM as TEXT_FROM,
 } from "../../constants/text";
-import Roles from "../../constants/roles";
+import {Role as Roles} from "../../constants/roles";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
-import EnhancedTable, {
+import {PageTitle} from "../Shared/pageTitle";
+import {ButtonRow} from "../Shared/buttonRow";
+import {EnhancedTable,
   TableColumnTypes,
   ColumnTextAlign,
 } from "../Shared/enhancedTable";
-import DialogMaterial, {MaterialDialog} from "./dialogMaterial";
-import AlertMessage from "../Shared/AlertMessage";
+import {DialogMaterial, MaterialDialog} from "./dialogMaterial";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import EditIcon from "@mui/icons-material/Edit";
 
-import CustomSnackbar, {
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../Shared/customSnackbar";
-import useCustomStyles from "../../constants/styles";
-import SearchPanel from "../Shared/searchPanel";
+import {useCustomStyles} from "../../constants/styles";
+import {SearchPanel} from "../Shared/searchPanel";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Material, {MaterialType} from "./material.class";
+import {Material, MaterialType} from "./material.types";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
 
@@ -103,7 +104,7 @@ type State = {
   changedUids: Set<string>;
   error: Error | null;
   isLoading: boolean;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {
@@ -220,7 +221,7 @@ const MaterialPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error, {extra: {context: "Materialien laden"}});
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
       });
   }, []);
@@ -444,49 +445,33 @@ const MaterialsTable = ({
   const classes = useCustomStyles();
   const theme = useTheme();
 
-  const TABLE_COLUMNS = [
-    {
-      id: "edit",
-      type: TableColumnTypes.button,
-      textAlign: ColumnTextAlign.center,
-      disablePadding: false,
-      visible: editMode,
-      label: "",
-      iconButton: <EditIcon fontSize="small" />,
+  const tableColumns = React.useMemo(() => getTableColumns(editMode), [editMode]);
+
+  /* ------------------------------------------
+  // Inline-Änderungen (Radio + Checkbox)
+  // ------------------------------------------ */
+  const handleRadioButtonChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const uid = event.target.name.split("_")[1];
+      const material = materials.find((candidate) => candidate.uid === uid);
+      if (!material) return;
+      onMaterialChange({
+        ...material,
+        type: parseInt(event.target.value) as MaterialType,
+      });
     },
-    {
-      id: "uid",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.center,
-      disablePadding: false,
-      label: TEXT_UID,
-      visible: false,
+    [materials, onMaterialChange]
+  );
+
+  const handleCheckBoxChange = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const uid = event.target.id.split("_")[1];
+      const material = materials.find((candidate) => candidate.uid === uid);
+      if (!material) return;
+      onMaterialChange({...material, usable: event.target.checked});
     },
-    {
-      id: "name",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.left,
-      disablePadding: false,
-      label: TEXT_FIELD_PRODUCT,
-      visible: true,
-    },
-    {
-      id: "type",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.left,
-      disablePadding: false,
-      label: TEXT_MATERIAL_TYPE,
-      visible: true,
-    },
-    {
-      id: "usable",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.center,
-      disablePadding: false,
-      label: TEXT_USABLE,
-      visible: true,
-    },
-  ];
+    [materials, onMaterialChange]
+  );
 
   /* ------------------------------------------
   // Gefilterte Materialien (abgeleitet von materials + searchString)
@@ -502,8 +487,7 @@ const MaterialsTable = ({
   // ------------------------------------------ */
   const filteredMaterialsUi = React.useMemo(
     () => prepareMaterialsListForUi(filteredMaterials, editMode, handleRadioButtonChange, handleCheckBoxChange),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [filteredMaterials, editMode]
+    [filteredMaterials, editMode, handleRadioButtonChange, handleCheckBoxChange]
   );
 
   /* ------------------------------------------
@@ -518,26 +502,6 @@ const MaterialsTable = ({
   ) => {
     setSearchString(event.target.value);
   };
-
-  /* ------------------------------------------
-  // Inline-Änderungen (Radio + Checkbox)
-  // ------------------------------------------ */
-  function handleRadioButtonChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const uid = event.target.name.split("_")[1];
-    const material = materials.find((candidate) => candidate.uid === uid);
-    if (!material) return;
-    onMaterialChange({
-      ...material,
-      type: parseInt(event.target.value) as MaterialType,
-    });
-  }
-
-  function handleCheckBoxChange(event: React.ChangeEvent<HTMLInputElement>) {
-    const uid = event.target.id.split("_")[1];
-    const material = materials.find((candidate) => candidate.uid === uid);
-    if (!material) return;
-    onMaterialChange({...material, usable: event.target.checked});
-  }
 
   /* ------------------------------------------
   // Popup öffnen
@@ -583,7 +547,7 @@ const MaterialsTable = ({
             />
             <Typography
               variant="body2"
-              style={{marginTop: "0.5em", marginBottom: "2em"}}
+              sx={{mt: "0.5em", mb: "2em"}}
             >
               {filteredMaterialsUi.length === materials.length
                 ? `${materials.length} ${TEXT_MATERIALS}`
@@ -594,7 +558,7 @@ const MaterialsTable = ({
 
             <EnhancedTable
               tableData={filteredMaterialsUi}
-              tableColumns={TABLE_COLUMNS}
+              tableColumns={tableColumns}
               keyColum={"uid"}
               onIconClick={openPopUp}
             />
@@ -620,6 +584,58 @@ const MaterialsTable = ({
 /* ===================================================================
 // ====================== Hilfsfunktionen ============================
 // =================================================================== */
+
+/**
+ * Erzeugt die Spaltendefinitionen für die Materialtabelle.
+ *
+ * @param editMode - Ob der Bearbeitungsmodus aktiv ist (steuert Edit-Button-Spalte).
+ * @returns Array von Spaltendefinitionen.
+ */
+function getTableColumns(editMode: boolean) {
+  return [
+    {
+      id: "edit",
+      type: TableColumnTypes.button,
+      textAlign: ColumnTextAlign.center,
+      disablePadding: false,
+      visible: editMode,
+      label: "",
+      iconButton: <EditIcon fontSize="small" />,
+    },
+    {
+      id: "uid",
+      type: TableColumnTypes.string,
+      textAlign: ColumnTextAlign.center,
+      disablePadding: false,
+      label: TEXT_UID,
+      visible: false,
+    },
+    {
+      id: "name",
+      type: TableColumnTypes.string,
+      textAlign: ColumnTextAlign.left,
+      disablePadding: false,
+      label: TEXT_FIELD_PRODUCT,
+      visible: true,
+    },
+    {
+      id: "type",
+      type: TableColumnTypes.string,
+      textAlign: ColumnTextAlign.left,
+      disablePadding: false,
+      label: TEXT_MATERIAL_TYPE,
+      visible: true,
+    },
+    {
+      id: "usable",
+      type: TableColumnTypes.string,
+      textAlign: ColumnTextAlign.center,
+      disablePadding: false,
+      label: TEXT_USABLE,
+      visible: true,
+    },
+  ];
+}
 
 /**
  * Bereitet die Materialliste für die UI-Tabelle auf.
@@ -672,4 +688,5 @@ function prepareMaterialsListForUi(
   }));
 }
 
-export default MaterialPage;
+export {MaterialPage, materialsReducer, ReducerActions, initialState};
+export type {State, ReducerAction};

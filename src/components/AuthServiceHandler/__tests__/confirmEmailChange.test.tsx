@@ -7,14 +7,9 @@ import {render, screen, waitFor, act} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
-import ConfirmEmailChangePage from "../confirmEmailChange";
+import {ConfirmEmailChangePage} from "../confirmEmailChange";
 import {DatabaseContext} from "../../Database/DatabaseContext";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
-import LocalStorageKey from "../../../constants/localStorage";
-
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
+import {LocalStorageKey} from "../../../constants/localStorage";
 
 /**
  * Callback-Referenz für onAuthStateChange — wird bei jedem Aufruf
@@ -50,45 +45,26 @@ const mockDatabase = {
   users: {},
 } as any;
 
-/** Mock-Analytics-Objekt für den FirebaseContext */
-const mockAnalytics = {};
-
-/** Mock-Firebase-Instanz mit Analytics */
-const mockFirebase = {
-  analytics: mockAnalytics,
-} as any;
-
-/** Mock für firebase/analytics — logEvent wird als noop-Spy erfasst. */
-jest.mock("firebase/analytics", () => ({
-  logEvent: jest.fn(),
+/** Mock: @sentry/react — captureException wird als noop-Spy erfasst. */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
 }));
 
-/** Import nach dem Mock, damit Jest die gemockte Version verwendet. */
-import {logEvent} from "firebase/analytics";
-
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
+import * as Sentry from "@sentry/react";
 
 /**
  * Rendert die ConfirmEmailChangePage mit allen nötigen Context-Providern
- * (DatabaseContext, FirebaseContext) und einem MemoryRouter.
+ * (DatabaseContext) und einem MemoryRouter.
  */
 const renderConfirmEmailChangePage = () => {
   return render(
     <MemoryRouter initialEntries={["/confirm-email-change"]}>
       <DatabaseContext.Provider value={mockDatabase}>
-        <FirebaseContext.Provider value={mockFirebase}>
-          <ConfirmEmailChangePage />
-        </FirebaseContext.Provider>
+        <ConfirmEmailChangePage />
       </DatabaseContext.Provider>
     </MemoryRouter>
   );
 };
-
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();
@@ -177,20 +153,9 @@ describe("ConfirmEmailChangePage", () => {
     expect(stored).not.toBeNull();
     const parsed = JSON.parse(stored!);
     expect(parsed.email).toBe("new@test.ch");
-
-    // Analytics-Event muss geloggt worden sein
-    expect(logEvent).toHaveBeenCalledWith(
-      mockAnalytics,
-      "user_changed_email"
-    );
   });
 
   test("Zeigt Fehlermeldung bei getUser-Fehler", async () => {
-    // console.error unterdrücken — die Komponente loggt den Fehler bewusst
-    const consoleSpy = jest
-      .spyOn(console, "error")
-      .mockImplementation(() => {});
-
     mockGetUser.mockRejectedValueOnce(new Error("Session abgelaufen"));
 
     renderConfirmEmailChangePage();
@@ -219,6 +184,7 @@ describe("ConfirmEmailChangePage", () => {
       screen.getByText("Uups... da ging was schief.")
     ).toBeInTheDocument();
 
-    consoleSpy.mockRestore();
+    // Sentry muss den Fehler erfasst haben
+    expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error));
   });
 });

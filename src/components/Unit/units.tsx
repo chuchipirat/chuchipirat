@@ -46,25 +46,26 @@ import {
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
 } from "../../constants/text";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
-import EnhancedTable, {
+import {PageTitle} from "../Shared/pageTitle";
+import {ButtonRow} from "../Shared/buttonRow";
+import {EnhancedTable,
   Column,
   ColumnTextAlign,
   TableColumnTypes,
 } from "../Shared/enhancedTable";
-import DialogCreateUnit from "./dialogCreateUnit";
-import CustomSnackbar, {
+import {DialogCreateUnit} from "./dialogCreateUnit";
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../Shared/customSnackbar";
-import AlertMessage from "../Shared/AlertMessage";
+import {AlertMessage} from "../Shared/AlertMessage";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import Unit, {UnitDimension} from "./unit.class";
+import {Unit, UnitDimension} from "./unit.class";
+import * as Sentry from "@sentry/browser";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {
@@ -124,7 +125,7 @@ type State = {
   error: Error | null;
   isError: boolean;
   isLoading: boolean;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {
@@ -253,7 +254,7 @@ const unitsReducer = (state: State, action: ReducerAction): State => {
   }
 };
 
-const TABLE_COLUMS: Column[] = [
+const TABLE_COLUMNS: Column[] = [
   {
     id: "key",
     type: TableColumnTypes.string,
@@ -304,9 +305,7 @@ const UnitsPage = () => {
 
   const [state, dispatch] = React.useReducer(unitsReducer, initialState);
 
-  const [unitCreateValues, setUnitCreateValues] = React.useState({
-    popUpOpen: false,
-  });
+  const [unitCreateDialogOpen, setUnitCreateDialogOpen] = React.useState(false);
   const [editMode, setEditMode] = React.useState(false);
   // Snapshot der Einheiten beim Wechsel in den Bearbeitungsmodus —
   // wird bei Abbruch verwendet, um Änderungen zu verwerfen.
@@ -338,7 +337,7 @@ const UnitsPage = () => {
   /* ------------------------------------------
   // onChangeField
   // ------------------------------------------ */
-  const onChangeField = (
+  const onChangeField = React.useCallback((
     event: React.ChangeEvent<HTMLInputElement> | SelectChangeEvent
   ) => {
     const unitField = event.target.name.split("_");
@@ -351,7 +350,7 @@ const UnitsPage = () => {
         value: event.target.value,
       },
     });
-  };
+  }, []);
 
   /* ------------------------------------------
   // Speichern (nur geänderte Einheiten)
@@ -401,14 +400,14 @@ const UnitsPage = () => {
   // PopUp öffnen
   // ------------------------------------------ */
   const onAddUnitClick = () => {
-    setUnitCreateValues({...unitCreateValues, popUpOpen: true});
+    setUnitCreateDialogOpen(true);
   };
 
   /* ------------------------------------------
   // Einheit hinzufügen --> PopUp schliessen
   // ------------------------------------------ */
   const onPopUpClose = () => {
-    setUnitCreateValues({...unitCreateValues, popUpOpen: false});
+    setUnitCreateDialogOpen(false);
   };
 
   /* ------------------------------------------
@@ -424,11 +423,11 @@ const UnitsPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
 
-    setUnitCreateValues({...unitCreateValues, popUpOpen: false});
+    setUnitCreateDialogOpen(false);
   };
 
   /* ------------------------------------------
@@ -441,7 +440,7 @@ const UnitsPage = () => {
    *
    * @param unit - Die zu löschende Einheit
    */
-  const onDeleteUnit = async (unit: Unit) => {
+  const onDeleteUnit = React.useCallback(async (unit: Unit) => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.ConfirmSecure,
       deletionDialogProperties: {confirmationString: unit.key},
@@ -462,13 +461,13 @@ const UnitsPage = () => {
       .catch((error) => {
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-  };
+  }, [customDialog, database.units, authUser]);
 
   /* ------------------------------------------
   // Snackbar schliessen
   // ------------------------------------------ */
   const handleSnackbarClose = (
-    _event: Event | SyntheticEvent<any, Event>,
+    _event: Event | SyntheticEvent<Element, Event>,
     reason: SnackbarCloseReason
   ) => {
     if (reason === "clickaway") {
@@ -545,7 +544,7 @@ const UnitsPage = () => {
         </Stack>
       </Container>
       <DialogCreateUnit
-        dialogOpen={unitCreateValues.popUpOpen}
+        dialogOpen={unitCreateDialogOpen}
         handleCreate={onAddUnit}
         handleClose={onPopUpClose}
       />
@@ -582,7 +581,7 @@ interface TablePanelProps {
   onDeleteUnit: (unit: Unit) => void;
   editMode: boolean;
 }
-const TablePanel = ({
+const TablePanel = React.memo(({
   units,
   onChangeField,
   onChangeSelect,
@@ -658,7 +657,7 @@ const TablePanel = ({
                   </Grid>
                   <Grid size={1} key={"gridItemDelete_" + unit.key}>
                     <IconButton
-                      aria-label="Einheit löschen"
+                      aria-label={`${TEXT_UNIT} ${TEXT_DELETE.toLowerCase()}`}
                       color="error"
                       onClick={() => onDeleteUnit(unit)}
                     >
@@ -674,7 +673,7 @@ const TablePanel = ({
           ) : (
             <EnhancedTable
               tableData={units}
-              tableColumns={TABLE_COLUMS}
+              tableColumns={TABLE_COLUMNS}
               keyColum={"key"}
             />
           )}
@@ -682,6 +681,6 @@ const TablePanel = ({
       </Card>
     </React.Fragment>
   );
-};
+});
 
-export default UnitsPage;
+export {UnitsPage};

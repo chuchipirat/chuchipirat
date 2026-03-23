@@ -35,7 +35,7 @@ import {
   RECIPE_DRAWER_DATA_INITIAL_VALUES,
 } from "../../Recipe/RecipeDrawer";
 import {DialogSelectMenuesForRecipeDialogValues} from "./dialogSelectMenues";
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeShort} from "../../Recipe/recipe.types";
 
 
 /** Initialwerte für den Rezeptsuche-Drawer. */

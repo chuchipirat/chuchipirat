@@ -1,4 +1,5 @@
 import React, {SyntheticEvent} from "react";
+import * as Sentry from "@sentry/react";
 
 import {
   Backdrop,
@@ -48,13 +49,14 @@ import {
   SHOW_ALL_PRODUCTS as TEXT_SHOW_ALL_PRODUCTS,
   SHOW_ONLY_NEWEST_PRODUCTS as TEXT_SHOW_ONLY_NEWEST_PRODUCTS,
   NO_NEWEST_PRODUCTS_FOUND as TEXT_NO_NEWEST_PRODUCTS_FOUND,
+  CONVERT_TO_MATERIAL as TEXT_CONVERT_TO_MATERIAL,
 } from "../../constants/text";
-import Roles from "../../constants/roles";
+import {Role as Roles} from "../../constants/roles";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
-import DialogProduct, {ProductDialog} from "./dialogProduct";
-import AlertMessage from "../Shared/AlertMessage";
+import {PageTitle} from "../Shared/pageTitle";
+import {ButtonRow} from "../Shared/buttonRow";
+import {DialogProduct, ProductDialog} from "./dialogProduct";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import {
   Edit as EditIcon,
@@ -62,17 +64,17 @@ import {
   Cached as CachedIcon,
 } from "@mui/icons-material";
 
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
-import useCustomStyles from "../../constants/styles";
+import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
+import {useCustomStyles} from "../../constants/styles";
 
-import SearchPanel from "../Shared/searchPanel";
+import {SearchPanel} from "../Shared/searchPanel";
 
-import Product, {Allergen, Diet} from "./product.class";
-import Unit, {UnitDimension} from "../Unit/unit.class";
+import {Product, Allergen, Diet, createEmptyDietProperty} from "./product.types";
+import {Unit, UnitDimension} from "../Unit/unit.class";
 import Department from "../Department/department.class";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Material, {MaterialType} from "../Material/material.class";
+import {Material, MaterialType} from "../Material/material.types";
 import {
   DialogType,
   SingleTextInputResult,
@@ -126,7 +128,7 @@ type ReducerAction =
   | {type: ReducerActions.UNITS_FETCH_SUCCESS; payload: Unit[]}
   | {
       type: ReducerActions.SNACKBAR_SHOW;
-      payload: {severity: Snackbar["severity"]; message: string};
+      payload: {severity: SnackbarState["severity"]; message: string};
     }
   | {type: ReducerActions.SNACKBAR_CLOSE}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
@@ -156,7 +158,7 @@ type State = {
     units: boolean;
     departments: boolean;
   };
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {
@@ -351,7 +353,7 @@ const PRODUCT_POPUP_VALUES = {
   shoppingUnit: {key: "", name: "", dimension: UnitDimension.dimensionless},
   usable: false,
   popUpOpen: false,
-  dietProperties: Product.createEmptyDietProperty(),
+  dietProperties: createEmptyDietProperty(),
 };
 
 /* ===================================================================
@@ -390,7 +392,7 @@ const ProductsPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error, {extra: {context: "Produkte laden"}});
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: error,
@@ -411,7 +413,7 @@ const ProductsPage = () => {
             });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error, {extra: {context: "Abteilungen laden"}});
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -423,7 +425,7 @@ const ProductsPage = () => {
         database.units
           .getAllUnits()
           .then((result) => {
-            // leeres Feld gehört auch dazu
+            // leeres Feld gehoert auch dazu
             result.push({
               uid: "",
               key: "",
@@ -437,7 +439,7 @@ const ProductsPage = () => {
             });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error, {extra: {context: "Einheiten laden"}});
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -486,8 +488,9 @@ const ProductsPage = () => {
     }
     try {
       for (const product of changedProducts) {
+        // Product → ProductDomain: nameSingular mit Name belegen (Tech-Debt: Typ-Vereinheitlichung)
         await database.products.updateProduct(
-          product as ProductDomain,
+          {...product, nameSingular: product.name},
           authUser,
         );
       }
@@ -547,7 +550,7 @@ const ProductsPage = () => {
   const onConvertProductToMaterial = async (product: Product) => {
     // Fragen welcher Material-Typ gesetzt werden soll?
     const userInput = (await customDialog({
-      dialogType: DialogType.selectOptions,
+      dialogType: DialogType.SelectOptions,
       title: TEXT_MATERIAL_TYPE,
       text: TEXT_CHOOSE_MATERIAL_TYPE,
       singleTextInputProperties: {
@@ -806,7 +809,7 @@ const ProductsTable = ({
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     React.useState<HTMLElement | null>(null);
   const [contextMenuProductUid, setContextMenuProductUid] = React.useState("");
-  const [pageSize, setPageSize] = React.useState(100);
+  const [paginationModel, setPaginationModel] = React.useState({page: 0, pageSize: 100});
 
   const classes = useCustomStyles();
   const theme = useTheme();
@@ -861,133 +864,134 @@ const ProductsTable = ({
 
   const filteredProductsUi = React.useMemo(
     () => prepareProductsListForUi(filteredProducts),
-    // editMode als Abhängigkeit, damit die Grid-Zeilen bei Moduswechsel neu rendern
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // editMode als Abhaengigkeit, damit die Grid-Zeilen bei Moduswechsel neu rendern
     [filteredProducts, editMode],
   );
 
-  const DATA_GRID_COLUMNS: GridColDef[] = [
-    {
-      field: "open",
-      headerName: TEXT_OPEN,
-      sortable: false,
-      renderCell: (params) => {
-        const onClick = () => openPopUp(params.id as string);
+  const dataGridColumns: GridColDef[] = React.useMemo(
+    () => [
+      {
+        field: "open",
+        headerName: TEXT_OPEN,
+        sortable: false,
+        renderCell: (params) => {
+          const onClick = () => openPopUp(params.id as string);
 
-        return (
-          <IconButton
-            aria-label="open User"
-            style={{margin: theme.spacing(1)}}
-            size="small"
-            disabled={!editMode}
-            onClick={onClick}
-          >
-            <EditIcon fontSize="inherit" />
-          </IconButton>
-        );
+          return (
+            <IconButton
+              aria-label="open User"
+              sx={{margin: theme.spacing(1)}}
+              size="small"
+              disabled={!editMode}
+              onClick={onClick}
+            >
+              <EditIcon fontSize="inherit" />
+            </IconButton>
+          );
+        },
       },
-    },
-    {
-      field: "uid",
-      headerName: TEXT_UID,
-      editable: false,
-      hide: true,
-      width: 200,
-      cellClassName: () => `super-app ${classes.typographyCode}`,
-    },
-    {
-      field: "name",
-      headerName: TEXT_NAME,
-      editable: false,
-      width: 200,
-    },
-    {
-      field: "departmentName",
-      headerName: TEXT_DEPARTMENT,
-      editable: false,
-      width: 200,
-    },
-    {
-      field: "shoppingUnit",
-      headerName: TEXT_SHOPPING_UNIT,
-      editable: false,
-      width: 200,
-    },
-    {
-      field: "containsLactose",
-      headerName: TEXT_HAS_LACTOSE,
-      editable: false,
-      width: 200,
-      renderCell: (params) => (
-        <Checkbox
-          checked={params.value as boolean}
-          disabled={!editMode}
-          onChange={handleCheckboxChange}
-          key={"checkbox_" + Allergen.Lactose + "_" + params.id}
-          name={"checkbox_" + Allergen.Lactose + "_" + params.id}
-        />
-      ),
-    },
-    {
-      field: "containsGluten",
-      headerName: TEXT_HAS_GLUTEN,
-      editable: false,
-      width: 200,
-      renderCell: (params) => (
-        <Checkbox
-          checked={params.value as boolean}
-          disabled={!editMode}
-          onChange={handleCheckboxChange}
-          key={"checkbox_" + Allergen.Gluten + "_" + params.id}
-          name={"checkbox_" + Allergen.Gluten + "_" + params.id}
-        />
-      ),
-    },
-    {
-      field: "diet",
-      headerName: TEXT_DIET,
-      editable: false,
-      width: 200,
-      renderCell: (params) => TEXT_DIET_TYPES[params.value as number],
-    },
-    {
-      field: "usable",
-      headerName: TEXT_USABLE,
-      editable: false,
-      width: 200,
-      renderCell: (params) => (
-        <Checkbox
-          checked={params.value as boolean}
-          disabled={!editMode}
-          onChange={handleCheckboxChange}
-          key={"checkbox_usable_" + params.id}
-          name={"checkbox_usable_" + params.id}
-        />
-      ),
-    },
-    {
-      field: "context",
-      headerName: "",
-      editable: false,
-      width: 200,
-      renderCell: (params) => {
-        const onClick = (event: React.MouseEvent<HTMLElement>) =>
-          openContextMenu(event, params.id as string);
+      {
+        field: "uid",
+        headerName: TEXT_UID,
+        editable: false,
+        width: 200,
+        cellClassName: () => `super-app ${classes.typographyCode}`,
+      },
+      {
+        field: "name",
+        headerName: TEXT_NAME,
+        editable: false,
+        width: 200,
+      },
+      {
+        field: "departmentName",
+        headerName: TEXT_DEPARTMENT,
+        editable: false,
+        width: 200,
+      },
+      {
+        field: "shoppingUnit",
+        headerName: TEXT_SHOPPING_UNIT,
+        editable: false,
+        width: 200,
+      },
+      {
+        field: "containsLactose",
+        headerName: TEXT_HAS_LACTOSE,
+        editable: false,
+        width: 200,
+        renderCell: (params) => (
+          <Checkbox
+            checked={params.value as boolean}
+            disabled={!editMode}
+            onChange={handleCheckboxChange}
+            key={"checkbox_" + Allergen.Lactose + "_" + params.id}
+            name={"checkbox_" + Allergen.Lactose + "_" + params.id}
+          />
+        ),
+      },
+      {
+        field: "containsGluten",
+        headerName: TEXT_HAS_GLUTEN,
+        editable: false,
+        width: 200,
+        renderCell: (params) => (
+          <Checkbox
+            checked={params.value as boolean}
+            disabled={!editMode}
+            onChange={handleCheckboxChange}
+            key={"checkbox_" + Allergen.Gluten + "_" + params.id}
+            name={"checkbox_" + Allergen.Gluten + "_" + params.id}
+          />
+        ),
+      },
+      {
+        field: "diet",
+        headerName: TEXT_DIET,
+        editable: false,
+        width: 200,
+        renderCell: (params) => TEXT_DIET_TYPES[params.value as number],
+      },
+      {
+        field: "usable",
+        headerName: TEXT_USABLE,
+        editable: false,
+        width: 200,
+        renderCell: (params) => (
+          <Checkbox
+            checked={params.value as boolean}
+            disabled={!editMode}
+            onChange={handleCheckboxChange}
+            key={"checkbox_usable_" + params.id}
+            name={"checkbox_usable_" + params.id}
+          />
+        ),
+      },
+      {
+        field: "context",
+        headerName: "",
+        editable: false,
+        width: 200,
+        renderCell: (params) => {
+          const onClick = (event: React.MouseEvent<HTMLElement>) =>
+            openContextMenu(event, params.id as string);
 
-        return (
-          <IconButton
-            aria-label="open User"
-            style={{margin: theme.spacing(1)}}
-            size="small"
-            disabled={!editMode}
-            onClick={onClick}
-          >
-            <MoreVertIcon fontSize="inherit" />
-          </IconButton>
-        );
+          return (
+            <IconButton
+              aria-label="open User"
+              sx={{margin: theme.spacing(1)}}
+              size="small"
+              disabled={!editMode}
+              onClick={onClick}
+            >
+              <MoreVertIcon fontSize="inherit" />
+            </IconButton>
+          );
+        },
       },
-    },
-  ];
+    ],
+    [editMode, theme],
+  );
 
   /* ------------------------------------------
   // Suche
@@ -1098,7 +1102,7 @@ const ProductsTable = ({
   };
 
   const onPopUpChooseExisting = () => {
-    console.info("");
+    // Intentionally empty — im EDIT-Modus nicht verwendet
   };
 
   return (
@@ -1112,7 +1116,7 @@ const ProductsTable = ({
           />
           <Typography
             variant="body2"
-            style={{marginTop: "0.5em", marginBottom: "2em"}}
+            sx={{marginTop: "0.5em", marginBottom: "2em"}}
           >
             {filteredProducts.length === products.length
               ? `${products.length} ${TEXT_PRODUCTS}`
@@ -1124,7 +1128,8 @@ const ProductsTable = ({
             <DataGrid
               autoHeight
               rows={filteredProductsUi}
-              columns={DATA_GRID_COLUMNS}
+              columns={dataGridColumns}
+              columnVisibilityModel={{uid: false}}
               getRowId={(row) => row.uid}
               pagination
               localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
@@ -1135,9 +1140,9 @@ const ProductsTable = ({
                   return `super-app-theme`;
                 }
               }}
-              pageSize={pageSize}
-              onPageSizeChange={(newPageSize) => setPageSize(newPageSize)}
-              rowsPerPageOptions={[20, 50, 100]}
+              paginationModel={paginationModel}
+              onPaginationModelChange={setPaginationModel}
+              pageSizeOptions={[20, 50, 100]}
               sx={(theme) => ({
                 [`.${gridClasses.main}`]: {
                   overflow: "unset",
@@ -1166,7 +1171,7 @@ const ProductsTable = ({
                 <CachedIcon />
               </ListItemIcon>
               <Typography variant="inherit" noWrap>
-                Zu Material umwandeln
+                {TEXT_CONVERT_TO_MATERIAL}
               </Typography>
             </MenuItem>
           </Menu>
@@ -1199,4 +1204,5 @@ const ProductsTable = ({
   );
 };
 
-export default ProductsPage;
+export {ProductsPage, productsReducer, ReducerActions, initialState};
+export type {State, ReducerAction};

@@ -23,8 +23,8 @@ import {
   Typography,
 } from "@mui/material";
 
-import useCustomStyles from "../../constants/styles";
-import Utils from "./utils.class";
+import {useCustomStyles} from "../../constants/styles";
+import {Utils} from "./utils.class";
 
 /* ===================================================================
 // ======================== Typen & Enums ============================
@@ -489,4 +489,4 @@ const EnhancedTableBody = ({
   );
 };
 
-export default EnhancedTable;
+export {EnhancedTable};

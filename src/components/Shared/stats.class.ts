@@ -46,7 +46,7 @@ export interface Kpi {
   caption: string;
 }
 //HINT💡: Muss in der Cloud-FX nachgeführt werden
-export default class Stats {
+export class Stats {
   // HINT: auch in enum StatsField nachführen
   noEvents: number;
   noIngredients: number;

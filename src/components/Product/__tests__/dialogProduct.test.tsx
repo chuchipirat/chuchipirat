@@ -1,9 +1,9 @@
 /**
- * Unit-Tests fuer DialogProduct im EDIT-Modus.
+ * Unit-Tests fuer DialogProduct im EDIT- und CREATE-Modus.
  *
- * Das CREATE-Verfahren nutzt jetzt Supabase (database.products.insertProduct).
+ * Das CREATE-Verfahren nutzt Supabase (database.products.insertProduct).
  * Die Tests pruefen: Vorausfuellen des Formulars, Validierung,
- * Callback-Verhalten und Checkbox-/Radio-Logik im EDIT-Modus.
+ * Callback-Verhalten, Checkbox-/Radio-Logik und aehnliche-Produkte-Dialog.
  */
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
@@ -13,10 +13,10 @@ import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 
-import DialogProduct, {ProductDialog} from "../dialogProduct";
-import {Allergen, Diet} from "../product.class";
+import {DialogProduct, ProductDialog} from "../dialogProduct";
+import {Allergen, Diet} from "../product.types";
 import Department from "../../Department/department.class";
-import Unit, {UnitDimension} from "../../Unit/unit.class";
+import {Unit, UnitDimension} from "../../Unit/unit.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
@@ -24,11 +24,20 @@ import {DatabaseContext} from "../../Database/DatabaseContext";
 // ======================== Mocks =====================================
 // =================================================================== */
 
-/** Mock-DatabaseService mit insertProduct-Stub (nur für CREATE-Pfad nötig) */
+/** Sentry-Mock */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
+/** Mock-DatabaseService mit insertProduct- und insertFeed-Stub */
 const mockInsertProduct = jest.fn();
+const mockInsertFeed = jest.fn().mockResolvedValue({});
 const mockDatabase = {
   products: {
     insertProduct: mockInsertProduct,
+  },
+  feeds: {
+    insertFeed: mockInsertFeed,
   },
 } as any;
 
@@ -255,5 +264,117 @@ describe("DialogProduct — EDIT", () => {
     await userEvent.click(veganRadio);
 
     expect(veganRadio).toBeChecked();
+  });
+});
+
+/* ===================================================================
+// ======================== CREATE-Modus Tests ========================
+// =================================================================== */
+
+/**
+ * Rendert den DialogProduct im CREATE-Modus.
+ */
+const renderCreateDialog = (options: Partial<RenderDialogOptions> = {}) => {
+  const {
+    dialogOpen = true,
+    productName = "Avocado",
+    handleOk = jest.fn(),
+    handleClose = jest.fn(),
+  } = options;
+
+  const handleChooseExisting = jest.fn();
+
+  render(
+    <DatabaseContext.Provider value={mockDatabase}>
+      <DialogProduct
+        dialogType={ProductDialog.CREATE}
+        productName={productName}
+        productUid=""
+        productDietProperties={{allergens: [], diet: Diet.Meat}}
+        products={mockProducts as any}
+        dialogOpen={dialogOpen}
+        handleOk={handleOk}
+        handleClose={handleClose}
+        handleChooseExisting={handleChooseExisting}
+        selectedDepartment={mockDepartment}
+        selectedUnit={mockUnit}
+        usable={true}
+        departments={[mockDepartment]}
+        units={[mockUnit]}
+        authUser={mockAuthUser}
+      />
+    </DatabaseContext.Provider>,
+  );
+
+  return {handleOk, handleClose, handleChooseExisting};
+};
+
+describe("DialogProduct — CREATE", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  test("insertProduct wird mit korrekten Argumenten aufgerufen", async () => {
+    const insertedProduct = {
+      uid: "new-uid-1",
+      name: "Avocado",
+      nameSingular: "Avocado",
+      department: {uid: "dept-1", name: "Gemüse"},
+      shoppingUnit: "kg",
+      dietProperties: {allergens: [], diet: Diet.Meat},
+      usable: true,
+    };
+    mockInsertProduct.mockResolvedValue(insertedProduct);
+
+    const handleOk = jest.fn();
+    renderCreateDialog({handleOk});
+
+    await waitFor(() => screen.getByDisplayValue("Avocado"));
+
+    // Erstellen-Button klicken
+    await userEvent.click(
+      screen.getByRole("button", {name: /erstellen/i}),
+    );
+
+    expect(mockInsertProduct).toHaveBeenCalledTimes(1);
+    const callArgs = mockInsertProduct.mock.calls[0][0];
+    expect(callArgs.name).toBe("Avocado");
+    expect(callArgs.usable).toBe(true);
+
+    // handleOk wird asynchron nach insertProduct aufgerufen
+    await waitFor(() => {
+      expect(handleOk).toHaveBeenCalledTimes(1);
+    });
+    expect(handleOk.mock.calls[0][0].uid).toBe("new-uid-1");
+    expect(handleOk.mock.calls[0][0].name).toBe("Avocado");
+  });
+
+  test("Aehnliche-Produkte-Dialog erscheint bei aehnlichem Namen", async () => {
+    // "Tomaten" ist identisch zum bestehenden Produkt in mockProducts
+    renderCreateDialog({productName: "Tomaten"});
+
+    // Der Dialog fuer aehnliche Produkte sollte sichtbar werden (Titel)
+    await waitFor(() => {
+      expect(screen.getByRole("heading", {name: /ähnliche produkte/i})).toBeInTheDocument();
+    });
+  });
+
+  test("Bestehendes Produkt waehlen ruft handleChooseExisting auf", async () => {
+    // "Tomaten" ist identisch zum bestehenden Produkt
+    const {handleChooseExisting} = renderCreateDialog({productName: "Tomaten"});
+
+    // Warten auf den aehnliche-Produkte-Dialog
+    await waitFor(() => {
+      expect(screen.getByRole("heading", {name: /ähnliche produkte/i})).toBeInTheDocument();
+    });
+
+    // Auf das bestehende Produkt "Tomaten" in der Liste klicken
+    const listItems = screen.getAllByRole("button", {name: "Tomaten"});
+    // Der letzte Button mit diesem Text ist der ListItemButton im aehnliche-Produkte-Dialog
+    const similarProductButton = listItems[listItems.length - 1];
+    await userEvent.click(similarProductButton);
+
+    expect(handleChooseExisting).toHaveBeenCalledTimes(1);
+    expect(handleChooseExisting.mock.calls[0][0].name).toBe("Tomaten");
   });
 });

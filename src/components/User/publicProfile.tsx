@@ -25,12 +25,12 @@ import {
   ContentCopy as ContentCopyIcon,
 } from "@mui/icons-material";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
+import {PageTitle} from "../Shared/pageTitle";
+import {ButtonRow} from "../Shared/buttonRow";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import User from "./user.class";
+import {User} from "./user.class";
 import {
   INTRODUCING_NAME as TEXT_INTRODUCING_NAME,
   EDIT as TEXT_EDIT,
@@ -46,15 +46,15 @@ import {
   FOUND_BUGS as TEXT_FOUND_BUGS,
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
 } from "../../constants/text";
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 import * as ROUTES from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import UserPublicProfile from "./user.public.profile.class";
+import {UserPublicProfile} from "./user.public.profile.class";
 import {getImageUrl, ImageSize} from "../Shared/imageUrl";
 import {FormListItem} from "../Shared/formListItem";
-import AlertMessage from "../Shared/AlertMessage";
+import {AlertMessage} from "../Shared/AlertMessage";
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 /* ===================================================================
@@ -114,8 +114,7 @@ const publicProfileReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.GENERIC_ERROR:
       return {...state, isLoading: false, error: action.payload};
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error(`Unbekannter ActionType: ${(action as {type: unknown}).type}`);
   }
 };
 
@@ -126,6 +125,13 @@ const publicProfileReducer = (state: State, action: DispatchAction): State => {
 /* ===================================================================
 // =============================== Base ==============================
 // =================================================================== */
+/**
+ * Seite für das öffentliche Benutzerprofil.
+ *
+ * Zeigt Anzeigename, Profilbild, Motto, Mitglied-seit-Datum und Statistiken
+ * (Rezepte, Anlässe, Kommentare, Bewertungen, gefundene Bugs).
+ * Bietet einen Bearbeiten-Button, wenn das eigene Profil angeschaut wird.
+ */
 const PublicProfilePage = () => {
   const firebase = useFirebase();
   const database = useDatabase();
@@ -267,7 +273,12 @@ const PublicProfilePage = () => {
 interface PublicProfileListProps {
   userProfile: UserPublicProfile;
 }
-export const PublicProfileList = ({userProfile}: PublicProfileListProps) => {
+/**
+ * Listenansicht der Profilbasisdaten (Mitglied seit, Motto).
+ *
+ * @param userProfile - Das öffentliche Benutzerprofil.
+ */
+export const PublicProfileList = React.memo(({userProfile}: PublicProfileListProps) => {
   return (
     <React.Fragment>
       <List>
@@ -296,14 +307,20 @@ export const PublicProfileList = ({userProfile}: PublicProfileListProps) => {
       </List>
     </React.Fragment>
   );
-};
+});
+PublicProfileList.displayName = "PublicProfileList";
 /* ===================================================================
 // ========================== Gefunden Schätze =======================
 // =================================================================== */
 interface AchievedRewardsListProps {
   userProfile: UserPublicProfile;
 }
-export const AchievedRewardsList = ({
+/**
+ * Listenansicht der erreichten Belohnungen/Statistiken.
+ *
+ * @param userProfile - Das öffentliche Benutzerprofil mit Statistiken.
+ */
+export const AchievedRewardsList = React.memo(({
   userProfile,
 }: AchievedRewardsListProps) => {
   return (
@@ -361,6 +378,7 @@ export const AchievedRewardsList = ({
       )}
     </List>
   );
-};
+});
+AchievedRewardsList.displayName = "AchievedRewardsList";
 
-export default PublicProfilePage;
+export {PublicProfilePage};

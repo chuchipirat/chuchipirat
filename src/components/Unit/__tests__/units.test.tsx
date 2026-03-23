@@ -14,7 +14,7 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
 
-import UnitsPage from "../units";
+import {UnitsPage} from "../units";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
 /* ===================================================================
@@ -50,7 +50,7 @@ const mockDatabase = {
     createUnit: mockCreateUnit,
     updateUnit: mockUpdateUnit,
   },
-} as any;
+} as unknown as ReturnType<typeof import("../../Database/DatabaseContext").useDatabase>;
 
 /** Testdaten: zwei Beispiel-Einheiten */
 const mockUnits = [

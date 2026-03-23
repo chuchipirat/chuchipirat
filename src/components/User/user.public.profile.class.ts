@@ -1,12 +1,7 @@
-import Firebase from "../Firebase/firebase.class";
-
-interface IncrementField {
-  firebase: Firebase;
-  uid: string;
-  field: UserPublicProfileStatsFields;
-  step: number;
-}
-
+/**
+ * Statistik-Felder für das öffentliche Benutzerprofil.
+ * Entspricht den `stats.*`-Spalten in der users-Tabelle.
+ */
 export enum UserPublicProfileStatsFields {
   noComments = "noComments",
   noRatings = "noRatings",
@@ -19,7 +14,14 @@ export enum UserPublicProfileStatsFields {
 type Stats = {[key in UserPublicProfileStatsFields]: number};
 
 /**
- * Öffentliches Profile, wie von jedem*r einsehbar
+ * Öffentliches Benutzerprofil — für alle einsehbare Daten eines Users.
+ *
+ * Enthält Anzeigename, Motto, Profilbild und Statistiken.
+ * Wird u.a. auf der öffentlichen Profilseite und in der Admin-Übersicht verwendet.
+ *
+ * @example
+ * const profile = new UserPublicProfile();
+ * profile.displayName = "ScoutMaster";
  */
 export class UserPublicProfile {
   uid: string;
@@ -29,9 +31,6 @@ export class UserPublicProfile {
   motto: string;
   pictureSrc: string;
   stats: Stats;
-  // noComments: number;
-  // noEvents: number;
-  // noRecipes: number;
   /* =====================================================================
   // Constructor
   // ===================================================================== */
@@ -52,24 +51,4 @@ export class UserPublicProfile {
       noFoundBugs: 0,
     };
   }
-  /* =====================================================================
-  // Zähler für öffentliches Profil hochzählen
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static incrementField = async ({
-    firebase,
-    uid,
-    field,
-    step,
-  }: IncrementField) => {
-    // TEST ME!
-    firebase.user.public.profile.incrementField({
-      uids: [uid],
-      field: `stats.${field}`,
-      value: step,
-    });
-  };
 }
-
-export default UserPublicProfile;

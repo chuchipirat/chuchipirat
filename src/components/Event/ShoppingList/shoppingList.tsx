@@ -56,12 +56,12 @@ import {
 } from "../../../constants/text";
 import {MoreVert as MoreVertIcon} from "@mui/icons-material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {MenuplanData} from "../Menuplan/menuplan.types";
-import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
+import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import {
   DialogType,
   SingleTextInputResult,
@@ -70,26 +70,27 @@ import {
 import {
   NavigationObject,
   NavigationValuesContext,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
-import AlertMessage from "../../Shared/AlertMessage";
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
+import {AlertMessage} from "../../Shared/AlertMessage";
 import {ShoppingListCollection} from "./shoppingListCollection.class";
 import {ShoppingList,ItemType, ShoppingListItem} from "./shoppingList.class";
 
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
 import {Event} from "../Event/event.class";
-import UnitAutocomplete from "../../Unit/unitAutocomplete";
+import {UnitAutocomplete} from "../../Unit/unitAutocomplete";
 import {ItemAutocomplete,MaterialItem, ProductItem} from "./itemAutocomplete";
-import Unit from "../../Unit/unit.class";
-import Product from "../../Product/product.class";
+import {Unit} from "../../Unit/unit.class";
+import {Product, createEmptyProduct} from "../../Product/product.types";
 import Department from "../../Department/department.class";
 import {Recipes} from "../../Recipe/recipe.class";
-import DialogMaterial, {
+import {DialogMaterial,
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
 import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
-import DialogProduct, {
+import {
+  DialogProduct,
   PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   ProductDialog,
 } from "../../Product/dialogProduct";
@@ -102,7 +103,7 @@ import {
   PositionContextMenu,
   ListMode,
 } from "../Event/eventSharedComponents";
-import Material from "../../Material/material.class";
+import {Material} from "../../Material/material.types";
 import {TextFieldSize} from "../../../constants/defaultValues";
 import {DialogSelectDepartments} from "./dialogSelectDepartments";
 
@@ -130,7 +131,7 @@ interface State {
   selectedListItem: string | null;
   isLoading: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 }
 type DispatchAction =
   | {type: ReducerActions.SHOW_LOADING; payload: {isLoading: boolean}}
@@ -1042,7 +1043,7 @@ interface DialogValues {
 const DIALOG_VALUES_INITIAL_STATE: DialogValues = {
   quantity: "",
   unit: "",
-  item: {...new Product(), itemType: ItemType.none},
+  item: {...createEmptyProduct(), itemType: ItemType.none},
 };
 const DIALOG_VALUES_VALIDATION_INITIAL_STATE = {
   isError: false,
@@ -1099,7 +1100,7 @@ const DialogHandleItem = ({
     }
     if (newValue.name.endsWith(TEXT_ADD)) {
       const userInput = (await customDialog({
-        dialogType: DialogType.selectOptions,
+        dialogType: DialogType.SelectOptions,
         title: TEXT_NEW_ITEM,
         text: TEXT_WHAT_KIND_OF_ITEM_ARE_YOU_CREATING,
         singleTextInputProperties: {

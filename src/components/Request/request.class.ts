@@ -168,7 +168,7 @@ export class Request {
     const transitions = TRANSITIONS[requestType];
     if (!transitions) return [];
     return transitions.filter(
-      (t) => t.fromState === status || t.fromState === "*",
+      (transition) => transition.fromState === status || transition.fromState === "*",
     );
   }
 

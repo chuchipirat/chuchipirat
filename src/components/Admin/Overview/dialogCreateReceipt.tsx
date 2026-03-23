@@ -26,7 +26,7 @@ import {
 } from "@mui/material";
 import {DatePicker} from "@mui/x-date-pickers";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {
   UID as TEXT_UID,
   EVENT as TEXT_EVENT,

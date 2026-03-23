@@ -1,3 +1,11 @@
+/**
+ * UnitConversionPage — Übersichtsseite für Einheitenumrechnungen.
+ *
+ * Zeigt Basis- und Produktspezifische Umrechnungen in zwei Tabs an.
+ * Im Bearbeitungsmodus können Umrechnungen hinzugefügt, geändert und
+ * gelöscht werden. Beim Speichern werden nur tatsächlich geänderte
+ * Zeilen persistiert.
+ */
 import React from "react";
 import {useSearchParams} from "react-router";
 
@@ -20,7 +28,6 @@ import {
 import DeleteIcon from "@mui/icons-material/Delete";
 
 import {
-  SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
   UID as TEXT_UID,
   DENOMINATOR as TEXT_DENOMINATOR,
   NUMERATOR as TEXT_NUMERATOR,
@@ -38,323 +45,46 @@ import {
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   CANCEL as TEXT_CANCEL,
 } from "../../constants/text";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
-import EnhancedTable, {
+import {PageTitle} from "../Shared/pageTitle";
+import {ButtonRow} from "../Shared/buttonRow";
+import {
+  EnhancedTable,
   Column,
   ColumnTextAlign,
   TableColumnTypes,
 } from "../Shared/enhancedTable";
-import AlertMessage from "../Shared/AlertMessage";
+import {AlertMessage} from "../Shared/AlertMessage";
 
-import DialogCreateUnitConversion, {
+import {
+  DialogCreateUnitConversion,
   UnitConversionType,
 } from "./dialogCreateUnitConversion";
 
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
-import useCustomStyles from "../../constants/styles";
+import {CustomSnackbar} from "../Shared/customSnackbar";
+import {useCustomStyles} from "../../constants/styles";
 
-import Unit from "./unit.class";
-import UnitConversion from "./unitConversion.class";
-import Product from "../Product/product.class";
+import {Unit} from "./unit.class";
+import {UnitConversion} from "./unitConversion.class";
 
+import * as Sentry from "@sentry/browser";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {UnitConversionBasicDomain} from "../Database/Repository/UnitConversionBasicRepository";
 import {UnitConversionProductDomain} from "../Database/Repository/UnitConversionProductRepository";
 
+import {
+  unitConversionReducer,
+  initialState,
+  ReducerActions,
+} from "./unitConversionReducer";
+
 /* ===================================================================
-// ======================== globale Funktionen =======================
+// ======================== Tabellen-Spalten =========================
 // =================================================================== */
-enum ReducerActions {
-  FETCH_INIT,
-  UNIT_CONVERSION_BASIC_FETCH_SUCCESS,
-  UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS,
-  SNACKBAR_CLOSE,
-  PRODUCTS_FETCH_SUCCESS,
-  UNITS_FETCH_SUCCESS,
-  NEW_UNIT_CONVERSION_BASIC,
-  NEW_UNIT_CONVERSION_PRODUCT,
-  UNIT_CONVERSION_BASIC_ON_CHANGE,
-  UNIT_CONVERSION_PRODUCT_ON_CHANGE,
-  UNIT_CONVERSIONS_SAVED,
-  UNIT_CONVERSIONS_EDIT_CANCELLED,
-  DELETE_BASIC_UNIT_CONVERSION,
-  DELETE_PRODUCT_UNIT_CONVERSION,
-  GENERIC_ERROR,
-}
 
-type isLoading = {
-  overall: boolean;
-  products: boolean;
-  units: boolean;
-  unitConversionBasic: boolean;
-  unitConversionProduct: boolean;
-};
-
-type State = {
-  unitConversionBasic: UnitConversion[];
-  unitConversionProduct: UnitConversion[];
-  products: Product[];
-  units: Unit[];
-  error: Error | null;
-  isLoading: isLoading;
-  snackbar: Snackbar;
-};
-
-/** Diskriminierte Union für Reducer-Actions — typsichere Payloads. */
-type ReducerAction =
-  | {type: ReducerActions.FETCH_INIT; payload: {field: string}}
-  | {
-      type: ReducerActions.UNIT_CONVERSION_BASIC_FETCH_SUCCESS;
-      payload: UnitConversion[];
-    }
-  | {
-      type: ReducerActions.UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS;
-      payload: UnitConversion[];
-    }
-  | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
-  | {type: ReducerActions.UNITS_FETCH_SUCCESS; payload: Unit[]}
-  | {type: ReducerActions.NEW_UNIT_CONVERSION_BASIC; payload: UnitConversion}
-  | {type: ReducerActions.NEW_UNIT_CONVERSION_PRODUCT; payload: UnitConversion}
-  | {
-      type: ReducerActions.UNIT_CONVERSION_BASIC_ON_CHANGE;
-      payload: {uid: string; field: string; value: string};
-    }
-  | {
-      type: ReducerActions.UNIT_CONVERSION_PRODUCT_ON_CHANGE;
-      payload: {uid: string; field: string; value: string};
-    }
-  | {type: ReducerActions.UNIT_CONVERSIONS_SAVED; payload: Record<string, never>}
-  | {
-      type: ReducerActions.UNIT_CONVERSIONS_EDIT_CANCELLED;
-      payload: {basic: UnitConversion[]; product: UnitConversion[]};
-    }
-  | {type: ReducerActions.DELETE_BASIC_UNIT_CONVERSION; payload: {uid: string}}
-  | {
-      type: ReducerActions.DELETE_PRODUCT_UNIT_CONVERSION;
-      payload: {uid: string};
-    }
-  | {type: ReducerActions.SNACKBAR_CLOSE; payload: Record<string, never>}
-  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
-
-const initialState: State = {
-  unitConversionBasic: [],
-  unitConversionProduct: [],
-  products: [],
-  units: [],
-  error: null,
-  isLoading: {
-    overall: false,
-    products: false,
-    units: false,
-    unitConversionBasic: false,
-    unitConversionProduct: false,
-  },
-  snackbar: {open: false, severity: "success", message: ""},
-};
-
-/* ------------------------------------------
-// Berechnet ob noch Daten geladen werden (pure Funktion ohne Seiteneffekte)
-// ------------------------------------------ */
-/**
- * Berechnet den Gesamtlade-Status ohne den Zustand zu mutieren.
- *
- * @param current - Aktueller isLoading-Zustand
- * @param changedField - Das Feld, dessen Wert sich ändert
- * @param newValue - Neuer Wert für das geänderte Feld
- * @returns true wenn mindestens ein Nicht-overall-Feld true ist
- */
-const computeOverallLoading = (
-  current: isLoading,
-  changedField: keyof Omit<isLoading, "overall">,
-  newValue: boolean
-): boolean => {
-  const updated = {...current, [changedField]: newValue};
-  return Object.keys(updated).some(
-    (key) => key !== "overall" && updated[key as keyof isLoading] === true
-  );
-};
-
-const unitConversionReducer = (
-  state: State,
-  action: ReducerAction
-): State => {
-  switch (action.type) {
-    case ReducerActions.FETCH_INIT:
-      // Daten werden geladen
-      return {
-        ...state,
-        isLoading: {
-          ...state.isLoading,
-          overall: true,
-          [action.payload.field]: true,
-        },
-      };
-    case ReducerActions.UNIT_CONVERSION_BASIC_FETCH_SUCCESS:
-      // Basic Umrechnung erfolgreich gelesen
-      return {
-        ...state,
-        unitConversionBasic: action.payload,
-        isLoading: {
-          ...state.isLoading,
-          unitConversionBasic: false,
-          overall: computeOverallLoading(
-            state.isLoading,
-            "unitConversionBasic",
-            false
-          ),
-        },
-      };
-    case ReducerActions.UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS:
-      // Produkte Umrechnung erfolgreich gelesen
-      return {
-        ...state,
-        unitConversionProduct: action.payload,
-        isLoading: {
-          ...state.isLoading,
-          unitConversionProduct: false,
-          overall: computeOverallLoading(
-            state.isLoading,
-            "unitConversionProduct",
-            false
-          ),
-        },
-      };
-    case ReducerActions.PRODUCTS_FETCH_SUCCESS:
-      // Produkte erfolgreich gelesen
-      return {
-        ...state,
-        products: action.payload,
-        isLoading: {
-          ...state.isLoading,
-          products: false,
-          overall: computeOverallLoading(state.isLoading, "products", false),
-        },
-      };
-    case ReducerActions.UNITS_FETCH_SUCCESS:
-      // Einheiten erfolgreich gelesen
-      return {
-        ...state,
-        units: action.payload,
-        isLoading: {
-          ...state.isLoading,
-          overall: computeOverallLoading(state.isLoading, "units", false),
-          units: false,
-        },
-      };
-    case ReducerActions.UNIT_CONVERSION_BASIC_ON_CHANGE:
-      // Änderung der Feldwerte — immutabler Spread statt Mutation
-      return {
-        ...state,
-        unitConversionBasic: state.unitConversionBasic.map(
-          (unitConversion) => {
-            if (unitConversion.uid === action.payload.uid) {
-              return {
-                ...unitConversion,
-                [action.payload.field]: action.payload.value,
-              };
-            }
-            return unitConversion;
-          }
-        ) as UnitConversion[],
-      };
-    case ReducerActions.UNIT_CONVERSION_PRODUCT_ON_CHANGE:
-      // Änderung der Feldwerte — immutabler Spread statt Mutation
-      return {
-        ...state,
-        unitConversionProduct: state.unitConversionProduct.map(
-          (unitConversion) => {
-            if (unitConversion.uid === action.payload.uid) {
-              return {
-                ...unitConversion,
-                [action.payload.field]: action.payload.value,
-              };
-            }
-            return unitConversion;
-          }
-        ) as UnitConversion[],
-      };
-    case ReducerActions.NEW_UNIT_CONVERSION_BASIC: {
-      // Neue Umrechnung wurde erfasst
-      return {
-        ...state,
-        unitConversionBasic: [...state.unitConversionBasic, action.payload],
-      };
-    }
-    case ReducerActions.NEW_UNIT_CONVERSION_PRODUCT: {
-      return {
-        ...state,
-        unitConversionProduct: [
-          ...state.unitConversionProduct,
-          action.payload,
-        ],
-      };
-    }
-    case ReducerActions.DELETE_BASIC_UNIT_CONVERSION:
-      // Einzelne Unit Conversion wurde gelöscht
-      return {
-        ...state,
-        unitConversionBasic: UnitConversion.deleteUnitConversion({
-          unitConversion: state.unitConversionBasic,
-          unitConversionUidToDelete: action.payload.uid,
-        }),
-      };
-    case ReducerActions.DELETE_PRODUCT_UNIT_CONVERSION:
-      // Einzelne Unit Conversion wurde gelöscht
-      return {
-        ...state,
-        unitConversionProduct: UnitConversion.deleteUnitConversion({
-          unitConversion: state.unitConversionProduct,
-          unitConversionUidToDelete: action.payload.uid,
-        }),
-      };
-    case ReducerActions.UNIT_CONVERSIONS_SAVED:
-      // Alles gespeichert
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: TEXT_SAVE_SUCCESS,
-          open: true,
-        } as Snackbar,
-      };
-    case ReducerActions.UNIT_CONVERSIONS_EDIT_CANCELLED:
-      // Bearbeitung abgebrochen — Snapshot wiederherstellen
-      return {
-        ...state,
-        unitConversionBasic: action.payload.basic,
-        unitConversionProduct: action.payload.product,
-      };
-    case ReducerActions.SNACKBAR_CLOSE:
-      // Snackbar schliessen
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: "",
-          open: false,
-        } as Snackbar,
-      };
-    case ReducerActions.GENERIC_ERROR:
-      // allgemeiner Fehler
-      return {
-        ...state,
-        error: action.payload,
-      };
-    default: {
-      // Exhaustive check — TypeScript meldet Fehler bei unbekanntem ActionType
-      const _exhaustive: never = action;
-      throw new Error(
-        `Unbekannter ActionType: ${(_exhaustive as ReducerAction).type}`
-      );
-    }
-  }
-};
-
-const BASIC_TABLE_COLUMS: Column[] = [
+const BASIC_TABLE_COLUMNS: Column[] = [
   {
     id: "uid",
     type: TableColumnTypes.string,
@@ -396,7 +126,8 @@ const BASIC_TABLE_COLUMS: Column[] = [
     visible: true,
   },
 ];
-const PRODUCT_TABLE_COLUMS: Column[] = [
+
+const PRODUCT_TABLE_COLUMNS: Column[] = [
   {
     id: "uid",
     type: TableColumnTypes.string,
@@ -446,22 +177,36 @@ const PRODUCT_TABLE_COLUMS: Column[] = [
     visible: true,
   },
 ];
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 
 /* ===================================================================
-// =============================== Base ==============================
+// ======================== Konstanten ===============================
 // =================================================================== */
+
+/** Tab-Index für Basic-Umrechnungen. */
+const TAB_BASIC = 0;
+/** Tab-Index für Produkt-Umrechnungen. */
+const TAB_PRODUCT = 1;
+
 /**
  * Zuordnung von URL-Query-Parameter `?tab=` auf den Tab-Index.
  * Ermöglicht Deep-Links auf einen bestimmten Tab (z.B. aus dem Verwendungsnachweis).
  */
 const TAB_QUERY_PARAM_MAP: Record<string, number> = {
-  basic: 0,
-  product: 1,
+  basic: TAB_BASIC,
+  product: TAB_PRODUCT,
 };
 
+/* ===================================================================
+// =============================== Page ==============================
+// =================================================================== */
+
+/**
+ * Hauptkomponente für die Einheitenumrechnungs-Verwaltung.
+ *
+ * Lädt Basis- und Produktumrechnungen beim Mount. Im Bearbeitungsmodus
+ * werden zusätzlich Einheiten und Produkte geladen. Beim Speichern
+ * werden nur geänderte/neue/gelöschte Zeilen persistiert.
+ */
 const UnitConversionPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
@@ -482,7 +227,7 @@ const UnitConversionPage = () => {
 
   // Initialer Tab aus ?tab= Query-Parameter (Deep-Link-Unterstützung)
   const [tabValue, setTabValue] = React.useState(
-    TAB_QUERY_PARAM_MAP[searchParams.get("tab") ?? ""] ?? 0
+    TAB_QUERY_PARAM_MAP[searchParams.get("tab") ?? ""] ?? TAB_BASIC
   );
 
   // Snapshots speichern den Zustand beim Eintritt in den Bearbeitungsmodus
@@ -490,32 +235,41 @@ const UnitConversionPage = () => {
   const productSnapshot = React.useRef<UnitConversion[]>([]);
 
   /* ------------------------------------------
-	// Daten aus der db holen
-	// ------------------------------------------ */
+  // Daten aus der DB holen
+  // ------------------------------------------ */
   React.useEffect(() => {
-    // Umrechnungen Basic holen
     dispatch({
       type: ReducerActions.FETCH_INIT,
       payload: {field: "unitConversionBasic"},
     });
 
-    database.unitConversionBasic.getAllConversions().then((result) => {
-      dispatch({
-        type: ReducerActions.UNIT_CONVERSION_BASIC_FETCH_SUCCESS,
-        payload: result as UnitConversion[],
+    database.unitConversionBasic
+      .getAllConversions()
+      .then((result) => {
+        dispatch({
+          type: ReducerActions.UNIT_CONVERSION_BASIC_FETCH_SUCCESS,
+          payload: result as UnitConversion[],
+        });
+      })
+      .catch((error) => {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-    });
-    // Umrechnungen Produkte holen
-    database.unitConversionProducts.getAllConversions().then((result) => {
-      dispatch({
-        type: ReducerActions.UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS,
-        payload: result as UnitConversion[],
+
+    database.unitConversionProducts
+      .getAllConversions()
+      .then((result) => {
+        dispatch({
+          type: ReducerActions.UNIT_CONVERSION_PRODUCTS_FETCH_SUCCESS,
+          payload: result as UnitConversion[],
+        });
+      })
+      .catch((error) => {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-    });
   }, []);
+
   React.useEffect(() => {
     if (editMode) {
-      // Produkte holen
       if (state.products.length === 0) {
         dispatch({
           type: ReducerActions.FETCH_INIT,
@@ -530,14 +284,13 @@ const UnitConversionPage = () => {
             });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
             });
           });
       }
-      // Einheiten holen
       if (state.units.length === 0) {
         dispatch({
           type: ReducerActions.FETCH_INIT,
@@ -560,12 +313,14 @@ const UnitConversionPage = () => {
       }
     }
   }, [editMode]);
+
   if (!authUser) {
     return null;
   }
+
   /* ------------------------------------------
-	// Edit Mode starten — Snapshot anlegen
-	// ------------------------------------------ */
+  // Edit Mode starten — Snapshot anlegen
+  // ------------------------------------------ */
   const onEditClick = () => {
     basicSnapshot.current = state.unitConversionBasic.map((conversion) => ({
       ...conversion,
@@ -575,9 +330,10 @@ const UnitConversionPage = () => {
     }));
     setEditMode(true);
   };
+
   /* ------------------------------------------
-	// Bearbeitung abbrechen — Snapshot wiederherstellen
-	// ------------------------------------------ */
+  // Bearbeitung abbrechen — Snapshot wiederherstellen
+  // ------------------------------------------ */
   const onCancelClick = () => {
     dispatch({
       type: ReducerActions.UNIT_CONVERSIONS_EDIT_CANCELLED,
@@ -588,23 +344,25 @@ const UnitConversionPage = () => {
     });
     setEditMode(false);
   };
+
   /* ------------------------------------------
-	// Tab wechseln
-	// ------------------------------------------ */
-  const onTabChange = (event: React.BaseSyntheticEvent, value: any) => {
+  // Tab wechseln
+  // ------------------------------------------ */
+  const onTabChange = (_event: React.SyntheticEvent, value: number) => {
     setTabValue(value);
   };
+
   /* ------------------------------------------
-	// PopUp öffnen um neue Umrechnung anzulegen
-	// ------------------------------------------ */
+  // PopUp öffnen um neue Umrechnung anzulegen
+  // ------------------------------------------ */
   const onAddUnitConversionClick = () => {
     let conversionType: UnitConversionType;
 
     switch (tabValue) {
-      case 0:
+      case TAB_BASIC:
         conversionType = UnitConversionType.BASIC;
         break;
-      case 1:
+      case TAB_PRODUCT:
         conversionType = UnitConversionType.PRODUCT;
         break;
       default:
@@ -617,31 +375,20 @@ const UnitConversionPage = () => {
       unitConversionType: conversionType,
     });
   };
+
   /* ------------------------------------------
-	// Einheit hinzufügen --> PopUp schliessen
-	// ------------------------------------------ */
+  // Einheit hinzufügen → PopUp schliessen
+  // ------------------------------------------ */
   const onPopUpClose = () => {
     setUnitConversionCreateValues({
       ...unitConversionCreateValues,
       popUpOpen: false,
     });
   };
+
   /* ------------------------------------------
-	// Fehler beim anlegen der Einheit
-	// ------------------------------------------ */
-  const onPopUpError = (error: Error) => {
-    dispatch({
-      type: ReducerActions.GENERIC_ERROR,
-      payload: error,
-    });
-    setUnitConversionCreateValues({
-      ...unitConversionCreateValues,
-      popUpOpen: false,
-    });
-  };
-  /* ------------------------------------------
-	// Einheit wurde angelegt
-	// ------------------------------------------ */
+  // Einheit wurde angelegt
+  // ------------------------------------------ */
   const onAddUnitConversion = (unitConversion: UnitConversion) => {
     switch (unitConversionCreateValues.unitConversionType) {
       case UnitConversionType.BASIC:
@@ -662,9 +409,14 @@ const UnitConversionPage = () => {
       popUpOpen: false,
     });
   };
+
   /* ------------------------------------------
-	// Selektives Speichern: nur geänderte/neue/gelöschte Zeilen werden persistiert
-	// ------------------------------------------ */
+  // Selektives Speichern
+  // ------------------------------------------ */
+  /**
+   * Speichert nur geänderte, neue und gelöschte Zeilen.
+   * Unveränderte Umrechnungen werden nicht in die DB geschrieben.
+   */
   const onSaveClick = async () => {
     const snapshotBasicMap = new Map(
       basicSnapshot.current.map((conversion) => [conversion.uid, conversion])
@@ -673,7 +425,6 @@ const UnitConversionPage = () => {
       productSnapshot.current.map((conversion) => [conversion.uid, conversion])
     );
 
-    // UIDs im Snapshot, die im aktuellen State fehlen → gelöscht
     const deletedBasicUids = basicSnapshot.current
       .filter(
         (snap) =>
@@ -689,7 +440,6 @@ const UnitConversionPage = () => {
       )
       .map((snap) => snap.uid);
 
-    // Neue oder geänderte Zeilen (Numerator oder Denominator hat sich verändert)
     const changedBasic = state.unitConversionBasic.filter((conversion) => {
       const snap = snapshotBasicMap.get(conversion.uid);
       return (
@@ -713,7 +463,6 @@ const UnitConversionPage = () => {
       changedBasic.length > 0 ||
       changedProduct.length > 0;
 
-    // Keine Änderungen — einfach den Bearbeitungsmodus schliessen
     if (!hasChanges) {
       setEditMode(false);
       return;
@@ -738,7 +487,6 @@ const UnitConversionPage = () => {
           authUser!
         );
       }
-      // Snapshot auf den soeben gespeicherten Zustand aktualisieren
       basicSnapshot.current = state.unitConversionBasic.map((conversion) => ({
         ...conversion,
       }));
@@ -754,11 +502,12 @@ const UnitConversionPage = () => {
       });
     }
   };
+
   /* ------------------------------------------
-	// Snackback schliessen
-	// ------------------------------------------ */
+  // Snackbar schliessen
+  // ------------------------------------------ */
   const handleSnackbarClose = (
-    event: Event | React.SyntheticEvent<any, Event>,
+    _event: Event | React.SyntheticEvent<Element, Event>,
     reason: SnackbarCloseReason
   ) => {
     if (reason === "clickaway") {
@@ -769,15 +518,16 @@ const UnitConversionPage = () => {
       payload: {},
     });
   };
+
   /* ------------------------------------------
-	// OnChange der EditTable
-	// ------------------------------------------ */
-  const onChangeEditTableField = (
+  // OnChange der EditTable
+  // ------------------------------------------ */
+  const onChangeEditTableField = React.useCallback((
     event: React.ChangeEvent<HTMLInputElement>
   ) => {
     const unitConversionField = event.target.id.split("_");
     switch (tabValue) {
-      case 0:
+      case TAB_BASIC:
         dispatch({
           type: ReducerActions.UNIT_CONVERSION_BASIC_ON_CHANGE,
           payload: {
@@ -787,7 +537,7 @@ const UnitConversionPage = () => {
           },
         });
         break;
-      case 1:
+      case TAB_PRODUCT:
         dispatch({
           type: ReducerActions.UNIT_CONVERSION_PRODUCT_ON_CHANGE,
           payload: {
@@ -800,21 +550,21 @@ const UnitConversionPage = () => {
       default:
         throw new Error(TEXT_TYPE_UNKNOWN);
     }
-  };
+  }, [tabValue]);
+
   /* ------------------------------------------
-	// Eintrag aus Tabelle löschen
-	// ------------------------------------------ */
-  const onTableRowDelete = (event: React.MouseEvent<HTMLButtonElement>) => {
+  // Eintrag aus Tabelle löschen
+  // ------------------------------------------ */
+  const onTableRowDelete = React.useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
     const pressedButton = event.currentTarget.id.split("_");
     switch (tabValue) {
-      case 0:
+      case TAB_BASIC:
         dispatch({
           type: ReducerActions.DELETE_BASIC_UNIT_CONVERSION,
           payload: {uid: pressedButton[1]},
         });
-
         break;
-      case 1:
+      case TAB_PRODUCT:
         dispatch({
           type: ReducerActions.DELETE_PRODUCT_UNIT_CONVERSION,
           payload: {uid: pressedButton[1]},
@@ -823,7 +573,8 @@ const UnitConversionPage = () => {
       default:
         throw new Error(TEXT_TYPE_UNKNOWN);
     }
-  };
+  }, [tabValue]);
+
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
@@ -880,10 +631,7 @@ const UnitConversionPage = () => {
         <Grid container spacing={2}>
           <Grid key={"gridTabs"} size={12}>
             <Tabs value={tabValue} onChange={onTabChange} centered>
-              <Tab
-                // className={classes.tabs}
-                label={TEXT_BASIC}
-              />
+              <Tab label={TEXT_BASIC} />
               <Tab label={TEXT_PRODUCT_SPECIFIC} />
             </Tabs>
           </Grid>
@@ -897,26 +645,29 @@ const UnitConversionPage = () => {
             </Grid>
           )}
 
-          {/* Tabs */}
-          {tabValue === 0 && (
-            <Grid key={"BasicConversionPanel"} size={12}>
-              <br />
-              <BasicConversionPanel
+          {tabValue === TAB_BASIC && (
+            <Grid key={"BasicConversionPanel"} size={12} sx={{mt: 2}}>
+              <ConversionPanel
+                title={TEXT_BASIC}
                 unitConversions={state.unitConversionBasic}
+                tableColumns={BASIC_TABLE_COLUMNS}
                 onChangeField={onChangeEditTableField}
                 onDeleteClick={onTableRowDelete}
                 editMode={editMode}
+                showProductName={false}
               />
             </Grid>
           )}
-          {tabValue === 1 && (
-            <Grid key={"BasicConversionPanel"} size={12}>
-              <br />
-              <ProductConversionPanel
+          {tabValue === TAB_PRODUCT && (
+            <Grid key={"ProductConversionPanel"} size={12} sx={{mt: 2}}>
+              <ConversionPanel
+                title={TEXT_PRODUCT_SPECIFIC}
                 unitConversions={state.unitConversionProduct}
+                tableColumns={PRODUCT_TABLE_COLUMNS}
                 onChangeField={onChangeEditTableField}
                 onDeleteClick={onTableRowDelete}
                 editMode={editMode}
+                showProductName={true}
               />
             </Grid>
           )}
@@ -930,7 +681,6 @@ const UnitConversionPage = () => {
         unitConversionType={unitConversionCreateValues.unitConversionType}
         handleCreate={onAddUnitConversion}
         handleClose={onPopUpClose}
-        handleError={onPopUpError}
       />
       <CustomSnackbar
         message={state.snackbar.message}
@@ -941,320 +691,231 @@ const UnitConversionPage = () => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
-// ====================== Basic Conversion Panel  ====================
+// ====================== Conversion Panel ===========================
 // =================================================================== */
-interface BasicConversionPanelProps {
+
+/**
+ * Gemeinsames Panel für Basis- und Produkt-Umrechnungen.
+ *
+ * Im Lesemodus wird eine EnhancedTable angezeigt; im Bearbeitungsmodus
+ * editierbare Zeilen mit Löschen-Button.
+ *
+ * @param title - Überschrift des Panels.
+ * @param unitConversions - Liste der Umrechnungen.
+ * @param tableColumns - Spalten-Definition für die EnhancedTable.
+ * @param onChangeField - Handler für Textfeld-Änderungen.
+ * @param onDeleteClick - Handler zum Löschen einer Zeile.
+ * @param editMode - Ob der Bearbeitungsmodus aktiv ist.
+ * @param showProductName - Ob die Produktname-Spalte angezeigt wird.
+ */
+/** Grid-Spaltenbreiten — entweder ein fixer Wert oder ein responsive-Objekt. */
+type GridSize = number | {xs: number; sm: number};
+
+/** Spaltenbreiten für die editierbaren Umrechnungszeilen. */
+type ColumnSizes = {
+  product?: GridSize;
+  denominator: GridSize;
+  fromUnit: GridSize;
+  numerator: GridSize;
+  toUnit: GridSize;
+  deleteBtn: GridSize;
+};
+
+interface ConversionPanelProps {
+  title: string;
   unitConversions: UnitConversion[];
+  tableColumns: Column[];
   onChangeField: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onDeleteClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   editMode: boolean;
+  showProductName: boolean;
 }
-const BasicConversionPanel = ({
+
+const ConversionPanel = React.memo(({
+  title,
   unitConversions,
+  tableColumns,
   onChangeField,
   onDeleteClick,
   editMode,
-}: BasicConversionPanelProps) => {
+  showProductName,
+}: ConversionPanelProps) => {
   const classes = useCustomStyles();
 
+  // Spaltenbreiten für Basis (ohne Produkt) und Produkt (mit Produkt)
+  const columnSizes: ColumnSizes = showProductName
+    ? {
+        product: {xs: 12, sm: 4},
+        denominator: {xs: 3, sm: 2},
+        fromUnit: {xs: 2, sm: 1},
+        numerator: {xs: 3, sm: 2},
+        toUnit: {xs: 2, sm: 1},
+        deleteBtn: {xs: 2, sm: 2},
+      }
+    : {
+        denominator: 3,
+        fromUnit: 2,
+        numerator: 3,
+        toUnit: 2,
+        deleteBtn: 2,
+      };
+
   return (
-    <Card sx={classes.card} key={"cardBasicUnitConversion"}>
-      <CardContent sx={classes.cardContent} key={"cardTagsContent"}>
+    <Card sx={classes.card}>
+      <CardContent sx={classes.cardContent}>
         <Typography gutterBottom={true} variant="h5" component="h2">
-          {TEXT_BASIC}
+          {title}
         </Typography>
         {editMode ? (
           <Grid container spacing={2}>
-            {/* Überschriften */}
-            <Grid size={3}>
+            {/* Spaltenköpfe */}
+            {showProductName && (
+              <Grid size={{xs: 12, sm: 4}}>
+                <Typography variant="subtitle1">{TEXT_PRODUCT}</Typography>
+              </Grid>
+            )}
+            <Grid size={showProductName ? {xs: 3, sm: 2} : 3}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_DENOMINATOR}
               </Typography>
             </Grid>
-            <Grid size={2}>
+            <Grid size={showProductName ? {xs: 2, sm: 1} : 2}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_UNIT_FROM}
               </Typography>
             </Grid>
-            <Grid size={3}>
+            <Grid size={showProductName ? {xs: 3, sm: 2} : 3}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_NUMERATOR}
               </Typography>
             </Grid>
-            <Grid size={2}>
+            <Grid size={showProductName ? {xs: 2, sm: 1} : 2}>
               <Typography variant="subtitle1" align="center">
                 {TEXT_UNIT_TO}
               </Typography>
             </Grid>
             <Grid size={2} />
 
-            {/* Trennlinie als vollbreites Grid-Item, damit kein Flex-Layout-Versatz entsteht */}
             <Grid size={12}>
               <Divider />
             </Grid>
+
             {unitConversions.map((conversionRule) => (
-              <BasicConversionEditRow
-                key={"basicConversionRow_" + conversionRule.uid}
+              <ConversionEditRow
+                key={"conversionRow_" + conversionRule.uid}
                 unitConversion={conversionRule}
                 onChangeField={onChangeField}
                 onDeleteClick={onDeleteClick}
+                showProductName={showProductName}
+                columnSizes={columnSizes}
               />
             ))}
           </Grid>
         ) : (
           <EnhancedTable
             tableData={unitConversions}
-            tableColumns={BASIC_TABLE_COLUMS}
+            tableColumns={tableColumns}
             keyColum={"uid"}
           />
         )}
       </CardContent>
     </Card>
   );
-};
+});
+
 /* ===================================================================
-// ====================== Reihe Conversion Basic  ===================£=
+// ====================== Conversion Edit Row ========================
 // =================================================================== */
-interface BasicConversionEditRowProps {
+
+/**
+ * Editierbare Zeile für eine Einheitenumrechnung.
+ *
+ * Wird sowohl für Basis- als auch für Produkt-Umrechnungen verwendet.
+ * Bei `showProductName=true` wird zusätzlich der Produktname angezeigt.
+ *
+ * @param unitConversion - Die angezeigte Umrechnung.
+ * @param onChangeField - Handler für Textfeld-Änderungen.
+ * @param onDeleteClick - Handler zum Löschen dieser Zeile.
+ * @param showProductName - Ob die Produktname-Spalte angezeigt wird.
+ * @param columnSizes - Grid-Spaltenbreiten (responsive oder fix).
+ */
+interface ConversionEditRowProps {
   unitConversion: UnitConversion;
   onChangeField: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onDeleteClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  showProductName: boolean;
+  columnSizes: ColumnSizes;
 }
-const BasicConversionEditRow = ({
+
+const ConversionEditRow = React.memo(({
   unitConversion,
   onChangeField,
   onDeleteClick,
-}: BasicConversionEditRowProps) => {
+  showProductName,
+  columnSizes,
+}: ConversionEditRowProps) => {
   return (
     <React.Fragment>
-      {/* Überschriften */}
-      <Grid key={"grid_denominator_" + unitConversion.uid} size={3}>
-        <TextField
-          id={"denominator_" + unitConversion.uid}
-          key={"denominator_" + unitConversion.uid}
-          value={unitConversion.denominator}
-          onChange={onChangeField}
-          fullWidth
-          inputProps={{style: {textAlign: "center"}}}
-        />
-      </Grid>
-      <Grid key={"grid_fromUnit_" + unitConversion.uid} size={2}>
-        <Typography color="textSecondary" align="center">
-          {unitConversion.fromUnit}
-        </Typography>
-      </Grid>
-      <Grid key={"grid_numerator_" + unitConversion.uid} size={3}>
-        <TextField
-          id={"numerator_" + unitConversion.uid}
-          key={"numerator_" + unitConversion.uid}
-          value={unitConversion.numerator}
-          onChange={onChangeField}
-          fullWidth
-          inputProps={{style: {textAlign: "center"}}}
-        />
-      </Grid>
-      <Grid key={"grid_toUnit_" + unitConversion.uid} size={2}>
-        <Typography color="textSecondary" align="center">
-          {unitConversion.toUnit}
-        </Typography>
-      </Grid>
-      <Grid key={"grid_deleteRow_" + unitConversion.uid} size={2}>
-        <IconButton
-          color="primary"
-          component="span"
-          id={"deleteRow_" + unitConversion.uid}
-          onClick={onDeleteClick}
-          size="large"
+      {showProductName && (
+        <Grid
+          key={"grid_productName_" + unitConversion.uid}
+          size={columnSizes.product as {xs: number; sm: number}}
         >
-          <DeleteIcon fontSize="small" />
-        </IconButton>
-      </Grid>
-      <Grid key={"grid_divider" + unitConversion.uid} size={12}>
-        <Divider />
-      </Grid>
-    </React.Fragment>
-  );
-};
-/* ===================================================================
-// ====================== Poduct Conversion Panel  ===================
-// =================================================================== */
-interface ProductConversionPanelProps {
-  unitConversions: UnitConversion[];
-  onChangeField: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onDeleteClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  editMode: boolean;
-}
-const ProductConversionPanel = ({
-  unitConversions,
-  onChangeField,
-  onDeleteClick,
-  editMode,
-}: ProductConversionPanelProps) => {
-  const classes = useCustomStyles();
-
-  return (
-    <Card sx={classes.card} key={"cardBasicUnitConversion"}>
-      <CardContent sx={classes.cardContent} key={"cardTagsContent"}>
-        <Typography gutterBottom={true} variant="h5" component="h2">
-          {TEXT_PRODUCT_SPECIFIC}
-        </Typography>
-        {editMode ? (
-          <Grid container spacing={2}>
-            {/* Überschriften */}
-            <Grid
-              size={{
-                xs: 12,
-                sm: 4,
-              }}>
-              <Typography variant="subtitle1">{TEXT_PRODUCT}</Typography>
-            </Grid>
-            <Grid
-              size={{
-                xs: 3,
-                sm: 2,
-              }}>
-              <Typography variant="subtitle1" align="center">
-                {TEXT_DENOMINATOR}
-              </Typography>
-            </Grid>
-            <Grid
-              size={{
-                xs: 2,
-                sm: 1,
-              }}>
-              <Typography variant="subtitle1" align="center">
-                {TEXT_UNIT_FROM}
-              </Typography>
-            </Grid>
-            <Grid
-              size={{
-                xs: 3,
-                sm: 2,
-              }}>
-              <Typography variant="subtitle1" align="center">
-                {TEXT_NUMERATOR}
-              </Typography>
-            </Grid>
-            <Grid
-              size={{
-                xs: 2,
-                sm: 1,
-              }}>
-              <Typography variant="subtitle1" align="center">
-                {TEXT_UNIT_TO}
-              </Typography>
-            </Grid>
-            <Grid size={2} />
-
-            {/* Trennlinie als vollbreites Grid-Item, damit kein Flex-Layout-Versatz entsteht */}
-            <Grid size={12}>
-              <Divider />
-            </Grid>
-            {unitConversions.map((conversionRule) => (
-              <ProductConversionEditRow
-                key={"productConversionRow_" + conversionRule.uid}
-                unitConversion={conversionRule}
-                onChangeField={onChangeField}
-                onDeleteClick={onDeleteClick}
-              />
-            ))}
-          </Grid>
-        ) : (
-          <EnhancedTable
-            tableData={unitConversions}
-            tableColumns={PRODUCT_TABLE_COLUMS}
-            keyColum={"uid"}
-          />
-        )}
-      </CardContent>
-    </Card>
-  );
-};
-/* ===================================================================
-// ===================== Reihe Conversion Produkt  ===================
-// =================================================================== */
-interface ProductConversionEditRowProps {
-  unitConversion: UnitConversion;
-  onChangeField: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  onDeleteClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-}
-const ProductConversionEditRow = ({
-  unitConversion,
-  onChangeField,
-  onDeleteClick,
-}: ProductConversionEditRowProps) => {
-  return (
-    <React.Fragment>
-      <Grid
-        key={"grid_productName_" + unitConversion.uid}
-        size={{
-          xs: 12,
-          sm: 4,
-        }}>
-        <Typography color="textSecondary">
-          {unitConversion.productName}
-        </Typography>
-      </Grid>
+          <Typography color="textSecondary">
+            {unitConversion.productName}
+          </Typography>
+        </Grid>
+      )}
       <Grid
         key={"grid_denominator_" + unitConversion.uid}
-        size={{
-          xs: 3,
-          sm: 2,
-        }}>
+        size={columnSizes.denominator}
+      >
         <TextField
           id={"denominator_" + unitConversion.uid}
           key={"denominator_" + unitConversion.uid}
           value={unitConversion.denominator}
           onChange={onChangeField}
           fullWidth
-          inputProps={{style: {textAlign: "center"}}}
+          slotProps={{htmlInput: {style: {textAlign: "center"}}}}
         />
       </Grid>
       <Grid
         key={"grid_fromUnit_" + unitConversion.uid}
-        size={{
-          xs: 2,
-          sm: 1,
-        }}>
+        size={columnSizes.fromUnit}
+      >
         <Typography color="textSecondary" align="center">
           {unitConversion.fromUnit}
         </Typography>
       </Grid>
       <Grid
         key={"grid_numerator_" + unitConversion.uid}
-        size={{
-          xs: 3,
-          sm: 2,
-        }}>
+        size={columnSizes.numerator}
+      >
         <TextField
           id={"numerator_" + unitConversion.uid}
           key={"numerator_" + unitConversion.uid}
           value={unitConversion.numerator}
           onChange={onChangeField}
           fullWidth
-          inputProps={{style: {textAlign: "center"}}}
+          slotProps={{htmlInput: {style: {textAlign: "center"}}}}
         />
       </Grid>
       <Grid
         key={"grid_toUnit_" + unitConversion.uid}
-        size={{
-          xs: 2,
-          sm: 1,
-        }}>
+        size={columnSizes.toUnit}
+      >
         <Typography color="textSecondary" align="center">
           {unitConversion.toUnit}
         </Typography>
       </Grid>
       <Grid
         key={"grid_deleteRow_" + unitConversion.uid}
-        size={{
-          xs: 2,
-          sm: 2,
-        }}>
+        size={columnSizes.deleteBtn}
+      >
         <IconButton
           color="primary"
-          component="span"
           id={"deleteRow_" + unitConversion.uid}
           onClick={onDeleteClick}
           size="large"
@@ -1262,11 +923,11 @@ const ProductConversionEditRow = ({
           <DeleteIcon fontSize="small" />
         </IconButton>
       </Grid>
-      <Grid key={"grid_divider" + unitConversion.uid} size={12}>
+      <Grid key={"grid_divider_" + unitConversion.uid} size={12}>
         <Divider />
       </Grid>
     </React.Fragment>
   );
-};
+});
 
-export default UnitConversionPage;
+export {UnitConversionPage};

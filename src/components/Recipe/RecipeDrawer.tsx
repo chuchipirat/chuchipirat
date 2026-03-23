@@ -20,10 +20,10 @@
 import React from "react";
 import {Container, Drawer, IconButton} from "@mui/material";
 import {Close as CloseIcon} from "@mui/icons-material";
-import useCustomStyles from "../../constants/styles";
-import RecipeView from "./recipe.view";
+import {useCustomStyles} from "../../constants/styles";
+import {RecipeView} from "./recipe.view";
 import type {OnAddToEvent} from "./recipe.view";
-import RecipeEdit from "./recipe.edit";
+import {RecipeEdit} from "./recipe.edit";
 import Recipe from "./recipe.class";
 import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfiguration.class";
 import type {PlanedMealsRecipe, MealRecipe} from "../Event/Menuplan/menuplan.types";

@@ -10,10 +10,10 @@
  * (kein separates Trace-Feld mehr in der DB).
  */
 import {ChangeRecord} from "../../Shared/global.interface";
-import Unit from "../../Unit/unit.class";
+import {Unit} from "../../Unit/unit.class";
 import {Event} from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Product from "../../Product/product.class";
+import {Product} from "../../Product/product.types";
 import {Meal, Menue, MenuplanData} from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 import Recipe from "../../Recipe/recipe.class";
@@ -27,9 +27,9 @@ import {
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
 import Department from "../../Department/department.class";
-import Material from "../../Material/material.class";
+import {Material} from "../../Material/material.types";
 import _ from "lodash";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
 
 /**

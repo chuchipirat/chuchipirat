@@ -15,8 +15,7 @@ import {
   MaterialListItemDomain,
 } from "../../../Database/Repository/MaterialListRepository";
 import {MaterialListMaterial} from "../materialList.class";
-import {MaterialType} from "../../../Material/material.class";
-import Material from "../../../Material/material.class";
+import {Material, MaterialType} from "../../../Material/material.types";
 import {ItemType} from "../../ShoppingList/shoppingList.class";
 
 
@@ -209,12 +208,12 @@ describe("materialListAdapter", () => {  describe("headersDomainToMaterialList",
       expect(deriveEditSource(item)).toBe("manual_add");
     });
   });  describe("materialListItemsToInsertRows", () => {
-    const knownMaterial: Material = Object.assign(new Material(), {
+    const knownMaterial: Material = {
       uid: "mat-001",
       name: "Pfanne gross",
       type: MaterialType.usage,
       usable: true,
-    });
+    };
 
     it("should convert items to insert rows with material_id for known materials", () => {
       const items: MaterialListMaterial[] = [

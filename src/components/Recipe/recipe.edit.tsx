@@ -10,6 +10,7 @@ import React, {
 } from "react";
 
 import {useNavigate} from "react-router";
+import * as Sentry from "@sentry/react";
 import {useTheme} from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 
@@ -74,11 +75,12 @@ import {
   ArrowUpward as ArrowUpwardIcon,
   ArrowDownward as ArrowDownwardIcon,
 } from "@mui/icons-material";
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
-import ButtonRow from "../Shared/buttonRow";
+import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
+import {ButtonRow} from "../Shared/buttonRow";
 import {FormListItem} from "../Shared/formListItem";
-import ProductAutocomplete from "../Product/productAutocomplete";
-import DialogProduct, {
+import {ProductAutocomplete} from "../Product/productAutocomplete";
+import {
+  DialogProduct,
   PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   ProductDialog,
 } from "../Product/dialogProduct";
@@ -86,17 +88,17 @@ import {
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../Material/dialogMaterial";
-import UnitAutocomplete from "../Unit/unitAutocomplete";
-import MaterialAutocomplete from "../Material/materialAutocomplete";
+import {UnitAutocomplete} from "../Unit/unitAutocomplete";
+import {MaterialAutocomplete} from "../Material/materialAutocomplete";
 
-import useCustomStyles from "../../constants/styles";
-import Action from "../../constants/actions";
+import {useCustomStyles} from "../../constants/styles";
+import {Action} from "../../constants/actions";
 
-import Product from "../Product/product.class";
-import Unit, {UnitDimension} from "../Unit/unit.class";
-import Utils from "../Shared/utils.class";
+import {Product} from "../Product/product.types";
+import {Unit, UnitDimension} from "../Unit/unit.class";
+import {Utils} from "../Shared/utils.class";
 import Department from "../Department/department.class";
-import AlertMessage from "../Shared/AlertMessage";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import * as TEXT from "../../constants/text";
@@ -106,8 +108,8 @@ import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import type {RecipeDomain, RecipeShortDomain} from "../Database/Repository/RecipeRepository";
 import {DialogTagAdd} from "./recipe.view";
-import Material from "../Material/material.class";
-import DialogMaterial from "../Material/dialogMaterial";
+import {Material} from "../Material/material.types";
+import {DialogMaterial} from "../Material/dialogMaterial";
 import {
   RecipeInfoPanel as RecipeInfoPanelView,
   MealPlanPanel as MealPlanPanelView,
@@ -146,7 +148,7 @@ import Fuse, {FuseResult} from "fuse.js";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/navigationContext";
+} from "../Navigation/NavigationContext";
 import {HELPCENTER_URL} from "../../constants/defaultValues";
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -251,7 +253,7 @@ type State = {
   materials: Material[];
   publicRecipes: RecipeShortDomain[];
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
   loadCollector: {
     units: boolean;
     products: boolean;
@@ -768,6 +770,20 @@ interface PositionMenuSelectedItem {
   firstElement: boolean;
   lastElement: boolean;
 }
+/**
+ * Bearbeitungsansicht für ein Rezept. Ermöglicht das Erstellen und Bearbeiten
+ * von Rezepten inkl. Zutaten, Zubereitungsschritte, Materialien und Varianten.
+ * Wird sowohl als eigenständige Seite als auch eingebettet in einem Drawer verwendet.
+ *
+ * @param dbRecipe Das Rezept-Objekt aus der Datenbank.
+ * @param mealPlan Array der geplanten Mahlzeiten, in denen das Rezept vorkommt.
+ * @param groupConfiguration Optionale Gruppenkonfiguration des Events.
+ * @param isLoading Ob die Daten noch geladen werden.
+ * @param isEmbedded Ob die Komponente in einem Drawer eingebettet ist.
+ * @param switchEditMode Callback zum Wechseln zwischen Ansichts- und Bearbeitungsmodus.
+ * @param onUpdateRecipe Callback zum Aktualisieren des Rezepts im übergeordneten State.
+ * @param authUser Der aktuell angemeldete Benutzer.
+ */
 const RecipeEdit = ({
   dbRecipe,
   mealPlan,
@@ -861,7 +877,7 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Einheiten laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -882,7 +898,7 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Produkte laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -903,7 +919,7 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Abteilungen laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -924,7 +940,7 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Materialien laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -944,7 +960,7 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Öffentliche Rezepte laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -1246,7 +1262,7 @@ const RecipeEdit = ({
     try {
       Recipe.checkRecipeData(state.recipe);
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezeptdaten validieren"}});
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error as Error,
@@ -1337,7 +1353,7 @@ const RecipeEdit = ({
         });
       }
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezept speichern"}});
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
@@ -1510,7 +1526,7 @@ const RecipeEdit = ({
 
         break;
       default:
-        console.error("Aktion unbekannt:", pressedButton[1]);
+        Sentry.captureMessage(`Aktion unbekannt: ${pressedButton[1]}`, {level: "error", extra: {context: "RecipeEdit – onPositionMoreClick"}});
     }
 
     dispatch({
@@ -1815,8 +1831,8 @@ const RecipeHeader = ({
     <React.Fragment>
       <Container
         maxWidth="md"
-        sx={classes.recipeHeader}
-        style={{
+        sx={{
+          ...classes.recipeHeader,
           display: "flex",
           position: "relative",
           backgroundImage: `url(${
@@ -1842,10 +1858,10 @@ const RecipeHeader = ({
             onChange={onChange}
             onBlur={onBlur}
             autoFocus
-            style={{marginBottom: "1ex"}}
+            sx={{marginBottom: "1ex"}}
           />
           {!recipe.uid && possibleDuplicateRecipes.length > 0 && (
-            <Alert severity="warning" style={{marginBottom: "1ex"}}>
+            <Alert severity="warning" sx={{marginBottom: "1ex"}}>
               {TEXT.POSSIBLE_DUPLICATE_FOUND}
               {/* <br /> */}
               <ul>
@@ -1872,7 +1888,7 @@ const RecipeHeader = ({
               value={recipe.pictureSrc}
               onChange={onChange}
               helperText={TEXT.HELPERTEXT_RECIPE_IMAGE_SOURCE}
-              style={{marginTop: "1ex"}}
+              sx={{marginTop: "1ex"}}
             />
           </Tooltip>
         </Box>
@@ -1894,8 +1910,8 @@ const RecipeHeaderVariant = ({recipe, onChange}: RecipeHeaderVariantProps) => {
     <React.Fragment>
       <Container
         maxWidth="md"
-        sx={classes.recipeHeader}
-        style={{
+        sx={{
+          ...classes.recipeHeader,
           display: "flex",
           position: "relative",
           backgroundImage: `url(${
@@ -1915,7 +1931,7 @@ const RecipeHeaderVariant = ({recipe, onChange}: RecipeHeaderVariantProps) => {
             variant="h2"
             align="center"
             color="textPrimary"
-            style={{display: "block"}}
+            sx={{display: "block"}}
             gutterBottom
           >
             {recipe.name}
@@ -1931,7 +1947,7 @@ const RecipeHeaderVariant = ({recipe, onChange}: RecipeHeaderVariantProps) => {
             placeholder={TEXT.DESCRIBE_YOUR_VARIANT}
             onChange={onChange}
             autoFocus
-            style={{marginBottom: "2ex"}}
+            sx={{marginBottom: "2ex"}}
           />
         </Box>
         {recipe.pictureSrc && (
@@ -2320,7 +2336,7 @@ const RecipeIngredients = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.INGREDIENTS}
@@ -2351,7 +2367,7 @@ const RecipeIngredients = ({
 
         <Grid size={12} sx={classes.centerCenter}>
           <IngredientListContext.Provider value={contextValue}>
-            <List key={"listIngredients"} style={{flexGrow: 1}}>
+            <List key={"listIngredients"} sx={{flexGrow: 1}}>
               {recipe.ingredients.order.map((ingredientUid, index) => (
                 <React.Fragment key={"ingredient_" + ingredientUid}>
                   <IngredientListEntry
@@ -2815,7 +2831,7 @@ const RecipePreparationSteps = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.PREPARATION}
@@ -2823,7 +2839,7 @@ const RecipePreparationSteps = ({
       <Grid container spacing={2} alignItems="center">
         <Grid size={12} sx={classes.centerCenter}>
           <PreparationListContext.Provider value={contextValue}>
-            <List key={"listPreparationSteps"} style={{flexGrow: 1}}>
+            <List key={"listPreparationSteps"} sx={{flexGrow: 1}}>
               {/* Zutaten auflsiten */}
               {recipe.preparationSteps.order.map(
                 (preparationStepUid, index) => (
@@ -3196,7 +3212,7 @@ const RecipeMaterials = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.MATERIAL}
@@ -3204,7 +3220,7 @@ const RecipeMaterials = ({
       <Grid container spacing={2} alignItems="center">
         <Grid size={12} sx={classes.centerCenter}>
           <MaterialListContext.Provider value={contextValue}>
-            <List key={"listMaterials"} style={{flexGrow: 1}}>
+            <List key={"listMaterials"} sx={{flexGrow: 1}}>
               {recipe.materials.order.map((materialUid, index) => (
                 <MaterialListEntry
                   key={"material_" + materialUid}
@@ -3443,7 +3459,7 @@ const SectionPosition = ({
     <React.Fragment>
       <ListItemText>
         <Grid container spacing={2} alignItems="center">
-          {index !== 1 && <Grid size={12} style={{marginTop: "0.5em"}} />}
+          {index !== 1 && <Grid size={12} sx={{marginTop: "0.5em"}} />}
           {!breakpointIsXs && (
             <Grid
               size={{xs: 1, sm: 1}}
@@ -3573,7 +3589,7 @@ const RecipeVariantNote = ({recipe, onChange}: RecipeVariantNoteProps) => {
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.VARIANT_NOTE}
@@ -3591,11 +3607,11 @@ const RecipeVariantNote = ({recipe, onChange}: RecipeVariantNoteProps) => {
             label={TEXT.NOTE}
             value={recipe.variantProperties?.note}
             onChange={onChange}
-            style={{marginBottom: "2ex"}}
+            sx={{marginBottom: "2ex"}}
           />
         </Grid>
       </Grid>
     </React.Fragment>
   );
 };
-export default RecipeEdit;
+export {RecipeEdit};

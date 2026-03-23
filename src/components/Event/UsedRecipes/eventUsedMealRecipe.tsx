@@ -29,13 +29,13 @@ import {
   VARIANT_NOTE as TEXT_VARIANT_NOTE,
 } from "../../../constants/text";
 import {ImageRepository} from "../../../constants/imageRepository";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {MealRecipe, MenueCoordinates} from "../Menuplan/menuplan.types";
 import {generatePlanedPortionsText} from "../Menuplan/menuplan";
 import Recipe, {RecipeType} from "../../Recipe/recipe.class";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 import {FormListItem} from "../../Shared/formListItem";
 import {
   RecipeIngredients,

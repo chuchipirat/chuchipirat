@@ -49,8 +49,8 @@ import {UsedRecipesPdf} from "./usedRecipesPdf";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
 import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
 import {OperationType} from "../Event/eventSharedComponents";
 import {useEventMasterData} from "../Event/eventMasterDataContext";
@@ -243,7 +243,7 @@ export const useUsedRecipesHandlers = ({
 
       // Drift erkannt — Benutzer nach Auflösungsstrategie fragen
       const userInput = (await customDialog({
-        dialogType: DialogType.selectOptions,
+        dialogType: DialogType.SelectOptions,
         title: TEXT_DRIFT_DETECTED_TITLE,
         text: TEXT_DRIFT_DETECTED_DESCRIPTION,
         options: [

@@ -40,7 +40,7 @@ import {
   getOrderListNameFromDragAndDropTypes,
 } from "./menuplan.constants";
 import {DialogSelectMenuesForRecipeDialogValues} from "./dialogSelectMenues";
-import RecipeShort from "../../Recipe/recipeShort.class";
+import {RecipeShort} from "../../Recipe/recipe.types";
 import type {
   DialogSelectMenueData,
   DialogSelectMealData,

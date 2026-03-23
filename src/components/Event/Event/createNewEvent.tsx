@@ -39,9 +39,9 @@ import {
   THANK_YOU_1000 as TEXT_THANK_YOU_1000,
 } from "../../../constants/text";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {EventInfoPage} from "./eventInfo";
 import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
 import {Event} from "./event.class";
@@ -58,17 +58,18 @@ import {FeedType} from "../../Shared/feed.class";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
-import AlertMessage from "../../Shared/AlertMessage";
-import FieldValidationError, {
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {
+  FieldValidationError,
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {useAuthUser} from "../../Session/authUserContext";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ImageRepository} from "../../../constants/imageRepository";
-import TwintButton from "../../Shared/TwintButton";
+import {TwintButton} from "../../Shared/TwintButton";
 import {resizeImage} from "../../Shared/imageResize";
 import {
   GroupConfigDomain,

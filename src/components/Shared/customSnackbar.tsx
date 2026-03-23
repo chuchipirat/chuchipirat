@@ -3,27 +3,32 @@ import React, {SyntheticEvent} from "react";
 import {
   Alert,
   AlertColor,
+  AlertProps,
   Fade,
   Snackbar,
   SnackbarCloseReason,
 } from "@mui/material";
 
-import useCustomStyles from "../../constants/styles";
-
-export const SNACKBAR_INITIAL_STATE_VALUES: Snackbar = {
-  open: false,
-  severity: "success",
-  message: "",
-};
+import {useCustomStyles} from "../../constants/styles";
 
 /**
- * Interface für Reducer als Snackbar
+ * Zustand eines Snackbar-Elements (offen/geschlossen, Schweregrad, Nachricht).
+ *
+ * @param open Ob die Snackbar sichtbar ist.
+ * @param severity Schweregrad (success, error, warning, info).
+ * @param message Anzuzeigende Nachricht.
  */
-export interface Snackbar {
+export interface SnackbarState {
   open: boolean;
   severity: AlertColor;
   message: string;
 }
+
+export const SNACKBAR_INITIAL_STATE_VALUES: SnackbarState = {
+  open: false,
+  severity: "success",
+  message: "",
+};
 
 interface CustomSnackbarProps {
   message: string;
@@ -35,9 +40,27 @@ interface CustomSnackbarProps {
   ) => void;
 }
 
+/**
+ * Alert-Wrapper für Snackbar-Inhalte — als Modul-Level-Komponente,
+ * damit React sie nicht bei jedem Render neu erstellt.
+ */
+const CustomAlert = React.forwardRef<HTMLDivElement, AlertProps>(
+  function CustomAlert(props, ref) {
+    return <Alert elevation={6} ref={ref} {...props} />;
+  }
+);
+
 /* ===================================================================
 // ============================== Snackbar ===========================
 // =================================================================== */
+/**
+ * Snackbar-Komponente für Erfolgsmeldungen, Fehlermeldungen und Hinweise.
+ *
+ * @param message Anzuzeigende Nachricht.
+ * @param severity Schweregrad (success, error, warning, info).
+ * @param snackbarOpen Ob die Snackbar sichtbar ist.
+ * @param handleClose Callback beim Schliessen.
+ */
 function CustomSnackbar({
   message,
   severity,
@@ -45,10 +68,6 @@ function CustomSnackbar({
   handleClose,
 }: CustomSnackbarProps) {
   const classes = useCustomStyles();
-
-  const CustomAlert = (props) => {
-    return <Alert elevation={6} {...props} />;
-  };
 
   return (
     <Snackbar
@@ -63,7 +82,10 @@ function CustomSnackbar({
       TransitionComponent={Fade}
     >
       <div>
-        <CustomAlert onClose={handleClose} severity={severity}>
+        <CustomAlert
+          onClose={(event) => handleClose(event, "escapeKeyDown")}
+          severity={severity}
+        >
           {message}
         </CustomAlert>
       </div>
@@ -71,4 +93,4 @@ function CustomSnackbar({
   );
 }
 
-export default CustomSnackbar;
+export {CustomSnackbar};

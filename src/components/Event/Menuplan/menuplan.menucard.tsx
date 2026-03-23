@@ -68,7 +68,7 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import {createPortal} from "react-dom";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import invariant from "tiny-invariant";
 import {combine} from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -91,8 +91,8 @@ import {
   isDraggingACardListItem,
   getListContainerDropTargetData,
 } from "./menuplan.menucard.list";
-import Action from "../../../constants/actions";
-import Utils from "../../Shared/utils.class";
+import {Action} from "../../../constants/actions";
+import {Utils} from "../../Shared/utils.class";
 
 
 export type TMenueCard = {

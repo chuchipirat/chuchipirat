@@ -11,8 +11,8 @@ import {
   DialogActions,
 } from "@mui/material";
 
-import Utils from "../Shared/utils.class";
-import User from "../User/user.class";
+import {Utils} from "../Shared/utils.class";
+import {User} from "./user.class";
 
 import {
   GIVE_VALID_EMAIL as TEXT_GIVE_VALID_EMAIL,
@@ -31,6 +31,16 @@ import DatabaseService from "../Database/DatabaseService";
 /* ===================================================================
 // ====================== Pop Up User hinzufügen =====================
 // =================================================================== */
+
+/**
+ * Props für den Dialog zum Hinzufügen eines Benutzers.
+ *
+ * @param database - DatabaseService-Instanz für Supabase-Zugriff.
+ * @param authUser - Der aktuell angemeldete Benutzer.
+ * @param dialogOpen - Steuert, ob der Dialog sichtbar ist.
+ * @param handleAddUser - Callback, wird mit der UID des gefundenen Users aufgerufen.
+ * @param handleClose - Callback zum Schliessen des Dialogs.
+ */
 interface DialogAddUserProps {
   database: DatabaseService;
   authUser: AuthUser;
@@ -38,6 +48,13 @@ interface DialogAddUserProps {
   handleAddUser: (userUid: string) => void;
   handleClose: () => void;
 }
+
+/**
+ * Dialog zum Hinzufügen eines Benutzers anhand seiner E-Mail-Adresse.
+ *
+ * Prüft die eingegebene E-Mail, verhindert das Hinzufügen der eigenen
+ * Adresse und sucht die UID des eingegebenen Users in der Datenbank.
+ */
 const DialogAddUser = ({
   database,
   authUser,
@@ -61,14 +78,18 @@ const DialogAddUser = ({
   /* ------------------------------------------
   // Go
   // ------------------------------------------ */
-  const onSubmit = async () => {
+  const onSubmit = async (event?: React.FormEvent) => {
+    if (event) {
+      event.preventDefault();
+    }
+
     if (Utils.isEmail(userEmail)) {
-      if (userEmail.toLowerCase() == authUser.email) {
+      if (userEmail.toLowerCase() === authUser.email.toLowerCase()) {
         setInfoBox({visible: true, text: TEXT_YOU_CANNOT_ADD_YOURSELF});
         return;
       }
 
-      //UID aus E-Mail-Adresse ermitteln
+      // UID aus E-Mail-Adresse ermitteln
       await User.getUidByEmail({
         database: database,
         email: userEmail.toLocaleLowerCase(),
@@ -78,7 +99,9 @@ const DialogAddUser = ({
           setUserEmail("");
         })
         .catch((error) => {
-          setInfoBox({visible: true, text: error.toString()});
+          const message =
+            error instanceof Error ? error.message : TEXT_GIVE_VALID_EMAIL;
+          setInfoBox({visible: true, text: message});
         });
     } else {
       setFormValidationState({
@@ -97,41 +120,49 @@ const DialogAddUser = ({
       onClose={handleClose}
       aria-labelledby="Benutzer*in hinzufügen"
     >
-      <DialogTitle id="form-dialog-title">
-        {TEXT_ADD_PERSON_TO_TEAM}
-      </DialogTitle>
-      <DialogContent>
-        <DialogContentText>{TEXT_USER_ADD_BY_EMAIL}</DialogContentText>
-        <DialogContentText>{TEXT_USER_MUST_BE_REGISTERED}</DialogContentText>
-        <TextField
-          autoFocus
-          margin="dense"
-          id="cook_email"
-          error={formValidationState.error}
-          helperText={formValidationState.errorText}
-          required
-          fullWidth
-          value={userEmail}
-          onChange={onEmailChange}
-          label={TEXT_EMAIL}
-          type="text"
-        />
-        {infoBox.visible && (
-          <Alert severity="warning" style={{marginTop: "1rem"}}>
-            {infoBox.text}
-          </Alert>
-        )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onCancel} color="primary" variant="outlined">
-          {TEXT_BUTTON_CANCEL}
-        </Button>
-        <Button onClick={onSubmit} color="primary" variant="contained">
-          {TEXT_BUTTON_ADD}
-        </Button>
-      </DialogActions>
+      <form onSubmit={onSubmit}>
+        <DialogTitle id="form-dialog-title">
+          {TEXT_ADD_PERSON_TO_TEAM}
+        </DialogTitle>
+        <DialogContent>
+          <DialogContentText>{TEXT_USER_ADD_BY_EMAIL}</DialogContentText>
+          <DialogContentText>{TEXT_USER_MUST_BE_REGISTERED}</DialogContentText>
+          <TextField
+            autoFocus
+            margin="dense"
+            id="cook_email"
+            error={formValidationState.error}
+            helperText={formValidationState.errorText}
+            required
+            fullWidth
+            value={userEmail}
+            onChange={onEmailChange}
+            label={TEXT_EMAIL}
+            type="text"
+          />
+          {infoBox.visible && (
+            <Alert severity="warning" style={{marginTop: "1rem"}}>
+              {infoBox.text}
+            </Alert>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button
+            type="button"
+            onClick={onCancel}
+            color="primary"
+            variant="outlined"
+          >
+            {TEXT_BUTTON_CANCEL}
+          </Button>
+          <Button type="submit" color="primary" variant="contained">
+            {TEXT_BUTTON_ADD}
+          </Button>
+        </DialogActions>
+      </form>
     </Dialog>
   );
 };
 
-export default DialogAddUser;
+export {DialogAddUser};
+export type {DialogAddUserProps};

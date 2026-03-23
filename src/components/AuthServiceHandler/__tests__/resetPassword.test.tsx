@@ -10,10 +10,6 @@ import {MemoryRouter} from "react-router";
 
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
-
 /**
  * Callback-Referenz für onAuthStateChange.
  * Wird in den Tests manuell aufgerufen, um Session-Events zu simulieren.
@@ -63,14 +59,12 @@ jest.mock("../../Shared/passwordStrengthMeter", () => ({
   ),
 }));
 
-/* ===================================================================
-// ======================== Import nach Mocks =========================
-// =================================================================== */
-import ResetPasswordPage from "../resetPassword";
+/** Mock: @sentry/react — captureException wird als noop-Spy erfasst. */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
 
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
+import {ResetPasswordPage} from "../resetPassword";
 
 /**
  * Rendert die ResetPasswordPage mit allen nötigen Context-Providern.
@@ -101,10 +95,6 @@ const getPasswordField = () => {
   if (!el) throw new Error("Passwort-Feld nicht gefunden");
   return el as HTMLInputElement;
 };
-
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();

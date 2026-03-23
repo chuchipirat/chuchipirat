@@ -1,8 +1,8 @@
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 import Firebase from "../Firebase/firebase.class";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
+import {FirebaseAnalyticEvent} from "../../constants/firebaseEvent";
 import {logEvent} from "firebase/analytics";
 
 interface GetAllDepartments {

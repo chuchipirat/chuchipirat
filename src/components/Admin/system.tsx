@@ -81,7 +81,7 @@ import {
   SUPABASE_DASHBOARD as TEXT_SUPABASE_DASHBOARD,
   USERS as TEXT_USERS,
 } from "../../constants/text";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 import {
   SYSTEM as ROUTE_SYSTEM,
   SYSTEM_GLOBAL_SETTINGS as ROUTE_SYSTEM_GLOBAL_SETTINGS,
@@ -101,9 +101,9 @@ import {
   SYSTEM_DATA_INTEGRITY as ROUTE_SYSTEM_DATA_INTEGRITY,
 } from "../../constants/routes";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {useAuthUser} from "../Session/authUserContext";
 
 /* ===================================================================

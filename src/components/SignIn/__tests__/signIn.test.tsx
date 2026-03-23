@@ -8,10 +8,9 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation} from "react-router";
 
-import SignInPage, {AlertMaintenanceMode, EmailNotConfirmedAlert} from "../signIn";
+import {SignInPage, AlertMaintenanceMode, EmailNotConfirmedAlert} from "../signIn";
 import {SignUpLink} from "../../SignUp/signUp";
 import {DatabaseContext} from "../../Database/DatabaseContext";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {SIGN_UP as ROUTE_SIGN_UP} from "../../../constants/routes";
 
 /* ===================================================================
@@ -22,14 +21,11 @@ import {SIGN_UP as ROUTE_SIGN_UP} from "../../../constants/routes";
 const mockSignInWithPassword = jest.fn();
 const mockResendConfirmationEmail = jest.fn();
 
-/** Mock für Firebase Auth (Fallback-Login) */
-const mockFirebaseSignIn = jest.fn();
-const mockFirebaseSignOut = jest.fn();
-
 /** Mock für UserRepository */
-const mockFindByAuthUid = jest.fn();
+const mockFindById = jest.fn();
+const mockRegisterSignIn = jest.fn();
 
-/** Mock-DatabaseService */
+/** Mock-DatabaseService mit typisierten Mocks */
 const mockDatabase = {
   auth: {
     signInWithPassword: mockSignInWithPassword,
@@ -43,7 +39,8 @@ const mockDatabase = {
     getSession: jest.fn(),
   },
   users: {
-    findById: mockFindByAuthUid,
+    findById: mockFindById,
+    registerSignIn: mockRegisterSignIn,
   },
   globalSettings: {
     getSettings: jest.fn().mockResolvedValue({
@@ -51,23 +48,7 @@ const mockDatabase = {
       maintenanceMode: false,
     }),
   },
-} as any;
-
-/** Mock-Firebase-Instanz */
-const mockFirebase = {
-  signInWithEmailAndPassword: mockFirebaseSignIn,
-  signOut: mockFirebaseSignOut,
-  configuration: {
-    globalSettings: {
-      read: jest.fn(),
-    },
-  },
-} as any;
-
-/**
- * Mock: signIn.tsx ruft jetzt database.globalSettings.getSettings() auf.
- * Der Mock wird über mockDatabase.globalSettings bereitgestellt.
- */
+} as unknown as import("../../Database/DatabaseService").default;
 
 /** Mock: User.registerSignIn (kein Seiteneffekt nötig) */
 jest.mock("../../User/user.class", () => ({
@@ -77,26 +58,6 @@ jest.mock("../../User/user.class", () => ({
   },
 }));
 
-/** Mock: PasswordMigrationDialog (vereinfacht, zeigt nur open/close) */
-jest.mock("../passwordMigrationDialog", () => ({
-  __esModule: true,
-  default: ({
-    open,
-    onClose,
-    onSuccess,
-  }: {
-    open: boolean;
-    onClose: () => void;
-    onSuccess: () => void;
-  }) =>
-    open ? (
-      <div data-testid="migration-dialog">
-        <button onClick={onSuccess}>Migration OK</button>
-        <button onClick={onClose}>Migration Abbrechen</button>
-      </div>
-    ) : null,
-}));
-
 /** Mock: ImageRepository */
 jest.mock("../../../constants/imageRepository", () => ({
   ImageRepository: {
@@ -104,6 +65,11 @@ jest.mock("../../../constants/imageRepository", () => ({
       SIGN_IN_HEADER: "test-image.png",
     }),
   },
+}));
+
+/** Mock: Sentry */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
 }));
 
 /** Location-Helfer für Navigations-Assertions */
@@ -123,12 +89,10 @@ const LocationDisplay = () => {
 const renderSignInPage = () => {
   return render(
     <MemoryRouter initialEntries={["/signin"]}>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <DatabaseContext.Provider value={mockDatabase}>
-          <SignInPage />
-          <LocationDisplay />
-        </DatabaseContext.Provider>
-      </FirebaseContext.Provider>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <SignInPage />
+        <LocationDisplay />
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 };
@@ -189,12 +153,6 @@ describe("SignInPage", () => {
       renderSignInPage();
 
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    });
-
-    test("Kein Migrations-Dialog beim Laden angezeigt", () => {
-      renderSignInPage();
-
-      expect(screen.queryByTestId("migration-dialog")).not.toBeInTheDocument();
     });
   });
 
@@ -265,12 +223,42 @@ describe("SignInPage", () => {
     });
   });
 
+  describe("Formular-Verhalten", () => {
+    test("Passwort-Feld hat autoComplete='current-password'", () => {
+      renderSignInPage();
+
+      const passwordField = getPasswordField();
+      expect(passwordField).toHaveAttribute("autocomplete", "current-password");
+    });
+
+    test("Enter-Taste löst den Login aus", async () => {
+      mockSignInWithPassword.mockResolvedValueOnce({
+        user: {id: "supabase-uuid"},
+      });
+      mockFindById.mockResolvedValueOnce({uid: "user-123"});
+      renderSignInPage();
+
+      await userEvent.type(
+        screen.getByLabelText(/e-mail/i),
+        "test@example.com",
+      );
+      await userEvent.type(getPasswordField(), "geheim123{enter}");
+
+      await waitFor(() => {
+        expect(mockSignInWithPassword).toHaveBeenCalledWith(
+          "test@example.com",
+          "geheim123",
+        );
+      });
+    });
+  });
+
   describe("Erfolgreicher Supabase-Login", () => {
     test("signInWithPassword wird mit E-Mail und Passwort aufgerufen", async () => {
       mockSignInWithPassword.mockResolvedValueOnce({
         user: {id: "supabase-uuid"},
       });
-      mockFindByAuthUid.mockResolvedValueOnce({uid: "user-123"});
+      mockFindById.mockResolvedValueOnce({uid: "user-123"});
       renderSignInPage();
 
       await userEvent.type(
@@ -289,39 +277,13 @@ describe("SignInPage", () => {
     });
   });
 
-  describe("Firebase-Fallback mit Migration", () => {
-    test("Migrations-Dialog wird bei Firebase-Fallback angezeigt", async () => {
-      // Supabase schlägt fehl
-      mockSignInWithPassword.mockRejectedValueOnce(new Error("Invalid login"));
-      // Firebase-Fallback erfolgreich
-      mockFirebaseSignIn.mockResolvedValueOnce({
-        user: {uid: "firebase-uid-123"},
-      });
-      renderSignInPage();
-
-      await userEvent.type(
-        screen.getByLabelText(/e-mail/i),
-        "test@example.com",
-      );
-      await userEvent.type(getPasswordField(), "geheim123");
-      await userEvent.click(screen.getByRole("button", {name: /anmelden/i}));
-
-      await waitFor(() => {
-        expect(screen.getByTestId("migration-dialog")).toBeInTheDocument();
-      });
-    });
-  });
-
   describe("Fehlgeschlagener Login", () => {
-    test("Fehlermeldung wird bei beiden fehlgeschlagenen Logins angezeigt", async () => {
-      // Supabase schlägt fehl
-      mockSignInWithPassword.mockRejectedValueOnce(new Error("Invalid login"));
-      // Firebase schlägt auch fehl
-      const firebaseError = new Error("auth/wrong-password") as Error & {
+    test("Fehlermeldung wird bei fehlgeschlagenem Login angezeigt", async () => {
+      const supabaseError = new Error("Invalid login credentials") as Error & {
         code: string;
       };
-      firebaseError.code = "auth/wrong-password";
-      mockFirebaseSignIn.mockRejectedValueOnce(firebaseError);
+      supabaseError.code = "invalid_credentials";
+      mockSignInWithPassword.mockRejectedValueOnce(supabaseError);
       renderSignInPage();
 
       await userEvent.type(
@@ -354,10 +316,6 @@ describe("Unbestätigte E-Mail-Adresse", () => {
     };
     supabaseError.code = "email_not_confirmed";
     mockSignInWithPassword.mockRejectedValueOnce(supabaseError);
-    // Firebase schlägt ebenfalls fehl
-    mockFirebaseSignIn.mockRejectedValueOnce(
-      new Error("auth/user-not-found"),
-    );
     renderSignInPage();
 
     await userEvent.type(
@@ -456,9 +414,6 @@ describe("Unbestätigte E-Mail-Adresse", () => {
     };
     supabaseError.code = "invalid_credentials";
     mockSignInWithPassword.mockRejectedValueOnce(supabaseError);
-    mockFirebaseSignIn.mockRejectedValueOnce(
-      new Error("auth/user-not-found"),
-    );
     renderSignInPage();
 
     await userEvent.type(

@@ -18,6 +18,7 @@ import {
   InputLabel,
   FormControl,
   Box,
+  TextField,
 } from "@mui/material";
 import {
   PlayArrow as PlayArrowIcon,
@@ -25,6 +26,8 @@ import {
 } from "@mui/icons-material";
 
 import {
+  EMAIL as TEXT_EMAIL,
+  PASSWORD as TEXT_PASSWORD,
   MIGRATION as TEXT_MIGRATION,
   MIGRATION_DESCRIPTION as TEXT_MIGRATION_DESCRIPTION,
   MIGRATION_SELECT_OBJECT as TEXT_MIGRATION_SELECT_OBJECT,
@@ -41,10 +44,14 @@ import {
   MIGRATION_PHASE_COMPLETED as TEXT_MIGRATION_PHASE_COMPLETED,
   MIGRATION_PHASE_CANCELLED as TEXT_MIGRATION_PHASE_CANCELLED,
   MIGRATION_LOG_TITLE as TEXT_MIGRATION_LOG_TITLE,
+  MIGRATION_FIREBASE_SIGN_IN_TITLE as TEXT_MIGRATION_FIREBASE_SIGN_IN_TITLE,
+  MIGRATION_FIREBASE_SIGN_IN_DESCRIPTION as TEXT_MIGRATION_FIREBASE_SIGN_IN_DESCRIPTION,
+  MIGRATION_FIREBASE_SIGN_IN_BUTTON as TEXT_MIGRATION_FIREBASE_SIGN_IN_BUTTON,
+  MIGRATION_FIREBASE_CONNECTED as TEXT_MIGRATION_FIREBASE_CONNECTED,
 } from "../../constants/text";
 
-import useCustomStyles from "../../constants/styles";
-import PageTitle from "../Shared/pageTitle";
+import {useCustomStyles} from "../../constants/styles";
+import {PageTitle} from "../Shared/pageTitle";
 import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
@@ -54,6 +61,7 @@ import {
   getMigrationJobKeys,
 } from "./MigrationJobs/migrationJobRegistry";
 import {MigrationRecordResult} from "./MigrationJobs/MigrationJob.interface";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -74,6 +82,13 @@ const MigrationPage = () => {
   const [selectedJobKey, setSelectedJobKey] = React.useState<string>("");
   const migration = useMigration();
 
+  // Firebase-Anmeldung (lokal auf der Migrationsseite)
+  const [firebaseSignedIn, setFirebaseSignedIn] = React.useState(false);
+  const [firebaseEmail, setFirebaseEmail] = React.useState("");
+  const [firebasePassword, setFirebasePassword] = React.useState("");
+  const [firebaseError, setFirebaseError] = React.useState<Error | null>(null);
+  const [firebaseLoading, setFirebaseLoading] = React.useState(false);
+
   const jobKeys = getMigrationJobKeys();
   const selectedJob = selectedJobKey
     ? migrationJobRegistry[selectedJobKey]
@@ -81,6 +96,31 @@ const MigrationPage = () => {
 
   const isRunning =
     migration.phase === "fetching" || migration.phase === "running";
+
+  /* ------------------------------------------
+  // Firebase-Anmeldung
+  // ------------------------------------------ */
+  /**
+   * Meldet den Admin bei Firebase an, damit Migrationsjobs
+   * auf Firestore-Daten zugreifen können.
+   */
+  const handleFirebaseSignIn = async () => {
+    setFirebaseLoading(true);
+    setFirebaseError(null);
+    try {
+      await firebase.signInWithEmailAndPassword({
+        email: firebaseEmail,
+        password: firebasePassword,
+      });
+      setFirebaseSignedIn(true);
+      // Passwort nach Login leeren
+      setFirebasePassword("");
+    } catch (error) {
+      setFirebaseError(error as Error);
+    } finally {
+      setFirebaseLoading(false);
+    }
+  };
 
   /* ------------------------------------------
   // Migration starten
@@ -110,6 +150,54 @@ const MigrationPage = () => {
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="md">
         <Stack spacing={3}>
+          {/* ----- Firebase-Anmeldung ----- */}
+          {!firebaseSignedIn ? (
+            <Card sx={classes.card}>
+              <CardHeader
+                title={TEXT_MIGRATION_FIREBASE_SIGN_IN_TITLE}
+                subheader={TEXT_MIGRATION_FIREBASE_SIGN_IN_DESCRIPTION}
+              />
+              <CardContent>
+                <Stack spacing={2}>
+                  {firebaseError && (
+                    <AlertMessage error={firebaseError} severity="error" />
+                  )}
+                  <TextField
+                    label={TEXT_EMAIL}
+                    type="email"
+                    value={firebaseEmail}
+                    onChange={(event) => setFirebaseEmail(event.target.value)}
+                    disabled={firebaseLoading}
+                    fullWidth
+                  />
+                  <TextField
+                    label={TEXT_PASSWORD}
+                    type="password"
+                    value={firebasePassword}
+                    onChange={(event) => setFirebasePassword(event.target.value)}
+                    disabled={firebaseLoading}
+                    fullWidth
+                  />
+                  <Button
+                    variant="contained"
+                    onClick={handleFirebaseSignIn}
+                    disabled={
+                      firebaseLoading || !firebaseEmail || !firebasePassword
+                    }
+                  >
+                    {TEXT_MIGRATION_FIREBASE_SIGN_IN_BUTTON}
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          ) : (
+            <Chip
+              label={TEXT_MIGRATION_FIREBASE_CONNECTED}
+              color="success"
+              sx={{alignSelf: "flex-start"}}
+            />
+          )}
+
           {/* ----- Job-Auswahl ----- */}
           <Card sx={classes.card}>
             <CardHeader title={TEXT_MIGRATION_SELECT_OBJECT} />
@@ -160,7 +248,7 @@ const MigrationPage = () => {
                   color="primary"
                   startIcon={<PlayArrowIcon />}
                   onClick={handleStart}
-                  disabled={!selectedJob || isRunning}
+                  disabled={!selectedJob || isRunning || !firebaseSignedIn}
                 >
                   {TEXT_MIGRATION_START}
                 </Button>

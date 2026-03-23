@@ -1,3 +1,6 @@
+/**
+ * Analytics-Event-Namen für Firebase Analytics Tracking.
+ */
 export enum FirebaseAnalyticEvent {
   recipeCreated = "recipe_created",
   recipeVariantCreated = "recipe_variant_created",
@@ -40,4 +43,3 @@ export enum FirebaseAnalyticEvent {
   cloudFunctionExecuted = "cloud_function_executed",
   exception = "exception",
 }
-export default FirebaseAnalyticEvent;

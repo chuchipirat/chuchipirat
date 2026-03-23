@@ -249,7 +249,9 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
   }
 
   /**
-   * Löst eine Firebase-UID in die auth.users.id auf.
+   * Löst eine Firebase-UID in die Supabase-UUID (users.id) auf.
+   * Nach der id-Vereinheitlichung (Phase 3) stehen die alten Firebase-UIDs
+   * in legacy_firebase_uid, die id ist die Supabase-UUID.
    */
   private async resolveAuthUid(
     client: SupabaseClient,
@@ -257,9 +259,9 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
   ): Promise<string | null> {
     const {data} = await client
       .from("users")
-      .select("auth_uid")
-      .eq("id", firebaseUid)
+      .select("id")
+      .eq("legacy_firebase_uid", firebaseUid)
       .maybeSingle();
-    return data?.auth_uid ?? null;
+    return data?.id ?? null;
   }
 }

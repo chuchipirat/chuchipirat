@@ -1,6 +1,6 @@
 import React from "react";
 import {Document, Page, View, Text, Link} from "@react-pdf/renderer";
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 import "../Shared/pdfFontRegistration";
 
 import {pdfStyles} from "../../constants/stylesRecipePdf";
@@ -37,7 +37,16 @@ interface RecipePdfProps {
   scaledMaterials: RecipeObjectStructure<RecipeMaterialPosition>;
   authUser: AuthUser;
 }
-const RecipePdf = ({
+/**
+ * PDF-Komponente für ein einzelnes Rezept.
+ *
+ * Erzeugt ein vollständiges PDF-Dokument mit Kopfbereich, zweispaltigem
+ * Layout (Zutaten/Material links, Zubereitung rechts), optionalen Notizen
+ * und Fusszeile. Unterstützt skalierte Portionen und Einheiten.
+ *
+ * @param props - Rezeptdaten, skalierte Zutaten/Materialien und Autoreninfo.
+ */
+export const RecipePdf = ({
   recipe,
   scaledPortions,
   scaledIngredients,
@@ -774,7 +783,5 @@ export const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
     </React.Fragment>
   );
 };
-
-export default RecipePdf;
 
 const styles = pdfStyles;

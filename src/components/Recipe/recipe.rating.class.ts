@@ -2,14 +2,11 @@ import Firebase from "../Firebase/firebase.class";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
 import {FeedType} from "../Shared/feed.class";
 import Recipe from "./recipe.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 import DatabaseService from "../Database/DatabaseService";
 
-export interface Rating {
-  avgRating: number;
-  noRatings: number;
-  myRating: number;
-}
+// Re-export aus recipe.types.ts für Abwärtskompatibilität
+export type {Rating} from "./recipe.types";
 interface GetRatingOfUser {
   firebase: Firebase;
   recipeUid: string;

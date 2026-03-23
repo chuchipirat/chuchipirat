@@ -49,9 +49,9 @@ import {
   Category as CategoryIcon,
 } from "@mui/icons-material";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
-import AlertMessage from "../../Shared/AlertMessage";
+import {AlertMessage} from "../../Shared/AlertMessage";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useFirebase} from "../../Firebase/firebaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
@@ -64,7 +64,7 @@ import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 
 import * as Sentry from "@sentry/browser";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {
   RECIPES as TEXT_RECIPES,

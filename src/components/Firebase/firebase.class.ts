@@ -1,4 +1,4 @@
-import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
+import {FirebaseAnalyticEvent} from "../../constants/firebaseEvent";
 
 import FirebaseDbEvent from "./Db/firebase.db.event.class";
 
@@ -45,9 +45,9 @@ import {
 import {Functions, getFunctions, httpsCallable} from "firebase/functions";
 
 import FirebaseDbEventShort from "./Db/firebase.db.eventShort.class";
-import LocalStorageKey from "../../constants/localStorage";
+import {LocalStorageKey} from "../../constants/localStorage";
 import AuthUser from "./Authentication/authUser.class";
-import User from "../User/user.class";
+import {User} from "../User/user.class";
 import {DatabaseService} from "../Database/DatabaseService";
 
 interface SignInWithEmailAndPassword {

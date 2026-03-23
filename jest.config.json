@@ -40,7 +40,8 @@
   ],
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
   "moduleNameMapper": {
-    "^.*/supabaseClient$": "<rootDir>/src/components/Database/__mocks__/supabaseClient.ts"
+    "^.*/supabaseClient$": "<rootDir>/src/components/Database/__mocks__/supabaseClient.ts",
+    "\\.(css|less|scss|sass)$": "<rootDir>/src/__mocks__/styleMock.ts"
   },
   "reporters": [
     "default",

@@ -12,7 +12,7 @@
 import React from "react";
 import * as Sentry from "@sentry/browser";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 import {
   ListItemText,
@@ -33,9 +33,9 @@ import {
   ListItem,
 } from "@mui/material";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "./system";
-import AlertMessage from "../Shared/AlertMessage";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import {
   MERGE_ITEM_EXPLANATION as TEXT_MERGE_ITEM_EXPLANATION,
@@ -63,10 +63,10 @@ import {
   TYPE as TEXT_TYPE,
 } from "../../constants/text";
 
-import Product from "../Product/product.class";
-import Material from "../Material/material.class";
-import ProductAutocomplete from "../Product/productAutocomplete";
-import MaterialAutocomplete from "../Material/materialAutocomplete";
+import {Product} from "../Product/product.types";
+import {Material} from "../Material/material.types";
+import {ProductAutocomplete} from "../Product/productAutocomplete";
+import {MaterialAutocomplete} from "../Material/materialAutocomplete";
 import {FormListItem} from "../Shared/formListItem";
 import {useDatabase} from "../Database/DatabaseContext";
 import {
@@ -290,13 +290,14 @@ const MegeItemsPage = () => {
       .then((result) => {
         // ProductDomain auf Product-Klasse mappen, da Autocomplete dies erwartet
         const products = result.map((domain) => {
-          const product = new Product();
-          product.uid = domain.uid;
-          product.name = domain.name;
-          product.department = domain.department;
-          product.shoppingUnit = domain.shoppingUnit;
-          product.dietProperties = domain.dietProperties;
-          product.usable = domain.usable;
+          const product: Product = {
+            uid: domain.uid,
+            name: domain.name,
+            department: domain.department,
+            shoppingUnit: domain.shoppingUnit,
+            dietProperties: domain.dietProperties,
+            usable: domain.usable,
+          };
           return product;
         });
         dispatch({
@@ -319,18 +320,9 @@ const MegeItemsPage = () => {
     database.materials
       .getAllMaterials(true)
       .then((result) => {
-        // MaterialDomain auf Material-Klasse mappen, da Autocomplete dies erwartet
-        const materials = result.map((domain) => {
-          const material = new Material();
-          material.uid = domain.uid;
-          material.name = domain.name;
-          material.type = domain.type;
-          material.usable = domain.usable;
-          return material;
-        });
         dispatch({
           type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-          payload: materials,
+          payload: result,
         });
       })
       .catch((error) => {

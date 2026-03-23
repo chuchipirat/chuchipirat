@@ -8,13 +8,14 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation} from "react-router";
 
-import PasswordResetPage, {ForgotPasswordLink} from "../passwordReset";
+import {PasswordResetPage, ForgotPasswordLink} from "../passwordReset";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {PASSWORD_RESET as ROUTES_PASSWORD_RESET} from "../../../constants/routes";
 
-/* ===================================================================
-// ======================== Mock-Setup ================================
-// =================================================================== */
+/** Mock: @sentry/react — captureException wird als noop-Spy erfasst. */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
 
 /** Mock für den AuthService (database.auth) */
 const mockResetPassword = jest.fn();
@@ -41,10 +42,6 @@ const LocationDisplay = () => {
   return null;
 };
 
-/* ===================================================================
-// ======================== Render-Helper =============================
-// =================================================================== */
-
 /**
  * Rendert die PasswordResetPage mit allen nötigen Context-Providern.
  */
@@ -70,10 +67,6 @@ const renderForgotPasswordLink = () => {
     </MemoryRouter>
   );
 };
-
-/* ===================================================================
-// ======================== Tests =====================================
-// =================================================================== */
 
 beforeEach(() => {
   jest.clearAllMocks();

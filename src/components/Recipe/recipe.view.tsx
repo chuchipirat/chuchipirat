@@ -1,4 +1,5 @@
 import React from "react";
+import * as Sentry from "@sentry/react";
 import {generateAndDownloadPdf} from "../Shared/pdfUtils";
 import Recipe, {
   RecipeType,
@@ -47,7 +48,7 @@ import {
 import Grid from "@mui/material/Grid";
 
 import {FormListItem} from "../Shared/formListItem";
-import ButtonRow, {CustomButton} from "../Shared/buttonRow";
+import {ButtonRow, CustomButton} from "../Shared/buttonRow";
 
 import AddIcon from "@mui/icons-material/Add";
 import ExpandLess from "@mui/icons-material/ExpandLess";
@@ -126,15 +127,15 @@ import {
 import * as ROUTES from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../Shared/imageUrl";
-import RecipePdf from "./recipePdf";
+import {RecipePdf} from "./recipePdf";
 
-import Role from "../../constants/roles";
-import Action from "../../constants/actions";
+import {Role} from "../../constants/roles";
+import {Action} from "../../constants/actions";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import Utils from "../Shared/utils.class";
-import AlertMessage from "../Shared/AlertMessage";
+import {Utils} from "../Shared/utils.class";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
@@ -155,11 +156,11 @@ import {FeedType} from "../Shared/feed.class";
 import {RequestAction, RequestType} from "../Request/request.class";
 import {Request as RequestClass} from "../Request/request.class";
 import {RequestService} from "../Request/requestService";
-import DialogScaleRecipe, {OnScale} from "./dialogScaleRecipe";
-import DialogPublishRecipe from "./dialogPublishRecipe";
+import {DialogScaleRecipe, OnScale} from "./dialogScaleRecipe";
+import {DialogPublishRecipe} from "./dialogPublishRecipe";
 
-import Product, {Allergen, Diet} from "../Product/product.class";
-import RecipeShort from "./recipeShort.class";
+import {Product, Allergen, Diet} from "../Product/product.types";
+import {RecipeShort, createShortRecipeFromRecipe} from "./recipe.types";
 import {
   PlanedMealsRecipe,
   PlanedDiet,
@@ -171,13 +172,14 @@ import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/navigationContext";
-import UnitConversion, {
+} from "../Navigation/NavigationContext";
+import {
+  UnitConversion,
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../Unit/unitConversion.class";
-import DialogReportError from "./dialogReportError";
-import Unit from "../Unit/unit.class";
+import {DialogReportError} from "./dialogReportError";
+import {Unit} from "../Unit/unit.class";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -275,8 +277,17 @@ interface RecipeViewProps {
   onRecipeDelete?: () => void;
   authUser: AuthUser;
 }
-/** @implements {RecipeViewProps} */
-const RecipeView = ({
+/**
+ * Anzeigekomponente für ein Rezept (Lese-Modus).
+ *
+ * Zeigt Header mit Bild, Bewertung, Zutaten, Zubereitung, Material,
+ * Einplanungspanel, Kommentare sowie Aktions-Buttons (Skalieren, Drucken,
+ * Veröffentlichen, Löschen usw.).
+ *
+ * @param props - Siehe {@link RecipeViewProps}.
+ * @returns Die vollständige Rezeptansicht als React-Element.
+ */
+export const RecipeView = ({
   recipe,
   firebase,
   mealPlan,
@@ -394,7 +405,7 @@ const RecipeView = ({
           },
           authUser,
         )
-        .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+        .catch((err) => Sentry.captureException(err, {extra: {context: "RecipeView.onSetRating – Feed-Eintrag konnte nicht erstellt werden"}}));
 
       // DB-Trigger hat avg_rating + no_ratings in recipes aktualisiert → nachladen.
       // Cache umgehen, damit die vom Trigger aktualisierten Werte gelesen werden.
@@ -415,7 +426,7 @@ const RecipeView = ({
         },
       });
     } catch (err) {
-      console.error(err);
+      Sentry.captureException(err, {extra: {context: "RecipeView.onSetRating – Bewertung speichern fehlgeschlagen"}});
       onError && onError(err as Error);
     }
   };
@@ -441,7 +452,7 @@ const RecipeView = ({
       });
       onUpdateRecipe({recipe: {...recipe, tags}});
     } catch (err) {
-      console.error(err);
+      Sentry.captureException(err, {extra: {context: "RecipeView.onTagDelete – Tag löschen fehlgeschlagen"}});
       onError && onError(err as Error);
     }
   };
@@ -455,7 +466,7 @@ const RecipeView = ({
       });
       onUpdateRecipe({recipe: {...recipe, tags: listOfTags}});
     } catch (err) {
-      console.error(err);
+      Sentry.captureException(err, {extra: {context: "RecipeView.handleTagAddDialogAdd – Tags hinzufügen fehlgeschlagen"}});
       onError && onError(err as Error);
     }
     setTagAddDialogOpen(false);
@@ -466,7 +477,7 @@ const RecipeView = ({
   const addToEvent = () => {
     onAddToEvent &&
       onAddToEvent({
-        recipe: RecipeShort.createShortRecipeFromRecipe(recipe),
+        recipe: createShortRecipeFromRecipe(recipe),
       });
   };
   /* ------------------------------------------
@@ -497,7 +508,7 @@ const RecipeView = ({
           .then((result) => {
             // Array in Lookup-Map umwandeln (Schlüssel = uid)
             unitConversionBasic = Object.fromEntries(
-              result.map((c) => [c.uid, c]),
+              result.map((conversion) => [conversion.uid, conversion]),
             ) as unknown as UnitConversionBasic;
           })
           .catch((error) => {
@@ -513,7 +524,7 @@ const RecipeView = ({
           .then((result) => {
             // Array in Lookup-Map umwandeln (Schlüssel = uid)
             unitConversionProducts = Object.fromEntries(
-              result.map((c) => [c.uid, c]),
+              result.map((conversion) => [conversion.uid, conversion]),
             ) as unknown as UnitConversionProducts;
           })
           .catch((error) => {
@@ -530,7 +541,7 @@ const RecipeView = ({
             products = result as unknown as Product[];
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error, {extra: {context: "RecipeView.onRecipeScale – Produkte laden fehlgeschlagen"}});
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -544,7 +555,7 @@ const RecipeView = ({
             units = result as unknown as Unit[];
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error, {extra: {context: "RecipeView.onRecipeScale – Einheiten laden fehlgeschlagen"}});
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -728,7 +739,7 @@ const RecipeView = ({
         },
       });
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error, {extra: {context: "RecipeView.onCreateRecipePublishRequest – Veröffentlichungsantrag erstellen fehlgeschlagen"}});
       onError && onError(error as Error);
     }
     setPublishRecipeDialogOpen(false);
@@ -794,7 +805,7 @@ const RecipeView = ({
         },
       });
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error, {extra: {context: "RecipeView.onReportErrorRequest – Fehlermeldung erstellen fehlgeschlagen"}});
       onError && onError(error as Error);
     }
     setReportErrorDialogOpen(false);
@@ -910,7 +921,7 @@ const RecipeView = ({
           <RecipeDivider style={{marginTop: "1em", marginBottom: "1em"}} />
           <Grid
             size={{xs: 12, sm: 6}}
-            style={{marginTop: "2em", marginBottom: "2em"}}
+            sx={{marginTop: "2em", marginBottom: "2em"}}
           >
             <RecipeIngredients
               recipe={recipe}
@@ -920,7 +931,7 @@ const RecipeView = ({
           </Grid>
           <Grid
             size={{xs: 12, sm: 6}}
-            style={{marginTop: "2em", marginBottom: "2em"}}
+            sx={{marginTop: "2em", marginBottom: "2em"}}
           >
             <RecipePreparation recipe={recipe} />
           </Grid>
@@ -929,7 +940,7 @@ const RecipeView = ({
               .uid !== "" && (
               <Grid
                 size={{xs: 12, sm: 6}}
-                style={{marginTop: "2em", marginBottom: "2em"}}
+                sx={{marginTop: "2em", marginBottom: "2em"}}
               >
                 <RecipeMaterial
                   recipe={recipe}
@@ -940,14 +951,14 @@ const RecipeView = ({
             )}
           {recipe.type === RecipeType.variant &&
             recipe.variantProperties?.note && (
-              <Grid size={12} style={{marginTop: "2em", marginBottom: "2em"}}>
+              <Grid size={12} sx={{marginTop: "2em", marginBottom: "2em"}}>
                 <RecipeVariantNote recipe={recipe} />
               </Grid>
             )}
           {recipe.type === RecipeType.public && (
             <React.Fragment>
               <RecipeDivider style={{marginTop: "1em", marginBottom: "1em"}} />
-              <Grid size={12} style={{marginTop: "2em", marginBottom: "2em"}}>
+              <Grid size={12} sx={{marginTop: "2em", marginBottom: "2em"}}>
                 <RecipeComments
                   recipeId={recipe.uid}
                   recipeName={recipe.name}
@@ -1027,8 +1038,8 @@ const RecipeHeader = ({
     <React.Fragment>
       <Container
         maxWidth="md"
-        sx={classes.recipeHeader}
-        style={{
+        sx={{
+          ...classes.recipeHeader,
           display: "flex",
           position: "relative",
           paddingLeft: theme.spacing(5),
@@ -1050,7 +1061,7 @@ const RecipeHeader = ({
             variant="h2"
             align="center"
             color="textPrimary"
-            style={{
+            sx={{
               display: "block",
               overflowWrap: "break-word",
               wordBreak: "break-word",
@@ -1065,7 +1076,7 @@ const RecipeHeader = ({
               variant="h5"
               align="center"
               color="textPrimary"
-              style={{display: "block"}}
+              sx={{display: "block"}}
               gutterBottom
             >
               {`${TEXT_VARIANT} ${recipe.variantProperties?.variantName}`}
@@ -1095,9 +1106,9 @@ const RecipeHeader = ({
                   keepMounted
                   open={Boolean(ratingAnchor)}
                   onClose={handleRatingMenuClose}
-                  style={{padding: "1em"}}
+                  sx={{padding: "1em"}}
                 >
-                  <Box sx={classes.statsKpiBox} style={{margin: "1em"}}>
+                  <Box sx={{...classes.statsKpiBox, margin: "1em"}}>
                     <Typography color="textSecondary" align="center">
                       {TEXT_FIELD_YOUR_RATING}
                     </Typography>
@@ -1385,7 +1396,7 @@ export const RecipeInfoPanel = ({
             id={"author"}
             value={
               <Link
-                style={{cursor: "pointer"}}
+                sx={{cursor: "pointer"}}
                 onClick={() =>
                   navigate(
                     `${ROUTES.USER_PUBLIC_PROFILE}/${recipe.created.fromUid}`,
@@ -1513,7 +1524,7 @@ const DietProperties = ({recipe}: DietPropertiesProps) => {
   return (
     <React.Fragment>
       <Grid container spacing={2}>
-        <Grid size={4} style={{textAlign: "center"}}>
+        <Grid size={4} sx={{textAlign: "center"}}>
           {recipe.dietProperties.allergens.includes(Allergen.Lactose) ? (
             <React.Fragment>
               <LactoseIcon fontSize="large" />
@@ -1526,7 +1537,7 @@ const DietProperties = ({recipe}: DietPropertiesProps) => {
             </React.Fragment>
           )}
         </Grid>
-        <Grid size={4} style={{textAlign: "center"}}>
+        <Grid size={4} sx={{textAlign: "center"}}>
           {recipe.dietProperties.allergens.includes(Allergen.Gluten) ? (
             <React.Fragment>
               <GlutenIcon fontSize="large" />
@@ -1539,7 +1550,7 @@ const DietProperties = ({recipe}: DietPropertiesProps) => {
             </React.Fragment>
           )}
         </Grid>
-        <Grid size={4} style={{textAlign: "center"}}>
+        <Grid size={4} sx={{textAlign: "center"}}>
           {recipe.dietProperties.diet === Diet.Vegetarian ? (
             <React.Fragment>
               <VegetarianIcon fontSize="large" />
@@ -1602,7 +1613,7 @@ export const MealPlanPanel = ({
               >
                 <ListItemText
                   key={"listitemealListItemText_" + plan.mealPlanRecipe}
-                  style={{margin: 0}}
+                  sx={{margin: 0}}
                   primary={
                     <>
                       {new Date(plan.meal.date).toLocaleString("default", {
@@ -1673,7 +1684,7 @@ export const MealPlanPanel = ({
               </ListItemButton>
               {index !== mealPlan.length - 1 && (
                 <Divider
-                  style={{
+                  sx={{
                     marginTop: theme.spacing(1),
                     marginBottom: theme.spacing(1),
                   }}
@@ -1809,7 +1820,7 @@ export const RecipeIngredients = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_INGREDIENTS}
@@ -1836,7 +1847,7 @@ export const RecipeIngredients = ({
       )}
       <Divider
         variant="middle"
-        style={{
+        sx={{
           marginTop: "1em",
           marginBottom: "1em",
           marginLeft: "8em",
@@ -1899,16 +1910,16 @@ export const RecipeIngredients = ({
                   <Grid
                     size={12}
                     key={"ingredient_section_grid_" + ingredientUid}
-                    style={{marginTop: "0.5em", paddingLeft: "1em"}}
+                    sx={{marginTop: "0.5em", paddingLeft: "1em"}}
                   >
                     {counter > 0 && (
                       <Divider
-                        style={{marginTop: "2em", marginBottom: "1em"}}
+                        sx={{marginTop: "2em", marginBottom: "1em"}}
                       />
                     )}
                     <Typography
                       variant="subtitle1"
-                      style={{fontWeight: "bold"}}
+                      sx={{fontWeight: "bold"}}
                       // align="center"
                     >
                       {section.name}
@@ -2065,7 +2076,7 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_PREPARATION}
@@ -2098,14 +2109,14 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
                 <Grid
                   size={12}
                   key={"preparationStep_section_grid_" + section.uid}
-                  style={{marginTop: "0.5em", paddingLeft: "1em"}}
+                  sx={{marginTop: "0.5em", paddingLeft: "1em"}}
                 >
                   {counter > 0 && (
-                    <Divider style={{marginTop: "2em", marginBottom: "1em"}} />
+                    <Divider sx={{marginTop: "2em", marginBottom: "1em"}} />
                   )}
                   <Typography
                     variant="subtitle1"
-                    style={{fontWeight: "bold"}}
+                    sx={{fontWeight: "bold"}}
                     // align="center"
                   >
                     {section.name}
@@ -2170,7 +2181,7 @@ export const RecipeMaterial = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_MATERIAL}
@@ -2292,7 +2303,7 @@ const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_VARIANT_NOTE}
@@ -2365,7 +2376,7 @@ const RecipeComments = ({
         setHasMore(loadedComments.length === COMMENTS_PAGE_SIZE);
         setOffset(loadedComments.length);
       })
-      .catch(console.error)
+      .catch((error) => Sentry.captureException(error, {extra: {context: "RecipeComments – Kommentare laden fehlgeschlagen", recipeId}}))
       .finally(() => setLoading(false));
   }, [recipeId]);
 
@@ -2380,7 +2391,7 @@ const RecipeComments = ({
         setHasMore(olderComments.length === COMMENTS_PAGE_SIZE);
         setOffset((previous) => previous + olderComments.length);
       })
-      .catch(console.error);
+      .catch((error) => Sentry.captureException(error, {extra: {context: "RecipeComments.onLoadMore – Ältere Kommentare laden fehlgeschlagen", recipeId}}));
   };
 
   /* ------------------------------------------
@@ -2421,9 +2432,9 @@ const RecipeComments = ({
           },
           authUser,
         )
-        .catch((err) => console.warn("Feed-Eintrag konnte nicht erstellt werden:", err));
+        .catch((err) => Sentry.captureException(err, {extra: {context: "RecipeComments.onAddComment – Feed-Eintrag konnte nicht erstellt werden"}}));
     } catch (err) {
-      console.error(err);
+      Sentry.captureException(err, {extra: {context: "RecipeComments.onAddComment – Kommentar speichern fehlgeschlagen", recipeId}});
     } finally {
       setSaving(false);
     }
@@ -2464,7 +2475,7 @@ const RecipeComments = ({
       );
       setEditingId(null);
     } catch (err) {
-      console.error(err);
+      Sentry.captureException(err, {extra: {context: "RecipeComments.onSaveEdit – Kommentar bearbeiten fehlgeschlagen", editingId}});
     }
   };
 
@@ -2488,7 +2499,7 @@ const RecipeComments = ({
         previous.filter((comment) => comment.uid !== commentToDelete.uid),
       );
     } catch (err) {
-      console.error(err);
+      Sentry.captureException(err, {extra: {context: "RecipeComments.onDeleteComment – Kommentar löschen fehlgeschlagen", commentUid: commentToDelete.uid}});
     }
   };
 
@@ -2645,4 +2656,3 @@ const RecipeComments = ({
   );
 };
 
-export default RecipeView;
