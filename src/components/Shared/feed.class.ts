@@ -20,6 +20,7 @@ export enum FeedType {
   productCreated = "productCreated",
   materialCreated = "materialCreated",
   profilePictureChanged = "profilePictureChanged",
+  donationConfirmed = "donationConfirmed",
 }
 
 // ===================================================================== */
@@ -51,6 +52,8 @@ export function getFeedTitle(
       return TEXT_FEED_TITLE.SHOPPINGLIST_CREATED;
     case FeedType.profilePictureChanged:
       return TEXT_FEED_TITLE.PROFILE_PICTURE_CHANGED;
+    case FeedType.donationConfirmed:
+      return TEXT_FEED_TITLE.DONATION_CONFIRMED;
     case FeedType.productCreated:
     case FeedType.materialCreated:
       return textElements[0] ?? "";
@@ -88,6 +91,8 @@ export function getFeedText(
       return TEXT_FEED_TEXT.SHOPPINGLIST_CREATED(textElements);
     case FeedType.profilePictureChanged:
       return TEXT_FEED_TEXT.PROFILE_PICTURE_CHANGED;
+    case FeedType.donationConfirmed:
+      return TEXT_FEED_TEXT.DONATION_CONFIRMED(textElements);
     default:
       return "?";
   }

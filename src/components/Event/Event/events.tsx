@@ -4,14 +4,13 @@ import React from "react";
 import {useNavigate} from "react-router";
 import {
   Backdrop,
-  Button,
   Card,
-  CardContent,
-  CardMedia,
+  CardActionArea,
   CircularProgress,
   Container,
   Typography,
 } from "@mui/material";
+import {Add as AddIcon} from "@mui/icons-material";
 import Grid from "@mui/material/Grid";
 
 import {PageTitle} from "../../Shared/pageTitle";
@@ -36,7 +35,6 @@ import {
   CREATE_NEW_EVENT as ROUTES_CREATE_NEW_EVENT,
 } from "../../../constants/routes";
 import {useAuthUser} from "../../Session/authUserContext";
-import {ImageRepository} from "../../../constants/imageRepository";
 
 enum ReducerActions {
   EVENTS_FETCH_INIT,
@@ -246,25 +244,30 @@ const EventsGrid = ({
 
       {showCreateNewCard && (
         <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
-          <Card sx={classes.card} key={"eventCardNew"}>
-            <CardMedia
-              sx={classes.cardMedia}
-              image={
-                ImageRepository.getEnvironmentRelatedPicture()
-                  .CARD_PLACEHOLDER_MEDIA
-              }
-              title={TEXT_CREATE_EVENT}
-            />
-            <CardContent>
-              <Button
-                variant="contained"
-                color="primary"
-                fullWidth
-                onClick={onCreateNewEvent}
-              >
-                {TEXT_CREATE_EVENT}
-              </Button>
-            </CardContent>
+          <Card
+            sx={{
+              ...classes.card,
+              border: "2px dashed",
+              borderColor: "divider",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 200,
+            }}
+            key={"eventCardNew"}
+          >
+            <CardActionArea
+              onClick={onCreateNewEvent}
+              sx={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+              }}
+            >
+              <AddIcon sx={{fontSize: 48, color: "text.secondary", mb: 1}} />
+              <Typography color="text.secondary">{TEXT_CREATE_EVENT}</Typography>
+            </CardActionArea>
           </Card>
         </Grid>
       )}

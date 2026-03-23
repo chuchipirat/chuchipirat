@@ -62,7 +62,12 @@ const CreateNewEvent = lazy(() =>
 const Recipes = lazy(() =>
   import("../Recipe/recipes").then((module) => ({default: module.RecipesPage}))
 );
-const Donate = lazy(() => import("../Donate/donate"));
+const Donate = lazy(() =>
+  import("../Donate/DonatePage").then((module) => ({default: module.DonatePage}))
+);
+const DonateResult = lazy(() =>
+  import("../Donate/DonationResult").then((module) => ({default: module.DonationResultPage}))
+);
 const AuthServiceHandler = lazy(() =>
   import("../AuthServiceHandler/authServiceHandler").then((module) => ({default: module.AuthServiceHandlerPage}))
 );
@@ -93,6 +98,9 @@ const OverviewEvents = lazy(
 const OverviewUsers = lazy(() => import("../Admin/Overview/overviewUsers"));
 const OverviewMailbox = lazy(() => import("../Admin/overviewMailbox"));
 const OverviewFeeds = lazy(() => import("../Admin/Overview/overviewFeeds"));
+const OverviewDonations = lazy(() =>
+  import("../Admin/Overview/overviewDonations").then((module) => ({default: module.OverviewDonationsPage}))
+);
 const ActivateSupportUser = lazy(
   () => import("../Admin/activateSupportUser")
 );
@@ -102,6 +110,9 @@ const DataIntegrity = lazy(
   () => import("../Admin/DataIntegrity/dataIntegrity")
 );
 const CronJobs = lazy(() => import("../Admin/CronJobs/cronJobs"));
+const DonationGoals = lazy(() =>
+  import("../Admin/DonationGoals/donationGoals").then((module) => ({default: module.DonationGoalsPage}))
+);
 
 /* ===================================================================
 // ====================== Autorisierungsbedingungen ==================
@@ -322,6 +333,11 @@ const routeConfig: RouteDefinition[] = [
     layout: {showGoBackFab: true, showFeedbackFab: true},
   },
   {
+    path: ROUTES.DONATE_RESULT,
+    component: DonateResult,
+    guard: isAuthenticated,
+  },
+  {
     path: ROUTES.DONATE,
     component: Donate,
     guard: isAuthenticated,
@@ -449,6 +465,18 @@ const routeConfig: RouteDefinition[] = [
   {
     path: ROUTES.SYSTEM_DATA_INTEGRITY,
     component: DataIntegrity,
+    guard: isAdmin,
+    layout: {showGoBackFab: true, showFooter: true},
+  },
+  {
+    path: ROUTES.SYSTEM_OVERVIEW_DONATIONS,
+    component: OverviewDonations,
+    guard: isAdmin,
+    layout: {showGoBackFab: true, showFooter: true},
+  },
+  {
+    path: ROUTES.SYSTEM_DONATION_GOALS,
+    component: DonationGoals,
     guard: isAdmin,
     layout: {showGoBackFab: true, showFooter: true},
   },

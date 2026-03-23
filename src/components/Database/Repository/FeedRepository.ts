@@ -258,6 +258,10 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
         // textElements: [quellobjektName]
         return [sourceObjectName];
 
+      case FeedType.donationConfirmed:
+        // textElements: [amount] — Betrag in Rappen aus source_object_data
+        return [String(data.amount ?? "0")];
+
       case FeedType.userCreated:
       case FeedType.profilePictureChanged:
         // Keine textElements nötig

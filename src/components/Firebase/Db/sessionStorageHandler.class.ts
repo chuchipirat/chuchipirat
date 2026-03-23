@@ -137,6 +137,12 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     respectPrefix: false,
     excludeFromCaching: true,
   },
+  DONATIONS: {
+    durationOfValidity: 0,
+    uid: "/donations",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
   CLOUDFUNCTION: {
     durationOfValidity: 0,
     uid: "/cloudfunction",

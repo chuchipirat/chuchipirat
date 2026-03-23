@@ -74,9 +74,9 @@ export const RESUME_INTRODUCTION = (eventName: string) =>
 export const DONATE = "Spenden";
 export const PLEASE_DONATE = "Spende erwünscht";
 export const WHY_DONATE =
-  "Unser Team arbeitet ehrenamtlich, um die App kostenlos anzubieten. Wir sind auf Spenden angewiesen, um die laufenden Kosten zu decken. Wenn dir die App gefällt und dein Anlassbudget es zulässt, unterstütze uns gerne mit einer Spende von Fr. 5.00. Dein Beitrag hilft, das Angebot weiterhin kostenlos anbieten zu können sowie die App am Laufen zu halten und weiter zu verbessern.";
+  "Unser Team arbeitet ehrenamtlich, um die App kostenlos anzubieten. Wir sind auf Spenden angewiesen, um die laufenden Kosten zu decken. Wenn dir die App gefällt und dein Anlassbudget es zulässt, unterstütze uns gerne mit einer Spende. Dein Beitrag hilft, das Angebot weiterhin kostenlos anbieten zu können sowie die App am Laufen zu halten und weiter zu verbessern.";
 export const NEED_A_RECEIPT =
-  "Wenn du eine Quittung für den gespendeten Betrag benötigst, melde dich bitte unter hallo@chuchipirat.ch mit folgenden Angaben: Eventname und Zahlungsdatum. Wir senden dir dann gerne eine Quittung zu.";
+  "Du erhältst nach der Spende automatisch eine Quittung per E-Mail.";
 export const THANK_YOU_1000 = "Merci 1000";
 export const DELETE_EVENT = "Anlass löschen";
 export const ATTENTION_ABOUT_TO_DELETE_PLANED_DAYS =

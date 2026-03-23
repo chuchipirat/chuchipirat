@@ -50,7 +50,6 @@ jest.mock("../../../../constants/imageRepository", () => ({
     getEnvironmentRelatedPicture: () => ({
       CARD_PLACEHOLDER_MEDIA: "test-placeholder.png",
       SIGN_IN_HEADER: "test-header.png",
-      TWINT_QR_CODE: "test-qr.png",
     }),
   },
 }));
@@ -80,10 +79,10 @@ jest.mock("../../GroupConfiguration/groupConfiguration", () => ({
   EventGroupConfigurationPage: () => <div data-testid="group-config-page">GroupConfigPage</div>,
 }));
 
-/** Mock: TwintButton (Stub) */
-jest.mock("../../../Shared/TwintButton", () => ({
+/** Mock: DonationForm (Stub) */
+jest.mock("../../../Donate/DonationForm", () => ({
   __esModule: true,
-  default: () => <div data-testid="twint-button">TwintButton</div>,
+  DonationForm: () => <div data-testid="donation-form">DonationForm</div>,
 }));
 
 /** Mock: Event.class */

@@ -41,6 +41,8 @@ import {
   OpenInNew as OpenInNewIcon,
   BugReport as BugReportIcon,
   Storage as StorageIcon,
+  VolunteerActivism as VolunteerActivismIcon,
+  EmojiEvents as EmojiEventsIcon,
 } from "@mui/icons-material";
 
 import {
@@ -77,6 +79,10 @@ import {
   CRON_JOBS_DESCRIPTION as TEXT_CRON_JOBS_DESCRIPTION,
   DATA_INTEGRITY as TEXT_DATA_INTEGRITY,
   DATA_INTEGRITY_DESCRIPTION as TEXT_DATA_INTEGRITY_DESCRIPTION,
+  DONATIONS_OVERVIEW as TEXT_DONATIONS_OVERVIEW,
+  DONATIONS_OVERVIEW_DESCRIPTION as TEXT_DONATIONS_OVERVIEW_DESCRIPTION,
+  DONATION_GOALS_ADMIN as TEXT_DONATION_GOALS_ADMIN,
+  DONATION_GOALS_ADMIN_DESCRIPTION as TEXT_DONATION_GOALS_ADMIN_DESCRIPTION,
   SENTRY_DASHBOARD as TEXT_SENTRY_DASHBOARD,
   SUPABASE_DASHBOARD as TEXT_SUPABASE_DASHBOARD,
   USERS as TEXT_USERS,
@@ -99,6 +105,8 @@ import {
   SYSTEM_OVERVIEW_USERS as ROUTE_SYSTEM_OVERVIEW_USERS,
   SYSTEM_CRON_JOBS as ROUTE_SYSTEM_CRON_JOBS,
   SYSTEM_DATA_INTEGRITY as ROUTE_SYSTEM_DATA_INTEGRITY,
+  SYSTEM_OVERVIEW_DONATIONS as ROUTE_SYSTEM_OVERVIEW_DONATIONS,
+  SYSTEM_DONATION_GOALS as ROUTE_SYSTEM_DONATION_GOALS,
 } from "../../constants/routes";
 
 import {useCustomStyles} from "../../constants/styles";
@@ -186,6 +194,16 @@ const SystemPage = () => {
                   icon={<FeedbackIcon />}
                   action={goToDestination}
                   routeDestination={ROUTE_SYSTEM_SYSTEM_MESSAGES}
+                />
+              </Grid>
+              <Grid size={{xs: 12, sm: 6, md: 4}}>
+                <AdminTile
+                  id="donationGoals"
+                  text={TEXT_DONATION_GOALS_ADMIN}
+                  description={TEXT_DONATION_GOALS_ADMIN_DESCRIPTION}
+                  icon={<EmojiEventsIcon />}
+                  action={goToDestination}
+                  routeDestination={ROUTE_SYSTEM_DONATION_GOALS}
                 />
               </Grid>
             </Grid>
@@ -306,6 +324,16 @@ const SystemPage = () => {
           </Grid>
           {isAdmin && (
             <>
+              <Grid size={{xs: 12, sm: 6, md: 4}}>
+                <AdminTile
+                  id="overviewDonations"
+                  text={TEXT_DONATIONS_OVERVIEW}
+                  description={TEXT_DONATIONS_OVERVIEW_DESCRIPTION}
+                  icon={<VolunteerActivismIcon />}
+                  action={goToDestination}
+                  routeDestination={ROUTE_SYSTEM_OVERVIEW_DONATIONS}
+                />
+              </Grid>
               <Grid size={{xs: 12, sm: 6, md: 4}}>
                 <AdminTile
                   id="overviewUsers"

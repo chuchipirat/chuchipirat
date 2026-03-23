@@ -358,6 +358,8 @@ services:
       APP_URL: ${APP_URL}
       SENTRY_DSN: ${SENTRY_DSN}
       SUPPORT_USER_ID: ${SUPPORT_USER_ID}
+      PAYREXX_INSTANCE: ${PAYREXX_INSTANCE}
+      PAYREXX_API_SECRET: ${PAYREXX_API_SECRET}
     command: ["start", "--main-service", "/home/deno/functions/main"]
 
   analytics:

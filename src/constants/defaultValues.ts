@@ -20,8 +20,6 @@ export const MENUPLAN_MEALS = [
   {name: "Znacht", uid: ""},
 ];
 
-export const TWINT_PAYLINK = "https://pay.raisenow.io/jhbvj";
-
 export const MENUPLAN_NO_OF_COLUMS_PRINT = 4;
 
 export const HELPCENTER_URL = "https://help.chuchipirat.ch";

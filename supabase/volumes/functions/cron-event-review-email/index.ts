@@ -198,7 +198,7 @@ serve(async (req: Request) => {
             `Dauert nur ein paar Minuten — versprochen!\n\n` +
             `---\n\n` +
             `Falls ihr euren Anlass genossen habt und noch etwas Budget übrig ist: chuchipirat ist ein ehrenamtliches Projekt — jede Spende hilft uns, die App weiterzuentwickeln und für alle gratis zu halten.\n\n` +
-            `Jetzt spenden: https://pay.raisenow.io/nntnc\n\n` +
+            `Jetzt spenden: ${appUrl}/donate\n\n` +
             `---\n\n` +
             `Danke, dass ihr dabei wart — und hoffentlich bis bald wieder im chuchipirat!\n\n` +
             `Bei Fragen: hallo@chuchipirat.ch`;

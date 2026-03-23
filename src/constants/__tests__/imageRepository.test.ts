@@ -9,7 +9,6 @@ describe("ImageRepository", () => {
       "PDF_FOOTER_IMAGE",
       "CARD_PLACEHOLDER_MEDIA",
       "VECTOR_LOGO_GREY",
-      "TWINT_QR_CODE",
       "RECEIPT_IMAGE",
     ];
     expectedKeys.forEach((key) => {

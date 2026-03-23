@@ -22,3 +22,4 @@ export * from "./landing";
 export * from "./shared";
 export * from "./mappings";
 export * from "./errors";
+export * from "./donations";

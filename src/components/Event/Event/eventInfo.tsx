@@ -25,7 +25,11 @@ import {
   Stack,
   Alert,
 } from "@mui/material";
-import {Delete as DeleteIcon, Add as AddIcon} from "@mui/icons-material";
+import {
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  ReceiptLong as ReceiptLongIcon,
+} from "@mui/icons-material";
 
 import {
   DEFINE_BASIC_EVENT_DATA as TEXT_DEFINE_BASIC_EVENT_DATA,
@@ -56,6 +60,9 @@ import {
   IMAGE_TOO_LARGE as TEXT_IMAGE_TOO_LARGE,
 } from "../../../constants/text";
 
+import {DONATION_RECEIPT_DOWNLOAD as TEXT_DONATION_RECEIPT_DOWNLOAD} from "../../../constants/text/donations";
+import {DonationDomain} from "../../Donate/donation.types";
+import {DonationReceiptPdf} from "../../Donate/DonationReceiptPdf";
 import {useCustomStyles} from "../../../constants/styles";
 
 import {ImageRepository} from "../../../constants/imageRepository";
@@ -189,6 +196,8 @@ const EventInfoPage = ({
 
   // Hier damit der AuthUser übergeben werden kann
   const [dialogAddUserOpen, setDialogAddUserOpen] = React.useState(false);
+  const [eventDonation, setEventDonation] =
+    React.useState<DonationDomain | null>(null);
   const {customDialog} = useCustomDialog();
   /* ------------------------------------------
   // Navigation-Handler
@@ -199,6 +208,24 @@ const EventInfoPage = ({
       object: NavigationObject.eventSettings,
     });
   }, []);
+
+  /* ------------------------------------------
+  // Spende für dieses Event laden
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (!event.uid) return;
+
+    database.donations
+      .getEventDonations(event.uid)
+      .then((donations) => {
+        setEventDonation(donations.length > 0 ? donations[0] : null);
+      })
+      .catch((error) => {
+        Sentry.captureException(error, {
+          extra: {context: "Event-Spende laden"},
+        });
+      });
+  }, [event.uid]);
 
   /* ------------------------------------------
   // Field-Change
@@ -405,6 +432,24 @@ const EventInfoPage = ({
     }
   };
 
+  /* ------------------------------------------
+  // Spendenquittung
+  // ------------------------------------------ */
+  const onDownloadDonationReceipt = async () => {
+    if (!eventDonation) return;
+    try {
+      await generateAndDownloadPdf(
+        <DonationReceiptPdf donation={eventDonation} authUser={authUser} />,
+        `${TEXT_DONATION_RECEIPT_DOWNLOAD}${eventDonation.eventName ? ` ${eventDonation.eventName}` : ""}${TEXT_SUFFIX_PDF}`,
+        (error) => onError?.(error),
+        {donationId: eventDonation.id},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      onError?.(error as Error);
+    }
+  };
+
   return (
     <React.Fragment>
       <Stack spacing={2}>
@@ -421,6 +466,8 @@ const EventInfoPage = ({
             localPicture ? URL.createObjectURL(localPicture) : ""
           }
           onDownloadReceipt={onDownloadReceipt}
+          eventDonation={eventDonation}
+          onDownloadDonationReceipt={onDownloadDonationReceipt}
         />
         <EventCookingTeamCard
           event={event}
@@ -464,6 +511,10 @@ interface EventBasicInfoCardProps {
   onError?: (error: Error) => void;
   /** Callback zum Herunterladen der Quittung als PDF. */
   onDownloadReceipt: () => void;
+  /** Bestätigte Spende für dieses Event (null wenn keine vorhanden). */
+  eventDonation: DonationDomain | null;
+  /** Callback zum Herunterladen der Spendenquittung als PDF. */
+  onDownloadDonationReceipt: () => void;
   /** Vorschau-URL des lokal ausgewählten Bildes. */
   previewPictureUrl: string | null;
 }
@@ -482,6 +533,8 @@ const EventBasicInfoCard = ({
   onImageDelete,
   onError,
   onDownloadReceipt,
+  eventDonation,
+  onDownloadDonationReceipt,
   previewPictureUrl,
 }: EventBasicInfoCardProps) => {
   const classes = useCustomStyles();
@@ -493,19 +546,34 @@ const EventBasicInfoCard = ({
         title={TEXT_EVENT_INFO}
         subheader={TEXT_DEFINE_BASIC_EVENT_DATA}
         action={
-          event.refDocuments?.includes(EventRefDocuments.receipt) ? (
-            <Button
-              color="primary"
-              variant="outlined"
-              style={{
-                marginTop: theme.spacing(1),
-                marginRight: theme.spacing(0.6),
-              }}
-              onClick={onDownloadReceipt}
+          (event.refDocuments?.includes(EventRefDocuments.receipt) ||
+            eventDonation) && (
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{mt: theme.spacing(1), mr: theme.spacing(0.6)}}
             >
-              {TEXT_RECEIPT}
-            </Button>
-          ) : null
+              {event.refDocuments?.includes(EventRefDocuments.receipt) && (
+                <Button
+                  color="primary"
+                  variant="outlined"
+                  onClick={onDownloadReceipt}
+                >
+                  {TEXT_RECEIPT}
+                </Button>
+              )}
+              {eventDonation && (
+                <Button
+                  color="primary"
+                  variant="outlined"
+                  startIcon={<ReceiptLongIcon />}
+                  onClick={onDownloadDonationReceipt}
+                >
+                  {TEXT_DONATION_RECEIPT_DOWNLOAD}
+                </Button>
+              )}
+            </Stack>
+          )
         }
       />
       <CardContent>

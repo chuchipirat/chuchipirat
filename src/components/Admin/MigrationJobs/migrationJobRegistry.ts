@@ -18,6 +18,7 @@ import {ShoppingListMigrationJob} from "./ShoppingListMigrationJob";
 import {MaterialListMigrationJob} from "./MaterialListMigrationJob";
 import {RequestMigrationJob} from "./RequestMigrationJob";
 import {FeedMigrationJob} from "./FeedMigrationJob";
+import {DonationMigrationJob} from "./DonationMigrationJob";
 
 /* =====================================================================
 // Registry aller verfügbaren Migrations-Jobs
@@ -70,6 +71,7 @@ export const migrationJobRegistry: Record<string, MigrationJob> = {
   materialLists: new MaterialListMigrationJob(),
   requests: new RequestMigrationJob(),
   feeds: new FeedMigrationJob(),
+  donations: new DonationMigrationJob(),
 };
 
 /**

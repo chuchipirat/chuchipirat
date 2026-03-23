@@ -32,11 +32,6 @@ import {
   EVENT_IS_BEEING_CREATED as TEXT_EVENT_IS_BEEING_CREATED,
   IMAGE_IS_BEEING_UPLOADED as TEXT_IMAGE_IS_BEEING_UPLOADED,
   BACK_TO_GROUPCONFIG as TEXT_BACK_TO_GROUPCONFIG,
-  RESUME_INTRODUCTION as TEXT_RESUME_INTRODUCTION,
-  PLEASE_DONATE as TEXT_PLEASE_DONATE,
-  WHY_DONATE as TEXT_WHY_DONATE,
-  NEED_A_RECEIPT as TEXT_NEED_A_RECEIPT,
-  THANK_YOU_1000 as TEXT_THANK_YOU_1000,
 } from "../../../constants/text";
 
 import {useCustomStyles} from "../../../constants/styles";
@@ -68,8 +63,7 @@ import {
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {useAuthUser} from "../../Session/authUserContext";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {ImageRepository} from "../../../constants/imageRepository";
-import {TwintButton} from "../../Shared/TwintButton";
+import {EventCompletionDonation} from "../../Donate/EventCompletionDonation";
 import {resizeImage} from "../../Shared/imageResize";
 import {
   GroupConfigDomain,
@@ -345,14 +339,156 @@ const CreateEventPage = () => {
     }
     setActiveStep(WizardSteps.info);
   };
-  /** Typassertion nötig, da ButtonAction generisch ist und der Wert als unknown ankommt. */
-  const goToCompletionStep = (
+  /**
+   * Speichert das Event in der Datenbank (Supabase) und gibt die UID zurück.
+   * Wird beim Übergang von Schritt 2 → 3 aufgerufen, damit das Event
+   * bereits existiert, wenn der Spendenabschnitt angezeigt wird.
+   */
+  const saveEvent = async (groupConfig: EventGroupConfiguration): Promise<string> => {
+    dispatch({type: ReducerActions.SAVE_EVENT_INIT});
+
+    // 1. Event erstellen (Supabase)
+    const eventDomain = await database.events.createEvent(
+      {
+        name: state.event.name,
+        motto: state.event.motto,
+        location: state.event.location,
+        pictureSrc: "",
+      },
+      authUser,
+    );
+
+    // 2. Ersteller als Koch hinzufügen (vor Bild-Upload, damit
+    //    is_event_cook() für die Storage-Policy true ergibt).
+    await database.events.addCook(
+      eventDomain.uid,
+      authUser.uid,
+      authUser,
+    );
+
+    // 3. Weitere Köche hinzufügen — cook.uid ist die Firebase UID,
+    //    muss zu Supabase Auth UUID aufgelöst werden.
+    const usersRepo = database.admin?.users ?? database.users;
+    for (const cook of state.event.cooks) {
+      if (cook.uid !== authUser.uid) {
+        const userDomain = await usersRepo.findById(cook.uid);
+        if (userDomain?.uid) {
+          await database.events.addCook(
+            eventDomain.uid,
+            userDomain.uid,
+            authUser,
+          );
+        }
+      }
+    }
+
+    // 4. Zeitscheiben speichern
+    const dateDomains = state.event.dates
+      .filter((dateEntry) => dateEntry.from && dateEntry.to)
+      .map((dateEntry, index) => ({
+        dateFrom: dateEntry.from,
+        dateTo: dateEntry.to,
+        sortOrder: index * 10,
+      }));
+    await database.events.saveDates(eventDomain.uid, dateDomains, authUser);
+
+    // 5. Bild hochladen (falls vorhanden)
+    let pictureSrc = "";
+    if (state.localPicture) {
+      const resizedBlob = await resizeImage(state.localPicture);
+      const result = await database.storage.events.upload(
+        `${eventDomain.uid}.jpg`,
+        resizedBlob,
+        "image/jpeg",
+      );
+      pictureSrc = result.publicUrl;
+      await database.events.updateEvent(
+        {...eventDomain, pictureSrc},
+        authUser,
+      );
+    }
+
+    // 6. Gruppenkonfiguration speichern
+    const groupConfigDomain = mapGroupConfigToGroupConfigDomain(
+      groupConfig,
+      eventDomain.uid,
+    );
+    await database.eventGroupConfig.saveGroupConfig(
+      groupConfigDomain,
+      authUser,
+    );
+
+    // 7. Menüplan initialisieren
+    await database.menuplan.initializeMenuplan(eventDomain.uid, dateDomains, authUser);
+
+    // 8. Feed-Einträge erstellen (nicht blockierend)
+    database.feeds
+      .insertFeed(
+        {
+          feedType: FeedType.eventCreated,
+          sourceObjectType: "event",
+          sourceObjectUid: eventDomain.uid,
+        },
+        authUser,
+      )
+      .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+
+    const usersForFeed = database.admin?.users ?? database.users;
+    for (const cook of state.event.cooks) {
+      if (cook.uid !== authUser.uid) {
+        usersForFeed
+          .findById(cook.uid)
+          .then((userDomain) => {
+            if (!userDomain?.uid) return;
+            return database.feeds.insertFeed(
+              {
+                feedType: FeedType.eventCookAdded,
+                sourceObjectType: "event",
+                sourceObjectUid: eventDomain.uid,
+                userUid: userDomain.uid,
+              },
+              authUser,
+            );
+          })
+          .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+      }
+    }
+
+    // State aktualisieren mit der echten UID
+    const savedEvent = {...state.event, uid: eventDomain.uid, pictureSrc};
+    dispatch({type: ReducerActions.SAVE_EVENT_SUCCESS, payload: savedEvent});
+
+    return eventDomain.uid;
+  };
+
+  /**
+   * Navigiert zum gespeicherten Event.
+   * Wird vom «Weiter zum Anlass»-Button und nach der Zahlung aufgerufen.
+   */
+  const navigateToEvent = () => {
+    navigate(`${ROUTE_EVENT}/${state.event.uid}`);
+  };
+
+  /**
+   * Übergang von Schritt 2 (Gruppenkonfiguration) → Schritt 3 (Abschluss).
+   * Speichert das Event zuerst in der Datenbank, damit die echte UID
+   * für die Spende und den Return-Pfad verfügbar ist.
+   */
+  const goToCompletionStep = async (
     _event: React.MouseEvent<HTMLButtonElement>,
     value?: EventGroupConfiguration,
   ) => {
     if (!value) return;
     dispatch({type: ReducerActions.SET_GROUP_CONFIG, payload: value});
-    setActiveStep(WizardSteps.completion);
+
+    try {
+      await saveEvent(value);
+      setActiveStep(WizardSteps.completion);
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+      window.scrollTo({top: 0, behavior: "smooth"});
+    }
   };
   /* ------------------------------------------
   // Änderungen übernehmen
@@ -391,135 +527,6 @@ const CreateEventPage = () => {
         return;
       }
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: fieldError});
-      window.scrollTo({top: 0, behavior: "smooth"});
-    }
-  };
-
-  /* ------------------------------------------
-  // Alles speichern (Supabase) — beim Abschluss-Schritt
-  // ------------------------------------------ */
-  const onSaveAll = async () => {
-    dispatch({type: ReducerActions.SAVE_EVENT_INIT});
-
-    try {
-      // 1. Event erstellen (Supabase)
-      const eventDomain = await database.events.createEvent(
-        {
-          name: state.event.name,
-          motto: state.event.motto,
-          location: state.event.location,
-          pictureSrc: "",
-        },
-        authUser,
-      );
-
-      // 2. Ersteller als Koch hinzufügen (vor Bild-Upload, damit
-      //    is_event_cook() für die Storage-Policy true ergibt).
-      //    authUser.uid ist die Supabase Auth UUID (event_cooks.user_id
-      //    erwartet UUID).
-      await database.events.addCook(
-        eventDomain.uid,
-        authUser.uid,
-        authUser,
-      );
-
-      // 3. Weitere Köche hinzufügen — cook.uid ist die Firebase UID,
-      //    muss zu Supabase Auth UUID aufgelöst werden.
-      const usersRepo = database.admin?.users ?? database.users;
-      for (const cook of state.event.cooks) {
-        if (cook.uid !== authUser.uid) {
-          const userDomain = await usersRepo.findById(cook.uid);
-          if (userDomain?.uid) {
-            await database.events.addCook(
-              eventDomain.uid,
-              userDomain.uid,
-              authUser,
-            );
-          }
-        }
-      }
-
-      // 4. Zeitscheiben speichern
-      const dateDomains = state.event.dates
-        .filter((dateEntry) => dateEntry.from && dateEntry.to)
-        .map((dateEntry, index) => ({
-          dateFrom: dateEntry.from,
-          dateTo: dateEntry.to,
-          sortOrder: index * 10,
-        }));
-      await database.events.saveDates(eventDomain.uid, dateDomains, authUser);
-
-      // 5. Bild hochladen (falls vorhanden)
-      let pictureSrc = "";
-      if (state.localPicture) {
-        const resizedBlob = await resizeImage(state.localPicture);
-        const result = await database.storage.events.upload(
-          `${eventDomain.uid}.jpg`,
-          resizedBlob,
-          "image/jpeg",
-        );
-        pictureSrc = result.publicUrl;
-        await database.events.updateEvent(
-          {...eventDomain, pictureSrc},
-          authUser,
-        );
-      }
-
-      // 6. Gruppenkonfiguration speichern
-      const groupConfigDomain = mapGroupConfigToGroupConfigDomain(
-        state.groupConfig,
-        eventDomain.uid,
-      );
-      await database.eventGroupConfig.saveGroupConfig(
-        groupConfigDomain,
-        authUser,
-      );
-
-      // 7. Menüplan initialisieren (Mahlzeittypen + Mahlzeiten + Menüs für jedes Datum)
-      await database.menuplan.initializeMenuplan(eventDomain.uid, dateDomains, authUser);
-
-      // 8. Feed-Einträge erstellen (nicht blockierend)
-      database.feeds
-        .insertFeed(
-          {
-            feedType: FeedType.eventCreated,
-            sourceObjectType: "event",
-            sourceObjectUid: eventDomain.uid,
-          },
-          authUser,
-        )
-        .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
-
-      // Feed für jeden weiteren Koch (nicht den Ersteller selbst)
-      // cook.uid ist die Firebase-UID → auth UUID über users-Tabelle auflösen
-      const usersForFeed = database.admin?.users ?? database.users;
-      for (const cook of state.event.cooks) {
-        if (cook.uid !== authUser.uid) {
-          usersForFeed
-            .findById(cook.uid)
-            .then((userDomain) => {
-              if (!userDomain?.uid) return;
-              return database.feeds.insertFeed(
-                {
-                  feedType: FeedType.eventCookAdded,
-                  sourceObjectType: "event",
-                  sourceObjectUid: eventDomain.uid,
-                  userUid: userDomain.uid,
-                },
-                authUser,
-              );
-            })
-            .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
-        }
-      }
-
-      // 9. Zum Event navigieren
-      const savedEvent = {...state.event, uid: eventDomain.uid, pictureSrc};
-      dispatch({type: ReducerActions.SAVE_EVENT_SUCCESS, payload: savedEvent});
-      navigate(`${ROUTE_EVENT}/${eventDomain.uid}`);
-    } catch (error) {
-      Sentry.captureException(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
       window.scrollTo({top: 0, behavior: "smooth"});
     }
   };
@@ -589,8 +596,7 @@ const CreateEventPage = () => {
           <CreateEventCompletion
             event={state.event}
             isSaving={state.isSaving}
-            onReturn={goToGroupConfigStep}
-            onProceed={onSaveAll}
+            onNavigateToEvent={navigateToEvent}
           />
         );
     }
@@ -635,85 +641,32 @@ const CreateEventPage = () => {
  * Props für die Abschluss-Seite des Event-Erstellungsassistenten.
  */
 interface CreateEventCompletionProps {
-  /** Das erstellte Event. */
+  /** Das erstellte Event (mit echter UID aus der Datenbank). */
   event: Event;
   /** Ob gerade gespeichert wird. */
   isSaving: boolean;
-  /** Callback zum Zurückkehren zur Gruppenkonfiguration. */
-  onReturn: () => void;
-  /** Callback zum Speichern und Abschliessen. */
-  onProceed: () => void;
+  /** Callback zur Navigation zum gespeicherten Event. */
+  onNavigateToEvent: () => void;
 }
 /**
  * Abschluss-Seite des Event-Erstellungsassistenten.
- * Zeigt eine Zusammenfassung und Spendenoptionen (TWINT QR-Code).
+ * Zeigt Erfolgsmeldung, Spendenappell mit Fortschrittsbalken
+ * und Spendenformular mit «Weiter zum Anlass»-Option.
+ * Das Event existiert zu diesem Zeitpunkt bereits in der Datenbank.
  */
 const CreateEventCompletion = ({
   event,
-  isSaving,
-  onProceed,
-  onReturn,
+  isSaving: _isSaving,
+  onNavigateToEvent,
 }: CreateEventCompletionProps) => {
-  const classes = useCustomStyles();
-  const theme = useTheme();
-
   return (
-    <Container component="main" maxWidth="md">
-      <Stack spacing={2}>
-        <Card>
-          <CardHeader title={TEXT_COMPLETION} />
-          <CardContent>
-            <Stack
-              spacing={2}
-              sx={{
-                justifyContent: "center",
-                alignItems: "center",
-              }}
-            >
-              <Typography>{TEXT_RESUME_INTRODUCTION(event.name)}</Typography>
-              <br />
-              <Typography>
-                <strong>{TEXT_PLEASE_DONATE}</strong>
-                <br />
-                {TEXT_WHY_DONATE}
-                <br />
-                {TEXT_NEED_A_RECEIPT}
-                <br />
-                <br />
-                {TEXT_THANK_YOU_1000}
-              </Typography>
-              <Box sx={classes.centerCenter}>
-                <Box
-                  component="img"
-                  src={
-                    ImageRepository.getEnvironmentRelatedPicture().TWINT_QR_CODE
-                  }
-                  sx={classes.cardMediaQrCode}
-                  style={{maxWidth: "100%", height: "auto"}}
-                />
-              </Box>
-
-              <TwintButton />
-            </Stack>
-          </CardContent>
-        </Card>
-
-        <Box
-          component="div"
-          sx={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: theme.spacing(1),
-          }}
-        >
-          <Button variant="outlined" onClick={onReturn} disabled={isSaving}>
-            {TEXT_BACK_TO_GROUPCONFIG}
-          </Button>
-          <Button variant="contained" onClick={onProceed} disabled={isSaving}>
-            {TEXT_CONTINUE}
-          </Button>
-        </Box>
-      </Stack>
+    <Container component="main" maxWidth="sm">
+      <EventCompletionDonation
+        eventName={event.name}
+        returnPath={`/event/${event.uid}`}
+        onSkip={onNavigateToEvent}
+        eventId={event.uid}
+      />
     </Container>
   );
 };

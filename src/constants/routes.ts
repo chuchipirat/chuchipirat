@@ -18,6 +18,8 @@ export const EVENT_UID = "/event/:id";
 export const CREATE_NEW_EVENT = "/event/new";
 export const EVENTS = "/events";
 export const DONATE = "/donate";
+export const DONATE_RESULT = "/donate/result";
+
 
 export const SYSTEM = "/system";
 export const SYSTEM_WHERE_USED = "/system/whereused";
@@ -36,6 +38,8 @@ export const SYSTEM_OVERVIEW_EVENTS = "/system/overview/events";
 export const SYSTEM_OVERVIEW_USERS = "/system/overview/users";
 export const SYSTEM_OVERVIEW_MAILBOX = "/system/overview/mailbox";
 export const SYSTEM_OVERVIEW_FEEDS = "/system/overview/feeds";
+export const SYSTEM_OVERVIEW_DONATIONS = "/system/overview/donations";
+export const SYSTEM_DONATION_GOALS = "/system/donationgoals";
 
 export const SYSTEM_MAIL_CONSOLE = "/system/mailconsole";
 export const SYSTEM_MIGRATION = "/system/migration";

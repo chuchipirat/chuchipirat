@@ -117,6 +117,7 @@ export const FEED_TITLE = {
   EVENT_COOK_ADDED: "Küchen-Crew vergrössert",
   SHOPPINGLIST_CREATED: "Einkaufen ist angesagt",
   PROFILE_PICTURE_CHANGED: "Neues Profilbild",
+  DONATION_CONFIRMED: "Spende eingegangen",
 };
 
 export const FEED_TEXT = {
@@ -165,6 +166,11 @@ export const FEED_TEXT = {
   RECIPE_COMMENTED: (textElements: string[]) =>
     `hat das Rezept «${textElements[0]}» kommentiert.`,
   PROFILE_PICTURE_CHANGED: "hat ein neues Profilbild hochgeladen.",
+  DONATION_CONFIRMED: (textElements: string[]) => {
+    const amountCents = parseInt(textElements[0] ?? "0", 10);
+    const amountFormatted = (amountCents / 100).toFixed(2);
+    return `hat CHF ${amountFormatted} gespendet. Merci 1000!`;
+  },
 };
 
 /* =====================================================================

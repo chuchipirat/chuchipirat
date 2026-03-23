@@ -352,7 +352,7 @@ const BODY_TEMPLATES: Record<string, string> = {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td align="center" style="padding: 8px 0 0;">
-                    <a href="https://pay.raisenow.io/nntnc"
+                    <a href="{{appUrl}}/donate"
                        target="_blank"
                        style="display: inline-block; background-color: #ffffff; color: #006064; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 32px; border-radius: 8px; border: 2px solid #006064; letter-spacing: 0.3px;">
                       Jetzt spenden
@@ -366,6 +366,68 @@ const BODY_TEMPLATES: Record<string, string> = {
 
               <p style="margin: 0; font-size: 14px; color: #757575; line-height: 1.5;">
                 Danke, dass ihr dabei wart — und hoffentlich bis bald wieder im chuchipirat!
+              </p>`,
+
+  /* ── Spendenbestätigung ─────────────────────────────────────── */
+  "donation-confirmed": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Hallo {{donorName}},
+              </p>
+              <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                Vielen Dank für deine grosszügige Spende! Dein Beitrag hilft uns,
+                den chuchipirat weiterzuentwickeln und weiterhin kostenlos für alle
+                Lagerküchen anzubieten.
+              </p>
+
+              <!-- Spendendetails -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td style="background-color: #f5f5f5; border-left: 4px solid #006064; padding: 16px 20px; border-radius: 0 8px 8px 0;">
+                    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 15px; color: #424242;">
+                          <strong>Betrag:</strong> {{amount}}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 15px; color: #424242;">
+                          <strong>Datum:</strong> {{paidDate}}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 15px; color: #424242;">
+                          <strong>Zahlungsmethode:</strong> {{paymentMethod}}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 15px; color: #424242;">
+                          <strong>Anlass:</strong> {{eventName}}
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding: 4px 0; font-size: 15px; color: #424242;">
+                          <strong>Quittungsnummer:</strong> {{receiptNumber}}
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- CTA Button -->
+              <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                <tr>
+                  <td align="center" style="padding: 24px 0 0;">
+                    <a href="{{donatePageUrl}}"
+                       target="_blank"
+                       style="display: inline-block; background-color: #006064; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 36px; border-radius: 8px; letter-spacing: 0.3px;">
+                      Quittung herunterladen
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 24px 0 0; font-size: 14px; color: #757575; line-height: 1.5;">
+                Merci 1000! — Verein chuchipirat
               </p>`,
 
   /* ── Fehlermeldung wurde bearbeitet ──────────────────────────── */

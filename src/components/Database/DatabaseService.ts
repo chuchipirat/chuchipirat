@@ -25,6 +25,7 @@ import {MaterialListRepository} from "./Repository/MaterialListRepository";
 import {RequestRepository} from "./Repository/RequestRepository";
 import {RequestCommentRepository} from "./Repository/RequestCommentRepository";
 import {FeedRepository} from "./Repository/FeedRepository";
+import {DonationRepository} from "./Repository/DonationRepository";
 import {StatsRepository} from "./Repository/StatsRepository";
 import {AdminOperationsRepository} from "./Repository/AdminOperationsRepository";
 import {CronJobLogRepository} from "./Repository/CronJobLogRepository";
@@ -71,6 +72,7 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property requests - Repository für Anträge (Rezept-Veröffentlichung, Fehlermeldungen)
  * @property requestComments - Repository für Antrags-Kommentare
  * @property feeds - Repository für Feed-Einträge (Aktivitätsübersicht)
+ * @property donations - Repository für Spenden (Payrexx-Integration)
  * @property stats - Repository für Plattform-Statistiken (KPIs)
  * @property adminOps - Repository für Admin-Operationen (Merge, Convert, Where-Used)
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
@@ -104,6 +106,7 @@ export class DatabaseService {
   requests: RequestRepository;
   requestComments: RequestCommentRepository;
   feeds: FeedRepository;
+  donations: DonationRepository;
   stats: StatsRepository;
   adminOps: AdminOperationsRepository;
   cronJobLog: CronJobLogRepository;
@@ -134,6 +137,7 @@ export class DatabaseService {
     requests: RequestRepository;
     requestComments: RequestCommentRepository;
     feeds: FeedRepository;
+    donations: DonationRepository;
     stats: StatsRepository;
     storage: {users: UserStorageRepository; events: EventStorageRepository};
   } | null;
@@ -164,6 +168,7 @@ export class DatabaseService {
     this.requests = new RequestRepository();
     this.requestComments = new RequestCommentRepository();
     this.feeds = new FeedRepository();
+    this.donations = new DonationRepository();
     this.stats = new StatsRepository();
     this.adminOps = new AdminOperationsRepository();
     this.cronJobLog = new CronJobLogRepository();
@@ -195,6 +200,7 @@ export class DatabaseService {
           requests: new RequestRepository(supabaseAdmin),
           requestComments: new RequestCommentRepository(supabaseAdmin),
           feeds: new FeedRepository(supabaseAdmin),
+          donations: new DonationRepository(supabaseAdmin),
           stats: new StatsRepository(supabaseAdmin),
           storage: {users: new UserStorageRepository(supabaseAdmin), events: new EventStorageRepository(supabaseAdmin)},
         }

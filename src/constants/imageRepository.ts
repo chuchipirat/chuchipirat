@@ -36,7 +36,6 @@ interface PictureRepository {
   PDF_FOOTER_IMAGE: string;
   CARD_PLACEHOLDER_MEDIA: string;
   VECTOR_LOGO_GREY: string;
-  TWINT_QR_CODE: string;
   RECEIPT_IMAGE: string;
 }
 
@@ -51,8 +50,6 @@ const DEVELOPMENT: PictureRepository = {
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2Fplaceholder.png?alt=media",
   VECTOR_LOGO_GREY:
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2Fdivider_icon.svg?alt=media",
-  TWINT_QR_CODE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2Ftwint-qr-code.svg?alt=media",
   RECEIPT_IMAGE:
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2FQuittung.png?alt=media",
 };
@@ -67,8 +64,6 @@ const TEST: PictureRepository = {
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2Fplaceholder.png?alt=media",
   VECTOR_LOGO_GREY:
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2Fdivider_icon.svg?alt=media",
-  TWINT_QR_CODE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2Ftwint-qr-code.svg?alt=media",
   RECEIPT_IMAGE:
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2FQuittung.png?alt=media",
 };
@@ -83,8 +78,6 @@ const PRODUCTION: PictureRepository = {
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2Fplaceholder.png?alt=media",
   VECTOR_LOGO_GREY:
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2Fdivider_icon.svg?alt=media",
-  TWINT_QR_CODE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2Ftwint-qr-code.svg?alt=media",
   RECEIPT_IMAGE:
     "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2FQuittung.png?alt=media",
 };
