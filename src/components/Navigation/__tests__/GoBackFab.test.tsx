@@ -17,7 +17,9 @@ import {MemoryRouter} from "react-router";
 // =================================================================== */
 
 /** Mock: useCustomStyles — gibt ein leeres Objekt zurück */
-jest.mock("../../../constants/styles", () => () => ({}));
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
 
 const mockNavigate = jest.fn();
 jest.mock("react-router", () => ({

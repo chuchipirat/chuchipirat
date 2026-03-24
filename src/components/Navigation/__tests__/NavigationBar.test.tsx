@@ -18,7 +18,9 @@ import {MemoryRouter} from "react-router";
 // =================================================================== */
 
 /** Mock: useCustomStyles — gibt ein leeres Objekt zurück */
-jest.mock("../../../constants/styles", () => () => ({}));
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
 
 /** Mock: useNavigate */
 const mockNavigate = jest.fn();
@@ -51,8 +53,7 @@ jest.mock("../NavigationContext", () => ({
 /** Mock: Utils — Standard: keine Testumgebung */
 let mockIsTestEnvironment = false;
 jest.mock("../../Shared/utils.class", () => ({
-  __esModule: true,
-  default: {isTestEnvironment: () => mockIsTestEnvironment},
+  Utils: {isTestEnvironment: () => mockIsTestEnvironment},
 }));
 
 /** Mock: helpCenter */

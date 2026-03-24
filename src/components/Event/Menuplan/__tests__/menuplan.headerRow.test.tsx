@@ -26,9 +26,8 @@ jest.mock("../../../Shared/customDialogContext", () => ({
   DialogType: {SingleTextInput: "SingleTextInput"},
 }));
 
-jest.mock("../../../../constants/styles", () => () => ({
-  menuplanItem: {},
-  cardDate: {},
+jest.mock("../../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({menuplanItem: {}, cardDate: {}})),
 }));
 
 function buildDates(): Date[] {

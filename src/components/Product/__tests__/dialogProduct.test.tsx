@@ -53,15 +53,15 @@ jest.mock("../../Department/departmentAutocomplete", () => ({
 }));
 
 /** UnitAutocomplete wird durch ein einfaches Input ersetzt */
-jest.mock("../../Unit/unitAutocomplete", () => {
-  return ({unitKey}: any) => (
+jest.mock("../../Unit/unitAutocomplete", () => ({
+  UnitAutocomplete: ({unitKey}: any) => (
     <input
       data-testid="unit-autocomplete"
       readOnly
       value={unitKey || ""}
     />
-  );
-});
+  ),
+}));
 
 /* ===================================================================
 // ======================== Test-Daten ================================

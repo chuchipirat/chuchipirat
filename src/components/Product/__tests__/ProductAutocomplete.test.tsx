@@ -22,8 +22,7 @@ import {products as mockProducts} from "../__mocks__/products.mock";
 
 /** sortArray gibt das Array unveraendert zurueck */
 jest.mock("../../Shared/utils.class", () => ({
-  __esModule: true,
-  default: {
+  Utils: {
     sortArray: ({array}: {array: unknown[]}) => array,
   },
 }));

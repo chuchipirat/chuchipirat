@@ -1,4 +1,6 @@
 import React from "react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import {
   Stack,
@@ -234,6 +236,7 @@ const DialogMaterial = ({
               authUser
             )
             .then((domain) => {
+              trackEvent(AnalyticsEvent.MATERIAL_CREATED);
               handleOk({
                 uid: domain.uid,
                 name: domain.name,

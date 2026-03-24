@@ -32,11 +32,10 @@ jest.mock("react-router", () => ({
 
 /** useCustomStyles: gibt ein Objekt mit den benötigten Style-Keys zurück */
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: () => ({
+  useCustomStyles: jest.fn(() => ({
     dialogHeaderWithPicture: {},
     dialogHeaderWithPictureTitle: {},
-  }),
+  })),
 }));
 
 /** useCustomDialog: gibt eine Mock-Funktion zurück */

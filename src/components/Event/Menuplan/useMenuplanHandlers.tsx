@@ -89,6 +89,8 @@ import {Unit} from "../../Unit/unit.class";
 import Department from "../../Department/department.class";
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 
 /**
@@ -1191,6 +1193,7 @@ export function useMenuplanHandlers({
           });
           // Suche im Rezept-Drawer zurücksetzen
           setRecipeSearchResetKey((prev) => prev + 1);
+          trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_ADDED);
         } else {
           // Eintrag wird geändert — Multi-Diät-Struktur flach auflösen
           Object.values(plan).forEach((planOfMealRecipe) => {

@@ -10,7 +10,9 @@
  * @param props.returnPath - Rückweg nach der Zahlung (z.B. /event/{uid}).
  * @param props.onSkip - Callback für «Weiter zum Anlass».
  */
-import {useState, useCallback} from "react";
+import {useState, useCallback, useEffect} from "react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import {
   Stack,
@@ -125,6 +127,10 @@ const EventCompletionDonation = ({
   const authUser = useAuthUser();
   const {sections, stats, isLoading: isLoadingGoal} = useDonationGoalData();
 
+  useEffect(() => {
+    trackEvent(AnalyticsEvent.DONATION_PAGE_VIEWED, {source: "event_creation"});
+  }, []);
+
   // Kostenaufschlüsselung: welcher Index ist aufgeklappt (-1 = keiner)
   const [expandedBreakdown, setExpandedBreakdown] = useState(-1);
 
@@ -208,6 +214,10 @@ const EventCompletionDonation = ({
       const paymentUrl = data?.paymentUrl;
       if (!paymentUrl) throw new Error(TEXT_DONATION_ERROR_NO_URL);
 
+      trackEvent(AnalyticsEvent.DONATION_STARTED, {
+        source: "event_creation",
+        amount: amountInCents,
+      });
       window.location.href = paymentUrl;
     } catch (err) {
       setSubmitError(
@@ -347,6 +357,8 @@ const EventCompletionDonation = ({
               variant="text"
               size="large"
               onClick={onSkip}
+              data-umami-event="donation_skipped"
+              data-umami-event-source="event_creation"
               endIcon={<ArrowForwardIcon />}
               fullWidth
               sx={{

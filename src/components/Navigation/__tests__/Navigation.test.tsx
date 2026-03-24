@@ -17,12 +17,13 @@ import {MemoryRouter} from "react-router";
 // =================================================================== */
 
 /** Mock: useCustomStyles — gibt ein leeres Objekt zurück */
-jest.mock("../../../constants/styles", () => () => ({}));
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
 
 /** Mock: Utils — steuert isTestEnvironment */
 jest.mock("../../Shared/utils.class", () => ({
-  __esModule: true,
-  default: {isTestEnvironment: () => false},
+  Utils: {isTestEnvironment: () => false},
 }));
 
 /** Mock: useAuthUser — dynamisch, wird in einzelnen Tests überschrieben */

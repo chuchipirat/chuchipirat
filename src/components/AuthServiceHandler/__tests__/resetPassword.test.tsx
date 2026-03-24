@@ -10,6 +10,20 @@ import {MemoryRouter} from "react-router";
 
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => "DEV"),
+    isUrl: jest.fn(() => false),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+}));
+
 /**
  * Callback-Referenz für onAuthStateChange.
  * Wird in den Tests manuell aufgerufen, um Session-Events zu simulieren.
@@ -41,6 +55,11 @@ const mockDatabase = {
   users: {},
 } as any;
 
+/** Mock: useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
+
 /** Mock: SupabaseMessageHandler — gibt error.message direkt zurück */
 jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   __esModule: true,
@@ -51,8 +70,7 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
 
 /** Mock: PasswordStrengthMeter — vereinfacht als einfaches div */
 jest.mock("../../Shared/passwordStrengthMeter", () => ({
-  __esModule: true,
-  default: ({password}: {password: string}) => (
+  PasswordStrengthMeter: ({password}: {password: string}) => (
     <div data-testid="password-strength">
       {password.length >= 6 ? "Stark" : "Schwach"}
     </div>

@@ -19,8 +19,7 @@ import {ButtonRow, CustomButton} from "../buttonRow";
 
 /** Mock fuer useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: jest.fn(() => ({heroButton: {}, button: {}})),
+  useCustomStyles: jest.fn(() => ({heroButton: {}, button: {}})),
 }));
 
 /**

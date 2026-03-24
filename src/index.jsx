@@ -17,6 +17,7 @@ import {DatabaseContext} from "./components/Database/DatabaseContext";
 import DatabaseService from "./components/Database/DatabaseService";
 import {ErrorPage} from "./components/500/500";
 import {Utils} from "./components/Shared/utils.class";
+import {initAnalytics} from "./components/Analytics/analyticsService";
 import {LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDateFns} from "@mui/x-date-pickers/AdapterDateFns";
 import {de} from "date-fns/locale";
@@ -42,6 +43,9 @@ Sentry.init({
   replaysSessionSampleRate: 0.1, // This sets the sample rate at 10%. You may want to change it to 100% while in development and then sample at a lower rate in production.
   replaysOnErrorSampleRate: 1.0, // If you're not already sampling the entire session, change the sample rate to 100% when sampling sessions where errors occur.
 });
+
+// Umami Analytics initialisieren (cookie-freies, datenschutzkonformes Tracking)
+initAnalytics();
 
 const root = createRoot(document.getElementById("root"));
 root.render(

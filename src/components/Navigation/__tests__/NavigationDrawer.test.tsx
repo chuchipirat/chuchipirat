@@ -16,6 +16,20 @@ import {MemoryRouter} from "react-router";
 // ============================== Mocks ==============================
 // =================================================================== */
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => "DEV"),
+    isUrl: jest.fn(() => false),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+}));
+
 const mockNavigate = jest.fn();
 jest.mock("react-router", () => ({
   ...jest.requireActual("react-router"),
@@ -98,20 +112,13 @@ describe("NavigationDrawer", () => {
     expect(within(drawer).getByText("System")).toBeInTheDocument();
   });
 
-  test("blendet Users-Eintrag für Community Leader ohne Admin-Rolle aus", () => {
-    renderComponent(createAuthUser(["basic", "communityLeader"]));
-
-    const drawer = screen.getByLabelText("Hauptnavigation");
-    expect(within(drawer).queryByText("Users")).not.toBeInTheDocument();
-  });
-
-  test("zeigt Users-Eintrag für Admins an", () => {
+  test("hat keinen separaten Users-Eintrag im Menü", () => {
     renderComponent(
       createAuthUser(["basic", "communityLeader", "admin"])
     );
 
     const drawer = screen.getByLabelText("Hauptnavigation");
-    expect(within(drawer).getByText("Users")).toBeInTheDocument();
+    expect(within(drawer).queryByText("Users")).not.toBeInTheDocument();
   });
 
   test("navigiert zur Route und schliesst den Drawer beim Klick", async () => {

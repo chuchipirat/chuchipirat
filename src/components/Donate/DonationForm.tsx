@@ -11,6 +11,8 @@
  * <DonationForm eventId="abc123" returnPath="/event/abc123" />
  */
 import React, {useState, useCallback} from "react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import {
   Stack,
@@ -106,6 +108,7 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
         setSelectedPreset(newValue);
         setIsCustom(false);
         setCustomAmount("");
+        trackEvent(AnalyticsEvent.DONATION_AMOUNT_CHANGED, {amount: newValue});
       }
       setError(null);
     },
@@ -158,6 +161,10 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
       }
 
       // Zur Payrexx-Zahlungsseite weiterleiten
+      trackEvent(AnalyticsEvent.DONATION_STARTED, {
+        source: "donate_page",
+        amount: amountInCents,
+      });
       window.location.href = paymentUrl;
     } catch (err) {
       setError(
@@ -220,6 +227,11 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
           placeholder={TEXT_DONATION_MESSAGE_PLACEHOLDER}
           value={message}
           onChange={(event) => setMessage(event.target.value)}
+          onBlur={() => {
+            if (message.trim()) {
+              trackEvent(AnalyticsEvent.DONATION_MESSAGE_ADDED);
+            }
+          }}
           multiline
           rows={2}
           slotProps={{htmlInput: {maxLength: 200}}}

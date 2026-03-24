@@ -1,14 +1,14 @@
 import Firebase from "../firebase.class";
 import {Utils} from "../../Shared/utils.class";
 import {ERROR_PARAMETER_NOT_PASSED} from "../../../constants/text";
-import {FirebaseAnalyticEvent} from "../../../constants/firebaseEvent";
 import {
   ref,
   deleteObject,
   getDownloadURL,
   uploadBytesResumable,
 } from "firebase/storage";
-import {logEvent} from "firebase/analytics";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 interface UploadFile {
   file: File;
@@ -73,9 +73,7 @@ export abstract class FirebaseStorageSuper {
       contentType: "image/jpeg",
     };
 
-    logEvent(this.firebase.analytics, FirebaseAnalyticEvent.uploadPicture, {
-      folder: folder,
-    });
+    trackEvent(AnalyticsEvent.PICTURE_UPLOADED, {folder});
 
     return new Promise((resolve, reject) => {
       try {
@@ -195,10 +193,7 @@ export abstract class FirebaseStorageSuper {
       );
       await deleteObject(fileRef);
 
-      // Loggen des Events
-      logEvent(this.firebase.analytics, FirebaseAnalyticEvent.deletePicture, {
-        folder: this.getFolder(),
-      });
+      trackEvent(AnalyticsEvent.PICTURE_DELETED, {folder: this.getFolder()});
     } catch (error) {
       console.error("Error deleting file:", error);
       throw error;

@@ -1,6 +1,8 @@
 import * as Sentry from "@sentry/react";
 import React from "react";
 import {useTheme} from "@mui/material/styles";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
@@ -357,6 +359,7 @@ const EventInfoPage = ({
       if (event.uid) {
         // Koch in Supabase hinzufügen — publicProfile.uid enthält die Auth-UUID
         await database.events.addCook(event.uid, personUid, authUser);
+        trackEvent(AnalyticsEvent.EVENT_COOK_ADDED);
 
         // Feed-Eintrag: Koch zum Team hinzugefügt
         database.feeds
@@ -403,6 +406,7 @@ const EventInfoPage = ({
         );
         if (cookRecord) {
           await database.events.removeCook(cookRecord.uid);
+          trackEvent(AnalyticsEvent.EVENT_COOK_REMOVED);
         }
       }
 
@@ -415,6 +419,7 @@ const EventInfoPage = ({
   // Quittung
   // ------------------------------------------ */
   const onDownloadReceipt = async () => {
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "receipt"});
     try {
       const receiptData = await Receipt.getReceipt({
         firebase: firebase,
@@ -437,6 +442,7 @@ const EventInfoPage = ({
   // ------------------------------------------ */
   const onDownloadDonationReceipt = async () => {
     if (!eventDonation) return;
+    trackEvent(AnalyticsEvent.DONATION_RECEIPT_DOWNLOADED);
     try {
       await generateAndDownloadPdf(
         <DonationReceiptPdf donation={eventDonation} authUser={authUser} />,

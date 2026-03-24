@@ -10,6 +10,20 @@ import {MemoryRouter} from "react-router";
 import {AuthServiceHandlerPage} from "../authServiceHandler";
 import * as TEXT from "../../../constants/text";
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => "DEV"),
+    isUrl: jest.fn(() => false),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+}));
+
 /**
  * Mock: VerifyEmail — wird als einfaches div mit data-testid gerendert,
  * um die Kind-Komponente isoliert zu testen.
@@ -43,16 +57,14 @@ jest.mock("../recoverEmail", () => ({
 
 /** Mock: PageTitle — vereinfacht für Tests */
 jest.mock("../../Shared/pageTitle", () => ({
-  __esModule: true,
-  default: ({subTitle}: {subTitle?: string}) => (
+  PageTitle: ({subTitle}: {subTitle?: string}) => (
     <div data-testid="page-title">{subTitle}</div>
   ),
 }));
 
 /** Mock: useCustomStyles — leere Styles */
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: () => ({container: {}}),
+  useCustomStyles: jest.fn(() => ({container: {}})),
 }));
 
 /**

@@ -7,8 +7,8 @@ import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {FeedbackFab} from "../FeedbackFab";
 
-jest.mock("../../../constants/styles", () => () => ({
-  fabBottom: {position: "fixed", bottom: 16, right: 16},
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({fabBottom: {position: "fixed", bottom: 16, right: 16}})),
 }));
 
 jest.mock("../../Shared/icons", () => ({

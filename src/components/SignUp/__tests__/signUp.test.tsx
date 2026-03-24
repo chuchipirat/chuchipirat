@@ -26,6 +26,26 @@ import {
 // ======================== Mock-Setup ================================
 // =================================================================== */
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => "DEV"),
+    isUrl: jest.fn(() => false),
+    isEmail: jest.fn((email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+}));
+
+/** Mock: useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
+
 /** Mock fuer AuthUser-Context — standardmaessig nicht eingeloggt */
 let mockAuthUser: {uid: string; email: string} | null = null;
 jest.mock("../../Session/authUserContext", () => ({
@@ -70,8 +90,7 @@ const mockGetSettings = jest.fn().mockResolvedValue({
 /** Mock: User.createUser */
 const mockCreateUser = jest.fn().mockResolvedValue(undefined);
 jest.mock("../../User/user.class", () => ({
-  __esModule: true,
-  default: {
+  User: {
     createUser: (...args: unknown[]) => mockCreateUser(...args),
   },
 }));

@@ -18,6 +18,8 @@ import {unsafeOverflowAutoScrollForElements} from "@atlaskit/pragmatic-drag-and-
 import {bindAll} from "bind-event-listener";
 import type {CleanupFn} from "@atlaskit/pragmatic-drag-and-drop/types";
 
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {
   isMenueCardData,
   isDraggingAMenueCard,
@@ -226,6 +228,7 @@ export const useMenuplanDragDrop = ({
                   },
                 },
               });
+              trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
               return;
             }
             // In welcher Liste befindet sich das Objekt?
@@ -279,6 +282,7 @@ export const useMenuplanDragDrop = ({
                 },
               },
             });
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
             return;
           }
 
@@ -309,6 +313,7 @@ export const useMenuplanDragDrop = ({
                   },
                 },
               });
+              trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
               return;
             }
 
@@ -338,6 +343,7 @@ export const useMenuplanDragDrop = ({
                 },
               },
             });
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
             return;
           }
           // Drop auf leere Liste
@@ -368,6 +374,7 @@ export const useMenuplanDragDrop = ({
                 },
               },
             });
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
             return;
           }
         },

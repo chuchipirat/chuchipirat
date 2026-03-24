@@ -18,7 +18,7 @@ jest.mock("../../Shared/utils.class", () => {
 
   return {
     __esModule: true,
-    default: MockUtils,
+    Utils: MockUtils,
     Environment: actualEnvironment,
   };
 });

@@ -11,6 +11,8 @@ import React, {
 
 import {useNavigate} from "react-router";
 import * as Sentry from "@sentry/react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 import {useTheme} from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 
@@ -1323,6 +1325,12 @@ const RecipeEdit = ({
         savedSteps,
         savedMaterials,
       );
+      if (isNew) {
+        const eventName = result.type === RecipeType.variant
+          ? AnalyticsEvent.RECIPE_VARIANT_CREATED
+          : AnalyticsEvent.RECIPE_CREATED;
+        trackEvent(eventName);
+      }
       if (isNew && result.type !== RecipeType.variant && !isEmbedded) {
         // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,
         // die bei leerer UID zur Rezeptübersicht navigieren würde.

@@ -62,6 +62,8 @@ import {
   DialogSelectMenueDataType,
   DIALOG_SELECT_MENUE_DATA_INITIAL_DATA,
 } from "./usedRecipesReducer";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 
 export interface UseUsedRecipesHandlersParams {
@@ -458,6 +460,7 @@ export const useUsedRecipesHandlers = ({
               });
 
               loadRecipesForList(createdList.id);
+              trackEvent(AnalyticsEvent.USED_RECIPES_GENERATED, {eventUid: event.uid});
             })
             .catch((error) => {
               dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
@@ -524,6 +527,7 @@ export const useUsedRecipesHandlers = ({
       });
 
     loadRecipesForList(state.selectedListItem);
+    trackEvent(AnalyticsEvent.USED_RECIPES_REFRESHED, {eventUid: event.uid});
   }, [state.selectedListItem, usedRecipes, onUsedRecipesUpdate, database, loadRecipesForList]);
 
   const onListElementSelect = useCallback(
@@ -582,6 +586,7 @@ export const useUsedRecipesHandlers = ({
       database.usedRecipeLists.deleteList(selectedList).catch((error) => {
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
+      trackEvent(AnalyticsEvent.USED_RECIPES_DELETED, {eventUid: event.uid});
     },
     [usedRecipes, authUser, onUsedRecipesUpdate, database],
   );

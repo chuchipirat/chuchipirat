@@ -21,6 +21,25 @@ import {DatabaseContext} from "../../../Database/DatabaseContext";
 // ======================== Mocks =====================================
 // =================================================================== */
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => "DEV"),
+    isUrl: jest.fn(() => false),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+}));
+
+/** Mock: useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
+jest.mock("../../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
+
 const mockNavigate = jest.fn();
 jest.mock("react-router", () => ({
   ...jest.requireActual("react-router"),
@@ -43,8 +62,7 @@ jest.mock("../../../Firebase/firebaseContext", () => ({
 // User.getFullProfile mock
 const mockGetFullProfile = jest.fn();
 jest.mock("../../../User/user.class", () => ({
-  __esModule: true,
-  default: {
+  User: {
     getFullProfile: (...args: any[]) => mockGetFullProfile(...args),
   },
 }));

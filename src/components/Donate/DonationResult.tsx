@@ -8,8 +8,10 @@
  * // URL: /donate/result?status=success&donationId=abc&return=%2Fdonate
  * <DonationResult />
  */
-import React from "react";
+import React, {useEffect} from "react";
 import {useSearchParams, useNavigate} from "react-router";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import {
   Container,
@@ -58,6 +60,12 @@ const DonationResultPage = () => {
 
   const status = searchParams.get("status") ?? "unknown";
   const returnPath = searchParams.get("return") ?? "/home";
+
+  useEffect(() => {
+    if (status === "success") {
+      trackEvent(AnalyticsEvent.DONATION_COMPLETED);
+    }
+  }, [status]);
 
   /** Icon, Titel und Text je nach Status. */
   const getStatusContent = () => {

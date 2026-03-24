@@ -154,9 +154,9 @@ describe("getFeedText()", () => {
 // FeedType Enum
 // ===================================================================== */
 describe("FeedType Enum", () => {
-  test("hat genau 10 Werte", () => {
+  test("hat genau 11 Werte", () => {
     const values = Object.values(FeedType);
-    expect(values).toHaveLength(10);
+    expect(values).toHaveLength(11);
   });
 
   test("enthält alle erwarteten Typen", () => {
@@ -170,5 +170,6 @@ describe("FeedType Enum", () => {
     expect(FeedType.productCreated).toBe("productCreated");
     expect(FeedType.materialCreated).toBe("materialCreated");
     expect(FeedType.profilePictureChanged).toBe("profilePictureChanged");
+    expect(FeedType.donationConfirmed).toBe("donationConfirmed");
   });
 });

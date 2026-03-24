@@ -4,7 +4,9 @@
  * Zeigt das Spendenziel-Widget, einen Transparenztext und das
  * Spendenformular mit Payrexx-Integration.
  */
-import React from "react";
+import React, {useEffect} from "react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import {
   Container,
@@ -38,6 +40,10 @@ import {DonationForm} from "./DonationForm";
 const DonatePage = () => {
   const authUser = useAuthUser();
   const classes = useCustomStyles();
+
+  useEffect(() => {
+    trackEvent(AnalyticsEvent.DONATION_PAGE_VIEWED, {source: "donate_page"});
+  }, []);
 
   if (!authUser) return null;
 

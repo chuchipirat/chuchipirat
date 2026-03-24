@@ -8,7 +8,6 @@ import {
   PrepareDataForDb,
   ValueObject,
 } from "./firebase.db.super.class";
-import {FirebaseAnalyticEvent} from "../../../constants/firebaseEvent";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
@@ -20,7 +19,6 @@ import {
   increment,
   Timestamp,
 } from "firebase/firestore";
-import {logEvent} from "firebase/analytics";
 
 //HINT: Aufbau verbNomen
 export enum CloudFunctionType {
@@ -188,14 +186,6 @@ export abstract class FirebaseDbCloudFunctionSuper extends FirebaseDbSuper {
         console.error(error);
         throw error;
       });
-
-    logEvent(
-      this.firebase.analytics,
-      FirebaseAnalyticEvent.cloudFunctionExecuted,
-      {
-        function: this.getCloudFunctionType(),
-      }
-    );
 
     return documentUid;
   }

@@ -1,6 +1,8 @@
 import React, {SyntheticEvent} from "react";
 
 import {useNavigate, useLocation} from "react-router";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
@@ -680,6 +682,7 @@ export const RecipeSearch = ({
     if (!value) {
       value = Diet.Meat.toString();
     }
+    trackEvent(AnalyticsEvent.RECIPE_FILTER_APPLIED, {filterType: "diet"});
     applySearchSettings({diet: parseInt(value)});
   };
 
@@ -709,6 +712,7 @@ export const RecipeSearch = ({
         );
       }
     }
+    trackEvent(AnalyticsEvent.RECIPE_FILTER_APPLIED, {filterType: "allergens"});
     applySearchSettings({allergens: selectedAllergens});
   };
 
@@ -734,10 +738,12 @@ export const RecipeSearch = ({
     }
 
     selectedMenuTypes.sort();
+    trackEvent(AnalyticsEvent.RECIPE_FILTER_APPLIED, {filterType: "menutype"});
     applySearchSettings({menuTypes: selectedMenuTypes});
   };
 
   const onSearchSettingOutdoorKitchenSuitableUpdate = () => {
+    trackEvent(AnalyticsEvent.RECIPE_FILTER_APPLIED, {filterType: "outdoor"});
     applySearchSettings({
       outdoorKitchenSuitable: !searchSettings.outdoorKitchenSuitable,
     });

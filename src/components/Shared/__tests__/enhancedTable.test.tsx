@@ -28,14 +28,12 @@ import {EnhancedTable,
 
 /** Mock: useCustomStyles — gibt ein minimales Styles-Objekt zurück. */
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: jest.fn(() => ({typographyCode: {fontFamily: "monospace"}})),
+  useCustomStyles: jest.fn(() => ({typographyCode: {fontFamily: "monospace"}})),
 }));
 
 /** Mock: Utils.getDomain — gibt die Domain aus einer URL zurück. */
 jest.mock("../utils.class", () => ({
-  __esModule: true,
-  default: {
+  Utils: {
     getDomain: jest.fn((url: string) => {
       try {
         return new URL(url).hostname;

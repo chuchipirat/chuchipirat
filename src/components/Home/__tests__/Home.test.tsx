@@ -81,12 +81,14 @@ jest.mock("react-router", () => ({
 }));
 
 /** Mock: useCustomStyles */
-jest.mock("../../../constants/styles", () => () => ({
-  container: {},
-  card: {},
-  cardMedia: {},
-  centerCenter: {},
-  button: {},
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({
+    container: {},
+    card: {},
+    cardMedia: {},
+    centerCenter: {},
+    button: {},
+  })),
 }));
 
 /** Mock: Repository-Methoden */

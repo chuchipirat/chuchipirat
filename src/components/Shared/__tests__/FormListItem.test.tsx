@@ -19,8 +19,7 @@ import {FormListItem} from "../FormListItem";
 
 /** Mock fuer useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: jest.fn(() => ({
+  useCustomStyles: jest.fn(() => ({
     listItemIcon: {},
     listItemTitle: {},
     listItemContent: {},

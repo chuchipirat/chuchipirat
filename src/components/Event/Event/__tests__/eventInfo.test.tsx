@@ -15,6 +15,25 @@ import "@testing-library/jest-dom";
 import {EventInfoPage} from "../eventInfo";
 
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => "DEV"),
+    isUrl: jest.fn(() => false),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+}));
+
+/** Mock: useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
+jest.mock("../../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
+
 /** Mock: useCustomDialog */
 jest.mock("../../../Shared/customDialogContext", () => ({
   ...jest.requireActual("../../../Shared/customDialogContext"),
@@ -44,8 +63,7 @@ jest.mock("../../../../constants/imageRepository", () => ({
 
 /** Mock: DialogAddUser – als leere Komponente */
 jest.mock("../../../User/dialogAddUser", () => ({
-  __esModule: true,
-  default: () => null,
+  DialogAddUser: () => null,
 }));
 
 /** Mock: Event-Klasse (statische Methoden) */
@@ -90,6 +108,13 @@ jest.mock("../../../User/user.class", () => ({
 
 /** Mock: @react-pdf/renderer */
 jest.mock("@react-pdf/renderer", () => ({
+  StyleSheet: {create: jest.fn((styles: unknown) => styles)},
+  Document: "Document",
+  Page: "Page",
+  View: "View",
+  Text: "Text",
+  Image: "Image",
+  Font: {register: jest.fn()},
   pdf: jest.fn(),
 }));
 
@@ -143,7 +168,11 @@ const mockEvent = {
 };
 
 const mockFirebase = {} as any;
-const mockDatabase = {} as any;
+const mockDatabase = {
+  donations: {
+    getEventDonations: jest.fn().mockResolvedValue([]),
+  },
+} as any;
 const mockAuthUser = {uid: "user-123", roles: []} as any;
 const mockOnUpdateEvent = jest.fn();
 const mockOnUpdatePicture = jest.fn();

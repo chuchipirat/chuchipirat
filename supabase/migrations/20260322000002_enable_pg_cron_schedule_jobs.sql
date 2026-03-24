@@ -30,7 +30,7 @@ SELECT cron.schedule(
   'cron-event-review-email',
   '0 1 * * *',
   $$
-  SELECT extensions.http_post(
+  SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-event-review-email',
     body := '{}'::jsonb,
     headers := jsonb_build_object(
@@ -46,7 +46,7 @@ SELECT cron.schedule(
   'cron-daily-digest',
   '15 2 * * *',
   $$
-  SELECT extensions.http_post(
+  SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-daily-digest',
     body := '{}'::jsonb,
     headers := jsonb_build_object(
@@ -62,7 +62,7 @@ SELECT cron.schedule(
   'cron-support-user-cleanup',
   '30 2 * * *',
   $$
-  SELECT extensions.http_post(
+  SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-support-user-cleanup',
     body := '{}'::jsonb,
     headers := jsonb_build_object(

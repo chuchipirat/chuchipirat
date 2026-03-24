@@ -64,6 +64,8 @@ import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {ProductTrace} from "../ShoppingList/shoppingListCollection.class";
 import {ItemType} from "../ShoppingList/shoppingList.class";
 import {MaterialListPdf} from "./materialListPdf";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 
 export interface ContextMenuSelectedItemProps {
@@ -316,6 +318,7 @@ export function useMaterialListHandlers({
           onMaterialListUpdate(updatedMaterialList);
           // Neu erstellte Liste direkt auswählen
           onSelectList(header.id);
+          trackEvent(AnalyticsEvent.MATERIAL_LIST_GENERATED, {eventUid: event.uid});
           onDispatchLoading(false);
         } catch (error) {
           Sentry.captureException(error);
@@ -414,6 +417,7 @@ export function useMaterialListHandlers({
       });
 
       onMaterialListUpdate(result);
+      trackEvent(AnalyticsEvent.MATERIAL_LIST_REFRESHED, {eventUid: event.uid});
       onDispatchLoading(false);
     } catch (error) {
       Sentry.captureException(error);
@@ -747,6 +751,7 @@ export function useMaterialListHandlers({
           listUidToDelete: listUid,
         });
         onMaterialListUpdate(updatedMaterialList);
+        trackEvent(AnalyticsEvent.MATERIAL_LIST_DELETED, {eventUid: event.uid});
       } catch (error) {
         Sentry.captureException(error);
         onDispatchError(error instanceof Error ? error : new Error(String(error)));

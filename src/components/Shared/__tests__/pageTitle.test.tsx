@@ -20,8 +20,7 @@ import {PageTitle, Ribbon} from "../pageTitle";
 
 /** Mock fuer useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: jest.fn(() => ({heroContent: {}})),
+  useCustomStyles: jest.fn(() => ({heroContent: {}})),
 }));
 
 /* ===================================================================

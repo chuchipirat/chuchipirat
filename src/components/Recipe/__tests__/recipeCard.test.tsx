@@ -21,6 +21,11 @@ import {RecipeType} from "../recipe.class";
 // ======================== Mocks =====================================
 // =================================================================== */
 
+/** Mock: useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
+
 jest.mock("../../../constants/imageRepository", () => ({
   ImageRepository: {
     getEnvironmentRelatedPicture: () => ({
@@ -30,8 +35,7 @@ jest.mock("../../../constants/imageRepository", () => ({
 }));
 
 jest.mock("../../Shared/utils.class", () => ({
-  __esModule: true,
-  default: {
+  Utils: {
     isUrl: jest.fn(() => false),
     getDomain: jest.fn(() => "example.com"),
   },

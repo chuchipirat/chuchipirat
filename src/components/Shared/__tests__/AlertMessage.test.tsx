@@ -37,8 +37,7 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
 
 /** Mock fuer useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: jest.fn(() => ({alertMessage: {}})),
+  useCustomStyles: jest.fn(() => ({alertMessage: {}})),
 }));
 
 import FirebaseMessageHandler from "../../Firebase/firebaseMessageHandler.class";

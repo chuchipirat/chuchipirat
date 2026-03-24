@@ -22,8 +22,8 @@ jest.mock("../../../Shared/customDialogContext", () => ({
   DialogType: {SingleTextInput: "SingleTextInput"},
 }));
 
-jest.mock("../../../../constants/styles", () => () => ({
-  cardMealType: {},
+jest.mock("../../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({cardMealType: {}})),
 }));
 
 const defaultMealType: MealType = {uid: "mt-1", name: "Frühstück"};

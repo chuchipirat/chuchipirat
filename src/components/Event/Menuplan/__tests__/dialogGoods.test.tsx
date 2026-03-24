@@ -58,8 +58,7 @@ jest.mock("../../../Material/materialAutocomplete", () => ({
   MaterialAutocomplete: () => <div data-testid="material-autocomplete" />,
 }));
 jest.mock("../../../Unit/unitAutocomplete", () => ({
-  __esModule: true,
-  default: () => <div data-testid="unit-autocomplete" />,
+  UnitAutocomplete: () => <div data-testid="unit-autocomplete" />,
 }));
 
 

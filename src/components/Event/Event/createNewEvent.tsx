@@ -1,6 +1,8 @@
 import * as Sentry from "@sentry/react";
 import React from "react";
 import {useNavigate} from "react-router";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 import {
   Container,
@@ -420,6 +422,8 @@ const CreateEventPage = () => {
 
     // 7. Menüplan initialisieren
     await database.menuplan.initializeMenuplan(eventDomain.uid, dateDomains, authUser);
+
+    trackEvent(AnalyticsEvent.EVENT_CREATED);
 
     // 8. Feed-Einträge erstellen (nicht blockierend)
     database.feeds

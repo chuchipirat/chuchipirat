@@ -4,6 +4,25 @@ Object.assign(global, {TextEncoder, TextDecoder});
 
 import {SessionStorageHandler} from "../../Firebase/Db/sessionStorageHandler.class";
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => 2),
+    isUrl: jest.fn(() => false),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+  Environment: {
+    development: 0,
+    test: 1,
+    production: 2,
+  },
+}));
+
 // Mocks müssen vor dem Import der Komponente definiert werden
 jest.mock("../../Navigation/Navigation", () => ({
   Navigation: () => <div>Navigation</div>,
@@ -11,11 +30,15 @@ jest.mock("../../Navigation/Navigation", () => ({
 jest.mock("../../Navigation/ScrollToTop", () => ({
   ScrollToTop: () => null,
 }));
-jest.mock("../../../constants/styles", () => () => ({
-  fabBottom: {},
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({fabBottom: {}})),
 }));
-jest.mock("../../Shared/fallbackLoading", () => () => <div>Loading...</div>);
-jest.mock("../../Shared/customDialog", () => () => null);
+jest.mock("../../Shared/fallbackLoading", () => ({
+  FallbackLoading: () => <div>Loading...</div>,
+}));
+jest.mock("../../Shared/customDialog", () => ({
+  CustomDialog: () => null,
+}));
 jest.mock("../AppRoutes", () => ({
   AppRoutes: () => <div>Routes</div>,
 }));

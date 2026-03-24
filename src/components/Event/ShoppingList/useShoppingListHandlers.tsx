@@ -83,6 +83,8 @@ import {
 } from "./shoppingListAdapter";
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {AutocompleteChangeReason} from "@mui/material";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 
 export interface ContextMenuSelectedItemProps {
@@ -642,6 +644,7 @@ const useShoppingListHandlers = ({
           shoppingList.uid,
           result.shoppingListCollection.lists[shoppingList.uid].properties,
         );
+        trackEvent(AnalyticsEvent.SHOPPING_LIST_REFRESHED, {eventUid: event.uid});
       } catch (error) {
         Sentry.captureException(error);
         onDispatchError(error as Error);
@@ -809,6 +812,7 @@ const useShoppingListHandlers = ({
               objectUid: createdHeader.id,
             });
             onDispatchSetSelectedListItem(createdHeader.id);
+            trackEvent(AnalyticsEvent.SHOPPING_LIST_GENERATED, {eventUid: event.uid});
           } catch (error) {
             if ((error as Error).toString().includes(TEXT_ERROR_NO_RECIPES_FOUND)) {
               onDispatchSnackbar("info", TEXT_ERROR_NO_RECIPES_FOUND);
@@ -916,6 +920,7 @@ const useShoppingListHandlers = ({
         Sentry.captureException(error);
         onDispatchError(error);
       });
+      trackEvent(AnalyticsEvent.SHOPPING_LIST_DELETED, {eventUid: event.uid});
     },
     [
       shoppingListCollection,

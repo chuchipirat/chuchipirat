@@ -10,8 +10,7 @@
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
-import React from "react";
-import {render, screen, waitFor, within, act} from "@testing-library/react";
+import {render, screen, waitFor, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
@@ -22,16 +21,18 @@ import {FeedType} from "../../../Shared/feed.class";
 
 /* useCustomStyles liefert im Test nur leere Objekte –
    umgeht den import.meta.env-Fehler in utils.class.ts */
-jest.mock("../../../../constants/styles", () => () => ({
-  container: {},
-  backdrop: {},
-  card: {},
-  cardContent: {},
-  submit: {},
-  deleteButton: {},
-  typographyCode: "typographyCode",
-  dataGridDisabled: "dataGridDisabled",
-  dialogHeaderWithPicture: {},
+jest.mock("../../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({
+    container: {},
+    backdrop: {},
+    card: {},
+    cardContent: {},
+    submit: {},
+    deleteButton: {},
+    typographyCode: "typographyCode",
+    dataGridDisabled: "dataGridDisabled",
+    dialogHeaderWithPicture: {},
+  })),
 }));
 
 /* ===================================================================

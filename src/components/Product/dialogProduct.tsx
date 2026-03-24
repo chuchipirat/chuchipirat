@@ -1,4 +1,6 @@
 import React from "react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import Grid from "@mui/material/Grid";
 import {
@@ -406,6 +408,7 @@ const DialogProduct = ({
               dietProperties: result.dietProperties,
               usable: result.usable,
             };
+            trackEvent(AnalyticsEvent.PRODUCT_CREATED);
             handleOk(createdProduct);
             setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
 

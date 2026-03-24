@@ -29,8 +29,7 @@ import {useAuthUser} from "../authUserContext";
 const mockUseAuthUser = useAuthUser as jest.Mock;
 
 jest.mock("../../../constants/styles", () => ({
-  __esModule: true,
-  default: () => ({container: {}}),
+  useCustomStyles: jest.fn(() => ({container: {}})),
 }));
 
 jest.mock("../../../constants/imageRepository", () => ({

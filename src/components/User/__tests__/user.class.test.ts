@@ -11,20 +11,11 @@ import {UserPublicProfile} from "../user.public.profile.class";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 
 /* ------------------------------------------
-// Firebase Analytics Mock
-// ------------------------------------------ */
-jest.mock("firebase/analytics", () => ({
-  logEvent: jest.fn(),
-}));
-
-/* ------------------------------------------
 // imageResize Mock (Canvas ist in jsdom nicht verfügbar)
 // ------------------------------------------ */
 jest.mock("../../Shared/imageResize", () => ({
   resizeImage: jest.fn().mockResolvedValue(new Blob(["resized"], {type: "image/jpeg"})),
 }));
-
-import {logEvent} from "firebase/analytics";
 
 /* ------------------------------------------
 // Text-Konstanten (Originalwerte verwenden)

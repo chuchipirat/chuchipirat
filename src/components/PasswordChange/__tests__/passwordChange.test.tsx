@@ -12,6 +12,26 @@ import {MemoryRouter} from "react-router";
 // ======================== Mock-Setup ================================
 // =================================================================== */
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => "DEV"),
+    isUrl: jest.fn(() => false),
+    isEmail: jest.fn((email: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+}));
+
+/** Mock: useCustomStyles — gibt ein leeres Styles-Objekt zurueck. */
+jest.mock("../../../constants/styles", () => ({
+  useCustomStyles: jest.fn(() => ({})),
+}));
+
 /** Mock für den AuthService (database.auth) */
 const mockUpdatePassword = jest.fn();
 const mockUpdateEmail = jest.fn();
@@ -42,8 +62,7 @@ const mockFirebase = {
 
 /** Mock: User.registerSignIn & User.updateEmail */
 jest.mock("../../User/user.class", () => ({
-  __esModule: true,
-  default: {
+  User: {
     registerSignIn: jest.fn(),
     updateEmail: jest.fn().mockResolvedValue(undefined),
   },
@@ -76,8 +95,7 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
 
 /** Mock: PasswordStrengthMeter — vereinfacht */
 jest.mock("../../Shared/passwordStrengthMeter", () => ({
-  __esModule: true,
-  default: ({password}: {password: string}) => (
+  PasswordStrengthMeter: ({password}: {password: string}) => (
     <div data-testid="password-strength">
       {password.length >= 6 ? "Stark" : "Schwach"}
     </div>

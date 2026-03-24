@@ -1,4 +1,6 @@
 import React, {SyntheticEvent} from "react";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 import {
   Stack,
@@ -285,6 +287,9 @@ const EventGroupConfigurationPage = ({
     if (!deferSave) {
       const gcDomain = database.eventGroupConfig.groupConfigUiToDomain(state.groupConfig, event.uid);
       await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
+      trackEvent(AnalyticsEvent.GROUP_CONFIG_CHANGED, {
+        numberOfGroups: state.groupConfig.diets.order.length,
+      });
     }
     onConfirm?.onClick && onConfirm.onClick(mouseEvent, state.groupConfig);
   };

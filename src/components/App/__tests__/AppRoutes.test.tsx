@@ -7,6 +7,25 @@ import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
+/** Mock: Utils — Standardwerte für Testumgebung */
+jest.mock("../../Shared/utils.class", () => ({
+  Utils: {
+    isTestEnvironment: jest.fn(() => false),
+    isDevEnvironment: jest.fn(() => true),
+    isProductionEnvironment: jest.fn(() => false),
+    getEnvironment: jest.fn(() => 2),
+    isUrl: jest.fn(() => false),
+    getDomain: jest.fn(() => ""),
+    sortArray: jest.fn(({array}: {array: unknown[]}) => array),
+    generateUid: jest.fn(() => "mock-uid"),
+  },
+  Environment: {
+    development: 0,
+    test: 1,
+    production: 2,
+  },
+}));
+
 // Mock Guards und Komponenten
 jest.mock("../../Session/GuardedRoute", () => ({
   GuardedRoute: ({children}: {children: React.ReactNode}) => (
@@ -22,65 +41,58 @@ jest.mock("../../404/404", () => ({
   NotFoundPage: () => <div data-testid="not-found">404</div>,
 }));
 
-// Mock alle lazy-loaded Komponenten als simple Stubs
-jest.mock("../../Landing/landing", () => () => (
-  <div data-testid="landing">Landing</div>
-));
-jest.mock("../../SignIn/signIn", () => () => (
-  <div data-testid="signin">SignIn</div>
-));
-jest.mock("../../SignUp/signUp", () => () => (
-  <div data-testid="signup">SignUp</div>
-));
-jest.mock("../../AuthServiceHandler/authServiceHandler", () => () => (
-  <div>AuthServiceHandler</div>
-));
-jest.mock("../../Session/noAuth", () => () => <div>NoAuth</div>);
-jest.mock("../../User/publicProfile", () => () => <div>PublicProfile</div>);
+// Mock alle eagerly-loaded Komponenten als named exports
+jest.mock("../../Landing/Landing", () => ({
+  LandingPage: () => <div data-testid="landing">Landing</div>,
+}));
+jest.mock("../../SignIn/signIn", () => ({
+  SignInPage: () => <div data-testid="signin">SignIn</div>,
+}));
+jest.mock("../../SignUp/signUp", () => ({
+  SignUpPage: () => <div data-testid="signup">SignUp</div>,
+}));
+jest.mock("../../AuthServiceHandler/authServiceHandler", () => ({
+  AuthServiceHandlerPage: () => <div>AuthServiceHandler</div>,
+}));
+jest.mock("../../Session/noAuth", () => ({
+  NoAuthPage: () => <div>NoAuth</div>,
+}));
+jest.mock("../../User/publicProfile", () => ({
+  PublicProfilePage: () => <div>PublicProfile</div>,
+}));
 
-// Lazy-loaded Module als default-Exporte mocken
+// Lazy-loaded Module — named exports passend zu routeConfig.ts
 jest.mock("../../PasswordChange/passwordChange", () => ({
-  __esModule: true,
-  default: () => <div>PasswordChange</div>,
+  PasswordChangePage: () => <div>PasswordChange</div>,
 }));
 jest.mock("../../Unit/units", () => ({
-  __esModule: true,
-  default: () => <div>Units</div>,
+  UnitsPage: () => <div>Units</div>,
 }));
 jest.mock("../../Unit/unitConversion", () => ({
-  __esModule: true,
-  default: () => <div>UnitConversion</div>,
+  UnitConversionPage: () => <div>UnitConversion</div>,
 }));
 jest.mock("../../Product/products", () => ({
-  __esModule: true,
-  default: () => <div>Products</div>,
+  ProductsPage: () => <div>Products</div>,
 }));
 jest.mock("../../Material/materials", () => ({
-  __esModule: true,
-  default: () => <div>Materials</div>,
+  MaterialPage: () => <div>Materials</div>,
 }));
 jest.mock("../../Department/departments", () => ({
-  __esModule: true,
-  default: () => <div>Departments</div>,
+  DepartmentsPage: () => <div>Departments</div>,
 }));
 jest.mock("../../Request/requestOverview", () => ({
-  __esModule: true,
-  default: () => <div>RequestOverview</div>,
+  RequestOverviewPage: () => <div>RequestOverview</div>,
 }));
-jest.mock("../../Home/home", () => ({
-  __esModule: true,
-  default: () => <div>Home</div>,
+jest.mock("../../Home/Home", () => ({
+  HomePage: () => <div>Home</div>,
 }));
 jest.mock("../../User/userProfile", () => ({
-  __esModule: true,
-  default: () => <div>UserProfile</div>,
+  UserProfilePage: () => <div>UserProfile</div>,
 }));
 jest.mock("../privacyPolicy", () => ({
-  __esModule: true,
   PrivacyPolicyPage: () => <div>PrivacyPolicy</div>,
 }));
 jest.mock("../termOfUse", () => ({
-  __esModule: true,
   TermOfUsePage: () => <div>TermOfUse</div>,
 }));
 jest.mock("../../Temp/schema", () => ({
@@ -88,31 +100,27 @@ jest.mock("../../Temp/schema", () => ({
   default: () => <div>Schema</div>,
 }));
 jest.mock("../../Event/Event/event", () => ({
-  __esModule: true,
-  default: () => <div>Event</div>,
+  EventPage: () => <div>Event</div>,
 }));
 jest.mock("../../Event/Event/events", () => ({
-  __esModule: true,
-  default: () => <div>Events</div>,
+  EventsPage: () => <div>Events</div>,
 }));
 jest.mock("../../Recipe/recipe", () => ({
-  __esModule: true,
-  default: () => <div>Recipe</div>,
+  RecipePage: () => <div>Recipe</div>,
 }));
 jest.mock("../../Event/Event/createNewEvent", () => ({
-  __esModule: true,
-  default: () => <div>CreateNewEvent</div>,
+  CreateEventPage: () => <div>CreateNewEvent</div>,
 }));
 jest.mock("../../Recipe/recipes", () => ({
-  __esModule: true,
-  default: () => <div>Recipes</div>,
+  RecipesPage: () => <div>Recipes</div>,
 }));
-jest.mock("../../Donate/donate", () => ({
-  __esModule: true,
-  default: () => <div>Donate</div>,
+jest.mock("../../Donate/DonatePage", () => ({
+  DonatePage: () => <div>Donate</div>,
+}));
+jest.mock("../../Donate/DonationResult", () => ({
+  DonationResultPage: () => <div>DonateResult</div>,
 }));
 jest.mock("../../AuthServiceHandler/passwordReset", () => ({
-  __esModule: true,
   PasswordResetPage: () => <div>PasswordReset</div>,
 }));
 jest.mock("../../Admin/system", () => ({
@@ -163,6 +171,9 @@ jest.mock("../../Admin/Overview/overviewFeeds", () => ({
   __esModule: true,
   default: () => <div>OverviewFeeds</div>,
 }));
+jest.mock("../../Admin/Overview/overviewDonations", () => ({
+  OverviewDonationsPage: () => <div>OverviewDonations</div>,
+}));
 jest.mock("../../Admin/activateSupportUser", () => ({
   __esModule: true,
   default: () => <div>ActivateSupportUser</div>,
@@ -182,6 +193,9 @@ jest.mock("../../Admin/DataIntegrity/dataIntegrity", () => ({
 jest.mock("../../Admin/CronJobs/cronJobs", () => ({
   __esModule: true,
   default: () => <div>CronJobs</div>,
+}));
+jest.mock("../../Admin/DonationGoals/donationGoals", () => ({
+  DonationGoalsPage: () => <div>DonationGoals</div>,
 }));
 
 import {AppRoutes} from "../AppRoutes";

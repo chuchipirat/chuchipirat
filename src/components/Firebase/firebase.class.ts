@@ -1,5 +1,3 @@
-import {FirebaseAnalyticEvent} from "../../constants/firebaseEvent";
-
 import FirebaseDbEvent from "./Db/firebase.db.event.class";
 
 import FirebaseDbMasterData from "./Db/firebase.db.masterData.class";
@@ -20,7 +18,6 @@ import FirebaseDbConfiguration from "./Db/firebase.db.configuration.class";
 
 import {initializeApp} from "firebase/app";
 import {Firestore, getFirestore} from "firebase/firestore";
-import {Analytics, getAnalytics, logEvent} from "firebase/analytics";
 import {FirebaseStorage as Storage, getStorage} from "firebase/storage";
 import {FirebasePerformance, getPerformance} from "firebase/performance";
 
@@ -43,6 +40,8 @@ import {
 } from "firebase/auth";
 
 import {Functions, getFunctions, httpsCallable} from "firebase/functions";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import FirebaseDbEventShort from "./Db/firebase.db.eventShort.class";
 import {LocalStorageKey} from "../../constants/localStorage";
@@ -79,13 +78,11 @@ const config = {
   storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
   messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
   appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 export default class Firebase {
   auth: Auth;
   firestore: Firestore;
-  analytics: Analytics;
   performance: FirebasePerformance;
   storage: Storage;
   functions: Functions;
@@ -115,7 +112,6 @@ export default class Firebase {
 
     this.auth = getAuth(firebaseApp);
     this.firestore = getFirestore(firebaseApp);
-    this.analytics = getAnalytics(firebaseApp);
     this.performance = getPerformance(firebaseApp);
     this.storage = getStorage(firebaseApp);
     this.functions = getFunctions(firebaseApp, "europe-west6");
@@ -340,7 +336,9 @@ export default class Firebase {
    */
   emailChange = (email: string) => {
     const auth = getAuth();
-    return updateEmail(auth.currentUser!, email).catch((error) => {
+    return updateEmail(auth.currentUser!, email).then(() => {
+      trackEvent(AnalyticsEvent.EMAIL_CHANGED);
+    }).catch((error) => {
       console.error(error);
       throw error;
     });
@@ -371,9 +369,8 @@ export default class Firebase {
    */
   passwordUpdate = ({password}: PasswordUpdate) => {
     const auth = getAuth();
-    const analytics = getAnalytics();
 
-    logEvent(analytics, FirebaseAnalyticEvent.userChangedPassword);
+    trackEvent(AnalyticsEvent.PASSWORD_CHANGED);
 
     return updatePassword(auth.currentUser!, password).catch((error) => {
       console.error(error);
@@ -392,9 +389,8 @@ export default class Firebase {
    */
   confirmPasswordReset = ({resetCode, password}: ConfirmPasswordReset) => {
     const auth = getAuth();
-    const analytics = getAnalytics();
 
-    logEvent(analytics, FirebaseAnalyticEvent.userResetetPassword);
+    trackEvent(AnalyticsEvent.PASSWORD_RESET);
 
     return confirmPasswordReset(auth, resetCode, password).catch((error) => {
       console.error(error);

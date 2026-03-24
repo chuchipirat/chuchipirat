@@ -1,5 +1,7 @@
 import React from "react";
 import * as Sentry from "@sentry/react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 import {generateAndDownloadPdf} from "../Shared/pdfUtils";
 import Recipe, {
   RecipeType,
@@ -394,6 +396,7 @@ export const RecipeView = ({
         {uid: "", recipeId: recipe.uid, userId: authUser.uid, rating: value},
         authUser,
       );
+      trackEvent(AnalyticsEvent.RECIPE_RATING_SET);
       // Feed-Eintrag: Rezept bewertet
       database.feeds
         .insertFeed(
@@ -605,6 +608,10 @@ export const RecipeView = ({
       materials: scaledMaterials,
       scalingOptions: scalingOptions,
     });
+    trackEvent(AnalyticsEvent.RECIPE_SCALED, {
+      scaleFactor: scaledPortions / recipe.portions,
+      servings: scaledPortions,
+    });
 
     //PopUp schliessen
     setScaleRecipeDialogOpen(false);
@@ -656,6 +663,7 @@ export const RecipeView = ({
         recipe: recipe,
         eventUid: groupConfiguration.uid,
       });
+      trackEvent(AnalyticsEvent.RECIPE_VARIANT_CREATED);
       onUpdateRecipe({recipe: recipeVariant});
       // switchEditMode();
     }
@@ -664,6 +672,7 @@ export const RecipeView = ({
   // Drucken
   // ------------------------------------------ */
   const onPrint = async () => {
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "recipe"});
     const pdfRecipeData = {...recipe};
     pdfRecipeData.ingredients = Recipe.deleteEmptyIngredients(
       recipe.ingredients,
@@ -2419,6 +2428,7 @@ const RecipeComments = ({
         {recipeId, comment: newComment.trim()},
         authUser,
       );
+      trackEvent(AnalyticsEvent.RECIPE_COMMENT_CREATED);
       setComments((previous) => [insertedComment, ...previous]);
       setNewComment("");
 

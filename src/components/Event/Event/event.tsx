@@ -108,8 +108,8 @@ import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {Stats, StatsField} from "../../Shared/stats.class";
-import {logEvent} from "firebase/analytics";
-import {FirebaseAnalyticEvent} from "../../../constants/firebaseEvent";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {EventDomain} from "../../Database/Repository/EventRepository";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
@@ -1649,6 +1649,7 @@ const EventPage = () => {
       // Event löschen — CASCADE entfernt alle Supabase-Kinder
       // (MaterialLists, ShoppingLists, UsedRecipes etc.)
       await database.events.deleteEvent(state.event.uid);
+      trackEvent(AnalyticsEvent.EVENT_DELETED);
 
       // Kurzer Timeout, damit der Session-Storage nachmag
       setTimeout(function () {
@@ -1685,10 +1686,7 @@ const EventPage = () => {
           message: TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
         },
       });
-      logEvent(
-        firebase.analytics,
-        FirebaseAnalyticEvent.menuplanConsistencyCheckErrorsFound,
-      );
+      trackEvent(AnalyticsEvent.MENUPLAN_CONSISTENCY_ERRORS);
     } else {
       dispatch({
         type: ReducerActions.SNACKBAR_SHOW,
@@ -1697,10 +1695,6 @@ const EventPage = () => {
           message: TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
         },
       });
-      logEvent(
-        firebase.analytics,
-        FirebaseAnalyticEvent.menuplanConsistencyCheckNoErrors,
-      );
     }
     Sentry.addBreadcrumb({category: "event.consistency", message: "Konsistenzprüfung abgeschlossen"});
     ("Konsistenzprüfung abgeschlossen.");
