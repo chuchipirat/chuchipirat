@@ -209,6 +209,7 @@ export const CHANGE = "Ändern";
 export const MATERIALS = "Materialien";
 export const PRIVACY_POLICY = "Datenschutzerklärung";
 export const TERM_OF_USE = "Nutzungsbedingungen";
+export const IMPRESSUM = "Impressum";
 export const SMALL_PRINT = "das Kleingedruckte";
 export const EVENT = "Anlass";
 export const EVENTS = "Anlässe";

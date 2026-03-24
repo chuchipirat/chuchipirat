@@ -18,6 +18,7 @@ import {ImageRepository} from "../../constants/imageRepository";
 import {
   TERM_OF_USE as ROUTE_TERM_OF_USE,
   PRIVACY_POLICY as ROUTE_PRIVACY_POLICY,
+  IMPRESSUM as ROUTE_IMPRESSUM,
 } from "../../constants/routes";
 import {useCustomStyles} from "../../constants/styles";
 import {
@@ -27,6 +28,7 @@ import {
   VERSION as TEXT_VERSION,
   FOOTER_QUESTIONS_SUGGESTIONS as TEXT_FOOTER_QUESTIONS_SUGGESTIONS,
   PRIVACY_POLICY as TEXT_PRIVACY_POLICY,
+  IMPRESSUM as TEXT_IMPRESSUM,
 } from "../../constants/text";
 import packageJson from "../../../package.json";
 
@@ -180,6 +182,10 @@ const FooterComponent = () => {
               {" | "}
               <Link component={RouterLink} to={ROUTE_PRIVACY_POLICY}>
                 {TEXT_PRIVACY_POLICY}
+              </Link>
+              {" | "}
+              <Link component={RouterLink} to={ROUTE_IMPRESSUM}>
+                {TEXT_IMPRESSUM}
               </Link>
             </Typography>
           </Grid>

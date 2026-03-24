@@ -46,6 +46,9 @@ const PrivacyPolicyPage = lazy(() =>
 const TermOfUsePage = lazy(() =>
   import("./termOfUse").then((module) => ({default: module.TermOfUsePage}))
 );
+const ImpressumPage = lazy(() =>
+  import("./impressum").then((module) => ({default: module.ImpressumPage}))
+);
 const Schema = lazy(() => import("../Temp/schema"));
 const Event = lazy(() =>
   import("../Event/Event/event").then((module) => ({default: module.EventPage}))
@@ -225,6 +228,10 @@ const routeConfig: RouteDefinition[] = [
   {
     path: ROUTES.TERM_OF_USE,
     component: TermOfUsePage,
+  },
+  {
+    path: ROUTES.IMPRESSUM,
+    component: ImpressumPage,
   },
   {
     path: ROUTES.PASSWORD_RESET,

@@ -53,6 +53,7 @@ export const USER_PROFILE = "/profile";
 export const NOT_FOUND = "/404";
 export const PRIVACY_POLICY = "/privacypolicy";
 export const TERM_OF_USE = "/termofuse";
+export const IMPRESSUM = "/impressum";
 export const REQUEST_OVERVIEW = "/requestoverview";
 export const REQUEST_OVERVIEW_UID = "/requestoverview/:id";
 
