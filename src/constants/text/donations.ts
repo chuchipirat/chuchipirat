@@ -34,6 +34,7 @@ export const DONATION_RESULT_CANCEL_TITLE = "Zahlung abgebrochen";
 export const DONATION_RESULT_CANCEL_TEXT =
   "Du hast die Zahlung abgebrochen. Du kannst es jederzeit erneut versuchen.";
 export const DONATION_RESULT_CONTINUE = "Weiter";
+export const DONATION_RESULT_RETRY = "Erneut versuchen";
 
 /* =====================================================================
 // Spendenziel-Widget

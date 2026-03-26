@@ -8,7 +8,7 @@
  * // URL: /donate/result?status=success&donationId=abc&return=%2Fdonate
  * <DonationResult />
  */
-import React, {useEffect} from "react";
+import React, {useCallback, useEffect, useState} from "react";
 import {useSearchParams, useNavigate} from "react-router";
 import {trackEvent} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
@@ -20,6 +20,9 @@ import {
   CardContent,
   Typography,
   Button,
+  Backdrop,
+  CircularProgress,
+  Alert,
 } from "@mui/material";
 import {
   CheckCircleOutline as CheckCircleIcon,
@@ -39,9 +42,15 @@ import {
   DONATION_RESULT_CANCEL_TITLE as TEXT_CANCEL_TITLE,
   DONATION_RESULT_CANCEL_TEXT as TEXT_CANCEL_TEXT,
   DONATION_RESULT_CONTINUE as TEXT_CONTINUE,
+  DONATION_RESULT_RETRY as TEXT_RETRY,
   DONATION_RESULT_UNKNOWN_TITLE as TEXT_UNKNOWN_TITLE,
   DONATION_RESULT_UNKNOWN_TEXT as TEXT_UNKNOWN_TEXT,
+  DONATION_ERROR_CREATE as TEXT_ERROR_CREATE,
+  DONATION_ERROR_NO_URL as TEXT_ERROR_NO_URL,
+  DONATION_ERROR_GENERIC as TEXT_ERROR_GENERIC,
 } from "../../constants/text";
+
+import {supabase} from "../Database/supabaseClient";
 
 import {useCustomStyles} from "../../constants/styles";
 
@@ -59,13 +68,69 @@ const DonationResultPage = () => {
   const classes = useCustomStyles();
 
   const status = searchParams.get("status") ?? "unknown";
+  const donationId = searchParams.get("donationId");
   const returnPath = searchParams.get("return") ?? "/home";
+  const amountInCents = parseInt(searchParams.get("amount") ?? "0", 10);
+  const eventId = searchParams.get("eventId") ?? undefined;
 
+  const [isRetrying, setIsRetrying] = useState(false);
+  const [retryError, setRetryError] = useState<string | null>(null);
+
+  // Umsatz-Tracking bei erfolgreicher Spende (Umami Revenue)
   useEffect(() => {
     if (status === "success") {
-      trackEvent(AnalyticsEvent.DONATION_COMPLETED);
+      trackEvent(AnalyticsEvent.DONATION_COMPLETED, {
+        ...(amountInCents > 0
+          ? {revenue: amountInCents / 100, currency: "CHF"}
+          : {}),
+      });
     }
-  }, [status]);
+  }, [status, amountInCents]);
+
+  /**
+   * Erstellt eine neue Spende mit denselben Parametern (Betrag, Event)
+   * und leitet erneut zur Payrexx-Zahlungsseite weiter.
+   * Die fehlgeschlagene Spende bleibt als Audit-Trail in der DB.
+   */
+  const handleRetry = useCallback(async () => {
+    if (!amountInCents) return;
+
+    setIsRetrying(true);
+    setRetryError(null);
+
+    try {
+      const {data, error: invokeError} = await supabase.functions.invoke(
+        "create-donation",
+        {
+          body: {
+            amountInCents,
+            eventId,
+            returnPath,
+          },
+        },
+      );
+
+      if (invokeError) {
+        throw new Error(invokeError.message ?? TEXT_ERROR_CREATE);
+      }
+
+      const paymentUrl = data?.paymentUrl;
+      if (!paymentUrl) {
+        throw new Error(TEXT_ERROR_NO_URL);
+      }
+
+      window.location.href = paymentUrl;
+    } catch (err) {
+      setRetryError(
+        err instanceof Error ? err.message : TEXT_ERROR_GENERIC,
+      );
+      setIsRetrying(false);
+    }
+  }, [amountInCents, eventId, returnPath]);
+
+  /** Retry-Button nur anzeigen, wenn Betrag bekannt ist. */
+  const showRetry =
+    (status === "failed" || status === "cancel") && amountInCents > 0;
 
   /** Icon, Titel und Text je nach Status. */
   const getStatusContent = () => {
@@ -116,17 +181,45 @@ const DonationResultPage = () => {
               <Typography variant="body1" align="center" color="text.secondary">
                 {text}
               </Typography>
-              <Button
-                variant="contained"
-                onClick={() => navigate(returnPath)}
-                size="large"
-              >
-                {TEXT_CONTINUE}
-              </Button>
+
+              {retryError && (
+                <Alert severity="error" sx={{width: "100%"}}>
+                  {retryError}
+                </Alert>
+              )}
+
+              <Stack spacing={1.5} sx={{width: "100%"}}>
+                {showRetry && (
+                  <Button
+                    variant="contained"
+                    onClick={handleRetry}
+                    disabled={isRetrying}
+                    size="large"
+                    fullWidth
+                  >
+                    {TEXT_RETRY}
+                  </Button>
+                )}
+                <Button
+                  variant={showRetry ? "outlined" : "contained"}
+                  onClick={() => navigate(returnPath)}
+                  size="large"
+                  fullWidth
+                >
+                  {TEXT_CONTINUE}
+                </Button>
+              </Stack>
             </Stack>
           </CardContent>
         </Card>
       </Container>
+
+      <Backdrop
+        open={isRetrying}
+        sx={{color: "#fff", zIndex: (theme) => theme.zIndex.drawer + 1}}
+      >
+        <CircularProgress color="inherit" />
+      </Backdrop>
     </React.Fragment>
   );
 };

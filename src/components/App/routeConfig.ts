@@ -49,7 +49,6 @@ const TermOfUsePage = lazy(() =>
 const ImpressumPage = lazy(() =>
   import("./impressum").then((module) => ({default: module.ImpressumPage}))
 );
-const Schema = lazy(() => import("../Temp/schema"));
 const Event = lazy(() =>
   import("../Event/Event/event").then((module) => ({default: module.EventPage}))
 );
@@ -502,12 +501,6 @@ const routeConfig: RouteDefinition[] = [
     layout: {showGoBackFab: true, showFooter: true},
   },
 
-  // ── Schema (Admin) ──
-  {
-    path: ROUTES.SCHEMA,
-    component: Schema,
-    guard: isAdmin,
-  },
 ];
 
 export {routeConfig};

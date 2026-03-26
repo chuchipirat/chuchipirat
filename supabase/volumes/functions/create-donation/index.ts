@@ -215,10 +215,13 @@ serve(async (req: Request) => {
     const donationId = donation.id;
 
     // Redirect-URLs bauen
+    // amount und eventId werden mitgegeben, damit das Frontend bei Retry
+    // eine neue Spende mit denselben Parametern erstellen kann
     const returnBase = returnPath ?? "/donate";
-    const successUrl = `${appUrl}/donate/result?status=success&donationId=${donationId}&return=${encodeURIComponent(returnBase)}`;
-    const failedUrl = `${appUrl}/donate/result?status=failed&donationId=${donationId}&return=${encodeURIComponent(returnBase)}`;
-    const cancelUrl = `${appUrl}/donate/result?status=cancel&donationId=${donationId}&return=${encodeURIComponent(returnBase)}`;
+    const baseParams = `donationId=${donationId}&amount=${amountInCents}&return=${encodeURIComponent(returnBase)}${eventId ? `&eventId=${eventId}` : ""}`;
+    const successUrl = `${appUrl}/donate/result?status=success&${baseParams}`;
+    const failedUrl = `${appUrl}/donate/result?status=failed&${baseParams}`;
+    const cancelUrl = `${appUrl}/donate/result?status=cancel&${baseParams}`;
 
     // Benutzer-Informationen für Payrexx
     const {data: userProfile} = await adminClient
