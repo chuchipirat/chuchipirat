@@ -24,9 +24,9 @@ import {Footer} from "../Shared/pdfComponents";
 /**
  * PDF-Dokument für ein einzelnes Rezept.
  *
- * Rendert ein einseitiges PDF mit Kopfzeile, zweispaltigem Layout
- * (Zutaten/Material links, Zubereitung rechts), optionalen Notizen
- * und Fusszeile. Unterstützt skalierte Portionen.
+ * Rendert ein PDF mit Teal-Akzenten, kompakteren Abständen und
+ * vertikaler Trennlinie zwischen den zwei Spalten (Zutaten links,
+ * Zubereitung rechts). Visuell abgestimmt auf das Menüplan-PDF V2.
  *
  * @param props - Rezeptdaten, Skalierungsinformationen und Autoreninfo.
  */
@@ -37,15 +37,6 @@ interface RecipePdfProps {
   scaledMaterials: RecipeObjectStructure<RecipeMaterialPosition>;
   authUser: AuthUser;
 }
-/**
- * PDF-Komponente für ein einzelnes Rezept.
- *
- * Erzeugt ein vollständiges PDF-Dokument mit Kopfbereich, zweispaltigem
- * Layout (Zutaten/Material links, Zubereitung rechts), optionalen Notizen
- * und Fusszeile. Unterstützt skalierte Portionen und Einheiten.
- *
- * @param props - Rezeptdaten, skalierte Zutaten/Materialien und Autoreninfo.
- */
 export const RecipePdf = ({
   recipe,
   scaledPortions,
@@ -74,6 +65,7 @@ export const RecipePdf = ({
     </Document>
   );
 };
+
 /* ===================================================================
 // =========================== Rezept-Seite ==========================
 // =================================================================== */
@@ -106,13 +98,9 @@ const RecipePage = ({
     <Page key={"page_" + recipe.uid} style={styles.body}>
       <RecipeHeader recipe={recipe} scaledPortions={scaledPortions} />
       {/* Zweispaltiges Layout: Zutaten links, Zubereitung rechts.
-          react-pdf behandelt ein flexDirection:"row" View als atomare Einheit
-          — passt der Block nicht mehr auf die aktuelle Seite, wandert er als
-          Ganzes auf Seite 2. Damit das nicht passiert, wurde der vertikale
-          Leerraum auf ein Minimum reduziert (kein margins-Wrapper, kein
-          ungenutzter Skalierungs-Header). */}
+          Die linke Spalte hat eine vertikale Teal-Trennlinie. */}
       <View style={styles.twoColumnRow}>
-        <View style={styles.tableCol50}>
+        <View style={styles.tableCol50Left}>
           <View style={styles.tableNoMargin}>
             <View style={styles.tableCol100}>
               <RecipeIngredients
@@ -135,7 +123,7 @@ const RecipePage = ({
           </View>
         </View>
 
-        <View style={styles.tableCol50}>
+        <View style={styles.tableCol50Right}>
           <View style={styles.tableNoMargin}>
             <View style={styles.tableCol100}>
               <RecipePreparation recipe={recipe} />
@@ -145,14 +133,14 @@ const RecipePage = ({
       </View>
       {recipe.note ? (
         <React.Fragment>
-          <View style={styles.containerBottomBorder} />
+          <View style={styles.notesDivider} />
           <RecipeNote recipe={recipe} />
         </React.Fragment>
       ) : null}
       {recipe.type == RecipeType.variant &&
       recipe.variantProperties?.note !== "" ? (
         <React.Fragment>
-          <View style={styles.containerBottomBorder} />
+          <View style={styles.notesDivider} />
           <RecipeVariantNote recipe={recipe} />
         </React.Fragment>
       ) : null}
@@ -160,11 +148,12 @@ const RecipePage = ({
     </Page>
   );
 };
+
 /* ===================================================================
 // ===================== Titel und oberste Infos =====================
 // =================================================================== */
 /**
- * Kopfbereich des Rezept-PDFs mit Name, Quelle, Portionen und Zeiten.
+ * Kopfbereich des Rezept-PDFs mit Teal-Unterstrich und Metadaten.
  *
  * Zeigt bei Varianten den Variantennamen an. Bei Einplanung im Menüplan
  * werden Datum und Mahlzeittyp statt der Zubereitungszeiten angezeigt.
@@ -194,7 +183,8 @@ export const RecipeHeader = ({
           </Text>
         </View>
       )}
-      <View style={styles.containerBottomBorder} />
+      {/* Teal-Unterstrich statt dicker Trennlinie */}
+      <View style={styles.titleUnderline} />
 
       {/*===== Details =====*/}
       <View style={styles.table}>
@@ -312,9 +302,12 @@ export const RecipeHeader = ({
           )}
         </View>
       </View>
+      {/* Trennlinie unter dem Info-Block */}
+      <View style={styles.infoSectionDivider} />
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================== Zutaten ============================
 // =================================================================== */
@@ -337,12 +330,12 @@ export const RecipeIngredients = ({
   scaledIngredients,
 }: RecipeIngredientsProps) => {
   return (
-    (<React.Fragment>
+    <React.Fragment>
       {/*===== Überschriften =====*/}
       <View style={styles.table}>
         <View style={styles.tableRow}>
           <View style={styles.tableCol100}>
-            <Text style={styles.subTitle}>{TEXT.PANEL_INGREDIENTS}</Text>
+            <Text style={styles.columnHeading}>{TEXT.PANEL_INGREDIENTS}</Text>
           </View>
         </View>
         {scaledPortions ? (
@@ -359,10 +352,10 @@ export const RecipeIngredients = ({
             <View style={styles.tableColItem} />
           </View>
         ) : (
-          // Kein Leerzeilen-Platzhalter — spart ~17pt vertikalen Raum
-          (<View>
+          // Kein Leerzeilen-Platzhalter — spart vertikalen Raum
+          <View>
             <View style={styles.tableCol100} />
-          </View>)
+          </View>
         )}
         {/*===== Zutaten =====*/}
         {ingredients.order.map((ingredientUid, counter) => {
@@ -391,7 +384,7 @@ export const RecipeIngredients = ({
             : (unit = ingredient.unit);
 
           return (
-            (<React.Fragment key={"ingredient_row_" + ingredientUid}>
+            <React.Fragment key={"ingredient_row_" + ingredientUid}>
               {ingredients.entries[ingredientUid].posType ==
               PositionType.section ? (
                 <RecipeSection
@@ -410,7 +403,7 @@ export const RecipeIngredients = ({
                 >
                   {scaledPortions && scaledIngredients ? (
                     // Originalmenge
-                    (<React.Fragment>
+                    <React.Fragment>
                       <View
                         style={styles.tableColQuantitySmall}
                         key={
@@ -446,7 +439,7 @@ export const RecipeIngredients = ({
                             : ingredient?.unit}
                         </Text>
                       </View>
-                    </React.Fragment>)
+                    </React.Fragment>
                   ) : (
                     <View
                       key={
@@ -503,13 +496,14 @@ export const RecipeIngredients = ({
                   </View>
                 </View>
               )}
-            </React.Fragment>)
+            </React.Fragment>
           );
         })}
       </View>
-    </React.Fragment>)
+    </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================ Zubereitung ==========================
 // =================================================================== */
@@ -517,6 +511,7 @@ export const RecipeIngredients = ({
  * Zubereitungsschritte des Rezept-PDFs.
  *
  * Nummerierte Liste aller Schritte mit optionalen Abschnitts-Trennzeilen.
+ * Schrittnummern in Teal.
  *
  * @param props - Rezept mit Zubereitungsschritten.
  */
@@ -527,7 +522,7 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
   return (
     <View style={styles.table}>
       <View style={styles.tableCol100}>
-        <Text style={styles.subTitle}>{TEXT.PANEL_PREPARATION}</Text>
+        <Text style={styles.columnHeading}>{TEXT.PANEL_PREPARATION}</Text>
       </View>
       {recipe.preparationSteps.order.map((stepUid, counter) => {
         let step: PreparationStep;
@@ -582,6 +577,9 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
   );
 };
 
+/* ===================================================================
+// ============================== Abschnitt ==========================
+// =================================================================== */
 /**
  * Abschnitts-Trennzeile in Zutaten oder Zubereitung.
  *
@@ -590,9 +588,6 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
 interface RecipeSectionProps {
   section: Section;
 }
-/* ===================================================================
-// ============================== Abschnitt ==========================
-// =================================================================== */
 const RecipeSection = ({section}: RecipeSectionProps) => {
   return (
     <View style={styles.tableRow}>
@@ -602,6 +597,7 @@ const RecipeSection = ({section}: RecipeSectionProps) => {
     </View>
   );
 };
+
 /* ===================================================================
 // ============================== Material ===========================
 // =================================================================== */
@@ -623,12 +619,12 @@ export const RecipeMaterial = ({
   scaledMaterials,
 }: RecipeMaterialProps) => {
   return (
-    (<React.Fragment>
+    <React.Fragment>
       {/*===== Überschriften =====*/}
       <View style={styles.table}>
         <View style={styles.tableRow}>
           <View style={styles.tableCol100}>
-            <Text style={styles.subTitle}>{TEXT.MATERIAL}</Text>
+            <Text style={styles.columnHeading}>{TEXT.MATERIAL}</Text>
           </View>
         </View>
         {scaledPortions ? (
@@ -645,10 +641,9 @@ export const RecipeMaterial = ({
             <View style={styles.tableColItem} />
           </View>
         ) : (
-          //leer
-          (<View style={styles.tableRow}>
+          <View style={styles.tableRow}>
             <View style={styles.tableCol100} />
-          </View>)
+          </View>
         )}
         {/*===== Material =====*/}
         {materials.order.map((materialUid, counter) => {
@@ -660,13 +655,13 @@ export const RecipeMaterial = ({
             : (quantity = material.quantity);
 
           return (
-            (<View
+            <View
               style={styles.tableRow}
               key={"materialBlock_" + material.uid + "_" + counter}
             >
               {scaledPortions && scaledMaterials ? (
                 // Originalmenge
-                (<View
+                <View
                   style={styles.tableColQuantitySmall}
                   key={
                     "materialOrignalQuantity_" + material.uid + "_" + counter
@@ -677,7 +672,7 @@ export const RecipeMaterial = ({
                       ? ""
                       : material.quantity.toLocaleString("de-CH")}
                   </Text>
-                </View>)
+                </View>
               ) : (
                 <View />
               )}
@@ -713,11 +708,11 @@ export const RecipeMaterial = ({
               >
                 <Text style={styles.tableCell}>{material.material.name}</Text>
               </View>
-            </View>)
+            </View>
           );
         })}
       </View>
-    </React.Fragment>)
+    </React.Fragment>
   );
 };
 
@@ -737,7 +732,7 @@ export const RecipeNote = ({recipe}: RecipeNoteProps) => {
     <React.Fragment>
       <View style={styles.table}>
         <View style={styles.tableCol100}>
-          <Text style={styles.subTitle}>{TEXT.PANEL_NOTES}</Text>
+          <Text style={styles.columnHeading}>{TEXT.PANEL_NOTES}</Text>
         </View>
         <View style={styles.tableRow} key={"recipeNote_" + recipe.uid}>
           <View
@@ -751,6 +746,7 @@ export const RecipeNote = ({recipe}: RecipeNoteProps) => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ========================= Varianten Notiz  ========================
 // =================================================================== */
@@ -767,9 +763,12 @@ export const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
     <React.Fragment>
       <View style={styles.table}>
         <View style={styles.tableCol100}>
-          <Text style={styles.subTitle}>{TEXT.PANEL_NOTES}</Text>
+          <Text style={styles.columnHeading}>{TEXT.PANEL_NOTES}</Text>
         </View>
-        <View style={styles.tableRow} key={"recipeVariantNote_" + recipe.uid}>
+        <View
+          style={styles.tableRow}
+          key={"recipeVariantNote_" + recipe.uid}
+        >
           <View
             style={styles.tableColNote}
             key={"recipeNoteVariantText_" + recipe.uid}

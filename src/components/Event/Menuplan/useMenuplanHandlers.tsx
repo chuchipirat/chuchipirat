@@ -471,6 +471,7 @@ export function useMenuplanHandlers({
   const onPrintConfirm = useCallback((options: MenuplanPdfOptions) => {
     setDialogPdfOptionsData({open: false});
     const {event, menuplan, authUser} = ctx.current;
+
     generateAndDownloadPdf(
       <MenuplanPdf
         event={event}

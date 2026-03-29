@@ -2,8 +2,8 @@
  * Unit-Tests für menuplanPdf.tsx.
  *
  * Getestet werden:
- * - Reine Hilfsfunktionen (splitDatesIntoPages, buildMealLookup,
- *   getCellBorderStyle, findNoteForDate, findNoteForMenu)
+ * - Reine Hilfsfunktionen (calculateBaseFontSize, computeColumnWidth,
+ *   buildMealLookup, findNoteForDate, findNoteForMenu)
  * - React-PDF-Komponentenbaum (MenuplanPdf) — Smoke-Tests via createElement
  *
  * @react-pdf/renderer wird gemockt, da die ESM-Module nicht von Jest
@@ -22,6 +22,8 @@ jest.mock("@react-pdf/renderer", () => {
     Page: createComponent("Page"),
     View: createComponent("View"),
     Text: createComponent("Text"),
+    Svg: createComponent("Svg"),
+    Path: createComponent("Path"),
     Font: {
       register: jest.fn(),
       registerEmojiSource: jest.fn(),
@@ -50,13 +52,13 @@ import React from "react";
 import {render} from "@testing-library/react";
 
 import {
-  splitDatesIntoPages,
+  calculateBaseFontSize,
+  computeColumnWidth,
   buildMealLookup,
-  getCellBorderStyle,
   findNoteForDate,
   findNoteForMenu,
+  MenuplanPdf,
 } from "../menuplanPdf";
-import {MenuplanPdf} from "../menuplanPdf";
 import {
   MENUPLAN_PDF_OPTIONS_INITIAL,
   MenuplanPdfOptions,
@@ -78,6 +80,8 @@ import {GoodsPlanMode} from "../menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import {Event} from "../../Event/event.class";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
+
+import {isTimesliceBoundary, getColumnBackground, COLUMN_TINT} from "../../../../constants/stylesMenuplanPdf";
 
 
 /** Erzeugt ein Datum ohne Zeitzone-Probleme. */
@@ -242,73 +246,49 @@ function buildMenuplanData(
   };
 }
 
-describe("splitDatesIntoPages", () => {
-  it("gibt leeres Array zurück bei leerer Datumsliste", () => {
-    expect(splitDatesIntoPages([], 4)).toEqual([]);
+
+// ─── Hilfsfunktionen ─────────────────────────────────────────────
+
+describe("calculateBaseFontSize", () => {
+  it("gibt 8 zurück für ≤7 Tage", () => {
+    expect(calculateBaseFontSize(1)).toBe(8);
+    expect(calculateBaseFontSize(7)).toBe(8);
   });
 
-  it("packt exakt passende Tage auf eine Seite", () => {
-    const dates = [
-      date(2026, 3, 10),
-      date(2026, 3, 11),
-      date(2026, 3, 12),
-      date(2026, 3, 13),
-    ];
-    const result = splitDatesIntoPages(dates, 4);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual(dates);
+  it("gibt 7 zurück für 8–10 Tage", () => {
+    expect(calculateBaseFontSize(8)).toBe(7);
+    expect(calculateBaseFontSize(10)).toBe(7);
   });
 
-  it("füllt letzte Seite mit null auf", () => {
-    const dates = [date(2026, 3, 10), date(2026, 3, 11)];
-    const result = splitDatesIntoPages(dates, 4);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toHaveLength(4);
-    expect(result[0][0]).toEqual(dates[0]);
-    expect(result[0][1]).toEqual(dates[1]);
-    expect(result[0][2]).toBeNull();
-    expect(result[0][3]).toBeNull();
+  it("gibt 6 zurück für 11–14 Tage", () => {
+    expect(calculateBaseFontSize(11)).toBe(6);
+    expect(calculateBaseFontSize(14)).toBe(6);
   });
 
-  it("verteilt Tage korrekt auf mehrere Seiten", () => {
-    const dates = Array.from({length: 6}, (_, i) => date(2026, 3, 10 + i));
-    const result = splitDatesIntoPages(dates, 4);
-    expect(result).toHaveLength(2);
-    // Erste Seite: 4 Daten
-    expect(result[0]).toHaveLength(4);
-    expect(result[0].every((date) => date !== null)).toBe(true);
-    // Zweite Seite: 2 Daten + 2 null
-    expect(result[1]).toHaveLength(4);
-    expect(result[1][0]).toEqual(dates[4]);
-    expect(result[1][1]).toEqual(dates[5]);
-    expect(result[1][2]).toBeNull();
-    expect(result[1][3]).toBeNull();
-  });
-
-  it("funktioniert mit columnsPerPage = 1", () => {
-    const dates = [date(2026, 3, 10), date(2026, 3, 11)];
-    const result = splitDatesIntoPages(dates, 1);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toEqual([dates[0]]);
-    expect(result[1]).toEqual([dates[1]]);
-  });
-
-  it("funktioniert mit exaktem Vielfachen", () => {
-    const dates = Array.from({length: 8}, (_, i) => date(2026, 3, 10 + i));
-    const result = splitDatesIntoPages(dates, 4);
-    expect(result).toHaveLength(2);
-    expect(result[0]).toHaveLength(4);
-    expect(result[1]).toHaveLength(4);
-    expect(result.flat().every((date) => date !== null)).toBe(true);
-  });
-
-  it("ein einzelner Tag ergibt eine Seite mit Padding", () => {
-    const dates = [date(2026, 3, 10)];
-    const result = splitDatesIntoPages(dates, 4);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toEqual([dates[0], null, null, null]);
+  it("gibt 6 zurück für Grenzfall >14 Tage", () => {
+    expect(calculateBaseFontSize(21)).toBe(6);
   });
 });
+
+
+describe("computeColumnWidth", () => {
+  it("berechnet korrekte Breite für 7 Tage", () => {
+    expect(computeColumnWidth(7)).toBe("14.29%");
+  });
+
+  it("berechnet korrekte Breite für 10 Tage", () => {
+    expect(computeColumnWidth(10)).toBe("10.00%");
+  });
+
+  it("berechnet korrekte Breite für 14 Tage", () => {
+    expect(computeColumnWidth(14)).toBe("7.14%");
+  });
+
+  it("berechnet korrekte Breite für 3 Tage", () => {
+    expect(computeColumnWidth(3)).toBe("33.33%");
+  });
+});
+
 
 describe("buildMealLookup", () => {
   it("gibt leere Map zurück bei leeren Meals", () => {
@@ -366,64 +346,6 @@ describe("buildMealLookup", () => {
   });
 });
 
-describe("getCellBorderStyle", () => {
-  it("gibt nur tableCol20 zurück für Null-Zelle", () => {
-    const result = getCellBorderStyle({
-      isNullCell: true,
-      isLastColumn: false,
-      isLastRow: false,
-    });
-    expect(result).toHaveLength(1);
-  });
-
-  it("enthält alle 4 Stile für mittlere Zelle", () => {
-    const result = getCellBorderStyle({
-      isNullCell: false,
-      isLastColumn: false,
-      isLastRow: false,
-    });
-    // tableCol20 + cellPadding + bottomBorder + rightBorder
-    expect(result).toHaveLength(4);
-  });
-
-  it("unterdrückt unteren Rand für letzte Zeile", () => {
-    const result = getCellBorderStyle({
-      isNullCell: false,
-      isLastColumn: false,
-      isLastRow: true,
-    });
-    // tableCol20 + cellPadding + rightBorder
-    expect(result).toHaveLength(3);
-  });
-
-  it("unterdrückt rechten Rand für letzte Spalte", () => {
-    const result = getCellBorderStyle({
-      isNullCell: false,
-      isLastColumn: true,
-      isLastRow: false,
-    });
-    // tableCol20 + cellPadding + bottomBorder
-    expect(result).toHaveLength(3);
-  });
-
-  it("nur tableCol20 + cellPadding für letzte Zeile & Spalte", () => {
-    const result = getCellBorderStyle({
-      isNullCell: false,
-      isLastColumn: true,
-      isLastRow: true,
-    });
-    expect(result).toHaveLength(2);
-  });
-
-  it("Null-Zelle ignoriert isLastRow/isLastColumn", () => {
-    const result = getCellBorderStyle({
-      isNullCell: true,
-      isLastColumn: true,
-      isLastRow: true,
-    });
-    expect(result).toHaveLength(1);
-  });
-});
 
 describe("findNoteForDate", () => {
   const day = date(2026, 3, 10);
@@ -471,6 +393,7 @@ describe("findNoteForDate", () => {
     expect(findNoteForDate(notes, day)).toBe(correct);
   });
 });
+
 
 describe("findNoteForMenu", () => {
   const day = date(2026, 3, 10);
@@ -545,7 +468,45 @@ describe("findNoteForMenu", () => {
   });
 });
 
+
+describe("isTimesliceBoundary", () => {
+  it("erkennt aufeinanderfolgende Tage als keine Grenze", () => {
+    expect(isTimesliceBoundary(date(2026, 3, 10), date(2026, 3, 11))).toBe(false);
+  });
+
+  it("erkennt Lücke zwischen Tagen als Grenze", () => {
+    // 12. März → 15. März (3 Tage Lücke)
+    expect(isTimesliceBoundary(date(2026, 3, 12), date(2026, 3, 15))).toBe(true);
+  });
+
+  it("erkennt 2-Tage-Lücke als Grenze", () => {
+    expect(isTimesliceBoundary(date(2026, 3, 10), date(2026, 3, 12))).toBe(true);
+  });
+
+  it("gibt false zurück wenn nextDay undefined (letzter Tag)", () => {
+    expect(isTimesliceBoundary(date(2026, 3, 10), undefined)).toBe(false);
+  });
+});
+
+
+describe("getColumnBackground", () => {
+  it("gibt Tint für ungerade Spalten zurück", () => {
+    expect(getColumnBackground(1)).toBe(COLUMN_TINT);
+  });
+
+  it("gibt transparent für gerade Spalten zurück", () => {
+    expect(getColumnBackground(0)).toBe("transparent");
+  });
+});
+
+
+// ─── Komponenten-Smoke-Tests ─────────────────────────────────────
+
 describe("MenuplanPdf Komponente", () => {
+  const defaultOptions: MenuplanPdfOptions = {
+    ...MENUPLAN_PDF_OPTIONS_INITIAL,
+  };
+
   it("rendert ohne Fehler mit minimalen Daten", () => {
     expect(() =>
       render(
@@ -553,7 +514,7 @@ describe("MenuplanPdf Komponente", () => {
           event={buildEvent()}
           menuplan={buildMenuplanData()}
           authUser={buildAuthUser()}
-          pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
+          pdfOptions={defaultOptions}
         />
       )
     ).not.toThrow();
@@ -596,7 +557,23 @@ describe("MenuplanPdf Komponente", () => {
     ).not.toThrow();
   });
 
-  it("rendert mit Tages- und Menü-Notizen", () => {
+  it("rendert mit 14 Tagen (maximale Dichte)", () => {
+    const dates = Array.from({length: 14}, (_, i) => date(2026, 3, 10 + i));
+    const menuplan = buildMenuplanData({dates});
+
+    expect(() =>
+      render(
+        <MenuplanPdf
+          event={buildEvent()}
+          menuplan={menuplan}
+          authUser={buildAuthUser()}
+          pdfOptions={defaultOptions}
+        />
+      )
+    ).not.toThrow();
+  });
+
+  it("rendert mit Tages- und Menü-Notizen (inline)", () => {
     const day = date(2026, 3, 10);
     const dayNote = buildNote({
       uid: "n1",
@@ -615,66 +592,81 @@ describe("MenuplanPdf Komponente", () => {
       notes: {n1: dayNote, n2: menuNote},
     });
 
-    expect(() =>
-      render(
-        <MenuplanPdf
-          event={buildEvent()}
-          menuplan={menuplan}
-          authUser={buildAuthUser()}
-          pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
-        />
-      )
-    ).not.toThrow();
+    const {queryByText} = render(
+      <MenuplanPdf
+        event={buildEvent()}
+        menuplan={menuplan}
+        authUser={buildAuthUser()}
+        pdfOptions={defaultOptions}
+      />
+    );
+
+    // Notizen werden inline angezeigt (Tagesnotiz im Header, Menü-Notiz in der Zelle)
+    expect(queryByText(/Einkaufen gehen/)).not.toBeNull();
+    expect(queryByText(/Vorbereiten am Vorabend/)).not.toBeNull();
   });
 
-  it("rendert mit Rezept-Variante", () => {
-    const variantRecipe = buildMealRecipe({
-      uid: "mr-v",
-      recipe: {
-        recipeUid: "r-v",
-        name: "Pasta",
-        type: RecipeType.variant,
-        createdFromUid: "user-1",
-        variantName: "Glutenfrei",
-      },
+  it("rendert mit Produkten und Materialien (je eine Zeile)", () => {
+    const product = buildProduct({
+      uid: "prod-1",
+      productName: "Mehl",
+      totalQuantity: 2,
+      unit: "kg",
+    });
+    const material = buildMaterial({
+      uid: "mat-1",
+      materialName: "Schüssel",
+      totalQuantity: 3,
+      unit: "Stk",
     });
     const menue = buildMenue({
       uid: "menue-1",
       name: "Hauptgang",
-      mealRecipeOrder: [variantRecipe.uid],
+      mealRecipeOrder: [],
+      productOrder: [product.uid],
+      materialOrder: [material.uid],
     });
 
     const menuplan = buildMenuplanData({
       menues: {[menue.uid]: menue},
-      mealRecipes: {[variantRecipe.uid]: variantRecipe},
+      mealRecipes: {},
+      products: {[product.uid]: product},
+      materials: {[material.uid]: material},
     });
 
-    expect(() =>
-      render(
-        <MenuplanPdf
-          event={buildEvent()}
-          menuplan={menuplan}
-          authUser={buildAuthUser()}
-          pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
-        />
-      )
-    ).not.toThrow();
+    const optionsWithGoods: MenuplanPdfOptions = {
+      showProducts: true,
+      showMaterials: true,
+      showPortions: false,
+    };
+
+    const {queryByText} = render(
+      <MenuplanPdf
+        event={buildEvent()}
+        menuplan={menuplan}
+        authUser={buildAuthUser()}
+        pdfOptions={optionsWithGoods}
+      />
+    );
+
+    expect(queryByText(/Mehl/)).not.toBeNull();
+    expect(queryByText(/Schüssel/)).not.toBeNull();
   });
 
-  it("rendert mit mehreren Seiten (mehr als 4 Tage)", () => {
-    const dates = Array.from({length: 7}, (_, i) => date(2026, 3, 10 + i));
-    const menuplan = buildMenuplanData({dates});
+  it("zeigt Menüname immer an", () => {
+    const menuplan = buildMenuplanData();
 
-    expect(() =>
-      render(
-        <MenuplanPdf
-          event={buildEvent()}
-          menuplan={menuplan}
-          authUser={buildAuthUser()}
-          pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
-        />
-      )
-    ).not.toThrow();
+    const {queryByText} = render(
+      <MenuplanPdf
+        event={buildEvent()}
+        menuplan={menuplan}
+        authUser={buildAuthUser()}
+        pdfOptions={defaultOptions}
+      />
+    );
+
+    // Menüname "Hauptgang" sollte sichtbar sein (auch mit nur einem Menü)
+    expect(queryByText("Hauptgang")).not.toBeNull();
   });
 
   it("rendert mit leeren Menüplan-Daten (keine Meals/Menues)", () => {
@@ -690,7 +682,7 @@ describe("MenuplanPdf Komponente", () => {
           event={buildEvent()}
           menuplan={menuplan}
           authUser={buildAuthUser()}
-          pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
+          pdfOptions={defaultOptions}
         />
       )
     ).not.toThrow();
@@ -734,7 +726,41 @@ describe("MenuplanPdf Komponente", () => {
           event={buildEvent()}
           menuplan={menuplan}
           authUser={buildAuthUser()}
-          pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
+          pdfOptions={defaultOptions}
+        />
+      )
+    ).not.toThrow();
+  });
+
+  it("rendert mit Rezept-Variante", () => {
+    const variantRecipe = buildMealRecipe({
+      uid: "mr-v",
+      recipe: {
+        recipeUid: "r-v",
+        name: "Pasta",
+        type: RecipeType.variant,
+        createdFromUid: "user-1",
+        variantName: "Glutenfrei",
+      },
+    });
+    const menue = buildMenue({
+      uid: "menue-1",
+      name: "Hauptgang",
+      mealRecipeOrder: [variantRecipe.uid],
+    });
+
+    const menuplan = buildMenuplanData({
+      menues: {[menue.uid]: menue},
+      mealRecipes: {[variantRecipe.uid]: variantRecipe},
+    });
+
+    expect(() =>
+      render(
+        <MenuplanPdf
+          event={buildEvent()}
+          menuplan={menuplan}
+          authUser={buildAuthUser()}
+          pdfOptions={defaultOptions}
         />
       )
     ).not.toThrow();
@@ -757,82 +783,10 @@ describe("MenuplanPdf Komponente", () => {
           event={buildEvent()}
           menuplan={menuplan}
           authUser={buildAuthUser()}
-          pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
+          pdfOptions={defaultOptions}
         />
       )
     ).not.toThrow();
-  });
-
-  it("zeigt Produkte nur wenn showProducts aktiviert", () => {
-    const product = buildProduct({uid: "prod-1", productName: "Mehl"});
-    const menue = buildMenue({
-      uid: "menue-1",
-      name: "Hauptgang",
-      mealRecipeOrder: [],
-      productOrder: [product.uid],
-    });
-    const menuplan = buildMenuplanData({
-      menues: {[menue.uid]: menue},
-      mealRecipes: {},
-      products: {[product.uid]: product},
-    });
-
-    // Ohne showProducts: Produkt nicht sichtbar
-    const {queryByText: query1} = render(
-      <MenuplanPdf
-        event={buildEvent()}
-        menuplan={menuplan}
-        authUser={buildAuthUser()}
-        pdfOptions={{...MENUPLAN_PDF_OPTIONS_INITIAL, showProducts: false}}
-      />
-    );
-    expect(query1("Mehl")).toBeNull();
-
-    // Mit showProducts: Produkt sichtbar
-    const {queryByText: query2} = render(
-      <MenuplanPdf
-        event={buildEvent()}
-        menuplan={menuplan}
-        authUser={buildAuthUser()}
-        pdfOptions={{...MENUPLAN_PDF_OPTIONS_INITIAL, showProducts: true}}
-      />
-    );
-    expect(query2(/Mehl/)).not.toBeNull();
-  });
-
-  it("zeigt Materialien nur wenn showMaterials aktiviert", () => {
-    const material = buildMaterial({uid: "mat-1", materialName: "Teller"});
-    const menue = buildMenue({
-      uid: "menue-1",
-      name: "Hauptgang",
-      mealRecipeOrder: [],
-      materialOrder: [material.uid],
-    });
-    const menuplan = buildMenuplanData({
-      menues: {[menue.uid]: menue},
-      mealRecipes: {},
-      materials: {[material.uid]: material},
-    });
-
-    const {queryByText: query1} = render(
-      <MenuplanPdf
-        event={buildEvent()}
-        menuplan={menuplan}
-        authUser={buildAuthUser()}
-        pdfOptions={{...MENUPLAN_PDF_OPTIONS_INITIAL, showMaterials: false}}
-      />
-    );
-    expect(query1("Teller")).toBeNull();
-
-    const {queryByText: query2} = render(
-      <MenuplanPdf
-        event={buildEvent()}
-        menuplan={menuplan}
-        authUser={buildAuthUser()}
-        pdfOptions={{...MENUPLAN_PDF_OPTIONS_INITIAL, showMaterials: true}}
-      />
-    );
-    expect(query2(/Teller/)).not.toBeNull();
   });
 
   it("zeigt Portionen nur wenn showPortions aktiviert", () => {
@@ -852,40 +806,19 @@ describe("MenuplanPdf Komponente", () => {
         event={buildEvent()}
         menuplan={menuplan}
         authUser={buildAuthUser()}
-        pdfOptions={{...MENUPLAN_PDF_OPTIONS_INITIAL, showPortions: false}}
+        pdfOptions={{...defaultOptions, showPortions: false}}
       />
     );
-    expect(query1(/42 Port\./)).toBeNull();
+    expect(query1(/42 P\./)).toBeNull();
 
     const {queryByText: query2} = render(
       <MenuplanPdf
         event={buildEvent()}
         menuplan={menuplan}
         authUser={buildAuthUser()}
-        pdfOptions={{...MENUPLAN_PDF_OPTIONS_INITIAL, showPortions: true}}
+        pdfOptions={{...defaultOptions, showPortions: true}}
       />
     );
-    expect(query2(/42 Port\./)).not.toBeNull();
-  });
-
-  it("rendert Notiztext im DOM", () => {
-    const day = date(2026, 3, 10);
-    const note = buildNote({
-      uid: "n1",
-      date: dateStr(day),
-      menueUid: "",
-      text: "Heute wird eingekauft",
-    });
-    const menuplan = buildMenuplanData({notes: {n1: note}});
-
-    const {queryByText} = render(
-      <MenuplanPdf
-        event={buildEvent()}
-        menuplan={menuplan}
-        authUser={buildAuthUser()}
-        pdfOptions={MENUPLAN_PDF_OPTIONS_INITIAL}
-      />
-    );
-    expect(queryByText("Heute wird eingekauft")).not.toBeNull();
+    expect(query2(/42 P\./)).not.toBeNull();
   });
 });

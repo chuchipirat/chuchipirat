@@ -186,53 +186,51 @@ const RecipePage = ({
         menueCoordinate={menueCoordinates}
       />
 
-      <View style={styles.containerBottomBorder} />
-      <View style={styles.table}>
-        <View style={styles.tableRow}>
-          <View style={styles.tableCol50}>
-            <View style={styles.tableNoMargin}>
+      {/* Zweispaltiges Layout: Zutaten links, Zubereitung rechts.
+          Die linke Spalte hat eine vertikale Teal-Trennlinie. */}
+      <View style={styles.twoColumnRow}>
+        <View style={styles.tableCol50Left}>
+          <View style={styles.tableNoMargin}>
+            <View style={styles.tableCol100}>
+              <RecipeIngredients
+                ingredients={recipe.ingredients}
+                scaledIngredients={scaledIngredients}
+                scaledPortions={mealRecipe.totalPortions}
+              />
+            </View>
+            {recipe.materials?.order?.length > 0 &&
+            recipe.materials?.entries?.[recipe.materials.order[0]]?.uid !== "" ? (
               <View style={styles.tableCol100}>
-                <RecipeIngredients
-                  ingredients={recipe.ingredients}
-                  scaledIngredients={scaledIngredients}
+                <RecipeMaterial
+                  materials={recipe.materials}
                   scaledPortions={mealRecipe.totalPortions}
+                  scaledMaterials={scaledMaterials}
                 />
               </View>
-              {recipe.materials?.order?.length > 0 &&
-              recipe.materials?.entries?.[recipe.materials.order[0]]?.uid !== "" ? (
-                <View style={styles.tableCol100}>
-                  <RecipeMaterial
-                    materials={recipe.materials}
-                    scaledPortions={mealRecipe.totalPortions}
-                    scaledMaterials={scaledMaterials}
-                  />
-                </View>
-              ) : (
-                <View />
-              )}
-            </View>
-            <View style={styles.tableCol100}></View>
+            ) : (
+              <View />
+            )}
           </View>
+        </View>
 
-          <View style={styles.tableCol50}>
-            <View style={styles.tableNoMargin}>
-              <View style={styles.tableCol100}>
-                <RecipePreparation recipe={recipe} />
-              </View>
+        <View style={styles.tableCol50Right}>
+          <View style={styles.tableNoMargin}>
+            <View style={styles.tableCol100}>
+              <RecipePreparation recipe={recipe} />
             </View>
           </View>
         </View>
       </View>
       {recipe.note ? (
         <React.Fragment>
-          <View style={styles.containerBottomBorder} />
+          <View style={styles.notesDivider} />
           <RecipeNote recipe={recipe} />
         </React.Fragment>
       ) : null}
       {recipe.type == RecipeType.variant &&
       recipe.variantProperties?.note ? (
         <React.Fragment>
-          <View style={styles.containerBottomBorder} />
+          <View style={styles.notesDivider} />
           <RecipeVariantNote recipe={recipe} />
         </React.Fragment>
       ) : null}

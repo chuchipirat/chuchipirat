@@ -3,7 +3,7 @@
  *
  * Zeigt dem Benutzer Schalter an, mit denen er festlegen kann, welche
  * Details im exportierten Menüplan-PDF enthalten sein sollen
- * (Produkte, Materialien, Portionen pro Rezept).
+ * (Produkte, Materialien, Portionen).
  */
 import React, {useState} from "react";
 import {

@@ -290,17 +290,21 @@ const CreateEventPage = () => {
   const [state, dispatch] = React.useReducer(eventReducer, initialState);
   const navigationValuesContext = React.useContext(NavigationValuesContext);
   const [activeStep, setActiveStep] = React.useState(WizardSteps.info);
+  // Ref verhindert, dass ein Token-Refresh (authUser-Referenzänderung)
+  // den Event-State mitten im Wizard zurücksetzt.
+  const isInitializedRef = React.useRef(false);
 
   /* ------------------------------------------
   // Navigation-Handler
   // ------------------------------------------ */
   React.useEffect(() => {
-    if (authUser !== null) {
+    if (authUser !== null && !isInitializedRef.current) {
+      isInitializedRef.current = true;
       navigationValuesContext?.setNavigationValues({
         action: Action.NEW,
         object: NavigationObject.none,
       });
-      // Initialier Event erstellen
+      // Initiales Event erstellen — wird nur einmal ausgeführt
       dispatch({
         type: ReducerActions.SET_EVENT,
         payload: Event.factory(authUser),
@@ -384,9 +388,9 @@ const CreateEventPage = () => {
       }
     }
 
-    // 4. Zeitscheiben speichern
-    const dateDomains = state.event.dates
-      .filter((dateEntry) => dateEntry.from && dateEntry.to)
+    // 4. Zeitscheiben speichern — leere Einträge (Epoch-Datum) herausfiltern
+    const dateDomains = Event.deleteEmptyDates(state.event.dates)
+      .filter((dateEntry) => dateEntry.from.getFullYear() !== 1970)
       .map((dateEntry, index) => ({
         dateFrom: dateEntry.from,
         dateTo: dateEntry.to,

@@ -1,30 +1,35 @@
 /**
- * PDF-Export des Menüplans als Querformat-Tabelle.
+ * PDF-Export des Menüplans auf einer einzelnen A4-Querformat-Seite.
  *
- * Generiert ein mehrseitiges PDF-Dokument mit einer tabellarischen Darstellung
- * des Menüplans. Jede Seite zeigt bis zu 4 Tage als Spalten, mit Mahlzeitentypen
- * als Zeilen. Enthält Rezepte, Varianten und Notizen.
+ * Passt den gesamten Menüplan auf eine Seite, indem Spaltenbreiten dynamisch
+ * berechnet, Schriftgrössen adaptiv angepasst und Notizen inline dargestellt
+ * werden. Einheitliche App-Farbe für Mahlzeitentyp-Bänder, Zeitscheiben-Grenzen
+ * und vertikale Spaltentrennlinien verbessern die Lesbarkeit.
  */
 import React from "react";
 import {Document, Page, View, Text} from "@react-pdf/renderer";
-import {Style} from "@react-pdf/types";
 import {Utils} from "../../Shared/utils.class";
-import {MENUPLAN_NO_OF_COLUMS_PRINT} from "../../../constants/defaultValues";
 import {
   MENUPLAN as TEXT_MENUPLAN,
   APP_NAME as TEXT_APP_NAME,
 } from "../../../constants/text";
 
-import {pdfStyles} from "../../../constants/stylesMenuplanPdf";
+import {
+  createMenuplanPdfStyles,
+  MEAL_BAND_BG,
+  MEAL_BAND_TEXT,
+  getColumnBackground,
+  isTimesliceBoundary,
+} from "../../../constants/stylesMenuplanPdf";
 import {
   MealType,
   Meal,
-  Note,
   MenuplanData,
   Menue,
   MealRecipes,
   Materials,
   Products,
+  Note,
 } from "./menuplan.types";
 import type {MenuplanPdfOptions} from "./dialogMenuplanPdfOptions";
 import {Event} from "../Event/event.class";
@@ -35,78 +40,18 @@ import "../../Shared/pdfFontRegistration";
 
 
 /**
- * Teilt die Datumsarray in Seiten-Chunks auf und füllt die letzte Seite
- * mit `null`-Werten auf, damit die Tabellenspalten konsistent bleiben.
- *
- * @param dates - Sortierte Liste der Menüplan-Tage.
- * @param columnsPerPage - Anzahl Tages-Spalten pro Seite.
- * @returns Array von Seiten, jede Seite ein Array von Dates (oder null für Padding).
- */
-function splitDatesIntoPages(
-  dates: Date[],
-  columnsPerPage: number
-): (Date | null)[][] {
-  const pages: (Date | null)[][] = [];
-  let currentPage: (Date | null)[] = [];
-
-  dates.forEach((day) => {
-    currentPage.push(day);
-    if (currentPage.length === columnsPerPage) {
-      pages.push(currentPage);
-      currentPage = [];
-    }
-  });
-
-  // Letzte Seite auffüllen, damit die Spalten links ausgerichtet bleiben
-  if (currentPage.length > 0) {
-    const remaining = columnsPerPage - currentPage.length;
-    for (let i = 0; i < remaining; i++) {
-      currentPage.push(null);
-    }
-    pages.push(currentPage);
-  }
-
-  return pages;
-}
-
-/**
  * Erstellt eine Lookup-Map für Mahlzeiten, indiziert nach `mealTypeUid_dateString`.
  * Vermeidet O(n²)-Suche bei jedem Zellen-Rendering.
  *
  * @param meals - Alle Mahlzeiten des Menüplans.
  * @returns Map mit Key `${mealTypeUid}_${dateString}` → Meal.
  */
-function buildMealLookup(meals: MenuplanData["meals"]): Map<string, Meal> {
+export function buildMealLookup(meals: MenuplanData["meals"]): Map<string, Meal> {
   const map = new Map<string, Meal>();
   Object.values(meals).forEach((meal) => {
     map.set(`${meal.mealType}_${meal.date}`, meal);
   });
   return map;
-}
-
-/**
- * Berechnet den Zell-Rahmen-Stil basierend auf Position in der Tabelle.
- * Nullzellen (Padding) erhalten keinen Rahmen; letzte Spalte/Zeile
- * unterdrückt den rechten bzw. unteren Rand.
- *
- * @param options - Position der Zelle in der Tabelle.
- * @returns Style-Objekt mit den passenden Rahmen-Properties.
- */
-function getCellBorderStyle(options: {
-  isNullCell: boolean;
-  isLastColumn: boolean;
-  isLastRow: boolean;
-}): Style[] {
-  const {isNullCell, isLastColumn, isLastRow} = options;
-
-  if (isNullCell) {
-    return [styles.tableCol20];
-  }
-
-  const result: Style[] = [styles.tableCol20, styles.cellPadding];
-  if (!isLastRow) result.push(styles.containerBottomBorderThin);
-  if (!isLastColumn) result.push(styles.containerRightBorderThin);
-  return result;
 }
 
 /**
@@ -116,7 +61,7 @@ function getCellBorderStyle(options: {
  * @param date - Das Datum, für das die Notiz gesucht wird.
  * @returns Die gefundene Notiz oder undefined.
  */
-function findNoteForDate(
+export function findNoteForDate(
   notes: MenuplanData["notes"],
   date: Date
 ): Note | undefined {
@@ -134,7 +79,7 @@ function findNoteForDate(
  * @param date - Das Datum der Notiz.
  * @returns Die gefundene Notiz oder undefined.
  */
-function findNoteForMenu(
+export function findNoteForMenu(
   notes: MenuplanData["notes"],
   menuUid: string,
   date: Date
@@ -147,8 +92,78 @@ function findNoteForMenu(
 
 
 /**
- * Wurzelkomponente des Menüplan-PDFs.
- * Erzeugt ein mehrseitiges Querformat-Dokument mit Kopf- und Fusszeile.
+ * Berechnet die Basis-Schriftgrösse abhängig von der Anzahl Tage.
+ * Mehr Tage → kleinere Schrift, damit alles auf eine Seite passt.
+ *
+ * @param numDays - Anzahl Tage im Menüplan.
+ * @returns Basis-Schriftgrösse in Punkt.
+ */
+export function calculateBaseFontSize(numDays: number): number {
+  if (numDays <= 7) return 8;
+  if (numDays <= 10) return 7;
+  return 6;
+}
+
+
+/**
+ * Berechnet die prozentuale Spaltenbreite pro Tag.
+ * Alle Spalten teilen sich die volle Breite gleichmässig.
+ *
+ * @param numDays - Anzahl Tage im Menüplan.
+ * @returns Breite als Prozent-String (z.B. "14.29%").
+ */
+export function computeColumnWidth(numDays: number): string {
+  return `${(100 / numDays).toFixed(2)}%`;
+}
+
+
+/**
+ * Formatiert eine Menge mit Einheit für die Anzeige im PDF.
+ * Zeigt Ganzzahlen ohne Dezimalstellen, Dezimalzahlen mit einer Stelle.
+ *
+ * @param quantity - Die Menge.
+ * @param unit - Die Einheit.
+ * @returns Formatierter String (z.B. "2 kg") oder leer wenn Menge 0.
+ */
+function formatQuantity(quantity: number, unit: string): string {
+  if (quantity <= 0) return "";
+  const formatted = Number.isInteger(quantity)
+    ? String(quantity)
+    : quantity.toFixed(1);
+  return `${formatted} ${unit} `;
+}
+
+
+/**
+ * Ermittelt den rechten Randstil für eine Spalte.
+ * Erkennt Zeitscheiben-Grenzen (nicht-aufeinanderfolgende Tage) und
+ * verwendet dafür eine dickere, farbige Trennlinie.
+ *
+ * @param dates - Alle Tage des Menüplans.
+ * @param dayIndex - Index der aktuellen Spalte.
+ * @param styles - Adaptives StyleSheet.
+ * @returns Style-Objekt für den rechten Rand (oder leeres Objekt).
+ */
+function getRightBorderStyle(
+  dates: Date[],
+  dayIndex: number,
+  styles: ReturnType<typeof createMenuplanPdfStyles>,
+): Record<string, unknown> {
+  const isLastColumn = dayIndex === dates.length - 1;
+  if (isLastColumn) return {};
+
+  const nextDay = dates[dayIndex + 1];
+  if (isTimesliceBoundary(dates[dayIndex], nextDay)) {
+    return styles.timesliceBorderRight;
+  }
+  return styles.columnBorderRight;
+}
+
+
+// ─── Props ──────────────────────────────────────────────────────────
+
+/**
+ * Props der Wurzelkomponente des Menüplan-PDFs.
  *
  * @param event - Der zugehörige Event.
  * @param menuplan - Vollständige Menüplan-Daten.
@@ -162,12 +177,28 @@ interface MenuplanPdfProps {
   pdfOptions: MenuplanPdfOptions;
 }
 
-const MenuplanPdf = ({event, menuplan, authUser, pdfOptions}: MenuplanPdfProps) => {
+
+/**
+ * Wurzelkomponente des Menüplan-PDFs.
+ * Erzeugt ein einziges Querformat-Dokument mit allen Tagen auf einer Seite.
+ *
+ * @param event - Der zugehörige Event.
+ * @param menuplan - Vollständige Menüplan-Daten.
+ * @param authUser - Authentifizierter Benutzer.
+ * @param pdfOptions - Vom Benutzer gewählte Darstellungsoptionen.
+ */
+const MenuplanPdf = ({
+  event,
+  menuplan,
+  authUser,
+  pdfOptions,
+}: MenuplanPdfProps) => {
   const actualDate = new Date();
-  const splitedDates = splitDatesIntoPages(
-    menuplan.dates,
-    MENUPLAN_NO_OF_COLUMS_PRINT
-  );
+  const numDays = menuplan.dates.length;
+  const baseFontSize = calculateBaseFontSize(numDays);
+  const styles = createMenuplanPdfStyles(baseFontSize);
+  const columnWidth = computeColumnWidth(numDays);
+  const mealLookup = buildMealLookup(menuplan.meals);
 
   return (
     <Document
@@ -177,179 +208,110 @@ const MenuplanPdf = ({event, menuplan, authUser, pdfOptions}: MenuplanPdfProps) 
       subject={TEXT_MENUPLAN + " " + event.name}
       title={TEXT_MENUPLAN + " " + event.name}
     >
-      {splitedDates.map((datesOfPage, pageCounter) => (
-        <MenuplanPage
-          key={"menuplanPage_" + event.uid + "_" + pageCounter}
-          event={event}
-          menuplan={menuplan}
-          datesOfPage={datesOfPage}
-          pageCounter={pageCounter}
-          actualDate={actualDate}
-          authUser={authUser}
-          pdfOptions={pdfOptions}
-        />
-      ))}
+      <Page orientation="landscape" style={styles.pageMargins}>
+        <Header text={event.name} uid={event.uid} />
+        <Text style={styles.title}>{TEXT_MENUPLAN}</Text>
+
+        <View style={styles.table}>
+          {/* Datums-Kopfzeile mit inline Tagesnotizen */}
+          <DateHeaderRow
+            dates={menuplan.dates}
+            columnWidth={columnWidth}
+            notes={menuplan.notes}
+            styles={styles}
+          />
+
+          {/* Mahlzeitentyp-Bänder mit Inhaltszellen */}
+          {menuplan.mealTypes.order.map((mealTypeUid) => (
+            <MealTypeBand
+              key={"band_" + mealTypeUid}
+              mealType={menuplan.mealTypes.entries[mealTypeUid]}
+              dates={menuplan.dates}
+              columnWidth={columnWidth}
+              mealLookup={mealLookup}
+              menues={menuplan.menues}
+              mealRecipes={menuplan.mealRecipes}
+              products={menuplan.products}
+              materials={menuplan.materials}
+              notes={menuplan.notes}
+              pdfOptions={pdfOptions}
+              styles={styles}
+            />
+          ))}
+        </View>
+
+        <Footer uid={event.uid} actualDate={actualDate} authUser={authUser} />
+      </Page>
     </Document>
   );
 };
 
 
+// ─── Datums-Kopfzeile ──────────────────────────────────────────────
+
 /**
- * Eine einzelne Seite des Menüplan-PDFs (Querformat).
- * Enthält Header, Titel, Datums-/Mahlzeit-Tabelle und Footer.
+ * Props der Datums-Kopfzeile.
  *
- * @param event - Der zugehörige Event.
- * @param menuplan - Vollständige Menüplan-Daten.
- * @param datesOfPage - Die Tage dieser Seite (inkl. null-Padding).
- * @param pageCounter - Seitenindex (0-basiert).
- * @param actualDate - Aktuelles Datum für den Footer.
- * @param authUser - Authentifizierter Benutzer.
- * @param pdfOptions - Vom Benutzer gewählte Darstellungsoptionen.
+ * @param dates - Alle Tage des Menüplans.
+ * @param columnWidth - Berechnete Spaltenbreite.
+ * @param notes - Alle Notizen (für inline Tagesnotizen).
+ * @param styles - Adaptives StyleSheet.
  */
-interface MenuplanPageProps {
-  event: Event;
-  menuplan: MenuplanData;
-  datesOfPage: (Date | null)[];
-  pageCounter: number;
-  actualDate: Date;
-  authUser: AuthUser;
-  pdfOptions: MenuplanPdfOptions;
-}
-
-const MenuplanPage = ({
-  event,
-  menuplan,
-  datesOfPage,
-  pageCounter,
-  actualDate,
-  authUser,
-  pdfOptions,
-}: MenuplanPageProps) => {
-  return (
-    <Page
-      key={"page_" + event.uid + "_" + pageCounter}
-      orientation="landscape"
-      style={styles.pageMargins}
-    >
-      <Header text={event.name} uid={event.uid} />
-      <MenuplanTitle />
-      <View key={"menuPlanTable_" + pageCounter} style={styles.table}>
-        <MenuplanDateRow
-          datesOfPage={datesOfPage}
-          pageCounter={pageCounter}
-          notes={menuplan.notes}
-        />
-        {menuplan.mealTypes.order.map((mealTypeUid, mealTypeCounter) => (
-          <MenuplanMealRow
-            key={"menuplanRow_" + mealTypeUid + "_" + mealTypeCounter}
-            mealType={menuplan.mealTypes.entries[mealTypeUid]}
-            meals={menuplan.meals}
-            menues={menuplan.menues}
-            mealRecipes={menuplan.mealRecipes}
-            products={menuplan.products}
-            materials={menuplan.materials}
-            datesOfPage={datesOfPage}
-            pageCounter={pageCounter}
-            notes={menuplan.notes}
-            isLastRow={
-              mealTypeCounter + 1 === menuplan.mealTypes.order.length
-            }
-            pdfOptions={pdfOptions}
-          />
-        ))}
-      </View>
-      <Footer uid={event.uid} actualDate={actualDate} authUser={authUser} />
-    </Page>
-  );
-};
-
-
-/**
- * Titelzeile des Menüplan-PDFs.
- */
-const MenuplanTitle = () => {
-  return (
-    <View>
-      <Text style={styles.title}>{TEXT_MENUPLAN}</Text>
-    </View>
-  );
-};
-
-
-/**
- * Kopfzeile der Tabelle mit Wochentagen, Datumsangaben und Tagesnotizen.
- *
- * @param datesOfPage - Die Tage dieser Seite (inkl. null-Padding).
- * @param pageCounter - Seitenindex.
- * @param notes - Alle Notizen des Menüplans.
- */
-interface MenuplanDateRowProps {
-  datesOfPage: (Date | null)[];
-  pageCounter: number;
+interface DateHeaderRowProps {
+  dates: Date[];
+  columnWidth: string;
   notes: MenuplanData["notes"];
+  styles: ReturnType<typeof createMenuplanPdfStyles>;
 }
 
-const MenuplanDateRow = ({
-  datesOfPage,
-  pageCounter,
+/**
+ * Kopfzeile mit abgekürzten Wochentagen, Kurzformat-Datum und Tagesnotizen.
+ * Zeigt z.B. "Mo 24.03" und darunter optional die Tagesnotiz.
+ * Zeitscheiben-Grenzen werden mit dickeren Trennlinien markiert.
+ *
+ * @param dates - Alle Tage des Menüplans.
+ * @param columnWidth - Berechnete Spaltenbreite.
+ * @param notes - Alle Notizen.
+ * @param styles - Adaptives StyleSheet.
+ */
+const DateHeaderRow = ({
+  dates,
+  columnWidth,
   notes,
-}: MenuplanDateRowProps) => {
+  styles,
+}: DateHeaderRowProps) => {
   return (
-    <View key={"dayRow_" + pageCounter} style={styles.tableRow}>
-      {/* Leere Zelle oben links */}
-      <View
-        key={"dayRow_" + pageCounter + "_empty"}
-        style={{
-          ...styles.tableCol20,
-          ...styles.cellPadding,
-          ...styles.containerRightBorderThin,
-          ...styles.containerBottomBorderThin,
-        }}
-      >
-        <Text key={"day_" + pageCounter + "_empty"} style={styles.body}>
-          {" "}
-        </Text>
-      </View>
-      {/* Wochentage mit Datum */}
-      {datesOfPage.map((day, dayCounter) => {
-        const isNullCell = day === null;
-        const isLastColumn =
-          dayCounter === MENUPLAN_NO_OF_COLUMS_PRINT ||
-          datesOfPage[dayCounter + 1] === null;
-
-        const note =
-          day !== null ? findNoteForDate(notes, day) : undefined;
+    <View style={styles.tableRow}>
+      {dates.map((day, dayIndex) => {
+        // Abgekürzter Wochentag (2 Zeichen)
+        const weekday = day.toLocaleString("de-CH", {weekday: "short"});
+        // Kurzformat-Datum (TT.MM)
+        const shortDate = day.toLocaleString("de-CH", {
+          day: "2-digit",
+          month: "2-digit",
+        });
+        // Tagesnotiz inline im Header
+        const dayNote = findNoteForDate(notes, day);
+        const rightBorder = getRightBorderStyle(dates, dayIndex, styles);
 
         return (
           <View
-            key={"day_" + pageCounter + "_" + dayCounter}
-            style={getCellBorderStyle({
-              isNullCell,
-              isLastColumn,
-              isLastRow: false,
-            })}
+            key={"dateHeader_" + dayIndex}
+            style={{
+              ...styles.dateHeaderCell,
+              ...rightBorder,
+              width: columnWidth,
+              backgroundColor: getColumnBackground(dayIndex),
+            }}
           >
-            <Text style={{...styles.body, ...styles.bold}}>
-              {day
-                ? day.toLocaleString("default", {weekday: "long"})
-                : " "}
+            <Text style={{...styles.headerText, textAlign: "center"}}>
+              {`${weekday} ${shortDate}`}
             </Text>
-            <Text
-              style={{
-                ...styles.body,
-                ...styles.bodyThin,
-                ...styles.bodyFontSmall,
-              }}
-            >
-              {day
-                ? day.toLocaleString("de-CH", {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                  })
-                : " "}
-            </Text>
-            {note && <MenuplanNoteBlock text={note.text} />}
+            {dayNote && (
+              <Text style={styles.noteInline}>
+                {dayNote.text}
+              </Text>
+            )}
           </View>
         );
       })}
@@ -358,422 +320,282 @@ const MenuplanDateRow = ({
 };
 
 
-/**
- * Eine Tabellenzeile für einen Mahlzeitentyp (z.B. Frühstück).
- * Zeigt den Mahlzeitnamen links und delegiert jede Tagesspalte an MenuplanMealCell.
- *
- * @param mealType - Der Mahlzeitentyp dieser Zeile.
- * @param meals - Alle Mahlzeiten des Menüplans.
- * @param menues - Alle Menüs.
- * @param mealRecipes - Alle eingeplanten Rezepte.
- * @param products - Alle eingeplanten Produkte.
- * @param materials - Alle eingeplanten Materialien.
- * @param datesOfPage - Die Tage dieser Seite.
- * @param pageCounter - Seitenindex.
- * @param notes - Alle Notizen.
- * @param isLastRow - Ob dies die letzte Mahlzeitenzeile ist (unterdrückt unteren Rand).
- * @param pdfOptions - Vom Benutzer gewählte Darstellungsoptionen.
- */
-interface MenuplanMealRowProps {
-  mealType: MealType;
-  meals: MenuplanData["meals"];
-  menues: MenuplanData["menues"];
-  mealRecipes: MenuplanData["mealRecipes"];
-  products: MenuplanData["products"];
-  materials: MenuplanData["materials"];
-  datesOfPage: (Date | null)[];
-  pageCounter: number;
-  notes: MenuplanData["notes"];
-  isLastRow: boolean;
-  pdfOptions: MenuplanPdfOptions;
-}
-
-const MenuplanMealRow = ({
-  mealType,
-  meals,
-  menues,
-  mealRecipes,
-  products,
-  materials,
-  datesOfPage,
-  pageCounter,
-  notes,
-  isLastRow,
-  pdfOptions,
-}: MenuplanMealRowProps) => {
-  const mealLookup = buildMealLookup(meals);
-
-  return (
-    <View key={"dayRow_" + pageCounter} style={styles.tableRow}>
-      {/* Name der Mahlzeit */}
-      <View
-        key={"mealRow_" + pageCounter + "_" + mealType.uid}
-        style={{
-          ...styles.tableCol20,
-          ...styles.cellPadding,
-          ...styles.containerRightBorderThin,
-          ...(!isLastRow ? styles.containerBottomBorderThin : {}),
-        }}
-      >
-        <Text
-          key={"meal_" + pageCounter + "_" + mealType.uid}
-          style={{
-            ...styles.body,
-            ...styles.alignLeft,
-            ...styles.marginTop6,
-          }}
-        >
-          {mealType.name}
-        </Text>
-      </View>
-      {/* Tagesspalten */}
-      {datesOfPage.map((day, dayCounter) => (
-        <MenuplanMealCell
-          key={
-            "mealRow_" + mealType.uid + "_" + pageCounter + "_" + dayCounter
-          }
-          day={day}
-          dayCounter={dayCounter}
-          datesOfPage={datesOfPage}
-          mealType={mealType}
-          mealLookup={mealLookup}
-          menues={menues}
-          mealRecipes={mealRecipes}
-          products={products}
-          materials={materials}
-          notes={notes}
-          isLastRow={isLastRow}
-          pdfOptions={pdfOptions}
-        />
-      ))}
-    </View>
-  );
-};
-
+// ─── Mahlzeitentyp-Band ────────────────────────────────────────────
 
 /**
- * Eine einzelne Zelle in der Mahlzeiten-Tabelle (ein Tag × ein Mahlzeitentyp).
- * Rendert alle Menüs dieses Tages für den gegebenen Mahlzeitentyp.
+ * Props eines Mahlzeitentyp-Bands (farbiges Banner + Inhaltszellen).
  *
- * @param day - Das Datum dieser Spalte (oder null für Padding).
- * @param dayCounter - Spaltenindex.
- * @param datesOfPage - Alle Tage der Seite (für Rand-Berechnung).
  * @param mealType - Der Mahlzeitentyp.
+ * @param dates - Alle Tage des Menüplans.
+ * @param columnWidth - Berechnete Spaltenbreite.
  * @param mealLookup - Vorberechnete Meal-Lookup-Map.
  * @param menues - Alle Menüs.
  * @param mealRecipes - Alle eingeplanten Rezepte.
  * @param products - Alle eingeplanten Produkte.
  * @param materials - Alle eingeplanten Materialien.
  * @param notes - Alle Notizen.
- * @param isLastRow - Ob dies die letzte Zeile ist.
  * @param pdfOptions - Vom Benutzer gewählte Darstellungsoptionen.
+ * @param styles - Adaptives StyleSheet.
  */
-interface MenuplanMealCellProps {
-  day: Date | null;
-  dayCounter: number;
-  datesOfPage: (Date | null)[];
+interface MealTypeBandProps {
   mealType: MealType;
+  dates: Date[];
+  columnWidth: string;
   mealLookup: Map<string, Meal>;
   menues: MenuplanData["menues"];
-  mealRecipes: MenuplanData["mealRecipes"];
-  products: MenuplanData["products"];
-  materials: MenuplanData["materials"];
+  mealRecipes: MealRecipes;
+  products: Products;
+  materials: Materials;
   notes: MenuplanData["notes"];
-  isLastRow: boolean;
   pdfOptions: MenuplanPdfOptions;
+  styles: ReturnType<typeof createMenuplanPdfStyles>;
 }
 
-const MenuplanMealCell = ({
-  day,
-  dayCounter,
-  datesOfPage,
+/**
+ * Farbiges Band für einen Mahlzeitentyp.
+ * Besteht aus einem farbigen Banner mit dem Typnamen und einer
+ * Zeile mit Inhaltszellen (eine pro Tag).
+ *
+ * @param mealType - Der Mahlzeitentyp.
+ * @param dates - Alle Tage.
+ * @param columnWidth - Spaltenbreite.
+ * @param mealLookup - Meal-Lookup-Map.
+ * @param menues - Menüs.
+ * @param mealRecipes - Rezepte.
+ * @param products - Produkte.
+ * @param materials - Materialien.
+ * @param notes - Notizen.
+ * @param pdfOptions - PDF-Optionen.
+ * @param styles - StyleSheet.
+ */
+const MealTypeBand = ({
   mealType,
+  dates,
+  columnWidth,
   mealLookup,
   menues,
   mealRecipes,
   products,
   materials,
   notes,
-  isLastRow,
   pdfOptions,
-}: MenuplanMealCellProps) => {
-  const isNullCell = day === null;
-  const isLastColumn =
-    dayCounter === MENUPLAN_NO_OF_COLUMS_PRINT ||
-    datesOfPage[dayCounter + 1] === null;
-
-  const meal =
-    day !== null
-      ? mealLookup.get(`${mealType.uid}_${Utils.dateAsString(day)}`) ?? null
-      : null;
-
-  return (
-    <View style={getCellBorderStyle({isNullCell, isLastColumn, isLastRow})}>
-      {meal !== null &&
-        meal.menuOrder.map((menuUid) => (
-          <MenuplanMenuBlock
-            key={"menue" + menuUid}
-            menue={menues[menuUid]}
-            mealRecipes={mealRecipes}
-            products={products}
-            materials={materials}
-            note={
-              day !== null
-                ? findNoteForMenu(notes, menuUid, day)
-                : undefined
-            }
-            pdfOptions={pdfOptions}
-          />
-        ))}
-    </View>
-  );
-};
-
-
-/**
- * Ein einzelnes Menü innerhalb einer Mahlzeit-Zelle.
- * Zeigt den Menünamen (fett), alle Rezepte, optionale Produkte/Materialien
- * und eine optionale Notiz.
- *
- * @param menue - Das Menü mit Name und Rezept-/Produkt-/Material-Reihenfolge.
- * @param mealRecipes - Alle eingeplanten Rezepte.
- * @param products - Alle eingeplanten Produkte.
- * @param materials - Alle eingeplanten Materialien.
- * @param note - Optionale Notiz zu diesem Menü.
- * @param pdfOptions - Vom Benutzer gewählte Darstellungsoptionen.
- */
-interface MenuplanMenuBlockProps {
-  menue: Menue;
-  mealRecipes: MealRecipes;
-  products: Products;
-  materials: Materials;
-  note: Note | undefined;
-  pdfOptions: MenuplanPdfOptions;
-}
-
-const MenuplanMenuBlock = ({
-  menue,
-  mealRecipes,
-  products,
-  materials,
-  note,
-  pdfOptions,
-}: MenuplanMenuBlockProps) => {
-  // Prüfen, ob nach den Rezepten noch Produkte/Materialien folgen
-  // (beeinflusst den Abstand des letzten Rezepts)
-  const hasTrailingGoods =
-    (pdfOptions.showProducts && menue.productOrder.length > 0) ||
-    (pdfOptions.showMaterials && menue.materialOrder.length > 0);
-
+  styles,
+}: MealTypeBandProps) => {
   return (
     <React.Fragment>
-      <Text
+      {/* Farbiges Banner mit Mahlzeitentyp-Name */}
+      <View
         style={{
-          ...styles.body,
-          ...styles.bold,
-          ...styles.alignLeft,
-          ...styles.marginTop6,
-          ...styles.marginBottom3,
+          ...styles.mealBanner,
+          backgroundColor: MEAL_BAND_BG,
         }}
       >
-        {menue.name}
-      </Text>
-      {menue.mealRecipeOrder.map((recipeUid, recipeCounter) => (
-        <MenuplanRecipeEntry
-          key={"recipe_" + recipeUid}
-          mealRecipe={mealRecipes[recipeUid]}
-          isLastEntry={
-            recipeCounter + 1 === menue.mealRecipeOrder.length &&
-            !hasTrailingGoods
-          }
-          showPortions={pdfOptions.showPortions}
-        />
-      ))}
-      {/* Produkte */}
-      {pdfOptions.showProducts &&
-        menue.productOrder.map((productUid, idx) => {
-          const product = products[productUid];
-          if (!product) return null;
-          const isLast =
-            idx + 1 === menue.productOrder.length &&
-            !(pdfOptions.showMaterials && menue.materialOrder.length > 0);
+        <Text style={{...styles.mealBannerText, color: MEAL_BAND_TEXT}}>
+          {mealType.name}
+        </Text>
+      </View>
+
+      {/* Inhaltszellen: eine pro Tag */}
+      <View style={styles.contentRow}>
+        {dates.map((day, dayIndex) => {
+          const dateString = Utils.dateAsString(day);
+          const meal = mealLookup.get(`${mealType.uid}_${dateString}`) ?? null;
+
           return (
-            <MenuplanGoodsEntry
-              key={"product_" + productUid}
-              name={product.productName}
-              quantity={product.totalQuantity}
-              unit={product.unit}
-              isLastEntry={isLast}
+            <CompactCell
+              key={"cell_" + mealType.uid + "_" + dayIndex}
+              day={day}
+              dayIndex={dayIndex}
+              dates={dates}
+              columnWidth={columnWidth}
+              meal={meal}
+              menues={menues}
+              mealRecipes={mealRecipes}
+              products={products}
+              materials={materials}
+              notes={notes}
+              pdfOptions={pdfOptions}
+              styles={styles}
             />
           );
         })}
-      {/* Materialien */}
-      {pdfOptions.showMaterials &&
-        menue.materialOrder.map((materialUid, idx) => {
-          const material = materials[materialUid];
-          if (!material) return null;
-          return (
-            <MenuplanGoodsEntry
-              key={"material_" + materialUid}
-              name={material.materialName}
-              quantity={material.totalQuantity}
-              unit={material.unit}
-              isLastEntry={idx + 1 === menue.materialOrder.length}
-            />
-          );
-        })}
-      {note && <MenuplanNoteBlock text={note.text} />}
+      </View>
     </React.Fragment>
   );
 };
 
 
+// ─── Kompakte Zelle ────────────────────────────────────────────────
+
 /**
- * Eine einzelne Rezeptzeile innerhalb eines Menü-Blocks.
- * Zeigt den Rezeptnamen mit optionalem Varianten-Badge und Portionen.
+ * Props einer kompakten Inhaltszelle (ein Tag × ein Mahlzeitentyp).
  *
- * @param mealRecipe - Das eingeplante Rezept (kann undefined sein, wenn gelöscht).
- * @param isLastEntry - Ob dies der letzte Eintrag im Menü ist (für Abstand).
- * @param showPortions - Ob die Portionenzahl angezeigt werden soll.
+ * @param day - Das Datum dieser Zelle.
+ * @param dayIndex - Spaltenindex (für Hintergrund-Tinting).
+ * @param dates - Alle Tage (für Zeitscheiben-Grenze-Erkennung).
+ * @param columnWidth - Berechnete Spaltenbreite.
+ * @param meal - Die Mahlzeit (oder null wenn keine geplant).
+ * @param menues - Alle Menüs.
+ * @param mealRecipes - Alle eingeplanten Rezepte.
+ * @param products - Alle eingeplanten Produkte.
+ * @param materials - Alle eingeplanten Materialien.
+ * @param notes - Alle Notizen.
+ * @param pdfOptions - Vom Benutzer gewählte Darstellungsoptionen.
+ * @param styles - Adaptives StyleSheet.
  */
-interface MenuplanRecipeEntryProps {
-  mealRecipe: MealRecipes[string] | undefined;
-  isLastEntry: boolean;
-  showPortions: boolean;
+interface CompactCellProps {
+  day: Date;
+  dayIndex: number;
+  dates: Date[];
+  columnWidth: string;
+  meal: Meal | null;
+  menues: MenuplanData["menues"];
+  mealRecipes: MealRecipes;
+  products: Products;
+  materials: Materials;
+  notes: MenuplanData["notes"];
+  pdfOptions: MenuplanPdfOptions;
+  styles: ReturnType<typeof createMenuplanPdfStyles>;
 }
 
-const MenuplanRecipeEntry = ({
-  mealRecipe,
-  isLastEntry,
-  showPortions,
-}: MenuplanRecipeEntryProps) => {
-  return (
-    <Text
-      style={
-        isLastEntry
-          ? {
-              ...styles.body,
-              ...styles.alignLeft,
-              ...styles.marginLeft12,
-              ...styles.marginBottom6,
-            }
-          : {
-              ...styles.body,
-              ...styles.alignLeft,
-              ...styles.marginLeft12,
-            }
-      }
-    >
-      {/* Kann sein, dass das Menü nicht mehr existiert (aber der Index-Eintrag).
-          Daher wird mit ?. gearbeitet, damit es keine Exception auslöst. */}
-      {mealRecipe?.recipe.name}
-      {mealRecipe?.recipe.type === RecipeType.variant && (
-        <Text style={{...styles.gray}}>
-          {` [${mealRecipe.recipe.variantName}]`}
-        </Text>
-      )}
-      {showPortions && mealRecipe && mealRecipe.totalPortions > 0 && (
-        <Text style={{...styles.gray, ...styles.bodyFontSmall}}>
-          {` (${mealRecipe.totalPortions} Port.)`}
-        </Text>
-      )}
-    </Text>
-  );
-};
-
-
 /**
- * Eine einzelne Produkt- oder Material-Zeile innerhalb eines Menü-Blocks.
- * Darstellung in Kursiv/Grau, um sie von Rezepten zu unterscheiden.
+ * Kompakte Darstellung einer einzelnen Zelle im Menüplan-Grid.
+ * Zeigt Menüname, Rezepte, optionale Produkte/Materialien
+ * und inline Menü-Notizen. Nur Notizen sind zentriert.
  *
- * @param name - Anzeigename des Produkts/Materials.
- * @param quantity - Gesamtmenge.
- * @param unit - Einheits-Key.
- * @param isLastEntry - Ob dies der letzte Eintrag im Menü ist (für Abstand).
+ * @param day - Datum der Zelle.
+ * @param dayIndex - Spaltenindex.
+ * @param dates - Alle Tage.
+ * @param columnWidth - Spaltenbreite.
+ * @param meal - Mahlzeit oder null.
+ * @param menues - Menüs.
+ * @param mealRecipes - Rezepte.
+ * @param products - Produkte.
+ * @param materials - Materialien.
+ * @param notes - Notizen.
+ * @param pdfOptions - PDF-Optionen.
+ * @param styles - StyleSheet.
  */
-interface MenuplanGoodsEntryProps {
-  name: string;
-  quantity: number;
-  unit: string;
-  isLastEntry: boolean;
-}
+const CompactCell = ({
+  day,
+  dayIndex,
+  dates,
+  columnWidth,
+  meal,
+  menues,
+  mealRecipes,
+  products,
+  materials,
+  notes,
+  pdfOptions,
+  styles,
+}: CompactCellProps) => {
+  const rightBorder = getRightBorderStyle(dates, dayIndex, styles);
 
-const MenuplanGoodsEntry = ({
-  name,
-  quantity,
-  unit,
-  isLastEntry,
-}: MenuplanGoodsEntryProps) => {
-  // Menge formatieren: 0 nicht anzeigen, Dezimalstellen nur wenn nötig
-  const quantityText =
-    quantity > 0
-      ? `${Number.isInteger(quantity) ? quantity : quantity.toFixed(1)} ${unit} `
-      : "";
-
-  return (
-    <Text
-      style={
-        isLastEntry
-          ? {
-              ...styles.body,
-              ...styles.italic,
-              ...styles.gray,
-              ...styles.alignLeft,
-              ...styles.marginLeft12,
-              ...styles.marginBottom6,
-            }
-          : {
-              ...styles.body,
-              ...styles.italic,
-              ...styles.gray,
-              ...styles.alignLeft,
-              ...styles.marginLeft12,
-            }
-      }
-    >
-      {quantityText}{name}
-    </Text>
-  );
-};
-
-
-/**
- * Einheitliche Darstellung einer Notiz im Menüplan-PDF.
- * Grauer Hintergrund, kursiv — wird sowohl für Tages- als auch Menü-Notizen verwendet.
- *
- * @param text - Der Notiztext.
- */
-const MenuplanNoteBlock = ({text}: {text: string}) => {
   return (
     <View
       style={{
-        ...styles.noteBackground,
-        ...styles.marginTop6,
-        ...styles.marginBottom6,
+        ...styles.cellPadding,
+        ...rightBorder,
+        width: columnWidth,
+        backgroundColor: getColumnBackground(dayIndex),
       }}
     >
-      <Text
-        style={{
-          ...styles.body,
-          ...styles.italic,
-          textAlign: "center",
-        }}
-      >
-        {text}
-      </Text>
+      {/* Menü-Inhalte */}
+      {meal !== null &&
+        meal.menuOrder.map((menuUid) => {
+          const menue = menues[menuUid];
+          if (!menue) return null;
+
+          // Menü-Notiz inline anzeigen
+          const menuNote = findNoteForMenu(notes, menuUid, day);
+
+          return (
+            <View key={"compactMenu_" + menuUid}>
+              {/* Menüname immer anzeigen */}
+              <Text style={{...styles.menuName, ...styles.alignLeft}}>
+                {menue.name}
+              </Text>
+
+              {/* Rezepte */}
+              {menue.mealRecipeOrder.map((recipeUid) => {
+                const mealRecipe = mealRecipes[recipeUid];
+                return (
+                  <Text
+                    key={"recipe_" + recipeUid}
+                    style={{...styles.body, ...styles.alignLeft}}
+                  >
+                    {mealRecipe?.recipe.name}
+                    {mealRecipe?.recipe.type === RecipeType.variant && (
+                      <Text style={styles.gray}>
+                        {` [${mealRecipe.recipe.variantName}]`}
+                      </Text>
+                    )}
+                    {pdfOptions.showPortions &&
+                      mealRecipe &&
+                      mealRecipe.totalPortions > 0 && (
+                        <Text style={{...styles.gray, ...styles.bodySmall}}>
+                          {` (${mealRecipe.totalPortions} P.)`}
+                        </Text>
+                      )}
+                  </Text>
+                );
+              })}
+
+              {/* Produkte — ein Eintrag pro Zeile */}
+              {pdfOptions.showProducts &&
+                menue.productOrder.map((productUid) => {
+                  const product = products[productUid];
+                  if (!product) return null;
+                  return (
+                    <Text
+                      key={"product_" + productUid}
+                      style={{
+                        ...styles.bodySmall,
+                        ...styles.italic,
+                        ...styles.gray,
+                        ...styles.alignLeft,
+                      }}
+                    >
+                      {formatQuantity(product.totalQuantity, product.unit)}
+                      {product.productName}
+                    </Text>
+                  );
+                })}
+
+              {/* Materialien — ein Eintrag pro Zeile */}
+              {pdfOptions.showMaterials &&
+                menue.materialOrder.map((materialUid) => {
+                  const material = materials[materialUid];
+                  if (!material) return null;
+                  return (
+                    <Text
+                      key={"material_" + materialUid}
+                      style={{
+                        ...styles.bodySmall,
+                        ...styles.italic,
+                        ...styles.gray,
+                        ...styles.alignLeft,
+                      }}
+                    >
+                      {formatQuantity(material.totalQuantity, material.unit)}
+                      {material.materialName}
+                    </Text>
+                  );
+                })}
+
+              {/* Menü-Notiz inline */}
+              {menuNote && (
+                <Text style={styles.noteInline}>
+                  {menuNote.text}
+                </Text>
+              )}
+            </View>
+          );
+        })}
     </View>
   );
 };
 
+
 export {MenuplanPdf};
-
-// Export für Unit-Tests
-export {
-  splitDatesIntoPages,
-  buildMealLookup,
-  getCellBorderStyle,
-  findNoteForDate,
-  findNoteForMenu,
-};
-
-const styles = pdfStyles;

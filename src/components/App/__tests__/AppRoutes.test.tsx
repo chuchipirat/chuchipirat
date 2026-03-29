@@ -95,10 +95,6 @@ jest.mock("../privacyPolicy", () => ({
 jest.mock("../termOfUse", () => ({
   TermOfUsePage: () => <div>TermOfUse</div>,
 }));
-jest.mock("../../Temp/schema", () => ({
-  __esModule: true,
-  default: () => <div>Schema</div>,
-}));
 jest.mock("../../Event/Event/event", () => ({
   EventPage: () => <div>Event</div>,
 }));
@@ -206,7 +202,7 @@ const renderAtPath = (path: string) => {
       <React.Suspense fallback={<div>Loading...</div>}>
         <AppRoutes />
       </React.Suspense>
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 };
 

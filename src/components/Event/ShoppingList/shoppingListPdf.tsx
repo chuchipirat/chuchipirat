@@ -399,11 +399,11 @@ const ShoppingListTitle = ({
       <View>
         <Text style={styles.title}>{TEXT_SHOPPING_LIST}</Text>
       </View>
-      <View style={styles.containerBottomBorder} />
+      <View style={styles.titleUnderline} />
       <Text
-        style={styles.subSubTitle}
+        style={styles.subTitle}
       >{`${shoppingListName}: ${shoppingListSelectedTimeSlice} (${itemCount} ${TEXT_ITEM})`}</Text>
-      <View style={styles.containerBottomBorder} />
+      <View style={styles.infoSectionDivider} />
     </React.Fragment>
   );
 };
@@ -496,13 +496,7 @@ const ShoppingListColumn = ({
         style={styles.tableCol50}
         key={`itemBlockDepartment_${side}_${pageNumber}_${line}`}
       >
-        <Text
-          style={{
-            ...styles.tableCellBold,
-            ...styles.tableCellAlignLeft,
-            ...styles.tableCellMarginTop,
-          }}
-        >
+        <Text style={styles.departmentHeading}>
           {entry.name}
         </Text>
       </View>

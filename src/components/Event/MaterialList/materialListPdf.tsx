@@ -132,11 +132,11 @@ const MaterialListTitle = ({
       <View>
         <Text style={styles.title}>{TEXT_MATERIAL_LIST}</Text>
       </View>
-      <View style={styles.containerBottomBorder} />
+      <View style={styles.titleUnderline} />
       <Text
-        style={styles.subSubTitle}
+        style={styles.subTitle}
       >{`${materialListName}: ${materialListSelectedTimeSlice} (${itemCount} Positionen)`}</Text>
-      <View style={styles.containerBottomBorder} />
+      <View style={styles.infoSectionDivider} />
     </React.Fragment>
   );
 };

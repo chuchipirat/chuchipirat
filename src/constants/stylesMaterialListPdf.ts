@@ -1,46 +1,71 @@
-import {StyleSheet} from "@react-pdf/renderer";
-import {PDF_TOKENS} from "./pdfTokens";
-
 /**
- * Stile für den Materialliste-PDF-Export.
+ * Stildefinitionen für den Materialliste-PDF-Export.
+ *
+ * Verwendet App-Farbe (#006064) als Akzentfarbe für Titelunterstrich,
+ * Trennlinien und Spaltenüberschriften — konsistent mit dem
+ * Rezept- und Menüplan-PDF.
  *
  * Wird von `materialListPdf.tsx` verwendet.
  */
+import {StyleSheet} from "@react-pdf/renderer";
+import {PDF_TOKENS} from "./pdfTokens";
+
+/** App-Primärfarbe (Teal). */
+export const APP_PRIMARY = "#006064";
+
 export const pdfStyles = StyleSheet.create({
-  containerBottomBorder: {
-    ...PDF_TOKENS.borderBottom,
-  },
-  title: {
-    fontSize: PDF_TOKENS.fontSize.title,
-    textAlign: "center",
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.thin,
-    marginBottom: 10,
-  },
-  subSubTitle: {
-    fontSize: PDF_TOKENS.fontSize.subSubTitle,
-    textAlign: "center",
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.thin,
-    marginBottom: 10,
-  },
+  /* ── Seiten-Body ────────────────────────────── */
   body: {
     paddingTop: PDF_TOKENS.margin.top,
     paddingBottom: PDF_TOKENS.margin.bottom,
     paddingHorizontal: PDF_TOKENS.margin.horizontal,
   },
+
+  /* ── Titel ──────────────────────────────────── */
+  title: {
+    fontSize: 28,
+    textAlign: "center",
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.thin,
+    marginBottom: 4,
+  },
+
+  /** Teal-Unterstrich unter dem Titel. */
+  titleUnderline: {
+    borderBottomWidth: 1,
+    borderBottomColor: APP_PRIMARY,
+    borderBottomStyle: "solid",
+    marginBottom: 4,
+  },
+
+  /* ── Untertitel (Listenname + Zeitraum) ──────── */
+  subTitle: {
+    fontSize: 14,
+    textAlign: "center",
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.thin,
+    marginBottom: 4,
+  },
+
+  /** Trennlinie unter dem Untertitel. */
+  infoSectionDivider: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#00606433", // APP_PRIMARY mit ~20% Opacity
+    borderBottomStyle: "solid",
+    marginBottom: 4,
+  },
+
+  /* ── Tabelle ────────────────────────────────── */
   table: {
     ...PDF_TOKENS.table,
   },
   tableRow: {
     ...PDF_TOKENS.tableRow,
   },
-  tableCol50: {
-    width: "50%",
-    textAlign: "center",
-  },
+
+  /* ── Spaltenbreiten ─────────────────────────── */
   tableCol5: {
     width: "5%",
     textAlign: "center",
@@ -48,10 +73,6 @@ export const pdfStyles = StyleSheet.create({
   tableColQuantity: {
     width: "40%",
     textAlign: "right",
-  },
-  tableColUnit: {
-    width: "10%",
-    textAlign: "left",
   },
   tableColItem: {
     width: "60%",
@@ -65,15 +86,27 @@ export const pdfStyles = StyleSheet.create({
     width: "25%",
     textAlign: "left",
   },
+
+  /* ── Spalten-Überschriften ──────────────────── */
+  columnHeading: {
+    fontSize: 13,
+    textAlign: "left",
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+    marginBottom: 4,
+  },
+
+  /* ── Zellen-Formate ─────────────────────────── */
   tableCell: {
     ...PDF_TOKENS.tableCell,
   },
   tableCellBold: {
     ...PDF_TOKENS.tableCellBold,
   },
-  tableCellAlignLeft: {
-    textAlign: "left",
-  },
+
+  /* ── Abgehakte Items ────────────────────────── */
   strikeTrough: {
     textDecoration: "line-through",
   },
