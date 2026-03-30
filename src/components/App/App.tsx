@@ -21,6 +21,7 @@ import {
   ConditionalFooter,
 } from "./AppLayout";
 import {SessionStorageHandler} from "../Firebase/Db/sessionStorageHandler.class";
+import {SentryRouteTracker} from "../Sentry/SentryRouteTracker";
 import {FEEDBACK as TEXT_FEEDBACK} from "../../constants/text";
 
 /**
@@ -103,6 +104,7 @@ const App = () => {
       <ThemeProvider theme={theme}>
         <CssBaseline />
         <Router>
+          <SentryRouteTracker />
           <Navigation />
           <ScrollToTop />
           <ConditionalGoBackFab />

@@ -1,7 +1,7 @@
 import React, {SyntheticEvent} from "react";
 import {useTheme} from "@mui/material/styles";
 import {useNavigate, useLocation} from "react-router";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {
   Accordion,

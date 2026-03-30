@@ -55,7 +55,7 @@ import {
 } from "../../../constants/text";
 import * as ROUTES from "../../../constants/routes";
 import {useCustomStyles} from "../../../constants/styles";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================

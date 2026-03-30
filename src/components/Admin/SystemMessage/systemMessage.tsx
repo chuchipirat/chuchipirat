@@ -1,7 +1,7 @@
 import React from "react";
 import {useNavigate, useParams} from "react-router";
 
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import DOMPurify from "dompurify";
 
 import {useDatabase} from "../../Database/DatabaseContext";

@@ -65,7 +65,7 @@ import {deDE} from "@mui/x-data-grid/locales";
 import {FeedDomain} from "../../Database/Repository/FeedRepository";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useDatabase} from "../../Database/DatabaseContext";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================

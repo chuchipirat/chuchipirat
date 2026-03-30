@@ -5,7 +5,7 @@
  * Aktionen ausgelöst werden (Rezeptveröffentlichung, Benachrichtigungen,
  * Feed-Einträge) und dass Fehler korrekt an Sentry gemeldet werden.
  */
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import {RequestService} from "../requestService";
 import {RequestStatus, RequestType} from "../request.class";
 import {RecipeType} from "../../Recipe/recipe.class";
@@ -25,7 +25,7 @@ jest.mock("../../Database/supabaseClient", () => ({
   },
 }));
 
-jest.mock("@sentry/browser", () => ({
+jest.mock("@sentry/react", () => ({
   captureException: jest.fn(),
 }));
 

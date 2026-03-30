@@ -8,7 +8,7 @@
  * @example
  * await RequestService.executePostAction(request, 'done', database);
  */
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import {RequestDomain} from "../Database/Repository/RequestRepository";
 import {RequestStatus, RequestType} from "./request.class";
 import DatabaseService from "../Database/DatabaseService";

@@ -27,7 +27,7 @@ import {
   Add as AddIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";

@@ -46,7 +46,7 @@ import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 
 import {AlertMessage} from "../../Shared/AlertMessage";
 
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {useAuthUser} from "../../Session/authUserContext";
 import {useDatabase} from "../../Database/DatabaseContext";

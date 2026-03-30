@@ -109,7 +109,7 @@ import {DataGrid, GridColDef, GridSortModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import isEqual from "lodash/isEqual";
 
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
 /* ===================================================================

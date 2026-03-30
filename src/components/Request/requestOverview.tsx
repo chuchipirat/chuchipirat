@@ -7,7 +7,7 @@
  */
 import React from "react";
 import {useParams} from "react-router";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {
   Alert,

@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import Recipe, {MenuType, RecipeType} from "./recipe.class";
 import {Event} from "../Event/Event/event.class";
 import Firebase from "../Firebase/firebase.class";
@@ -182,7 +183,7 @@ export class RecipeShort {
       .then((result) => {
         recipesShort = this.moveDbDateFromObjectToArray(result);
       })
-      .catch((error) => console.error(error));
+      .catch((error) => Sentry.captureException(error));
 
     recipesShort = Utils.sortArray({
       array: recipesShort,
@@ -209,7 +210,7 @@ export class RecipeShort {
       .then((result) => {
         recipesShort = this.moveDbDateFromObjectToArray(result);
       })
-      .catch((error) => console.error(error));
+      .catch((error) => Sentry.captureException(error));
 
     recipesShort = Utils.sortArray({
       array: recipesShort,
@@ -343,7 +344,7 @@ export class RecipeShort {
         firebase: firebase,
         recipeUid: recipeUid,
       }).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     } else if (recipeType === RecipeType.private) {
@@ -352,7 +353,7 @@ export class RecipeShort {
         recipeUid: recipeUid,
         userUid: authUser.uid,
       }).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     } else if (recipeType === RecipeType.variant) {
@@ -361,7 +362,7 @@ export class RecipeShort {
         recipeUid: recipeUid,
         eventUid: eventUid,
       }).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     }
@@ -423,7 +424,7 @@ export class RecipeShort {
    */
   static deleteOverview = async ({eventUid, firebase}: DeleteAllVariants) => {
     firebase.recipeShortVariant.delete({uids: [eventUid]}).catch((error) => {
-      console.error(error);
+      Sentry.captureException(error);
       throw error;
     });
   };

@@ -954,6 +954,16 @@ const EventPage = () => {
               type: ReducerActions.EVENT_FETCH_SUCCESS,
               payload: event,
             });
+
+            // Sentry-Kontext setzen, damit Fehler innerhalb eines Events
+            // dem Event zugeordnet werden können.
+            Sentry.setContext("event", {
+              id: event.uid,
+              name: event.name,
+              location: event.location,
+              numberOfDays: event.numberOfDays,
+              cooksCount: event.cooks?.length ?? 0,
+            });
           }
         })
         .catch((error) => {
@@ -979,6 +989,8 @@ const EventPage = () => {
 
     return function cleanup() {
       unsubscribe();
+      // Sentry-Event-Kontext zurücksetzen, wenn die Event-Seite verlassen wird.
+      Sentry.setContext("event", null);
     };
   }, []);
   React.useEffect(() => {

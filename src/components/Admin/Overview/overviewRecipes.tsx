@@ -63,7 +63,7 @@ import {FormListItem} from "../../Shared/formListItem";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import {useCustomStyles} from "../../../constants/styles";
 
 import {

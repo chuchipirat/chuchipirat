@@ -68,7 +68,7 @@ import {useCustomStyles} from "../../constants/styles";
 import {Unit} from "./unit.class";
 import {UnitConversion} from "./unitConversion.class";
 
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {UnitConversionBasicDomain} from "../Database/Repository/UnitConversionBasicRepository";

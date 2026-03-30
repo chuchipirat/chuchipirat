@@ -6,7 +6,7 @@
  * mit optionalen Detail-Dialogen und Cleanup-Aktionen.
  */
 import React, {useCallback, useReducer, useState} from "react";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {
   Container,

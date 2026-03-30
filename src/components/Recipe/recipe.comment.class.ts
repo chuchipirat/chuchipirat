@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import {UserShort} from "../User/user.class";
 import Firebase from "../Firebase/firebase.class";
 import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
@@ -54,7 +55,7 @@ export class RecipeComment {
         comments = result as RecipeComment[];
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     return comments;
@@ -89,7 +90,7 @@ export class RecipeComment {
         newComment = result.value;
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     return newComment;

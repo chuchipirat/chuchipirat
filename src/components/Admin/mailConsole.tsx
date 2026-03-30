@@ -8,7 +8,7 @@
  */
 import React from "react";
 
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import DOMPurify from "dompurify";
 
 import {useAuthUser} from "../Session/authUserContext";

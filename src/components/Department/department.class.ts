@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import {Utils} from "../Shared/utils.class";
 import Firebase from "../Firebase/firebase.class";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
@@ -91,7 +92,7 @@ export default class Department {
         authUser: authUser,
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     return department;
@@ -144,7 +145,7 @@ export default class Department {
         authUser: authUser,
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };

@@ -11,6 +11,7 @@
  *
  * @see https://gist.github.com/karimnaaji/b6c9c9e819204113e9cabf290d580551
  */
+import * as Sentry from "@sentry/react";
 import {Font} from "@react-pdf/renderer";
 
 try {
@@ -46,8 +47,7 @@ try {
     url: "https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/",
   });
 } catch (error) {
-  console.error(
-    "PDF-Schriftregistrierung fehlgeschlagen. PDF-Export wird voraussichtlich nicht korrekt funktionieren:",
-    error,
-  );
+  Sentry.captureException(error, {
+    extra: {context: "PDF-Schriftregistrierung fehlgeschlagen"},
+  });
 }

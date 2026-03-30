@@ -47,7 +47,7 @@ import {
 } from "@mui/icons-material";
 import {DataGrid, GridColDef, GridToolbar} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";

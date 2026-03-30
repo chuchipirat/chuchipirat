@@ -15,6 +15,7 @@
  * const comments = await repo.getCommentsForRecipe('recipe-id');
  * const comment = await repo.insertComment({recipeId: 'r1', comment: 'Lecker!'}, authUser);
  */
+import * as Sentry from "@sentry/react";
 import {SupabaseClient} from "@supabase/supabase-js";
 import {BaseRepository} from "./BaseRepository";
 import {
@@ -270,7 +271,9 @@ export class RecipeCommentRepository extends BaseRepository<
         body: {commentId: value.uid, recipeId: params.recipeId},
       })
       .catch((err: unknown) =>
-        console.error("notify-recipe-comment konnte nicht aufgerufen werden:", err),
+        Sentry.captureException(err, {
+          extra: {context: "notify-recipe-comment konnte nicht aufgerufen werden"},
+        }),
       );
 
     // Profilfelder aus authUser anreichern — kein zusätzlicher DB-Query nötig

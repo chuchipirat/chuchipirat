@@ -18,6 +18,7 @@
  * const job = new RequestMigrationJob();
  * const records = await job.fetchSourceRecords(firebase, database);
  */
+import * as Sentry from "@sentry/react";
 import {collection, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
@@ -278,10 +279,11 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
           .insert(commentRows);
 
         if (commentError) {
-          console.error(
-            `Kommentare für Antrag #${fb.number} konnten nicht migriert werden:`,
-            commentError,
-          );
+          Sentry.captureException(commentError, {
+            extra: {
+              context: `Kommentare für Antrag #${fb.number} konnten nicht migriert werden`,
+            },
+          });
         }
       }
     }

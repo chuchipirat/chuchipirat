@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import {HOME_STATS_CAPTIONS as TEXT_HOME_STATS_CAPTIONS} from "../../constants/text";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import Firebase from "../Firebase/firebase.class";
@@ -109,7 +110,7 @@ export class Stats {
     await firebase.stats.counter
       .set<Stats>({uids: [], value: stats, authUser: authUser})
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };
@@ -133,7 +134,7 @@ export class Stats {
         );
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     return stats;
@@ -182,7 +183,7 @@ export class Stats {
         return result;
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };
@@ -198,7 +199,7 @@ export class Stats {
         return result;
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };

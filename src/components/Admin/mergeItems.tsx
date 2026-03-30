@@ -10,7 +10,7 @@
  * früheren Firebase Cloud Functions.
  */
 import React from "react";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {useCustomStyles} from "../../constants/styles";
 

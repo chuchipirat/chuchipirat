@@ -1,6 +1,6 @@
 import React, {useCallback, useRef} from "react";
 import {useNavigate, useSearchParams} from "react-router";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {
   Stack,

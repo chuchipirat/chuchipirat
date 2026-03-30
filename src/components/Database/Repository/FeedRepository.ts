@@ -14,7 +14,7 @@
  * await repo.insertFeed({feedType: FeedType.recipePublished, ...}, authUser);
  */
 import {SupabaseClient} from "@supabase/supabase-js";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,

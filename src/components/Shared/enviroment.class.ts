@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import Firebase from "../Firebase/firebase.class";
 
 interface GetActualVersion {
@@ -20,7 +21,7 @@ interface GetActualVersion {
         actualVersion = result.actualVersion;
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
 

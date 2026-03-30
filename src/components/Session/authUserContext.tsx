@@ -80,12 +80,28 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
 
   /**
    * Setzt authUser im State und im Ref gleichzeitig.
+   * Aktualisiert zusätzlich den Sentry-Benutzerkontext, damit
+   * alle zukünftigen Fehler dem aktuellen Benutzer zugeordnet werden.
    *
    * @param user - Der neue AuthUser-Wert oder null.
    */
   const updateAuthUser = (user: AuthUser | null) => {
     authUserRef.current = user;
     setAuthUser(user);
+
+    if (user) {
+      Sentry.setUser({
+        id: user.uid,
+        email: user.email,
+        username: user.publicProfile.displayName,
+      });
+      Sentry.setTag("user.role", user.roles.join(","));
+      Sentry.setTag("user.emailVerified", String(user.emailVerified));
+    } else {
+      Sentry.setUser(null);
+      Sentry.setTag("user.role", undefined);
+      Sentry.setTag("user.emailVerified", undefined);
+    }
   };
 
   useEffect(() => {

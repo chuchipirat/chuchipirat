@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import Firebase from "../Firebase/firebase.class";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
 import {FeedType} from "../Shared/feed.class";
@@ -79,7 +80,7 @@ export class RecipeRating {
         authUser: authUser,
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
 
@@ -96,7 +97,9 @@ export class RecipeRating {
         authUser,
       )
       .catch((error) => {
-        console.error("Feed-Eintrag konnte nicht erstellt werden:", error);
+        Sentry.captureException(error, {
+          extra: {context: "Feed-Eintrag konnte nicht erstellt werden"},
+        });
       });
   }
 }

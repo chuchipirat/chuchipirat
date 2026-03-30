@@ -65,7 +65,7 @@ import {AlertMessage} from "../Shared/AlertMessage";
 import {useCustomStyles} from "../../constants/styles";
 
 import {Unit, UnitDimension} from "./unit.class";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {

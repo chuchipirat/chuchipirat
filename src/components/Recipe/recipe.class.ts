@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import {Utils} from "../Shared/utils.class";
 import {RecipeShort} from "./recipe.types";
 import {Rating} from "./recipe.types";
@@ -618,7 +619,7 @@ export default class Recipe {
     try {
       Recipe.checkRecipeData(recipe);
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
       throw error;
     }
 

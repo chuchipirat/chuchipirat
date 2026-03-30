@@ -6,7 +6,7 @@
  * von Jobs und Anzeigen von JSONB-Details in einem Dialog.
  */
 import React, {useEffect, useReducer, useCallback, useState} from "react";
-import * as Sentry from "@sentry/browser";
+import * as Sentry from "@sentry/react";
 
 import {
   Container,
