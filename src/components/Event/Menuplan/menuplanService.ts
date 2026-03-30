@@ -731,6 +731,7 @@ export function recalculatePortions({
         totalPortions += plan.totalPortions;
         return plan;
       } else {
+        totalPortions += plan.totalPortions;
         return plan;
       }
     });
@@ -742,8 +743,12 @@ export function recalculatePortions({
 
   // Produkte iterieren
   Object.values(menuplan.products).forEach((product) => {
-    // TOTAL-Modus: fixe Menge, keine Neuberechnung nötig
-    if (product.planMode === GoodsPlanMode.TOTAL) return;
+    // TOTAL-Modus: totalQuantity = quantity setzen
+    // (repariert auch ältere Einträge mit totalQuantity=0)
+    if (product.planMode === GoodsPlanMode.TOTAL) {
+      product.totalQuantity = product.quantity;
+      return;
+    }
 
     let totalPortions = 0;
     product.plan = product.plan.map((plan) => {
@@ -758,6 +763,7 @@ export function recalculatePortions({
         totalPortions += plan.totalPortions;
         return plan;
       } else {
+        totalPortions += plan.totalPortions;
         return plan;
       }
     });
@@ -770,8 +776,12 @@ export function recalculatePortions({
 
   // Material iterieren
   Object.values(menuplan.materials).forEach((material) => {
-    // TOTAL-Modus: fixe Menge, keine Neuberechnung nötig
-    if (material.planMode === GoodsPlanMode.TOTAL) return;
+    // TOTAL-Modus: totalQuantity = quantity setzen
+    // (repariert auch ältere Einträge mit totalQuantity=0)
+    if (material.planMode === GoodsPlanMode.TOTAL) {
+      material.totalQuantity = material.quantity;
+      return;
+    }
 
     let totalPortions = 0;
     material.plan = material.plan.map((plan) => {
@@ -786,6 +796,7 @@ export function recalculatePortions({
         totalPortions += plan.totalPortions;
         return plan;
       } else {
+        totalPortions += plan.totalPortions;
         return plan;
       }
     });
