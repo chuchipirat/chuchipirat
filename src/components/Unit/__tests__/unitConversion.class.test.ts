@@ -185,6 +185,8 @@ describe("UnitConversion.createUnitConversionProduct", () => {
         shoppingUnit: "Stk",
         dietProperties: {allergens: [], diet: Diet.Meat},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     });
 

@@ -392,6 +392,8 @@ const DialogProduct = ({
               shoppingUnit: productPopUpValues?.shoppingUnit?.key ?? "",
               dietProperties: productPopUpValues.dietProperties,
               usable: true,
+              qaChecked: false,
+              qaCheckedAt: null,
             },
             authUser,
           )
@@ -407,6 +409,8 @@ const DialogProduct = ({
               shoppingUnit: result.shoppingUnit,
               dietProperties: result.dietProperties,
               usable: result.usable,
+              qaChecked: false,
+              qaCheckedAt: null,
             };
             trackEvent(AnalyticsEvent.PRODUCT_CREATED);
             handleOk(createdProduct);
@@ -444,6 +448,8 @@ const DialogProduct = ({
                 allergen === Allergen.Lactose || allergen === Allergen.Gluten,
             ),
           },
+          qaChecked: false,
+          qaCheckedAt: null,
         };
         handleOk(editedProduct);
         setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});

@@ -4,8 +4,11 @@
  * Zeigt alle Materialien tabellarisch an und erlaubt das Bearbeiten
  * von Name, Typ und Verwendbarkeit. Nur geänderte Materialien werden
  * beim Speichern in die Datenbank geschrieben.
+ *
+ * Enthält QA-Funktionen: Issue-Erkennung, QA-Checkbox, Kontextmenü
+ * mit Löschfunktion inkl. Where-Used-Prüfung.
  */
-import React, {SyntheticEvent, useCallback} from "react";
+import React, {SyntheticEvent} from "react";
 import * as Sentry from "@sentry/react";
 
 import {
@@ -13,15 +16,17 @@ import {
   Backdrop,
   CircularProgress,
   Typography,
-  Card,
-  CardContent,
-  FormControlLabel,
-  RadioGroup,
-  Radio,
   Checkbox,
-  Stack,
   useTheme,
   SnackbarCloseReason,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  IconButton,
+  Box,
+  Tooltip,
+  Select,
+  SelectChangeEvent,
 } from "@mui/material";
 
 import {
@@ -37,32 +42,64 @@ import {
   MATERIAL_TYPE_USAGE as TEXT_MATERIAL_TYPE_USAGE,
   USABLE as TEXT_USABLE,
   SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
-  FROM as TEXT_FROM,
 } from "../../constants/text";
+import {
+  QA_CHECKED as TEXT_QA_CHECKED,
+  QA_ISSUES as TEXT_QA_ISSUES,
+  DELETE_MATERIAL as TEXT_DELETE_MATERIAL,
+  DELETE_MATERIAL_CONFIRM as TEXT_DELETE_MATERIAL_CONFIRM,
+  DELETE_MATERIAL_SUCCESS as TEXT_DELETE_MATERIAL_SUCCESS,
+  MATERIAL_IN_USE_WARNING as TEXT_MATERIAL_IN_USE_WARNING,
+  MATERIAL_NOT_IN_USE as TEXT_MATERIAL_NOT_IN_USE,
+  CONVERT_TO_PRODUCT as TEXT_CONVERT_TO_PRODUCT,
+  MATERIAL_CONVERTED_TO_PRODUCT as TEXT_MATERIAL_CONVERTED_TO_PRODUCT,
+} from "../../constants/text/materialQa";
 import {Role as Roles} from "../../constants/roles";
+
+import {
+  DataGrid,
+  GridColDef,
+  GridRowSelectionModel,
+} from "@mui/x-data-grid";
+import {deDE} from "@mui/x-data-grid/locales";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {ButtonRow} from "../Shared/buttonRow";
-import {EnhancedTable,
-  TableColumnTypes,
-  ColumnTextAlign,
-} from "../Shared/enhancedTable";
 import {DialogMaterial, MaterialDialog} from "./dialogMaterial";
 import {AlertMessage} from "../Shared/AlertMessage";
+import {MaterialsQaBulkActions} from "./materialsQaBulkActions";
 
-import EditIcon from "@mui/icons-material/Edit";
+import {
+  Edit as EditIcon,
+  MoreVert as MoreVertIcon,
+  Warning as WarningIcon,
+  Delete as DeleteIcon,
+  Cached as CachedIcon,
+} from "@mui/icons-material";
 
 import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
   SnackbarState,
 } from "../Shared/customSnackbar";
 import {useCustomStyles} from "../../constants/styles";
-import {SearchPanel} from "../Shared/searchPanel";
+import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
+import {
+  MaterialsQaFilterBar,
+  QaFilterStatus,
+  MaterialTypeFilter,
+} from "./materialsQaFilterBar";
+import {
+  WhereUsedEntry,
+  MergeMaterialsResult,
+} from "../Database/Repository/AdminOperationsRepository";
+import {DialogMergeMaterials} from "./dialogMergeMaterials";
+import {DialogConvertMaterialToProduct} from "./dialogConvertMaterialToProduct";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {Material, MaterialType} from "./material.types";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
+import {detectMaterialIssues, MaterialIssue} from "./materialQaUtils";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -76,6 +113,13 @@ enum ReducerActions {
   MATERIALS_EDIT_CANCELLED,
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
+  MATERIAL_DELETED,
+  ISSUE_FLAGS_LOADED,
+  QA_TOGGLE,
+  MATERIAL_MERGED,
+  MATERIAL_CONVERTED_TO_PRODUCT,
+  SELECTED_MATERIALS_CHANGED,
+  BULK_QA_CHECK,
 }
 
 /**
@@ -88,7 +132,14 @@ type ReducerAction =
   | {type: ReducerActions.MATERIALS_SAVED}
   | {type: ReducerActions.MATERIALS_EDIT_CANCELLED; payload: Material[]}
   | {type: ReducerActions.SNACKBAR_CLOSE}
-  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error}
+  | {type: ReducerActions.MATERIAL_DELETED; payload: Material}
+  | {type: ReducerActions.ISSUE_FLAGS_LOADED; payload: MaterialIssue[]}
+  | {type: ReducerActions.QA_TOGGLE; payload: {uid: string; checked: boolean}}
+  | {type: ReducerActions.MATERIAL_MERGED; payload: {sourceMaterialUid: string; result: MergeMaterialsResult}}
+  | {type: ReducerActions.MATERIAL_CONVERTED_TO_PRODUCT; payload: Material}
+  | {type: ReducerActions.SELECTED_MATERIALS_CHANGED; payload: string[]}
+  | {type: ReducerActions.BULK_QA_CHECK; payload: string[]};
 
 /**
  * State der MaterialPage.
@@ -98,6 +149,8 @@ type ReducerAction =
  * @property error - Fehlerobjekt bei DB-Problemen
  * @property isLoading - Ladezustand
  * @property snackbar - Snackbar-Zustand
+ * @property issueFlags - Erkannte Qualitätsprobleme pro Material
+ * @property selectedMaterialUids - UIDs der aktuell ausgewählten Materialien (für Merge)
  */
 type State = {
   materials: Material[];
@@ -105,6 +158,8 @@ type State = {
   error: Error | null;
   isLoading: boolean;
   snackbar: SnackbarState;
+  issueFlags: MaterialIssue[];
+  selectedMaterialUids: string[];
 };
 
 const initialState: State = {
@@ -113,6 +168,8 @@ const initialState: State = {
   error: null,
   isLoading: false,
   snackbar: SNACKBAR_INITIAL_STATE_VALUES,
+  issueFlags: [],
+  selectedMaterialUids: [],
 };
 
 /**
@@ -167,6 +224,86 @@ const materialsReducer = (state: State, action: ReducerAction): State => {
     case ReducerActions.GENERIC_ERROR:
       return {...state, error: action.payload, isLoading: false};
 
+    case ReducerActions.MATERIAL_DELETED:
+      return {
+        ...state,
+        materials: state.materials.filter(
+          (material) => material.uid !== action.payload.uid,
+        ),
+        snackbar: {
+          severity: "success",
+          open: true,
+          message: TEXT_DELETE_MATERIAL_SUCCESS(action.payload.name),
+        },
+      };
+
+    case ReducerActions.ISSUE_FLAGS_LOADED:
+      return {...state, issueFlags: action.payload};
+
+    case ReducerActions.QA_TOGGLE: {
+      const {uid, checked} = action.payload;
+      const updatedMaterials = state.materials.map((material) =>
+        material.uid === uid
+          ? {
+              ...material,
+              qaChecked: checked,
+              qaCheckedAt: checked ? new Date().toISOString() : null,
+            }
+          : material,
+      );
+      const changedUids = new Set(state.changedUids);
+      changedUids.add(uid);
+      return {...state, materials: updatedMaterials, changedUids};
+    }
+
+    case ReducerActions.MATERIAL_MERGED:
+      return {
+        ...state,
+        materials: state.materials.filter(
+          (material) => material.uid !== action.payload.sourceMaterialUid,
+        ),
+        selectedMaterialUids: [],
+        snackbar: {
+          open: true,
+          severity: "success",
+          message: `Materialien zusammengeführt. ${action.payload.result.recipe_materials} Rezeptmaterialien, ${action.payload.result.material_list_items} Materiallisten, ${action.payload.result.menue_materials} Menüplan, ${action.payload.result.shopping_list_items} Einkaufslisten aktualisiert.`,
+        },
+      };
+
+    case ReducerActions.MATERIAL_CONVERTED_TO_PRODUCT:
+      return {
+        ...state,
+        materials: state.materials.filter(
+          (material) => material.uid !== action.payload.uid,
+        ),
+        selectedMaterialUids: [],
+        snackbar: {
+          open: true,
+          severity: "success",
+          message: TEXT_MATERIAL_CONVERTED_TO_PRODUCT(action.payload.name),
+        },
+      };
+
+    case ReducerActions.SELECTED_MATERIALS_CHANGED:
+      return {...state, selectedMaterialUids: action.payload};
+
+    case ReducerActions.BULK_QA_CHECK: {
+      const uidSet = new Set(action.payload);
+      const updatedMaterials = state.materials.map((material) =>
+        uidSet.has(material.uid)
+          ? {...material, qaChecked: true, qaCheckedAt: new Date().toISOString()}
+          : material,
+      );
+      const changedUids = new Set(state.changedUids);
+      action.payload.forEach((uid) => changedUids.add(uid));
+      return {
+        ...state,
+        materials: updatedMaterials,
+        changedUids,
+        selectedMaterialUids: [],
+      };
+    }
+
     default: {
       const _exhaustiveCheck: never = action;
       throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
@@ -181,6 +318,13 @@ const MATERIAL_POPUP_VALUES = {
   materialType: MaterialType.none,
   usable: false,
   popUpOpen: false,
+};
+
+/** Menschenlesbare Labels für Where-Used-Tabellennamen. */
+const WHERE_USED_TABLE_LABELS: Record<string, string> = {
+  recipe_materials: "Rezepte (Material)",
+  event_material_list_items: "Materiallisten",
+  event_menue_materials: "Menüpläne (Material)",
 };
 
 /* ===================================================================
@@ -200,9 +344,19 @@ const MaterialPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
+  const {customDialog} = useCustomDialog();
 
   const [state, dispatch] = React.useReducer(materialsReducer, initialState);
   const [editMode, setEditMode] = React.useState(false);
+
+  // Merge-Dialog State
+  const [mergeDialogOpen, setMergeDialogOpen] = React.useState(false);
+  const [mergeSourceUid, setMergeSourceUid] = React.useState("");
+  const [mergeTargetUid, setMergeTargetUid] = React.useState("");
+
+  // Convert-Dialog State
+  const [convertDialogOpen, setConvertDialogOpen] = React.useState(false);
+  const [convertMaterial, setConvertMaterial] = React.useState<Material | null>(null);
 
   /** Snapshot der Materialien beim Wechsel in den Bearbeitungsmodus. */
   const materialsSnapshot = React.useRef<Material[]>([]);
@@ -225,6 +379,17 @@ const MaterialPage = () => {
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
       });
   }, []);
+
+  // Issue-Detection: Flags bei Materialänderungen neu berechnen
+  React.useEffect(() => {
+    if (state.materials.length > 0) {
+      const issues = detectMaterialIssues(state.materials);
+      dispatch({
+        type: ReducerActions.ISSUE_FLAGS_LOADED,
+        payload: issues,
+      });
+    }
+  }, [state.materials]);
 
   if (!authUser) {
     return null;
@@ -277,6 +442,206 @@ const MaterialPage = () => {
   };
 
   /* ------------------------------------------
+  // QA-Toggle
+  // ------------------------------------------ */
+  const onQaToggle = (uid: string, checked: boolean) => {
+    dispatch({type: ReducerActions.QA_TOGGLE, payload: {uid, checked}});
+  };
+
+  /* ------------------------------------------
+  // Selektion (DataGrid liefert komplettes Array)
+  // ------------------------------------------ */
+  const onSelectionChange = (uids: string[]) => {
+    dispatch({type: ReducerActions.SELECTED_MATERIALS_CHANGED, payload: uids});
+  };
+
+  /**
+   * Öffnet den Merge-Dialog mit den beiden ausgewählten Materialien.
+   */
+  const openMergeFromSelection = () => {
+    if (state.selectedMaterialUids.length === 2) {
+      openMergeDialog(
+        state.selectedMaterialUids[0],
+        state.selectedMaterialUids[1],
+      );
+    }
+  };
+
+  /* ------------------------------------------
+  // Bulk QA-Check
+  // ------------------------------------------ */
+  const onBulkQaCheck = () => {
+    dispatch({
+      type: ReducerActions.BULK_QA_CHECK,
+      payload: state.selectedMaterialUids,
+    });
+  };
+
+  /* ------------------------------------------
+  // Material löschen (mit Where-Used-Prüfung)
+  // ------------------------------------------ */
+  const handleDeleteMaterial = async (material: Material) => {
+    try {
+      const references = await database.adminOps.whereUsed(
+        material.uid,
+        "material",
+      );
+
+      // Dialog-Text zusammenbauen
+      let dialogText: string | JSX.Element;
+      if (references.length > 0) {
+        // Referenzen nach Tabelle gruppieren
+        const grouped = new Map<string, WhereUsedEntry[]>();
+        for (const entry of references) {
+          const existing = grouped.get(entry.table_name) ?? [];
+          existing.push(entry);
+          grouped.set(entry.table_name, existing);
+        }
+
+        dialogText = (
+          <React.Fragment>
+            <Typography
+              variant="body2"
+              color="warning.main"
+              gutterBottom
+              sx={{fontWeight: "bold"}}
+            >
+              {TEXT_MATERIAL_IN_USE_WARNING}
+            </Typography>
+            {Array.from(grouped.entries()).map(
+              ([tableName, tableEntries]) => (
+                <Box key={tableName} sx={{marginBottom: 1}}>
+                  <Typography variant="subtitle2">
+                    {WHERE_USED_TABLE_LABELS[tableName] ?? tableName} (
+                    {tableEntries.length})
+                  </Typography>
+                  <Box
+                    component="ul"
+                    sx={{paddingLeft: 2, margin: 0, marginTop: 0.5}}
+                  >
+                    {tableEntries.map((entry, index) => (
+                      <Typography
+                        component="li"
+                        variant="body2"
+                        color="text.secondary"
+                        key={`${tableName}-${entry.record_id}-${index}`}
+                      >
+                        {entry.context}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              ),
+            )}
+          </React.Fragment>
+        );
+      } else {
+        dialogText = (
+          <Typography variant="body2" color="text.secondary">
+            {TEXT_MATERIAL_NOT_IN_USE}
+          </Typography>
+        );
+      }
+
+      const confirmed = await customDialog({
+        dialogType: DialogType.Confirm,
+        title: TEXT_DELETE_MATERIAL_CONFIRM(material.name),
+        text: dialogText,
+      });
+
+      if (confirmed) {
+        await database.materials.deleteMaterial(material.uid);
+        dispatch({
+          type: ReducerActions.MATERIAL_DELETED,
+          payload: material,
+        });
+      }
+    } catch (error) {
+      Sentry.captureException(error, {
+        extra: {context: "Material löschen", materialUid: material.uid},
+      });
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as Error,
+      });
+    }
+  };
+
+  /* ------------------------------------------
+  // Materialien zusammenführen (Merge)
+  // ------------------------------------------ */
+  const handleMergeMaterials = async (
+    sourceUid: string,
+    targetUid: string,
+  ): Promise<MergeMaterialsResult | null> => {
+    try {
+      const result = await database.adminOps.mergeMaterials(
+        sourceUid,
+        targetUid,
+      );
+      dispatch({
+        type: ReducerActions.MATERIAL_MERGED,
+        payload: {sourceMaterialUid: sourceUid, result},
+      });
+      return result;
+    } catch (error) {
+      Sentry.captureException(error, {
+        extra: {context: "Materialien zusammenführen"},
+      });
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as Error,
+      });
+      return null;
+    }
+  };
+
+  /**
+   * Öffnet den Merge-Dialog für zwei Materialien.
+   */
+  const openMergeDialog = (sourceUid: string, targetUid: string) => {
+    setMergeSourceUid(sourceUid);
+    setMergeTargetUid(targetUid);
+    setMergeDialogOpen(true);
+  };
+
+  /* ------------------------------------------
+  // Material zu Produkt konvertieren (Dialog öffnen)
+  // ------------------------------------------ */
+  const handleOpenConvertDialog = (material: Material) => {
+    setConvertMaterial(material);
+    setConvertDialogOpen(true);
+  };
+
+  /** Wird vom Dialog aufgerufen, nachdem der User die Produkteigenschaften gewählt hat. */
+  const handleConvertMaterialToProduct = async (
+    material: Material,
+    departmentId?: string,
+    shoppingUnit?: string,
+  ) => {
+    setConvertDialogOpen(false);
+    try {
+      await database.adminOps.convertMaterialToProduct(
+        material.uid,
+        departmentId,
+        shoppingUnit,
+      );
+      dispatch({
+        type: ReducerActions.MATERIAL_CONVERTED_TO_PRODUCT,
+        payload: material,
+      });
+    } catch (error) {
+      Sentry.captureException(error, {
+        extra: {context: "Material zu Produkt konvertieren", materialUid: material.uid},
+      });
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as Error,
+      });
+    }
+  };
+
+  /* ------------------------------------------
   // Snackbar schliessen
   // ------------------------------------------ */
   const handleSnackbarClose = (
@@ -311,10 +676,27 @@ const MaterialPage = () => {
             messageTitle={TEXT_ALERT_TITLE_UUPS}
           />
         )}
+        {/* Bulk-Aktionen Toolbar */}
+        {editMode && state.selectedMaterialUids.length > 0 && (
+          <MaterialsQaBulkActions
+            selectedCount={state.selectedMaterialUids.length}
+            onBulkQaCheck={onBulkQaCheck}
+            onMerge={openMergeFromSelection}
+            canMerge={state.selectedMaterialUids.length === 2}
+          />
+        )}
+
         <MaterialsTable
           materials={state.materials}
           editMode={editMode}
+          issueFlags={state.issueFlags}
+          selectedMaterialUids={state.selectedMaterialUids}
           onMaterialChange={onMaterialChange}
+          onQaToggle={onQaToggle}
+          onSelectionChange={onSelectionChange}
+          onDeleteMaterial={handleDeleteMaterial}
+          onConvertMaterialToProduct={handleOpenConvertDialog}
+          onOpenMergeDialog={openMergeDialog}
           authUser={authUser}
         />
         <CustomSnackbar
@@ -324,6 +706,28 @@ const MaterialPage = () => {
           handleClose={handleSnackbarClose}
         />
       </Container>
+
+      {/* Merge-Dialog */}
+      {mergeDialogOpen && (
+        <DialogMergeMaterials
+          open={mergeDialogOpen}
+          onClose={() => setMergeDialogOpen(false)}
+          materials={state.materials}
+          sourceMaterialUid={mergeSourceUid}
+          targetMaterialUid={mergeTargetUid}
+          onMerge={handleMergeMaterials}
+        />
+      )}
+
+      {/* Convert-Dialog Material→Produkt */}
+      {convertDialogOpen && convertMaterial && (
+        <DialogConvertMaterialToProduct
+          open={convertDialogOpen}
+          material={convertMaterial}
+          onClose={() => setConvertDialogOpen(false)}
+          onConvert={handleConvertMaterialToProduct}
+        />
+      )}
     </React.Fragment>
   );
 };
@@ -408,113 +812,363 @@ const MaterialsButtonRow = ({
  *
  * @property materials - Aktuelle Materialliste (aus dem Page-Reducer)
  * @property editMode - Ob der Bearbeitungsmodus aktiv ist
+ * @property issueFlags - Erkannte Qualitätsprobleme pro Material
+ * @property selectedMaterialUids - UIDs der ausgewählten Materialien
  * @property onMaterialChange - Callback wenn ein Material geändert wird
+ * @property onQaToggle - Callback für QA-Checkbox-Änderung
+ * @property onSelectionChange - Callback für DataGrid-Selektion
+ * @property onDeleteMaterial - Callback zum Löschen eines Materials
+ * @property onConvertMaterialToProduct - Callback zum Konvertieren in ein Produkt
+ * @property onOpenMergeDialog - Callback zum Öffnen des Merge-Dialogs
  * @property authUser - Der angemeldete Benutzer
  */
 interface MaterialsTableProps {
   materials: Material[];
   editMode: boolean;
+  issueFlags: MaterialIssue[];
+  selectedMaterialUids: string[];
   onMaterialChange: (material: Material) => void;
+  onQaToggle: (uid: string, checked: boolean) => void;
+  onSelectionChange: (uids: string[]) => void;
+  onDeleteMaterial: (material: Material) => void;
+  onConvertMaterialToProduct: (material: Material) => void;
+  onOpenMergeDialog: (sourceUid: string, targetUid: string) => void;
   authUser: AuthUser;
 }
 
-/** UI-Zeilenstruktur für die Materialtabelle. */
+/** UI-Zeilenstruktur für die DataGrid-Tabelle. */
 interface MaterialLineUi {
-  uid: Material["uid"];
-  name: Material["name"];
-  type: JSX.Element;
-  usable: JSX.Element;
+  uid: string;
+  name: string;
+  materialType: number;
+  usable: boolean;
+  qaChecked: boolean;
+  issueCount: number;
+  issueTexts: string;
 }
 
 /**
- * Tabelle mit Suchfeld und Bearbeitungs-Dialog für Materialien.
- * Alle Daten kommen via Props — kein eigener Materials-State.
- * `filteredMaterials` und `filteredMaterialsUi` werden per `useMemo` berechnet.
+ * Tabelle mit DataGrid, Filterleiste und Kontextmenü für Materialien.
+ * Gleiche Struktur wie die Produkte-Tabelle: DataGrid mit sticky Header,
+ * Checkbox-Selektion im Edit-Modus und renderCell für Inline-Bearbeitung.
  */
 const MaterialsTable = ({
   materials,
   editMode,
+  issueFlags,
+  selectedMaterialUids,
   onMaterialChange,
+  onQaToggle,
+  onSelectionChange,
+  onDeleteMaterial: onDeleteMaterialSuper,
+  onConvertMaterialToProduct: onConvertMaterialToProductSuper,
+  onOpenMergeDialog,
   authUser,
 }: MaterialsTableProps) => {
   const [searchString, setSearchString] = React.useState("");
+  const [materialTypeFilter, setMaterialTypeFilter] = React.useState<MaterialTypeFilter>("");
+  const [qaFilter, setQaFilter] = React.useState<QaFilterStatus>("all");
+  const [showIssuesOnly, setShowIssuesOnly] = React.useState(false);
   const [materialPopUpValues, setMaterialPopUpValues] = React.useState(
     MATERIAL_POPUP_VALUES
   );
+  const [contextMenuAnchorElement, setContextMenuAnchorElement] =
+    React.useState<HTMLElement | null>(null);
+  const [contextMenuMaterialUid, setContextMenuMaterialUid] =
+    React.useState("");
+  const [paginationModel, setPaginationModel] = React.useState({
+    page: 0,
+    pageSize: 100,
+  });
 
-  const classes = useCustomStyles();
   const theme = useTheme();
 
-  const tableColumns = React.useMemo(() => getTableColumns(editMode), [editMode]);
+  // Issue-Flags als Map für schnellen Zugriff
+  const issueFlagMap = React.useMemo(() => {
+    const map = new Map<string, MaterialIssue>();
+    issueFlags.forEach((issue) => map.set(issue.materialUid, issue));
+    return map;
+  }, [issueFlags]);
+
+  /** Mapping MaterialTypeFilter-String → numerischer MaterialType. */
+  const MATERIAL_TYPE_FILTER_MAP: Record<string, number> = {
+    none: MaterialType.none,
+    consumable: MaterialType.consumable,
+    usage: MaterialType.usage,
+  };
+
+  /** Mapping numerischer MaterialType → lesbares Label. */
+  const MATERIAL_TYPE_LABELS: Record<number, string> = {
+    [MaterialType.none]: "—",
+    [MaterialType.consumable]: TEXT_MATERIAL_TYPE_CONSUMABLE,
+    [MaterialType.usage]: TEXT_MATERIAL_TYPE_USAGE,
+  };
 
   /* ------------------------------------------
-  // Inline-Änderungen (Radio + Checkbox)
+  // Kontextmenü
   // ------------------------------------------ */
-  const handleRadioButtonChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const uid = event.target.name.split("_")[1];
-      const material = materials.find((candidate) => candidate.uid === uid);
-      if (!material) return;
-      onMaterialChange({
-        ...material,
-        type: parseInt(event.target.value) as MaterialType,
-      });
-    },
-    [materials, onMaterialChange]
-  );
-
-  const handleCheckBoxChange = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const uid = event.target.id.split("_")[1];
-      const material = materials.find((candidate) => candidate.uid === uid);
-      if (!material) return;
-      onMaterialChange({...material, usable: event.target.checked});
-    },
-    [materials, onMaterialChange]
-  );
+  const openContextMenu = (
+    event: React.MouseEvent<HTMLElement>,
+    materialUid: string,
+  ) => {
+    setContextMenuAnchorElement(event.currentTarget);
+    setContextMenuMaterialUid(materialUid);
+  };
+  const closeContextMenu = () => {
+    setContextMenuAnchorElement(null);
+    setContextMenuMaterialUid("");
+  };
+  const onDeleteMaterial = () => {
+    const material = materials.find(
+      (candidate) => candidate.uid === contextMenuMaterialUid,
+    );
+    if (!material) return;
+    closeContextMenu();
+    onDeleteMaterialSuper(material);
+  };
+  const onConvertMaterialToProduct = () => {
+    const material = materials.find(
+      (candidate) => candidate.uid === contextMenuMaterialUid,
+    );
+    if (!material) return;
+    closeContextMenu();
+    onConvertMaterialToProductSuper(material);
+  };
 
   /* ------------------------------------------
-  // Gefilterte Materialien (abgeleitet von materials + searchString)
+  // Gefilterte Materialien
   // ------------------------------------------ */
   const filteredMaterials = React.useMemo(() => {
-    if (!searchString) return materials;
-    const lower = searchString.toLowerCase();
-    return materials.filter((material) => material.name.toLowerCase().includes(lower));
-  }, [materials, searchString]);
+    let result = materials;
+
+    if (searchString) {
+      const lower = searchString.toLowerCase();
+      result = result.filter((material) =>
+        material.name.toLowerCase().includes(lower),
+      );
+    }
+
+    if (materialTypeFilter) {
+      const numericType = MATERIAL_TYPE_FILTER_MAP[materialTypeFilter];
+      result = result.filter((material) => material.type === numericType);
+    }
+
+    if (qaFilter === "checked") {
+      result = result.filter((material) => material.qaChecked);
+    } else if (qaFilter === "unchecked") {
+      result = result.filter((material) => !material.qaChecked);
+    }
+
+    if (showIssuesOnly) {
+      const issueUids = new Set(issueFlags.map((issue) => issue.materialUid));
+      result = result.filter((material) => issueUids.has(material.uid));
+    }
+
+    return result;
+  }, [materials, searchString, materialTypeFilter, qaFilter, showIssuesOnly, issueFlags]);
 
   /* ------------------------------------------
-  // UI-Darstellung (abgeleitet von filteredMaterials + editMode)
+  // UI-Daten für DataGrid
   // ------------------------------------------ */
   const filteredMaterialsUi = React.useMemo(
-    () => prepareMaterialsListForUi(filteredMaterials, editMode, handleRadioButtonChange, handleCheckBoxChange),
-    [filteredMaterials, editMode, handleRadioButtonChange, handleCheckBoxChange]
+    (): MaterialLineUi[] =>
+      filteredMaterials.map((material) => {
+        const issueFlag = issueFlagMap.get(material.uid);
+        return {
+          uid: material.uid,
+          name: material.name,
+          materialType: material.type,
+          usable: material.usable,
+          qaChecked: material.qaChecked,
+          issueCount: issueFlag?.issues.length ?? 0,
+          issueTexts: issueFlag?.issues.join(", ") ?? "",
+        };
+      }),
+    [filteredMaterials, issueFlagMap],
+  );
+
+  /* ------------------------------------------
+  // DataGrid Spalten
+  // ------------------------------------------ */
+  const dataGridColumns: GridColDef[] = React.useMemo(
+    () => [
+      {
+        field: "open",
+        headerName: "",
+        sortable: false,
+        width: 60,
+        renderCell: (params) => (
+          <IconButton
+            aria-label="Material öffnen"
+            sx={{margin: theme.spacing(1)}}
+            size="small"
+            disabled={!editMode}
+            onClick={() => openPopUp(params.id as string)}
+          >
+            <EditIcon fontSize="inherit" />
+          </IconButton>
+        ),
+      },
+      {
+        field: "uid",
+        headerName: TEXT_UID,
+        editable: false,
+        width: 200,
+      },
+      {
+        field: "name",
+        headerName: TEXT_FIELD_PRODUCT,
+        editable: false,
+        width: 250,
+        flex: 1,
+      },
+      {
+        field: "materialType",
+        headerName: TEXT_MATERIAL_TYPE,
+        editable: false,
+        width: 200,
+        renderCell: (params) => {
+          if (!editMode) {
+            return MATERIAL_TYPE_LABELS[params.value as number] ?? "—";
+          }
+          return (
+            <Select
+              size="small"
+              fullWidth
+              variant="standard"
+              value={params.value as number}
+              onChange={(event: SelectChangeEvent<number>) => {
+                const material = materials.find(
+                  (candidate) => candidate.uid === params.id,
+                );
+                if (material) {
+                  onMaterialChange({
+                    ...material,
+                    type: event.target.value as MaterialType,
+                  });
+                }
+              }}
+              disableUnderline
+            >
+              <MenuItem value={MaterialType.consumable}>
+                {TEXT_MATERIAL_TYPE_CONSUMABLE}
+              </MenuItem>
+              <MenuItem value={MaterialType.usage}>
+                {TEXT_MATERIAL_TYPE_USAGE}
+              </MenuItem>
+            </Select>
+          );
+        },
+      },
+      {
+        field: "usable",
+        headerName: TEXT_USABLE,
+        editable: false,
+        width: 80,
+        renderCell: (params) => (
+          <Checkbox
+            checked={params.value as boolean}
+            disabled={!editMode}
+            onChange={(event) => {
+              const material = materials.find(
+                (candidate) => candidate.uid === params.id,
+              );
+              if (material) {
+                onMaterialChange({...material, usable: event.target.checked});
+              }
+            }}
+          />
+        ),
+      },
+      {
+        field: "qaChecked",
+        headerName: TEXT_QA_CHECKED,
+        editable: false,
+        width: 80,
+        renderCell: (params) => (
+          <Checkbox
+            checked={params.value as boolean}
+            disabled={!editMode}
+            onChange={(event) =>
+              onQaToggle(params.id as string, event.target.checked)
+            }
+          />
+        ),
+      },
+      {
+        field: "issueCount",
+        headerName: TEXT_QA_ISSUES,
+        editable: false,
+        width: 80,
+        renderCell: (params) => {
+          const count = params.value as number;
+          if (count === 0) return null;
+          return (
+            <Tooltip
+              title={(params.row as MaterialLineUi).issueTexts}
+              arrow
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  color: "warning.main",
+                }}
+              >
+                <WarningIcon fontSize="small" />
+                <Typography variant="body2">{count}</Typography>
+              </Box>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        field: "context",
+        headerName: "",
+        editable: false,
+        width: 60,
+        sortable: false,
+        renderCell: (params) => (
+          <IconButton
+            aria-label="Kontextmenü"
+            sx={{margin: theme.spacing(1)}}
+            size="small"
+            disabled={!editMode}
+            onClick={(event) =>
+              openContextMenu(event, params.id as string)
+            }
+          >
+            <MoreVertIcon fontSize="inherit" />
+          </IconButton>
+        ),
+      },
+    ],
+    [editMode, theme, materials, issueFlagMap],
   );
 
   /* ------------------------------------------
   // Suche
   // ------------------------------------------ */
-  const clearSearchString = () => {
-    setSearchString("");
-  };
-
+  const clearSearchString = () => setSearchString("");
   const updateSearchString = (
-    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
-  ) => {
-    setSearchString(event.target.value);
+    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
+  ) => setSearchString(event.target.value);
+
+  /* ------------------------------------------
+  // Selektion (DataGrid)
+  // ------------------------------------------ */
+  const handleSelectionChange = (selectionModel: GridRowSelectionModel) => {
+    onSelectionChange(selectionModel as string[]);
   };
 
   /* ------------------------------------------
   // Popup öffnen
   // ------------------------------------------ */
-  const openPopUp = (
-    _event:
-      | React.MouseEvent<HTMLSpanElement, MouseEvent>
-      | React.MouseEvent<HTMLTableRowElement, MouseEvent>,
-    materialToEdit: MaterialLineUi | string
-  ) => {
-    const uid =
-      typeof materialToEdit === "string" ? materialToEdit : materialToEdit.uid;
-    const material = materials.find((candidate) => candidate.uid === uid);
+  const openPopUp = (materialUid: string) => {
+    const material = materials.find(
+      (candidate) => candidate.uid === materialUid,
+    );
     if (!material) return;
 
     setMaterialPopUpValues({
@@ -525,11 +1179,7 @@ const MaterialsTable = ({
       popUpOpen: true,
     });
   };
-
-  const onPopUpClose = () => {
-    setMaterialPopUpValues(MATERIAL_POPUP_VALUES);
-  };
-
+  const onPopUpClose = () => setMaterialPopUpValues(MATERIAL_POPUP_VALUES);
   const onPopUpOk = (changedMaterial: Material) => {
     onMaterialChange(changedMaterial);
     setMaterialPopUpValues(MATERIAL_POPUP_VALUES);
@@ -537,34 +1187,64 @@ const MaterialsTable = ({
 
   return (
     <React.Fragment>
-      <Card sx={classes.card} key={"materialTablePanel"}>
-        <CardContent sx={classes.cardContent} key={"materialTableContent"}>
-          <Stack sx={{marginBottom: theme.spacing(1)}}>
-            <SearchPanel
-              searchString={searchString}
-              onUpdateSearchString={updateSearchString}
-              onClearSearchString={clearSearchString}
-            />
-            <Typography
-              variant="body2"
-              sx={{mt: "0.5em", mb: "2em"}}
-            >
-              {filteredMaterialsUi.length === materials.length
-                ? `${materials.length} ${TEXT_MATERIALS}`
-                : `${filteredMaterialsUi.length} ${TEXT_FROM.toLowerCase()} ${
-                    materials.length
-                  } ${TEXT_MATERIALS}`}
-            </Typography>
+      {/* Erweiterte Filterleiste */}
+      <MaterialsQaFilterBar
+        searchString={searchString}
+        onUpdateSearchString={updateSearchString}
+        onClearSearchString={clearSearchString}
+        materialTypeFilter={materialTypeFilter}
+        onMaterialTypeFilterChange={setMaterialTypeFilter}
+        qaFilter={qaFilter}
+        onQaFilterChange={setQaFilter}
+        showIssuesOnly={showIssuesOnly}
+        onShowIssuesOnlyChange={setShowIssuesOnly}
+        totalCount={materials.length}
+        filteredCount={filteredMaterials.length}
+      />
 
-            <EnhancedTable
-              tableData={filteredMaterialsUi}
-              tableColumns={tableColumns}
-              keyColum={"uid"}
-              onIconClick={openPopUp}
-            />
-          </Stack>
-        </CardContent>
-      </Card>
+      {/* DataGrid mit sticky Header */}
+      <Box sx={{height: "calc(100vh - 200px)", width: "100%"}}>
+        <DataGrid
+          rows={filteredMaterialsUi}
+          columns={dataGridColumns}
+          columnVisibilityModel={{uid: false}}
+          getRowId={(row) => row.uid}
+          pagination
+          checkboxSelection={editMode}
+          rowSelectionModel={selectedMaterialUids}
+          onRowSelectionModelChange={handleSelectionChange}
+          localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
+          pageSizeOptions={[20, 50, 100]}
+        />
+      </Box>
+
+      {/* Kontextmenü */}
+      <Menu
+        open={Boolean(contextMenuAnchorElement)}
+        keepMounted
+        anchorEl={contextMenuAnchorElement}
+        onClose={closeContextMenu}
+      >
+        <MenuItem onClick={onConvertMaterialToProduct}>
+          <ListItemIcon>
+            <CachedIcon />
+          </ListItemIcon>
+          <Typography variant="inherit" noWrap>
+            {TEXT_CONVERT_TO_PRODUCT}
+          </Typography>
+        </MenuItem>
+        <MenuItem onClick={onDeleteMaterial}>
+          <ListItemIcon>
+            <DeleteIcon />
+          </ListItemIcon>
+          <Typography variant="inherit" noWrap>
+            {TEXT_DELETE_MATERIAL}
+          </Typography>
+        </MenuItem>
+      </Menu>
+
       <DialogMaterial
         dialogType={MaterialDialog.EDIT}
         materialUid={materialPopUpValues.materialUid}
@@ -580,113 +1260,6 @@ const MaterialsTable = ({
     </React.Fragment>
   );
 };
-
-/* ===================================================================
-// ====================== Hilfsfunktionen ============================
-// =================================================================== */
-
-/**
- * Erzeugt die Spaltendefinitionen für die Materialtabelle.
- *
- * @param editMode - Ob der Bearbeitungsmodus aktiv ist (steuert Edit-Button-Spalte).
- * @returns Array von Spaltendefinitionen.
- */
-function getTableColumns(editMode: boolean) {
-  return [
-    {
-      id: "edit",
-      type: TableColumnTypes.button,
-      textAlign: ColumnTextAlign.center,
-      disablePadding: false,
-      visible: editMode,
-      label: "",
-      iconButton: <EditIcon fontSize="small" />,
-    },
-    {
-      id: "uid",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.center,
-      disablePadding: false,
-      label: TEXT_UID,
-      visible: false,
-    },
-    {
-      id: "name",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.left,
-      disablePadding: false,
-      label: TEXT_FIELD_PRODUCT,
-      visible: true,
-    },
-    {
-      id: "type",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.left,
-      disablePadding: false,
-      label: TEXT_MATERIAL_TYPE,
-      visible: true,
-    },
-    {
-      id: "usable",
-      type: TableColumnTypes.string,
-      textAlign: ColumnTextAlign.center,
-      disablePadding: false,
-      label: TEXT_USABLE,
-      visible: true,
-    },
-  ];
-}
-
-/**
- * Bereitet die Materialliste für die UI-Tabelle auf.
- * Wandelt Typ und Verwendbarkeit in JSX-Elemente um.
- *
- * @param materials - Zu rendernde Materialien
- * @param editMode - Ob Steuerelemente aktiviert sein sollen
- * @param onRadioChange - Handler für Typ-Änderungen
- * @param onCheckboxChange - Handler für Verwendbarkeits-Änderungen
- * @returns Array von UI-Zeilen
- */
-function prepareMaterialsListForUi(
-  materials: Material[],
-  editMode: boolean,
-  onRadioChange: (event: React.ChangeEvent<HTMLInputElement>) => void,
-  onCheckboxChange: (event: React.ChangeEvent<HTMLInputElement>) => void
-): MaterialLineUi[] {
-  return materials.map((material) => ({
-    uid: material.uid,
-    name: material.name,
-    usable: (
-      <Checkbox
-        id={"checkbox_" + material.uid}
-        disabled={!editMode}
-        checked={material.usable}
-        onChange={onCheckboxChange}
-      />
-    ),
-    type: (
-      <RadioGroup
-        aria-label="Typ"
-        name={"radioGroup_" + material.uid}
-        key={"radioGroup_" + material.uid}
-        value={material.type}
-        onChange={onRadioChange}
-        row
-      >
-        <FormControlLabel
-          value={MaterialType.consumable}
-          control={<Radio size="small" disabled={!editMode} />}
-          label={TEXT_MATERIAL_TYPE_CONSUMABLE}
-        />
-        <FormControlLabel
-          value={MaterialType.usage}
-          control={<Radio size="small" disabled={!editMode} />}
-          label={TEXT_MATERIAL_TYPE_USAGE}
-        />
-      </RadioGroup>
-    ),
-  }));
-}
 
 export {MaterialPage, materialsReducer, ReducerActions, initialState};
 export type {State, ReducerAction};

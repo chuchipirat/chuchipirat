@@ -213,6 +213,8 @@ describe("materialListAdapter", () => {  describe("headersDomainToMaterialList",
       name: "Pfanne gross",
       type: MaterialType.usage,
       usable: true,
+      qaChecked: false,
+      qaCheckedAt: null,
     };
 
     it("should convert items to insert rows with material_id for known materials", () => {

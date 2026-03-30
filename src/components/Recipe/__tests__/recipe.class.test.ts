@@ -570,6 +570,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -578,6 +580,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({
@@ -617,6 +621,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [1], diet: Diet.Vegetarian},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -625,6 +631,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({
@@ -678,6 +686,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -686,6 +696,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({
@@ -734,6 +746,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [1], diet: Diet.Vegetarian},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -742,6 +756,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "flour",
@@ -750,6 +766,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [2], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({

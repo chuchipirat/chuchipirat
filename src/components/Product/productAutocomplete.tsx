@@ -51,6 +51,8 @@ interface FilterHelpWithSortRank {
   shoppingUnit: Unit["key"];
   dietProperties: DietProperties;
   usable: boolean;
+  qaChecked: boolean;
+  qaCheckedAt: string | null;
   sortRank?: number;
 }
 

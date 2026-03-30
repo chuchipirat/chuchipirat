@@ -176,6 +176,8 @@ export class ProductMigrationJob
         shoppingUnit: data.shoppingUnit,
         dietProperties: data.dietProperties ?? {allergens: [], diet: 1},
         usable: data.usable,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       authUser,
     });

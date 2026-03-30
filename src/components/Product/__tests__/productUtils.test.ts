@@ -33,6 +33,8 @@ function buildProduct(overrides: Partial<Product> & {name: string}): Product {
       diet: Diet.Meat,
     },
     usable: overrides.usable ?? true,
+    qaChecked: overrides.qaChecked ?? false,
+    qaCheckedAt: overrides.qaCheckedAt ?? null,
   };
 }
 

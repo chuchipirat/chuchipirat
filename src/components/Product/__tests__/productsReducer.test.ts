@@ -11,8 +11,8 @@ import {
   productsReducer,
   ReducerActions,
   initialState,
-} from "../products";
-import type {State, ReducerAction} from "../products";
+} from "../useProductsQa";
+import type {State, ReducerAction} from "../useProductsQa";
 import {products as mockProducts} from "../__mocks__/products.mock";
 import {Diet} from "../product.types";
 import type {Product} from "../product.types";

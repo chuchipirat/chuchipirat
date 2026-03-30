@@ -10,6 +10,7 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import {supabase} from "../supabaseClient";
+import {SimilarProductPair} from "./ProductRepository";
 
 /* ===================================================================
 // ======================== Ergebnis-Typen ===========================
@@ -211,6 +212,69 @@ export class AdminOperationsRepository {
    * @returns Array mit Fundstelleneinträgen.
    * @throws {Error} Wenn das RPC fehlschlägt.
    */
+  /**
+   * Sucht ähnliche Produkte mittels pg_trgm und Synonym-Tabelle.
+   *
+   * @param threshold - Minimaler Ähnlichkeitswert (0..1, Standard: 0.3)
+   * @returns Array ähnlicher Produktpaare
+   */
+  async findSimilarProducts(
+    threshold: number = 0.3,
+  ): Promise<SimilarProductPair[]> {
+    const {data, error} = await this.client.rpc("find_similar_products", {
+      similarity_threshold: threshold,
+    });
+    if (error) throw new Error(error.message);
+    return (data as SimilarProductPair[]) ?? [];
+  }
+
+  /**
+   * Markiert ein Duplikat-Paar als bestätigt (kein echtes Duplikat).
+   * Das Paar wird bei zukünftigen Suchen nicht mehr angezeigt.
+   * Die IDs werden normalisiert (LEAST/GREATEST), damit die Reihenfolge egal ist.
+   *
+   * @param productIdA ID des ersten Produkts.
+   * @param productIdB ID des zweiten Produkts.
+   */
+  async dismissDuplicatePair(
+    productIdA: string,
+    productIdB: string,
+  ): Promise<void> {
+    // Normalisieren: kleinere ID zuerst (CHECK-Constraint in DB)
+    const normalizedA = productIdA < productIdB ? productIdA : productIdB;
+    const normalizedB = productIdA < productIdB ? productIdB : productIdA;
+
+    const {error} = await this.client
+      .from("product_duplicate_dismissals")
+      .upsert(
+        {product_a_id: normalizedA, product_b_id: normalizedB},
+        {onConflict: "product_a_id,product_b_id"},
+      );
+    if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Hebt die Bestätigung eines Duplikat-Paars auf.
+   * Das Paar wird bei zukünftigen Suchen wieder angezeigt.
+   *
+   * @param productIdA ID des ersten Produkts.
+   * @param productIdB ID des zweiten Produkts.
+   */
+  async undismissDuplicatePair(
+    productIdA: string,
+    productIdB: string,
+  ): Promise<void> {
+    const normalizedA = productIdA < productIdB ? productIdA : productIdB;
+    const normalizedB = productIdA < productIdB ? productIdB : productIdA;
+
+    const {error} = await this.client
+      .from("product_duplicate_dismissals")
+      .delete()
+      .eq("product_a_id", normalizedA)
+      .eq("product_b_id", normalizedB);
+    if (error) throw new Error(error.message);
+  }
+
   async whereUsed(
     itemId: string,
     itemType: "product" | "material" | "recipe"

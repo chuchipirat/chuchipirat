@@ -297,6 +297,8 @@ const MegeItemsPage = () => {
             shoppingUnit: domain.shoppingUnit,
             dietProperties: domain.dietProperties,
             usable: domain.usable,
+            qaChecked: false,
+            qaCheckedAt: null,
           };
           return product;
         });

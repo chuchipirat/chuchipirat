@@ -41,6 +41,8 @@ const testRow: MaterialRow = {
   created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
   updated_at: "2026-01-01T00:00:00Z",
   updated_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
+  qa_checked: false,
+  qa_checked_at: null,
 };
 
 const testRow2: MaterialRow = {
@@ -53,6 +55,8 @@ const testRow2: MaterialRow = {
   created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
   updated_at: "2026-02-01T00:00:00Z",
   updated_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
+  qa_checked: false,
+  qa_checked_at: null,
 };
 
 const testDomain: MaterialDomain = {
@@ -60,6 +64,8 @@ const testDomain: MaterialDomain = {
   name: "Pfanne",
   type: 2,
   usable: true,
+  qaChecked: false,
+  qaCheckedAt: null,
 };
 
 const authUser = {uid: "auth-uuid-123"} as AuthUser;
@@ -201,7 +207,7 @@ describe("MaterialRepository", () => {
 
       const materials: MaterialDomain[] = [
         testDomain,
-        {uid: "mat-uuid-002", name: "Müllsack", type: 1, usable: false},
+        {uid: "mat-uuid-002", name: "Müllsack", type: 1, usable: false, qaChecked: false, qaCheckedAt: null},
       ];
       await repo.saveAllMaterials(materials, authUser);
 

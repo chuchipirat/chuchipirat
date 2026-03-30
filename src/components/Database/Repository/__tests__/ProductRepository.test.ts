@@ -42,6 +42,8 @@ const testRow: ProductRow = {
   allergens: [],
   diet: "vegan",
   usable: true,
+  qa_checked: false,
+  qa_checked_at: null,
   created_at: "2026-01-01T00:00:00Z",
   created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
   updated_at: "2026-01-01T00:00:00Z",
@@ -64,6 +66,8 @@ const testRow2: ProductRow = {
   allergens: ["lactose"],
   diet: "vegetarian",
   usable: false,
+  qa_checked: false,
+  qa_checked_at: null,
   created_at: "2026-02-01T00:00:00Z",
   created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
   updated_at: "2026-02-01T00:00:00Z",
@@ -78,6 +82,8 @@ const testDomain: ProductDomain = {
   shoppingUnit: "kg",
   dietProperties: {allergens: [], diet: 3},
   usable: true,
+  qaChecked: false,
+  qaCheckedAt: null,
 };
 
 const authUser = {uid: "auth-uuid-123"} as AuthUser;
@@ -277,6 +283,8 @@ describe("ProductRepository", () => {
           shoppingUnit: "kg",
           dietProperties: {allergens: [], diet: 3},
           usable: true,
+          qaChecked: false,
+          qaCheckedAt: null,
         },
         authUser,
       );
@@ -301,6 +309,8 @@ describe("ProductRepository", () => {
             shoppingUnit: "kg",
             dietProperties: {allergens: [], diet: 3},
             usable: true,
+            qaChecked: false,
+            qaCheckedAt: null,
           },
           authUser,
         ),
@@ -410,6 +420,8 @@ describe("ProductRepository", () => {
           shoppingUnit: "l",
           dietProperties: {allergens: [1], diet: 2},
           usable: false,
+          qaChecked: false,
+          qaCheckedAt: null,
         },
       ];
       await repo.saveAllProducts(products, authUser);

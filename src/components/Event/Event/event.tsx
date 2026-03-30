@@ -1201,6 +1201,8 @@ const EventPage = () => {
             shoppingUnit: d.shoppingUnit,
             dietProperties: d.dietProperties,
             usable: d.usable,
+            qaChecked: false,
+            qaCheckedAt: null,
           }));
           dispatch({
             type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
@@ -1841,6 +1843,8 @@ const EventPage = () => {
               shoppingUnit: d.shoppingUnit,
               dietProperties: d.dietProperties,
               usable: d.usable,
+              qaChecked: false,
+              qaCheckedAt: null,
             }));
             dispatch({
               type: ReducerActions.PRODUCTS_FETCH_SUCCESS,

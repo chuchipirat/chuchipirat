@@ -15,6 +15,11 @@ import {
 import type {State, ReducerAction} from "../materials";
 import {MaterialType} from "../material.types";
 import type {Material} from "../material.types";
+import type {MaterialIssue} from "../materialQaUtils";
+
+import {
+  DELETE_MATERIAL_SUCCESS,
+} from "../../../constants/text/materialQa";
 
 /* ===================================================================
 // ======================== Testdaten =================================
@@ -25,6 +30,8 @@ const materialTeller: Material = {
   name: "Teller",
   type: MaterialType.usage,
   usable: true,
+  qaChecked: false,
+  qaCheckedAt: null,
 };
 
 const materialServietten: Material = {
@@ -32,6 +39,8 @@ const materialServietten: Material = {
   name: "Servietten",
   type: MaterialType.consumable,
   usable: true,
+  qaChecked: false,
+  qaCheckedAt: null,
 };
 
 const stateWithMaterials: State = {
@@ -146,5 +155,134 @@ describe("materialsReducer", () => {
 
     expect(result.error).toBe(error);
     expect(result.isLoading).toBe(false);
+  });
+
+  // ---------------------------------------------------------------
+  // MATERIAL_DELETED
+  // ---------------------------------------------------------------
+  test("MATERIAL_DELETED entfernt Material aus Liste und zeigt Erfolgs-Snackbar", () => {
+    const result = materialsReducer(stateWithMaterials, {
+      type: ReducerActions.MATERIAL_DELETED,
+      payload: materialTeller,
+    });
+
+    expect(result.materials).toHaveLength(1);
+    expect(result.materials[0].uid).toBe("mat-2");
+    expect(result.snackbar.open).toBe(true);
+    expect(result.snackbar.severity).toBe("success");
+    expect(result.snackbar.message).toBe(
+      DELETE_MATERIAL_SUCCESS(materialTeller.name),
+    );
+  });
+
+  // ---------------------------------------------------------------
+  // ISSUE_FLAGS_LOADED
+  // ---------------------------------------------------------------
+  test("ISSUE_FLAGS_LOADED speichert die Issue-Flags", () => {
+    const issues: MaterialIssue[] = [
+      {materialUid: "mat-1", issues: ["Kein Materialtyp zugewiesen"]},
+    ];
+
+    const result = materialsReducer(stateWithMaterials, {
+      type: ReducerActions.ISSUE_FLAGS_LOADED,
+      payload: issues,
+    });
+
+    expect(result.issueFlags).toHaveLength(1);
+    expect(result.issueFlags[0].materialUid).toBe("mat-1");
+  });
+
+  // ---------------------------------------------------------------
+  // QA_TOGGLE
+  // ---------------------------------------------------------------
+  test("QA_TOGGLE setzt qaChecked und qaCheckedAt und fuegt uid zu changedUids hinzu", () => {
+    const result = materialsReducer(stateWithMaterials, {
+      type: ReducerActions.QA_TOGGLE,
+      payload: {uid: "mat-1", checked: true},
+    });
+
+    const updatedMaterial = result.materials.find(
+      (material) => material.uid === "mat-1",
+    );
+    expect(updatedMaterial?.qaChecked).toBe(true);
+    expect(updatedMaterial?.qaCheckedAt).toBeTruthy();
+    expect(result.changedUids.has("mat-1")).toBe(true);
+  });
+
+  test("QA_TOGGLE setzt qaCheckedAt auf null wenn unchecked", () => {
+    const checkedState: State = {
+      ...stateWithMaterials,
+      materials: [
+        {...materialTeller, qaChecked: true, qaCheckedAt: "2026-01-01T00:00:00Z"},
+        materialServietten,
+      ],
+    };
+
+    const result = materialsReducer(checkedState, {
+      type: ReducerActions.QA_TOGGLE,
+      payload: {uid: "mat-1", checked: false},
+    });
+
+    const updatedMaterial = result.materials.find(
+      (material) => material.uid === "mat-1",
+    );
+    expect(updatedMaterial?.qaChecked).toBe(false);
+    expect(updatedMaterial?.qaCheckedAt).toBeNull();
+  });
+
+  // ---------------------------------------------------------------
+  // MATERIAL_MERGED
+  // ---------------------------------------------------------------
+  test("MATERIAL_MERGED entfernt Quellmaterial und zeigt Erfolgs-Snackbar", () => {
+    const result = materialsReducer(stateWithMaterials, {
+      type: ReducerActions.MATERIAL_MERGED,
+      payload: {
+        sourceMaterialUid: "mat-1",
+        result: {
+          recipe_materials: 2,
+          material_list_items: 1,
+          menue_materials: 0,
+          shopping_list_items: 3,
+        },
+      },
+    });
+
+    expect(result.materials).toHaveLength(1);
+    expect(result.materials[0].uid).toBe("mat-2");
+    expect(result.snackbar.open).toBe(true);
+    expect(result.snackbar.severity).toBe("success");
+    expect(result.snackbar.message).toContain("zusammengeführt");
+  });
+
+  // ---------------------------------------------------------------
+  // MATERIAL_CONVERTED_TO_PRODUCT
+  // ---------------------------------------------------------------
+  // ---------------------------------------------------------------
+  // SELECTED_MATERIALS_CHANGED
+  // ---------------------------------------------------------------
+  test("SELECTED_MATERIALS_CHANGED aktualisiert selectedMaterialUids", () => {
+    const result = materialsReducer(stateWithMaterials, {
+      type: ReducerActions.SELECTED_MATERIALS_CHANGED,
+      payload: ["mat-1", "mat-2"],
+    });
+
+    expect(result.selectedMaterialUids).toEqual(["mat-1", "mat-2"]);
+  });
+
+  // ---------------------------------------------------------------
+  // MATERIAL_CONVERTED_TO_PRODUCT
+  // ---------------------------------------------------------------
+  test("MATERIAL_CONVERTED_TO_PRODUCT entfernt Material und zeigt Erfolgs-Snackbar", () => {
+    const result = materialsReducer(stateWithMaterials, {
+      type: ReducerActions.MATERIAL_CONVERTED_TO_PRODUCT,
+      payload: materialTeller,
+    });
+
+    expect(result.materials).toHaveLength(1);
+    expect(result.materials[0].uid).toBe("mat-2");
+    expect(result.snackbar.open).toBe(true);
+    expect(result.snackbar.severity).toBe("success");
+    expect(result.snackbar.message).toContain("Teller");
+    expect(result.snackbar.message).toContain("Produkt");
   });
 });

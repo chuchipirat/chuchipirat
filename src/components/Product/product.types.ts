@@ -62,6 +62,8 @@ export type ProductDepartment = {
  * @param shoppingUnit - Einkaufseinheit (z.B. "kg", "l").
  * @param dietProperties - Allergen- und Diaeteigenschaften.
  * @param usable - Ob das Produkt aktiv/nutzbar ist.
+ * @param qaChecked - Ob das Produkt qualitaetsgeprueft wurde.
+ * @param qaCheckedAt - Zeitpunkt der letzten QA-Pruefung (ISO-String oder null).
  */
 export type Product = {
   uid: string;
@@ -70,6 +72,8 @@ export type Product = {
   shoppingUnit: string;
   dietProperties: DietProperties;
   usable: boolean;
+  qaChecked: boolean;
+  qaCheckedAt: string | null;
 };
 
 /**
@@ -87,6 +91,8 @@ export function createEmptyProduct(): Product {
     shoppingUnit: "",
     dietProperties: createEmptyDietProperty(),
     usable: false,
+    qaChecked: false,
+    qaCheckedAt: null,
   };
 }
 

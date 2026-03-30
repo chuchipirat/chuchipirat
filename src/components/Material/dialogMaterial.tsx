@@ -232,6 +232,8 @@ const DialogMaterial = ({
                 name: materialPopUpValues.name,
                 type: materialPopUpValues.type,
                 usable: true,
+                qaChecked: false,
+                qaCheckedAt: null,
               },
               authUser
             )
@@ -242,6 +244,8 @@ const DialogMaterial = ({
                 name: domain.name,
                 type: domain.type,
                 usable: domain.usable,
+                qaChecked: domain.qaChecked,
+                qaCheckedAt: domain.qaCheckedAt,
               });
               setMaterialPopUpValues({
                 ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
@@ -266,11 +270,17 @@ const DialogMaterial = ({
             });
           break;
         case MaterialDialog.EDIT: {
+          // QA-Felder vom Original-Material übernehmen (Dialog ändert diese nicht)
+          const originalMaterial = materials.find(
+            (candidate) => candidate.uid === materialPopUpValues.uid,
+          );
           handleOk({
             uid: materialPopUpValues.uid,
             name: materialPopUpValues.name,
             type: materialPopUpValues.type,
             usable: materialPopUpValues.usable,
+            qaChecked: originalMaterial?.qaChecked ?? false,
+            qaCheckedAt: originalMaterial?.qaCheckedAt ?? null,
           });
           setMaterialPopUpValues({
             ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,

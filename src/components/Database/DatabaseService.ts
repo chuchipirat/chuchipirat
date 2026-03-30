@@ -8,6 +8,7 @@ import {DepartmentRepository} from "./Repository/DepartmentRepository";
 import {UnitRepository} from "./Repository/UnitRepository";
 import {MaterialRepository} from "./Repository/MaterialRepository";
 import {ProductRepository} from "./Repository/ProductRepository";
+import {ProductSynonymRepository} from "./Repository/ProductSynonymRepository";
 import {UnitConversionBasicRepository} from "./Repository/UnitConversionBasicRepository";
 import {UnitConversionProductRepository} from "./Repository/UnitConversionProductRepository";
 import {RecipeRepository} from "./Repository/RecipeRepository";
@@ -89,6 +90,7 @@ export class DatabaseService {
   units: UnitRepository;
   materials: MaterialRepository;
   products: ProductRepository;
+  productSynonyms: ProductSynonymRepository;
   unitConversionBasic: UnitConversionBasicRepository;
   unitConversionProducts: UnitConversionProductRepository;
   recipes: RecipeRepository;
@@ -120,6 +122,7 @@ export class DatabaseService {
     units: UnitRepository;
     materials: MaterialRepository;
     products: ProductRepository;
+    productSynonyms: ProductSynonymRepository;
     unitConversionBasic: UnitConversionBasicRepository;
     unitConversionProducts: UnitConversionProductRepository;
     recipes: RecipeRepository;
@@ -151,6 +154,7 @@ export class DatabaseService {
     this.units = new UnitRepository();
     this.materials = new MaterialRepository();
     this.products = new ProductRepository();
+    this.productSynonyms = new ProductSynonymRepository();
     this.unitConversionBasic = new UnitConversionBasicRepository();
     this.unitConversionProducts = new UnitConversionProductRepository();
     this.recipes = new RecipeRepository();
@@ -183,6 +187,7 @@ export class DatabaseService {
           units: new UnitRepository(supabaseAdmin),
           materials: new MaterialRepository(supabaseAdmin),
           products: new ProductRepository(supabaseAdmin),
+          productSynonyms: new ProductSynonymRepository(supabaseAdmin),
           unitConversionBasic: new UnitConversionBasicRepository(supabaseAdmin),
           unitConversionProducts: new UnitConversionProductRepository(supabaseAdmin),
           recipes: new RecipeRepository(supabaseAdmin),

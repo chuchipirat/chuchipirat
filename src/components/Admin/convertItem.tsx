@@ -351,6 +351,8 @@ const ConvertItemPage = () => {
               diet: productDomain.dietProperties.diet,
             },
             usable: productDomain.usable,
+            qaChecked: false,
+            qaCheckedAt: null,
           };
           return product;
         });

@@ -62,6 +62,8 @@ export interface MaterialRow {
   name: string;
   type: string;
   usable: boolean;
+  qa_checked: boolean;
+  qa_checked_at: string | null;
   created_at: string;
   created_by: string | null;
   updated_at: string;
@@ -106,6 +108,8 @@ export class MaterialRepository extends BaseRepository<
       // Numerischen Typ in DB-ENUM-String übersetzen (z.B. 1 → 'consumable')
       type: MATERIAL_TYPE_TO_DB[domain.type] ?? "none",
       usable: domain.usable,
+      qa_checked: domain.qaChecked,
+      qa_checked_at: domain.qaCheckedAt,
     };
   }
 
@@ -125,6 +129,8 @@ export class MaterialRepository extends BaseRepository<
       // DB-ENUM-String in numerischen Typ übersetzen (z.B. 'consumable' → 1)
       type: (MATERIAL_TYPE_FROM_DB[row.type] ?? 0) as MaterialType,
       usable: row.usable,
+      qaChecked: row.qa_checked,
+      qaCheckedAt: row.qa_checked_at,
     };
   }
 
@@ -190,6 +196,15 @@ export class MaterialRepository extends BaseRepository<
     authUser: AuthUser
   ): Promise<MaterialDomain> {
     return this.update({id: material.uid, value: material, authUser});
+  }
+
+  /**
+   * Löscht ein Material aus der Datenbank.
+   *
+   * @param materialId - UID des zu löschenden Materials
+   */
+  async deleteMaterial(materialId: string): Promise<void> {
+    await this.remove(materialId);
   }
 
   /**

@@ -1,4 +1,4 @@
-import React, {SyntheticEvent} from "react";
+import React from "react";
 import * as Sentry from "@sentry/react";
 
 import {
@@ -15,12 +15,15 @@ import {
   IconButton,
   useTheme,
   Box,
-  SnackbarCloseReason,
+  Tooltip,
+  Select,
+  Autocomplete,
+  TextField,
+  SelectChangeEvent,
 } from "@mui/material";
 
 import {
   DEPARTMENT as TEXT_DEPARTMENT,
-  SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
   PRODUCTS as TEXT_PRODUCTS,
   NOTHING_WORKS_WITHOUT_US as TEXT_NOTHING_WORKS_WITHOUT_US,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
@@ -28,29 +31,33 @@ import {
   SAVE as TEXT_SAVE,
   CANCEL as TEXT_CANCEL,
   UID as TEXT_UID,
-  // PRODUCT as TEXT_PRODUCT,
   SHOPPING_UNIT as TEXT_SHOPPING_UNIT,
   HAS_LACTOSE as TEXT_HAS_LACTOSE,
   HAS_GLUTEN as TEXT_HAS_GLUTEN,
   DIET as TEXT_DIET,
   USABLE as TEXT_USABLE,
-  // IS_MEAT as TEXT_IS_MEAT,
-  // IS_VEGETARIAN as TEXT_IS_VEGETARIAN,
-  // IS_VEGAN as TEXT_IS_VEGAN,
   FROM as TEXT_FROM,
   NAME as TEXT_NAME,
   MATERIAL_TYPE_USAGE as TEXT_MATERIAL_TYPE_USAGE,
   MATERIAL_TYPE_CONSUMABLE as TEXT_MATERIAL_TYPE_CONSUMABLE,
   CHOOSE_MATERIAL_TYPE as TEXT_CHOOSE_MATERIAL_TYPE,
   MATERIAL_TYPE as TEXT_MATERIAL_TYPE,
-  PRODUCT_CONVERTED_TO_MATERIAL as TEXT_PRODUCT_CONVERTED_TO_MATERIAL,
   OPEN as TEXT_OPEN,
   DIET_TYPES as TEXT_DIET_TYPES,
   SHOW_ALL_PRODUCTS as TEXT_SHOW_ALL_PRODUCTS,
   SHOW_ONLY_NEWEST_PRODUCTS as TEXT_SHOW_ONLY_NEWEST_PRODUCTS,
-  NO_NEWEST_PRODUCTS_FOUND as TEXT_NO_NEWEST_PRODUCTS_FOUND,
   CONVERT_TO_MATERIAL as TEXT_CONVERT_TO_MATERIAL,
 } from "../../constants/text";
+import {
+  QA_CHECKED as TEXT_QA_CHECKED,
+  QA_ISSUES as TEXT_QA_ISSUES,
+  FIND_DUPLICATES as TEXT_FIND_DUPLICATES,
+  MANAGE_SYNONYMS as TEXT_MANAGE_SYNONYMS,
+  DELETE_PRODUCT as TEXT_DELETE_PRODUCT,
+  DELETE_PRODUCT_CONFIRM as TEXT_DELETE_PRODUCT_CONFIRM,
+  PRODUCT_IN_USE_WARNING as TEXT_PRODUCT_IN_USE_WARNING,
+  PRODUCT_NOT_IN_USE as TEXT_PRODUCT_NOT_IN_USE,
+} from "../../constants/text/productQa";
 import {Role as Roles} from "../../constants/roles";
 
 import {PageTitle} from "../Shared/pageTitle";
@@ -62,289 +69,44 @@ import {
   Edit as EditIcon,
   MoreVert as MoreVertIcon,
   Cached as CachedIcon,
+  Warning as WarningIcon,
+  FindReplace as FindReplaceIcon,
+  Translate as TranslateIcon,
+  CheckCircleOutline as CheckCircleOutlineIcon,
+  Delete as DeleteIcon,
 } from "@mui/icons-material";
 
-import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
+import {CustomSnackbar} from "../Shared/customSnackbar";
 import {useCustomStyles} from "../../constants/styles";
-
-import {SearchPanel} from "../Shared/searchPanel";
 
 import {Product, Allergen, Diet, createEmptyDietProperty} from "./product.types";
 import {Unit, UnitDimension} from "../Unit/unit.class";
 import Department from "../Department/department.class";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import {Material, MaterialType} from "../Material/material.types";
+import {MaterialType} from "../Material/material.types";
 import {
   DialogType,
   SingleTextInputResult,
   useCustomDialog,
 } from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {DataGrid, GridColDef, gridClasses} from "@mui/x-data-grid";
+import {WhereUsedEntry} from "../Database/Repository/AdminOperationsRepository";
+import {
+  DataGrid,
+  GridColDef,
+  GridRowSelectionModel,
+} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
-import {ProductDomain} from "../Database/Repository/ProductRepository";
 
-/* ===================================================================
-// ======================== globale Funktionen =======================
-// =================================================================== */
-enum ReducerActions {
-  PRODUCTS_FETCH_INIT,
-  PRODUCTS_FETCH_SUCCESS,
-  PRODUCT_UPDATED,
-  PRODUCTS_SAVED,
-  PRODUCTS_EDIT_CANCELLED,
-  NEWEST_PRODUCTS_FETCH_INIT,
-  NEWEST_PRODUCTS_FETCH_SUCCESS,
-  NEWEST_PRODUCTS_CLEAR,
-  PRODUCT_CONVERTED_TO_MATERIAL,
-  DEPARTMENT_FETCH_INIT,
-  DEPARTMENTS_FETCH_SUCCESS,
-  UNITS_FETCH_INIT,
-  UNITS_FETCH_SUCCESS,
-  SNACKBAR_SHOW,
-  SNACKBAR_CLOSE,
-  GENERIC_ERROR,
-}
-
-/**
- * Diskriminierte Union für alle Reducer-Actions der ProductsPage.
- */
-type ReducerAction =
-  | {type: ReducerActions.PRODUCTS_FETCH_INIT}
-  | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
-  | {type: ReducerActions.PRODUCT_UPDATED; payload: Product}
-  | {type: ReducerActions.PRODUCTS_SAVED}
-  | {type: ReducerActions.PRODUCTS_EDIT_CANCELLED; payload: Product[]}
-  | {type: ReducerActions.NEWEST_PRODUCTS_FETCH_INIT}
-  | {type: ReducerActions.NEWEST_PRODUCTS_FETCH_SUCCESS; payload: string[]}
-  | {type: ReducerActions.NEWEST_PRODUCTS_CLEAR}
-  | {type: ReducerActions.PRODUCT_CONVERTED_TO_MATERIAL; payload: Product}
-  | {type: ReducerActions.DEPARTMENT_FETCH_INIT}
-  | {type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS; payload: Department[]}
-  | {type: ReducerActions.UNITS_FETCH_INIT}
-  | {type: ReducerActions.UNITS_FETCH_SUCCESS; payload: Unit[]}
-  | {
-      type: ReducerActions.SNACKBAR_SHOW;
-      payload: {severity: SnackbarState["severity"]; message: string};
-    }
-  | {type: ReducerActions.SNACKBAR_CLOSE}
-  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
-
-/**
- * Zustand der ProductsPage.
- *
- * @param products - Aktuelle Produktliste (Bearbeitungsstand)
- * @param changedUids - UIDs der seit dem letzten Speichern geänderten Produkte
- * @param departments - Geladene Abteilungen (nur im Edit-Modus)
- * @param units - Geladene Einheiten (nur im Edit-Modus)
- * @param newestProductUids - UIDs der in den letzten N Tagen angelegten Produkte
- * @param error - Letzter aufgetretener Fehler
- * @param isLoading - Ladezustände pro Ressource
- * @param snackbar - Zustand der Erfolgsmeldung
- */
-type State = {
-  products: Product[];
-  changedUids: Set<string>;
-  departments: Department[];
-  units: Unit[];
-  newestProductUids: string[];
-  error: Error | null;
-  isLoading: {
-    overall: boolean;
-    products: boolean;
-    units: boolean;
-    departments: boolean;
-  };
-  snackbar: SnackbarState;
-};
-
-const initialState: State = {
-  products: [],
-  changedUids: new Set<string>(),
-  departments: [],
-  units: [],
-  newestProductUids: [],
-  error: null,
-  isLoading: {
-    overall: false,
-    products: false,
-    units: false,
-    departments: false,
-  },
-  snackbar: {open: false, severity: "success", message: ""},
-};
-
-/**
- * Berechnet den overall-Ladezustand anhand der Teilzustände, ohne den
- * bestehenden Zustand zu mutieren.
- * Das overall-Flag selbst wird aus der Berechnung ausgeschlossen,
- * da es das Ergebnis dieser Funktion ist und nicht als Eingabe zählt.
- *
- * @param isLoading - Vollständiger isLoading-Zustand (overall wird ignoriert)
- * @param changedField - Das Feld, dessen Wert sich ändert
- * @param newValue - Neuer Wert für changedField
- * @returns true, wenn mindestens ein Teilzustand noch aktiv ist
- */
-const computeOverallLoading = (
-  isLoading: State["isLoading"],
-  changedField: keyof Omit<State["isLoading"], "overall">,
-  newValue: boolean,
-): boolean => {
-  // overall wird bewusst ausgeschlossen — es ist das Ergebnis, kein Eingang
-  const {overall: _overall, ...rest} = isLoading;
-  const updated = {...rest, [changedField]: newValue};
-  return Object.values(updated).some((value) => value === true);
-};
-
-const productsReducer = (state: State, action: ReducerAction): State => {
-  switch (action.type) {
-    case ReducerActions.PRODUCTS_FETCH_INIT:
-      // Daten werden geladen
-      return {
-        ...state,
-        isLoading: {
-          ...state.isLoading,
-          overall: true,
-          products: true,
-        },
-      };
-    case ReducerActions.PRODUCTS_FETCH_SUCCESS:
-      // Produkte erfolgreich geladen — changedUids zurücksetzen
-      return {
-        ...state,
-        products: action.payload,
-        changedUids: new Set<string>(),
-        isLoading: {
-          ...state.isLoading,
-          overall: computeOverallLoading(state.isLoading, "products", false),
-          products: false,
-        },
-      };
-    case ReducerActions.PRODUCT_UPDATED: {
-      // Einzelnes Produkt immutabel ersetzen und UID als geändert markieren
-      const updated = state.products.map((product) =>
-        product.uid === action.payload.uid ? action.payload : product,
-      );
-      const changedUids = new Set(state.changedUids);
-      changedUids.add(action.payload.uid);
-      return {...state, products: updated, changedUids};
-    }
-    case ReducerActions.PRODUCTS_SAVED:
-      return {
-        ...state,
-        changedUids: new Set<string>(),
-        snackbar: {
-          open: true,
-          severity: "success",
-          message: TEXT_SAVE_SUCCESS,
-        },
-      };
-    case ReducerActions.PRODUCTS_EDIT_CANCELLED:
-      // Snapshot wiederherstellen und changedUids leeren
-      return {
-        ...state,
-        products: action.payload,
-        changedUids: new Set<string>(),
-      };
-    case ReducerActions.DEPARTMENT_FETCH_INIT:
-      return {
-        ...state,
-        isLoading: {
-          ...state.isLoading,
-          overall: true,
-          departments: true,
-        },
-      };
-    case ReducerActions.DEPARTMENTS_FETCH_SUCCESS:
-      // Abteilungen erfolgreich geladen
-      return {
-        ...state,
-        departments: action.payload,
-        isLoading: {
-          ...state.isLoading,
-          overall: computeOverallLoading(state.isLoading, "departments", false),
-          departments: false,
-        },
-      };
-    case ReducerActions.UNITS_FETCH_INIT:
-      return {
-        ...state,
-        isLoading: {
-          ...state.isLoading,
-          overall: true,
-          units: true,
-        },
-      };
-    case ReducerActions.UNITS_FETCH_SUCCESS:
-      // Einheiten erfolgreich geladen
-      return {
-        ...state,
-        units: action.payload,
-        isLoading: {
-          ...state.isLoading,
-          overall: computeOverallLoading(state.isLoading, "units", false),
-          units: false,
-        },
-      };
-    case ReducerActions.NEWEST_PRODUCTS_FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoading: {...state.isLoading, overall: false},
-        newestProductUids: action.payload,
-      };
-    case ReducerActions.NEWEST_PRODUCTS_FETCH_INIT:
-      return {...state, isLoading: {...state.isLoading, overall: true}};
-    case ReducerActions.NEWEST_PRODUCTS_CLEAR:
-      return {...state, newestProductUids: []};
-    case ReducerActions.PRODUCT_CONVERTED_TO_MATERIAL:
-      // Konvertiertes Produkt aus Liste entfernen
-      return {
-        ...state,
-        products: state.products.filter(
-          (product) => product.uid !== action.payload.uid,
-        ),
-        snackbar: {
-          severity: "success",
-          open: true,
-          message: TEXT_PRODUCT_CONVERTED_TO_MATERIAL(action.payload.name),
-        },
-      };
-    case ReducerActions.SNACKBAR_SHOW:
-      return {
-        ...state,
-        isLoading: {...state.isLoading, overall: false},
-        snackbar: {
-          severity: action.payload.severity,
-          message: action.payload.message,
-          open: true,
-        },
-      };
-    case ReducerActions.SNACKBAR_CLOSE:
-      // Snackbar schliessen
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: "",
-          open: false,
-        },
-      };
-    case ReducerActions.GENERIC_ERROR:
-      // allgemeiner Fehler
-      return {
-        ...state,
-        error: action.payload,
-        isLoading: {...state.isLoading, overall: false},
-      };
-    default: {
-      const _: never = action;
-      throw new Error(`Unbekannter ActionType: ${JSON.stringify(_)}`);
-    }
-  }
-};
+import {useProductsQa, QaFilterStatus, ProductIssue} from "./useProductsQa";
+import {ProductsQaFilterBar} from "./productsQaFilterBar";
+import {ProductsQaBulkActions} from "./productsQaBulkActions";
+import {DialogMergeProducts} from "./dialogMergeProducts";
+import {DialogSynonymPairs} from "./dialogSynonymPairs";
+import {detectProductIssues} from "./productQaUtils";
+import {ReducerActions} from "./useProductsQa";
 
 const PRODUCT_POPUP_VALUES = {
   productName: "",
@@ -361,194 +123,47 @@ const PRODUCT_POPUP_VALUES = {
 // =================================================================== */
 
 /**
- * Hauptseite für die Produkt-/Zutaten-Verwaltung.
- * Lädt Produkte aus Supabase und ermöglicht Bearbeiten, selektives Speichern
- * und Konvertierung zu Material.
+ * Hauptseite für die Produkt-/Zutaten-Verwaltung mit QA-Funktionen.
+ * Verwendet den useProductsQa-Hook für Zustandsverwaltung und
+ * ermöglicht Inline-Bearbeitung, Bulk-Aktionen, Duplikaterkennung
+ * und QA-Tracking.
  */
 const ProductsPage = () => {
-  // firebase wird nur noch für onConvertProductToMaterial (Cloud-FX) benötigt
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const {customDialog} = useCustomDialog();
 
-  const [state, dispatch] = React.useReducer(productsReducer, initialState);
-  const [editMode, setEditMode] = React.useState(false);
-  // Snapshot für Cancel: Deep-Copy der Produkte vor dem Bearbeitungsbeginn
-  const productsSnapshot = React.useRef<Product[]>([]);
+  const hook = useProductsQa();
+  const {state, editMode} = hook;
 
-  /* ------------------------------------------
-	// Daten aus DB holen
-	// ------------------------------------------ */
+  // Merge-Dialog State
+  const [mergeDialogOpen, setMergeDialogOpen] = React.useState(false);
+  const [mergeSourceUid, setMergeSourceUid] = React.useState("");
+  const [mergeTargetUid, setMergeTargetUid] = React.useState("");
+
+  // Synonym-Dialog State
+  const [synonymDialogOpen, setSynonymDialogOpen] = React.useState(false);
+
+  // Issue-Detection: Flags bei Produktänderungen neu berechnen
   React.useEffect(() => {
-    dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT});
-    database.products
-      .getAllProducts({onlyUsable: false, withDepartmentName: true})
-      .then((result) => {
-        dispatch({
-          type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-          payload: result,
-        });
-      })
-      .catch((error) => {
-        Sentry.captureException(error, {extra: {context: "Produkte laden"}});
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error,
-        });
+    if (state.products.length > 0) {
+      const issues = detectProductIssues(state.products);
+      hook.dispatch({
+        type: ReducerActions.ISSUE_FLAGS_LOADED,
+        payload: issues,
       });
-  }, []);
-
-  React.useEffect(() => {
-    if (editMode) {
-      if (state.departments.length === 0) {
-        dispatch({type: ReducerActions.DEPARTMENT_FETCH_INIT});
-        database.departments
-          .getAllDepartments()
-          .then((result) => {
-            dispatch({
-              type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-              payload: result,
-            });
-          })
-          .catch((error) => {
-            Sentry.captureException(error, {extra: {context: "Abteilungen laden"}});
-            dispatch({
-              type: ReducerActions.GENERIC_ERROR,
-              payload: error,
-            });
-          });
-      }
-      if (state.units.length === 0) {
-        dispatch({type: ReducerActions.UNITS_FETCH_INIT});
-        database.units
-          .getAllUnits()
-          .then((result) => {
-            // leeres Feld gehoert auch dazu
-            result.push({
-              uid: "",
-              key: "",
-              name: "",
-              dimension: UnitDimension.dimensionless,
-            });
-
-            dispatch({
-              type: ReducerActions.UNITS_FETCH_SUCCESS,
-              payload: result,
-            });
-          })
-          .catch((error) => {
-            Sentry.captureException(error, {extra: {context: "Einheiten laden"}});
-            dispatch({
-              type: ReducerActions.GENERIC_ERROR,
-              payload: error,
-            });
-          });
-      }
     }
-  }, [editMode]);
+  }, [state.products]);
 
   if (!authUser) {
     return null;
   }
 
   /* ------------------------------------------
-	// Edit Mode wechseln
-	// ------------------------------------------ */
-  const onEditClick = () => {
-    // Snapshot erstellen, damit Cancel die Originalwerte wiederherstellen kann
-    productsSnapshot.current = state.products.map((product) => ({
-      ...product,
-      dietProperties: {
-        ...product.dietProperties,
-        allergens: [...product.dietProperties.allergens],
-      },
-    }));
-    setEditMode(true);
-  };
-
-  const onCancelClick = () => {
-    dispatch({
-      type: ReducerActions.PRODUCTS_EDIT_CANCELLED,
-      payload: productsSnapshot.current,
-    });
-    setEditMode(false);
-  };
-
-  /* ------------------------------------------
-  // Selektives Speichern (nur geänderte Produkte)
+  // Konvertierung zu Material (Dialog-Logik bleibt hier)
   // ------------------------------------------ */
-  const onSave = async () => {
-    const changedProducts = state.products.filter((product) =>
-      state.changedUids.has(product.uid),
-    );
-    if (changedProducts.length === 0) {
-      return;
-    }
-    try {
-      for (const product of changedProducts) {
-        // Product → ProductDomain: nameSingular mit Name belegen (Tech-Debt: Typ-Vereinheitlichung)
-        await database.products.updateProduct(
-          {...product, nameSingular: product.name},
-          authUser,
-        );
-      }
-      dispatch({type: ReducerActions.PRODUCTS_SAVED});
-      setEditMode(false);
-    } catch (error) {
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
-    }
-  };
-
-  /* ------------------------------------------
-  // Produkt-Änderung aus Unterkomponente
-  // ------------------------------------------ */
-  const onProductChange = (product: Product) => {
-    dispatch({type: ReducerActions.PRODUCT_UPDATED, payload: product});
-  };
-
-  /**
-   * Schaltet die Ansicht der neuesten Produkte ein oder aus.
-   * Beim ersten Aufruf werden die UIDs der in den letzten 10 Tagen
-   * angelegten Produkte aus Supabase geladen. Beim zweiten Aufruf
-   * wird die Filterung zurückgesetzt und alle Produkte wieder angezeigt.
-   */
-  const loadNewestProducts = () => {
-    if (state.newestProductUids.length === 0) {
-      dispatch({type: ReducerActions.NEWEST_PRODUCTS_FETCH_INIT});
-      database.products
-        .getRecentProductUids(10)
-        .then((result) => {
-          if (result.length > 0) {
-            dispatch({
-              type: ReducerActions.NEWEST_PRODUCTS_FETCH_SUCCESS,
-              payload: result,
-            });
-          } else {
-            dispatch({
-              type: ReducerActions.SNACKBAR_SHOW,
-              payload: {
-                severity: "info",
-                message: TEXT_NO_NEWEST_PRODUCTS_FOUND,
-              },
-            });
-          }
-        })
-        .catch((error) => {
-          dispatch({
-            type: ReducerActions.GENERIC_ERROR,
-            payload: error as Error,
-          });
-        });
-    } else {
-      // Filterung zurücksetzen, damit alle Produkte wieder angezeigt werden
-      dispatch({type: ReducerActions.NEWEST_PRODUCTS_CLEAR});
-    }
-  };
-
-  const onConvertProductToMaterial = async (product: Product) => {
-    // Fragen welcher Material-Typ gesetzt werden soll?
+  const handleConvertProductToMaterial = async (product: Product) => {
     const userInput = (await customDialog({
       dialogType: DialogType.SelectOptions,
       title: TEXT_MATERIAL_TYPE,
@@ -564,35 +179,136 @@ const ProductsPage = () => {
     })) as SingleTextInputResult;
 
     if (userInput.valid) {
-      // Materialtyp-Zuordnung: 1 = consumable, 2 = usage
       const materialTypeMap: Record<number, string> = {
         [MaterialType.consumable]: "consumable",
         [MaterialType.usage]: "usage",
       };
-      const materialType = materialTypeMap[parseInt(userInput.input)] ?? "consumable";
+      const materialType =
+        materialTypeMap[parseInt(userInput.input)] ?? "consumable";
 
       database.adminOps
         .convertProductToMaterial(product.uid, materialType)
         .then(() => {
-          dispatch({
-            type: ReducerActions.PRODUCT_CONVERTED_TO_MATERIAL,
-            payload: product,
-          });
+          hook.onConvertProductToMaterial(product);
         });
     }
   };
 
   /* ------------------------------------------
-  // Snackbar schliessen
+  // Produkt löschen (mit Where-Used-Prüfung)
   // ------------------------------------------ */
-  const handleSnackbarClose = (
-    event: Event | SyntheticEvent<any, Event>,
-    reason: SnackbarCloseReason,
-  ) => {
-    if (reason === "clickaway") {
-      return;
+  const handleDeleteProduct = async (product: Product) => {
+    try {
+      const references = await database.adminOps.whereUsed(
+        product.uid,
+        "product",
+      );
+
+      // Dialog-Text zusammenbauen
+      let dialogText: string | JSX.Element;
+      if (references.length > 0) {
+        // Referenzen nach Tabelle gruppieren
+        const grouped = new Map<string, WhereUsedEntry[]>();
+        for (const entry of references) {
+          const existing = grouped.get(entry.table_name) ?? [];
+          existing.push(entry);
+          grouped.set(entry.table_name, existing);
+        }
+
+        // Menschenlesbare Labels für die Tabellennamen
+        const tableLabels: Record<string, string> = {
+          recipe_ingredients: "Rezepte (Zutaten)",
+          recipe_materials: "Rezepte (Material)",
+          event_shopping_list_items: "Einkaufslisten",
+          event_material_list_items: "Materiallisten",
+          event_menue_products: "Menüpläne (Produkte)",
+          event_menue_materials: "Menüpläne (Material)",
+          event_menue_recipes: "Menüpläne (Rezepte)",
+          unit_conversion_products: "Einheitenumrechnung",
+        };
+
+        dialogText = (
+          <React.Fragment>
+            <Typography
+              variant="body2"
+              color="warning.main"
+              gutterBottom
+              sx={{fontWeight: "bold"}}
+            >
+              {TEXT_PRODUCT_IN_USE_WARNING}
+            </Typography>
+            {Array.from(grouped.entries()).map(
+              ([tableName, tableEntries]) => (
+                <Box key={tableName} sx={{marginBottom: 1}}>
+                  <Typography variant="subtitle2">
+                    {tableLabels[tableName] ?? tableName} (
+                    {tableEntries.length})
+                  </Typography>
+                  <Box
+                    component="ul"
+                    sx={{paddingLeft: 2, margin: 0, marginTop: 0.5}}
+                  >
+                    {tableEntries.map((entry, index) => (
+                      <Typography
+                        component="li"
+                        variant="body2"
+                        color="text.secondary"
+                        key={`${tableName}-${entry.record_id}-${index}`}
+                      >
+                        {entry.context}
+                      </Typography>
+                    ))}
+                  </Box>
+                </Box>
+              ),
+            )}
+          </React.Fragment>
+        );
+      } else {
+        dialogText = (
+          <Typography variant="body2" color="text.secondary">
+            {TEXT_PRODUCT_NOT_IN_USE}
+          </Typography>
+        );
+      }
+
+      const confirmed = await customDialog({
+        dialogType: DialogType.Confirm,
+        title: TEXT_DELETE_PRODUCT_CONFIRM(product.name),
+        text: dialogText,
+      });
+
+      if (confirmed) {
+        await database.products.deleteProduct(product.uid);
+        hook.onDeleteProduct(product);
+      }
+    } catch (error) {
+      Sentry.captureException(error, {
+        extra: {context: "Produkt löschen", productUid: product.uid},
+      });
+      hook.dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as Error,
+      });
     }
-    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
+  };
+
+  /* ------------------------------------------
+  // Merge-Dialog öffnen
+  // ------------------------------------------ */
+  const openMergeDialog = (sourceUid: string, targetUid: string) => {
+    setMergeSourceUid(sourceUid);
+    setMergeTargetUid(targetUid);
+    setMergeDialogOpen(true);
+  };
+
+  const openMergeFromSelection = () => {
+    if (state.selectedProductUids.length === 2) {
+      openMergeDialog(
+        state.selectedProductUids[0],
+        state.selectedProductUids[1],
+      );
+    }
   };
 
   return (
@@ -604,10 +320,15 @@ const ProductsPage = () => {
       />
       <ProductsButtonRow
         editMode={editMode}
-        onEdit={onEditClick}
-        onSave={onSave}
-        onCancel={onCancelClick}
-        onLoadNewestProducts={loadNewestProducts}
+        onEdit={hook.onEditClick}
+        onSave={hook.onSave}
+        onCancel={hook.onCancelClick}
+        onLoadNewestProducts={hook.loadNewestProducts}
+        onFindDuplicates={hook.onFindDuplicates}
+        onManageSynonyms={() => {
+          hook.onLoadSynonyms();
+          setSynonymDialogOpen(true);
+        }}
         showLoadNewestProducts={state.newestProductUids.length === 0}
         authUser={authUser}
       />
@@ -624,23 +345,68 @@ const ProductsPage = () => {
             messageTitle={TEXT_ALERT_TITLE_UUPS}
           />
         )}
+
+        {/* Bulk-Aktionen Toolbar */}
+        {editMode && state.selectedProductUids.length > 0 && (
+          <ProductsQaBulkActions
+            selectedCount={state.selectedProductUids.length}
+            departments={state.departments}
+            onBulkDepartmentChange={hook.onBulkDepartmentChange}
+            onBulkDietChange={hook.onBulkDietChange}
+            onBulkQaCheck={hook.onBulkQaCheck}
+            onMerge={openMergeFromSelection}
+            canMerge={state.selectedProductUids.length === 2}
+          />
+        )}
+
         <ProductsTable
           editMode={editMode}
           products={state.products}
           departments={state.departments}
           units={state.units}
           newestProductUids={state.newestProductUids}
-          onProductChange={onProductChange}
-          onConvertProductToMaterial={onConvertProductToMaterial}
+          issueFlags={state.issueFlags}
+          onProductChange={hook.onProductChange}
+          onQaToggle={hook.onQaToggle}
+          onConvertProductToMaterial={handleConvertProductToMaterial}
+          onDeleteProduct={handleDeleteProduct}
+          onSelectionChange={hook.onSelectionChange}
+          selectedProductUids={state.selectedProductUids}
           authUser={authUser}
+          similarProducts={state.similarProducts}
+          onOpenMergeDialog={openMergeDialog}
+          onClearDuplicates={hook.onClearDuplicates}
+          onDismissDuplicate={hook.onDismissDuplicate}
         />
         <CustomSnackbar
           message={state.snackbar.message}
           severity={state.snackbar.severity}
           snackbarOpen={state.snackbar.open}
-          handleClose={handleSnackbarClose}
+          handleClose={hook.handleSnackbarClose}
         />
       </Container>
+
+      {/* Merge-Dialog */}
+      {mergeDialogOpen && (
+        <DialogMergeProducts
+          open={mergeDialogOpen}
+          onClose={() => setMergeDialogOpen(false)}
+          products={state.products}
+          sourceProductUid={mergeSourceUid}
+          targetProductUid={mergeTargetUid}
+          onMerge={hook.onMergeProducts}
+        />
+      )}
+
+      {/* Synonym-Dialog */}
+      {synonymDialogOpen && (
+        <DialogSynonymPairs
+          open={synonymDialogOpen}
+          onClose={() => setSynonymDialogOpen(false)}
+          synonymPairs={state.synonymPairs}
+          onReload={hook.onLoadSynonyms}
+        />
+      )}
     </React.Fragment>
   );
 };
@@ -650,14 +416,6 @@ const ProductsPage = () => {
 // =================================================================== */
 /**
  * Props für die Schaltflächen-Zeile der Produkt-Seite.
- *
- * @param editMode - Gibt an, ob der Bearbeitungsmodus aktiv ist
- * @param onEdit - Callback zum Aktivieren des Bearbeitungsmodus
- * @param onCancel - Callback zum Abbrechen und Verwerfen der Änderungen
- * @param onSave - Callback zum Speichern der Änderungen
- * @param onLoadNewestProducts - Callback zum Umschalten der Neueste-Produkte-Ansicht
- * @param showLoadNewestProducts - true wenn «Neueste anzeigen» sichtbar sein soll
- * @param authUser - Angemeldeter Benutzer (für Rollenprüfung)
  */
 interface ProductsButtonRowProps {
   editMode: boolean;
@@ -665,13 +423,16 @@ interface ProductsButtonRowProps {
   onCancel: () => void;
   onSave: () => void;
   onLoadNewestProducts: () => void;
+  onFindDuplicates: () => void;
+  onManageSynonyms: () => void;
   showLoadNewestProducts: boolean;
   authUser: AuthUser;
 }
 
 /**
  * Schaltflächen-Zeile für die Produkt-Seite.
- * Zeigt je nach Modus Edit/Save/Cancel-Buttons und den Neueste-Produkte-Toggle.
+ * Zeigt je nach Modus Edit/Save/Cancel-Buttons, Neueste-Produkte-Toggle,
+ * Duplikaterkennung und Synonym-Verwaltung.
  */
 const ProductsButtonRow = ({
   editMode,
@@ -679,9 +440,12 @@ const ProductsButtonRow = ({
   onCancel,
   onSave,
   onLoadNewestProducts,
+  onFindDuplicates,
+  onManageSynonyms,
   showLoadNewestProducts,
   authUser,
 }: ProductsButtonRowProps) => {
+  const isAdmin = authUser.roles.includes(Roles.admin);
   return (
     <ButtonRow
       key="action_buttons"
@@ -691,17 +455,34 @@ const ProductsButtonRow = ({
           hero: true,
           visible:
             !editMode &&
-            (authUser.roles.includes(Roles.communityLeader) ||
-              authUser.roles.includes(Roles.admin)),
+            (authUser.roles.includes(Roles.communityLeader) || isAdmin),
           label: TEXT_EDIT,
           variant: "contained",
           color: "primary",
           onClick: onEdit,
         },
         {
+          id: "findDuplicates",
+          hero: true,
+          visible: isAdmin && !editMode,
+          label: TEXT_FIND_DUPLICATES,
+          variant: "outlined",
+          color: "primary",
+          onClick: onFindDuplicates,
+        },
+        {
+          id: "manageSynonyms",
+          hero: true,
+          visible: isAdmin && !editMode,
+          label: TEXT_MANAGE_SYNONYMS,
+          variant: "outlined",
+          color: "primary",
+          onClick: onManageSynonyms,
+        },
+        {
           id: "newestProducts",
           hero: true,
-          visible: showLoadNewestProducts,
+          visible: showLoadNewestProducts && !editMode,
           label: TEXT_SHOW_ONLY_NEWEST_PRODUCTS,
           variant: "outlined",
           color: "primary",
@@ -710,7 +491,7 @@ const ProductsButtonRow = ({
         {
           id: "showAll",
           hero: true,
-          visible: !showLoadNewestProducts,
+          visible: !showLoadNewestProducts && !editMode,
           label: TEXT_SHOW_ALL_PRODUCTS,
           variant: "outlined",
           color: "primary",
@@ -742,87 +523,117 @@ const ProductsButtonRow = ({
 /* ===================================================================
 // =========================== Produkte Panel ========================
 // =================================================================== */
+
 /**
  * Props für die Produkte-Tabelle.
- *
- * @param products - Aktuelle Produktliste (vom Reducer verwaltet)
- * @param departments - Verfügbare Abteilungen (für Dialog und Anzeige)
- * @param units - Verfügbare Einheiten (für Dialog und Anzeige)
- * @param newestProductUids - UIDs der neuesten Produkte für die Filteransicht
- * @param editMode - Gibt an, ob der Bearbeitungsmodus aktiv ist
- * @param onProductChange - Callback bei Inline-Änderung eines Produkts
- * @param onConvertProductToMaterial - Callback zur Konvertierung eines Produkts
- * @param authUser - Angemeldeter Benutzer
  */
 interface ProductsTableProps {
   products: Product[];
   departments: Department[];
   units: Unit[];
   newestProductUids: string[];
+  issueFlags: ProductIssue[];
   editMode: boolean;
   onProductChange: (product: Product) => void;
+  onQaToggle: (uid: string, checked: boolean) => void;
   onConvertProductToMaterial: (product: Product) => void;
+  onDeleteProduct: (product: Product) => void;
+  onSelectionChange: (uids: string[]) => void;
+  selectedProductUids: string[];
   authUser: AuthUser;
+  similarProducts: {
+    product_a_id: string;
+    product_a_name: string;
+    product_b_id: string;
+    product_b_name: string;
+    similarity: number;
+    match_type: string;
+  }[];
+  onOpenMergeDialog: (sourceUid: string, targetUid: string) => void;
+  onClearDuplicates: () => void;
+  onDismissDuplicate: (productAId: string, productBId: string) => void;
 }
 
 /**
  * UI-Zeile für die Produkte-Tabelle.
- *
- * @param uid - Eindeutige ID des Produkts
- * @param name - Produktname
- * @param departmentName - Name der zugehörigen Abteilung
- * @param shoppingUnit - Einkaufseinheit
- * @param containsLactose - Enthält das Produkt Laktose
- * @param containsGluten - Enthält das Produkt Gluten
- * @param diet - Diät-Klassifikation
- * @param usable - Gibt an, ob das Produkt aktiv ist
  */
 interface ProductLineUi {
   uid: Product["uid"];
   name: Product["name"];
   departmentName: Department["name"];
-  shoppingUnit: Unit["name"];
+  departmentUid: string;
+  shoppingUnit: string;
   containsLactose: boolean;
   containsGluten: boolean;
   diet: Diet;
   usable: boolean;
+  qaChecked: boolean;
+  issueCount: number;
+  issueTexts: string;
 }
 
 /**
- * Tabellen-Komponente für die Produkt-Verwaltung.
- * Rendert einen DataGrid mit Such-Panel, Inline-Checkboxen und Kontext-Menü.
- * Die eigentliche Produktliste wird vom übergeordneten Reducer verwaltet.
+ * Tabellen-Komponente für die Produkt-Verwaltung mit QA-Erweiterungen.
+ * Unterstützt Inline-Bearbeitung aller Felder, Multi-Select,
+ * QA-Tracking und Duplikaterkennung.
  */
 const ProductsTable = ({
   products,
   departments,
   units,
   newestProductUids,
+  issueFlags,
   editMode,
   onProductChange,
+  onQaToggle,
   onConvertProductToMaterial: onConvertProductToMaterialSuper,
+  onDeleteProduct: onDeleteProductSuper,
+  onSelectionChange,
+  selectedProductUids,
   authUser,
+  similarProducts,
+  onOpenMergeDialog,
+  onClearDuplicates,
+  onDismissDuplicate,
 }: ProductsTableProps) => {
   const [searchString, setSearchString] = React.useState("");
+  const [qaFilter, setQaFilter] = React.useState<QaFilterStatus>("all");
+  const [departmentFilter, setDepartmentFilter] = React.useState("");
+  const [showIssuesOnly, setShowIssuesOnly] = React.useState(false);
   const [productPopUpValues, setProductPopUpValues] =
     React.useState(PRODUCT_POPUP_VALUES);
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     React.useState<HTMLElement | null>(null);
-  const [contextMenuProductUid, setContextMenuProductUid] = React.useState("");
-  const [paginationModel, setPaginationModel] = React.useState({page: 0, pageSize: 100});
+  const [contextMenuProductUid, setContextMenuProductUid] =
+    React.useState("");
+  const [paginationModel, setPaginationModel] = React.useState({
+    page: 0,
+    pageSize: 100,
+  });
 
   const classes = useCustomStyles();
   const theme = useTheme();
 
+  // Issue-Flags als Map für schnellen Zugriff
+  const issueFlagMap = React.useMemo(() => {
+    const map = new Map<string, ProductIssue>();
+    issueFlags.forEach((issue) => map.set(issue.productUid, issue));
+    return map;
+  }, [issueFlags]);
+
   /* ------------------------------------------
   // Daten für UI aufbereiten
   // ------------------------------------------ */
-  const prepareProductsListForUi = (productList: Product[]): ProductLineUi[] => {
+  const prepareProductsListForUi = (
+    productList: Product[],
+  ): ProductLineUi[] => {
     return productList.map((product) => {
+      const issueFlag = issueFlagMap.get(product.uid);
       return {
         uid: product.uid,
         name: product.name,
         departmentName: product.department.name,
+        departmentUid: product.department.uid,
         shoppingUnit: product.shoppingUnit,
         containsLactose: product.dietProperties?.allergens?.includes(
           Allergen.Lactose,
@@ -832,54 +643,88 @@ const ProductsTable = ({
         ),
         diet: product.dietProperties.diet,
         usable: product.usable,
+        qaChecked: product.qaChecked,
+        issueCount: issueFlag?.issues.length ?? 0,
+        issueTexts: issueFlag?.issues.join(", ") ?? "",
       };
     });
   };
 
   /* ------------------------------------------
-  // Abgeleitete Listen via useMemo
+  // Gefilterte Produkte
   // ------------------------------------------ */
   const filteredProducts = React.useMemo(() => {
-    let result = searchString
-      ? products.filter(
-          (product) =>
-            product.name.toLowerCase().includes(searchString.toLowerCase()) ||
-            product?.department?.name
-              .toLowerCase()
-              .includes(searchString.toLowerCase()) ||
-            product?.shoppingUnit
-              ?.toLowerCase()
-              .includes(searchString.toLowerCase()),
-        )
-      : products;
+    let result = products;
 
+    // Textsuche
+    if (searchString) {
+      const lower = searchString.toLowerCase();
+      result = result.filter(
+        (product) =>
+          product.name.toLowerCase().includes(lower) ||
+          product.department?.name?.toLowerCase().includes(lower) ||
+          product.shoppingUnit?.toLowerCase().includes(lower),
+      );
+    }
+
+    // Neueste Produkte
     if (newestProductUids.length > 0) {
-      // Nur Produkte anzeigen, die in den letzten Tagen angelegt wurden
       result = result.filter((product) =>
         newestProductUids.includes(product.uid),
       );
     }
+
+    // QA-Filter
+    if (qaFilter === "checked") {
+      result = result.filter((product) => product.qaChecked);
+    } else if (qaFilter === "unchecked") {
+      result = result.filter((product) => !product.qaChecked);
+    }
+
+    // Abteilungs-Filter
+    if (departmentFilter) {
+      result = result.filter(
+        (product) => product.department.uid === departmentFilter,
+      );
+    }
+
+    // Nur Produkte mit Problemen
+    if (showIssuesOnly) {
+      const issueUids = new Set(issueFlags.map((issue) => issue.productUid));
+      result = result.filter((product) => issueUids.has(product.uid));
+    }
+
     return result;
-  }, [products, searchString, newestProductUids]);
+  }, [
+    products,
+    searchString,
+    newestProductUids,
+    qaFilter,
+    departmentFilter,
+    showIssuesOnly,
+    issueFlags,
+  ]);
 
   const filteredProductsUi = React.useMemo(
     () => prepareProductsListForUi(filteredProducts),
-    // editMode als Abhaengigkeit, damit die Grid-Zeilen bei Moduswechsel neu rendern
-    [filteredProducts, editMode],
+    [filteredProducts, editMode, issueFlagMap],
   );
 
+  /* ------------------------------------------
+  // DataGrid Spalten
+  // ------------------------------------------ */
   const dataGridColumns: GridColDef[] = React.useMemo(
     () => [
       {
         field: "open",
         headerName: TEXT_OPEN,
         sortable: false,
+        width: 60,
         renderCell: (params) => {
           const onClick = () => openPopUp(params.id as string);
-
           return (
             <IconButton
-              aria-label="open User"
+              aria-label="Produkt öffnen"
               sx={{margin: theme.spacing(1)}}
               size="small"
               disabled={!editMode}
@@ -902,24 +747,125 @@ const ProductsTable = ({
         headerName: TEXT_NAME,
         editable: false,
         width: 200,
+        renderCell: (params) => {
+          if (!editMode) return params.value;
+          return (
+            <TextField
+              variant="standard"
+              size="small"
+              fullWidth
+              value={params.value as string}
+              onChange={(event) => {
+                const product = products.find(
+                  (candidate) => candidate.uid === params.id,
+                );
+                if (product) {
+                  onProductChange({...product, name: event.target.value});
+                }
+              }}
+              InputProps={{disableUnderline: true}}
+              sx={{fontSize: "0.875rem"}}
+            />
+          );
+        },
       },
       {
         field: "departmentName",
         headerName: TEXT_DEPARTMENT,
         editable: false,
         width: 200,
+        renderCell: (params) => {
+          if (!editMode || departments.length === 0) return params.value;
+          return (
+            <Autocomplete
+              size="small"
+              fullWidth
+              options={departments}
+              getOptionLabel={(option) => option.name}
+              value={
+                departments.find(
+                  (department) =>
+                    department.uid === (params.row as ProductLineUi).departmentUid,
+                ) ?? undefined
+              }
+              onChange={(_event, newValue) => {
+                const product = products.find(
+                  (candidate) => candidate.uid === params.id,
+                );
+                if (product && newValue) {
+                  onProductChange({
+                    ...product,
+                    department: {uid: newValue.uid, name: newValue.name},
+                  });
+                }
+              }}
+              renderInput={(inputParams) => (
+                <TextField
+                  {...inputParams}
+                  variant="standard"
+                  InputProps={{
+                    ...inputParams.InputProps,
+                    disableUnderline: true,
+                  }}
+                />
+              )}
+              disableClearable
+              sx={{fontSize: "0.875rem"}}
+            />
+          );
+        },
       },
       {
         field: "shoppingUnit",
         headerName: TEXT_SHOPPING_UNIT,
         editable: false,
-        width: 200,
+        width: 150,
+        renderCell: (params) => {
+          if (!editMode || units.length === 0) return params.value;
+          return (
+            <Autocomplete
+              size="small"
+              fullWidth
+              options={units}
+              getOptionLabel={(option) =>
+                option.name ? `${option.name} (${option.key})` : ""
+              }
+              value={
+                units.find(
+                  (unit) => unit.key === (params.value as string),
+                ) ?? units.find((unit) => unit.key === "") ?? null
+              }
+              onChange={(_event, newValue) => {
+                const product = products.find(
+                  (candidate) => candidate.uid === params.id,
+                );
+                if (product) {
+                  onProductChange({
+                    ...product,
+                    shoppingUnit: newValue?.key ?? "",
+                  });
+                }
+              }}
+              renderInput={(inputParams) => (
+                <TextField
+                  {...inputParams}
+                  variant="standard"
+                  InputProps={{
+                    ...inputParams.InputProps,
+                    disableUnderline: true,
+                  }}
+                />
+              )}
+              sx={{fontSize: "0.875rem"}}
+            />
+          );
+        },
       },
       {
         field: "containsLactose",
         headerName: TEXT_HAS_LACTOSE,
         editable: false,
-        width: 200,
+        width: 100,
         renderCell: (params) => (
           <Checkbox
             checked={params.value as boolean}
@@ -934,7 +880,7 @@ const ProductsTable = ({
         field: "containsGluten",
         headerName: TEXT_HAS_GLUTEN,
         editable: false,
-        width: 200,
+        width: 100,
         renderCell: (params) => (
           <Checkbox
             checked={params.value as boolean}
@@ -949,14 +895,47 @@ const ProductsTable = ({
         field: "diet",
         headerName: TEXT_DIET,
         editable: false,
-        width: 200,
-        renderCell: (params) => TEXT_DIET_TYPES[params.value as number],
+        width: 150,
+        renderCell: (params) => {
+          if (!editMode) {
+            return TEXT_DIET_TYPES[params.value as number];
+          }
+          return (
+            <Select
+              size="small"
+              fullWidth
+              variant="standard"
+              value={params.value as number}
+              onChange={(event: SelectChangeEvent<number>) => {
+                const product = products.find(
+                  (candidate) => candidate.uid === params.id,
+                );
+                if (product) {
+                  onProductChange({
+                    ...product,
+                    dietProperties: {
+                      ...product.dietProperties,
+                      diet: event.target.value as Diet,
+                    },
+                  });
+                }
+              }}
+              disableUnderline
+            >
+              <MenuItem value={Diet.Meat}>{TEXT_DIET_TYPES[Diet.Meat]}</MenuItem>
+              <MenuItem value={Diet.Vegetarian}>
+                {TEXT_DIET_TYPES[Diet.Vegetarian]}
+              </MenuItem>
+              <MenuItem value={Diet.Vegan}>{TEXT_DIET_TYPES[Diet.Vegan]}</MenuItem>
+            </Select>
+          );
+        },
       },
       {
         field: "usable",
         headerName: TEXT_USABLE,
         editable: false,
-        width: 200,
+        width: 80,
         renderCell: (params) => (
           <Checkbox
             checked={params.value as boolean}
@@ -968,17 +947,59 @@ const ProductsTable = ({
         ),
       },
       {
+        field: "qaChecked",
+        headerName: TEXT_QA_CHECKED,
+        editable: false,
+        width: 80,
+        renderCell: (params) => (
+          <Checkbox
+            checked={params.value as boolean}
+            disabled={!editMode}
+            onChange={(event) =>
+              onQaToggle(params.id as string, event.target.checked)
+            }
+          />
+        ),
+      },
+      {
+        field: "issueCount",
+        headerName: TEXT_QA_ISSUES,
+        editable: false,
+        width: 80,
+        renderCell: (params) => {
+          const count = params.value as number;
+          if (count === 0) return null;
+          return (
+            <Tooltip
+              title={(params.row as ProductLineUi).issueTexts}
+              arrow
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 0.5,
+                  color: "warning.main",
+                }}
+              >
+                <WarningIcon fontSize="small" />
+                <Typography variant="body2">{count}</Typography>
+              </Box>
+            </Tooltip>
+          );
+        },
+      },
+      {
         field: "context",
         headerName: "",
         editable: false,
-        width: 200,
+        width: 60,
         renderCell: (params) => {
           const onClick = (event: React.MouseEvent<HTMLElement>) =>
             openContextMenu(event, params.id as string);
-
           return (
             <IconButton
-              aria-label="open User"
+              aria-label="Kontextmenü"
               sx={{margin: theme.spacing(1)}}
               size="small"
               disabled={!editMode}
@@ -990,30 +1011,28 @@ const ProductsTable = ({
         },
       },
     ],
-    [editMode, theme],
+    [editMode, theme, departments, units, products, issueFlagMap],
   );
 
   /* ------------------------------------------
   // Suche
   // ------------------------------------------ */
-  const clearSearchString = () => {
-    setSearchString("");
-  };
+  const clearSearchString = () => setSearchString("");
   const updateSearchString = (
     event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
-  ) => {
-    setSearchString(event.target.value as string);
-  };
+  ) => setSearchString(event.target.value);
 
   /* ------------------------------------------
   // Checkboxen-Edit (immutabel)
   // ------------------------------------------ */
-  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCheckboxChange = (
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) => {
     const parts = event.target.name.split("_");
-    const product = products.find((candidate) => candidate.uid === parts[2]);
-    if (!product) {
-      return;
-    }
+    const product = products.find(
+      (candidate) => candidate.uid === parts[2],
+    );
+    if (!product) return;
 
     if (parts[1] === "usable") {
       onProductChange({...product, usable: event.target.checked});
@@ -1031,8 +1050,15 @@ const ProductsTable = ({
   };
 
   /* ------------------------------------------
-	// Context-Menü
-	// ------------------------------------------ */
+  // Selection
+  // ------------------------------------------ */
+  const handleSelectionChange = (selectionModel: GridRowSelectionModel) => {
+    onSelectionChange(selectionModel as string[]);
+  };
+
+  /* ------------------------------------------
+  // Context-Menü
+  // ------------------------------------------ */
   const openContextMenu = (
     event: React.MouseEvent<HTMLElement>,
     productUid: Product["uid"],
@@ -1048,25 +1074,28 @@ const ProductsTable = ({
     const product = products.find(
       (candidate) => candidate.uid === contextMenuProductUid,
     );
-    if (!product) {
-      return;
-    }
-    // Reducer in der Elternkomponente entfernt das Produkt via PRODUCT_CONVERTED_TO_MATERIAL
+    if (!product) return;
     onConvertProductToMaterialSuper(product);
     closeContextMenu();
   };
+  const onDeleteProduct = () => {
+    const product = products.find(
+      (candidate) => candidate.uid === contextMenuProductUid,
+    );
+    if (!product) return;
+    closeContextMenu();
+    onDeleteProductSuper(product);
+  };
 
   /* ------------------------------------------
-	// PopUp
-	// ------------------------------------------ */
+  // PopUp
+  // ------------------------------------------ */
   const openPopUp = (productUid: string) => {
     const product = products.find(
       (candidate) => candidate.uid === productUid,
     ) as Product;
+    if (!product) return;
 
-    if (!product) {
-      return;
-    }
     setProductPopUpValues({
       productUid: product.uid,
       productName: product.name,
@@ -1084,15 +1113,7 @@ const ProductsTable = ({
       popUpOpen: true,
     });
   };
-  const onPopUpClose = () => {
-    setProductPopUpValues(PRODUCT_POPUP_VALUES);
-  };
-
-  /**
-   * Verarbeitet das OK-Event des Produkt-Dialogs (immutabel).
-   *
-   * @param changedProduct - Das vom Dialog zurückgegebene Produkt
-   */
+  const onPopUpClose = () => setProductPopUpValues(PRODUCT_POPUP_VALUES);
   const onPopUpOk = (changedProduct: Product) => {
     onProductChange({
       ...changedProduct,
@@ -1100,83 +1121,98 @@ const ProductsTable = ({
     });
     setProductPopUpValues(PRODUCT_POPUP_VALUES);
   };
-
   const onPopUpChooseExisting = () => {
     // Intentionally empty — im EDIT-Modus nicht verwendet
   };
 
+  // Eindeutige Abteilungen für den Filter (aus den aktuellen Produkten)
+  const availableDepartments = React.useMemo(() => {
+    const deptMap = new Map<string, string>();
+    products.forEach((product) => {
+      if (product.department.uid && product.department.name) {
+        deptMap.set(product.department.uid, product.department.name);
+      }
+    });
+    return Array.from(deptMap.entries())
+      .map(([uid, name]) => ({uid, name}))
+      .sort((entryA, entryB) => entryA.name.localeCompare(entryB.name));
+  }, [products]);
+
   return (
     <React.Fragment>
-      <Card sx={classes.card} key={"requestTablePanel"}>
-        <CardContent sx={classes.cardContent} key={"requestTableContent"}>
-          <SearchPanel
-            searchString={searchString}
-            onUpdateSearchString={updateSearchString}
-            onClearSearchString={clearSearchString}
-          />
-          <Typography
-            variant="body2"
-            sx={{marginTop: "0.5em", marginBottom: "2em"}}
-          >
-            {filteredProducts.length === products.length
-              ? `${products.length} ${TEXT_PRODUCTS}`
-              : `${filteredProducts.length} ${TEXT_FROM.toLowerCase()} ${
-                  products.length
-                } ${TEXT_PRODUCTS}`}
-          </Typography>
-          <Box sx={{width: "100%"}}>
-            <DataGrid
-              autoHeight
-              rows={filteredProductsUi}
-              columns={dataGridColumns}
-              columnVisibilityModel={{uid: false}}
-              getRowId={(row) => row.uid}
-              pagination
-              localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
-              getRowClassName={(params) => {
-                if (params.row?.disabled) {
-                  return `super-app ${classes.dataGridDisabled}`;
-                } else {
-                  return `super-app-theme`;
-                }
-              }}
-              paginationModel={paginationModel}
-              onPaginationModelChange={setPaginationModel}
-              pageSizeOptions={[20, 50, 100]}
-              sx={(theme) => ({
-                [`.${gridClasses.main}`]: {
-                  overflow: "unset",
-                },
-                [`.${gridClasses.columnHeaders}`]: {
-                  position: "sticky",
-                  top: 0,
-                  backgroundColor: theme.palette.background.paper,
-                  zIndex: 1,
-                },
-                [`.${gridClasses.virtualScroller}`]: {
-                  marginTop: "0 !important",
-                },
-              })}
-            />
-          </Box>
+      {/* Erweiterte Filterleiste */}
+      <ProductsQaFilterBar
+        searchString={searchString}
+        onUpdateSearchString={updateSearchString}
+        onClearSearchString={clearSearchString}
+        qaFilter={qaFilter}
+        onQaFilterChange={setQaFilter}
+        departmentFilter={departmentFilter}
+        onDepartmentFilterChange={setDepartmentFilter}
+        availableDepartments={availableDepartments}
+        showIssuesOnly={showIssuesOnly}
+        onShowIssuesOnlyChange={setShowIssuesOnly}
+        totalCount={products.length}
+        filteredCount={filteredProducts.length}
+      />
 
-          <Menu
-            open={Boolean(contextMenuAnchorElement)}
-            keepMounted
-            anchorEl={contextMenuAnchorElement}
-            onClose={closeContextMenu}
-          >
-            <MenuItem onClick={onConvertProductToMaterial}>
-              <ListItemIcon>
-                <CachedIcon />
-              </ListItemIcon>
-              <Typography variant="inherit" noWrap>
-                {TEXT_CONVERT_TO_MATERIAL}
-              </Typography>
-            </MenuItem>
-          </Menu>
-        </CardContent>
-      </Card>
+      {/* Duplikate-Panel */}
+      {similarProducts.length > 0 && (
+        <DuplicatesPanel
+          similarProducts={similarProducts}
+          onOpenMergeDialog={onOpenMergeDialog}
+          onClearDuplicates={onClearDuplicates}
+          onDismissDuplicate={onDismissDuplicate}
+        />
+      )}
+
+      {/* Höhe füllt den Viewport abzüglich AppBar (64px) und etwas Platz für Filter/Padding */}
+      <Box sx={{height: "calc(100vh - 200px)", width: "100%"}}>
+        <DataGrid
+          rows={filteredProductsUi}
+          columns={dataGridColumns}
+          columnVisibilityModel={{uid: false}}
+          getRowId={(row) => row.uid}
+          pagination
+          checkboxSelection={editMode}
+          rowSelectionModel={selectedProductUids}
+          onRowSelectionModelChange={handleSelectionChange}
+          localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
+          getRowClassName={(params) => {
+            if (params.row?.disabled) {
+              return `super-app ${classes.dataGridDisabled}`;
+            }
+            return `super-app-theme`;
+          }}
+          paginationModel={paginationModel}
+          onPaginationModelChange={setPaginationModel}
+          pageSizeOptions={[20, 50, 100]}
+        />
+      </Box>
+
+      <Menu
+        open={Boolean(contextMenuAnchorElement)}
+        keepMounted
+        anchorEl={contextMenuAnchorElement}
+        onClose={closeContextMenu}
+      >
+        <MenuItem onClick={onConvertProductToMaterial}>
+          <ListItemIcon>
+            <CachedIcon />
+          </ListItemIcon>
+          <Typography variant="inherit" noWrap>
+            {TEXT_CONVERT_TO_MATERIAL}
+          </Typography>
+        </MenuItem>
+        <MenuItem onClick={onDeleteProduct}>
+          <ListItemIcon>
+            <DeleteIcon />
+          </ListItemIcon>
+          <Typography variant="inherit" noWrap>
+            {TEXT_DELETE_PRODUCT}
+          </Typography>
+        </MenuItem>
+      </Menu>
       <DialogProduct
         dialogType={ProductDialog.EDIT}
         productUid={productPopUpValues.productUid}
@@ -1204,5 +1240,115 @@ const ProductsTable = ({
   );
 };
 
-export {ProductsPage, productsReducer, ReducerActions, initialState};
-export type {State, ReducerAction};
+/* ===================================================================
+// ===================== Duplikate-Panel =============================
+// =================================================================== */
+/**
+ * Props für das Duplikate-Panel.
+ */
+interface DuplicatesPanelProps {
+  similarProducts: {
+    product_a_id: string;
+    product_a_name: string;
+    product_b_id: string;
+    product_b_name: string;
+    similarity: number;
+    match_type: string;
+  }[];
+  onOpenMergeDialog: (sourceUid: string, targetUid: string) => void;
+  onClearDuplicates: () => void;
+  onDismissDuplicate: (productAId: string, productBId: string) => void;
+}
+
+/**
+ * Panel zur Anzeige erkannter Duplikate mit Merge- und Bestätigungs-Button pro Paar.
+ */
+const DuplicatesPanel = ({
+  similarProducts,
+  onOpenMergeDialog,
+  onClearDuplicates,
+  onDismissDuplicate,
+}: DuplicatesPanelProps) => {
+  return (
+    <Card sx={{marginBottom: 2, backgroundColor: "action.hover"}}>
+      <CardContent>
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: 1,
+          }}
+        >
+          <Typography variant="h6">
+            <FindReplaceIcon
+              sx={{verticalAlign: "middle", marginRight: 1}}
+            />
+            {similarProducts.length} ähnliche Paare gefunden
+          </Typography>
+          <IconButton onClick={onClearDuplicates} size="small">
+            ✕
+          </IconButton>
+        </Box>
+        <Box
+          sx={{
+            maxHeight: 300,
+            overflow: "auto",
+          }}
+        >
+          {similarProducts.map((pair) => (
+            <Box
+              key={`${pair.product_a_id}-${pair.product_b_id}`}
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                padding: 1,
+                borderBottom: "1px solid",
+                borderColor: "divider",
+              }}
+            >
+              <Box sx={{flex: 1}}>
+                <Typography variant="body2">
+                  <strong>{pair.product_a_name}</strong> ↔{" "}
+                  <strong>{pair.product_b_name}</strong>
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {pair.match_type === "synonym"
+                    ? "Synonym-Treffer"
+                    : `Ähnlichkeit: ${(pair.similarity * 100).toFixed(0)}%`}
+                </Typography>
+              </Box>
+              <Box sx={{display: "flex", gap: 0.5}}>
+                <Tooltip title="Zusammenführen" arrow>
+                  <IconButton
+                    size="small"
+                    color="primary"
+                    onClick={() =>
+                      onOpenMergeDialog(pair.product_a_id, pair.product_b_id)
+                    }
+                  >
+                    <CachedIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+                <Tooltip title="Kein Duplikat — nicht mehr anzeigen" arrow>
+                  <IconButton
+                    size="small"
+                    color="success"
+                    onClick={() =>
+                      onDismissDuplicate(pair.product_a_id, pair.product_b_id)
+                    }
+                  >
+                    <CheckCircleOutlineIcon fontSize="small" />
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            </Box>
+          ))}
+        </Box>
+      </CardContent>
+    </Card>
+  );
+};
+
+export {ProductsPage};

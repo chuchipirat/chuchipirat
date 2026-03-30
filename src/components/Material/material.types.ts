@@ -23,12 +23,16 @@ export enum MaterialType {
  * @param name - Name des Materials.
  * @param type - Materialtyp (Verbrauchs- oder Gebrauchsmaterial).
  * @param usable - Ob das Material aktiv/nutzbar ist.
+ * @param qaChecked - Ob das Material qualitätsgeprüft wurde.
+ * @param qaCheckedAt - Zeitpunkt der letzten QA-Prüfung (ISO-String oder null).
  */
 export type Material = {
   uid: string;
   name: string;
   type: MaterialType;
   usable: boolean;
+  qaChecked: boolean;
+  qaCheckedAt: string | null;
 };
 
 /**
@@ -44,5 +48,7 @@ export function createEmptyMaterial(): Material {
     name: "",
     type: MaterialType.consumable,
     usable: false,
+    qaChecked: false,
+    qaCheckedAt: null,
   };
 }

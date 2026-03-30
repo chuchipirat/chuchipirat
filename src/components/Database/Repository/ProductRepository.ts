@@ -53,6 +53,8 @@ export interface ProductRow {
   allergens: string[];
   diet: string;
   usable: boolean;
+  qa_checked: boolean;
+  qa_checked_at: string | null;
   created_at: string;
   created_by: string | null;
   updated_at: string;
@@ -79,6 +81,8 @@ interface ProductRowWithDepartment extends ProductRow {
  * @param shoppingUnit - Einkaufseinheit (key)
  * @param dietProperties - Allergen- und Diäteigenschaften
  * @param usable - Ob das Produkt aktiv ist
+ * @param qaChecked - Ob das Produkt qualitätgeprüft wurde
+ * @param qaCheckedAt - Zeitpunkt der letzten QA-Prüfung (ISO-String oder null)
  */
 export interface ProductDomain {
   uid: string;
@@ -88,6 +92,27 @@ export interface ProductDomain {
   shoppingUnit: string;
   dietProperties: {allergens: number[]; diet: number};
   usable: boolean;
+  qaChecked: boolean;
+  qaCheckedAt: string | null;
+}
+
+/**
+ * Ergebnis-Typ für ein ähnliches Produktpaar aus der Duplikaterkennung.
+ *
+ * @param product_a_id - ID des ersten Produkts
+ * @param product_a_name - Name des ersten Produkts
+ * @param product_b_id - ID des zweiten Produkts
+ * @param product_b_name - Name des zweiten Produkts
+ * @param similarity - Ähnlichkeitswert (0..1)
+ * @param match_type - Art des Treffers ('trigram' oder 'synonym')
+ */
+export interface SimilarProductPair {
+  product_a_id: string;
+  product_a_name: string;
+  product_b_id: string;
+  product_b_name: string;
+  similarity: number;
+  match_type: "trigram" | "synonym";
 }
 
 /**
@@ -139,6 +164,8 @@ export class ProductRepository extends BaseRepository<
       // Numerischen Diet-Wert in DB-ENUM-String übersetzen (z.B. 1 → 'meat')
       diet: DIET_TO_DB[domain.dietProperties?.diet ?? 1] ?? "meat",
       usable: domain.usable,
+      qa_checked: domain.qaChecked ?? false,
+      qa_checked_at: domain.qaCheckedAt ?? null,
     };
   }
 
@@ -172,6 +199,8 @@ export class ProductRepository extends BaseRepository<
         diet: DIET_FROM_DB[row.diet] ?? 1,
       },
       usable: row.usable,
+      qaChecked: row.qa_checked ?? false,
+      qaCheckedAt: row.qa_checked_at ?? null,
     };
   }
 
@@ -281,6 +310,32 @@ export class ProductRepository extends BaseRepository<
    * @param products - Array der zu speichernden Produkte
    * @param _authUser - Der angemeldete Benutzer (für Audit-Zwecke, wird von DB-Triggern gesetzt)
    */
+  /**
+   * Sucht ähnliche Produkte mittels pg_trgm-Ähnlichkeit und Synonym-Tabelle.
+   * Ruft die Postgres-RPC-Funktion `find_similar_products` auf.
+   *
+   * @param threshold - Minimaler Ähnlichkeitswert (0..1, Standard: 0.3)
+   * @returns Array ähnlicher Produktpaare, sortiert nach Ähnlichkeit absteigend
+   */
+  async findSimilarProducts(
+    threshold: number = 0.3,
+  ): Promise<SimilarProductPair[]> {
+    const {data, error} = await this.client.rpc("find_similar_products", {
+      similarity_threshold: threshold,
+    });
+    if (error) throw error;
+    return (data as SimilarProductPair[]) ?? [];
+  }
+
+  /**
+   * Löscht ein Produkt aus der Datenbank.
+   *
+   * @param productId - Die ID des zu löschenden Produkts
+   */
+  async deleteProduct(productId: string): Promise<void> {
+    await this.remove(productId);
+  }
+
   async saveAllProducts(
     products: ProductDomain[],
     _authUser: AuthUser,

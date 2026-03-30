@@ -86,7 +86,7 @@ const createMaterial = (
   name: string,
   type: MaterialType = MaterialType.usage,
 ): Material => {
-  return {uid, name, type, usable: true};
+  return {uid, name, type, usable: true, qaChecked: false, qaCheckedAt: null};
 };
 
 const matPfanne = createMaterial("mat-pfanne", "Pfanne gross");

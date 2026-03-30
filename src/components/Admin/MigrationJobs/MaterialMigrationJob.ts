@@ -140,6 +140,8 @@ export class MaterialMigrationJob
         name: data.name,
         type: data.type,
         usable: data.usable,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       authUser,
     });

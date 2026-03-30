@@ -902,6 +902,8 @@ const DialogHandleMaterial = ({
         name: newValue.trim(),
         type: MaterialType.usage,
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       };
       setDialogValues({...dialogValues, material: freetextMaterial});
       return;

@@ -52,6 +52,8 @@ interface filterHelpWithSortRank {
   type: MaterialType;
   sortRank?: number;
   usable: boolean;
+  qaChecked: boolean;
+  qaCheckedAt: string | null;
 }
 
 // ===================================================================== */
