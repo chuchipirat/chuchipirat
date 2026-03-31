@@ -1,3 +1,14 @@
-# https://www.robotstxt.org/robotstxt.html
 User-agent: *
-Disallow:
+Allow: /
+Disallow: /signin
+Disallow: /signup
+Disallow: /passwordreset
+Disallow: /verifyemail
+Disallow: /home
+Disallow: /recipe/*
+Disallow: /event/*
+Disallow: /request/*
+Disallow: /admin/*
+Disallow: /profile/*
+
+Sitemap: https://chuchipirat.ch/sitemap.xml

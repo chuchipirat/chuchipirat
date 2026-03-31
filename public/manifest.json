@@ -20,7 +20,8 @@
       "purpose": "maskable"
     }
   ],
-  "start_url": ".",
+  "description": "Kostenlose Web-App für die Planung von Lagerküchen in Schweizer Jugendverbänden. Rezepte skalieren, Menüpläne erstellen, Einkaufslisten generieren.",
+  "start_url": "/",
   "display": "standalone",
   "theme_color": "#000000",
   "background_color": "#ffffff"
