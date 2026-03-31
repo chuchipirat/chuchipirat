@@ -87,6 +87,10 @@ export const getMatchingHelpPage = ({
           }
       }
       break;
+    case ROUTES.EVENTS:
+      subdirectory = "event";
+      page = "overview";
+      break;
     case ROUTES.PRODUCTS:
       subdirectory = "masterdata";
       page = "products";
@@ -153,6 +157,21 @@ export const getMatchingHelpPage = ({
           case ROUTES.SYSTEM_SYSTEM_MESSAGES:
             page = "system_message";
             break;
+          case ROUTES.SYSTEM_GLOBAL_SETTINGS:
+            page = "globalsettings";
+            break;
+          case ROUTES.SYSTEM_DATA_INTEGRITY:
+            page = "data_integrity";
+            break;
+          case ROUTES.SYSTEM_OVERVIEW_DONATIONS:
+            page = "donation_overview";
+            break;
+          case ROUTES.SYSTEM_DONATION_GOALS:
+            page = "donation_goal";
+            break;
+          case ROUTES.SYSTEM_CRON_JOBS:
+            page = "cron_jobs";
+            break;
           default:
             page = "system";
         }
@@ -163,6 +182,10 @@ export const getMatchingHelpPage = ({
     case ROUTES.SYSTEM_OVERVIEW_USERS:
       subdirectory = "admin";
       page = "users";
+      break;
+    case ROUTES.DONATE:
+      subdirectory = "others";
+      page = "donations";
       break;
     default:
       subdirectory = "";
