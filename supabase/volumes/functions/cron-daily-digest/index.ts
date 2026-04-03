@@ -102,6 +102,13 @@ type NewProduct = {
 /** Neues Material für die Digest-Anzeige. */
 type NewMaterial = {name: string; type: string};
 
+/** Rezept-Kommentar für die Digest-Anzeige. */
+type NewRecipeComment = {
+  recipe_name: string;
+  comment: string;
+  author_name: string;
+};
+
 /** Aggregierter Zähler pro aktionsbasiertem Feed-Typ. */
 type ActionCount = {feed_type: string; count: number};
 
@@ -363,6 +370,37 @@ async function fetchNewMaterials(
 }
 
 /**
+ * Lädt alle gestern erstellten Rezept-Kommentare mit Rezeptname und Autor.
+ * Nutzt verschachtelte Abfragen über die Beziehungen recipe_comments → recipes
+ * und recipe_comments → users (via created_by FK).
+ *
+ * @param client Supabase-Client mit Service-Role-Key.
+ * @param start ISO-String des Tagesstarts.
+ * @param end ISO-String des Tagesendes.
+ * @returns Array von Rezept-Kommentaren mit Rezeptname, Kommentartext und Autor.
+ */
+async function fetchRecipeComments(
+  client: SupabaseClient,
+  start: string,
+  end: string
+): Promise<NewRecipeComment[]> {
+  const {data, error} = await client
+    .from("recipe_comments")
+    .select("comment, created_at, recipes(name), users:created_by(display_name)")
+    .gte("created_at", start)
+    .lte("created_at", end)
+    .order("created_at", {ascending: true});
+
+  if (error) throw new Error(`Rezept-Kommentar-Abfrage fehlgeschlagen: ${error.message}`);
+
+  return (data ?? []).map((row) => ({
+    recipe_name: (row.recipes as {name: string} | null)?.name ?? "—",
+    comment: (row.comment as string) ?? "",
+    author_name: (row.users as {display_name: string} | null)?.display_name ?? "Unbekannt",
+  }));
+}
+
+/**
  * Lädt aktionsbasierte Feed-Zähler des Vortags.
  * Berücksichtigt nur Feed-Typen, die nicht durch direkte Quell-Tabellen
  * abgedeckt werden (z.B. Bewertungen, Kommentare, Koch-Zuweisungen).
@@ -467,6 +505,43 @@ function buildRecipesSection(recipes: NewRecipe[]): string {
   return (
     sectionHeading("Neue Rezepte") +
     tableOpen(["Rezept", "Typ"]) +
+    rows +
+    TABLE_CLOSE
+  );
+}
+
+/**
+ * Kürzt einen Text auf die angegebene Maximallänge und fügt "…" an.
+ *
+ * @param text Der zu kürzende Text.
+ * @param maxLength Maximale Zeichenlänge (Standard: 120).
+ * @returns Gekürzter Text oder Originaltext wenn kürzer als maxLength.
+ */
+function truncate(text: string, maxLength = 120): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength) + "…";
+}
+
+/**
+ * Baut die HTML-Sektion für Rezept-Kommentare (Tabelle mit 3 Spalten).
+ * Lange Kommentare werden auf 120 Zeichen gekürzt.
+ *
+ * @param comments Array der Rezept-Kommentare.
+ * @returns HTML-String oder leerer String wenn keine Kommentare.
+ */
+function buildRecipeCommentsSection(comments: NewRecipeComment[]): string {
+  if (comments.length === 0) return "";
+
+  const rows = comments
+    .map(
+      (comment) =>
+        `<tr>${td(comment.recipe_name)}${td(truncate(comment.comment))}${td(comment.author_name)}</tr>`
+    )
+    .join("\n");
+
+  return (
+    sectionHeading("Rezept-Kommentare") +
+    tableOpen(["Rezept", "Kommentar", "Autor"]) +
     rows +
     TABLE_CLOSE
   );
@@ -600,6 +675,7 @@ function buildOpenRequestsHtml(
  * @param users Neue Benutzer.
  * @param events Neue Anlässe.
  * @param recipes Neue Rezepte.
+ * @param recipeComments Rezept-Kommentare des Vortags.
  * @param products Neue Produkte.
  * @param materials Neue Materialien.
  * @param actionCounts Aktionsbasierte Feed-Zähler.
@@ -612,6 +688,7 @@ function buildPlaintext(
   users: NewUser[],
   events: NewEvent[],
   recipes: NewRecipe[],
+  recipeComments: NewRecipeComment[],
   products: NewProduct[],
   materials: NewMaterial[],
   actionCounts: ActionCount[],
@@ -645,6 +722,18 @@ function buildPlaintext(
           .map(
             (recipe) =>
               `  • ${recipe.name} (${RECIPE_TYPE_LABELS[recipe.recipe_type] ?? recipe.recipe_type})`
+          )
+          .join("\n")
+    );
+  }
+
+  if (recipeComments.length > 0) {
+    sections.push(
+      "Rezept-Kommentare:\n" +
+        recipeComments
+          .map(
+            (recipeComment) =>
+              `  • ${recipeComment.recipe_name} — ${recipeComment.author_name}: ${truncate(recipeComment.comment)}`
           )
           .join("\n")
     );
@@ -751,11 +840,12 @@ serve(async (req: Request) => {
       getYesterdayBoundaries();
 
     // 1. Alle Datenquellen parallel abfragen
-    const [newUsers, newEvents, newRecipes, newProducts, newMaterials, actionCounts, requestResult] =
+    const [newUsers, newEvents, newRecipes, recipeComments, newProducts, newMaterials, actionCounts, requestResult] =
       await Promise.all([
         fetchNewUsers(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchNewEvents(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchNewRecipes(supabaseAdmin, yesterdayStart, yesterdayEnd),
+        fetchRecipeComments(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchNewProducts(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchNewMaterials(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchActionFeedCounts(supabaseAdmin, yesterdayStart, yesterdayEnd),
@@ -787,6 +877,7 @@ serve(async (req: Request) => {
       newUsers.length > 0 ||
       newEvents.length > 0 ||
       newRecipes.length > 0 ||
+      recipeComments.length > 0 ||
       newProducts.length > 0 ||
       newMaterials.length > 0;
     const hasContent =
@@ -832,6 +923,7 @@ serve(async (req: Request) => {
       buildUsersSection(newUsers) +
       buildEventsSection(newEvents) +
       buildRecipesSection(newRecipes) +
+      buildRecipeCommentsSection(recipeComments) +
       buildProductsSection(newProducts) +
       buildMaterialsSection(newMaterials) +
       buildActionCountsSection(actionCounts);
@@ -861,6 +953,7 @@ serve(async (req: Request) => {
           newUsers,
           newEvents,
           newRecipes,
+          recipeComments,
           newProducts,
           newMaterials,
           actionCounts,
@@ -885,6 +978,7 @@ serve(async (req: Request) => {
       newUsers: newUsers.length,
       newEvents: newEvents.length,
       newRecipes: newRecipes.length,
+      recipeComments: recipeComments.length,
       newProducts: newProducts.length,
       newMaterials: newMaterials.length,
       actionFeeds: totalActionFeeds,
@@ -919,9 +1013,9 @@ serve(async (req: Request) => {
     console.log(
       `${JOB_NAME}: Digest gesendet an ${sentCount}/${leaders.length} Leaders ` +
         `(${newUsers.length} Benutzer, ${newEvents.length} Anlässe, ` +
-        `${newRecipes.length} Rezepte, ${newProducts.length} Produkte, ` +
-        `${newMaterials.length} Material, ${totalActionFeeds} Feeds, ` +
-        `${openRequests.length} offene Anträge)`
+        `${newRecipes.length} Rezepte, ${recipeComments.length} Kommentare, ` +
+        `${newProducts.length} Produkte, ${newMaterials.length} Material, ` +
+        `${totalActionFeeds} Feeds, ${openRequests.length} offene Anträge)`
     );
 
     return successResponse({
