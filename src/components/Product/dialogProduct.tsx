@@ -221,7 +221,6 @@ const DialogProduct = ({
     });
     // Abhängigkeiten bewusst auf dialogOpen beschränkt: das Formular wird nur
     // beim Öffnen/Schliessen des Dialogs neu initialisiert, nicht bei Prop-Änderungen.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogOpen]);
 
   /* ------------------------------------------

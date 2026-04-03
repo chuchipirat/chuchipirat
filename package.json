@@ -50,7 +50,7 @@
     "build:prod": "vite build --mode production",
     "preview": "vite preview",
     "analyze": "source-map-explorer 'build/static/js/*.js'",
-    "lint": "eslint --ext .ts .",
+    "lint": "eslint --ext .ts,.tsx .",
     "test": "jest --watch --coverage",
     "test:coverage": "jest --coverage"
   },

@@ -52,7 +52,7 @@ jest.mock("../../Firebase/firebaseContext", () => ({
 
 /** Mock: @mui/x-data-grid — DataGrid rendert nicht korrekt in jsdom */
 jest.mock("@mui/x-data-grid", () => ({
-  DataGrid: ({rows, columns}: any) => (
+  DataGrid: ({rows, columns: _columns}: any) => (
     <div data-testid="mock-data-grid">
       {rows?.map((row: any) => (
         <div key={row.uid} data-testid={`row-${row.uid}`}>

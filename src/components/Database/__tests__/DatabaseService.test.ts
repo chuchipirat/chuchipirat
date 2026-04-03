@@ -200,7 +200,7 @@ describe("DatabaseService", () => {
     });
 
     test("Admin-Repositories werden mit Admin-Client erstellt", () => {
-      const service = new DatabaseService();
+      const _service = new DatabaseService();
 
       // Jedes Repository wird 2x instanziiert: regulär + Admin
       expect(MockUserRepository).toHaveBeenCalledTimes(2);

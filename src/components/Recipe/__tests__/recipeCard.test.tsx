@@ -13,7 +13,7 @@ import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 
-import {RecipeCard, RecipeCardLoading, CardRibbon} from "../recipeCard";
+import {RecipeCard, RecipeCardLoading} from "../recipeCard";
 import {RecipeShort, createEmptyRecipeShort} from "../recipe.types";
 import {RecipeType} from "../recipe.class";
 

@@ -10,7 +10,6 @@ import BuildIcon from "@mui/icons-material/Build";
 import ShoppingCartIcon from "@mui/icons-material/ShoppingCart";
 import StraightenIcon from "@mui/icons-material/Straighten";
 import SettingsIcon from "@mui/icons-material/Settings";
-import GroupIcon from "@mui/icons-material/Group";
 
 import * as ROUTES from "../../constants/routes";
 import * as TEXT from "../../constants/text";
@@ -52,7 +51,7 @@ const isCommunityLeader = (authUser: AuthUser): boolean =>
  * @param authUser - Der aktuell angemeldete Benutzer.
  * @returns `true`, wenn der Benutzer Admin ist.
  */
-const isAdmin = (authUser: AuthUser): boolean =>
+const _isAdmin = (authUser: AuthUser): boolean =>
   authUser.roles?.includes(Role.admin) ?? false;
 
 /**

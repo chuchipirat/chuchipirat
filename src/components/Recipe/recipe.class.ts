@@ -1,5 +1,4 @@
 import * as Sentry from "@sentry/react";
-import {Utils} from "../Shared/utils.class";
 import {RecipeShort} from "./recipe.types";
 import {Rating} from "./recipe.types";
 import {ChangeRecord} from "../Shared/global.interface";

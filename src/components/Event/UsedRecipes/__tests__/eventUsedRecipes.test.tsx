@@ -194,7 +194,7 @@ describe("EventUsedRecipes", () => {
       },
     });
 
-    const {container} = render(
+    render(
       <EventUsedRecipes
         sortedMenueList={[]}
         usedRecipes={{"recipe-1": buildRecipe("recipe-1", "Test")}}
@@ -244,7 +244,7 @@ describe("EventUsedRecipes", () => {
       },
     });
 
-    const {container} = render(
+    render(
       <EventUsedRecipes
         sortedMenueList={[buildMenueCoordinate({menueUid: "menue-1"})]}
         usedRecipes={{}}

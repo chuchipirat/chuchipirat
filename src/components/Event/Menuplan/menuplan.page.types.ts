@@ -36,7 +36,6 @@ import {
   OnMasterdataCreateProps,
 } from "../Event/event";
 import {Event as EventClass} from "../Event/event.class";
-import {PlanedDiet} from "./menuplan.types";
 
 
 /**

@@ -10,7 +10,6 @@ import {
   EventDateDomain,
   getMaxDate,
 } from "../EventRepository";
-import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst

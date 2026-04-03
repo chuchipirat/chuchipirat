@@ -16,7 +16,6 @@ import {
 } from "../../../Database/Repository/MaterialListRepository";
 import {MaterialListMaterial} from "../materialList.class";
 import {Material, MaterialType} from "../../../Material/material.types";
-import {ItemType} from "../../ShoppingList/shoppingList.class";
 
 
 const EVENT_ID = "event-001";

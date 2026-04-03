@@ -472,7 +472,7 @@ const WhereUsedPage = () => {
 
     // Trace automatisch starten
     runTrace(urlItemId, urlItemType);
-  }, [state.isLoading]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [state.isLoading]);
 
   return (
     <React.Fragment>

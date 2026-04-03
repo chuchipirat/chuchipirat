@@ -52,14 +52,8 @@ import {SnackbarState} from "../../Shared/customSnackbar";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {
   DialogSelectMenues,
-  decodeSelectedMeals,
 } from "../Menuplan/dialogSelectMenues";
 import {MealRecipe, MenuplanData} from "../Menuplan/menuplan.types";
-import {
-  DialogType,
-  SingleTextInputResult,
-  useCustomDialog,
-} from "../../Shared/customDialogContext";
 import {Utils} from "../../Shared/utils.class";
 import {
   NavigationValuesContext,
@@ -96,7 +90,6 @@ import Recipe, {Recipes} from "../../Recipe/recipe.class";
 import {RecipeShort} from "../../Recipe/recipe.types";
 import {TextFieldSize} from "../../../constants/defaultValues";
 
-import {useEventMasterData} from "../Event/eventMasterDataContext";
 import {useMaterialListHandlers} from "./useMaterialListHandlers";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {itemsDomainToMaterialListItems} from "./materialListAdapter";
@@ -226,7 +219,7 @@ const EventMaterialListPage = ({
   authUser,
   materialList,
   event,
-  groupConfiguration,
+  groupConfiguration: _groupConfiguration,
   menuplan,
   materials,
   recipes,

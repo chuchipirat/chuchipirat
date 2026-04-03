@@ -36,7 +36,6 @@ import {
   HAS_GLUTEN as TEXT_HAS_GLUTEN,
   DIET as TEXT_DIET,
   USABLE as TEXT_USABLE,
-  FROM as TEXT_FROM,
   NAME as TEXT_NAME,
   MATERIAL_TYPE_USAGE as TEXT_MATERIAL_TYPE_USAGE,
   MATERIAL_TYPE_CONSUMABLE as TEXT_MATERIAL_TYPE_CONSUMABLE,
@@ -71,7 +70,6 @@ import {
   Cached as CachedIcon,
   Warning as WarningIcon,
   FindReplace as FindReplaceIcon,
-  Translate as TranslateIcon,
   CheckCircleOutline as CheckCircleOutlineIcon,
   Delete as DeleteIcon,
 } from "@mui/icons-material";

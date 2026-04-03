@@ -214,7 +214,7 @@ interface EventGroupConfigurationPageProps {
  * und deren Portionenzuordnung.
  */
 const EventGroupConfigurationPage = ({
-  firebase,
+  firebase: _firebase,
   authUser,
   event,
   groupConfiguration,

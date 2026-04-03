@@ -224,7 +224,7 @@ export class ShoppingListMigrationJob
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<FirebaseShoppingListData>,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     const client: SupabaseClient = supabaseAdmin ?? supabase;
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);

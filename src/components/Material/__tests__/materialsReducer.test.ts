@@ -5,14 +5,14 @@
  * auf korrekte State-Transitionen.
  */
 import {TextEncoder, TextDecoder} from "util";
-Object.assign(global, {TextEncoder, TextDecoder});
+Object.assign(globalThis, {TextEncoder, TextDecoder});
 
 import {
   materialsReducer,
   ReducerActions,
   initialState,
 } from "../materials";
-import type {State, ReducerAction} from "../materials";
+import type {State} from "../materials";
 import {MaterialType} from "../material.types";
 import type {Material} from "../material.types";
 import type {MaterialIssue} from "../materialQaUtils";

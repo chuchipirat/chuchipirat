@@ -14,11 +14,7 @@ import {
   Backdrop,
   CircularProgress,
   Typography,
-  Card,
-  CardHeader,
-  CardContent,
   Box,
-  useTheme,
 } from "@mui/material";
 
 import {
@@ -33,7 +29,6 @@ import {
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
   EVENT_IS_BEEING_CREATED as TEXT_EVENT_IS_BEEING_CREATED,
   IMAGE_IS_BEEING_UPLOADED as TEXT_IMAGE_IS_BEEING_UPLOADED,
-  BACK_TO_GROUPCONFIG as TEXT_BACK_TO_GROUPCONFIG,
 } from "../../../constants/text";
 
 import {useCustomStyles} from "../../../constants/styles";
@@ -64,7 +59,6 @@ import {
 } from "../../Shared/fieldValidation.error.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {useAuthUser} from "../../Session/authUserContext";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {EventCompletionDonation} from "../../Donate/EventCompletionDonation";
 import {resizeImage} from "../../Shared/imageResize";
 import {

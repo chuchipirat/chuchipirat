@@ -8,7 +8,7 @@
  * - calculateTotals: Portionen summieren
  * - Portionsmatrix: Konsistenz der Portions-Struktur
  */
-import {EventGroupConfiguration, Diet, Intolerance, Portions} from "../groupConfiguration.class";
+import {EventGroupConfiguration} from "../groupConfiguration.class";
 
 /**
  * Erzeugt eine minimale GroupConfig mit einer Diät und einer Intoleranz.

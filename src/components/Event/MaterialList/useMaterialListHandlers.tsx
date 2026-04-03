@@ -20,7 +20,7 @@ import {
 import {OperationType} from "../Event/eventSharedComponents";
 import {Material, MaterialType} from "../../Material/material.types";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {Event,Cook} from "../Event/event.class";
+import {Event} from "../Event/event.class";
 import {
   Menue,
   MenueCoordinates,
@@ -28,13 +28,10 @@ import {
 } from "../Menuplan/menuplan.types";
 import {getMealsOfMenues, getMenuesOfMeals, sortSelectedMenues} from "../Menuplan/menuplanService";
 import {MaterialList,
-  MaterialListEntry,
   MaterialListMaterial,
 } from "./materialList.class";
 import {
   materialListItemsToInsertRows,
-  headersDomainToMaterialList,
-  itemsDomainToMaterialListItems,
 } from "./materialListAdapter";
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
 import {Action} from "../../../constants/actions";
@@ -44,7 +41,7 @@ import {
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
-import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
+import {FetchMissingDataProps} from "../Event/event";
 import {
   NEW_LIST as TEXT_NEW_LIST,
   GIVE_THE_NEW_LIST_A_NAME as TEXT_GIVE_THE_NEW_LIST_A_NAME,
@@ -56,7 +53,6 @@ import {
   MATERIAL_LIST as TEXT_MATERIAL_LIST,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
   ERROR_NO_MATERIALS_FOUND as TEXT_ERROR_NO_MATERIALS_FOUND,
-  ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND,
 } from "../../../constants/text";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {MaterialListEditSource} from "../../Database/Repository/MaterialListRepository";
@@ -132,12 +128,12 @@ export function useMaterialListHandlers({
   materialList,
   selectedListItem,
   saveInProgressRef,
-  fetchMissingData,
+  fetchMissingData: _fetchMissingData,
   onMaterialListUpdate,
   onSelectList,
   onDispatchLoading,
   onDispatchError,
-  onDispatchSnackbar,
+  onDispatchSnackbar: _onDispatchSnackbar,
 }: UseMaterialListHandlersProps) {
   const database = useDatabase();
   const {customDialog} = useCustomDialog();
@@ -516,7 +512,7 @@ export function useMaterialListHandlers({
           const items = materialList.lists[selectedListItem]?.items;
           if (!items) break;
 
-          const itemToDelete = items.find(
+          const _itemToDelete = items.find(
             (candidate) => candidate.uid === contextMenuSelectedItem.materialUid,
           );
 
@@ -542,7 +538,7 @@ export function useMaterialListHandlers({
           );
 
           // In-memory Trace vorhanden? (nach createNewList/refresh)
-          let traceData = item?.trace ?? [];
+          const traceData = item?.trace ?? [];
 
           // Synthetischen Trace für manuell hinzugefügte Items erzeugen
           const manualTrace: ProductTrace[] = item?.manualAdd
@@ -739,9 +735,9 @@ export function useMaterialListHandlers({
   // Listen-Element: Auswahl / Löschen / Bearbeiten
   // ------------------------------------------ */
   const onListElementDelete = React.useCallback(
-    async (event: React.MouseEvent<HTMLElement>) => {
-      event.stopPropagation();
-      const listUid = event.currentTarget.dataset.uid;
+    async (mouseEvent: React.MouseEvent<HTMLElement>) => {
+      mouseEvent.stopPropagation();
+      const listUid = mouseEvent.currentTarget.dataset.uid;
       if (!listUid) return;
 
       try {

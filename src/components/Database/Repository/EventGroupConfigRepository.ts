@@ -245,7 +245,7 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
    */
   async saveGroupConfig(
     config: GroupConfigDomain,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<GroupConfigDomain> {
     const eventId = config.eventId;
 

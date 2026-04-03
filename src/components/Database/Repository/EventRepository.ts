@@ -15,7 +15,6 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../supabaseClient";
 import {Event,Cook, EventDate} from "../../Event/Event/event.class";
 
 /* =====================================================================
@@ -439,7 +438,7 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
   async addCook(
     eventId: string,
     userId: string,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<EventCookDomain> {
     const {data, error} = await this.client
       .from("event_cooks")
@@ -478,7 +477,7 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
   async saveDates(
     eventId: string,
     dates: Omit<EventDateDomain, "uid">[],
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     // Alle alten Zeitscheiben löschen
     const {error: deleteError} = await this.client

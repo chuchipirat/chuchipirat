@@ -44,5 +44,3 @@ export const event: Event = {
   },
   refDocuments: [],
 };
-
-export {event};

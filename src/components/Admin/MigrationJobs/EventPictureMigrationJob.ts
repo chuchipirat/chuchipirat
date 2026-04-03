@@ -64,8 +64,8 @@ export class EventPictureMigrationJob implements MigrationJob<EventPictureData> 
    * @returns Array der Events mit Firebase-Bild-URLs
    */
   async fetchSourceRecords(
-    firebase: Firebase,
-    database?: DatabaseService,
+    _firebase: Firebase,
+    _database?: DatabaseService,
   ): Promise<SourceRecord<EventPictureData>[]> {
     const client: SupabaseClient = supabaseAdmin ?? supabase;
 
@@ -135,7 +135,7 @@ export class EventPictureMigrationJob implements MigrationJob<EventPictureData> 
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<EventPictureData>,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     const client: SupabaseClient = supabaseAdmin ?? supabase;
     const {eventId, firebasePictureUrl} = record.data;

@@ -94,7 +94,6 @@ import {EventReceiptPdf} from "./eventRecipePdf";
 import {EventDate} from "./event.class";
 import {DatePicker} from "@mui/x-date-pickers";
 import dayjs, {Dayjs} from "dayjs";
-import {resizeImage} from "../../Shared/imageResize";
 
 
 /** Epoch-Zeitstempel (1.1.1970) für Vergleiche mit leeren Datumsfeldern. */

@@ -115,7 +115,7 @@ export const HomePage = () => {
       action: Action.NONE,
       object: NavigationObject.home,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Nur beim Mount setzen; navigationValuesContext im Dep-Array löst eine Endlosschleife aus
+    // Nur beim Mount setzen; navigationValuesContext im Dep-Array löst eine Endlosschleife aus
   }, []);
 
   /* ------------------------------------------

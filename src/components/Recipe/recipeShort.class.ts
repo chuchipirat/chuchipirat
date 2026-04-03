@@ -9,7 +9,7 @@ import {ChangeRecord} from "../Shared/global.interface";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 
 import {ERROR_PARAMETER_NOT_PASSED} from "../../constants/text";
-import {Rating, PublicRecipeRating} from "./recipe.types";
+import {PublicRecipeRating} from "./recipe.types";
 import {Diet, DietProperties, createEmptyDietProperty} from "../Product/product.types";
 interface GetShortRecipes {
   firebase: Firebase;

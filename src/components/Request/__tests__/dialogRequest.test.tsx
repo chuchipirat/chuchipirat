@@ -111,7 +111,7 @@ const createMockRequest = (
  * @param overrides - Optionale Überschreibungen der Standardwerte
  * @returns RequestCommentDomain-Objekt
  */
-const createMockComment = (
+const _createMockComment = (
   overrides: Partial<RequestCommentDomain> = {},
 ): RequestCommentDomain => ({
   uid: "comment-uid-001",

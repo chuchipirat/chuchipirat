@@ -166,7 +166,6 @@ describe("Ribbon (Einzelkomponente)", () => {
     );
 
     expect(screen.getByText("BETA")).toBeInTheDocument();
-    // eslint-disable-next-line testing-library/no-container
     const ribbonDiv = container.firstChild as HTMLDivElement;
     expect(ribbonDiv).toHaveClass("ribbon-beta");
   });

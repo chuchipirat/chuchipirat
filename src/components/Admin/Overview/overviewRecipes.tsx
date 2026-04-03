@@ -185,7 +185,7 @@ const overviewReducer = (state: State, action: DispatchAction): State => {
  * @param onClick - Callback beim Klick
  */
 interface RecipeCardAdminProps {
-  domain: RecipeShortDomain;
+  recipe: RecipeShortDomain;
   creatorName: string | undefined;
   onClick: (domain: RecipeShortDomain) => void;
 }
@@ -197,16 +197,16 @@ interface RecipeCardAdminProps {
  * Rezeptname, UID als Chip, Typ-Icon und Ersteller-Name.
  */
 const RecipeCardAdmin = ({
-  domain,
+  recipe,
   creatorName,
   onClick,
 }: RecipeCardAdminProps) => {
   const classes = useCustomStyles();
-  const isPublic = domain.recipeType === "public";
-  const isVariant = domain.variantName !== null;
+  const isPublic = recipe.recipeType === "public";
+  const isVariant = recipe.variantName !== null;
 
-  const imageSrc = domain.pictureSrc
-    ? getImageUrl(domain.pictureSrc, ImageSize.PROFILE_CARD)
+  const imageSrc = recipe.pictureSrc
+    ? getImageUrl(recipe.pictureSrc, ImageSize.PROFILE_CARD)
     : ImageRepository.getEnvironmentRelatedPicture().CARD_PLACEHOLDER_MEDIA;
 
   const ribbon = isVariant
@@ -225,21 +225,21 @@ const RecipeCardAdmin = ({
 
   return (
     <Card>
-      <CardActionArea onClick={() => onClick(domain)}>
+      <CardActionArea onClick={() => onClick(recipe)}>
         <Box sx={{overflow: "hidden", position: "relative"}}>
           {ribbon && <CardRibbon {...ribbon} />}
           <CardMedia
             sx={classes.cardMedia}
             image={imageSrc}
-            title={domain.name}
+            title={recipe.name}
           />
         </Box>
         <CardContent sx={{pb: "8px !important"}}>
           <Typography variant="subtitle1" fontWeight="bold" noWrap>
-            {domain.name}
+            {recipe.name}
           </Typography>
           <Chip
-            label={domain.uid.slice(0, 8) + "…" + domain.uid.slice(-4)}
+            label={recipe.uid}
             size="small"
             sx={{
               fontFamily: "monospace",
@@ -259,7 +259,7 @@ const RecipeCardAdmin = ({
               <LockIcon fontSize="small" color="action" titleAccess="privat" />
             )}
             <Typography variant="caption" color="text.secondary" noWrap>
-              {creatorName ?? domain.createdBy}
+              {creatorName ?? recipe.createdBy}
             </Typography>
           </Stack>
         </CardContent>
@@ -276,7 +276,7 @@ const RecipeCardAdmin = ({
  * Props für den Admin-Detail-Dialog eines Rezepts.
  *
  * @param open - Ob der Dialog geöffnet ist
- * @param domain - Kurz-Rezeptdaten (null wenn kein Rezept ausgewählt)
+ * @param recipe - Kurz-Rezeptdaten (null wenn kein Rezept ausgewählt)
  * @param creatorName - Anzeigename des Erstellers
  * @param onClose - Callback zum Schliessen
  * @param onOpenInDrawer - Callback: Rezept im Drawer öffnen (optional — Button wird ausgeblendet wenn nicht gesetzt)
@@ -284,7 +284,7 @@ const RecipeCardAdmin = ({
  */
 interface DialogRecipeAdminDetailProps {
   open: boolean;
-  domain: RecipeShortDomain | null;
+  recipe: RecipeShortDomain | null;
   creatorName: string | undefined;
   onClose: () => void;
   onOpenInDrawer?: (domain: RecipeShortDomain) => void;
@@ -300,7 +300,7 @@ interface DialogRecipeAdminDetailProps {
  */
 export const DialogRecipeAdminDetail = ({
   open,
-  domain,
+  recipe,
   creatorName,
   onClose,
   onOpenInDrawer,
@@ -308,13 +308,13 @@ export const DialogRecipeAdminDetail = ({
 }: DialogRecipeAdminDetailProps) => {
   const classes = useCustomStyles();
 
-  if (!domain) return null;
+  if (!recipe) return null;
 
-  const isPublic = domain.recipeType === "public";
-  const isVariant = domain.variantName !== null;
+  const isPublic = recipe.recipeType === "public";
+  const isVariant = recipe.variantName !== null;
 
-  const imageSrc = domain.pictureSrc
-    ? getImageUrl(domain.pictureSrc, ImageSize.PROFILE_CARD)
+  const imageSrc = recipe.pictureSrc
+    ? getImageUrl(recipe.pictureSrc, ImageSize.PROFILE_CARD)
     : ImageRepository.getEnvironmentRelatedPicture().CARD_PLACEHOLDER_MEDIA;
 
   // Typ-Wert als JSX mit Icon
@@ -329,7 +329,7 @@ export const DialogRecipeAdminDetail = ({
       )}
       <Typography variant="body2">
         {isVariant
-          ? `${TEXT_VARIANT_RECIPE}${domain.variantName ? `: ${domain.variantName}` : ""}`
+          ? `${TEXT_VARIANT_RECIPE}${recipe.variantName ? `: ${recipe.variantName}` : ""}`
           : isPublic
             ? TEXT_PUBLIC_RECIPES
             : TEXT_PRIVATE_RECIPES}
@@ -355,7 +355,7 @@ export const DialogRecipeAdminDetail = ({
           sx={classes.dialogHeaderWithPictureTitle}
           style={{paddingLeft: "2ex"}}
         >
-          {domain.name}
+          {recipe.name}
         </Typography>
       </DialogTitle>
 
@@ -364,7 +364,7 @@ export const DialogRecipeAdminDetail = ({
           <FormListItem
             key="uid"
             id="uid"
-            value={domain.uid}
+            value={recipe.uid}
             label={TEXT_UID}
             displayAsCode
           />
@@ -377,26 +377,26 @@ export const DialogRecipeAdminDetail = ({
           <FormListItem
             key="source"
             id="source"
-            value={domain.source || "–"}
+            value={recipe.source || "–"}
             label={TEXT_SOURCE}
           />
           <FormListItem
             key="createdAt"
             id="createdAt"
-            value={domain.createdAt}
+            value={recipe.createdAt}
             label={TEXT_CREATED_AT}
           />
           <FormListItem
             key="createdBy"
             id="createdBy"
-            value={domain.createdBy || "–"}
+            value={recipe.createdBy || "–"}
             label={`${TEXT_CREATED_FROM} ${TEXT_UID}`}
             displayAsCode
           />
           <FormListItem
             key="creatorName"
             id="creatorName"
-            value={creatorName ?? domain.createdBy ?? "–"}
+            value={creatorName ?? recipe.createdBy ?? "–"}
             label={TEXT_CREATED_FROM}
             withDivider={false}
           />
@@ -410,7 +410,7 @@ export const DialogRecipeAdminDetail = ({
         {extraActions}
         {onOpenInDrawer && (
           <Button
-            onClick={() => onOpenInDrawer(domain)}
+            onClick={() => onOpenInDrawer(recipe)}
             variant="outlined"
             color="primary"
           >
@@ -560,7 +560,7 @@ const OverviewRecipePage = () => {
   const onOpenInDrawer = async (domain: RecipeShortDomain) => {
     setDialogOpen(false);
     try {
-      const [header, ingredients, steps, materials, products, allMaterials] =
+      const [header, ingredients, steps, materials, _products, _allMaterials] =
         await Promise.all([
           database.recipes.getRecipe(domain.uid),
           database.recipeIngredients.getIngredientsForRecipe(domain.uid),
@@ -748,11 +748,11 @@ const OverviewRecipePage = () => {
               )}
 
               <Grid container spacing={2}>
-                {state.recipes.map((domain) => (
-                  <Grid key={domain.uid} size={{xs: 12, sm: 6, md: 4, lg: 3}}>
+                {state.recipes.map((recipe) => (
+                  <Grid key={recipe.uid} size={{xs: 12, sm: 6, md: 4, lg: 3}}>
                     <RecipeCardAdmin
-                      domain={domain}
-                      creatorName={state.creatorNames.get(domain.createdBy)}
+                      recipe={recipe}
+                      creatorName={state.creatorNames.get(recipe.createdBy)}
                       onClick={onCardClick}
                     />
                   </Grid>
@@ -766,7 +766,7 @@ const OverviewRecipePage = () => {
       {/* Detail-Dialog */}
       <DialogRecipeAdminDetail
         open={dialogOpen}
-        domain={selectedDomain}
+        recipe={selectedDomain}
         creatorName={
           selectedDomain
             ? state.creatorNames.get(selectedDomain.createdBy)

@@ -293,7 +293,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<FirebaseMenuplanData>,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     // Inkonsistente Menuplandaten bereinigen (analog zu Menuplan.fixMenuplan()).
     // Läuft immer proaktiv — nicht als Retry-on-Error — damit Fehler klar zugeordnet werden.
@@ -389,7 +389,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
     // --- 3. Menü-Container ---
     const menueIdMap = new Map<string, string>(); // Firebase-UID → Postgres-ID
     const menues = data.menues ?? {};
-    const menuOrder = data.menuOrder ?? [];
+    const _menuOrder = data.menuOrder ?? [];
 
     // Reihenfolge der Menüs innerhalb der Mahlzeiten bestimmen
     // menuOrder ist eine flache Liste aller Mahlzeiten-UIDs in Reihenfolge
@@ -807,7 +807,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
   private async ensureDietIntoleranceMapsForEvent(
     client: SupabaseClient,
     eventId: string,
-    eventFirebaseUid: string,
+    _eventFirebaseUid: string,
   ): Promise<void> {
     if (this.dietIdByEventAndFirebaseUid.has(eventId)) return;
 

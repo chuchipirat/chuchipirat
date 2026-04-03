@@ -5,7 +5,7 @@
  * auf korrekte State-Transitionen.
  */
 import {TextEncoder, TextDecoder} from "util";
-Object.assign(global, {TextEncoder, TextDecoder});
+Object.assign(globalThis, {TextEncoder, TextDecoder});
 
 import {
   passwordChangeReducer,

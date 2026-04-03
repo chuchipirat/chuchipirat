@@ -28,7 +28,6 @@ import type {
   DialogGoodsData,
 } from "./menuplan.page.types";
 import {GoodsType} from "./menuplan.types";
-import type {MenuplanPdfOptions} from "./dialogMenuplanPdfOptions";
 import {PlanedObject} from "./menuplan.constants";
 import {
   RecipeDrawerData,

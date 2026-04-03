@@ -121,7 +121,6 @@ describe("FormListItem", () => {
       });
 
       // MUI Divider rendert ein <hr> oder ein <li> mit der Divider-Klasse
-      // eslint-disable-next-line testing-library/no-container
       const divider = container.querySelector(".MuiDivider-root");
       expect(divider).toBeInTheDocument();
     });
@@ -133,7 +132,6 @@ describe("FormListItem", () => {
         withDivider: false,
       });
 
-      // eslint-disable-next-line testing-library/no-container
       const divider = container.querySelector(".MuiDivider-root");
       expect(divider).not.toBeInTheDocument();
     });
@@ -145,7 +143,6 @@ describe("FormListItem", () => {
         withDivider: true,
       });
 
-      // eslint-disable-next-line testing-library/no-container
       const divider = container.querySelector(".MuiDivider-root");
       expect(divider).not.toBeInTheDocument();
     });

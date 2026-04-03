@@ -176,7 +176,6 @@ import {
   NavigationObject,
 } from "../Navigation/NavigationContext";
 import {
-  UnitConversion,
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../Unit/unitConversion.class";
@@ -291,7 +290,7 @@ interface RecipeViewProps {
  */
 export const RecipeView = ({
   recipe,
-  firebase,
+  firebase: _firebase,
   mealPlan,
   scaledPortions,
   isLoading,
@@ -2357,7 +2356,7 @@ const MAX_COMMENT_LENGTH = 500;
  */
 const RecipeComments = ({
   recipeId,
-  recipeName,
+  recipeName: _recipeName,
   disableFunctionality = false,
 }: RecipeCommentsProps) => {
   const database = useDatabase();

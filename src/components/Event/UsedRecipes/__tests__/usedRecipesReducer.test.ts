@@ -30,7 +30,7 @@ const mockMenueCoordinates: MenueCoordinates[] = [
     date: new Date("2026-03-15"),
     menueName: "Menü 1",
     mealUid: "meal-001",
-    mealType: {uid: "mt-001", name: "Mittagessen", pos: 1},
+    mealType: {uid: "mt-001", name: "Mittagessen"},
   },
 ];
 

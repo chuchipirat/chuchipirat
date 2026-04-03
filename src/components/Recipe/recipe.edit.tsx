@@ -1056,7 +1056,6 @@ const RecipeEdit = ({
     action?: AutocompleteChangeReason,
     objectId?: string,
   ) => {
-    let ingredientPos: string[];
     let product: Product;
 
     // objectId bevorzugen: Autocomplete-Components setzen es explizit auf
@@ -1069,7 +1068,7 @@ const RecipeEdit = ({
     if (!sourceId) {
       return;
     }
-    ingredientPos = sourceId.split("_");
+    const ingredientPos = sourceId.split("_");
 
     const fieldName = ingredientPos[0];
     const ingredientUid = ingredientPos[1];
@@ -1147,7 +1146,6 @@ const RecipeEdit = ({
     action?: AutocompleteChangeReason,
     objectId?: string,
   ) => {
-    let materialPos: string[];
     let material: Material;
 
     // objectId bevorzugen: Autocomplete-Components setzen es explizit auf
@@ -1160,7 +1158,7 @@ const RecipeEdit = ({
     if (!sourceId) {
       return;
     }
-    materialPos = sourceId.split("_");
+    const materialPos = sourceId.split("_");
 
     const fieldName = materialPos[0];
     const materialUid = materialPos[1];

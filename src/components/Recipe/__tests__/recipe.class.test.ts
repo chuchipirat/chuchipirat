@@ -1,4 +1,4 @@
-import Recipe, {PositionType, RecipeType} from "../recipe.class";
+import Recipe, {Ingredient, PositionType, RecipeType} from "../recipe.class";
 import recipe from "../__mocks__/recipe.mock";
 import products from "../../Product/__mocks__/products.mock";
 import units from "../../Unit/__mocks__/units.mock";
@@ -178,10 +178,10 @@ test("Recipe.createRecipeVariant(), Variante erhält neue UIDs für Zutaten, Sch
     recipeMock.ingredients.entries[originalIngredientUids[0]];
   const variantFirstIngredient =
     recipeVariant.ingredients.entries[recipeVariant.ingredients.order[0]];
-  expect(variantFirstIngredient.product).toEqual(
-    originalFirstIngredient.product,
+  expect((variantFirstIngredient as Ingredient).product).toEqual(
+    (originalFirstIngredient as Ingredient).product,
   );
-  expect(variantFirstIngredient.quantity).toBe(originalFirstIngredient.quantity);
+  expect((variantFirstIngredient as Ingredient).quantity).toBe((originalFirstIngredient as Ingredient).quantity);
 });
 /* =====================================================================
 // Leere Einträge erzeugen

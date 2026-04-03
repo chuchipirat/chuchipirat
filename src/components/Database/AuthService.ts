@@ -1,8 +1,6 @@
 import {
   AuthChangeEvent,
-  AuthError,
   Session,
-  Subscription,
   User,
 } from "@supabase/supabase-js";
 import {supabase, supabaseAdmin} from "./supabaseClient";

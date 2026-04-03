@@ -76,7 +76,7 @@ const MenuplanPage = ({
     setRecipeSearchDrawerData,
     setRecipeDrawerData,
     dialogSelectMenueData,
-    setDialogSelectMenueData,
+    setDialogSelectMenueData: _setDialogSelectMenueData,
     dialogSelectMealData,
     dialogPlanPortionsData,
     dialogEditMenue,
@@ -97,7 +97,6 @@ const MenuplanPage = ({
       object: NavigationObject.menueplan,
     });
     // Bewusst nur beim Mount setzen — Navigation-Kontext ändert sich nicht
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   /* ------------------------------------------
   // Auto-Scroll zum heutigen Tag
@@ -169,7 +168,6 @@ const MenuplanPage = ({
       ...prev,
       enableDragAndDrop: !isMobile,
     }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isMobile]);
 
   const {onDragAndDropUpdate, onMoveDragAndDropElement} = useMenuplanDragDrop({

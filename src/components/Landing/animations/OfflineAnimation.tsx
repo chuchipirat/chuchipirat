@@ -198,7 +198,7 @@ const OfflineAnimationBase = ({isActive}: {isActive: boolean}) => {
         }}
       >
         <Box
-          sx={(theme) => ({
+          sx={(_theme) => ({
             display: "flex",
             alignItems: "center",
             gap: 0.75,

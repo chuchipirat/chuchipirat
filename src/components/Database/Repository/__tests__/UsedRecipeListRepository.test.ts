@@ -8,11 +8,10 @@
  */
 import {
   UsedRecipeListRepository,
-  UsedRecipeListDomain,
   UsedRecipeListRow,
   UsedRecipeListRecipeRow,
 } from "../UsedRecipeListRepository";
-import {createSupabaseMock, createQueryMock} from "../__mocks__/supabaseMock";
+import {createSupabaseMock} from "../__mocks__/supabaseMock";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
 jest.mock("../../../Firebase/Db/sessionStorageHandler.class", () => {

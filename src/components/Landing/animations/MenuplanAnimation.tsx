@@ -36,7 +36,7 @@ const DROP_STEPS: DropStep[] = [
 const CYCLE_DURATION = 10000;
 
 /** Zeitpunkte der Animationsphasen in ms. */
-const PHASE = {
+const _PHASE = {
   HOLD_END: 8500,
 };
 

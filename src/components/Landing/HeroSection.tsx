@@ -1,6 +1,6 @@
 import React from "react";
 import {Box, Button, Container, Fade, Grow, Typography} from "@mui/material";
-import {alpha, darken, lighten} from "@mui/system";
+import {darken, lighten} from "@mui/system";
 
 import {
   APP_NAME as TEXT_APP_NAME,

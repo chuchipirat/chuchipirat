@@ -36,12 +36,10 @@ import {
   ArrowForward as ArrowForwardIcon,
 } from "@mui/icons-material";
 
-import Role from "../../constants/roles";
 
 import {useFirebase} from "../Firebase/firebaseContext";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {useAuthUser} from "../Session/authUserContext";
+// import {useAuthUser} from "../Session/authUserContext";
 import {PageTitle} from "../Shared/pageTitle";
 import useCustomStyles from "../../constants/styles";
 import Grid from "@mui/material/Grid";
@@ -351,7 +349,7 @@ export const blockBoardPanningAttr = "data-block-board-panning" as const;
 // =============================== Base ==============================
 // =================================================================== */
 const TempPage = () => {
-  const firebase = useFirebase();
+  const _firebase = useFirebase();
   // const classes = useCustomStyles();
 
   const [data, setData] = useState(initialData);

@@ -13,7 +13,6 @@ import {useState} from "react";
 import {useDonationGoalData} from "./useDonationGoalData";
 import {
   DonationAppealCard,
-  SEGMENT_COLORS,
 } from "./EventCompletionDonation";
 
 /* ===================================================================

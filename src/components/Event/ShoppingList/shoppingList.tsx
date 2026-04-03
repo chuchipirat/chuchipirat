@@ -339,7 +339,7 @@ const EventShoppingListPage = ({
       });
       onDispatchSetSelectedListItem(initialListId);
     }
-  }, [initialListId, shoppingListCollection.noOfLists]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initialListId, shoppingListCollection.noOfLists]);
 
   /* ------------------------------------------
   // Navigation-Handler
@@ -1059,7 +1059,7 @@ const DialogHandleItem = ({
   units,
   departments,
   editMode,
-  firebase,
+  firebase: _firebase,
   authUser,
   handleOk: handleOkSuper,
   handleClose: handleCloseSuper,

@@ -191,7 +191,7 @@ export class UnitRepository extends BaseRepository<UnitDomain, UnitRow> {
    * @param key - Der Schlüssel (Primärschlüssel) der zu löschenden Einheit
    * @param authUser - Der angemeldete Benutzer (für Audit-Zwecke)
    */
-  async deleteUnit(key: string, authUser: AuthUser): Promise<void> {
+  async deleteUnit(key: string, _authUser: AuthUser): Promise<void> {
     return this.remove(key);
   }
 }

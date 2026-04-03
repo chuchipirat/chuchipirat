@@ -175,7 +175,7 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<FirebaseGroupConfigData>,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
     const client: SupabaseClient = supabaseAdmin ?? supabase;

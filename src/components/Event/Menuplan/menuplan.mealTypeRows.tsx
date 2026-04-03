@@ -47,13 +47,9 @@ import {
   MealType,
   Meal,
   Menue,
-  Note,
   MealRecipe,
-  MealRecipes,
   MenuplanProduct,
   MenuplanMaterial,
-  Products,
-  Materials,
   MenuplanData,
 } from "./menuplan.types";
 import {createMenu} from "./menuplanService";
@@ -72,7 +68,6 @@ import {
   isItemData,
   getItemRegistry,
 } from "./menuplan.dragdrop";
-import type {ItemData} from "./menuplan.dragdrop";
 import {MenueListOfMeal} from "./menuplan.menucard";
 import {EmptyMealContainer} from "./menuplan.emptycontainer";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";

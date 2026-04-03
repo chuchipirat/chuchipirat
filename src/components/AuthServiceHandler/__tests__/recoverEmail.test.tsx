@@ -5,7 +5,6 @@ Object.assign(global, {TextEncoder, TextDecoder});
 import React from "react";
 import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
-import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
 
 /** Mock: firebase/auth — checkActionCode */

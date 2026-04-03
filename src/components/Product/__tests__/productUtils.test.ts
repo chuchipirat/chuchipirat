@@ -6,11 +6,10 @@
  */
 // Polyfill fuer jsdom (react-router benoetigt TextEncoder/TextDecoder)
 import {TextEncoder, TextDecoder} from "util";
-Object.assign(global, {TextEncoder, TextDecoder});
+Object.assign(globalThis, {TextEncoder, TextDecoder});
 
 import {findSimilarProducts} from "../productUtils";
 import {
-  Allergen,
   Diet,
   Product,
   createEmptyDietProperty,

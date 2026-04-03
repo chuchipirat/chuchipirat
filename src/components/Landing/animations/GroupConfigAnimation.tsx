@@ -417,7 +417,7 @@ const GroupConfigAnimationBase = ({isActive}: {isActive: boolean}) => {
                 return (
                   <Box
                     key={colIndex}
-                    sx={(theme) => ({
+                    sx={(_theme) => ({
                       flex: 1,
                       display: "flex",
                       alignItems: "center",
@@ -567,7 +567,7 @@ const GroupConfigAnimationBase = ({isActive}: {isActive: boolean}) => {
 
           {/* Grand Total */}
           <Box
-            sx={(theme) => ({
+            sx={(_theme) => ({
               minWidth: {xs: 36, md: 44},
               flexShrink: 0,
               display: "flex",

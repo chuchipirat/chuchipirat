@@ -12,7 +12,7 @@
  */
 
 jest.mock("@react-pdf/renderer", () => {
-  const React = require("react");
+  const React = jest.requireActual("react");
   const createComponent = (name: string) =>
     React.forwardRef((props: any, _ref: any) =>
       React.createElement(name, null, props.children)
@@ -41,7 +41,7 @@ jest.mock("../../../Shared/pdfFontRegistration", () => {});
 
 // pdfComponents — minimale Stubs
 jest.mock("../../../Shared/pdfComponents", () => {
-  const React = require("react");
+  const React = jest.requireActual("react");
   return {
     Header: () => React.createElement("Header"),
     Footer: () => React.createElement("Footer"),

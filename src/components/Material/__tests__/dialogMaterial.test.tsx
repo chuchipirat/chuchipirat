@@ -7,7 +7,7 @@
  * Callback-Verhalten, Checkbox- und Radio-Logik.
  */
 import {TextEncoder, TextDecoder} from "util";
-Object.assign(global, {TextEncoder, TextDecoder});
+Object.assign(globalThis, {TextEncoder, TextDecoder});
 
 import React from "react";
 import {render, screen, waitFor} from "@testing-library/react";
@@ -23,6 +23,10 @@ import {DatabaseContext} from "../../Database/DatabaseContext";
 /* ===================================================================
 // ======================== Mocks =====================================
 // =================================================================== */
+
+// Auto-Mock: Alle Exports von @sentry/react werden zu jest.fn(),
+// damit jest.spyOn auf nicht-konfigurierbare Properties funktioniert.
+jest.mock("@sentry/react");
 
 /** Mock-DatabaseService mit insertMaterial-Stub (nur fuer CREATE-Pfad) */
 const mockInsertMaterial = jest.fn();

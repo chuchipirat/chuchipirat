@@ -13,7 +13,7 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 
 import {DialogCreateUnit} from "../dialogCreateUnit";
-import {Unit, UnitDimension} from "../unit.class";
+import {UnitDimension} from "../unit.class";
 
 /* ===================================================================
 // ======================== Hilfsfunktionen ===========================

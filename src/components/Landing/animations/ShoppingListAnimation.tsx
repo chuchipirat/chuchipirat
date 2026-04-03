@@ -280,7 +280,7 @@ const ShoppingListAnimationBase = ({isActive}: {isActive: boolean}) => {
 
       {/* "Alles eingekauft"-Badge */}
       <Box
-        sx={(theme) => ({
+        sx={(_theme) => ({
           display: "flex",
           justifyContent: "center",
           mt: 1,

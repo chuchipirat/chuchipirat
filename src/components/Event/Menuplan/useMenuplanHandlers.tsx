@@ -13,7 +13,6 @@
  * <MenuplanHeaderRow onPrint={handlers.onPrint} ... />
  */
 import React, {useCallback, useRef} from "react";
-import * as Sentry from "@sentry/react";
 import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
@@ -248,11 +247,11 @@ export interface UseMenuplanHandlersReturn {
  */
 export function useMenuplanHandlers({
   menuplan,
-  groupConfiguration,
+  groupConfiguration: _groupConfiguration,
   event,
   recipes,
   recipeList,
-  firebase,
+  firebase: _firebase,
   authUser,
   units,
   products,

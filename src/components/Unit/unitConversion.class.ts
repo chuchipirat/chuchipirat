@@ -4,7 +4,7 @@
  * Stellt statische Methoden bereit zum Erstellen, Löschen und Ausführen
  * von Einheitenumrechnungen (z.B. kg → g, Stk → g für ein bestimmtes Produkt).
  */
-import {Unit, UnitDimension} from "./unit.class";
+import {Unit} from "./unit.class";
 import {Product} from "../Product/product.types";
 
 export interface UnitConversionBasic {

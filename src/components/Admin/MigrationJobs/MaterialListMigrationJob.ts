@@ -182,7 +182,7 @@ export class MaterialListMigrationJob
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<FirebaseMaterialListData>,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     const client: SupabaseClient = supabaseAdmin ?? supabase;
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);

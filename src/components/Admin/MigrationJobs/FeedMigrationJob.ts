@@ -131,7 +131,7 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<FirebaseFeed>,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
     const client: SupabaseClient = supabaseAdmin ?? supabase;

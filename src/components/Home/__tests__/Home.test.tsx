@@ -480,7 +480,7 @@ describe("HomePage", () => {
   // ------------------------------------------ */
   describe("Sentry-Logging", () => {
     test("loggt Events-Fehler in Sentry", async () => {
-      const Sentry = require("@sentry/react");
+      const Sentry = jest.requireMock<typeof import("@sentry/react")>("@sentry/react");
       const testError = new Error("Events Sentry Test");
       mockGetAllEventsForUser.mockRejectedValue(testError);
       renderHomePage();
@@ -491,7 +491,7 @@ describe("HomePage", () => {
     });
 
     test("loggt Stats-Fehler in Sentry", async () => {
-      const Sentry = require("@sentry/react");
+      const Sentry = jest.requireMock<typeof import("@sentry/react")>("@sentry/react");
       const testError = new Error("Stats Sentry Test");
       mockGetStats.mockRejectedValue(testError);
       renderHomePage();
@@ -502,7 +502,7 @@ describe("HomePage", () => {
     });
 
     test("loggt Feed-Fehler in Sentry", async () => {
-      const Sentry = require("@sentry/react");
+      const Sentry = jest.requireMock<typeof import("@sentry/react")>("@sentry/react");
       const testError = new Error("Feed Sentry Test");
       mockGetNewestFeeds.mockRejectedValue(testError);
       renderHomePage();

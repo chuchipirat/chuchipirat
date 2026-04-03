@@ -15,7 +15,7 @@ import {MemoryRouter} from "react-router";
 
 import {EventsPage} from "../events";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
-import {EventDomain, EventDateDomain} from "../../../Database/Repository/EventRepository";
+import {EventDomain} from "../../../Database/Repository/EventRepository";
 
 
 /** Mock: useAuthUser */

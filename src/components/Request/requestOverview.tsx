@@ -50,7 +50,7 @@ import {useCustomStyles} from "../../constants/styles";
 
 import {PageTitle} from "../Shared/pageTitle";
 
-import {Request, RequestStatus, RequestType, RequestAction} from "./request.class";
+import {Request, RequestStatus, RequestAction} from "./request.class";
 import {RequestService} from "./requestService";
 import {RequestDomain} from "../Database/Repository/RequestRepository";
 import {RequestCommentDomain} from "../Database/Repository/RequestCommentRepository";

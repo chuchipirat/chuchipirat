@@ -427,7 +427,7 @@ export class RequestRepository extends BaseRepository<
     id: string,
     assigneeUid: string,
     changeLog: ChangeLogEntry[],
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<RequestDomain> {
     try {
       const {error} = await this.client

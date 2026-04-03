@@ -9,7 +9,6 @@ import {
   SystemMessageDomain,
   SystemMessageRow,
 } from "../SystemMessageRepository";
-import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
 import {

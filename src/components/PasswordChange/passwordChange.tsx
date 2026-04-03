@@ -259,7 +259,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
         payload: {field: "email", value: authUser.email},
       });
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reauthentifizierung nur nötig, wenn kein resetCode vorhanden
   const [reauthentication, setReauthentication] = React.useState({

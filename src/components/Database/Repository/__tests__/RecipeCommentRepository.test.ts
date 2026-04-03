@@ -213,7 +213,7 @@ describe("RecipeCommentRepository", () => {
         error: null,
       });
 
-      const result = await repo.insertComment(
+      const _result = await repo.insertComment(
         {recipeId: "recipe-uuid-001", comment: "Wunderbares Rezept!"},
         authUser,
       );

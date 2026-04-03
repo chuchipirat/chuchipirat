@@ -25,7 +25,6 @@ import {
   MealType,
   Meal,
   MenuplanData,
-  Menue,
   MealRecipes,
   Materials,
   Products,

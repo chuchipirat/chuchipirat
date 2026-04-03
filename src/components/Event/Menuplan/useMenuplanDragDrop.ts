@@ -33,7 +33,7 @@ import {
   isDraggingACardListItem,
 } from "./menuplan.menucard.list";
 import {isEmptyContainerData} from "./menuplan.emptycontainer";
-import {Menue, Meal, MenuplanData} from "./menuplan.types";
+import {Menue, MenuplanData} from "./menuplan.types";
 import {
   MenuplanDragDropTypes,
   DragAndDropMoveCommand,
@@ -554,7 +554,6 @@ export const useMenuplanDragDrop = ({
         },
       }),
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /* ------------------------------------------

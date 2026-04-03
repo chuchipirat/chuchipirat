@@ -130,7 +130,7 @@ const DialogMaterial = ({
       name: {hasError: false, errorText: ""},
       type: {hasError: false, errorText: ""},
     });
-  }, [dialogOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [dialogOpen]);
 
   /* ------------------------------------------
   // Change Ereignis Felder

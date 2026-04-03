@@ -9,7 +9,7 @@ import "@testing-library/jest-dom";
 import {render, screen, fireEvent} from "@testing-library/react";
 
 import {DialogGoods} from "../dialogGoods";
-import {GoodsType, GoodsPlanMode} from "../menuplan.types";
+import {GoodsType} from "../menuplan.types";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
 import {Product} from "../../../Product/product.types";
 import {Material} from "../../../Material/material.types";
@@ -18,7 +18,6 @@ import Department from "../../../Department/department.class";
 
 import {
   QUANTITY_MUST_BE_POSITIVE as TEXT_QUANTITY_MUST_BE_POSITIVE,
-  QUANTITY_TOO_LARGE as TEXT_QUANTITY_TOO_LARGE,
   CANCEL as TEXT_CANCEL,
   OK as TEXT_OK,
   PRODUCTS as TEXT_PRODUCTS,

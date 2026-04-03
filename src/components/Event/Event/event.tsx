@@ -19,7 +19,7 @@ import {
 
 import {useCustomStyles} from "../../../constants/styles";
 
-import {Event,EventRefDocuments} from "./event.class";
+import {Event} from "./event.class";
 // Bridge-Importe eliminiert — Konvertierung erfolgt direkt in den Repositories
 import {resizeImage} from "../../Shared/imageResize";
 import {PageTitle} from "../../Shared/pageTitle";
@@ -48,7 +48,6 @@ import {
   DIALOG_TEXT_DELETION_CONFIRMATION as TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
-  DB_DOCUMENT_DELETED as TEXT_DB_DOCUMENT_DELETED,
   CONSISTENCY_CHECK as TEXT_CONSISTENCY_CHECK,
   MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED as TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
   MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES as TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
@@ -76,7 +75,6 @@ import {Product} from "../../Product/product.types";
 import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import Department from "../../Department/department.class";
 import {
-  UnitConversion,
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
@@ -109,7 +107,6 @@ import {AlertMessage} from "../../Shared/AlertMessage";
 import {Stats, StatsField} from "../../Shared/stats.class";
 import {trackEvent} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
-import {EventDomain} from "../../Database/Repository/EventRepository";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
 import {EventMasterDataContext,EventMasterData} from "./eventMasterDataContext";
@@ -841,9 +838,6 @@ const INTITIAL_STATE_EVENT_DRAF: EventDraftState = {
   localPicture: null,
   formValidation: [],
 };
-interface LocationState {
-  event: Event;
-}
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
 /**

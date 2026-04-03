@@ -16,8 +16,6 @@ import {
   ENABLE_DRAG_AND_DROP as TEXT_ENABLE_DRAG_AND_DROP,
   ADD_MEAL as TEXT_ADD_MEAL,
   PRINTVERSION as TEXT_PRINTVERSION,
-  NOTE as TEXT_NOTE,
-  ADD as TEXT_ADD,
 } from "../../../../constants/text";
 
 const mockCustomDialog = jest.fn().mockResolvedValue({valid: false, input: ""});

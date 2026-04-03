@@ -178,7 +178,7 @@ export class UsedRecipesMigrationJob
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<FirebaseUsedRecipesData>,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     const client: SupabaseClient = supabaseAdmin ?? supabase;
 

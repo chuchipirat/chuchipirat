@@ -16,13 +16,13 @@ import {LocalStorageKey} from "../../../constants/localStorage";
  * von `mockOnAuthStateChange` erfasst, damit Tests den Auth-Status-
  * Wechsel manuell auslösen können.
  */
-let authChangeCallback: Function;
+let authChangeCallback: (...args: unknown[]) => void;
 
 /**
  * Mock für `database.auth.onAuthStateChange`.
  * Speichert den übergebenen Callback und gibt eine Unsubscribe-Funktion zurück.
  */
-const mockOnAuthStateChange = jest.fn((cb: Function) => {
+const mockOnAuthStateChange = jest.fn((cb: (...args: unknown[]) => void) => {
   authChangeCallback = cb;
   return jest.fn(); // unsubscribe
 });

@@ -99,7 +99,7 @@ describe("ProductAutocomplete", () => {
     // Die Dropdown-Option mit "hinzufügen" sollte sichtbar sein
     await waitFor(() => {
       expect(
-        screen.getByText(/\"Neues Produkt\" hinzufügen/),
+        screen.getByText(/"Neues Produkt" hinzufügen/),
       ).toBeInTheDocument();
     });
   });

@@ -56,7 +56,6 @@ import {getImageUrl, ImageSize} from "../Shared/imageUrl";
 import {FormListItem} from "../Shared/formListItem";
 import {AlertMessage} from "../Shared/AlertMessage";
 import {useAuthUser} from "../Session/authUserContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -133,7 +132,7 @@ const publicProfileReducer = (state: State, action: DispatchAction): State => {
  * Bietet einen Bearbeiten-Button, wenn das eigene Profil angeschaut wird.
  */
 const PublicProfilePage = () => {
-  const firebase = useFirebase();
+  const _firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();

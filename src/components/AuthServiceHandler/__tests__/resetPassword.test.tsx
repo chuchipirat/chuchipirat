@@ -28,11 +28,11 @@ jest.mock("../../Shared/utils.class", () => ({
  * Callback-Referenz für onAuthStateChange.
  * Wird in den Tests manuell aufgerufen, um Session-Events zu simulieren.
  */
-let authChangeCallback: Function;
+let authChangeCallback: (...args: unknown[]) => void;
 
 /** Mock für onAuthStateChange — speichert den Callback und gibt eine Unsubscribe-Funktion zurück */
 const mockUnsubscribe = jest.fn();
-const mockOnAuthStateChange = jest.fn((cb: Function) => {
+const mockOnAuthStateChange = jest.fn((cb: (...args: unknown[]) => void) => {
   authChangeCallback = cb;
   return mockUnsubscribe;
 });

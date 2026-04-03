@@ -6,7 +6,6 @@
  * computeTrace, countItems.
  */
 import {MaterialList,
-  MaterialListEntry,
   MaterialListMaterial,
 } from "../materialList.class";
 import {Material, MaterialType} from "../../../Material/material.types";
@@ -16,7 +15,7 @@ import {
   MealRecipe,
   GoodsPlanMode,
 } from "../../Menuplan/menuplan.types";
-import {RecipeMaterialPosition} from "../../../Recipe/recipe.class";
+import {RecipeMaterialPosition, RecipeType} from "../../../Recipe/recipe.class";
 import Recipe from "../../../Recipe/recipe.class";
 
 
@@ -108,7 +107,7 @@ function createMinimalMenuplan(): MenuplanData {
     recipe: {
       recipeUid: "recipe-001",
       name: "Pasta",
-      type: 0,
+      type: RecipeType.public,
       createdFromUid: "",
     },
     plan: [],
@@ -210,7 +209,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         recipe: {
           recipeUid: "recipe-002",
           name: "Suppe",
-          type: 0,
+          type: RecipeType.public,
           createdFromUid: "",
         },
         plan: [],

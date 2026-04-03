@@ -165,7 +165,7 @@ export class RecipeRatingRepository extends BaseRepository<
    */
   async upsertRating(
     rating: RecipeRatingDomain,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<RecipeRatingDomain> {
     // Upsert auf den Unique-Constraint recipe_id + user_id, nicht auf id
     const row = this.toRow(rating);

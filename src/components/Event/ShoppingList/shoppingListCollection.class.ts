@@ -19,7 +19,6 @@ import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 import Recipe from "../../Recipe/recipe.class";
 import {ShoppingList,
   ItemType,
-  ShoppingListItem,
   ShoppingListTrace,
 } from "./shoppingList.class";
 import {

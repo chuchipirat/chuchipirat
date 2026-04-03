@@ -68,7 +68,7 @@ const DonationResultPage = () => {
   const classes = useCustomStyles();
 
   const status = searchParams.get("status") ?? "unknown";
-  const donationId = searchParams.get("donationId");
+  const _donationId = searchParams.get("donationId");
   const returnPath = searchParams.get("return") ?? "/home";
   const amountInCents = parseInt(searchParams.get("amount") ?? "0", 10);
   const eventId = searchParams.get("eventId") ?? undefined;

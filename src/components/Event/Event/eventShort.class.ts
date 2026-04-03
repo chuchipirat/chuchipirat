@@ -105,5 +105,3 @@ export class EventShort {
     return eventsShort;
   }
 }
-
-export {EventShort};

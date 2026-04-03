@@ -7,10 +7,10 @@
  */
 // Polyfill fuer jsdom (react-router benoetigt TextEncoder/TextDecoder)
 import {TextEncoder, TextDecoder} from "util";
-Object.assign(global, {TextEncoder, TextDecoder});
+Object.assign(globalThis, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen, waitFor} from "@testing-library/react";
+import {render, screen, waitFor, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
@@ -53,8 +53,8 @@ const mockDatabase = {
 
 /** Testdaten: Materialien */
 const mockMaterials = [
-  {uid: "mat-1", name: "Teller", type: 2, usable: true},
-  {uid: "mat-2", name: "Servietten", type: 1, usable: true},
+  {uid: "mat-1", name: "Teller", type: 2, usable: true, qaChecked: false, qaCheckedAt: null},
+  {uid: "mat-2", name: "Servietten", type: 1, usable: true, qaChecked: false, qaCheckedAt: null},
 ];
 
 /* ===================================================================
@@ -158,9 +158,17 @@ describe("MaterialPage", () => {
       // Bearbeitungsmodus aktivieren
       await userEvent.click(screen.getByRole("button", {name: /Bearbeiten/i}));
 
-      // Erste Checkbox anklicken — schaltet usable von mat-1 von true auf false
-      const checkboxes = await screen.findAllByRole("checkbox");
-      await userEvent.click(checkboxes[0]);
+      // Zeile mit "Teller" finden und darin die «Nutzbar»-Checkbox anklicken.
+      // Im Edit-Modus enthält jede DataGrid-Zeile: 1 Selection-Checkbox (unchecked),
+      // 1 Usable-Checkbox (checked) und 1 QA-Checkbox (unchecked).
+      // Wir suchen die einzige bereits aktivierte Checkbox in der Zeile.
+      const tellerRow = screen.getByRole("row", {name: /Teller/i});
+      const checkboxesInRow = within(tellerRow).getAllByRole("checkbox");
+      const usableCheckbox = checkboxesInRow.find(
+        (checkbox) => (checkbox as HTMLInputElement).checked
+      );
+      expect(usableCheckbox).toBeDefined();
+      await userEvent.click(usableCheckbox!);
 
       // Speichern
       await userEvent.click(screen.getByRole("button", {name: /Speichern/i}));

@@ -13,7 +13,7 @@
 
 
 jest.mock("@react-pdf/renderer", () => {
-  const React = require("react");
+  const React = jest.requireActual("react");
   const createComponent = (name: string) =>
     React.forwardRef((props: any, _ref: any) =>
       React.createElement(name, props, props.children),
@@ -38,41 +38,41 @@ jest.mock("../../../Shared/pdfFontRegistration", () => {});
 
 // pdfComponents — minimale Stubs
 jest.mock("../../../Shared/pdfComponents", () => {
-  const React = require("react");
+  const React = jest.requireActual("react");
   return {
-    Header: (props: any) =>
-      React.createElement("Header", {"data-testid": "header", "data-text": props.text}),
-    Footer: (props: any) =>
+    Header: (_props: any) =>
+      React.createElement("Header", {"data-testid": "header", "data-text": _props.text}),
+    Footer: (_props: any) =>
       React.createElement("Footer", {"data-testid": "footer"}),
   };
 });
 
 // recipePdf — minimale Stubs mit testbaren data-Attributen
 jest.mock("../../../Recipe/recipePdf", () => {
-  const React = require("react");
+  const React = jest.requireActual("react");
   return {
     RecipeHeader: (props: any) =>
       React.createElement("RecipeHeader", {
         "data-testid": `recipe-header-${props.recipe.uid}`,
         "data-portions": props.scaledPortions,
       }),
-    RecipeIngredients: (props: any) =>
+    RecipeIngredients: (_props: any) =>
       React.createElement("RecipeIngredients", {
         "data-testid": "recipe-ingredients",
       }),
-    RecipeMaterial: (props: any) =>
+    RecipeMaterial: (_props: any) =>
       React.createElement("RecipeMaterial", {
         "data-testid": "recipe-material",
       }),
-    RecipePreparation: (props: any) =>
+    RecipePreparation: (_props: any) =>
       React.createElement("RecipePreparation", {
         "data-testid": "recipe-preparation",
       }),
-    RecipeNote: (props: any) =>
+    RecipeNote: (_props: any) =>
       React.createElement("RecipeNote", {
         "data-testid": "recipe-note",
       }),
-    RecipeVariantNote: (props: any) =>
+    RecipeVariantNote: (_props: any) =>
       React.createElement("RecipeVariantNote", {
         "data-testid": "recipe-variant-note",
       }),

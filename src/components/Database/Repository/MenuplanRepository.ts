@@ -29,21 +29,13 @@ import {
   GoodsPlanMode,
 } from "../../Event/Menuplan/menuplan.types";
 import type {
-  MealType,
   Meal,
-  Menue,
   MealRecipe,
+  Menue,
   MenuplanMaterial,
   MenuplanProduct,
   Note,
   PortionPlan,
-  Meals,
-  Menues,
-  MealRecipes,
-  Notes,
-  Materials,
-  Products,
-  MenuplanObjectStructure,
 } from "../../Event/Menuplan/menuplan.types";
 import {createEmptyMenuplan} from "../../Event/Menuplan/menuplanService";
 import {RecipeType} from "../../Recipe/recipe.class";
@@ -679,7 +671,7 @@ export class MenuplanRepository extends BaseRepository<
         .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_materials", filter: `event_id=eq.${eventId}`}, handleChange)
         .on("postgres_changes", {event: "*", schema: "public", table: "event_notes", filter: `event_id=eq.${eventId}`}, handleChange)
         .on("postgres_changes", {event: "*", schema: "public", table: "event_menuplan_item_plans", filter: `event_id=eq.${eventId}`}, handleChange)
-        .subscribe((status, err) => {
+        .subscribe((status, _err) => {
           if (cancelled) return;
 
           if (status === "SUBSCRIBED") {
@@ -755,7 +747,7 @@ export class MenuplanRepository extends BaseRepository<
   async initializeMenuplan(
     eventId: string,
     dates: {dateFrom: Date; dateTo: Date}[],
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<string[]> {
     // 1. Mahlzeittypen erstellen
     const defaultMealTypes = [
@@ -855,7 +847,7 @@ export class MenuplanRepository extends BaseRepository<
   async saveMenuplan(
     eventId: string,
     menuplan: MenuplanDomain,
-    authUser: AuthUser,
+    _authUser: AuthUser,
   ): Promise<void> {
     // FK-Referenzen in-memory validieren, BEVOR die RPC-Funktion aufgerufen wird.
     // Fängt logische Fehler früh ab, ohne einen DB-Roundtrip zu verschwenden.

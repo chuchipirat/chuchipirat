@@ -61,8 +61,15 @@ import {supabase} from "../../Database/supabaseClient";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useFirebase} from "../../Firebase/firebaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
-import {RecipeRepository, RecipeDomain, RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
-import {UserRepository, UserDomain} from "../../Database/Repository/UserRepository";
+import {
+  RecipeRepository,
+  RecipeDomain,
+  RecipeShortDomain,
+} from "../../Database/Repository/RecipeRepository";
+import {
+  UserRepository,
+  UserDomain,
+} from "../../Database/Repository/UserRepository";
 import {DialogRecipeAdminDetail} from "../Overview/overviewRecipes";
 import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
 import Recipe from "../../Recipe/recipe.class";
@@ -142,7 +149,8 @@ const CHECKS: IntegrityCheck[] = [
   {
     key: "recipesWithoutEvents",
     label: "Rezepte ohne Event",
-    description: "Öffentliche Rezepte, die in keinem Event-Menü verwendet werden",
+    description:
+      "Öffentliche Rezepte, die in keinem Event-Menü verwendet werden",
     rpcName: "check_recipes_without_events",
     idField: "recipe_id",
     nameField: "recipe_name",
@@ -210,14 +218,20 @@ enum ReducerActions {
 /** Diskriminierte Union für typsichere Reducer-Aktionen. */
 type DispatchAction =
   | {type: ReducerActions.CHECK_START; payload: string}
-  | {type: ReducerActions.CHECK_SUCCESS; payload: {key: string; anomalies: Record<string, unknown>[]}}
+  | {
+      type: ReducerActions.CHECK_SUCCESS;
+      payload: {key: string; anomalies: Record<string, unknown>[]};
+    }
   | {type: ReducerActions.CHECK_ERROR; payload: {key: string; error: string}}
   | {type: ReducerActions.RUN_ALL_START}
   | {type: ReducerActions.RUN_ALL_DONE}
   | {type: ReducerActions.CLEANUP_START; payload: string}
   | {type: ReducerActions.CLEANUP_SUCCESS; payload: string}
   | {type: ReducerActions.CLEANUP_ERROR; payload: {key: string; error: string}}
-  | {type: ReducerActions.REMOVE_ANOMALY; payload: {key: string; idField: string; idValue: string}};
+  | {
+      type: ReducerActions.REMOVE_ANOMALY;
+      payload: {key: string; idField: string; idValue: string};
+    };
 
 const initialResults: Record<string, CheckResult> = {};
 CHECKS.forEach((check) => {
@@ -251,7 +265,10 @@ const integrityReducer = (state: State, action: DispatchAction): State => {
         ...state,
         results: {
           ...state.results,
-          [action.payload.key]: {status: "done", anomalies: action.payload.anomalies},
+          [action.payload.key]: {
+            status: "done",
+            anomalies: action.payload.anomalies,
+          },
         },
       };
     case ReducerActions.CHECK_ERROR:
@@ -314,7 +331,7 @@ const integrityReducer = (state: State, action: DispatchAction): State => {
           [key]: {
             ...current,
             anomalies: current.anomalies.filter(
-              (anomaly) => String(anomaly[idField]) !== idValue
+              (anomaly) => String(anomaly[idField]) !== idValue,
             ),
           },
         },
@@ -418,7 +435,11 @@ const UserDetailDialog = ({
             <CircularProgress />
           </Box>
         )}
-        {state.error && <Alert severity="error" sx={{m: 2}}>{state.error}</Alert>}
+        {state.error && (
+          <Alert severity="error" sx={{m: 2}}>
+            {state.error}
+          </Alert>
+        )}
         {user && !state.loading && (
           <List>
             <FormListItem
@@ -426,11 +447,7 @@ const UserDetailDialog = ({
               value={user.displayName}
               label={TEXT_DISPLAYNAME}
             />
-            <FormListItem
-              id="email"
-              value={user.email}
-              label={TEXT_EMAIL}
-            />
+            <FormListItem id="email" value={user.email} label={TEXT_EMAIL} />
             <FormListItem
               id="roles"
               value={user.roles.join(", ") || "–"}
@@ -495,7 +512,9 @@ const DataIntegrityPage = () => {
   const firebase = useFirebase();
   const authUser = useAuthUser();
   const [state, dispatch] = useReducer(integrityReducer, initialState);
-  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(CONFIRM_DIALOG_INITIAL);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(
+    CONFIRM_DIALOG_INITIAL,
+  );
 
   // Detail-Dialog States
   const [recipeDetail, setRecipeDetail] = useState<RecipeDetailState>({
@@ -521,7 +540,10 @@ const DataIntegrityPage = () => {
       if (error) throw new Error(error.message);
       dispatch({
         type: ReducerActions.CHECK_SUCCESS,
-        payload: {key: check.key, anomalies: (data as Record<string, unknown>[]) ?? []},
+        payload: {
+          key: check.key,
+          anomalies: (data as Record<string, unknown>[]) ?? [],
+        },
       });
     } catch (error) {
       Sentry.captureException(error);
@@ -572,7 +594,7 @@ const DataIntegrityPage = () => {
         });
       }
     },
-    []
+    [],
   );
 
   /**
@@ -606,7 +628,7 @@ const DataIntegrityPage = () => {
         });
       }
     },
-    [state.results, runCheck]
+    [state.results, runCheck],
   );
 
   /** Rezept-Detail-Dialog öffnen und Daten laden. */
@@ -616,7 +638,11 @@ const DataIntegrityPage = () => {
       const repo = new RecipeRepository();
       const recipe = await repo.getRecipe(recipeId, true);
       if (!recipe) throw new Error(`Rezept ${recipeId} nicht gefunden.`);
-      setRecipeDetail({open: true, loading: false, domain: toShortDomain(recipe)});
+      setRecipeDetail({
+        open: true,
+        loading: false,
+        domain: toShortDomain(recipe),
+      });
     } catch (error) {
       Sentry.captureException(error);
       setRecipeDetail({
@@ -660,7 +686,7 @@ const DataIntegrityPage = () => {
         },
       });
     },
-    [deleteSingleItem]
+    [deleteSingleItem],
   );
 
   /** Bestätigungs-Dialog für «Alle löschen» öffnen. */
@@ -676,7 +702,7 @@ const DataIntegrityPage = () => {
         },
       });
     },
-    [cleanupAll]
+    [cleanupAll],
   );
 
   /** Rezept aus dem Detail-Dialog heraus löschen. */
@@ -684,12 +710,14 @@ const DataIntegrityPage = () => {
     (recipeId: string) => {
       setRecipeDetail((prev) => ({...prev, open: false}));
       // Prüfung finden, die recipesWithoutEvents entspricht
-      const check = CHECKS.find((checkItem) => checkItem.key === "recipesWithoutEvents");
+      const check = CHECKS.find(
+        (checkItem) => checkItem.key === "recipesWithoutEvents",
+      );
       if (check) {
         deleteSingleItem(check, recipeId);
       }
     },
-    [deleteSingleItem]
+    [deleteSingleItem],
   );
 
   /**
@@ -714,19 +742,28 @@ const DataIntegrityPage = () => {
           throw new Error(`Rezept ${domain.uid} nicht gefunden.`);
         }
 
-        const recipe = Recipe.fromRepositoryData(header, ingredients, steps, materials);
+        const recipe = Recipe.fromRepositoryData(
+          header,
+          ingredients,
+          steps,
+          materials,
+        );
         setDrawerRecipe(recipe);
         setDrawerOpen(true);
       } catch (error) {
         Sentry.captureException(error);
       }
     },
-    [database]
+    [database],
   );
 
   return (
     <>
-      <PageTitle title={TEXT_DATA_INTEGRITY} subTitle={TEXT_DATA_INTEGRITY_DESCRIPTION} breadcrumbs={[SYSTEM_BREADCRUMB]} />
+      <PageTitle
+        title={TEXT_DATA_INTEGRITY}
+        subTitle={TEXT_DATA_INTEGRITY_DESCRIPTION}
+        breadcrumbs={[SYSTEM_BREADCRUMB]}
+      />
       <Container sx={classes.container} component="main" maxWidth="md">
         <Stack spacing={2}>
           <Button
@@ -762,80 +799,107 @@ const DataIntegrityPage = () => {
                   {result.status === "done" && (
                     <>
                       <Chip
-                        icon={result.anomalies.length === 0 ? <CheckCircleIcon /> : <WarningIcon />}
+                        icon={
+                          result.anomalies.length === 0 ? (
+                            <CheckCircleIcon />
+                          ) : (
+                            <WarningIcon />
+                          )
+                        }
                         label={
                           result.anomalies.length === 0
                             ? "Keine Anomalien"
                             : `${result.anomalies.length} Anomalie(n) gefunden`
                         }
-                        color={result.anomalies.length === 0 ? "success" : "warning"}
+                        color={
+                          result.anomalies.length === 0 ? "success" : "warning"
+                        }
                         size="small"
                         sx={{mb: 1}}
                       />
                       {result.anomalies.length > 0 && (
                         <>
                           <List dense>
-                            {result.anomalies.slice(0, 50).map((anomaly, index) => {
-                              const itemId = check.idField
-                                ? String(anomaly[check.idField])
-                                : String(index);
-                              const itemName = check.nameField
-                                ? String(anomaly[check.nameField])
-                                : JSON.stringify(anomaly, null, 0);
+                            {result.anomalies
+                              .slice(0, 50)
+                              .map((anomaly, index) => {
+                                const itemId = check.idField
+                                  ? String(anomaly[check.idField])
+                                  : String(index);
+                                const itemName = check.nameField
+                                  ? String(anomaly[check.nameField])
+                                  : JSON.stringify(anomaly, null, 0);
 
-                              return (
-                                <ListItem
-                                  key={itemId}
-                                  secondaryAction={
-                                    <Stack direction="row" spacing={0.5}>
-                                      {check.detailType && (
-                                        <Tooltip title="Details anzeigen">
-                                          <IconButton
-                                            edge="end"
-                                            size="small"
-                                            onClick={() => {
-                                              if (check.detailType === "recipe") {
-                                                openRecipeDetail(itemId);
-                                              } else if (check.detailType === "user") {
-                                                openUserDetail(itemId);
+                                return (
+                                  <ListItem
+                                    key={itemId}
+                                    secondaryAction={
+                                      <Stack direction="row" spacing={0.5}>
+                                        {check.detailType && (
+                                          <Tooltip title="Details anzeigen">
+                                            <IconButton
+                                              edge="end"
+                                              size="small"
+                                              onClick={() => {
+                                                if (
+                                                  check.detailType === "recipe"
+                                                ) {
+                                                  openRecipeDetail(itemId);
+                                                } else if (
+                                                  check.detailType === "user"
+                                                ) {
+                                                  openUserDetail(itemId);
+                                                }
+                                              }}
+                                            >
+                                              <InfoIcon fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                        )}
+                                        {check.cleanupRpcName && (
+                                          <Tooltip title="Löschen">
+                                            <IconButton
+                                              edge="end"
+                                              size="small"
+                                              onClick={() =>
+                                                confirmDeleteSingle(
+                                                  check,
+                                                  itemId,
+                                                  itemName,
+                                                )
                                               }
-                                            }}
-                                          >
-                                            <InfoIcon fontSize="small" />
-                                          </IconButton>
-                                        </Tooltip>
-                                      )}
-                                      {check.cleanupRpcName && (
-                                        <Tooltip title="Löschen">
-                                          <IconButton
-                                            edge="end"
-                                            size="small"
-                                            onClick={() =>
-                                              confirmDeleteSingle(check, itemId, itemName)
-                                            }
-                                          >
-                                            <DeleteIcon fontSize="small" />
-                                          </IconButton>
-                                        </Tooltip>
-                                      )}
-                                    </Stack>
-                                  }
-                                >
-                                  <ListItemText
-                                    primary={itemName}
-                                    secondary={check.idField ? itemId : undefined}
-                                    slotProps={{
-                                      primary: {sx: {fontSize: "0.875rem"}},
-                                      secondary: {
-                                        sx: {fontFamily: "monospace", fontSize: "0.75rem"},
-                                      },
-                                    }}
-                                  />
-                                </ListItem>
-                              );
-                            })}
+                                            >
+                                              <DeleteIcon fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                        )}
+                                      </Stack>
+                                    }
+                                  >
+                                    <ListItemText
+                                      primary={itemName}
+                                      secondary={
+                                        check.idField ? itemId : undefined
+                                      }
+                                      slotProps={{
+                                        primary: {sx: {fontSize: "0.875rem"}},
+                                        secondary: {
+                                          sx: {
+                                            fontFamily: "monospace",
+                                            fontSize: "0.75rem",
+                                          },
+                                        },
+                                      }}
+                                    />
+                                  </ListItem>
+                                );
+                              })}
                             {result.anomalies.length > 50 && (
-                              <Typography variant="body2" color="textSecondary" sx={{pl: 2}}>
+                              <Typography
+                                variant="body2"
+                                color="textSecondary"
+                                sx={{pl: 2}}
+                              >
                                 ... und {result.anomalies.length - 50} weitere
                               </Typography>
                             )}
@@ -856,7 +920,10 @@ const DataIntegrityPage = () => {
                                 }
                                 disabled={result.cleanupStatus === "running"}
                                 onClick={() =>
-                                  confirmCleanupAll(check, result.anomalies.length)
+                                  confirmCleanupAll(
+                                    check,
+                                    result.anomalies.length,
+                                  )
                                 }
                               >
                                 Alle {result.anomalies.length} löschen
@@ -884,8 +951,12 @@ const DataIntegrityPage = () => {
 
       {/* Rezept-Detail-Dialog (wiederverwendet aus overviewRecipes) */}
       <DialogRecipeAdminDetail
-        open={recipeDetail.open && !recipeDetail.loading && recipeDetail.domain !== null}
-        domain={recipeDetail.domain}
+        open={
+          recipeDetail.open &&
+          !recipeDetail.loading &&
+          recipeDetail.domain !== null
+        }
+        recipe={recipeDetail.domain}
         creatorName={undefined}
         onClose={() => setRecipeDetail((prev) => ({...prev, open: false}))}
         onOpenInDrawer={onOpenInDrawer}
@@ -913,12 +984,22 @@ const DataIntegrityPage = () => {
 
       {/* Fehler-Dialog wenn Rezept nicht geladen werden konnte */}
       {recipeDetail.open && recipeDetail.error && (
-        <Dialog open onClose={() => setRecipeDetail((prev) => ({...prev, open: false}))} maxWidth="sm" fullWidth>
+        <Dialog
+          open
+          onClose={() => setRecipeDetail((prev) => ({...prev, open: false}))}
+          maxWidth="sm"
+          fullWidth
+        >
           <DialogContent>
             <Alert severity="error">{recipeDetail.error}</Alert>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setRecipeDetail((prev) => ({...prev, open: false}))} color="inherit">
+            <Button
+              onClick={() =>
+                setRecipeDetail((prev) => ({...prev, open: false}))
+              }
+              color="inherit"
+            >
               {TEXT_CLOSE}
             </Button>
           </DialogActions>

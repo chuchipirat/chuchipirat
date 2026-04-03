@@ -8,7 +8,7 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation} from "react-router";
 
-import {SignInPage, AlertMaintenanceMode, EmailNotConfirmedAlert} from "../signIn";
+import {SignInPage, AlertMaintenanceMode} from "../signIn";
 import {SignUpLink} from "../../SignUp/signUp";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {SIGN_UP as ROUTE_SIGN_UP} from "../../../constants/routes";

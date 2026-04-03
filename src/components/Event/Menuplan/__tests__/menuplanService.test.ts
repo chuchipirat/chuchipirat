@@ -39,16 +39,9 @@ import {
 import type {
   MenuplanData,
   MealType,
-  Meal,
-  Menue,
   Meals,
   Menues,
-  MealRecipes,
-  Materials,
-  Products,
   MenuplanObjectStructure,
-  MenuplanMaterial,
-  MenuplanProduct,
 } from "../menuplan.types";
 import {
   PlanedDiet,
@@ -59,7 +52,6 @@ import {RecipeType} from "../../../Recipe/recipe.class";
 import {RecipeShort, createEmptyRecipeShort} from "../../../Recipe/recipe.types";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 import {Event} from "../../Event/event.class";
-import AuthUser from "../../../Firebase/Authentication/authUser.class";
 
 
 let uuidCounter = 0;
@@ -92,20 +84,6 @@ function buildEvent(overrides: Partial<Event> = {}): Event {
   ];
   Object.assign(event, overrides);
   return event;
-}
-
-/**
- * Erzeugt einen minimalen AuthUser.
- */
-function buildAuthUser(): AuthUser {
-  const user = new AuthUser();
-  user.uid = "user-1";
-  user.publicProfile = {
-    displayName: "Test User",
-    motto: "",
-    pictureSrc: "",
-  };
-  return user;
 }
 
 /**

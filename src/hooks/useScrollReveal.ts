@@ -40,7 +40,6 @@ export const useScrollReveal = (
       observer.disconnect();
     };
     // Optionen ändern sich in der Regel nicht, daher stabiler Effekt
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {elementRef, isVisible};

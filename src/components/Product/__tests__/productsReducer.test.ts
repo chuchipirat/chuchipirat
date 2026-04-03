@@ -5,7 +5,7 @@
  * auf korrekte State-Transitionen.
  */
 import {TextEncoder, TextDecoder} from "util";
-Object.assign(global, {TextEncoder, TextDecoder});
+Object.assign(globalThis, {TextEncoder, TextDecoder});
 
 import {
   productsReducer,
@@ -14,7 +14,6 @@ import {
 } from "../useProductsQa";
 import type {State, ReducerAction} from "../useProductsQa";
 import {products as mockProducts} from "../__mocks__/products.mock";
-import {Diet} from "../product.types";
 import type {Product} from "../product.types";
 
 import {

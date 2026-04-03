@@ -9,7 +9,7 @@
 import {renderHook, act} from "@testing-library/react";
 
 import {GoodsType} from "../menuplan.types";
-import {PlanedObject} from "../menuplan.constants";
+import {MenuplanDragDropTypes, PlanedObject} from "../menuplan.constants";
 
 // RecipeDrawer-Modul mocken, damit kein echter Import nötig ist
 jest.mock("../../../Recipe/RecipeDrawer", () => ({
@@ -187,7 +187,7 @@ describe("useMenuplanDialogs – Setter", () => {
         dragAndDropHandler: {
           listElementUid: "uid-1",
           menuUid: "menu-1",
-          dragAndDropListType: "recipe",
+          dragAndDropListType: MenuplanDragDropTypes.MEALRECIPE,
         },
       });
     });

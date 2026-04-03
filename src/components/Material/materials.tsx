@@ -862,7 +862,7 @@ const MaterialsTable = ({
   onSelectionChange,
   onDeleteMaterial: onDeleteMaterialSuper,
   onConvertMaterialToProduct: onConvertMaterialToProductSuper,
-  onOpenMergeDialog,
+  onOpenMergeDialog: _onOpenMergeDialog,
   authUser,
 }: MaterialsTableProps) => {
   const [searchString, setSearchString] = React.useState("");

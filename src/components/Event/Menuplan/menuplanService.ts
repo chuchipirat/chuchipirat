@@ -14,7 +14,6 @@ import {RecipeType} from "../../Recipe/recipe.class";
 import {RecipeShort} from "../../Recipe/recipe.types";
 import {
   EventGroupConfiguration,
-  Intolerance,
   Diet,
 } from "../GroupConfiguration/groupConfiguration.class";
 import {

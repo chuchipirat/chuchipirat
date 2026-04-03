@@ -20,7 +20,6 @@ import {
   TIMESTAMP as TEXT_TIMESTAMP,
   MAILS as TEXT_MAILS,
   RECIPIENT_TO as TEXT_RECIPIENT_TO,
-  RECIPIENT_BCC as TEXT_RECIPIENT_BBC,
   MAIL_DATA as TEXT_MAIL_DATA,
   DELETE_MAIL_PROTOCOLS as TEXT_DELETE_MAIL_PROTOCOLS,
   DELETE_MAIL_PROTOCOLS_OLDER_THAN as TEXT_DELETE_MAIL_PROTOCOLS_OLDER_THAN,
@@ -438,8 +437,8 @@ const MaillogTable = ({mailLog, onMailLogSelect}: MaillogTableProps) => {
       editable: false,
       width: 200,
       valueFormatter: (value) => {
-        if (value && value instanceof Date) {
-          return value.toLocaleString("de-CH", {
+        if (value && (value as unknown) instanceof Date) {
+          return (value as Date).toLocaleString("de-CH", {
             day: "2-digit",
             month: "2-digit",
             year: "numeric",
