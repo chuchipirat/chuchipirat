@@ -19,6 +19,7 @@ export const AnalyticsEvent = {
   RECIPE_FILTER_APPLIED: "recipe_filter_applied",
   RECIPE_COMMENT_CREATED: "recipe_comment_created",
   RECIPE_RATING_SET: "recipe_rating_set",
+  RECIPE_TYPE_CHANGED: "recipe_type_changed",
 
   // ── Events (Lager/Kurse) ──
   EVENT_CREATED: "event_created",

@@ -472,6 +472,24 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   }
 
   /**
+   * Aktualisiert nur den Rezepttyp (recipe_type) eines Rezepts.
+   *
+   * Leichtgewichtige Methode für Admin-Aktionen wie «auf privat setzen»,
+   * ohne ein vollständiges RecipeDomain-Objekt zu benötigen.
+   *
+   * @param recipeId - Die ID des Rezepts
+   * @param recipeType - Der neue Rezepttyp ('public' | 'private' | 'variant')
+   * @throws {PostgrestError} bei Datenbankfehler
+   */
+  async updateRecipeType(recipeId: string, recipeType: string): Promise<void> {
+    const {error} = await this.client
+      .from(this.tableName)
+      .update({recipe_type: recipeType})
+      .eq(this.primaryKeyColumn, recipeId);
+    if (error) throw error;
+  }
+
+  /**
    * Löscht ein Rezept atomar: Sichert den Rezeptnamen in allen
    * event_menue_recipes-Referenzen (deleted_recipe_name), setzt recipe_id
    * auf NULL und löscht anschliessend das Rezept samt Kind-Datensätzen.

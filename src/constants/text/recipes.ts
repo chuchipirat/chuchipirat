@@ -112,3 +112,12 @@ export const PRO_TIP_ADD_ITEM_TO_MENUPLAN =
 export const OUTDOOR_KITCHEN_SUITABLE = "Geeignet für Outdoor-Küche";
 export const SHOW_ONLY_MY_RECIPES = "Nur meine Rezepte anzeigen";
 export const THIS_RECIPE_IS_PLANNED_FOR = "Dieses Rezept ist geplant für:";
+
+/* =====================================================================
+// Admin: Rezepttyp ändern
+// ===================================================================== */
+export const MAKE_RECIPE_PRIVATE = "Rezept auf privat setzen";
+export const MAKE_RECIPE_PRIVATE_QUESTION =
+  "Möchtest du dieses Rezept wirklich auf privat setzen? Es wird danach nur noch für den*die Ersteller*in sichtbar sein.";
+export const RECIPE_TYPE_CHANGED_SUCCESS =
+  "Rezepttyp wurde erfolgreich geändert.";

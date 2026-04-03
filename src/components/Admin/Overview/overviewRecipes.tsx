@@ -56,12 +56,23 @@ import {useDatabase} from "../../Database/DatabaseContext";
 import {useFirebase} from "../../Firebase/firebaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import type {RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
-import Recipe from "../../Recipe/recipe.class";
+import Recipe, {RecipeType} from "../../Recipe/recipe.class";
 import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
 import {CardRibbon} from "../../Recipe/recipeCard";
 import {FormListItem} from "../../Shared/formListItem";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
+import {
+  useCustomDialog,
+  DialogType,
+} from "../../Shared/customDialogContext";
+import {
+  CustomSnackbar,
+  SNACKBAR_INITIAL_STATE_VALUES,
+  SnackbarState,
+} from "../../Shared/customSnackbar";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 import * as Sentry from "@sentry/react";
 import {useCustomStyles} from "../../../constants/styles";
@@ -84,6 +95,9 @@ import {
   RECIPETYPE as TEXT_RECIPETYPE,
   PRIVATE_RECIPE as TEXT_PRIVATE_RECIPE,
   VARIANT_RECIPE as TEXT_VARIANT_RECIPE,
+  MAKE_RECIPE_PRIVATE as TEXT_MAKE_RECIPE_PRIVATE,
+  MAKE_RECIPE_PRIVATE_QUESTION as TEXT_MAKE_RECIPE_PRIVATE_QUESTION,
+  RECIPE_TYPE_CHANGED_SUCCESS as TEXT_RECIPE_TYPE_CHANGED_SUCCESS,
 } from "../../../constants/text";
 
 /* =====================================================================
@@ -109,6 +123,7 @@ enum TypeFilter {
 enum ReducerActions {
   FETCH_INIT = "FETCH_INIT",
   FETCH_SUCCESS = "FETCH_SUCCESS",
+  UPDATE_RECIPE_TYPE = "UPDATE_RECIPE_TYPE",
   GENERIC_ERROR = "GENERIC_ERROR",
 }
 
@@ -130,6 +145,10 @@ type DispatchAction =
         recipes: RecipeShortDomain[];
         creatorNames: Map<string, string>;
       };
+    }
+  | {
+      type: ReducerActions.UPDATE_RECIPE_TYPE;
+      payload: {recipeUid: string; newType: string};
     }
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -161,6 +180,15 @@ const overviewReducer = (state: State, action: DispatchAction): State => {
         creatorNames: action.payload.creatorNames,
         error: null,
       };
+    case ReducerActions.UPDATE_RECIPE_TYPE: {
+      const {recipeUid, newType} = action.payload;
+      return {
+        ...state,
+        recipes: state.recipes.map((recipe) =>
+          recipe.uid === recipeUid ? {...recipe, recipeType: newType} : recipe,
+        ),
+      };
+    }
     case ReducerActions.GENERIC_ERROR:
       return {
         ...state,
@@ -444,6 +472,7 @@ const OverviewRecipePage = () => {
   const firebase = useFirebase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
+  const {customDialog} = useCustomDialog();
 
   const [state, dispatch] = React.useReducer(overviewReducer, initialState);
 
@@ -461,6 +490,10 @@ const OverviewRecipePage = () => {
 
   const [drawerOpen, setDrawerOpen] = React.useState<boolean>(false);
   const [drawerRecipe, setDrawerRecipe] = React.useState<Recipe>(new Recipe());
+
+  const [snackbar, setSnackbar] = React.useState<SnackbarState>(
+    SNACKBAR_INITIAL_STATE_VALUES,
+  );
 
   /* ------------------------------------------
   // Suche ausführen
@@ -590,6 +623,70 @@ const OverviewRecipePage = () => {
         payload: error instanceof Error ? error : new Error(String(error)),
       });
     }
+  };
+
+  /* ------------------------------------------
+  // Rezept auf privat setzen
+  // ------------------------------------------ */
+  /**
+   * Setzt ein öffentliches Rezept auf privat nach Bestätigung.
+   * Aktualisiert die DB, den lokalen State und das ausgewählte Domain-Objekt.
+   *
+   * @param recipe - Das Rezept, das auf privat gesetzt werden soll
+   */
+  const onMakePrivate = async (recipe: RecipeShortDomain) => {
+    const confirmed = await customDialog({
+      dialogType: DialogType.Confirm,
+      title: TEXT_MAKE_RECIPE_PRIVATE,
+      text: TEXT_MAKE_RECIPE_PRIVATE_QUESTION,
+    });
+    if (!confirmed) return;
+
+    try {
+      await database.recipes.updateRecipeType(recipe.uid, RecipeType.private);
+
+      // Lokalen State aktualisieren
+      dispatch({
+        type: ReducerActions.UPDATE_RECIPE_TYPE,
+        payload: {recipeUid: recipe.uid, newType: RecipeType.private},
+      });
+
+      // Ausgewähltes Rezept im Dialog aktualisieren
+      setSelectedDomain((prev) =>
+        prev?.uid === recipe.uid
+          ? {...prev, recipeType: RecipeType.private}
+          : prev,
+      );
+
+      setSnackbar({
+        open: true,
+        severity: "success",
+        message: TEXT_RECIPE_TYPE_CHANGED_SUCCESS,
+      });
+
+      trackEvent(AnalyticsEvent.RECIPE_TYPE_CHANGED, {
+        recipeUid: recipe.uid,
+        newType: RecipeType.private,
+      });
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload:
+          error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  };
+
+  /* ------------------------------------------
+  // Snackbar schliessen
+  // ------------------------------------------ */
+  const handleSnackbarClose = (
+    _event: Event | React.SyntheticEvent,
+    reason?: string,
+  ) => {
+    if (reason === "clickaway") return;
+    setSnackbar(SNACKBAR_INITIAL_STATE_VALUES);
   };
 
   if (!authUser) return null;
@@ -774,6 +871,18 @@ const OverviewRecipePage = () => {
         }
         onClose={() => setDialogOpen(false)}
         onOpenInDrawer={onOpenInDrawer}
+        extraActions={
+          selectedDomain?.recipeType === RecipeType.public ? (
+            <Button
+              variant="outlined"
+              color="warning"
+              startIcon={<LockIcon />}
+              onClick={() => selectedDomain && onMakePrivate(selectedDomain)}
+            >
+              {TEXT_MAKE_RECIPE_PRIVATE}
+            </Button>
+          ) : undefined
+        }
       />
 
       {/* Rezept-Drawer */}
@@ -790,6 +899,13 @@ const OverviewRecipePage = () => {
           onClose={() => setDrawerOpen(false)}
         />
       )}
+      {/* Snackbar für Erfolgsmeldungen */}
+      <CustomSnackbar
+        message={snackbar.message}
+        severity={snackbar.severity}
+        snackbarOpen={snackbar.open}
+        handleClose={handleSnackbarClose}
+      />
     </React.Fragment>
   );
 };

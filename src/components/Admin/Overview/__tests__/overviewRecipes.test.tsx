@@ -8,7 +8,7 @@
  * RecipeDrawer wird gemockt um die schweren Abhängigkeiten zu vermeiden.
  */
 import {TextEncoder, TextDecoder} from "util";
-Object.assign(global, {TextEncoder, TextDecoder});
+Object.assign(globalThis, {TextEncoder, TextDecoder});
 
 import React from "react";
 import {render, screen, waitFor} from "@testing-library/react";
@@ -33,6 +33,13 @@ jest.mock("../../../Session/authUserContext", () => ({
   useAuthUser: () => ({uid: "admin-user-1", email: "admin@test.ch"}),
 }));
 
+/** Mock: useCustomDialog — simuliert den Bestätigungsdialog */
+const mockCustomDialog = jest.fn();
+jest.mock("../../../Shared/customDialogContext", () => ({
+  ...jest.requireActual("../../../Shared/customDialogContext"),
+  useCustomDialog: () => ({customDialog: mockCustomDialog}),
+}));
+
 /* Mock-DB-Methoden */
 const mockSearchByName = jest.fn();
 const mockSearchByRecipeId = jest.fn();
@@ -40,6 +47,7 @@ const mockSearchByCreatorId = jest.fn();
 const mockSearchByCreatorIds = jest.fn();
 const mockFindAuthUids = jest.fn();
 const mockFindDisplayNames = jest.fn().mockResolvedValue(new Map());
+const mockUpdateRecipeType = jest.fn();
 
 /** Hilfsdaten: öffentliches Kurzrezept */
 const publicShortDomain = {
@@ -53,6 +61,7 @@ const publicShortDomain = {
   outdoorKitchenSuitable: false,
   avgRating: 0,
   noRatings: 0,
+  noComments: 0,
   recipeType: "public",
   variantName: null,
   createdAt: new Date("2026-01-01"),
@@ -79,6 +88,7 @@ const mockDatabase: any = {
     searchByCreatorId: mockSearchByCreatorId,
     searchByCreatorIds: mockSearchByCreatorIds,
     getRecipe: jest.fn(),
+    updateRecipeType: mockUpdateRecipeType,
   },
   users: {
     findIdsByDisplayName: mockFindAuthUids,
@@ -262,6 +272,136 @@ describe("OverviewRecipePage (Admin)", () => {
 
     await waitFor(() => {
       expect(screen.getByText(/Datenbankfehler/i)).toBeInTheDocument();
+    });
+  });
+
+  /* ------------------------------------------
+  // 9. Öffentliches Rezept zeigt «Auf privat setzen»-Button
+  // ------------------------------------------ */
+  test("Öffentliches Rezept zeigt 'Auf privat setzen'-Button im Detail-Dialog", async () => {
+    mockSearchByName.mockResolvedValue([publicShortDomain]);
+
+    renderPage();
+
+    const input = screen.getByLabelText(/Suchbegriff/i);
+    await userEvent.type(input, "Gemüse");
+    await userEvent.click(screen.getByRole("button", {name: /Suche/i}));
+
+    // Karte anklicken → Detail-Dialog öffnet sich
+    await userEvent.click(await screen.findByText("Gemüsesuppe"));
+
+    expect(
+      await screen.findByRole("button", {name: /Rezept auf privat setzen/i}),
+    ).toBeInTheDocument();
+  });
+
+  /* ------------------------------------------
+  // 10. Privates Rezept zeigt keinen «Auf privat setzen»-Button
+  // ------------------------------------------ */
+  test("Privates Rezept zeigt keinen 'Auf privat setzen'-Button", async () => {
+    mockSearchByName.mockResolvedValue([privateShortDomain]);
+
+    renderPage();
+
+    const input = screen.getByLabelText(/Suchbegriff/i);
+    await userEvent.type(input, "Privat");
+    await userEvent.click(screen.getByRole("button", {name: /Suche/i}));
+
+    // Karte anklicken → Detail-Dialog öffnet sich
+    await userEvent.click(await screen.findByText("Privates Rezept"));
+
+    // Dialog ist offen (Schliessen-Button sichtbar), aber kein «Auf privat setzen»
+    await waitFor(() => {
+      expect(screen.getByRole("button", {name: /Schliessen/i})).toBeInTheDocument();
+    });
+    expect(
+      screen.queryByRole("button", {name: /Rezept auf privat setzen/i}),
+    ).not.toBeInTheDocument();
+  });
+
+  /* ------------------------------------------
+  // 11. Bestätigung setzt Rezept auf privat
+  // ------------------------------------------ */
+  test("Bestätigung setzt Rezept auf privat", async () => {
+    mockSearchByName.mockResolvedValue([publicShortDomain]);
+    mockCustomDialog.mockResolvedValue(true);
+    mockUpdateRecipeType.mockResolvedValue(undefined);
+
+    renderPage();
+
+    const input = screen.getByLabelText(/Suchbegriff/i);
+    await userEvent.type(input, "Gemüse");
+    await userEvent.click(screen.getByRole("button", {name: /Suche/i}));
+
+    await userEvent.click(await screen.findByText("Gemüsesuppe"));
+
+    const makePrivateButton = await screen.findByRole("button", {
+      name: /Rezept auf privat setzen/i,
+    });
+    await userEvent.click(makePrivateButton);
+
+    await waitFor(() => {
+      expect(mockUpdateRecipeType).toHaveBeenCalledWith(
+        "recipe-uuid-001",
+        "private",
+      );
+    });
+
+    // Erfolgsmeldung wird angezeigt
+    expect(
+      await screen.findByText(/Rezepttyp wurde erfolgreich geändert/i),
+    ).toBeInTheDocument();
+  });
+
+  /* ------------------------------------------
+  // 12. Abbrechen der Bestätigung ändert nichts
+  // ------------------------------------------ */
+  test("Abbrechen der Bestätigung ändert nichts", async () => {
+    mockSearchByName.mockResolvedValue([publicShortDomain]);
+    mockCustomDialog.mockResolvedValue(false);
+
+    renderPage();
+
+    const input = screen.getByLabelText(/Suchbegriff/i);
+    await userEvent.type(input, "Gemüse");
+    await userEvent.click(screen.getByRole("button", {name: /Suche/i}));
+
+    await userEvent.click(await screen.findByText("Gemüsesuppe"));
+
+    const makePrivateButton = await screen.findByRole("button", {
+      name: /Rezept auf privat setzen/i,
+    });
+    await userEvent.click(makePrivateButton);
+
+    await waitFor(() => {
+      expect(mockCustomDialog).toHaveBeenCalled();
+    });
+    expect(mockUpdateRecipeType).not.toHaveBeenCalled();
+  });
+
+  /* ------------------------------------------
+  // 13. Fehler bei updateRecipeType zeigt Fehlermeldung
+  // ------------------------------------------ */
+  test("Fehler bei updateRecipeType zeigt Fehlermeldung", async () => {
+    mockSearchByName.mockResolvedValue([publicShortDomain]);
+    mockCustomDialog.mockResolvedValue(true);
+    mockUpdateRecipeType.mockRejectedValue(new Error("DB-Fehler"));
+
+    renderPage();
+
+    const input = screen.getByLabelText(/Suchbegriff/i);
+    await userEvent.type(input, "Gemüse");
+    await userEvent.click(screen.getByRole("button", {name: /Suche/i}));
+
+    await userEvent.click(await screen.findByText("Gemüsesuppe"));
+
+    const makePrivateButton = await screen.findByRole("button", {
+      name: /Rezept auf privat setzen/i,
+    });
+    await userEvent.click(makePrivateButton);
+
+    await waitFor(() => {
+      expect(screen.getByText(/DB-Fehler/i)).toBeInTheDocument();
     });
   });
 });
