@@ -4,6 +4,20 @@ import {Action} from "../../constants/actions";
 import {NavigationObject} from "./NavigationContext";
 
 /**
+ * Baut eine Helpcenter-URL aus Unterverzeichnis und Seitenname.
+ *
+ * @param subdirectory - Unterverzeichnis (z.B. "faq", "event").
+ * @param page - Seitenname (z.B. "cost_transparency").
+ * @returns Vollständige URL zur Helpcenter-Seite.
+ *
+ * @example
+ * getHelpPageUrl("faq", "cost_transparency")
+ * // => "https://help.chuchipirat.ch/docsfaq/cost_transparency"
+ */
+export const getHelpPageUrl = (subdirectory: string, page: string): string =>
+  `${HELPCENTER_URL}/docs/${subdirectory}/${page}`;
+
+/**
  * Parameter für {@link getMatchingHelpPage}.
  *
  * @param actualPath - Der aktuelle URL-Pfad der Anwendung.

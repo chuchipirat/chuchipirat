@@ -28,6 +28,7 @@ import {
 
 import {supabase} from "../Database/supabaseClient";
 import {useAuthUser} from "../Session/authUserContext";
+import {DialogPaymentInfo} from "./DialogPaymentInfo";
 
 import {
   DONATION_SUBMIT as TEXT_DONATION_SUBMIT,
@@ -82,6 +83,7 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   /** Aktueller Betrag in CHF (aus Preset oder custom). */
   const currentAmountChf = isCustom
@@ -252,7 +254,7 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
         <Button
           variant="contained"
           size="large"
-          onClick={handleSubmit}
+          onClick={() => setShowPaymentDialog(true)}
           disabled={!isValid || isLoading}
           fullWidth
         >
@@ -260,6 +262,16 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
           {isValid && ` — CHF ${currentAmountChf.toFixed(2)}`}
         </Button>
       </Stack>
+
+      {/* TWINT-Hinweisdialog */}
+      <DialogPaymentInfo
+        open={showPaymentDialog}
+        onClose={() => setShowPaymentDialog(false)}
+        onConfirm={() => {
+          setShowPaymentDialog(false);
+          handleSubmit();
+        }}
+      />
 
       {/* Loading-Overlay */}
       <Backdrop

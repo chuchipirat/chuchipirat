@@ -115,6 +115,7 @@ export type DonationRow = {
  * @param targetCents - Zielbetrag in Rappen.
  * @param sortOrder - Sortierreihenfolge.
  * @param year - Jahreszugehörigkeit.
+ * @param details - Beschreibungstext für die Kostenaufschlüsselung.
  */
 export type DonationGoalSection = {
   id: string;
@@ -122,6 +123,7 @@ export type DonationGoalSection = {
   targetCents: number;
   sortOrder: number;
   year: number;
+  details: string;
 };
 
 /**
@@ -134,6 +136,7 @@ export type DonationGoalSectionRow = {
   target_cents: number;
   sort_order: number;
   year: number;
+  details: string;
 };
 
 /* =====================================================================

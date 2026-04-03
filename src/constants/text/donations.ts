@@ -94,14 +94,16 @@ export const DONATION_APPEAL_TEXT =
 /* =====================================================================
 // Kostenaufschlüsselung
 // ===================================================================== */
-export const DONATION_COST_SERVER_LABEL = "Server & Betrieb";
-export const DONATION_COST_SERVER_AMOUNT = "CHF 400 / Jahr";
-export const DONATION_COST_SERVER_DETAILS =
-  "Server, Domain, E-Mail Service usw.";
-export const DONATION_COST_ASSOCIATION_LABEL = "Vereinskosten";
-export const DONATION_COST_ASSOCIATION_AMOUNT = "CHF 200 / Jahr";
-export const DONATION_COST_ASSOCIATION_DETAILS =
-  "Administration, Kontoführungsgebühren, Vereinsleben usw.";
+export const DONATION_COST_PER_YEAR = "/ Jahr";
+export const DONATION_COST_DETAILS_LINK = "Klicke hier für weitere Details";
+
+/* =====================================================================
+// TWINT-Hinweisdialog
+// ===================================================================== */
+export const DONATION_PAYMENT_INFO_TITLE = "Hinweis zur Zahlungsmethode";
+export const DONATION_PAYMENT_INFO_TEXT =
+  "Wenn möglich, wähle bitte TWINT als Zahlungsmethode. TWINT hat die tiefsten Gebühren — so kommt am meisten von deiner Spende bei uns an.";
+export const DONATION_PAYMENT_INFO_CONFIRM = "Verstanden, weiter";
 
 /* =====================================================================
 // Fortschrittsbalken

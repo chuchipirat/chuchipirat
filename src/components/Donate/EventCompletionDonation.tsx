@@ -28,6 +28,7 @@ import {
   Backdrop,
   CircularProgress,
   Alert,
+  Link,
 } from "@mui/material";
 import {
   Info as InfoIcon,
@@ -37,17 +38,16 @@ import {
 import {supabase} from "../Database/supabaseClient";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDonationGoalData} from "./useDonationGoalData";
+import {DialogPaymentInfo} from "./DialogPaymentInfo";
+import {getHelpPageUrl} from "../Navigation/helpCenter";
+import {DonationGoalSection} from "./donation.types";
 
 import {
   DONATION_EVENT_READY as TEXT_DONATION_EVENT_READY,
   DONATION_EVENT_READY_SUBTEXT as TEXT_DONATION_EVENT_READY_SUBTEXT,
   DONATION_APPEAL_TEXT as TEXT_DONATION_APPEAL_TEXT,
-  DONATION_COST_SERVER_LABEL as TEXT_DONATION_COST_SERVER_LABEL,
-  DONATION_COST_SERVER_AMOUNT as TEXT_DONATION_COST_SERVER_AMOUNT,
-  DONATION_COST_SERVER_DETAILS as TEXT_DONATION_COST_SERVER_DETAILS,
-  DONATION_COST_ASSOCIATION_LABEL as TEXT_DONATION_COST_ASSOCIATION_LABEL,
-  DONATION_COST_ASSOCIATION_AMOUNT as TEXT_DONATION_COST_ASSOCIATION_AMOUNT,
-  DONATION_COST_ASSOCIATION_DETAILS as TEXT_DONATION_COST_ASSOCIATION_DETAILS,
+  DONATION_COST_PER_YEAR as TEXT_DONATION_COST_PER_YEAR,
+  DONATION_COST_DETAILS_LINK as TEXT_DONATION_COST_DETAILS_LINK,
   DONATION_GOAL_REACHED_EXTENDED as TEXT_DONATION_GOAL_REACHED_EXTENDED,
   DONATION_GOAL_PROGRESS as TEXT_DONATION_GOAL_PROGRESS,
   DONATION_SKIP_TO_EVENT as TEXT_DONATION_SKIP_TO_EVENT,
@@ -70,22 +70,6 @@ const PRESET_AMOUNTS = [5, 10, 20, 50];
 
 /** Farben für die Segmente im Fortschrittsbalken. */
 const SEGMENT_COLORS = ["#006064", "#26a69a"];
-
-/** Kostenaufschlüsselung mit Tooltip-Details. */
-const COST_BREAKDOWN = [
-  {
-    icon: "🖥",
-    label: TEXT_DONATION_COST_SERVER_LABEL,
-    amount: TEXT_DONATION_COST_SERVER_AMOUNT,
-    details: TEXT_DONATION_COST_SERVER_DETAILS,
-  },
-  {
-    icon: "📋",
-    label: TEXT_DONATION_COST_ASSOCIATION_LABEL,
-    amount: TEXT_DONATION_COST_ASSOCIATION_AMOUNT,
-    details: TEXT_DONATION_COST_ASSOCIATION_DETAILS,
-  },
-];
 
 /* ===================================================================
 // Hilfsfunktion
@@ -142,6 +126,7 @@ const EventCompletionDonation = ({
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [showPaymentDialog, setShowPaymentDialog] = useState(false);
 
   // Berechnete Werte
   const currentAmountChf = isCustom
@@ -345,7 +330,7 @@ const EventCompletionDonation = ({
             <Button
               variant="contained"
               size="large"
-              onClick={handleDonate}
+              onClick={() => setShowPaymentDialog(true)}
               disabled={!isValid || isLoading}
               fullWidth
             >
@@ -373,6 +358,16 @@ const EventCompletionDonation = ({
         </Stack>
       </Stack>
 
+      {/* TWINT-Hinweisdialog */}
+      <DialogPaymentInfo
+        open={showPaymentDialog}
+        onClose={() => setShowPaymentDialog(false)}
+        onConfirm={() => {
+          setShowPaymentDialog(false);
+          handleDonate();
+        }}
+      />
+
       {/* Loading-Overlay */}
       <Backdrop
         open={isLoading}
@@ -393,7 +388,7 @@ const EventCompletionDonation = ({
  * Wird sowohl im Event-Wizard als auch auf der eigenständigen Spendenseite verwendet.
  */
 type DonationAppealCardProps = {
-  sections: {id: string; targetCents: number}[];
+  sections: DonationGoalSection[];
   segmentWidths: number[];
   totalCollected: number;
   totalTargetCents: number;
@@ -472,11 +467,12 @@ const DonationAppealCard = ({
 
       {/* Kostenaufschlüsselung */}
       <Stack spacing={0.5}>
-        {COST_BREAKDOWN.map((item, index) => (
-          <Box key={item.label}>
+        {sections.map((section, index) => (
+          <Box key={section.id}>
             <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
               <Typography variant="caption" color="text.secondary">
-                {item.icon} {item.label}: {item.amount}
+                {section.label}: {formatChf(section.targetCents)}{" "}
+                {TEXT_DONATION_COST_PER_YEAR}
               </Typography>
               <IconButton
                 size="small"
@@ -492,20 +488,23 @@ const DonationAppealCard = ({
                 color="text.disabled"
                 sx={{pl: 3, display: "block"}}
               >
-                {item.details}
+                {section.details}
               </Typography>
             </Collapse>
           </Box>
         ))}
       </Stack>
+      <Typography variant="caption">
+        <Link
+          href={getHelpPageUrl("others", "cost_transparency")}
+          target="_blank"
+          rel="noopener"
+        >
+          {TEXT_DONATION_COST_DETAILS_LINK}
+        </Link>
+      </Typography>
     </Stack>
   </Box>
 );
 
-export {
-  EventCompletionDonation,
-  DonationAppealCard,
-  SEGMENT_COLORS,
-  COST_BREAKDOWN,
-  formatChf,
-};
+export {EventCompletionDonation, DonationAppealCard, SEGMENT_COLORS, formatChf};

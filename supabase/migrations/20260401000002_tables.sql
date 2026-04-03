@@ -939,6 +939,7 @@ CREATE TABLE public.donation_goal_sections (
     target_cents integer NOT NULL,
     sort_order integer DEFAULT 0 NOT NULL,
     year integer DEFAULT (EXTRACT(year FROM now()))::integer NOT NULL,
+    details text NOT NULL DEFAULT '',
     created_at timestamptz DEFAULT now() NOT NULL,
     created_by uuid DEFAULT auth.uid(),
     updated_at timestamptz DEFAULT now() NOT NULL,

@@ -40,8 +40,8 @@ import {DonationGoalWidget} from "../DonationGoalWidget";
 
 /** Beispiel-Abschnitte mit 2 Sektionen. */
 const mockSections: DonationGoalSection[] = [
-  {id: "s1", label: "Infrastruktur", targetCents: 50000, sortOrder: 1, year: 2026},
-  {id: "s2", label: "Vereinskosten", targetCents: 30000, sortOrder: 2, year: 2026},
+  {id: "s1", label: "Server & Betrieb", targetCents: 40000, sortOrder: 1, year: 2026, details: "Server, Domain, E-Mail Service usw."},
+  {id: "s2", label: "Vereinskosten", targetCents: 20000, sortOrder: 2, year: 2026, details: "Administration, Kontoführungsgebühren usw."},
 ];
 
 /** Statistik: 400 CHF gesammelt, 5 Spender, 8 Spenden. */
@@ -51,9 +51,9 @@ const mockStats: DonationGoalStats = {
   donationCount: 8,
 };
 
-/** Statistik: Ziel uebertroffen. */
+/** Statistik: Ziel uebertroffen (>= 60000). */
 const mockStatsGoalReached: DonationGoalStats = {
-  totalCents: 100000,
+  totalCents: 70000,
   donorCount: 12,
   donationCount: 20,
 };
@@ -151,6 +151,22 @@ describe("DonationGoalWidget", () => {
         expect(
           screen.getByText(/Vereinskosten.*CHF 200/),
         ).toBeInTheDocument();
+      });
+    });
+
+    test("zeigt 'Weitere Details'-Link an", async () => {
+      mockGetGoalSections.mockResolvedValue(mockSections);
+      mockGetDonationGoalStats.mockResolvedValue(mockStats);
+
+      await renderWidget();
+
+      await waitFor(() => {
+        const link = screen.getByText(/Klicke hier für weitere Details/);
+        expect(link).toBeInTheDocument();
+        expect(link.closest("a")).toHaveAttribute(
+          "href",
+          expect.stringContaining("cost_transparency"),
+        );
       });
     });
 

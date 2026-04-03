@@ -120,6 +120,7 @@ const reducer = (state: State, action: Action): State => {
             targetCents: 10000,
             sortOrder: state.sections.length + 1,
             year: new Date().getFullYear(),
+            details: "",
           },
         ],
       };
@@ -210,6 +211,7 @@ const DonationGoalsPage = () => {
             targetCents: section.targetCents,
             sortOrder: section.sortOrder,
             year: section.year,
+            details: section.details,
           });
           const updatedSections = [...state.sections];
           updatedSections[index] = created;
@@ -368,6 +370,18 @@ const DonationGoalsPage = () => {
                         type="number"
                         fullWidth
                         size="small"
+                      />
+                    </Grid>
+                    <Grid size={{xs: 12}}>
+                      <TextField
+                        label="Details"
+                        value={section.details}
+                        onChange={(event) =>
+                          handleFieldChange(index, "details", event.target.value)
+                        }
+                        fullWidth
+                        size="small"
+                        placeholder="z.B. Server, Domain, E-Mail Service usw."
                       />
                     </Grid>
                   </Grid>

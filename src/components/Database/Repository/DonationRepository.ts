@@ -258,6 +258,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         targetCents: row.target_cents,
         sortOrder: row.sort_order,
         year: row.year,
+        details: row.details ?? "",
       }));
     } catch (error) {
       Sentry.captureException(error);
@@ -282,6 +283,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
           target_cents: section.targetCents,
           sort_order: section.sortOrder,
           year: section.year,
+          details: section.details,
         })
         .select()
         .single();
@@ -295,6 +297,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         targetCents: row.target_cents,
         sortOrder: row.sort_order,
         year: row.year,
+        details: row.details ?? "",
       };
     } catch (error) {
       Sentry.captureException(error);
@@ -316,6 +319,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
           target_cents: section.targetCents,
           sort_order: section.sortOrder,
           year: section.year,
+          details: section.details,
         })
         .eq("id", section.id);
 
