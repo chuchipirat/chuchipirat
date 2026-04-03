@@ -30,6 +30,7 @@ import {
 } from "@mui/material";
 
 import {DatePicker} from "@mui/x-date-pickers/DatePicker";
+import dayjs, {Dayjs} from "dayjs";
 
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {PageTitle} from "../../Shared/pageTitle";
@@ -50,8 +51,7 @@ import {
 } from "../../../constants/text";
 import * as ROUTES from "../../../constants/routes";
 import {useCustomStyles} from "../../../constants/styles";
-import ReactQuill from "react-quill-new";
-import "react-quill-new/dist/quill.snow.css";
+import {RichTextEditor} from "../../Shared/RichTextEditor";
 import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
   SnackbarState,
@@ -215,10 +215,10 @@ const SystemMessagePage = () => {
       payload: {key: "type", value: event.target.value},
     });
   };
-  const onValidToChange = (date: Date | null) => {
+  const onValidToChange = (date: Dayjs | null) => {
     dispatch({
       type: ReducerActions.SYSTEM_MESSAGE_FIELD_UPDATE,
-      payload: {key: "validTo", value: date},
+      payload: {key: "validTo", value: date?.toDate() ?? null},
     });
   };
   const onSystemMessageTextChange = (value: string) => {
@@ -329,7 +329,7 @@ interface SystemMessageFormProps {
   systemMessage: SystemMessageDomain;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onChangeType: (event: SelectChangeEvent) => void;
-  onDatePickerUpdate: (date: Date | null) => void;
+  onDatePickerUpdate: (date: Dayjs | null) => void;
   onSystemMessageTextChange: (value: string) => void;
   onSave: () => void;
 }
@@ -376,13 +376,12 @@ const SystemMessageForm = ({
           <DatePicker
             key={"validto"}
             label={TEXT_VALID_TO}
-            format="dd.MM.yyyy"
-            value={systemMessage.validTo}
+            format="DD.MM.YYYY"
+            value={dayjs(systemMessage.validTo)}
             onChange={onDatePickerUpdate}
           />
 
-          <ReactQuill
-            theme="snow"
+          <RichTextEditor
             onChange={onSystemMessageTextChange}
             value={systemMessage.text}
             style={{marginTop: theme.spacing(2)}}

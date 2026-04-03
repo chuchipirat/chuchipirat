@@ -77,6 +77,8 @@ interface GetUidByEmail {
   database: DatabaseService;
   /** E-Mail-Adresse zum Suchen */
   email: string;
+  /** Optionale Event-ID für Koch-Berechtigungsprüfung */
+  eventId?: string;
 }
 
 /** Parameter für {@link User.getUser} */
@@ -326,10 +328,10 @@ export class User {
    * @returns UID des gefundenen Users
    * @throws Error wenn kein User mit dieser E-Mail gefunden wird
    */
-  static getUidByEmail = async ({database, email}: GetUidByEmail) => {
+  static getUidByEmail = async ({database, email, eventId}: GetUidByEmail) => {
     // Admin-Client verwenden (umgeht RLS während Übergangsphase)
     const users = database.admin?.users ?? database.users;
-    const userUid = await users.findByEmail(email);
+    const userUid = await users.findByEmail(email, eventId);
 
     if (!userUid) {
       throw new Error(TEXT_NO_USER_WITH_THIS_EMAIL);
@@ -503,7 +505,12 @@ export class User {
     // Client-seitiges Resize auf max. 1200px
     const resizedBlob = await resizeImage(file);
 
-    // Admin-Storage verwenden (umgeht RLS während Übergangsphase)
+    // TODO(post-migration): Admin-Fallback entfernen und nur den regulären
+    // authentifizierten Client verwenden: `database.storage.users`.
+    // Der Admin-Client umgeht die Storage-RLS-Policy `media_users_insert_own`,
+    // die sicherstellt, dass Benutzer nur ihr eigenes Profilbild hochladen
+    // können (Dateiname = auth.uid() + '.jpg'). In Produktion ist admin=null,
+    // daher greift RLS korrekt. Siehe Audit-Finding F-017.
     const storageUsers =
       database.admin?.storage.users ?? database.storage.users;
     const result = await storageUsers.upload(
@@ -528,11 +535,12 @@ export class User {
     database,
     authUser,
   }: DeletePicture) => {
-    // Admin-Clients verwenden (umgeht RLS während Übergangsphase)
+    // TODO(post-migration): Admin-Fallback entfernen, siehe F-017.
     const storageUsers =
       database.admin?.storage.users ?? database.storage.users;
     await storageUsers.remove(`${authUser.uid}.jpg`);
 
+    // TODO(post-migration): Admin-Fallback entfernen, siehe F-017.
     const users = database.admin?.users ?? database.users;
     await users.patch({
       id: authUser.uid,

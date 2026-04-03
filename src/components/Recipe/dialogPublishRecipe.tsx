@@ -133,6 +133,7 @@ export const DialogPublishRecipe = ({
           onChange={onChangeField}
           variant="outlined"
           label={TEXT_MESSAGE_TO_REVIEW}
+          slotProps={{htmlInput: {maxLength: 1000}}}
         />
       </DialogContent>
       <DialogActions>

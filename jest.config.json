@@ -27,6 +27,7 @@
       }
     ]
   },
+  "setupFiles": ["<rootDir>/src/__mocks__/jestSetup.ts"],
   "testMatch": ["**/__tests__/**/*.ts?(x)", "**/?(*.)+(spec|test).ts?(x)"],
   "coverageDirectory": "coverage",
   "collectCoverage": true,

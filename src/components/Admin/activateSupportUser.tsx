@@ -28,6 +28,7 @@ import {
   ACTIVATE_SUPPORT_MODE as TEXT_ACTIVATE_SUPPORT_MODE,
   ACTIVATE_SUPPORT_MODE_DESCRIPTION as TEXT_ACTIVATE_SUPPORT_MODE_DESCRIPTION,
   SUPPORT_USER_REGISTERED as TEXT_SUPPORT_USER_REGISTERED,
+  ERROR_GENERIC as TEXT_ERROR_GENERIC,
 } from "../../constants/text";
 
 import {useAuthUser} from "../Session/authUserContext";
@@ -237,7 +238,7 @@ const PanelActivateSupportUser = ({
         {isActivating && <LinearProgress />}
         {activationComplete &&
           (error ? (
-            <Alert severity="error">{error.message}</Alert>
+            <Alert severity="error">{TEXT_ERROR_GENERIC}</Alert>
           ) : (
             <Alert severity="success">{TEXT_SUPPORT_USER_REGISTERED}</Alert>
           ))}

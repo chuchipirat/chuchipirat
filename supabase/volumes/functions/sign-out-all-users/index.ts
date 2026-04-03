@@ -16,10 +16,12 @@
 import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 import * as jose from "https://deno.land/x/jose@v4.14.4/index.ts";
+import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /** CORS-Header für alle Antworten */
 const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin":
+    Deno.env.get("APP_URL") || "https://chuchipirat.ch",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "Content-Type, Authorization, x-client-info, apikey",
@@ -148,9 +150,13 @@ serve(async (req: Request) => {
     );
   } catch (err) {
     console.error("sign-out-all-users error:", err);
-    return new Response(JSON.stringify({error: String(err)}), {
-      status: 500,
-      headers: {...corsHeaders, "Content-Type": "application/json"},
-    });
+    await sentryCaptureError(err, "sign-out-all-users");
+    return new Response(
+      JSON.stringify({error: "Ein interner Fehler ist aufgetreten."}),
+      {
+        status: 500,
+        headers: {...corsHeaders, "Content-Type": "application/json"},
+      },
+    );
   }
 });

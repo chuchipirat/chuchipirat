@@ -277,40 +277,6 @@ describe("AuthService", () => {
   });
 
   /* ------------------------------------------
-  // updateUserPassword()
-  // ------------------------------------------ */
-  describe("updateUserPassword()", () => {
-    test("Aktualisiert Passwort eines Benutzers via Admin-Client", async () => {
-      mockAdminAuth.updateUserById.mockResolvedValue({error: null});
-
-      await authService.updateUserPassword("user-id-123", "neuesPasswort");
-
-      expect(mockAdminAuth.updateUserById).toHaveBeenCalledWith("user-id-123", {
-        password: "neuesPasswort",
-      });
-    });
-
-    test("Wirft Error wenn Admin-Client nicht verfügbar", async () => {
-      mockSupabaseAdmin = null;
-
-      const service = new AuthService();
-
-      await expect(
-        service.updateUserPassword("user-id-123", "pw")
-      ).rejects.toThrow("Admin client not available");
-    });
-
-    test("Wirft AuthError bei Fehler", async () => {
-      const authError = {message: "User not found", status: 404};
-      mockAdminAuth.updateUserById.mockResolvedValue({error: authError});
-
-      await expect(
-        authService.updateUserPassword("nonexistent-id", "pw")
-      ).rejects.toBe(authError);
-    });
-  });
-
-  /* ------------------------------------------
   // signOut()
   // ------------------------------------------ */
   describe("signOut()", () => {

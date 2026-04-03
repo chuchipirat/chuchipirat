@@ -195,7 +195,7 @@ export class MaterialListMigrationJob
     for (const [listKey, listEntry] of Object.entries(record.data.materialListDoc.lists)) {
       const props = listEntry.properties;
       if (!props) {
-        console.warn(`MaterialListMigrationJob: Liste ${listKey} hat keine properties, übersprungen.`);
+        if (import.meta.env.DEV) console.warn(`MaterialListMigrationJob: Liste ${listKey} hat keine properties, übersprungen.`);
         continue;
       }
 

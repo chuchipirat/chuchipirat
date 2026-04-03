@@ -7,7 +7,7 @@ import {FirebaseContext} from "./components/Firebase/firebaseContext";
 import {AuthUserProvider} from "./components/Session/authUserContext";
 import packageJson from "../package.json";
 
-import "typeface-roboto";
+import "@fontsource/roboto";
 import "@fontsource/roboto-mono";
 
 import {CustomDialogContextProvider} from "./components/Shared/customDialogContext";
@@ -19,18 +19,24 @@ import {ErrorPage} from "./components/500/500";
 import {Utils} from "./components/Shared/utils.class";
 import {initAnalytics} from "./components/Analytics/analyticsService";
 import {LocalizationProvider} from "@mui/x-date-pickers";
-import {AdapterDateFns} from "@mui/x-date-pickers/AdapterDateFns";
-import {de} from "date-fns/locale";
+import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
+import "dayjs/locale/de";
 
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
-  //FIXME:
   enabled: !Utils.isDevEnvironment(),
   environment: import.meta.env.VITE_ENVIRONMENT,
   release: packageJson.version,
   integrations: [
     Sentry.browserTracingIntegration(),
-    Sentry.replayIntegration(),
+    Sentry.replayIntegration({
+      // Alle Eingaben sichtbar lassen (keine sensiblen Daten in der App),
+      // nur Passwortfelder werden explizit maskiert via CSS-Selektor.
+      maskAllInputs: false,
+      maskAllText: false,
+      blockAllMedia: false,
+      mask: ['input[type="password"]'],
+    }),
   ],
   tracesSampleRate: 1.0,
   tracePropagationTargets: [
@@ -50,7 +56,7 @@ const root = createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
     <Sentry.ErrorBoundary fallback={<ErrorPage />}>
-      <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={de}>
+      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de">
         <DatabaseContext.Provider value={new DatabaseService()}>
           <FirebaseContext.Provider value={new Firebase()}>
             <AuthUserProvider>

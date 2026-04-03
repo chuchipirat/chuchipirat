@@ -15,3 +15,5 @@ export const ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND =
 export const ERROR_NO_OPTIONS = "Keine Einträge";
 export const ERROR_PARAMETER_NOT_PASSED =
   "Methodenparameter wurden nicht übergeben.";
+export const ERROR_GENERIC =
+  "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut.";

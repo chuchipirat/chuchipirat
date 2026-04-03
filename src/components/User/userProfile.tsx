@@ -49,6 +49,8 @@ import {
   CONFIRM_DELETE_PICTURE as TEXT_CONFIRM_DELETE_PICTURE,
   DELETE_PICTURE as TEXT_DELETE_PICTURE,
   DELETE as TEXT_DELETE,
+  IMAGE_FORMAT_NOT_SUPPORTED as TEXT_IMAGE_FORMAT_NOT_SUPPORTED,
+  IMAGE_TOO_LARGE as TEXT_IMAGE_TOO_LARGE,
 } from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
 
@@ -349,11 +351,32 @@ const UserProfilePage = () => {
   /* ------------------------------------------
   // Bild in Firebase Storage hochladen
   // ------------------------------------------ */
+  /** Erlaubte MIME-Typen für Profilbilder. */
+  const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+  /** Maximale Dateigrösse für Profilbilder (10 MB). */
+  const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
   const onPictureUpload = React.useCallback(async (
     event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const selectedFile = event.target.files?.[0];
     if (!selectedFile) return;
+
+    // MIME-Typ und Dateigrösse validieren
+    if (!ALLOWED_MIME_TYPES.includes(selectedFile.type)) {
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: new Error(TEXT_IMAGE_FORMAT_NOT_SUPPORTED),
+      });
+      return;
+    }
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: new Error(TEXT_IMAGE_TOO_LARGE),
+      });
+      return;
+    }
 
     // Sofort eine lokale Preview anzeigen
     const previewUrl = URL.createObjectURL(selectedFile);
@@ -667,6 +690,7 @@ const ProfileCard = React.memo(({
             label={TEXT_FIRSTNAME}
             editMode={editMode}
             onChange={onFieldChange}
+            maxLength={100}
           />
           <FormListItem
             id={"lastName"}
@@ -675,6 +699,7 @@ const ProfileCard = React.memo(({
             label={TEXT_LASTNAME}
             editMode={editMode}
             onChange={onFieldChange}
+            maxLength={100}
           />
           <FormListItem
             id={"email"}
@@ -736,6 +761,7 @@ const PublicProfileCard = React.memo(({
             required={true}
             editMode={editMode}
             onChange={onFieldChange}
+            maxLength={100}
           />
           <FormListItem
             id={"motto"}
@@ -745,6 +771,7 @@ const PublicProfileCard = React.memo(({
             icon={<LocalActivityIcon fontSize="small" />}
             editMode={editMode}
             onChange={onFieldChange}
+            maxLength={500}
           />
           <FormListItem
             id={"memberSince"}

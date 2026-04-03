@@ -21,6 +21,7 @@ import {
   successResponse,
 } from "../_shared/emailService.ts";
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
+import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /* =====================================================================
 // Payrexx API Hilfsfunktionen
@@ -47,6 +48,44 @@ async function createPayrexxSignature(
   );
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
+}
+
+/**
+ * Vergleicht zwei Strings in konstanter Zeit (Schutz gegen Timing-Angriffe).
+ *
+ * @param a Erster String.
+ * @param b Zweiter String.
+ * @returns true wenn beide Strings identisch sind.
+ */
+function timingSafeEqual(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
+  const encoder = new TextEncoder();
+  const bufA = encoder.encode(a);
+  const bufB = encoder.encode(b);
+  let result = 0;
+  for (let i = 0; i < bufA.length; i++) {
+    result |= bufA[i] ^ bufB[i];
+  }
+  return result === 0;
+}
+
+/**
+ * Prüft die Webhook-Signatur von Payrexx (HMAC-SHA256).
+ * Nutzt die bestehende createPayrexxSignature-Funktion und vergleicht
+ * das Ergebnis timing-safe mit der empfangenen Signatur.
+ *
+ * @param rawBody Der rohe Request-Body als String.
+ * @param signature Die empfangene Signatur aus dem Header.
+ * @param secret Der Payrexx API Secret.
+ * @returns true wenn die Signatur gültig ist.
+ */
+async function verifyWebhookSignature(
+  rawBody: string,
+  signature: string,
+  secret: string,
+): Promise<boolean> {
+  const expected = await createPayrexxSignature(rawBody, secret);
+  return timingSafeEqual(expected, signature);
 }
 
 /**
@@ -127,15 +166,29 @@ serve(async (req: Request) => {
     auth: {persistSession: false, autoRefreshToken: false},
   });
 
-  // Webhook-Payload parsen
+  // Webhook-Payload als Rohtext lesen (für Signaturprüfung)
+  const rawBody = await req.text();
+
+  // Webhook-Signatur prüfen (Payrexx sendet X-Webhook-Signature Header)
+  const receivedSignature = req.headers.get("X-Webhook-Signature");
+  if (receivedSignature) {
+    const isValid = await verifyWebhookSignature(rawBody, receivedSignature, payrexxSecret);
+    if (!isValid) {
+      console.error("payrexx-webhook: Invalid webhook signature");
+      return errorResponse("payrexx-webhook", "Invalid signature", 401);
+    }
+  } else {
+    // TODO(security): Signatur nach Payrexx-Webhook-Konfiguration als Pflicht setzen
+    console.warn("payrexx-webhook: No X-Webhook-Signature header — skipping verification");
+  }
+
+  // Payload parsen (JSON oder URL-encoded)
   let webhookData: Record<string, unknown>;
   try {
-    webhookData = await req.json();
+    webhookData = JSON.parse(rawBody);
   } catch {
-    // Payrexx sendet manchmal URL-encoded
     try {
-      const text = await req.text();
-      const params = new URLSearchParams(text);
+      const params = new URLSearchParams(rawBody);
       webhookData = Object.fromEntries(params.entries());
     } catch {
       return errorResponse("payrexx-webhook", "Invalid payload", 400);
@@ -317,6 +370,7 @@ serve(async (req: Request) => {
     return successResponse({donationId: referenceId, status: mappedStatus});
   } catch (err) {
     console.error("payrexx-webhook error:", err);
+    await sentryCaptureError(err, "payrexx-webhook");
     return errorResponse("payrexx-webhook", String(err), 500);
   }
 });

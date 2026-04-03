@@ -230,13 +230,15 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
    * Ersetzt die bisherige searchFields-Subcollection durch eine direkte Abfrage
    * auf der email-Spalte mit Index.
    * @param email - E-Mail-Adresse (wird automatisch lowercase + trimmed)
+   * @param eventId - Optionale Event-ID für Koch-Berechtigungsprüfung
    * @returns Die Benutzer-UID oder null, falls nicht gefunden oder mehrdeutig
    */
-  async findByEmail(email: string): Promise<string | null> {
+  async findByEmail(email: string, eventId?: string): Promise<string | null> {
     // RPC-Aufruf über SECURITY DEFINER Funktion — umgeht die RLS-Policy,
     // die nur die eigene Zeile sichtbar macht.
     const {data, error} = await this.client.rpc("find_user_id_by_email", {
       lookup_email: email.toLocaleLowerCase().trim(),
+      p_event_id: eventId ?? null,
     });
 
     if (error) throw error;

@@ -25,6 +25,7 @@ import {
   Stack,
 } from "@mui/material";
 import {DatePicker} from "@mui/x-date-pickers";
+import dayjs, {Dayjs} from "dayjs";
 
 import {useCustomStyles} from "../../../constants/styles";
 import {
@@ -159,10 +160,10 @@ const DialogCreateReceipt = ({
           <DatePicker
             key={"payDate"}
             label={TEXT_PAY_DATE}
-            format="dd.MM.yyyy"
-            value={dialogValues.payDate}
-            onChange={(date) => {
-              setDialogValues({...dialogValues, payDate: date as Date});
+            format="DD.MM.YYYY"
+            value={dayjs(dialogValues.payDate)}
+            onChange={(date: Dayjs | null) => {
+              setDialogValues({...dialogValues, payDate: date?.toDate() ?? new Date()});
             }}
           />
           <TextField

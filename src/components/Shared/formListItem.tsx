@@ -28,6 +28,7 @@ import {
  * @param withDivider Trennlinie nach dem Eintrag anzeigen.
  * @param secondaryAction Optionale sekundäre Aktion (z.B. IconButton).
  * @param endAdornment Optionales Element am Ende des Eingabefeldes.
+ * @param maxLength Maximale Zeichenlänge für das Eingabefeld.
  */
 interface FormListItemProps {
   value: string | number | Date | JSX.Element | JSX.Element[];
@@ -40,6 +41,7 @@ interface FormListItemProps {
   required?: boolean;
   editMode?: boolean;
   helperText?: string;
+  maxLength?: number;
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   displayAsCode?: boolean;
   withDivider?: boolean;
@@ -63,6 +65,7 @@ export const FormListItem = ({
   editMode = false,
   withDivider = true,
   helperText = "",
+  maxLength,
   onChange,
   displayAsCode,
   secondaryAction,
@@ -82,7 +85,7 @@ export const FormListItem = ({
             slotProps={{
               input: {
                 endAdornment: endAdornment,
-                inputProps: {min: 0},
+                inputProps: {min: 0, ...(maxLength ? {maxLength} : {})},
               },
             }}
             label={label}

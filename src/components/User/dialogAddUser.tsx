@@ -1,4 +1,5 @@
 import React from "react";
+import * as Sentry from "@sentry/react";
 
 import {
   Alert,
@@ -23,6 +24,7 @@ import {
   BUTTON_ADD as TEXT_BUTTON_ADD,
   EMAIL as TEXT_EMAIL,
   YOU_CANNOT_ADD_YOURSELF as TEXT_YOU_CANNOT_ADD_YOURSELF,
+  ERROR_GENERIC as TEXT_ERROR_GENERIC,
 } from "../../constants/text";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
@@ -44,6 +46,8 @@ import DatabaseService from "../Database/DatabaseService";
 interface DialogAddUserProps {
   database: DatabaseService;
   authUser: AuthUser;
+  /** Optionale Event-ID für Koch-Berechtigungsprüfung bei E-Mail-Suche. */
+  eventId?: string;
   dialogOpen: boolean;
   handleAddUser: (userUid: string) => void;
   handleClose: () => void;
@@ -58,6 +62,7 @@ interface DialogAddUserProps {
 const DialogAddUser = ({
   database,
   authUser,
+  eventId,
   dialogOpen,
   handleAddUser,
   handleClose,
@@ -93,15 +98,15 @@ const DialogAddUser = ({
       await User.getUidByEmail({
         database: database,
         email: userEmail.toLocaleLowerCase(),
+        eventId: eventId,
       })
         .then((result) => {
           handleAddUser(result);
           setUserEmail("");
         })
         .catch((error) => {
-          const message =
-            error instanceof Error ? error.message : TEXT_GIVE_VALID_EMAIL;
-          setInfoBox({visible: true, text: message});
+          Sentry.captureException(error);
+          setInfoBox({visible: true, text: TEXT_ERROR_GENERIC});
         });
     } else {
       setFormValidationState({

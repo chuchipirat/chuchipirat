@@ -237,7 +237,7 @@ export class ShoppingListMigrationJob
     for (const [listKey, listEntry] of Object.entries(record.data.collectionDoc.lists)) {
       const props = listEntry.properties;
       if (!props) {
-        console.warn(`ShoppingListMigrationJob: Liste ${listKey} hat keine properties, übersprungen.`);
+        if (import.meta.env.DEV) console.warn(`ShoppingListMigrationJob: Liste ${listKey} hat keine properties, übersprungen.`);
         continue;
       }
 

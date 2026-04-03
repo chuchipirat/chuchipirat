@@ -20,6 +20,7 @@ const testRow: GlobalSettingsRow = {
   id: "default",
   allow_sign_up: true,
   maintenance_mode: false,
+  email_lookup_rate_limit: 10,
   created_at: "2026-01-01T00:00:00Z",
   created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
   updated_at: "2026-01-01T00:00:00Z",
@@ -29,6 +30,7 @@ const testRow: GlobalSettingsRow = {
 const testDomain: GlobalSettingsDomain = {
   allowSignUp: true,
   maintenanceMode: false,
+  emailLookupRateLimit: 10,
 };
 
 const authUser = {uid: "auth-uuid-123"} as AuthUser;
@@ -126,6 +128,7 @@ describe("GlobalSettingsRepository", () => {
       const updatedSettings: GlobalSettingsDomain = {
         allowSignUp: true,
         maintenanceMode: true,
+        emailLookupRateLimit: 10,
       };
 
       const result = await repo.saveSettings(updatedSettings, authUser);

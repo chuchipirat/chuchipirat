@@ -16,9 +16,13 @@ import {SMTPClient} from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 // Konstanten
 // ===================================================================== */
 
+/** Erlaubter Origin für CORS (aus APP_URL oder Fallback auf Produktion). */
+const ALLOWED_ORIGIN =
+  Deno.env.get("APP_URL") || "https://chuchipirat.ch";
+
 /** CORS-Header für alle Antworten. */
 export const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Origin": ALLOWED_ORIGIN,
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "Content-Type, Authorization, x-client-info, apikey",
@@ -236,10 +240,13 @@ export function escapeHtml(text: string): string {
 /**
  * Gibt eine standardisierte JSON-Fehlerantwort zurück und loggt den Fehler.
  *
+ * Interne Fehlerdetails werden nur serverseitig geloggt (console.error + Sentry).
+ * Der Client erhält eine generische Fehlermeldung ohne interne Details.
+ *
  * @param functionName - Name der Edge Function (für Log-Prefix)
- * @param message - Fehlermeldung
+ * @param message - Interne Fehlermeldung (nur für Logs, wird NICHT an den Client zurückgegeben)
  * @param statusCode - HTTP-Statuscode
- * @returns HTTP-Response mit JSON-Fehlermeldung
+ * @returns HTTP-Response mit generischer JSON-Fehlermeldung
  */
 export function errorResponse(
   functionName: string,
@@ -247,10 +254,13 @@ export function errorResponse(
   statusCode: number,
 ): Response {
   console.error(`${functionName}: ${message}`);
-  return new Response(JSON.stringify({error: message}), {
-    status: statusCode,
-    headers: {...CORS_HEADERS, "Content-Type": "application/json"},
-  });
+  return new Response(
+    JSON.stringify({error: "Ein interner Fehler ist aufgetreten."}),
+    {
+      status: statusCode,
+      headers: {...CORS_HEADERS, "Content-Type": "application/json"},
+    },
+  );
 }
 
 /**

@@ -495,6 +495,7 @@ const SignUpForm = ({
             value={signUpData.firstName}
             onChange={onFieldChange}
             disabled={fieldsDisabled}
+            slotProps={{htmlInput: {maxLength: 100}}}
           />
           {/* Nachname */}
           <TextField
@@ -508,6 +509,7 @@ const SignUpForm = ({
             value={signUpData.lastName}
             onChange={onFieldChange}
             disabled={fieldsDisabled}
+            slotProps={{htmlInput: {maxLength: 100}}}
           />
           {/* Mailadresse */}
           <TextField

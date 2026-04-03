@@ -60,6 +60,12 @@ type CronJobLogRow = {
  * Repository für Cron-Job-Log-Einträge.
  */
 export class CronJobLogRepository {
+  /** Explizite Spaltenliste — verhindert versehentliches Leaken neuer Spalten. */
+  private static readonly COLUMNS = [
+    "id", "job_name", "started_at", "finished_at", "status",
+    "duration_ms", "records_processed", "error_message", "details",
+  ].join(", ");
+
   private client: SupabaseClient;
 
   constructor(client: SupabaseClient = supabase) {
@@ -75,12 +81,12 @@ export class CronJobLogRepository {
   async getAll(limit: number = 100): Promise<CronJobLogDomain[]> {
     const {data, error} = await this.client
       .from("cron_job_log")
-      .select("*")
+      .select(CronJobLogRepository.COLUMNS)
       .order("started_at", {ascending: false})
       .limit(limit);
 
     if (error) throw new Error(error.message);
-    return (data as CronJobLogRow[]).map(this.toDomain);
+    return (data as unknown as CronJobLogRow[]).map(this.toDomain);
   }
 
   /**
@@ -93,13 +99,13 @@ export class CronJobLogRepository {
   async getByJobName(jobName: string, limit: number = 50): Promise<CronJobLogDomain[]> {
     const {data, error} = await this.client
       .from("cron_job_log")
-      .select("*")
+      .select(CronJobLogRepository.COLUMNS)
       .eq("job_name", jobName)
       .order("started_at", {ascending: false})
       .limit(limit);
 
     if (error) throw new Error(error.message);
-    return (data as CronJobLogRow[]).map(this.toDomain);
+    return (data as unknown as CronJobLogRow[]).map(this.toDomain);
   }
 
   /**

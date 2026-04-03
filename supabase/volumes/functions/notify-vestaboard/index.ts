@@ -9,6 +9,8 @@
  * Erfordert die Umgebungsvariable VESTABOARD_READ_WRITE_KEY.
  */
 import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
+import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
+import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /* =====================================================================
 // Vestaboard Character-Code Tabelle
@@ -126,12 +128,14 @@ function buildMessage(firstName: string, memberId: number): number[][] {
 }
 
 serve(async (req: Request) => {
+  const allowedOrigin = Deno.env.get("APP_URL") || "https://chuchipirat.ch";
+
   // CORS-Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {
       status: 204,
       headers: {
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": allowedOrigin,
         "Access-Control-Allow-Methods": "POST, OPTIONS",
         "Access-Control-Allow-Headers":
           "Content-Type, Authorization, x-client-info, apikey",
@@ -144,6 +148,34 @@ serve(async (req: Request) => {
       status: 405,
       headers: {"Content-Type": "application/json"},
     });
+  }
+
+  // ── Authentifizierung: JWT verifizieren ──
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return new Response(
+      JSON.stringify({error: "Missing Authorization header"}),
+      {status: 401, headers: {"Content-Type": "application/json"}},
+    );
+  }
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  if (!supabaseUrl || !anonKey) {
+    return new Response(
+      JSON.stringify({error: "Missing Supabase config"}),
+      {status: 500, headers: {"Content-Type": "application/json"}},
+    );
+  }
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: {headers: {Authorization: authHeader}},
+    auth: {persistSession: false, autoRefreshToken: false},
+  });
+  const {data: {user}, error: authError} = await userClient.auth.getUser();
+  if (authError || !user) {
+    return new Response(
+      JSON.stringify({error: "Unauthorized"}),
+      {status: 401, headers: {"Content-Type": "application/json"}},
+    );
   }
 
   const apiKey = Deno.env.get("VESTABOARD_READ_WRITE_KEY");
@@ -196,14 +228,18 @@ serve(async (req: Request) => {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Origin": allowedOrigin,
       },
     });
   } catch (err) {
     console.error("notify-vestaboard error:", err);
-    return new Response(JSON.stringify({error: String(err)}), {
-      status: 500,
-      headers: {"Content-Type": "application/json"},
-    });
+    await sentryCaptureError(err, "notify-vestaboard");
+    return new Response(
+      JSON.stringify({error: "Ein interner Fehler ist aufgetreten."}),
+      {
+        status: 500,
+        headers: {"Content-Type": "application/json"},
+      },
+    );
   }
 });

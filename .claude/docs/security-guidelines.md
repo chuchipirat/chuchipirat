@@ -205,3 +205,10 @@ When implementing a new form, repository, or upload:
 - [ ] Re-authentication required before sensitive changes (email/password)
 - [ ] No `dangerouslySetInnerHTML` with user-controlled content
 - [ ] DB functions using dynamic SQL have an allowlist guard
+
+## Known Security Decisions
+
+- Supabase anon key is public (by design) — RLS is the guard
+- service_role key must never appear in client-side code
+- Payrexx webhooks must be verified via signature header
+- All user-facing errors must be generic (no DB details)

@@ -32,7 +32,7 @@ import {AuthUser} from "../../Firebase/Authentication/authUser.class";
  * @param request_id - FK auf requests.id
  * @param comment - Kommentartext
  * @param created_at - Erstellungszeitpunkt
- * @param created_by - Auth-UID des Erstellers
+ * @param user_uid - Auth-UID des Kommentar-Autors (aliasiert aus created_by in View)
  * @param user_display_name - Anzeigename des Kommentar-Autors (aus View)
  * @param user_picture_src - Profilbild des Kommentar-Autors (aus View)
  */
@@ -42,9 +42,8 @@ export interface RequestCommentRow {
   request_id: string;
   comment: string;
   created_at: string;
-  created_by: string | null;
+  user_uid: string | null;
   updated_at: string;
-  updated_by: string | null;
   // View-Felder
   user_display_name: string | null;
   user_picture_src: string | null;
@@ -130,7 +129,7 @@ export class RequestCommentRepository extends BaseRepository<
       uid: row.id,
       requestId: row.request_id,
       comment: row.comment,
-      userUid: row.created_by ?? "",
+      userUid: row.user_uid ?? "",
       userDisplayName: row.user_display_name ?? "",
       userPictureSrc: row.user_picture_src ?? "",
       createdAt: row.created_at ? new Date(row.created_at) : new Date(0),

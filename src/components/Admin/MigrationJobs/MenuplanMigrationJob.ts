@@ -299,7 +299,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
     // Läuft immer proaktiv — nicht als Retry-on-Error — damit Fehler klar zugeordnet werden.
     const {fixed: data, wasFixed, report: fixReport} = this.fixFirebaseMenuplan(record.data);
     if (wasFixed) {
-      console.warn(
+      if (import.meta.env.DEV) console.warn(
         `MenuplanMigrationJob: Menuplan für Event ${record.data.eventFirebaseUid} ` +
         `war inkonsistent und wurde bereinigt: ${fixReport.join("; ")}`,
       );
@@ -354,7 +354,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
 
       // Mahlzeiten ohne gültiges Datum überspringen (Firebase-Inkonsistenz: date = "")
       if (!meal.date) {
-        console.warn(`MenuplanMigrationJob: Mahlzeit ${mealFirebaseUid} hat kein Datum, wird übersprungen.`);
+        if (import.meta.env.DEV) console.warn(`MenuplanMigrationJob: Mahlzeit ${mealFirebaseUid} hat kein Datum, wird übersprungen.`);
         continue;
       }
 
@@ -510,7 +510,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
 
       const productId = this.productIdByFirebaseUid.get(product.productUid);
       if (!productId) {
-        console.warn(`MenuplanMigrationJob: Produkt ${product.productUid} nicht gefunden, wird übersprungen.`);
+        if (import.meta.env.DEV) console.warn(`MenuplanMigrationJob: Produkt ${product.productUid} nicht gefunden, wird übersprungen.`);
         continue;
       }
 
@@ -563,7 +563,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
 
       const materialId = this.materialIdByFirebaseUid.get(material.materialUid);
       if (!materialId) {
-        console.warn(`MenuplanMigrationJob: Material ${material.materialUid} nicht gefunden, wird übersprungen.`);
+        if (import.meta.env.DEV) console.warn(`MenuplanMigrationJob: Material ${material.materialUid} nicht gefunden, wird übersprungen.`);
         continue;
       }
 
@@ -598,7 +598,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
 
       // Notizen ohne gültiges Datum überspringen (Firebase-Inkonsistenz: date = "")
       if (!note.date) {
-        console.warn(`MenuplanMigrationJob: Notiz ${noteFirebaseUid} hat kein Datum, wird übersprungen.`);
+        if (import.meta.env.DEV) console.warn(`MenuplanMigrationJob: Notiz ${noteFirebaseUid} hat kein Datum, wird übersprungen.`);
         continue;
       }
 
@@ -728,13 +728,13 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       // CHECK-Constraint: diet_scope='group' erfordert eine gültige diet_id.
       // Fehlt der Eintrag in der Gruppenconfig → Plan-Zeile überspringen statt Fehler werfen.
       if (dietScope === "group" && dietId === null) {
-        console.warn(
+        if (import.meta.env.DEV) console.warn(
           `MenuplanMigrationJob: Plan-Zeile übersprungen — Diät "${plan.diet}" nicht in Gruppenconfig (item ${itemId}).`,
         );
         continue;
       }
       if (intoleranceScope === "group" && intoleranceId === null) {
-        console.warn(
+        if (import.meta.env.DEV) console.warn(
           `MenuplanMigrationJob: Plan-Zeile übersprungen — Unverträglichkeit "${plan.intolerance}" nicht in Gruppenconfig (item ${itemId}).`,
         );
         continue;

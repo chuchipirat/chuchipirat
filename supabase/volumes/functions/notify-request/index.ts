@@ -34,6 +34,7 @@ import {
   EmailEnv,
 } from "../_shared/emailService.ts";
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
+import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /* =====================================================================
 // Typen
@@ -530,11 +531,26 @@ serve(async (req: Request) => {
 
   // Umgebungsvariablen lesen
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const emailEnv = readEmailEnv();
 
-  if (!supabaseUrl || !serviceRoleKey) {
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     return errorResponse(FUNCTION_NAME, "Missing Supabase config", 500);
+  }
+
+  // ── Authentifizierung: JWT verifizieren ──
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return errorResponse(FUNCTION_NAME, "Missing Authorization header", 401);
+  }
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: {headers: {Authorization: authHeader}},
+    auth: {persistSession: false, autoRefreshToken: false},
+  });
+  const {data: {user}, error: authError} = await userClient.auth.getUser();
+  if (authError || !user) {
+    return errorResponse(FUNCTION_NAME, "Unauthorized", 401);
   }
 
   if (!isEmailConfigured(emailEnv)) {
@@ -621,9 +637,13 @@ serve(async (req: Request) => {
     return successResponse();
   } catch (err) {
     console.error(`${FUNCTION_NAME} error:`, err);
-    return new Response(JSON.stringify({error: String(err)}), {
-      status: 500,
-      headers: {...CORS_HEADERS, "Content-Type": "application/json"},
-    });
+    await sentryCaptureError(err, FUNCTION_NAME);
+    return new Response(
+      JSON.stringify({error: "Ein interner Fehler ist aufgetreten."}),
+      {
+        status: 500,
+        headers: {...CORS_HEADERS, "Content-Type": "application/json"},
+      },
+    );
   }
 });

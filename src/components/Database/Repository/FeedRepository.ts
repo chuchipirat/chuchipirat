@@ -43,7 +43,6 @@ import {Role} from "../../../constants/roles";
  * @param source_object_uid - UID des Quellobjekts
  * @param source_object_data - Optionale Zusatzdaten als JSONB (z.B. Rating, Shopping-Item)
  * @param created_at - Erstellungszeitpunkt
- * @param created_by - Auth-UID des Erstellers
  * @param user_display_name - Anzeigename (aus View)
  * @param user_picture_src - Profilbild (aus View)
  * @param source_object_name - Quellobjekt-Name (aus View)
@@ -60,9 +59,7 @@ export interface FeedRow {
   source_object_uid: string;
   source_object_data: Record<string, unknown> | null;
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
   // View-Felder
   user_display_name: string | null;
   user_picture_src: string | null;

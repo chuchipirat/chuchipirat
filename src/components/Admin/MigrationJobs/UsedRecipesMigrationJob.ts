@@ -194,7 +194,7 @@ export class UsedRecipesMigrationJob
     for (const [listKey, listEntry] of Object.entries(record.data.lists)) {
       const props = listEntry.properties;
       if (!props) {
-        console.warn(
+        if (import.meta.env.DEV) console.warn(
           `UsedRecipesMigrationJob: Liste ${listKey} hat keine properties, wird übersprungen.`,
         );
         continue;
@@ -207,7 +207,7 @@ export class UsedRecipesMigrationJob
         if (menueId) {
           menueIds.push(menueId);
         } else {
-          console.warn(
+          if (import.meta.env.DEV) console.warn(
             `UsedRecipesMigrationJob: Menü ${menueFirebaseUid} nicht gefunden, ` +
               `wird aus Liste "${props.name}" (Event ${record.data.eventFirebaseUid}) übersprungen.`,
           );
@@ -221,7 +221,7 @@ export class UsedRecipesMigrationJob
         if (mealId) {
           mealIds.push(mealId);
         } else {
-          console.warn(
+          if (import.meta.env.DEV) console.warn(
             `UsedRecipesMigrationJob: Meal ${mealFirebaseUid} nicht gefunden, ` +
               `wird aus Liste "${props.name}" (Event ${record.data.eventFirebaseUid}) übersprungen.`,
           );

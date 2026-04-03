@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useEffect, useState} from "react";
 import * as TEXT from "../../constants/text";
 
 import {
@@ -8,7 +8,19 @@ import {
   Box,
 } from "@mui/material";
 
-import zxcvbn from "zxcvbn";
+import {zxcvbnAsync, zxcvbnOptions} from "@zxcvbn-ts/core";
+import * as zxcvbnCommonPackage from "@zxcvbn-ts/language-common";
+import * as zxcvbnDePackage from "@zxcvbn-ts/language-de";
+
+// zxcvbn-ts Optionen einmalig konfigurieren (Wörterbücher und Tastaturlayouts)
+zxcvbnOptions.setOptions({
+  translations: zxcvbnDePackage.translations,
+  graphs: zxcvbnCommonPackage.adjacencyGraphs,
+  dictionary: {
+    ...zxcvbnCommonPackage.dictionary,
+    ...zxcvbnDePackage.dictionary,
+  },
+});
 
 /* ===================================================================
 // ============================= Hilfsfunktionen =====================
@@ -65,25 +77,41 @@ interface PasswordStrengthMeterProps {
 
 /**
  * Zeigt einen Fortschrittsbalken und ein Label zur Passwortstärke an.
+ * Verwendet zxcvbn-ts (async) zur nicht-blockierenden Bewertung.
  *
  * @param password Das zu bewertende Passwort.
  */
 const PasswordStrengthMeter = ({password}: PasswordStrengthMeterProps) => {
-  const testedResult = zxcvbn(password);
+  const [score, setScore] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    // Asynchrone Bewertung, damit der Main-Thread nicht blockiert wird
+    zxcvbnAsync(password).then((result) => {
+      if (!cancelled) {
+        setScore(result.score);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [password]);
 
   return (
     <React.Fragment>
       <LinearProgress
         variant="determinate"
-        value={(100 / 4) * testedResult.score}
-        color={getProgressColor(testedResult.score, password.length > 0)}
+        value={(100 / 4) * score}
+        color={getProgressColor(score, password.length > 0)}
       />
       <Box sx={{mt: 1}} />
 
       <Typography>
         {TEXT.PASSWORD_HOW_STRONG_IS_IT}
         {password.length > 0 && (
-          <strong>{getPasswordLabel(testedResult)}</strong>
+          <strong>{getPasswordLabel({score})}</strong>
         )}
       </Typography>
     </React.Fragment>

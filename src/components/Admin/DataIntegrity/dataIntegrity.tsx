@@ -50,6 +50,7 @@ import {
   DISPLAYNAME as TEXT_DISPLAYNAME,
   EMAIL as TEXT_EMAIL,
   MEMBER_SINCE as TEXT_MEMBER_SINCE,
+  ERROR_GENERIC as TEXT_ERROR_GENERIC,
 } from "../../../constants/text";
 
 import {PageTitle} from "../../Shared/pageTitle";
@@ -528,7 +529,7 @@ const DataIntegrityPage = () => {
         type: ReducerActions.CHECK_ERROR,
         payload: {
           key: check.key,
-          error: error instanceof Error ? error.message : String(error),
+          error: TEXT_ERROR_GENERIC,
         },
       });
     }
@@ -566,7 +567,7 @@ const DataIntegrityPage = () => {
           type: ReducerActions.CLEANUP_ERROR,
           payload: {
             key: check.key,
-            error: error instanceof Error ? error.message : String(error),
+            error: TEXT_ERROR_GENERIC,
           },
         });
       }
@@ -600,7 +601,7 @@ const DataIntegrityPage = () => {
           type: ReducerActions.CLEANUP_ERROR,
           payload: {
             key: check.key,
-            error: error instanceof Error ? error.message : String(error),
+            error: TEXT_ERROR_GENERIC,
           },
         });
       }
@@ -622,7 +623,7 @@ const DataIntegrityPage = () => {
         open: true,
         loading: false,
         domain: null,
-        error: error instanceof Error ? error.message : String(error),
+        error: TEXT_ERROR_GENERIC,
       });
     }
   }, []);
@@ -641,7 +642,7 @@ const DataIntegrityPage = () => {
         open: true,
         loading: false,
         user: null,
-        error: error instanceof Error ? error.message : String(error),
+        error: TEXT_ERROR_GENERIC,
       });
     }
   }, []);

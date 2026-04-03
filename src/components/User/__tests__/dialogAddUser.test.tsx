@@ -60,6 +60,7 @@ const renderDialog = (overrides: Partial<React.ComponentProps<typeof DialogAddUs
   const defaultProps = {
     database: mockDatabase,
     authUser: mockAuthUser,
+    eventId: "test-event-uid",
     dialogOpen: true,
     handleAddUser: jest.fn(),
     handleClose: jest.fn(),

@@ -7,7 +7,7 @@ import * as TEXT from "../../constants/text";
 import {Unit, UnitDimension} from "../Unit/unit.class";
 import {Product, Diet, DietProperties, createEmptyDietProperty} from "../Product/product.types";
 import {Event} from "../Event/Event/event.class";
-import _ from "lodash";
+
 import {
   UnitConversion,
   UnitConversionBasic,
@@ -307,7 +307,7 @@ export default class Recipe {
    * @returns Neue Recipe-Instanz mit `type = variant` und gesetzten `variantProperties`.
    */
   static createRecipeVariant({recipe, eventUid}: CreateRecipeVariant) {
-    const recipeVariant: Recipe = _.cloneDeep(recipe);
+    const recipeVariant: Recipe = structuredClone(recipe);
 
     recipeVariant.type = RecipeType.variant;
     recipeVariant.variantProperties = {
@@ -787,7 +787,7 @@ export default class Recipe {
     preparationSteps: RecipeObjectStructure<PreparationStep | Section>,
   ) {
     const preparationStepUids = [...preparationSteps.order];
-    const cleanedPreparationSteps = _.cloneDeep(preparationSteps);
+    const cleanedPreparationSteps = structuredClone(preparationSteps);
 
     preparationStepUids.forEach((preparationStepUid) => {
       if (

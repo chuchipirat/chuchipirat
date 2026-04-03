@@ -101,10 +101,12 @@ beforeEach(() => {
   mockGetSettings.mockResolvedValue({
     allowSignUp: true,
     maintenanceMode: false,
+    emailLookupRateLimit: 10,
   });
   mockSaveSettings.mockResolvedValue({
     allowSignUp: true,
     maintenanceMode: false,
+    emailLookupRateLimit: 10,
   });
 });
 
@@ -168,6 +170,25 @@ describe("GlobalSettingsPage", () => {
       await waitFor(() => {
         const allowSignUpSwitch = getSwitch("allowSignUp");
         expect(allowSignUpSwitch).toBeDisabled();
+      });
+    });
+
+    test("Rate-Limit-Feld wird mit geladenem Wert angezeigt", async () => {
+      renderGlobalSettingsPage();
+
+      await waitFor(() => {
+        const rateLimitInput = document.getElementById("emailLookupRateLimit") as HTMLInputElement;
+        expect(rateLimitInput).toBeInTheDocument();
+        expect(rateLimitInput.value).toBe("10");
+      });
+    });
+
+    test("Rate-Limit-Feld ist initial deaktiviert", async () => {
+      renderGlobalSettingsPage();
+
+      await waitFor(() => {
+        const rateLimitInput = document.getElementById("emailLookupRateLimit") as HTMLInputElement;
+        expect(rateLimitInput).toBeDisabled();
       });
     });
   });
@@ -248,6 +269,7 @@ describe("GlobalSettingsPage", () => {
           expect.objectContaining({
             allowSignUp: true,
             maintenanceMode: false,
+            emailLookupRateLimit: 10,
           }),
           mockAuthUser
         );

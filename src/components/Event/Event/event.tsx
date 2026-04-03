@@ -2,7 +2,6 @@ import * as Sentry from "@sentry/react";
 import React, {SyntheticEvent} from "react";
 
 import {useNavigate, useLocation, useSearchParams} from "react-router";
-import _ from "lodash";
 
 import {
   Container,
@@ -1052,38 +1051,43 @@ const EventPage = () => {
     // gleichzeitig aus (delete + insert über 8 Tabellen), daher zusammenfassen.
     // Während eines Saves wird der Reload übersprungen, damit der leere
     // Zwischenstand (nach DELETE, vor INSERT) nicht das optimistische Update überschreibt.
-    const debouncedReload = _.debounce(() => {
-      if (menuplanSaveInProgress.current) return;
+    // Einfache Debounce-Implementierung (ersetzt lodash _.debounce)
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (menuplanSaveInProgress.current) return;
 
-      database.menuplan
-        .getMenuplanForUi(eventUid)
-        .then((newMenuplan) => {
-          if (menuplanSaveInProgress.current) return;
+        database.menuplan
+          .getMenuplanForUi(eventUid)
+          .then((newMenuplan) => {
+            if (menuplanSaveInProgress.current) return;
 
-          // Geänderte Menüs ermitteln und kurzzeitig hervorheben
-          const changedUids = getChangedMenueUids(
-            menuplanRef.current,
-            newMenuplan,
-          );
-          if (changedUids.size > 0) {
-            setHighlightedMenueUids(changedUids);
-            if (highlightTimeoutRef.current)
-              clearTimeout(highlightTimeoutRef.current);
-            highlightTimeoutRef.current = setTimeout(
-              () => setHighlightedMenueUids(new Set()),
-              2000,
+            // Geänderte Menüs ermitteln und kurzzeitig hervorheben
+            const changedUids = getChangedMenueUids(
+              menuplanRef.current,
+              newMenuplan,
             );
-          }
+            if (changedUids.size > 0) {
+              setHighlightedMenueUids(changedUids);
+              if (highlightTimeoutRef.current)
+                clearTimeout(highlightTimeoutRef.current);
+              highlightTimeoutRef.current = setTimeout(
+                () => setHighlightedMenueUids(new Set()),
+                2000,
+              );
+            }
 
-          dispatch({
-            type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
-            payload: newMenuplan,
+            dispatch({
+              type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
+              payload: newMenuplan,
+            });
+          })
+          .catch((error) => {
+            dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
           });
-        })
-        .catch((error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        });
-    }, 200);
+      }, 200);
+    };
 
     // Realtime-Subscription für laufende Änderungen
     // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
@@ -1096,7 +1100,7 @@ const EventPage = () => {
     );
 
     return function cleanup() {
-      debouncedReload.cancel();
+      if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribe();
       if (highlightTimeoutRef.current)
         clearTimeout(highlightTimeoutRef.current);
@@ -1412,7 +1416,7 @@ const EventPage = () => {
   }, [activeTab]);
   React.useEffect(() => {
     if (activeTab === EventTabs.eventInfo && !eventDraft.event.uid) {
-      setEventDraft(_.cloneDeep({...eventDraft, event: state.event}));
+      setEventDraft(structuredClone({...eventDraft, event: state.event}));
     }
   }, [activeTab]);
   if (!authUser) {
@@ -1563,7 +1567,7 @@ const EventPage = () => {
   // Handling Einstellungen Event
   // ------------------------------------------ */
   const onEventDiscardChanges = () => {
-    setEventDraft(_.cloneDeep({...eventDraft, event: state.event}));
+    setEventDraft(structuredClone({...eventDraft, event: state.event}));
   };
   const onEventSaveChanges = async () => {
     // Leere Datumszeilen entfernen und Pflichtfelder validieren

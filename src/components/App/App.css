@@ -375,49 +375,21 @@ input[type="number"] {
   transform: rotate(-225deg);
 }
 
-/* Quill Editor */
-.quill > * {
-  border-color: inherit !important;
-  color: inherit !important;
-}
-.quill > .ql-toolbar {
-  border-radius: 4px 4px 0 0;
-}
-.quill > .ql-container {
+/* TipTap Editor */
+.tiptap {
   font-size: inherit;
-  border-radius: 0 0 4px 4px;
-}
-.ql-toolbar.ql-snow .ql-picker-label {
-  color: inherit !important;
-  opacity: 0.76;
-}
-.ql-snow .ql-picker {
-  color: inherit !important;
-}
-.quill > .ql-container > .ql-editor.ql-blank::before {
   color: inherit;
 }
-.ql-snow.ql-toolbar button svg {
-  opacity: 0.76;
-  color: currentColor;
+.tiptap:focus {
+  outline: none;
 }
-.ql-snow .ql-stroke {
-  stroke: currentColor !important;
+.tiptap a {
+  color: var(--primary-color-light);
+  cursor: pointer;
 }
-.ql-snow .ql-fill {
-  fill: currentColor !important;
-}
-.ql-picker-item {
-  color: #444 !important;
-}
-.ql-active {
-  color: var(--primary-color-light) !important;
-}
-
-/* Dark-Mode Quill */
 @media (prefers-color-scheme: dark) {
-  .ql-active {
-    color: var(--primary-color-dark) !important;
+  .tiptap a {
+    color: var(--primary-color-dark);
   }
 }
 

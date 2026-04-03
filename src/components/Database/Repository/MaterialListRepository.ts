@@ -56,9 +56,7 @@ export interface MaterialListItemViewRow {
   assigned_cook_id: string | null;
   assigned_cook_name: string | null;
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
   item_name: string;
   resolved_cook_name: string | null;
   assigned_cook_user_id: string | null;

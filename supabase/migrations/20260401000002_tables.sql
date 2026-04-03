@@ -12,13 +12,13 @@
 CREATE TABLE public.users (
     id uuid NOT NULL,
     email text NOT NULL,
-    first_name text DEFAULT ''::text NOT NULL,
-    last_name text DEFAULT ''::text NOT NULL,
+    first_name text DEFAULT ''::text NOT NULL CONSTRAINT chk_first_name_length CHECK (char_length(first_name) <= 100),
+    last_name text DEFAULT ''::text NOT NULL CONSTRAINT chk_last_name_length CHECK (char_length(last_name) <= 100),
     roles public.user_role[] DEFAULT ARRAY['basic'::public.user_role] NOT NULL,
     no_logins integer DEFAULT 0 NOT NULL,
-    display_name text DEFAULT ''::text NOT NULL,
+    display_name text DEFAULT ''::text NOT NULL CONSTRAINT chk_display_name_length CHECK (char_length(display_name) <= 100),
     member_id integer NOT NULL GENERATED ALWAYS AS IDENTITY,
-    motto text DEFAULT ''::text NOT NULL,
+    motto text DEFAULT ''::text NOT NULL CONSTRAINT chk_motto_length CHECK (char_length(motto) <= 500),
     created_at timestamptz DEFAULT now() NOT NULL,
     updated_at timestamptz DEFAULT now() NOT NULL,
     search_vector tsvector GENERATED ALWAYS AS (
@@ -46,6 +46,7 @@ CREATE TABLE public.global_settings (
     id text DEFAULT 'default'::text NOT NULL,
     allow_sign_up boolean DEFAULT false NOT NULL,
     maintenance_mode boolean DEFAULT false NOT NULL,
+    email_lookup_rate_limit integer DEFAULT 10 NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL,
     created_by uuid DEFAULT auth.uid(),
     updated_at timestamptz DEFAULT now() NOT NULL,
@@ -245,14 +246,14 @@ ALTER TABLE public.product_duplicate_dismissals ENABLE ROW LEVEL SECURITY;
 CREATE TABLE public.recipes (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
-    name text DEFAULT ''::text NOT NULL,
+    name text DEFAULT ''::text NOT NULL CONSTRAINT chk_recipe_name_length CHECK (char_length(name) <= 200),
     portions integer DEFAULT 0 NOT NULL,
-    source text DEFAULT ''::text NOT NULL,
+    source text DEFAULT ''::text NOT NULL CONSTRAINT chk_recipe_source_length CHECK (char_length(source) <= 500),
     time_preparation integer DEFAULT 0 NOT NULL,
     time_rest integer DEFAULT 0 NOT NULL,
     time_cooking integer DEFAULT 0 NOT NULL,
     picture_src text DEFAULT ''::text NOT NULL,
-    note text DEFAULT ''::text NOT NULL,
+    note text DEFAULT ''::text NOT NULL CONSTRAINT chk_recipe_note_length CHECK (char_length(note) <= 2000),
     tags text[] DEFAULT '{}'::text[] NOT NULL,
     menu_types public.menu_type[] DEFAULT '{}'::public.menu_type[] NOT NULL,
     diet public.diet_type DEFAULT 'meat'::public.diet_type NOT NULL,
@@ -392,9 +393,9 @@ ALTER TABLE public.recipe_comments ENABLE ROW LEVEL SECURITY;
 CREATE TABLE public.events (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
-    name text DEFAULT ''::text NOT NULL,
-    motto text DEFAULT ''::text NOT NULL,
-    location text DEFAULT ''::text NOT NULL,
+    name text DEFAULT ''::text NOT NULL CONSTRAINT chk_event_name_length CHECK (char_length(name) <= 200),
+    motto text DEFAULT ''::text NOT NULL CONSTRAINT chk_event_motto_length CHECK (char_length(motto) <= 500),
+    location text DEFAULT ''::text NOT NULL CONSTRAINT chk_event_location_length CHECK (char_length(location) <= 200),
     picture_src text DEFAULT ''::text NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL,
     created_by uuid DEFAULT auth.uid(),
@@ -737,7 +738,7 @@ CREATE TABLE public.event_shopping_list_items (
     product_id text,
     material_id text,
     department_id text,
-    free_text_name text,
+    free_text_name text CONSTRAINT chk_free_text_name_length CHECK (char_length(free_text_name) <= 200),
     quantity numeric DEFAULT 0 NOT NULL,
     unit text,
     checked boolean DEFAULT false NOT NULL,
@@ -794,7 +795,7 @@ CREATE TABLE public.event_material_list_items (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     list_id text NOT NULL,
     material_id text,
-    free_text_name text,
+    free_text_name text CONSTRAINT chk_material_free_text_name_length CHECK (char_length(free_text_name) <= 200),
     quantity numeric DEFAULT 0 NOT NULL,
     checked boolean DEFAULT false NOT NULL,
     edit_source public.shopping_list_edit_source DEFAULT 'generated'::public.shopping_list_edit_source NOT NULL,
@@ -857,7 +858,7 @@ ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
 CREATE TABLE public.request_comments (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     request_id text NOT NULL,
-    comment text NOT NULL,
+    comment text NOT NULL CONSTRAINT chk_comment_length CHECK (char_length(comment) <= 1000),
     created_at timestamptz DEFAULT now() NOT NULL,
     created_by uuid DEFAULT auth.uid(),
     updated_at timestamptz DEFAULT now() NOT NULL,
@@ -881,8 +882,8 @@ CREATE TABLE public.feeds (
     feed_type public.feed_type NOT NULL,
     visibility public.user_role DEFAULT 'basic'::public.user_role NOT NULL,
     user_uid uuid NOT NULL,
-    source_object_type text NOT NULL,
-    source_object_uid text NOT NULL,
+    source_object_type text NOT NULL CONSTRAINT chk_source_object_type_length CHECK (char_length(source_object_type) <= 200),
+    source_object_uid text NOT NULL CONSTRAINT chk_source_object_uid_length CHECK (char_length(source_object_uid) <= 200),
     source_object_data jsonb,
     created_at timestamptz DEFAULT now() NOT NULL,
     created_by uuid DEFAULT auth.uid(),
@@ -986,3 +987,11 @@ CREATE TABLE public.mail_log (
 );
 
 ALTER TABLE public.mail_log ENABLE ROW LEVEL SECURITY;
+
+CREATE TABLE public.rpc_rate_limits (
+    user_id       UUID NOT NULL,
+    function_name TEXT NOT NULL,
+    called_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.rpc_rate_limits ENABLE ROW LEVEL SECURITY;

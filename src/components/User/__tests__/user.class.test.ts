@@ -263,6 +263,21 @@ describe("getUidByEmail()", () => {
     expect(result).toBe("found-uid");
   });
 
+  test("eventId an findByEmail weiterleiten", async () => {
+    mockDatabase.users.findByEmail.mockResolvedValue("found-uid");
+
+    await User.getUidByEmail({
+      database: mockDatabase as any,
+      email: "test@test.ch",
+      eventId: "event-abc",
+    });
+
+    expect(mockDatabase.users.findByEmail).toHaveBeenCalledWith(
+      "test@test.ch",
+      "event-abc",
+    );
+  });
+
   test("Fehler werfen wenn nicht gefunden (null)", async () => {
     mockDatabase.users.findByEmail.mockResolvedValue(null);
 

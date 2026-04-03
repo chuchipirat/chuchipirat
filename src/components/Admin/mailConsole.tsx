@@ -87,8 +87,7 @@ import {
   MAIL_SEND_REQUIRES_TEST as TEXT_MAIL_SEND_REQUIRES_TEST,
 } from "../../constants/text";
 import {Role} from "../../constants/roles";
-import ReactQuill from "react-quill-new";
-import "react-quill-new/dist/quill.snow.css";
+import {RichTextEditor} from "../Shared/RichTextEditor";
 import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
   SnackbarState,
@@ -1089,7 +1088,7 @@ const MailEditor = ({
             >
               {TEXT_MAILTEXT}
             </Typography>
-            <ReactQuill theme="snow" onChange={onMailTextChange} />
+            <RichTextEditor onChange={onMailTextChange} value="" />
           </Grid>
           <Grid size={12}>
             <TextField

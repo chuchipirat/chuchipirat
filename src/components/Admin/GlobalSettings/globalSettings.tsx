@@ -13,6 +13,7 @@ import {
   SnackbarCloseReason,
   Stack,
   Switch,
+  TextField,
   useTheme,
 } from "@mui/material";
 
@@ -85,7 +86,7 @@ type State = {
 };
 
 const inititialState: State = {
-  globalSettings: {allowSignUp: false, maintenanceMode: false},
+  globalSettings: {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10},
   error: null,
   isError: false,
   isLoading: false,
@@ -194,7 +195,7 @@ const GlobalSettingsPage = () => {
       .then((result) => {
         dispatch({
           type: ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS,
-          payload: result ?? {allowSignUp: false, maintenanceMode: false},
+          payload: result ?? {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10},
         });
       })
       .catch((error) => {
@@ -215,17 +216,16 @@ const GlobalSettingsPage = () => {
   // Feldwert ändern
   // ------------------------------------------ */
   const onChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    // let newValue;
+    const {name, type, checked, value} = event.target;
 
-    // if (event.target.name === "allowSignUp") {
-    //   newValue = event.target.checked;
-    // } else {
-    //   newValue = event.target.value;
-    // }
+    // Numerische Felder als Zahl, Switches als Boolean verarbeiten
+    const newValue = type === "number"
+      ? Math.max(1, parseInt(value, 10) || 1)
+      : checked;
 
     dispatch({
       type: ReducerActions.GLOBAL_SETTINGS_ON_CHANGE,
-      payload: {[event.target.name]: event.target.checked},
+      payload: {[name]: newValue},
     });
   };
   /* ------------------------------------------
@@ -404,6 +404,26 @@ const PanelGlobalSettings = ({
             <ListItemText
               primary={TEXT_GLOBAL_SETTINGS_MAINTENANCE_MODE_LABEL}
               secondary={TEXT_GLOBAL_SETTINGS_MAINTENANCE_MODE_DESCRIPTION}
+            />
+          </ListItem>
+          <ListItem
+            secondaryAction={
+              <TextField
+                type="number"
+                name="emailLookupRateLimit"
+                id="emailLookupRateLimit"
+                value={globalSettings.emailLookupRateLimit}
+                onChange={onChange}
+                disabled={!editMode}
+                slotProps={{htmlInput: {min: 1}}}
+                size="small"
+                sx={{width: 80}}
+              />
+            }
+          >
+            <ListItemText
+              primary="E-Mail-Suche Rate-Limit"
+              secondary="Maximale Anzahl E-Mail-Suchen pro Benutzer pro Stunde"
             />
           </ListItem>
           <ListItem

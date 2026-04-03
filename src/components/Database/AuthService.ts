@@ -152,26 +152,6 @@ export class AuthService {
    *
    * Wird verwendet, wenn ein bereits migrierter Benutzer sich mit dem
    * Firebase-Passwort anmeldet, das vom Supabase-Passwort abweicht.
-   * Nach erfolgreicher Firebase-Validierung wird das Supabase-Passwort
-   * synchronisiert.
-   * //FIXME: muss nach der Migration entfernt werden, da dann alle Benutzer über Supabase Auth
-   * @param userId - Supabase Auth User-ID
-   * @param newPassword - Das neue Passwort (vom Firebase-Login validiert)
-   * @throws {Error} Wenn der Admin-Client nicht verfügbar ist
-   * @throws {AuthError} Bei ungültigem Passwort oder Netzwerkfehler
-   */
-  async updateUserPassword(userId: string, newPassword: string): Promise<void> {
-    if (!supabaseAdmin) {
-      throw new Error("Admin client not available");
-    }
-
-    const {error} = await supabaseAdmin.auth.admin.updateUserById(userId, {
-      password: newPassword,
-    });
-
-    if (error) throw error;
-  }
-
   /* =====================================================================
   // Abmelden
   // ===================================================================== */

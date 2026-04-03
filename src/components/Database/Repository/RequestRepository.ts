@@ -60,9 +60,7 @@ export interface RequestRow {
   change_log: ChangeLogEntry[];
   resolve_date: string | null;
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
   // View-Felder
   author_display_name: string | null;
   author_picture_src: string | null;

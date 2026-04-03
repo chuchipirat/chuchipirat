@@ -68,7 +68,7 @@ export type DonationDomain = {
   createdAt: Date;
   // View-Felder (nur bei Lesen via donations_view)
   donorDisplayName: string;
-  donorEmail: string;
+  donorEmail?: string;
   eventName: string;
 };
 
@@ -96,9 +96,7 @@ export type DonationRow = {
   receipt_number: string | null;
   receipt_sent_at: string | null;
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
   // View-Felder
   donor_display_name?: string | null;
   donor_email?: string | null;

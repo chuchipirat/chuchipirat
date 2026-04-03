@@ -13,7 +13,7 @@ import Recipe, {RecipeIdentifier} from "../../Recipe/recipe.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {Utils} from "../../Shared/utils.class";
 import {Event} from "../Event/event.class";
-import _ from "lodash";
+
 import {
   Meal,
   Menue,
@@ -216,7 +216,7 @@ export class UsedRecipes {
     listUidToDelete,
     authUser,
   }: DeleteList) => {
-    const updatedUsedRecipes = _.cloneDeep(usedRecipes) as UsedRecipes;
+    const updatedUsedRecipes = structuredClone(usedRecipes) as UsedRecipes;
 
     delete updatedUsedRecipes.lists[listUidToDelete];
 
@@ -236,7 +236,7 @@ export class UsedRecipes {
     newName,
     authUser,
   }: EditListName) => {
-    const updatedUsedRecipes = _.cloneDeep(usedRecipes) as UsedRecipes;
+    const updatedUsedRecipes = structuredClone(usedRecipes) as UsedRecipes;
 
     updatedUsedRecipes.lists[listUidToEdit].properties.name = newName;
     updatedUsedRecipes.lastChange = Utils.createChangeRecord(authUser);

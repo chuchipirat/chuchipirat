@@ -438,7 +438,6 @@ const TempPage = () => {
               //   data.columns.entries[home.id].cardsOrder
               // );
               // oldCardsOrder
-              console.log(updated);
               setData({
                 ...data,
                 columns: {
@@ -453,7 +452,6 @@ const TempPage = () => {
 
             // unable to find destination
             if (!destination) {
-              console.warn("Drag & Drop kein Ziel gefunden");
               return;
             }
 
@@ -513,8 +511,6 @@ const TempPage = () => {
 
             // dropping on home
             if (home === destination) {
-              console.info("moving card to home column");
-
               // move to last position
               const reordered = reorder({
                 list: home[memberName],
@@ -543,8 +539,6 @@ const TempPage = () => {
               });
               return;
             }
-
-            console.info("moving card to another column");
 
             // remove card from home list
 
@@ -807,12 +801,10 @@ const Column = ({
       // optimization - don't update state if we don't need to.
       setStateColumn((current) => {
         if (isShallowEqual(proposed, current)) {
-          console.log(proposed, current);
           return current;
         }
         return proposed;
       });
-      console.log("hier, setIsCardOver");
     }
 
     return combine(
@@ -847,12 +839,9 @@ const Column = ({
           });
         },
         onDragStart() {
-          console.log("hier", "onDragStart");
-
           setStateColumn({type: "is-dragging"});
         },
         onDrop() {
-          console;
           setStateColumn(columnIdle);
         },
       }),
@@ -878,7 +867,6 @@ const Column = ({
             isColumnData(source.data) &&
             source.data.column.id !== column.id
           ) {
-            console.log("hier, isColumnData");
             setStateColumn({type: "is-column-over"});
           }
         },
@@ -895,11 +883,9 @@ const Column = ({
           ) {
             return;
           }
-          console.log("hier, onDragLeave", columnIdle);
           setStateColumn(columnIdle);
         },
         onDrop() {
-          console.log("hier, onDrop");
           setStateColumn(columnIdle);
         },
       })
@@ -1009,7 +995,6 @@ const CardList = memo(function CardList({
   entries: TBoard["cards"];
   entryType: EntryType;
 }) {
-  console.info("memo exe", columnId);
   return (
     <>
       <Box component={"div"}>

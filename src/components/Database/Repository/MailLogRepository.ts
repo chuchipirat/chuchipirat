@@ -66,6 +66,13 @@ type MailLogRow = {
  * Repository für Mail-Log-Einträge.
  */
 export class MailLogRepository {
+  /** Explizite Spaltenliste — verhindert versehentliches Leaken neuer Spalten. */
+  private static readonly COLUMNS = [
+    "id", "recipients", "recipient_type", "subject", "body",
+    "template_name", "sent_at", "sent_by", "delivery_status",
+    "error_message", "details",
+  ].join(", ");
+
   private client: SupabaseClient;
 
   constructor(client: SupabaseClient = supabase) {
@@ -81,12 +88,12 @@ export class MailLogRepository {
   async getAll(limit: number = 200): Promise<MailLogDomain[]> {
     const {data, error} = await this.client
       .from("mail_log")
-      .select("*")
+      .select(MailLogRepository.COLUMNS)
       .order("sent_at", {ascending: false})
       .limit(limit);
 
     if (error) throw new Error(error.message);
-    return (data as MailLogRow[]).map(this.toDomain);
+    return (data as unknown as MailLogRow[]).map(this.toDomain);
   }
 
   /**
@@ -125,11 +132,11 @@ export class MailLogRepository {
         error_message: entry.errorMessage,
         details: entry.details,
       })
-      .select()
+      .select(MailLogRepository.COLUMNS)
       .single();
 
     if (error) throw new Error(error.message);
-    return this.toDomain(data as MailLogRow);
+    return this.toDomain(data as unknown as MailLogRow);
   }
 
   /**

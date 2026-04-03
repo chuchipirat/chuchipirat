@@ -36,6 +36,7 @@ export interface GlobalSettingsRow {
   id: string;
   allow_sign_up: boolean;
   maintenance_mode: boolean;
+  email_lookup_rate_limit: number;
   created_at: string;
   created_by: string | null;
   updated_at: string;
@@ -54,6 +55,8 @@ export interface GlobalSettingsRow {
 export interface GlobalSettingsDomain {
   allowSignUp: boolean;
   maintenanceMode: boolean;
+  /** Maximale Anzahl E-Mail-Suchen pro Benutzer pro Stunde. */
+  emailLookupRateLimit: number;
 }
 
 /* =====================================================================
@@ -82,6 +85,7 @@ export class GlobalSettingsRepository extends BaseRepository<
     return {
       allow_sign_up: domain.allowSignUp,
       maintenance_mode: domain.maintenanceMode,
+      email_lookup_rate_limit: domain.emailLookupRateLimit,
     };
   }
 
@@ -98,6 +102,7 @@ export class GlobalSettingsRepository extends BaseRepository<
     return {
       allowSignUp: row.allow_sign_up,
       maintenanceMode: row.maintenance_mode,
+      emailLookupRateLimit: row.email_lookup_rate_limit,
     };
   }
 

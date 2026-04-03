@@ -25,6 +25,7 @@ import {
   failCronJob,
   sentryCheckIn,
 } from "../_shared/cronJobHelper.ts";
+import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /* =====================================================================
 // Konstanten
@@ -39,6 +40,20 @@ serve(async (req: Request) => {
   // CORS-Preflight
   if (req.method === "OPTIONS") {
     return new Response(null, {status: 204, headers: CORS_HEADERS});
+  }
+
+  // ── Authentifizierung: Nur service_role darf Cron-Jobs auslösen ──
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return errorResponse(JOB_NAME, "Missing Authorization header", 401);
+  }
+  try {
+    const payload = JSON.parse(atob(authHeader.split(".")[1]));
+    if (payload.role !== "service_role") {
+      return errorResponse(JOB_NAME, "Forbidden: service_role required", 403);
+    }
+  } catch {
+    return errorResponse(JOB_NAME, "Invalid token", 401);
   }
 
   // Umgebungsvariablen
@@ -150,15 +165,19 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error(`${JOB_NAME} error:`, err);
+    await sentryCaptureError(err, JOB_NAME);
 
     if (logId) {
       await failCronJob(supabaseAdmin, logId, String(err));
     }
     await sentryCheckIn(JOB_NAME, "error", checkInId);
 
-    return new Response(JSON.stringify({error: String(err)}), {
-      status: 500,
-      headers: {...CORS_HEADERS, "Content-Type": "application/json"},
-    });
+    return new Response(
+      JSON.stringify({error: "Ein interner Fehler ist aufgetreten."}),
+      {
+        status: 500,
+        headers: {...CORS_HEADERS, "Content-Type": "application/json"},
+      },
+    );
   }
 });

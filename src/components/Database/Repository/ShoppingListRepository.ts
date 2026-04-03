@@ -57,9 +57,7 @@ export interface ShoppingListItemViewRow {
   edit_source: "generated" | "manual_add" | "manual_edit";
   sort_order: number;
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
   item_name: string;
   resolved_department_id: string | null;
   department_name: string | null;

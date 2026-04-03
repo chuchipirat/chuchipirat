@@ -148,9 +148,10 @@ CREATE FUNCTION public.increment_logins(user_id uuid) RETURNS void
     LANGUAGE sql SECURITY DEFINER
     SET search_path TO 'public'
 AS $$
+  -- Nur der eigene Login-Zähler darf erhöht werden
   UPDATE public.users
   SET no_logins = no_logins + 1
-  WHERE id = user_id;
+  WHERE id = user_id AND id = (SELECT auth.uid());
 $$;
 
 CREATE FUNCTION public.increment_found_bugs(p_user_id uuid, p_delta integer) RETURNS void
@@ -158,20 +159,76 @@ CREATE FUNCTION public.increment_found_bugs(p_user_id uuid, p_delta integer) RET
     SET search_path TO 'public'
 AS $$
 BEGIN
+  -- Nur der Benutzer selbst oder ein Admin darf den Bug-Zähler ändern
+  IF (SELECT auth.uid()) != p_user_id AND NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nicht autorisiert: Bug-Zähler kann nur vom Benutzer selbst oder einem Admin geändert werden.';
+  END IF;
+
   UPDATE public.users
   SET no_found_bugs = GREATEST(0, no_found_bugs + p_delta)
   WHERE id = p_user_id;
 END;
 $$;
 
-CREATE FUNCTION public.find_user_id_by_email(lookup_email text) RETURNS uuid
-    LANGUAGE sql STABLE SECURITY DEFINER
+CREATE FUNCTION public.find_user_id_by_email(
+    lookup_email text,
+    p_event_id text DEFAULT NULL
+) RETURNS uuid
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
 AS $$
-  SELECT id
+DECLARE
+  call_count    INTEGER;
+  max_calls     INTEGER;
+  result_id     UUID;
+BEGIN
+  -- Service-Role (Login-Fallback, Migration) oder Admin: keine Einschränkungen
+  IF (SELECT current_setting('request.jwt.claims', true)::json->>'role') = 'service_role'
+     OR public.is_admin() THEN
+    SELECT id INTO result_id
+    FROM public.users
+    WHERE LOWER(email) = LOWER(TRIM(lookup_email))
+    LIMIT 1;
+    RETURN result_id;
+  END IF;
+
+  -- Event-Koch-Prüfung (wenn Event-ID angegeben)
+  IF p_event_id IS NOT NULL AND NOT public.is_event_cook(p_event_id) THEN
+    RAISE EXCEPTION 'Keine Berechtigung für dieses Event.';
+  END IF;
+
+  -- Rate Limit aus global_settings lesen
+  SELECT email_lookup_rate_limit INTO max_calls
+  FROM public.global_settings
+  WHERE id = 'default';
+
+  -- Fallback falls kein Wert gesetzt
+  IF max_calls IS NULL THEN max_calls := 10; END IF;
+
+  -- Alte Einträge bereinigen
+  DELETE FROM public.rpc_rate_limits
+  WHERE called_at < NOW() - INTERVAL '1 hour';
+
+  -- Aktuelle Aufrufe zählen
+  SELECT COUNT(*) INTO call_count
+  FROM public.rpc_rate_limits
+  WHERE user_id = auth.uid()
+    AND function_name = 'find_user_id_by_email';
+
+  IF call_count >= max_calls THEN
+    RAISE EXCEPTION 'Rate-Limit erreicht. Bitte später erneut versuchen.';
+  END IF;
+
+  INSERT INTO public.rpc_rate_limits (user_id, function_name)
+  VALUES (auth.uid(), 'find_user_id_by_email');
+
+  -- Eigentliche Abfrage
+  SELECT id INTO result_id
   FROM public.users
   WHERE LOWER(email) = LOWER(TRIM(lookup_email))
   LIMIT 1;
+  RETURN result_id;
+END;
 $$;
 
 CREATE FUNCTION public.get_comment_author_profiles(uids uuid[]) RETURNS TABLE(id uuid, display_name text, picture_src text)
@@ -200,47 +257,61 @@ AS $$
 $$;
 
 CREATE FUNCTION public.get_user_profile_stats(p_user_id uuid) RETURNS TABLE(field text, value bigint)
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
 AS $$
-  SELECT 'noRecipesPublic',  COUNT(*)
+DECLARE
+  -- Prüfen ob der Aufrufer berechtigt ist, private Statistiken zu sehen
+  is_privileged BOOLEAN;
+BEGIN
+  is_privileged := (
+    p_user_id = (SELECT auth.uid())
+    OR public.is_admin()
+    OR public.is_community_leader()
+  );
+
+  RETURN QUERY
+  SELECT 'noRecipesPublic'::TEXT,  COUNT(*)
     FROM recipes
    WHERE created_by = p_user_id AND recipe_type = 'public'
 
   UNION ALL
-  SELECT 'noRecipesPrivate', COUNT(*)
-    FROM recipes
-   WHERE created_by = p_user_id AND recipe_type = 'private'
+  SELECT 'noRecipesPrivate'::TEXT,
+    CASE WHEN is_privileged THEN
+      (SELECT COUNT(*) FROM recipes WHERE created_by = p_user_id AND recipe_type = 'private')
+    ELSE 0::BIGINT
+    END
 
   UNION ALL
-  SELECT 'noRecipesVariants', COUNT(*)
+  SELECT 'noRecipesVariants'::TEXT, COUNT(*)
     FROM recipes
    WHERE created_by = p_user_id AND recipe_type = 'variant'
 
   UNION ALL
-  SELECT 'noComments',       COUNT(*)
+  SELECT 'noComments'::TEXT,       COUNT(*)
     FROM recipe_comments
    WHERE created_by = p_user_id
 
   UNION ALL
-  SELECT 'noRatings',        COUNT(*)
+  SELECT 'noRatings'::TEXT,        COUNT(*)
     FROM recipe_ratings
    WHERE user_id = p_user_id
 
   UNION ALL
-  SELECT 'noEvents',         COUNT(DISTINCT event_id)
+  SELECT 'noEvents'::TEXT,         COUNT(DISTINCT event_id)
     FROM event_cooks
    WHERE user_id = p_user_id
 
   UNION ALL
-  SELECT 'noDonations',      COUNT(*)
+  SELECT 'noDonations'::TEXT,      COUNT(*)
     FROM donations
    WHERE donor_uid = p_user_id AND status IN ('confirmed', 'migrated')
 
   UNION ALL
-  SELECT 'noFoundBugs',      COALESCE(no_found_bugs, 0)::BIGINT
+  SELECT 'noFoundBugs'::TEXT,      COALESCE(no_found_bugs, 0)::BIGINT
     FROM users
-   WHERE id = p_user_id
+   WHERE id = p_user_id;
+END;
 $$;
 
 CREATE FUNCTION public.get_platform_stats() RETURNS TABLE(field text, value numeric)
@@ -423,6 +494,15 @@ CREATE FUNCTION public.delete_recipe(p_recipe_id text) RETURNS void
     SET search_path TO 'public'
 AS $$
 BEGIN
+  -- Nur der Ersteller oder ein Community Leader darf ein Rezept löschen.
+  IF NOT EXISTS (
+    SELECT 1 FROM public.recipes
+    WHERE id = p_recipe_id
+      AND (created_by = (SELECT auth.uid()) OR public.is_community_leader())
+  ) THEN
+    RAISE EXCEPTION 'Nicht autorisiert: Rezept kann nur vom Ersteller oder Community Leader gelöscht werden.';
+  END IF;
+
   UPDATE event_menue_recipes
   SET deleted_recipe_name = (SELECT name FROM recipes WHERE id = p_recipe_id),
       recipe_id = NULL
@@ -467,6 +547,11 @@ DECLARE
   affected_menue_products       INTEGER := 0;
   affected_unit_conversions     INTEGER := 0;
 BEGIN
+  -- Nur Admins dürfen Produkte zusammenführen
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nur Administratoren dürfen Produkte zusammenführen.';
+  END IF;
+
   IF source_product_id IS NULL OR target_product_id IS NULL THEN
     RAISE EXCEPTION 'source_product_id und target_product_id dürfen nicht NULL sein';
   END IF;
@@ -521,6 +606,11 @@ DECLARE
   affected_menue_materials        INTEGER := 0;
   affected_shopping_list_items    INTEGER := 0;
 BEGIN
+  -- Nur Admins dürfen Materialien zusammenführen
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nur Administratoren dürfen Materialien zusammenführen.';
+  END IF;
+
   IF source_material_id IS NULL OR target_material_id IS NULL THEN
     RAISE EXCEPTION 'source_material_id und target_material_id dürfen nicht NULL sein';
   END IF;
@@ -576,6 +666,11 @@ DECLARE
   affected_shopping_list_items  INTEGER := 0;
   affected_menue_items          INTEGER := 0;
 BEGIN
+  -- Nur Admins dürfen Produkte in Materialien konvertieren
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nur Administratoren dürfen Produkte in Materialien konvertieren.';
+  END IF;
+
   SELECT id, name INTO product_record
     FROM public.products
     WHERE id = product_id_param;
@@ -647,6 +742,11 @@ DECLARE
   affected_menue_items         INTEGER := 0;
   affected_shopping_list_items INTEGER := 0;
 BEGIN
+  -- Nur Admins dürfen Materialien in Produkte konvertieren
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nur Administratoren dürfen Materialien in Produkte konvertieren.';
+  END IF;
+
   SELECT id, name INTO material_record
     FROM public.materials
     WHERE id = material_id_param;
@@ -974,38 +1074,54 @@ $$;
 -- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE FUNCTION public.check_auth_users_sync() RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
 AS $$
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'user_id', u.id,
-    'auth_uid', u.auth_uid,
-    'display_name', u.display_name,
-    'issue', 'public.users hat keinen auth.users-Eintrag'
-  )), '[]'::JSONB)
-  FROM public.users u
-  WHERE u.auth_uid IS NOT NULL
-    AND NOT EXISTS (SELECT 1 FROM auth.users au WHERE au.id = u.auth_uid);
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nur Administratoren dürfen diese Funktion ausführen.';
+  END IF;
+
+  RETURN (
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'user_id', u.id,
+      'auth_uid', u.auth_uid,
+      'display_name', u.display_name,
+      'issue', 'public.users hat keinen auth.users-Eintrag'
+    )), '[]'::JSONB)
+    FROM public.users u
+    WHERE u.auth_uid IS NOT NULL
+      AND NOT EXISTS (SELECT 1 FROM auth.users au WHERE au.id = u.auth_uid)
+  );
+END;
 $$;
 
 CREATE FUNCTION public.check_duplicate_emails() RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
 AS $$
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'email', lower(u.email),
-    'count', sub.cnt,
-    'user_ids', sub.ids
-  )), '[]'::JSONB)
-  FROM (
-    SELECT lower(email) AS email_lower, COUNT(*) AS cnt, array_agg(id) AS ids
-    FROM public.users
-    WHERE email IS NOT NULL AND email != ''
-    GROUP BY lower(email)
-    HAVING COUNT(*) > 1
-  ) sub
-  JOIN public.users u ON lower(u.email) = sub.email_lower
-  GROUP BY lower(u.email), sub.cnt, sub.ids;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nur Administratoren dürfen diese Funktion ausführen.';
+  END IF;
+
+  RETURN (
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'email', lower(u.email),
+      'count', sub.cnt,
+      'user_ids', sub.ids
+    )), '[]'::JSONB)
+    FROM (
+      SELECT lower(email) AS email_lower, COUNT(*) AS cnt, array_agg(id) AS ids
+      FROM public.users
+      WHERE email IS NOT NULL AND email != ''
+      GROUP BY lower(email)
+      HAVING COUNT(*) > 1
+    ) sub
+    JOIN public.users u ON lower(u.email) = sub.email_lower
+    GROUP BY lower(u.email), sub.cnt, sub.ids
+  );
+END;
 $$;
 
 CREATE FUNCTION public.check_events_without_dates() RETURNS jsonb
@@ -1092,18 +1208,26 @@ AS $$
 $$;
 
 CREATE FUNCTION public.check_users_without_events() RETURNS jsonb
-    LANGUAGE sql SECURITY DEFINER
+    LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
 AS $$
-  SELECT COALESCE(jsonb_agg(jsonb_build_object(
-    'user_id', u.id,
-    'display_name', u.display_name,
-    'email', u.email
-  )), '[]'::JSONB)
-  FROM public.users u
-  WHERE NOT EXISTS (
-    SELECT 1 FROM public.event_cooks ec WHERE ec.user_id = u.id
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'Nur Administratoren dürfen diese Funktion ausführen.';
+  END IF;
+
+  RETURN (
+    SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      'user_id', u.id,
+      'display_name', u.display_name,
+      'email', u.email
+    )), '[]'::JSONB)
+    FROM public.users u
+    WHERE NOT EXISTS (
+      SELECT 1 FROM public.event_cooks ec WHERE ec.user_id = u.id
+    )
   );
+END;
 $$;
 
 CREATE FUNCTION public.cleanup_unused_products(product_ids text[]) RETURNS integer

@@ -101,6 +101,7 @@ export const DialogReportError = ({
           required
           error={formFields.isError}
           helperText={formFields.isError ? TEXT_THIS_FIELD_CANT_BE_EMPTY : ""}
+          slotProps={{htmlInput: {maxLength: 1000}}}
         />
       </DialogContent>
       <DialogActions>

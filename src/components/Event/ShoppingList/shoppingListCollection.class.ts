@@ -28,7 +28,7 @@ import {
 } from "../../Unit/unitConversion.class";
 import Department from "../../Department/department.class";
 import {Material} from "../../Material/material.types";
-import _ from "lodash";
+
 import {Utils} from "../../Shared/utils.class";
 
 
@@ -205,7 +205,7 @@ export class ShoppingListCollection {
     });
 
     // Collection aktualisieren
-    const updatedCollection = _.cloneDeep(shoppingListCollection);
+    const updatedCollection = structuredClone(shoppingListCollection);
     updatedCollection.noOfLists++;
 
     // UID wird nach dem Speichern durch das Repository gesetzt —
@@ -245,7 +245,7 @@ export class ShoppingListCollection {
       unitConversionBasic, unitConversionProducts, authUser,
     } = params;
 
-    const updatedCollection = _.cloneDeep(shoppingListCollection);
+    const updatedCollection = structuredClone(shoppingListCollection);
     const listEntry = updatedCollection.lists[shoppingList.uid];
 
     // Manuelle Items bewahren (falls gewünscht)
@@ -331,7 +331,7 @@ export class ShoppingListCollection {
     authUser,
   }: DeleteListParams): ShoppingListCollection {
     // Abwärtskompatibilität: beide Varianten akzeptieren
-    const collection = _.cloneDeep(
+    const collection = structuredClone(
       (shoppingListCollection ?? shoppingListColection)!,
     ) as ShoppingListCollection;
 
@@ -358,7 +358,7 @@ export class ShoppingListCollection {
     newName,
     authUser,
   }: EditListNameParams): ShoppingListCollection {
-    const updated = _.cloneDeep(shoppingListCollection) as ShoppingListCollection;
+    const updated = structuredClone(shoppingListCollection) as ShoppingListCollection;
 
     updated.lists[listUidToEdit].properties.name = newName;
     updated.lastChange = {

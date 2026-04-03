@@ -38,6 +38,10 @@ import {supabaseAdmin} from "./supabaseClient";
 // Ersetzt die DB-bezogenen Teile von firebase.class.ts.
 // Neue Repositories werden hier als Properties ergänzt,
 // sobald sie implementiert sind (z.B. EventRepository).
+//
+// TODO(post-migration): Nach Abschluss der Firebase→Supabase-Migration
+// die `admin`-Property (samt aller Repository-Instanzen mit supabaseAdmin)
+// entfernen. Siehe TODO in supabaseClient.ts für den vollständigen Plan.
 // ===================================================================== */
 
 /**

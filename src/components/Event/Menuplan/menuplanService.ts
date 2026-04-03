@@ -12,7 +12,8 @@ import {Event} from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {RecipeType} from "../../Recipe/recipe.class";
 import {RecipeShort} from "../../Recipe/recipe.types";
-import {EventGroupConfiguration,
+import {
+  EventGroupConfiguration,
   Intolerance,
   Diet,
 } from "../GroupConfiguration/groupConfiguration.class";
@@ -40,7 +41,6 @@ import {
   ConsistencyReport,
   FixMenuplanResult,
 } from "./menuplan.types";
-
 
 interface CreateMealTypeParams {
   newMealName: MealType["name"];
@@ -154,7 +154,6 @@ interface SortSelectedMenuesParams {
   menuplan: MenuplanData;
 }
 
-
 /**
  * Erstellt einen leeren Menüplan mit der korrekten Grundstruktur.
  *
@@ -228,7 +227,6 @@ export function createMenuplan(event: Event, authUser: AuthUser): MenuplanData {
 
   return menuplan;
 }
-
 
 /**
  * Erstellt einen neuen Mahlzeitentyp mit generierter UID.
@@ -347,7 +345,6 @@ export function deleteMealType({
   };
 }
 
-
 /**
  * Erstellt eine leere Notiz mit generierter UID.
  *
@@ -400,7 +397,6 @@ export function createMenu(): Menue {
     materialOrder: [],
   };
 }
-
 
 /**
  * Findet die Mahlzeit, zu der ein bestimmtes Menü gehört.
@@ -519,7 +515,6 @@ export function getMenuesOfMeals({
   return menuesOfMeals;
 }
 
-
 /**
  * Erstellt ein neues MealRecipe (eingeplantes Rezept) mit Portionsplan.
  *
@@ -635,7 +630,6 @@ export function createProduct(): MenuplanProduct {
   };
 }
 
-
 /**
  * Berechnet eine einzelne Portion anhand der GroupConfig neu.
  * Interne Hilfsfunktion.
@@ -693,8 +687,7 @@ function recalculateSinglePortion({
     portionPlan.diet != PlanedDiet.ALL &&
     portionPlan.intolerance == PlanedIntolerances.ALL
   ) {
-    planedPortions =
-      groupConfig.diets.entries[portionPlan.diet].totalPortions;
+    planedPortions = groupConfig.diets.entries[portionPlan.diet].totalPortions;
   } else {
     planedPortions =
       groupConfig.portions[portionPlan.diet][portionPlan.intolerance];
@@ -810,7 +803,6 @@ export function recalculatePortions({
   return menuplan;
 }
 
-
 /**
  * Sortiert übergebene Menüs in die Reihenfolge, in der sie im Menüplan eingeplant sind.
  *
@@ -904,9 +896,7 @@ export function adjustMenuplanWithNewDays({
     [],
   );
 
-  const mealRecipeUidsToDelete = menueUidsToDelete.reduce<
-    MealRecipe["uid"][]
-  >(
+  const mealRecipeUidsToDelete = menueUidsToDelete.reduce<MealRecipe["uid"][]>(
     (accumulator, menuUid) =>
       accumulator.concat(menuplan.menues[menuUid].mealRecipeOrder),
     [],
@@ -962,7 +952,6 @@ export function adjustMenuplanWithNewDays({
   });
   return updatedMenuplan;
 }
-
 
 /**
  * Entfernt aus einem Order-Array alle Einträge, deren Key nicht in objectKeys enthalten ist.
@@ -1022,7 +1011,11 @@ export function fixMenuplan(menuplan: MenuplanData): FixMenuplanResult {
 
   // Materials
   if (fixedMaterials.removed.length > 0) {
-    Sentry.addBreadcrumb({category: "menuplan.fix", message: "Removed materials", data: {removed: fixedMaterials.removed}});
+    Sentry.addBreadcrumb({
+      category: "menuplan.fix",
+      message: "Removed materials",
+      data: {removed: fixedMaterials.removed},
+    });
     didFix = true;
     report.materials = fixedMaterials.removed;
     Object.values(fixedMenuplan.menues).forEach((menue) => {
@@ -1043,7 +1036,11 @@ export function fixMenuplan(menuplan: MenuplanData): FixMenuplanResult {
   });
 
   if (fixedProducts.removed.length > 0) {
-    Sentry.addBreadcrumb({category: "menuplan.fix", message: "Removed products", data: {removed: fixedProducts.removed}});
+    Sentry.addBreadcrumb({
+      category: "menuplan.fix",
+      message: "Removed products",
+      data: {removed: fixedProducts.removed},
+    });
     didFix = true;
     report.products = fixedProducts.removed;
     Object.values(fixedMenuplan.menues).forEach((menue) => {
@@ -1064,7 +1061,11 @@ export function fixMenuplan(menuplan: MenuplanData): FixMenuplanResult {
   });
 
   if (fixedMealRecipes.removed.length > 0) {
-    Sentry.addBreadcrumb({category: "menuplan.fix", message: "Removed mealRecipes", data: {removed: fixedMealRecipes.removed}});
+    Sentry.addBreadcrumb({
+      category: "menuplan.fix",
+      message: "Removed mealRecipes",
+      data: {removed: fixedMealRecipes.removed},
+    });
     didFix = true;
     report.mealRecipes = fixedMealRecipes.removed;
     Object.values(fixedMenuplan.menues).forEach((menue) => {

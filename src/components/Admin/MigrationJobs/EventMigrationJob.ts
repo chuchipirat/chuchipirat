@@ -240,7 +240,7 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
       const authUid = this.userAuthUidByFirebaseUid.get(cook.uid);
       if (!authUid) {
         // Koch-Benutzer nicht in Postgres gefunden — überspringen
-        console.warn(`EventMigrationJob: Cook ${cook.uid} nicht in users gefunden, wird übersprungen.`);
+        if (import.meta.env.DEV) console.warn(`EventMigrationJob: Cook ${cook.uid} nicht in users gefunden, wird übersprungen.`);
         continue;
       }
 

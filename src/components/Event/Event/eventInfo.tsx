@@ -93,6 +93,7 @@ import {Receipt} from "./receipt.class";
 import {EventReceiptPdf} from "./eventRecipePdf";
 import {EventDate} from "./event.class";
 import {DatePicker} from "@mui/x-date-pickers";
+import dayjs, {Dayjs} from "dayjs";
 import {resizeImage} from "../../Shared/imageResize";
 
 
@@ -239,7 +240,7 @@ const EventInfoPage = ({
     } as Event);
   };
   const onDatePickerUpdate = (
-    date: Date | null,
+    date: Dayjs | null,
     dateUid: string,
     fieldName: "from" | "to",
   ) => {
@@ -256,7 +257,7 @@ const EventInfoPage = ({
     if (!date) {
       eventDate[fieldName] = new Date(0);
     } else {
-      const normalizedDate = normalizeDateHours(date, fieldName);
+      const normalizedDate = normalizeDateHours(date.toDate(), fieldName);
       eventDate[fieldName] = normalizedDate;
 
       if (fieldName === "from") {
@@ -486,6 +487,7 @@ const EventInfoPage = ({
       <DialogAddUser
         database={database}
         authUser={authUser}
+        eventId={event.uid || undefined}
         dialogOpen={dialogAddUserOpen}
         handleAddUser={onAddCookToEvent}
         handleClose={onCloseAddCookDialog}
@@ -503,7 +505,7 @@ interface EventBasicInfoCardProps {
   onFieldUpdate: (event: React.ChangeEvent<HTMLInputElement>) => void;
   /** Callback bei Änderung eines Datums. */
   onDatePickerUpdate: (
-    date: Date | null,
+    date: Dayjs | null,
     dateUid: string,
     fieldName: "from" | "to",
   ) => void;
@@ -610,6 +612,7 @@ const EventBasicInfoCard = ({
                   )}
                   fullWidth
                   required
+                  slotProps={{htmlInput: {maxLength: 200}}}
                 />
               </Grid>
               <Grid size={12}>
@@ -622,6 +625,7 @@ const EventBasicInfoCard = ({
                   value={event.motto}
                   onChange={onFieldUpdate}
                   fullWidth
+                  slotProps={{htmlInput: {maxLength: 500}}}
                 />
               </Grid>
               <Grid size={12}>
@@ -634,6 +638,7 @@ const EventBasicInfoCard = ({
                   value={event.location}
                   onChange={onFieldUpdate}
                   fullWidth
+                  slotProps={{htmlInput: {maxLength: 200}}}
                 />
               </Grid>
               <Grid size={12}>
@@ -673,7 +678,7 @@ interface EventDatesSectionProps {
   formValidation: FormValidationFieldError[];
   /** Callback bei Änderung eines Datums. */
   onDatePickerUpdate: (
-    date: Date | null,
+    date: Dayjs | null,
     dateUid: string,
     fieldName: "from" | "to",
   ) => void;
@@ -705,9 +710,9 @@ const EventDatesSection = ({
             <DatePicker
               key={"dateFrom_" + eventDate.uid}
               label={TEXT_FROM}
-              format="dd.MM.yyyy"
+              format="DD.MM.YYYY"
               value={
-                eventDate.from?.getTime() === EPOCH_TIME ? null : eventDate.from
+                eventDate.from?.getTime() === EPOCH_TIME ? null : dayjs(eventDate.from)
               }
               onChange={(date) =>
                 onDatePickerUpdate(date, eventDate.uid, "from")
@@ -734,9 +739,9 @@ const EventDatesSection = ({
             <DatePicker
               key={"dateTo_" + eventDate.uid}
               label={TEXT_TO}
-              format="dd.MM.yyyy"
+              format="DD.MM.YYYY"
               value={
-                eventDate.to?.getTime() === EPOCH_TIME ? null : eventDate.to
+                eventDate.to?.getTime() === EPOCH_TIME ? null : dayjs(eventDate.to)
               }
               onChange={(date) => onDatePickerUpdate(date, eventDate.uid, "to")}
               slotProps={{

@@ -36,9 +36,7 @@ CREATE VIEW public.recipe_ingredients_with_names WITH (security_invoker='true') 
     ri.scaling_factor,
     ri.section_name,
     ri.created_at,
-    ri.created_by,
     ri.updated_at,
-    ri.updated_by,
     p.name AS product_name
    FROM (public.recipe_ingredients ri
      LEFT JOIN public.products p ON ((p.id = ri.product_id)));
@@ -53,9 +51,7 @@ CREATE VIEW public.recipe_materials_with_names WITH (security_invoker='true') AS
     rm.material_id,
     rm.quantity,
     rm.created_at,
-    rm.created_by,
     rm.updated_at,
-    rm.updated_by,
     m.name AS material_name
    FROM (public.recipe_materials rm
      LEFT JOIN public.materials m ON ((m.id = rm.material_id)));
@@ -78,9 +74,7 @@ CREATE VIEW public.event_shopping_list_items_view WITH (security_invoker='on') A
     i.edit_source,
     i.sort_order,
     i.created_at,
-    i.created_by,
     i.updated_at,
-    i.updated_by,
     COALESCE(p.name, m.name, i.free_text_name) AS item_name,
     COALESCE(i.department_id, p.department_id) AS resolved_department_id,
     d.name AS department_name,
@@ -104,9 +98,7 @@ CREATE VIEW public.event_material_list_items_view WITH (security_invoker='true')
     i.assigned_cook_id,
     i.assigned_cook_name,
     i.created_at,
-    i.created_by,
     i.updated_at,
-    i.updated_by,
     COALESCE(m.name, i.free_text_name) AS item_name,
     COALESCE(u.display_name, i.assigned_cook_name) AS resolved_cook_name,
     ec.user_id AS assigned_cook_user_id
@@ -131,9 +123,7 @@ CREATE VIEW public.requests_view WITH (security_invoker='true') AS
     r.change_log,
     r.resolve_date,
     r.created_at,
-    r.created_by,
     r.updated_at,
-    r.updated_by,
     ua.display_name AS author_display_name,
     ua.picture_src AS author_picture_src,
     uas.display_name AS assignee_display_name,
@@ -150,9 +140,8 @@ CREATE VIEW public.request_comments_view WITH (security_invoker='true') AS
     rc.request_id,
     rc.comment,
     rc.created_at,
-    rc.created_by,
+    rc.created_by AS user_uid,
     rc.updated_at,
-    rc.updated_by,
     u.display_name AS user_display_name,
     u.picture_src AS user_picture_src
    FROM (public.request_comments rc
@@ -172,9 +161,7 @@ CREATE VIEW public.feeds_view WITH (security_invoker='true') AS
     f.source_object_uid,
     f.source_object_data,
     f.created_at,
-    f.created_by,
     f.updated_at,
-    f.updated_by,
     u.display_name AS user_display_name,
     u.picture_src AS user_picture_src,
     COALESCE(r.name, e.name, p.name, m.name, u2.display_name, ''::text) AS source_object_name,
@@ -207,9 +194,7 @@ CREATE VIEW public.donations_view WITH (security_invoker='true') AS
     d.receipt_number,
     d.receipt_sent_at,
     d.created_at,
-    d.created_by,
     d.updated_at,
-    d.updated_by,
     u.display_name AS donor_display_name,
     u.email AS donor_email,
     e.name AS event_name

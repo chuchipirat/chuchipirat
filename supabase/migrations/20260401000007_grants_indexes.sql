@@ -74,6 +74,7 @@ GRANT ALL ON public.donations TO authenticated;
 GRANT ALL ON public.donation_goal_sections TO authenticated;
 GRANT ALL ON public.cron_job_log TO authenticated;
 GRANT ALL ON public.mail_log TO authenticated;
+GRANT ALL ON public.rpc_rate_limits TO authenticated;
 
 -- anon: selective SELECT only (3 tables/views)
 GRANT SELECT ON public.global_settings TO anon;
@@ -110,7 +111,7 @@ REVOKE ALL ON FUNCTION public.is_event_cook(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.event_has_cooks(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.increment_logins(uuid) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.increment_found_bugs(uuid, integer) FROM PUBLIC, anon;
-REVOKE ALL ON FUNCTION public.find_user_id_by_email(text) FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.find_user_id_by_email(text, text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.get_comment_author_profiles(uuid[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.get_event_cook_profiles(text) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.get_user_profile_stats(uuid) FROM PUBLIC, anon;
@@ -152,7 +153,7 @@ GRANT EXECUTE ON FUNCTION public.is_event_cook(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.event_has_cooks(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.increment_logins(uuid) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.increment_found_bugs(uuid, integer) TO authenticated;
-GRANT EXECUTE ON FUNCTION public.find_user_id_by_email(text) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.find_user_id_by_email(text, text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_comment_author_profiles(uuid[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_event_cook_profiles(text) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_user_profile_stats(uuid) TO authenticated;
@@ -310,6 +311,10 @@ CREATE INDEX idx_cron_job_log_job_name ON public.cron_job_log USING btree (job_n
 CREATE INDEX idx_cron_job_log_status ON public.cron_job_log USING btree (status);
 CREATE INDEX idx_mail_log_sent_at ON public.mail_log USING btree (sent_at DESC);
 CREATE INDEX idx_mail_log_delivery_status ON public.mail_log USING btree (delivery_status);
+
+-- Rate-Limiting
+CREATE INDEX idx_rpc_rate_limits_lookup
+    ON public.rpc_rate_limits (user_id, function_name, called_at);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 7. Storage – Media Bucket & Policies

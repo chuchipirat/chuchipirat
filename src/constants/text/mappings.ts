@@ -201,8 +201,8 @@ export const FIREBASE_MESSAGES = {
   EMAIL_ALREADY_IN_USE:
     "Es besteht bereits ein Account mit dieser Adresse. Setze das Passwort zurück, falls du dich nicht mehr daran erinnerst.",
   USER_DISABLED: "User ist deaktiviert. Melde dich unter hallo@chuchipirat.ch",
-  USER_NOT_FOUND: "User existiert nicht.",
-  WRONG_PASSWORD: "Passwort falsch.",
+  USER_NOT_FOUND: "Ungültige Anmeldedaten.",
+  WRONG_PASSWORD: "Ungültige Anmeldedaten.",
   ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL:
     "Es existiert bereits ein Konto mit der gleichen E-Mail-Adresse. Versuche dich anzumelden und verknüpfe die Social-Media-Accounts in deinem Profil miteinander.",
   PERMISSION_DENIED: "Dir fehlt die nötige Berechtigung, für diese Aktion.",

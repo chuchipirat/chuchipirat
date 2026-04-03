@@ -35,9 +35,7 @@ import {AuthUser} from "../../Firebase/Authentication/authUser.class";
  * @param section_name - Abschnittsname (leer bei pos_type='ingredient')
  * @param product_name - Aufgelöster Produktname (nur von View, null bei Abschnitten)
  * @param created_at - Erstellungszeitpunkt
- * @param created_by - UID des Erstellers
  * @param updated_at - Zeitpunkt der letzten Änderung
- * @param updated_by - UID des letzten Bearbeiters
  */
 export interface RecipeIngredientRow {
   [key: string]: unknown;
@@ -54,9 +52,7 @@ export interface RecipeIngredientRow {
   section_name: string;
   product_name: string | null;
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
 }
 
 /* =====================================================================

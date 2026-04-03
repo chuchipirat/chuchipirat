@@ -8,13 +8,9 @@
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
-/** Mock: CSS-Import von react-quill-new (Jest kann kein CSS verarbeiten) */
-jest.mock("react-quill-new/dist/quill.snow.css", () => ({}));
-
-/** Mock: ReactQuill — vereinfacht als leeres div (wird via systemMessage.tsx gezogen) */
-jest.mock("react-quill-new", () => ({
-  __esModule: true,
-  default: () => <div data-testid="mock-quill" />,
+/** Mock: RichTextEditor — vereinfacht als leeres div (wird via systemMessage.tsx gezogen) */
+jest.mock("../../Shared/RichTextEditor", () => ({
+  RichTextEditor: () => <div data-testid="mock-rich-text-editor" />,
 }));
 
 import React from "react";

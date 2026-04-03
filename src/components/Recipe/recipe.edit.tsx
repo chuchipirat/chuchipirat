@@ -1867,6 +1867,7 @@ const RecipeHeader = ({
             onBlur={onBlur}
             autoFocus
             sx={{marginBottom: "1ex"}}
+            slotProps={{htmlInput: {maxLength: 200}}}
           />
           {!recipe.uid && possibleDuplicateRecipes.length > 0 && (
             <Alert severity="warning" sx={{marginBottom: "1ex"}}>
@@ -2052,6 +2053,7 @@ const RecipeInfoPanel = ({
             editMode={true}
             helperText={TEXT.HELPTER_TEXT_RECIPE_SOURCE}
             onChange={onChange}
+            maxLength={500}
           />
           {/* Zubereitungszeit */}
           <FormListItem
@@ -2150,6 +2152,7 @@ const RecipeInfoPanel = ({
             editMode={true}
             onChange={onChange}
             multiLine={true}
+            maxLength={2000}
           />
           {/* Tags */}
           <FormListItem

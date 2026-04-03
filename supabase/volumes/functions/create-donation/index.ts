@@ -18,6 +18,7 @@ import {
   errorResponse,
   successResponse,
 } from "../_shared/emailService.ts";
+import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /* =====================================================================
 // Typen
@@ -336,6 +337,7 @@ serve(async (req: Request) => {
     });
   } catch (err) {
     console.error("create-donation error:", err);
+    await sentryCaptureError(err, "create-donation");
     return errorResponse("create-donation", String(err), 500);
   }
 });

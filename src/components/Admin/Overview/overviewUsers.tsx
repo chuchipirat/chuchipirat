@@ -107,7 +107,6 @@ import {
 
 import {DataGrid, GridColDef, GridSortModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
-import isEqual from "lodash/isEqual";
 
 import * as Sentry from "@sentry/react";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
@@ -560,7 +559,7 @@ const UsersTable = ({dbUsers, onUserSelect}: UsersTableProps) => {
                 getRowId={(row) => row.uid ?? row.email}
                 localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
                 onSortModelChange={(model) => {
-                  if (!isEqual(model, sortModel)) setSortModel(model);
+                  if (JSON.stringify(model) !== JSON.stringify(sortModel)) setSortModel(model);
                 }}
               />
             </Box>

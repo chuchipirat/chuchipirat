@@ -29,9 +29,7 @@ import {AuthUser} from "../../Firebase/Authentication/authUser.class";
  * @param quantity - Menge des Materials
  * @param material_name - Aufgelöster Materialname (nur von View, nullable)
  * @param created_at - Erstellungszeitpunkt
- * @param created_by - UID des Erstellers
  * @param updated_at - Zeitpunkt der letzten Änderung
- * @param updated_by - UID des letzten Bearbeiters
  */
 export interface RecipeMaterialRow {
   [key: string]: unknown;
@@ -43,9 +41,7 @@ export interface RecipeMaterialRow {
   quantity: number;
   material_name: string | null;
   created_at: string;
-  created_by: string | null;
   updated_at: string;
-  updated_by: string | null;
 }
 
 /* =====================================================================

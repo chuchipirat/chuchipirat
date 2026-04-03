@@ -27,7 +27,7 @@ import {
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
 import {Material, MaterialType} from "../../Material/material.types";
-import _ from "lodash";
+
 import {Utils} from "../../Shared/utils.class";
 
 
@@ -575,7 +575,7 @@ export class ShoppingList {
     trace: ShoppingListTrace,
     itemUid: Product["uid"] | Material["uid"],
   ): ShoppingListTrace => {
-    const updatedTrace = _.cloneDeep(trace);
+    const updatedTrace = structuredClone(trace);
     delete updatedTrace[itemUid];
     return updatedTrace;
   };
@@ -591,7 +591,7 @@ export class ShoppingList {
     unit,
     itemUid,
   }: DeleteItemParams) => {
-    const updatedShoppingList = _.cloneDeep(shoppingListReference) as ShoppingList;
+    const updatedShoppingList = structuredClone(shoppingListReference) as ShoppingList;
 
     updatedShoppingList.list[departmentKey].items =
       updatedShoppingList.list[departmentKey].items.filter(
@@ -748,7 +748,7 @@ export class ShoppingList {
     keepManuallyAdded: boolean,
     keepManuallyEdited: boolean,
   ): ShoppingList["list"] {
-    const preserved = _.cloneDeep(list);
+    const preserved = structuredClone(list);
 
     Object.entries(preserved).forEach(([departmentPos, department]) => {
       department.items = department.items.filter(

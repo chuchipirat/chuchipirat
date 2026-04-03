@@ -23,7 +23,6 @@ import {
 } from "@mui/icons-material";
 import {DataGrid, GridColDef, GridSortModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
-import isEqual from "lodash/isEqual";
 
 import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
@@ -358,7 +357,7 @@ const SystemMessageOverviewPage = () => {
                     }
                     sortModel={sortModel}
                     onSortModelChange={(model) => {
-                      if (!isEqual(model, sortModel)) {
+                      if (JSON.stringify(model) !== JSON.stringify(sortModel)) {
                         setSortModel(model);
                       }
                     }}

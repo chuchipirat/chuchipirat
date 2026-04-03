@@ -184,7 +184,7 @@ export const getMatchingHelpPage = ({
       page = "users";
       break;
     case ROUTES.DONATE:
-      subdirectory = "others";
+      subdirectory = "event";
       page = "donations";
       break;
     default:

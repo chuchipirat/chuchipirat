@@ -41,6 +41,24 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
   /** View-Name für Leseoperationen (JOINt Spender- und Event-Daten). */
   private readonly viewName = "donations_view";
 
+  /**
+   * Alle View-Spalten ohne `donor_email` — PII-Schutz für Nicht-Admin-Abfragen.
+   * Nur `getAllDonations()` (Admin-only) verwendet `.select("*")` mit donor_email.
+   */
+  private static readonly PUBLIC_VIEW_COLUMNS = [
+    "id", "event_id", "payrexx_gateway_id", "payrexx_reference_id",
+    "payrexx_transaction_id", "amount_in_cents", "currency", "status",
+    "payment_method", "paid_at", "donor_uid", "donor_message",
+    "receipt_number", "receipt_sent_at", "created_at",
+    "updated_at", "donor_display_name", "event_name",
+  ].join(", ");
+
+  /**
+   * Alle View-Spalten inklusive `donor_email` — nur für Admin-Abfragen.
+   */
+  private static readonly ALL_VIEW_COLUMNS =
+    DonationRepository.PUBLIC_VIEW_COLUMNS + ", donor_email";
+
   constructor(client?: SupabaseClient) {
     super(client);
   }
@@ -100,7 +118,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
       receiptSentAt: row.receipt_sent_at ? new Date(row.receipt_sent_at) : null,
       createdAt: row.created_at ? new Date(row.created_at) : new Date(0),
       donorDisplayName: row.donor_display_name ?? "",
-      donorEmail: row.donor_email ?? "",
+      donorEmail: row.donor_email ?? undefined,
       eventName: row.event_name ?? "",
     };
   }
@@ -130,7 +148,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
     try {
       const {data, error} = await this.client
         .from(this.viewName)
-        .select("*")
+        .select(DonationRepository.PUBLIC_VIEW_COLUMNS)
         .eq("donor_uid", authUser.uid)
         .order("created_at", {ascending: false});
 
@@ -152,7 +170,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
     try {
       const {data, error} = await this.client
         .from(this.viewName)
-        .select("*")
+        .select(DonationRepository.PUBLIC_VIEW_COLUMNS)
         .eq("event_id", eventId)
         .eq("status", DonationStatus.confirmed)
         .order("paid_at", {ascending: false});
@@ -174,7 +192,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
     try {
       const {data, error} = await this.client
         .from(this.viewName)
-        .select("*")
+        .select(DonationRepository.ALL_VIEW_COLUMNS)
         .order("created_at", {ascending: false});
 
       if (error) throw error;

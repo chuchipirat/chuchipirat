@@ -215,7 +215,7 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
         "find_user_id_by_email",
-        {lookup_email: "test@chuchipirat.ch"},
+        {lookup_email: "test@chuchipirat.ch", p_event_id: null},
       );
       expect(result).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
     });
@@ -230,7 +230,21 @@ describe("UserRepository", () => {
 
       expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
         "find_user_id_by_email",
-        {lookup_email: "test@chuchipirat.ch"},
+        {lookup_email: "test@chuchipirat.ch", p_event_id: null},
+      );
+    });
+
+    test("p_event_id wird an RPC übergeben wenn angegeben", async () => {
+      supabaseMock.client.rpc.mockResolvedValue({
+        data: "T02c6mxOWDstBdvwzjbs5Tfc2abc",
+        error: null,
+      });
+
+      await repo.findByEmail("test@chuchipirat.ch", "event-123");
+
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
+        "find_user_id_by_email",
+        {lookup_email: "test@chuchipirat.ch", p_event_id: "event-123"},
       );
     });
 

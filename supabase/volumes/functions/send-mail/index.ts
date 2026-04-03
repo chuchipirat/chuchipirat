@@ -17,8 +17,10 @@
  *     buttonLink?: string,
  *   }
  *
+ * Erfordert Authentifizierung: Nur Admins dürfen diese Funktion aufrufen.
+ *
  * Erfordert die Umgebungsvariablen:
- *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
  *   BREVO_API_KEY                          (Produktion)
  *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS (Fallback / lokal)
  */
@@ -34,6 +36,7 @@ import {
   escapeHtml,
 } from "../_shared/emailService.ts";
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
+import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /* =====================================================================
 // Typen
@@ -63,6 +66,40 @@ serve(async (req: Request) => {
   }
 
   try {
+    // ── Authentifizierung & Autorisierung ──
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return errorResponse("send-mail", "Missing Authorization header", 401);
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    // Benutzer aus JWT verifizieren
+    const userClient = createClient(supabaseUrl, anonKey, {
+      global: {headers: {Authorization: authHeader}},
+      auth: {persistSession: false, autoRefreshToken: false},
+    });
+    const {data: {user}, error: userError} = await userClient.auth.getUser();
+    if (userError || !user) {
+      return errorResponse("send-mail", "Unauthorized", 401);
+    }
+
+    // Admin-Rolle prüfen
+    const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+      auth: {persistSession: false, autoRefreshToken: false},
+    });
+    const {data: profile} = await supabaseAdmin
+      .from("users")
+      .select("roles")
+      .eq("id", user.id)
+      .single();
+
+    if (!profile?.roles?.includes("admin")) {
+      return errorResponse("send-mail", "Forbidden: admin role required", 403);
+    }
+
     // Payload parsen
     const payload: SendMailPayload = await req.json();
     const {
@@ -146,12 +183,6 @@ serve(async (req: Request) => {
       {body, titleBlock, subtitleBlock, buttonBlock},
     );
 
-    // Supabase-Client für DB-Zugriff (Service Role)
-    const supabaseAdmin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
-    );
-
     // UID-basierte Empfänger: E-Mail-Adressen aus auth.users laden
     let resolvedRecipients = recipients;
     if (recipientType === "uid") {
@@ -226,9 +257,11 @@ serve(async (req: Request) => {
     });
   } catch (error) {
     console.error("send-mail error:", error);
+    await sentryCaptureError(error, "send-mail");
     return errorResponse(
+      "send-mail",
       error instanceof Error ? error.message : String(error),
-      500
+      500,
     );
   }
 });

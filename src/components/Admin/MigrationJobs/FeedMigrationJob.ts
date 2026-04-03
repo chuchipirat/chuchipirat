@@ -159,7 +159,7 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
     }
     if (!userUid) {
       // Ohne gültigen User kann kein Feed-Eintrag erstellt werden (NOT NULL + FK)
-      console.warn(`Feed ${record.id}: user.uid konnte nicht aufgelöst werden, übersprungen.`);
+      if (import.meta.env.DEV) console.warn(`Feed ${record.id}: user.uid konnte nicht aufgelöst werden, übersprungen.`);
       return;
     }
 

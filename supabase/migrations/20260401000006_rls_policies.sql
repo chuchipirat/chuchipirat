@@ -23,12 +23,14 @@ CREATE POLICY "users_update" ON public.users FOR UPDATE TO authenticated
 -- Global Config
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- Bewusst ohne TO authenticated: Pre-Auth-UI benötigt Zugriff auf globale Einstellungen
 CREATE POLICY "global_settings_select" ON public.global_settings FOR SELECT
   USING (true);
 
-CREATE POLICY "global_settings_update" ON public.global_settings FOR UPDATE
+CREATE POLICY "global_settings_update" ON public.global_settings FOR UPDATE TO authenticated
   USING (is_admin());
 
+-- Bewusst ohne TO authenticated: Pre-Auth-UI benötigt Zugriff auf Systemmeldungen
 CREATE POLICY "system_messages_select" ON public.system_messages FOR SELECT
   USING (true);
 
@@ -47,20 +49,20 @@ CREATE POLICY "system_messages_delete" ON public.system_messages FOR DELETE TO a
 
 CREATE POLICY "departments_select" ON public.departments FOR SELECT TO authenticated
   USING (true);
-CREATE POLICY "departments_insert" ON public.departments FOR INSERT
+CREATE POLICY "departments_insert" ON public.departments FOR INSERT TO authenticated
   WITH CHECK (is_admin());
-CREATE POLICY "departments_update" ON public.departments FOR UPDATE
+CREATE POLICY "departments_update" ON public.departments FOR UPDATE TO authenticated
   USING (is_admin());
-CREATE POLICY "departments_delete" ON public.departments FOR DELETE
+CREATE POLICY "departments_delete" ON public.departments FOR DELETE TO authenticated
   USING (is_admin());
 
 CREATE POLICY "units_select" ON public.units FOR SELECT TO authenticated
   USING (true);
-CREATE POLICY "units_insert" ON public.units FOR INSERT
+CREATE POLICY "units_insert" ON public.units FOR INSERT TO authenticated
   WITH CHECK (is_admin());
-CREATE POLICY "units_update" ON public.units FOR UPDATE
+CREATE POLICY "units_update" ON public.units FOR UPDATE TO authenticated
   USING (is_admin());
-CREATE POLICY "units_delete" ON public.units FOR DELETE
+CREATE POLICY "units_delete" ON public.units FOR DELETE TO authenticated
   USING (is_admin());
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -71,36 +73,36 @@ CREATE POLICY "products_select" ON public.products FOR SELECT TO authenticated
   USING (true);
 CREATE POLICY "products_insert" ON public.products FOR INSERT TO authenticated
   WITH CHECK ((( SELECT auth.uid())) IS NOT NULL);
-CREATE POLICY "products_update" ON public.products FOR UPDATE
+CREATE POLICY "products_update" ON public.products FOR UPDATE TO authenticated
   USING (is_admin());
-CREATE POLICY "products_delete" ON public.products FOR DELETE
+CREATE POLICY "products_delete" ON public.products FOR DELETE TO authenticated
   USING (is_admin());
 
 CREATE POLICY "materials_select" ON public.materials FOR SELECT TO authenticated
   USING (true);
 CREATE POLICY "materials_insert" ON public.materials FOR INSERT TO authenticated
   WITH CHECK ((( SELECT auth.uid())) IS NOT NULL);
-CREATE POLICY "materials_update" ON public.materials FOR UPDATE
+CREATE POLICY "materials_update" ON public.materials FOR UPDATE TO authenticated
   USING (is_admin());
-CREATE POLICY "materials_delete" ON public.materials FOR DELETE
+CREATE POLICY "materials_delete" ON public.materials FOR DELETE TO authenticated
   USING (is_admin());
 
 CREATE POLICY "unit_conversion_basic_select" ON public.unit_conversion_basic FOR SELECT TO authenticated
   USING (true);
-CREATE POLICY "unit_conversion_basic_insert" ON public.unit_conversion_basic FOR INSERT
+CREATE POLICY "unit_conversion_basic_insert" ON public.unit_conversion_basic FOR INSERT TO authenticated
   WITH CHECK (is_admin());
-CREATE POLICY "unit_conversion_basic_update" ON public.unit_conversion_basic FOR UPDATE
+CREATE POLICY "unit_conversion_basic_update" ON public.unit_conversion_basic FOR UPDATE TO authenticated
   USING (is_admin());
-CREATE POLICY "unit_conversion_basic_delete" ON public.unit_conversion_basic FOR DELETE
+CREATE POLICY "unit_conversion_basic_delete" ON public.unit_conversion_basic FOR DELETE TO authenticated
   USING (is_admin());
 
 CREATE POLICY "unit_conversion_products_select" ON public.unit_conversion_products FOR SELECT TO authenticated
   USING (true);
-CREATE POLICY "unit_conversion_products_insert" ON public.unit_conversion_products FOR INSERT
+CREATE POLICY "unit_conversion_products_insert" ON public.unit_conversion_products FOR INSERT TO authenticated
   WITH CHECK (is_admin());
-CREATE POLICY "unit_conversion_products_update" ON public.unit_conversion_products FOR UPDATE
+CREATE POLICY "unit_conversion_products_update" ON public.unit_conversion_products FOR UPDATE TO authenticated
   USING (is_admin());
-CREATE POLICY "unit_conversion_products_delete" ON public.unit_conversion_products FOR DELETE
+CREATE POLICY "unit_conversion_products_delete" ON public.unit_conversion_products FOR DELETE TO authenticated
   USING (is_admin());
 
 CREATE POLICY "product_synonyms_select" ON public.product_synonyms FOR SELECT TO authenticated
@@ -124,57 +126,62 @@ CREATE POLICY "product_duplicate_dismissals_delete" ON public.product_duplicate_
 -- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE POLICY "recipes_select" ON public.recipes FOR SELECT TO authenticated
-  USING (true);
+  USING (
+    recipe_type IN ('public', 'private')
+    OR created_by = (( SELECT auth.uid()))
+    OR (recipe_type = 'variant'::recipe_type AND is_event_cook(variant_event_uid))
+    OR is_community_leader()
+  );
 CREATE POLICY "recipes_insert" ON public.recipes FOR INSERT TO authenticated
   WITH CHECK ((( SELECT auth.uid())) IS NOT NULL);
-CREATE POLICY "recipes_update" ON public.recipes FOR UPDATE
+CREATE POLICY "recipes_update" ON public.recipes FOR UPDATE TO authenticated
   USING (created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe_type = 'variant'::recipe_type AND is_event_cook(variant_event_uid));
-CREATE POLICY "recipes_delete" ON public.recipes FOR DELETE
+CREATE POLICY "recipes_delete" ON public.recipes FOR DELETE TO authenticated
   USING (created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe_type = 'variant'::recipe_type AND is_event_cook(variant_event_uid));
 
 CREATE POLICY "recipe_ingredients_select" ON public.recipe_ingredients FOR SELECT TO authenticated
   USING (true);
-CREATE POLICY "recipe_ingredients_insert" ON public.recipe_ingredients FOR INSERT
+CREATE POLICY "recipe_ingredients_insert" ON public.recipe_ingredients FOR INSERT TO authenticated
   WITH CHECK ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_ingredients.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
-CREATE POLICY "recipe_ingredients_update" ON public.recipe_ingredients FOR UPDATE
+CREATE POLICY "recipe_ingredients_update" ON public.recipe_ingredients FOR UPDATE TO authenticated
   USING ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_ingredients.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
-CREATE POLICY "recipe_ingredients_delete" ON public.recipe_ingredients FOR DELETE
+CREATE POLICY "recipe_ingredients_delete" ON public.recipe_ingredients FOR DELETE TO authenticated
   USING ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_ingredients.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
 
 CREATE POLICY "recipe_preparation_steps_select" ON public.recipe_preparation_steps FOR SELECT TO authenticated
   USING (true);
-CREATE POLICY "recipe_preparation_steps_insert" ON public.recipe_preparation_steps FOR INSERT
+CREATE POLICY "recipe_preparation_steps_insert" ON public.recipe_preparation_steps FOR INSERT TO authenticated
   WITH CHECK ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_preparation_steps.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
-CREATE POLICY "recipe_preparation_steps_update" ON public.recipe_preparation_steps FOR UPDATE
+CREATE POLICY "recipe_preparation_steps_update" ON public.recipe_preparation_steps FOR UPDATE TO authenticated
   USING ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_preparation_steps.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
-CREATE POLICY "recipe_preparation_steps_delete" ON public.recipe_preparation_steps FOR DELETE
+CREATE POLICY "recipe_preparation_steps_delete" ON public.recipe_preparation_steps FOR DELETE TO authenticated
   USING ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_preparation_steps.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
 
 CREATE POLICY "recipe_materials_select" ON public.recipe_materials FOR SELECT TO authenticated
   USING (true);
-CREATE POLICY "recipe_materials_insert" ON public.recipe_materials FOR INSERT
+CREATE POLICY "recipe_materials_insert" ON public.recipe_materials FOR INSERT TO authenticated
   WITH CHECK ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_materials.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
-CREATE POLICY "recipe_materials_update" ON public.recipe_materials FOR UPDATE
+CREATE POLICY "recipe_materials_update" ON public.recipe_materials FOR UPDATE TO authenticated
   USING ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_materials.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
-CREATE POLICY "recipe_materials_delete" ON public.recipe_materials FOR DELETE
+CREATE POLICY "recipe_materials_delete" ON public.recipe_materials FOR DELETE TO authenticated
   USING ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_materials.recipe_id AND (recipe.created_by = (( SELECT auth.uid())) OR is_community_leader() OR recipe.recipe_type = 'variant'::recipe_type AND is_event_cook(recipe.variant_event_uid)))));
 
 CREATE POLICY "recipe_ratings_select" ON public.recipe_ratings FOR SELECT TO authenticated
   USING (user_id = (( SELECT auth.uid())) OR is_community_leader());
 CREATE POLICY "recipe_ratings_insert" ON public.recipe_ratings FOR INSERT TO authenticated
   WITH CHECK (user_id = (( SELECT auth.uid())) AND (EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_ratings.recipe_id AND recipe.recipe_type = 'public'::recipe_type)));
-CREATE POLICY "recipe_ratings_update" ON public.recipe_ratings FOR UPDATE
+CREATE POLICY "recipe_ratings_update" ON public.recipe_ratings FOR UPDATE TO authenticated
   USING (user_id = (( SELECT auth.uid())));
-CREATE POLICY "recipe_ratings_delete" ON public.recipe_ratings FOR DELETE
+CREATE POLICY "recipe_ratings_delete" ON public.recipe_ratings FOR DELETE TO authenticated
   USING (user_id = (( SELECT auth.uid())) OR is_community_leader());
 
 CREATE POLICY "recipe_comments_select" ON public.recipe_comments FOR SELECT TO authenticated
   USING (true);
 CREATE POLICY "recipe_comments_insert" ON public.recipe_comments FOR INSERT TO authenticated
   WITH CHECK ((EXISTS ( SELECT 1 FROM recipes recipe WHERE recipe.id = recipe_comments.recipe_id AND recipe.recipe_type = 'public'::recipe_type)));
-CREATE POLICY "recipe_comments_update" ON public.recipe_comments FOR UPDATE
+CREATE POLICY "recipe_comments_update" ON public.recipe_comments FOR UPDATE TO authenticated
   USING (created_by = (( SELECT auth.uid())) OR is_community_leader());
-CREATE POLICY "recipe_comments_delete" ON public.recipe_comments FOR DELETE
+CREATE POLICY "recipe_comments_delete" ON public.recipe_comments FOR DELETE TO authenticated
   USING (created_by = (( SELECT auth.uid())) OR is_community_leader());
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -318,13 +325,13 @@ CREATE POLICY "event_menuplan_tracking_update" ON public.event_menuplan_tracking
 -- Used Recipe Lists
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE POLICY "event_cooks_select" ON public.event_used_recipe_lists FOR SELECT
+CREATE POLICY "event_cooks_select" ON public.event_used_recipe_lists FOR SELECT TO authenticated
   USING (is_event_cook(event_id));
-CREATE POLICY "event_cooks_insert" ON public.event_used_recipe_lists FOR INSERT
+CREATE POLICY "event_cooks_insert" ON public.event_used_recipe_lists FOR INSERT TO authenticated
   WITH CHECK (is_event_cook(event_id));
-CREATE POLICY "event_cooks_update" ON public.event_used_recipe_lists FOR UPDATE
+CREATE POLICY "event_cooks_update" ON public.event_used_recipe_lists FOR UPDATE TO authenticated
   USING (is_event_cook(event_id));
-CREATE POLICY "event_cooks_delete" ON public.event_used_recipe_lists FOR DELETE
+CREATE POLICY "event_cooks_delete" ON public.event_used_recipe_lists FOR DELETE TO authenticated
   USING (is_event_cook(event_id));
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -396,7 +403,7 @@ CREATE POLICY "request_comments_update" ON public.request_comments FOR UPDATE TO
 CREATE POLICY "feeds_select" ON public.feeds FOR SELECT TO authenticated
   USING (true);
 CREATE POLICY "feeds_insert" ON public.feeds FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (user_uid = (SELECT auth.uid()));
 CREATE POLICY "feeds_delete" ON public.feeds FOR DELETE TO authenticated
   USING (is_community_leader());
 
@@ -409,7 +416,7 @@ CREATE POLICY "donations_select" ON public.donations FOR SELECT TO authenticated
 CREATE POLICY "donations_insert_own" ON public.donations FOR INSERT TO authenticated
   WITH CHECK (donor_uid = (( SELECT auth.uid())) AND status = 'pending'::donation_status);
 
-CREATE POLICY "goal_sections_select" ON public.donation_goal_sections FOR SELECT
+CREATE POLICY "goal_sections_select" ON public.donation_goal_sections FOR SELECT TO authenticated
   USING (true);
 CREATE POLICY "goal_sections_admin_insert" ON public.donation_goal_sections FOR INSERT TO authenticated
   WITH CHECK (is_admin());
@@ -423,9 +430,9 @@ CREATE POLICY "goal_sections_admin_delete" ON public.donation_goal_sections FOR 
 -- ─────────────────────────────────────────────────────────────────────────────
 
 CREATE POLICY "cron_job_log_select" ON public.cron_job_log FOR SELECT TO authenticated
-  USING (true);
+  USING (is_admin());
 
 CREATE POLICY "mail_log_select" ON public.mail_log FOR SELECT TO authenticated
-  USING (true);
+  USING (is_admin());
 CREATE POLICY "mail_log_insert" ON public.mail_log FOR INSERT TO authenticated
-  WITH CHECK (true);
+  WITH CHECK (is_admin());

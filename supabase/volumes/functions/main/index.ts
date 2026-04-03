@@ -44,7 +44,7 @@ serve(async (req: Request) => {
       }
     } catch (e) {
       console.error(e)
-      return new Response(JSON.stringify({ msg: e.toString() }), {
+      return new Response(JSON.stringify({ msg: 'Authentication error' }), {
         status: 401,
         headers: { 'Content-Type': 'application/json' },
       })
@@ -85,8 +85,8 @@ serve(async (req: Request) => {
     })
     return await worker.fetch(req)
   } catch (e) {
-    const error = { msg: e.toString() }
-    return new Response(JSON.stringify(error), {
+    console.error('main worker error:', e)
+    return new Response(JSON.stringify({ msg: 'Internal server error' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     })

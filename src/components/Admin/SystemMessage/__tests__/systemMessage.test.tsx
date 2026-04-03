@@ -15,9 +15,6 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation, Route, Routes} from "react-router";
 
-/** Mock: CSS-Import von react-quill-new (Jest kann kein CSS verarbeiten) */
-jest.mock("react-quill-new/dist/quill.snow.css", () => ({}));
-
 import SystemMessagePage, {AlertSystemMessage} from "../systemMessage";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 import {SystemMessageDomain} from "../../../Database/Repository/SystemMessageRepository";
@@ -44,10 +41,9 @@ jest.mock("../../../../constants/imageRepository", () => ({
   },
 }));
 
-/** Mock: ReactQuill — vereinfacht als Textarea */
-jest.mock("react-quill-new", () => ({
-  __esModule: true,
-  default: ({
+/** Mock: RichTextEditor — vereinfacht als Textarea */
+jest.mock("../../../Shared/RichTextEditor", () => ({
+  RichTextEditor: ({
     value,
     onChange,
   }: {
@@ -55,9 +51,9 @@ jest.mock("react-quill-new", () => ({
     onChange: (val: string) => void;
   }) => (
     <textarea
-      data-testid="quill-editor"
+      data-testid="rich-text-editor"
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onChange={(event) => onChange(event.target.value)}
     />
   ),
 }));
@@ -301,10 +297,10 @@ describe("SystemMessagePage", () => {
       expect(titleField).toHaveValue("Test-Titel");
     });
 
-    test("ReactQuill-Editor ist vorhanden", () => {
+    test("RichTextEditor ist vorhanden", () => {
       renderNewMode();
 
-      expect(screen.getByTestId("quill-editor")).toBeInTheDocument();
+      expect(screen.getByTestId("rich-text-editor")).toBeInTheDocument();
     });
 
     test("DatePicker ist vorhanden", () => {

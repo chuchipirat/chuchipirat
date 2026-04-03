@@ -332,13 +332,15 @@ export const AchievedRewardsList = React.memo(({
         label={TEXT_RECIPES_CREATED_PUBLIC}
         icon={<FastfoodIcon fontSize="small" />}
       />
-      <FormListItem
-        id={"noRecipesPrivate"}
-        key={"noRecipesPrivate"}
-        value={userProfile.stats.noRecipesPrivate.toLocaleString("de-CH")}
-        label={TEXT_RECIPES_CREATED_PRIVATE}
-        icon={<FastfoodIcon fontSize="small" />}
-      />
+      {userProfile.stats.noRecipesPrivate > 0 && (
+        <FormListItem
+          id={"noRecipesPrivate"}
+          key={"noRecipesPrivate"}
+          value={userProfile.stats.noRecipesPrivate.toLocaleString("de-CH")}
+          label={TEXT_RECIPES_CREATED_PRIVATE}
+          icon={<FastfoodIcon fontSize="small" />}
+        />
+      )}
       <FormListItem
         id={"noRecipesVariants"}
         key={"noRecipesVariants"}
