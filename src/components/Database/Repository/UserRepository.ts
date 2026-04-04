@@ -110,6 +110,12 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       picture_src: user.pictureSrc ?? "",
     };
 
+    // member_id nur setzen, wenn vorhanden (Migration).
+    // Andernfalls greift die IDENTITY-Sequenz.
+    if (user.memberId) {
+      row.member_id = user.memberId;
+    }
+
     // created_at nur setzen, wenn explizit angegeben (z.B. bei Migration).
     // Andernfalls greift der DB-Default (NOW()).
     if (user.createdAt) {

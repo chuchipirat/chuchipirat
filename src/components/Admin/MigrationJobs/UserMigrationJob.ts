@@ -4,6 +4,7 @@ import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {UserDomain} from "../../Database/Repository/UserRepository";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
 
 /* =====================================================================
 // Typ der zusammengeführten Firebase-Daten (User + Public Profile)
@@ -58,6 +59,9 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
   name = "Benutzer";
   description =
     "Migriert alle Benutzer (User + Public Profile) von Firebase nach Postgres.";
+
+  /** Cache: E-Mail → auth.users UUID (wird einmalig beim ersten migrateRecord geladen). */
+  private authUsersByEmail: Map<string, string> | null = null;
 
   /* =====================================================================
   // Alle User-Dokumente aus Firebase lesen
@@ -194,9 +198,34 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
   ): Promise<void> {
     const data = record.data;
 
-    // Supabase-UUID anhand der E-Mail ermitteln
-    const users = database.admin?.users ?? database.users;
-    const supabaseUserId = await users.findByEmail(data.email);
+    // Supabase-UUID direkt aus auth.users ermitteln (public.users existiert
+    // zu diesem Zeitpunkt noch nicht — findByEmail() würde fehlschlagen).
+    if (!supabaseAdmin) {
+      throw new Error(
+        "Admin-Client nicht verfügbar. VITE_SUPABASE_SERVICE_ROLE_KEY muss gesetzt sein."
+      );
+    }
+
+    // Auth-User-Liste einmalig laden und cachen
+    if (!this.authUsersByEmail) {
+      const {data: listData, error: listError} =
+        await supabaseAdmin.auth.admin.listUsers({perPage: 1000});
+
+      if (listError) throw listError;
+
+      this.authUsersByEmail = new Map();
+      for (const supabaseUser of listData.users) {
+        if (supabaseUser.email) {
+          this.authUsersByEmail.set(
+            supabaseUser.email.toLocaleLowerCase().trim(),
+            supabaseUser.id
+          );
+        }
+      }
+    }
+
+    const normalizedEmail = data.email.toLocaleLowerCase().trim();
+    const supabaseUserId = this.authUsersByEmail.get(normalizedEmail) ?? null;
 
     if (!supabaseUserId) {
       throw new Error(
@@ -222,6 +251,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
       legacyFirebaseUid: record.id,
     };
 
+    const users = database.admin?.users ?? database.users;
     await users.upsert({
       id: supabaseUserId,
       value: userDomain,

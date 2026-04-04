@@ -208,6 +208,7 @@ CREATE INDEX idx_products_department_id ON public.products USING btree (departme
 CREATE INDEX idx_products_shopping_unit ON public.products USING btree (shopping_unit);
 CREATE INDEX idx_products_name_trgm ON public.products USING gin (name extensions.gin_trgm_ops);
 CREATE INDEX idx_products_qa_checked ON public.products USING btree (qa_checked);
+CREATE INDEX idx_materials_qa_checked ON public.materials USING btree (qa_checked);
 
 -- Unit Conversions
 CREATE INDEX idx_unit_conv_basic_from ON public.unit_conversion_basic USING btree (from_unit);
@@ -371,3 +372,31 @@ CREATE POLICY "media_users_delete_own" ON storage.objects FOR DELETE
     AND (storage.foldername(name))[1] = 'users'
     AND storage.filename(name) = ((SELECT auth.uid())::text || '.jpg')
   );
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 8. Realtime – Tabellen zur supabase_realtime Publication hinzufügen
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Event-Tabellen
+ALTER PUBLICATION supabase_realtime ADD TABLE public.events;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_cooks;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_dates;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_groupconfiguration_diets;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_groupconfiguration_intolerances;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_groupconfiguration_portions;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_meal_types;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_meals;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_menues;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_menue_recipes;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_menue_products;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_menue_materials;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_notes;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_menuplan_item_plans;
+
+-- Einkaufslisten
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_shopping_lists;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_shopping_list_items;
+
+-- Materiallisten
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_material_lists;
+ALTER PUBLICATION supabase_realtime ADD TABLE public.event_material_list_items;

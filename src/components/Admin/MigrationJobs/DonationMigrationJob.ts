@@ -198,11 +198,11 @@ export class DonationMigrationJob
     if (receiptData.donorEmail) {
       const {data: userRow} = await supabaseAdmin
         .from("users")
-        .select("auth_uid")
-        .eq("email", receiptData.donorEmail)
+        .select("id")
+        .eq("email", receiptData.donorEmail.toLocaleLowerCase().trim())
         .maybeSingle();
 
-      donorUid = userRow?.auth_uid ?? null;
+      donorUid = userRow?.id ?? null;
     }
 
     // Falls kein Spender gefunden: Admin-User als Fallback

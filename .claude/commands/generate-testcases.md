@@ -43,14 +43,14 @@ Erstelle pro Business Object folgende Testfälle als separate Markdown-Files:
 - Mind. 1x auth-db (RLS-Policies, API-Calls mit/ohne JWT)
 
 Dateiformat: Markdown mit YAML-Properties gemäss Template.
-Ausgabepfad: /Users/giocettuzzi/Library/Mobile Documents/iCloud~md~obsidian/Documents/second-brain/🏴‍☠️ chuchipirat/Testing/Testfälle/[Bereich]/
+Ausgabepfad: /Users/giocettuzzi/Library/CloudStorage/Dropbox/Verein chuchipirat/chuchipirat-logbuch/Testing/Testfälle/[Bereich]/
 Nummerierung: Nächste freie [PRÄFIX]-NNN im jeweiligen Bereich.
 
 ## Template
 
 Verwende dieses Template exakt:
 
-````markdown
+```markdown
 ---
 tc_id: XX-000
 bereich: ""
@@ -66,14 +66,15 @@ status: aktiv
 
 ## Testschritte
 
-| # | Schritt | Erwartetes Ergebnis |
-|---|---------|---------------------|
-| 1 | | |
+| #   | Schritt | Erwartetes Ergebnis |
+| --- | ------- | ------------------- |
+| 1   |         |                     |
 
 ## Erwartetes Endergebnis
 
 ## Notizen / Risiken
 
 Verwandte Testfälle:
-* [[XX-000 Titel]]
-````
+
+- [[XX-000 Titel]]
+```
