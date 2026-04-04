@@ -31,7 +31,7 @@ const renderFooter = () =>
   render(
     <MemoryRouter>
       <Footer />
-    </MemoryRouter>
+    </MemoryRouter>,
   );
 
 describe("Footer Links funktionieren", () => {
@@ -48,7 +48,7 @@ describe("Footer Links funktionieren", () => {
     const link = screen.getByRole("link", {name: packageJson.version});
     expect(link).toHaveAttribute(
       "href",
-      "https://github.com/gcettuzz/chuchipirat"
+      "https://github.com/chuchipirat/chuchipirat",
     );
   });
 
@@ -58,7 +58,7 @@ describe("Footer Links funktionieren", () => {
     const link = screen.getByRole("link", {name: DEFAULT_VALUES_MAILADDRESS});
     expect(link).toHaveAttribute(
       "href",
-      `mailto:${DEFAULT_VALUES_MAILADDRESS}`
+      `mailto:${DEFAULT_VALUES_MAILADDRESS}`,
     );
   });
 

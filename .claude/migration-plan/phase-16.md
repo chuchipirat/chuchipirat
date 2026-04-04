@@ -2025,7 +2025,7 @@ context.
 Add an underline-on-hover style to the version link so it's obviously clickable:
 
  <Link
-   href="https://github.com/gcettuzz/chuchipirat"
+   href="https://github.com/chuchipirat/chuchipirat"
    target="_blank"
    rel="noopener noreferrer"
    sx={{ textDecoration: "none", "&:hover": { textDecoration: "underline" } }}

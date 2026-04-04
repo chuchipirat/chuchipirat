@@ -116,7 +116,7 @@ const FooterComponent = () => {
             >
               {TEXT_VERSION}{" "}
               <Link
-                href="https://github.com/gcettuzz/chuchipirat"
+                href="https://github.com/chuchipirat/chuchipirat"
                 target="_blank"
                 rel="noopener noreferrer"
                 sx={{
