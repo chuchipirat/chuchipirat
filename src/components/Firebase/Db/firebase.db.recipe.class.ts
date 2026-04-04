@@ -12,7 +12,7 @@ import {
   ERROR_WRONG_DB_CLASS,
   ERROR_NOT_IMPLEMENTED_YET,
 } from "../../../constants/text";
-import {Diet} from "../../Product/product.class";
+import {Diet} from "../../Product/product.types";
 import {
   Ingredient,
   PositionType,
@@ -118,7 +118,6 @@ export class FirebaseDbRecipe extends FirebaseDbSuper {
       },
       usedProducts: usedProducts,
       usedMaterials: usedMaterials,
-      isInReview: value.isInReview ? value.isInReview : false,
       created: value.created,
       lastChange: value.lastChange,
       variantProperties:
@@ -169,7 +168,6 @@ export class FirebaseDbRecipe extends FirebaseDbSuper {
         cooking: value.times.cooking,
       },
       usedProducts: value.usedProducts,
-      isInReview: value.isInReview ? value.isInReview : false,
       created: value.created,
       lastChange: value.lastChange,
       variantProperties: value.variantProperties

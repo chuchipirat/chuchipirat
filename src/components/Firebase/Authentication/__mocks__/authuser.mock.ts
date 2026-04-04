@@ -1,8 +1,8 @@
-import Role from "../../../../constants/roles";
+import {Role} from "../../../../constants/roles";
 import {AuthUser} from "../authUser.class";
 
 export const authUser: AuthUser = {
-  uid: "RvLIR9NDGOWPwos8PrSZVgfIZvj9",
+  uid: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   email: "test@chuchipirat.ch",
   emailVerified: true,
   firstName: "Test",
@@ -11,11 +11,7 @@ export const authUser: AuthUser = {
   publicProfile: {
     displayName: "Test User",
     motto: "🤪 ich teste mich dumm und dämlich...",
-    pictureSrc: {
-      smallSize: "https://jestjs.io/img/opengraph.png",
-      normalSize: "https://jestjs.io/img/opengraph.png",
-      fullSize: "https://jestjs.io/img/opengraph.png",
-    },
+    pictureSrc: "https://jestjs.io/img/opengraph.png",
   },
 };
 

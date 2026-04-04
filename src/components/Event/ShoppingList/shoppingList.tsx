@@ -1,6 +1,6 @@
 import React, {SyntheticEvent} from "react";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
   Stack,
@@ -56,12 +56,12 @@ import {
 } from "../../../constants/text";
 import {MoreVert as MoreVertIcon} from "@mui/icons-material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Menuplan from "../Menuplan/menuplan.class";
-import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
+import {MenuplanData} from "../Menuplan/menuplan.types";
+import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import {
   DialogType,
   SingleTextInputResult,
@@ -70,59 +70,56 @@ import {
 import {
   NavigationObject,
   NavigationValuesContext,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
-import AlertMessage from "../../Shared/AlertMessage";
-import ShoppingListCollection from "./shoppingListCollection.class";
-import ShoppingList, {ItemType, ShoppingListItem} from "./shoppingList.class";
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {ShoppingListCollection} from "./shoppingListCollection.class";
+import {ShoppingList,ItemType, ShoppingListItem} from "./shoppingList.class";
 
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
-import Product from "../../Product/product.class";
-import {
-  UnitConversionBasic,
-  UnitConversionProducts,
-} from "../../Unit/unitConversion.class";
+import {Event} from "../Event/event.class";
+import {UnitAutocomplete} from "../../Unit/unitAutocomplete";
+import {ItemAutocomplete,MaterialItem, ProductItem} from "./itemAutocomplete";
+import {Unit} from "../../Unit/unit.class";
+import {Product, createEmptyProduct} from "../../Product/product.types";
 import Department from "../../Department/department.class";
-import Event from "../Event/event.class";
-import UnitAutocomplete from "../../Unit/unitAutocomplete";
-import ItemAutocomplete, {MaterialItem, ProductItem} from "./itemAutocomplete";
-import Unit from "../../Unit/unit.class";
 import {Recipes} from "../../Recipe/recipe.class";
-import DialogMaterial, {
+import {DialogMaterial,
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
-import {FetchMissingDataProps} from "../Event/event";
-import DialogProduct, {
+import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
+import {
+  DialogProduct,
   PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   ProductDialog,
 } from "../../Product/dialogProduct";
-import {RecipeDrawer} from "../Menuplan/menuplan";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
-import ShoppingListPdf from "./shoppingListPdf";
+import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
+import {ShoppingListPdf} from "./shoppingListPdf";
 import {
   DialogTraceItem,
   EventListCard,
   PositionContextMenu,
   ListMode,
 } from "../Event/eventSharedComponents";
-import Material from "../../Material/material.class";
+import {Material} from "../../Material/material.types";
 import {TextFieldSize} from "../../../constants/defaultValues";
 import {DialogSelectDepartments} from "./dialogSelectDepartments";
 
+import {useEventMasterData} from "../Event/eventMasterDataContext";
+import {useFirebase} from "../../Firebase/firebaseContext";
+import {HighlightedShoppingListItemContext} from "./shoppingListHighlightContext";
+
 // Custom hooks
-import useRecipeDrawer from "./useRecipeDrawer";
-import useShoppingListDialogs, {
+import {useRecipeDrawer} from "./useRecipeDrawer";
+import {useShoppingListHandlers,
   DialogSelectDepartmentsCaller,
   OnDialogAddItemOk,
-} from "./useShoppingListDialogs";
-import useShoppingListOperations, {
   ItemChange,
-} from "./useShoppingListOperations";
+} from "./useShoppingListHandlers";
+// import * as Sentry from "@sentry/react";
 
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 enum ReducerActions {
   SHOW_LOADING,
   SET_SELECTED_LIST_ITEM,
@@ -134,7 +131,7 @@ interface State {
   selectedListItem: string | null;
   isLoading: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 }
 type DispatchAction =
   | {type: ReducerActions.SHOW_LOADING; payload: {isLoading: boolean}}
@@ -194,56 +191,54 @@ const shoppingListReducer = (state: State, action: DispatchAction): State => {
       };
     default: {
       const _exhaustiveCheck: never = action;
-      console.error("Unbekannter ActionType: ", _exhaustiveCheck);
-      throw new Error();
+      throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
     }
   }
 };
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 interface EventShoppingListPageProps {
-  firebase: Firebase;
   authUser: AuthUser;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   event: Event;
-  products: Product[];
   materials: Material[];
-  units: Unit[];
   recipes: Recipes;
-  departments: Department[];
-  unitConversionBasic: UnitConversionBasic | null;
-  unitConversionProducts: UnitConversionProducts | null;
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
+  saveInProgressRef: React.MutableRefObject<boolean>;
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (
     shoppingListCollection: ShoppingListCollection,
   ) => void;
+  /** Optionale Listen-ID für Deep-Link-Navigation (z.B. aus Verwendungsnachweis). */
+  initialListId?: string;
 }
 
 const EventShoppingListPage = ({
-  firebase,
   authUser,
   menuplan,
   event,
-  products,
+  saveInProgressRef,
   materials,
-  units,
   recipes,
-  departments,
-  unitConversionBasic,
-  unitConversionProducts,
   shoppingListCollection,
   shoppingList,
   fetchMissingData,
   onShoppingListUpdate,
   onShoppingCollectionUpdate,
+  initialListId,
 }: EventShoppingListPageProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
+  // Firebase wird nur noch für RecipeDrawer benötigt (TODO: nach Recipe-Migration entfernen)
+  const firebase = useFirebase();
+  const {
+    products,
+    units,
+    departments,
+    unitConversionBasic,
+    unitConversionProducts,
+  } = useEventMasterData();
 
   const navigationValuesContext = React.useContext(NavigationValuesContext);
 
@@ -303,20 +298,22 @@ const EventShoppingListPage = ({
     onDialogHandleItemOk,
     onDialogTraceItemClose,
     onGeneratePrintVersion,
-  } = useShoppingListDialogs({
-    firebase,
+    onCheckboxClick,
+    onChangeItem,
+  } = useShoppingListHandlers({
     authUser,
     event,
     menuplan,
     products,
     materials,
     departments,
-    units,
+    units: units ?? [],
     unitConversionBasic,
     unitConversionProducts,
     shoppingListCollection,
     shoppingList,
     selectedListItem: state.selectedListItem,
+    saveInProgressRef,
     fetchMissingData,
     onShoppingListUpdate,
     onShoppingCollectionUpdate,
@@ -326,20 +323,30 @@ const EventShoppingListPage = ({
     onDispatchSnackbar,
   });
 
-  const {onCheckboxClick, onChangeItem} = useShoppingListOperations({
-    shoppingList,
-    shoppingListCollection,
-    selectedListItem: state.selectedListItem,
-    departments,
-    onShoppingListUpdate,
-    onShoppingCollectionUpdate,
-    onSnackbarShow: onDispatchSnackbar,
-  });
+  /* ------------------------------------------
+  // Deep-Link: Einkaufsliste automatisch auswählen
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (
+      initialListId &&
+      !state.selectedListItem &&
+      shoppingListCollection.noOfLists > 0 &&
+      initialListId in shoppingListCollection.lists
+    ) {
+      fetchMissingData({
+        type: FetchMissingDataType.SHOPPING_LIST,
+        objectUid: initialListId,
+      });
+      onDispatchSetSelectedListItem(initialListId);
+    }
+  }, [initialListId, shoppingListCollection.noOfLists]);
 
   /* ------------------------------------------
   // Navigation-Handler
   // ------------------------------------------ */
   React.useEffect(() => {
+    // Sentry.logger.info("User triggered test log", {log_source: "sentry_test"});
+
     navigationValuesContext?.setNavigationValues({
       action: Action.NONE,
       object: NavigationObject.shoppingList,
@@ -353,7 +360,7 @@ const EventShoppingListPage = ({
     const pdfData = onGeneratePrintVersion();
     if (!pdfData) return;
 
-    pdf(
+    generateAndDownloadPdf(
       <ShoppingListPdf
         shoppingList={shoppingList!}
         shoppingListName={pdfData.shoppingListName}
@@ -361,14 +368,11 @@ const EventShoppingListPage = ({
         eventName={event.name}
         authUser={authUser}
       />,
-    )
-      .toBlob()
-      .then((result) => {
-        fileSaver.saveAs(
-          result,
-          event.name + " " + TEXT_SHOPPING_LIST + TEXT_SUFFIX_PDF,
-        );
-      });
+      event.name + " " + TEXT_SHOPPING_LIST + TEXT_SUFFIX_PDF,
+      (error) =>
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+      {eventUid: event.uid},
+    );
   }, [onGeneratePrintVersion, shoppingList, event.name, authUser]);
 
   /* ------------------------------------------
@@ -496,7 +500,7 @@ const EventShoppingListPage = ({
               shoppingList={shoppingList}
               products={products}
               materials={materials}
-              units={units}
+              units={units ?? []}
               shoppingListModus={shoppingListModus}
               onCheckboxClick={onCheckboxClick}
               onChangeItem={onChangeItem}
@@ -542,7 +546,7 @@ const EventShoppingListPage = ({
         quantity={handleItemDialogValues.quantity}
         products={products}
         materials={materials}
-        units={units}
+        units={units ?? []}
         departments={departments}
         editMode={handleItemDialogValues.item.uid ? true : false}
         firebase={firebase}
@@ -568,9 +572,9 @@ const EventShoppingListPage = ({
           itemType={TEXT_ITEM}
           dialogOpen={traceItemDialogValues.open}
           trace={
-            shoppingListCollection.lists[state.selectedListItem!].trace[
+            shoppingListCollection.lists[state.selectedListItem!]?.trace[
               contextMenuSelectedItem.productUid
-            ]
+            ] ?? []
           }
           sortedMenues={traceItemDialogValues.sortedMenues}
           hasBeenManualyEdited={Boolean(
@@ -601,9 +605,6 @@ const EventShoppingListPage = ({
     </Stack>
   );
 };
-/* ===================================================================
-// ========================= Einkaufsliste ===========================
-// =================================================================== */
 interface EventShoppingListListProps {
   shoppingList: ShoppingList;
   units: Unit[];
@@ -615,9 +616,6 @@ interface EventShoppingListListProps {
   onChangeItem: (change: ItemChange) => void;
 }
 
-/* ===================================================================
-// ==================== Quantity Field with local state ==============
-// =================================================================== */
 interface QuantityFieldProps {
   departmentKey: string;
   itemUid: string;
@@ -665,9 +663,6 @@ const QuantityField = React.memo(
 );
 QuantityField.displayName = "QuantityField";
 
-/* ===================================================================
-// ========================= Einkaufsliste ===========================
-// =================================================================== */
 const EventShoppingListList = React.memo(
   ({
     shoppingList,
@@ -682,6 +677,9 @@ const EventShoppingListList = React.memo(
     const classes = useCustomStyles();
     const theme = useTheme();
     const shouldFocusDepartmentRef = React.useRef<string | null>(null);
+    const highlightedItemKeys = React.useContext(
+      HighlightedShoppingListItemContext,
+    );
 
     const toAutocompleteItem = React.useCallback(
       (shoppingListItem: ShoppingListItem) => {
@@ -795,6 +793,7 @@ const EventShoppingListList = React.memo(
             return (
               <React.Fragment key={"GridItemDepartment_" + departmentKey}>
                 <Typography
+                  id={"department_heading_" + departmentKey}
                   component={"h2"}
                   variant={"h5"}
                   align="center"
@@ -812,11 +811,14 @@ const EventShoppingListList = React.memo(
                       key={
                         "shoppingListItem_" + item.item.uid + "_" + item.unit
                       }
-                      sx={
-                        shoppingListModus === ListMode.VIEW
+                      sx={{
+                        ...(shoppingListModus === ListMode.VIEW
                           ? viewModeItemSx
-                          : classes.eventListItem
-                      }
+                          : classes.eventListItem),
+                        ...(highlightedItemKeys.has(
+                          item.item.name + "_" + item.unit,
+                        ) && classes.remoteChangeGlow),
+                      }}
                     >
                       <ListItemIcon
                         sx={
@@ -1018,9 +1020,6 @@ const EventShoppingListList = React.memo(
 );
 EventShoppingListList.displayName = "EventShoppingListList";
 
-/* ===================================================================
-// ==================== Dialog Artikel hinzufügen ====================
-// =================================================================== */
 interface DialogHandleItemProps {
   dialogOpen: boolean;
   item: null | ProductItem | MaterialItem;
@@ -1044,7 +1043,7 @@ interface DialogValues {
 const DIALOG_VALUES_INITIAL_STATE: DialogValues = {
   quantity: "",
   unit: "",
-  item: {...new Product(), itemType: ItemType.none},
+  item: {...createEmptyProduct(), itemType: ItemType.none},
 };
 const DIALOG_VALUES_VALIDATION_INITIAL_STATE = {
   isError: false,
@@ -1060,7 +1059,7 @@ const DialogHandleItem = ({
   units,
   departments,
   editMode,
-  firebase,
+  firebase: _firebase,
   authUser,
   handleOk: handleOkSuper,
   handleClose: handleCloseSuper,
@@ -1101,7 +1100,7 @@ const DialogHandleItem = ({
     }
     if (newValue.name.endsWith(TEXT_ADD)) {
       const userInput = (await customDialog({
-        dialogType: DialogType.selectOptions,
+        dialogType: DialogType.SelectOptions,
         title: TEXT_NEW_ITEM,
         text: TEXT_WHAT_KIND_OF_ITEM_ARE_YOU_CREATING,
         singleTextInputProperties: {
@@ -1278,11 +1277,9 @@ const DialogHandleItem = ({
         dialogOpen={materialAddPopupValues.popUpOpen}
         handleOk={onMaterialCreate}
         handleClose={onCloseDialogMaterial}
-        firebase={firebase}
         authUser={authUser}
       />
       <DialogProduct
-        firebase={firebase}
         productName={productAddPopupValues.name}
         productUid={productAddPopupValues.uid}
         productUsable={productAddPopupValues.usable}
@@ -1301,4 +1298,4 @@ const DialogHandleItem = ({
   );
 };
 
-export default EventShoppingListPage;
+export {EventShoppingListPage};

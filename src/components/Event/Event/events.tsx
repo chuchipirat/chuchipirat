@@ -1,63 +1,59 @@
+import * as Sentry from "@sentry/react";
 import React from "react";
 
 import {useNavigate} from "react-router";
 import {
   Backdrop,
-  Button,
   Card,
-  CardContent,
-  CardMedia,
+  CardActionArea,
   CircularProgress,
   Container,
   Typography,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
+import {Add as AddIcon} from "@mui/icons-material";
 import Grid from "@mui/material/Grid";
 
-import PageTitle from "../../Shared/pageTitle";
+import {PageTitle} from "../../Shared/pageTitle";
 
 import {
   EVENTS as TEXT_EVENTS,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   EVENT_FUTURE_EVENTS as TEXT_EVENT_FUTURE_EVENTS,
   EVENT_PAST_EVENTS as TEXT_EVENT_PAST_EVENTS,
+  EVENT_NO_FUTURE_EVENTS as TEXT_EVENT_NO_FUTURE_EVENTS,
+  EVENT_NO_PAST_EVENTS as TEXT_EVENT_NO_PAST_EVENTS,
   CREATE_EVENT as TEXT_CREATE_EVENT,
 } from "../../../constants/text";
-import Event from "./event.class";
-import useCustomStyles from "../../../constants/styles";
-import AlertMessage from "../../Shared/AlertMessage";
-import {useFirebase} from "../../Firebase/firebaseContext";
-import EventCard, {EventCardLoading} from "./eventCard";
-import Action from "../../../constants/actions";
+import {useCustomStyles} from "../../../constants/styles";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {useDatabase} from "../../Database/DatabaseContext";
+import {EventDomain, getMaxDate} from "../../Database/Repository/EventRepository";
+import {EventCard,EventCardLoading, EventCardData} from "./eventCard";
+import {Action} from "../../../constants/actions";
 import {
   EVENT as ROUTES_EVENT,
   CREATE_NEW_EVENT as ROUTES_CREATE_NEW_EVENT,
 } from "../../../constants/routes";
 import {useAuthUser} from "../../Session/authUserContext";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {ImageRepository} from "../../../constants/imageRepository";
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
+
 enum ReducerActions {
   EVENTS_FETCH_INIT,
   EVENTS_FETCH_SUCCESS,
   GENERIC_ERROR,
 }
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: any;
-};
+type DispatchAction =
+  | {type: ReducerActions.EVENTS_FETCH_INIT}
+  | {type: ReducerActions.EVENTS_FETCH_SUCCESS; payload: EventDomain[]}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
-type State = {
-  events: Event[];
+interface State {
+  events: EventDomain[];
   isLoading: boolean;
   error: Error | null;
-};
+}
 
-const inititialState: State = {
+const initialState: State = {
   events: [],
   isLoading: false,
   error: null,
@@ -65,69 +61,77 @@ const inititialState: State = {
 
 const eventsReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
-    case ReducerActions.EVENTS_FETCH_INIT: {
+    case ReducerActions.EVENTS_FETCH_INIT:
       return {...state, isLoading: true};
-    }
     case ReducerActions.EVENTS_FETCH_SUCCESS:
       return {...state, isLoading: false, events: action.payload};
     case ReducerActions.GENERIC_ERROR:
-      return {...state, error: action.payload};
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      return {...state, isLoading: false, error: action.payload};
+    default: {
+      const _exhaustive: never = action;
+      throw new Error(`Unbekannter ActionType: ${_exhaustive}`);
+    }
   }
 };
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
-
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 const EventsPage = () => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const navigate = useNavigate();
-  const [state, dispatch] = React.useReducer(eventsReducer, inititialState);
-  const actualDate = new Date(new Date().setHours(23, 59, 59, 999));
+  const [state, dispatch] = React.useReducer(eventsReducer, initialState);
+  const today = new Date(new Date().setHours(23, 59, 59, 999));
+
   /* ------------------------------------------
   // Daten holen
   // ------------------------------------------ */
   React.useEffect(() => {
-    if (authUser !== null && state.events.length == 0) {
-      dispatch({type: ReducerActions.EVENTS_FETCH_INIT, payload: {}});
+    if (authUser !== null && state.events.length === 0) {
+      dispatch({type: ReducerActions.EVENTS_FETCH_INIT});
 
-      Event.getAllEventsOfUser({
-        firebase: firebase,
-        userUid: authUser.uid,
-      }).then((result) => {
-        dispatch({type: ReducerActions.EVENTS_FETCH_SUCCESS, payload: result});
-      });
+      database.events
+        .getAllEventsForUser()
+        .then((result) => {
+          dispatch({type: ReducerActions.EVENTS_FETCH_SUCCESS, payload: result});
+        })
+        .catch((error) => {
+          Sentry.captureException(error, {extra: {context: "Events laden"}});
+          dispatch({
+            type: ReducerActions.GENERIC_ERROR,
+            payload: error instanceof Error ? error : new Error(String(error)),
+          });
+        });
     }
   }, [authUser]);
-  /* ------------------------------------------
-  // Daten holen
-  // ------------------------------------------ */
-  const onEventOpen = (raisedEvent: React.MouseEvent<HTMLButtonElement>) => {
-    const event = state.events.find(
-      (event) => event.uid === raisedEvent.currentTarget.name.split("_")[1]
-    );
 
-    if (!event) {
-      return;
-    }
-    navigate(`${ROUTES_EVENT}/${event.uid}`, {
+  /* ------------------------------------------
+  // Event öffnen
+  // ------------------------------------------ */
+  const onEventOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const uid = event.currentTarget.dataset.eventUid;
+    if (!uid) return;
+
+    navigate(`${ROUTES_EVENT}/${uid}`, {
       state: {
         action: Action.VIEW,
-        event: event,
-      }
+        event: {uid},
+      },
     });
   };
+
   const onEventCreate = () => {
     navigate(`${ROUTES_CREATE_NEW_EVENT}`);
   };
+
+  // Events aufteilen und sortieren
+  const futureEvents = state.events
+    .filter((event) => getMaxDate(event) > today)
+    .sort((a, b) => getMaxDate(a).getTime() - getMaxDate(b).getTime());
+
+  const pastEvents = state.events
+    .filter((event) => getMaxDate(event) <= today)
+    .sort((a, b) => getMaxDate(b).getTime() - getMaxDate(a).getTime());
+
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
@@ -153,11 +157,12 @@ const EventsPage = () => {
           {TEXT_EVENT_FUTURE_EVENTS}
         </Typography>
         <EventsGrid
-          events={state.events.filter((event) => event.maxDate > actualDate)}
+          events={futureEvents}
           isLoading={state.isLoading}
           onCardClick={onEventOpen}
           onCreateNewEvent={onEventCreate}
           showCreateNewCard={true}
+          emptyMessage={TEXT_EVENT_NO_FUTURE_EVENTS}
         />
 
         <Typography
@@ -169,46 +174,36 @@ const EventsPage = () => {
           {TEXT_EVENT_PAST_EVENTS}
         </Typography>
         <EventsGrid
-          events={state.events.filter((event) => event.maxDate < actualDate)}
+          events={pastEvents}
           isLoading={state.isLoading}
           onCardClick={onEventOpen}
           onCreateNewEvent={onEventCreate}
           showCreateNewCard={false}
+          emptyMessage={TEXT_EVENT_NO_PAST_EVENTS}
         />
       </Container>
     </React.Fragment>
   );
 };
-/* ===================================================================
-// =========================== Event-Cards ===========================
-// =================================================================== */
+
 interface EventGridProps {
-  events: Event[];
+  events: EventCardData[];
   isLoading: boolean;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onCreateNewEvent: (event: React.MouseEvent<HTMLButtonElement>) => void;
   showCreateNewCard: boolean;
+  emptyMessage?: string;
 }
+
 const EventsGrid = ({
   events,
   isLoading,
   onCardClick,
   onCreateNewEvent,
   showCreateNewCard = false,
+  emptyMessage,
 }: EventGridProps) => {
   const classes = useCustomStyles();
-  const theme = useTheme();
-  let rowSize = 12;
-
-  if (useMediaQuery(theme.breakpoints.down("xs"))) {
-    rowSize = 12;
-  } else if (useMediaQuery(theme.breakpoints.down("sm"))) {
-    rowSize = 6;
-  } else if (useMediaQuery(theme.breakpoints.down("md"))) {
-    rowSize = 4;
-  } else {
-    rowSize = 3;
-  }
 
   return (
     <Grid
@@ -218,12 +213,27 @@ const EventsGrid = ({
       style={{marginBottom: "3rem"}}
     >
       {isLoading && (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} >
+        <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
           <EventCardLoading key={"loadingEventCard"} />
         </Grid>
       )}
+      {!isLoading && events.length === 0 && emptyMessage && (
+        <Grid size={{xs: 12}}>
+          <Typography
+            variant="body1"
+            color="textSecondary"
+            align="center"
+            sx={{py: 2}}
+          >
+            {emptyMessage}
+          </Typography>
+        </Grid>
+      )}
       {events.map((event) => (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={"eventGrid_" + event.uid}>
+        <Grid
+          size={{xs: 12, sm: 6, md: 4, lg: 3}}
+          key={"eventGrid_" + event.uid}
+        >
           <EventCard
             event={event}
             onCardClick={onCardClick}
@@ -231,32 +241,33 @@ const EventsGrid = ({
           />
         </Grid>
       ))}
-      {/* Leere Grids erzeugen, damit die Karten in einem Tabellenlayout angezeigt werden */}
-      {Array.from({length: events.length % rowSize}).map((index) => (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} key={"eventGridEmpty_" + index} />
-      ))}
 
       {showCreateNewCard && (
- <Grid size={{ xs: 12, sm: 6, md: 4, lg: 3 }} >
-          <Card sx={classes.card} key={"eventCardNew"}>
-            <CardMedia
-              sx={classes.cardMedia}
-              image={
-                ImageRepository.getEnviromentRelatedPicture()
-                  .CARD_PLACEHOLDER_MEDIA
-              }
-              title={TEXT_CREATE_EVENT}
-            />
-            <CardContent>
-              <Button
-                variant="contained"
-                color="primary"
-                fullWidth
-                onClick={onCreateNewEvent}
-              >
-                {TEXT_CREATE_EVENT}
-              </Button>
-            </CardContent>
+        <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
+          <Card
+            sx={{
+              ...classes.card,
+              border: "2px dashed",
+              borderColor: "divider",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: 200,
+            }}
+            key={"eventCardNew"}
+          >
+            <CardActionArea
+              onClick={onCreateNewEvent}
+              sx={{
+                height: "100%",
+                display: "flex",
+                flexDirection: "column",
+                justifyContent: "center",
+              }}
+            >
+              <AddIcon sx={{fontSize: 48, color: "text.secondary", mb: 1}} />
+              <Typography color="text.secondary">{TEXT_CREATE_EVENT}</Typography>
+            </CardActionArea>
           </Card>
         </Grid>
       )}
@@ -264,4 +275,4 @@ const EventsGrid = ({
   );
 };
 
-export default EventsPage;
+export {EventsPage};

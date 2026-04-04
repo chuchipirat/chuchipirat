@@ -1,7 +1,18 @@
+/**
+ * DialogRequest — Detailansicht eines Antrags als Modal-Dialog.
+ *
+ * Zeigt Typ, Name, Status, Datum, Autor*in, Bearbeiter*in, Kommentare
+ * und mögliche Statusübergänge an. Ermöglicht das Hinzufügen von
+ * Kommentaren und das Zuweisen/Transitionen für Community Leaders.
+ */
 import React from "react";
 import {useNavigate} from "react-router";
 
 import {
+  Accordion,
+  AccordionDetails,
+  AccordionSummary,
+  Alert,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -16,8 +27,14 @@ import {
   ListItem,
   ListItemText,
   ListItemAvatar,
+  Step,
+  StepLabel,
+  Stepper,
 } from "@mui/material";
-import useCustomStyles from "../../constants/styles";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import AssignmentIndIcon from "@mui/icons-material/AssignmentInd";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import {useCustomStyles} from "../../constants/styles";
 
 import {FormListItem} from "../Shared/formListItem";
 
@@ -32,43 +49,118 @@ import {
   REQUEST_ASSIGNEE_DISPLAYNAME as TEXT_REQUEST_ASSIGNEE_DISPLAYNAME,
   REQUEST_ASSIGN_TO_ME_LABEL as TEXT_REQUEST_ASSIGN_TO_ME_LABEL,
   WRONG_ASIGNEE as TEXT_WRONG_ASIGNEE,
-  BUTTON_CANCEL as TEXT_BUTTON_CANCEL,
   BUTTON_CLOSE as TEXT_BUTTON_CLOSE,
+  BUTTON_CANCEL as TEXT_BUTTON_CANCEL,
   COMMENTS as TEXT_COMMENTS,
   FIELD_YOUR_COMMENT as TEXT_FIELD_YOUR_COMMENT,
   BUTTON_ADD_COMMENT as TEXT_BUTTON_ADD_COMMENT,
   UID as TEXT_UID,
+  REQUEST_DECLINE_REASON_LABEL as TEXT_REQUEST_DECLINE_REASON_LABEL,
+  REQUEST_DECLINE_REASON_REQUIRED as TEXT_REQUEST_DECLINE_REASON_REQUIRED,
+  REQUEST_DECLINE_CONFIRM as TEXT_REQUEST_DECLINE_CONFIRM,
+  REQUEST_DONE_COMMENT_LABEL as TEXT_REQUEST_DONE_COMMENT_LABEL,
+  REQUEST_DONE_CONFIRM as TEXT_REQUEST_DONE_CONFIRM,
+  REQUEST_BACK_TO_AUTHOR_HINT as TEXT_REQUEST_BACK_TO_AUTHOR_HINT,
+  REQUEST_BACK_TO_AUTHOR_REASON_LABEL as TEXT_REQUEST_BACK_TO_AUTHOR_REASON_LABEL,
+  REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED as TEXT_REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED,
+  REQUEST_BACK_TO_AUTHOR_CONFIRM as TEXT_REQUEST_BACK_TO_AUTHOR_CONFIRM,
+  REQUEST_NO_COMMENTS_YET as TEXT_REQUEST_NO_COMMENTS_YET,
+  REQUEST_CHANGELOG_TITLE as TEXT_REQUEST_CHANGELOG_TITLE,
+  REQUEST_CONFIRM_STATUS_CHANGE_TITLE as TEXT_REQUEST_CONFIRM_STATUS_CHANGE_TITLE,
+  REQUEST_STEPPER_CREATED as TEXT_REQUEST_STEPPER_CREATED,
+  REQUEST_STEPPER_IN_REVIEW as TEXT_REQUEST_STEPPER_IN_REVIEW,
+  REQUEST_STEPPER_DONE as TEXT_REQUEST_STEPPER_DONE,
+  REQUEST_RESOLVE_DATE as TEXT_REQUEST_RESOLVE_DATE,
+  STATUS_NAME as TEXT_STATUS_NAME,
 } from "../../constants/text";
 
 import {USER_PUBLIC_PROFILE as ROUTES_USER_PUBLIC_PROFILE} from "../../constants/routes";
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 
-import {RequestStatus} from "./request.class";
-import {Request} from "./request.class";
+import {Request, RequestStatus, RequestAction} from "./request.class";
+import {RequestDomain, ChangeLogEntry} from "../Database/Repository/RequestRepository";
+import {RequestCommentDomain} from "../Database/Repository/RequestCommentRepository";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
 import {StatusChips} from "./requestOverview";
-
-/* ===================================================================
-// ======================== globale Funktionen =======================
-// =================================================================== */
+import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 
 /* ===================================================================
 // =================== Pop Up Rezept veröffentlichen =================
 // =================================================================== */
+
+/**
+ * Props für den Request-Dialog.
+ *
+ * @param request - Der anzuzeigende Antrag (Domain-Modell)
+ * @param comments - Kommentare zum Antrag
+ * @param dialogOpen - Ob der Dialog geöffnet ist
+ * @param authUser - Der angemeldete Benutzer
+ * @param handleClose - Callback zum Schliessen
+ * @param handleUpdateStatus - Callback für Statuswechsel
+ * @param handleAssignToMe - Callback für Selbstzuweisung
+ * @param handleAddComment - Callback für neuen Kommentar
+ * @param handleRecipeOpen - Callback zum Öffnen des Rezepts
+ */
 interface DialogRequestProps {
-  request: Request;
+  request: RequestDomain;
+  comments: RequestCommentDomain[];
   dialogOpen: boolean;
   authUser: AuthUser;
   handleClose: () => void;
-  handleUpdateStatus: (nextStatus: RequestStatus) => void;
+  handleUpdateStatus: (nextStatus: RequestStatus, reason?: string) => void;
   handleAssignToMe: () => void;
   handleAddComment: (newComment: string) => void;
   handleRecipeOpen: (uid: string) => void;
 }
 
-const DialogRequest = ({
+/**
+ * Leitet aus dem aktuellen Request-Status den aktiven Stepper-Schritt ab.
+ *
+ * @param status - Aktueller Request-Status
+ * @returns Index des aktiven Schritts (0-basiert), 3 = alle abgeschlossen
+ */
+const getActiveStep = (status: string): number => {
+  switch (status) {
+    case RequestStatus.created:
+      return 0;
+    case RequestStatus.inReview:
+    case RequestStatus.backToAuthor:
+    case RequestStatus.declined:
+      return 1;
+    case RequestStatus.done:
+      return 3; // alle Schritte abgeschlossen
+    default:
+      return 0;
+  }
+};
+
+/**
+ * Übersetzt eine Changelog-Aktion in einen lesbaren deutschen Text.
+ *
+ * @param entry - Der Changelog-Eintrag
+ * @returns Deutschsprachige Beschreibung der Aktion
+ */
+const translateChangeLogAction = (entry: ChangeLogEntry): string => {
+  switch (entry.action) {
+    case RequestAction.created:
+      return "Antrag erstellt";
+    case RequestAction.assign:
+      return `Zugewiesen an ${(entry.newValue as Record<string, string>).assignee ?? ""}`;
+    case RequestAction.changeState: {
+      const statusKey = (entry.newValue as Record<string, string>).status;
+      const statusName =
+        TEXT_STATUS_NAME[statusKey as keyof typeof TEXT_STATUS_NAME] ?? statusKey;
+      return `Status: ${statusName}`;
+    }
+    default:
+      return entry.action || "–";
+  }
+};
+
+export const DialogRequest = ({
   request,
+  comments,
   dialogOpen,
   authUser,
   handleClose,
@@ -79,31 +171,144 @@ const DialogRequest = ({
 }: DialogRequestProps) => {
   const classes = useCustomStyles();
   const navigate = useNavigate();
+  const {customDialog} = useCustomDialog();
 
   const [comment, setComment] = React.useState("");
-  /* ------------------------------------------
-  // PopUp Abbrechen
-  // ------------------------------------------ */
+  const [pendingDecline, setPendingDecline] = React.useState(false);
+  const [declineReason, setDeclineReason] = React.useState("");
+  const [declineReasonError, setDeclineReasonError] = React.useState(false);
+  const [pendingDone, setPendingDone] = React.useState(false);
+  const [doneComment, setDoneComment] = React.useState("");
+  const [pendingBackToAuthor, setPendingBackToAuthor] = React.useState(false);
+  const [backToAuthorReason, setBackToAuthorReason] = React.useState("");
+  const [backToAuthorReasonError, setBackToAuthorReasonError] =
+    React.useState(false);
+
+  const isCommunityLeader = authUser.roles.includes(Role.communityLeader);
+  const isAssignee = request?.assigneeUid === authUser.uid;
+  const isAuthor = authUser?.uid === request?.authorUid;
+  // Community Leader kann zuweisen, wenn nicht Assignee und nicht Autor
+  const canAssignToMe = isCommunityLeader && !isAssignee && !isAuthor;
+
   const onCancelClick = () => {
+    setPendingDecline(false);
+    setDeclineReason("");
+    setDeclineReasonError(false);
+    setPendingDone(false);
+    setDoneComment("");
+    setPendingBackToAuthor(false);
+    setBackToAuthorReason("");
+    setBackToAuthorReasonError(false);
     handleClose();
   };
 
-  const onClickNextStatus = (nextStatus: RequestStatus) => {
+  const onClickNextStatus = async (nextStatus: RequestStatus) => {
+    // Bei Ablehnung: Begründung verlangen
+    if (nextStatus === RequestStatus.declined) {
+      setPendingDecline(true);
+      return;
+    }
+
+    // Bei Abschluss: optionalen Kommentar anbieten
+    if (nextStatus === RequestStatus.done) {
+      setPendingDone(true);
+      return;
+    }
+
+    // Zurück an Autor*in: Begründung verlangen
+    if (nextStatus === RequestStatus.backToAuthor) {
+      setPendingBackToAuthor(true);
+      return;
+    }
+
+    // Bestätigungsdialog für andere Transitionen
+    const statusName =
+      TEXT_STATUS_NAME[nextStatus as keyof typeof TEXT_STATUS_NAME] ?? nextStatus;
+    const confirmed = await customDialog({
+      dialogType: DialogType.Confirm,
+      title: TEXT_REQUEST_CONFIRM_STATUS_CHANGE_TITLE,
+      text: `${statusName}?`,
+    });
+
+    if (!confirmed) return;
+
     handleUpdateStatus(nextStatus);
   };
-  /* ------------------------------------------
-  // Kommentar zwischenspeichern
-  // ------------------------------------------ */
+
+  const onConfirmDecline = () => {
+    if (!declineReason.trim()) {
+      setDeclineReasonError(true);
+      return;
+    }
+    setDeclineReasonError(false);
+    setPendingDecline(false);
+    handleUpdateStatus(RequestStatus.declined, declineReason.trim());
+    setDeclineReason("");
+  };
+
+  const onCancelDecline = () => {
+    setPendingDecline(false);
+    setDeclineReason("");
+    setDeclineReasonError(false);
+  };
+
+  /** Abschluss bestätigen (Kommentar ist optional). */
+  const onConfirmDone = () => {
+    setPendingDone(false);
+    const trimmed = doneComment.trim();
+    handleUpdateStatus(RequestStatus.done, trimmed || undefined);
+    setDoneComment("");
+  };
+
+  const onCancelDone = () => {
+    setPendingDone(false);
+    setDoneComment("");
+  };
+
+  /** Zurück an Autor*in bestätigen (Begründung ist Pflicht). */
+  const onConfirmBackToAuthor = () => {
+    if (!backToAuthorReason.trim()) {
+      setBackToAuthorReasonError(true);
+      return;
+    }
+    setBackToAuthorReasonError(false);
+    setPendingBackToAuthor(false);
+    handleUpdateStatus(
+      RequestStatus.backToAuthor,
+      backToAuthorReason.trim(),
+    );
+    setBackToAuthorReason("");
+  };
+
+  const onCancelBackToAuthor = () => {
+    setPendingBackToAuthor(false);
+    setBackToAuthorReason("");
+    setBackToAuthorReasonError(false);
+  };
+
   const onChangeComment = (event: React.ChangeEvent<HTMLInputElement>) => {
     setComment(event.target.value);
   };
+
   const saveComment = () => {
-    handleAddComment(comment);
+    if (!comment.trim()) return;
+    handleAddComment(comment.trim());
     setComment("");
   };
+
   const clearComment = () => {
     setComment("");
   };
+
+  // Stepper-Konfiguration
+  const activeStep = getActiveStep(request.status);
+  const isDeclined = request.status === RequestStatus.declined;
+  const stepperSteps = [
+    TEXT_REQUEST_STEPPER_CREATED,
+    isDeclined ? TEXT_STATUS_NAME.declined : TEXT_REQUEST_STEPPER_IN_REVIEW,
+    TEXT_REQUEST_STEPPER_DONE,
+  ];
+
   return (
     <Dialog
       open={dialogOpen}
@@ -111,12 +316,12 @@ const DialogRequest = ({
       aria-labelledby="dialog Request"
       fullWidth={true}
       maxWidth="sm"
-      style={{zIndex: 500}}
+      sx={{zIndex: 500}}
     >
       <DialogTitle
-        sx={classes.dialogHeaderWithPicture}
-        style={{
-          backgroundImage: `url(${request?.requestObject?.pictureSrc})`,
+        sx={{
+          ...classes.dialogHeaderWithPicture,
+          backgroundImage: `url(${request?.recipePictureSrc})`,
           backgroundPosition: "center",
           backgroundSize: "cover",
           backgroundRepeat: "no-repeat",
@@ -125,13 +330,37 @@ const DialogRequest = ({
         <Typography
           variant="h4"
           component="h1"
-          sx={classes.dialogHeaderWithPictureTitle}
-          style={{paddingLeft: "2ex"}}
+          sx={{...classes.dialogHeaderWithPictureTitle, pl: "2ex"}}
         >
           {TEXT_REQUEST} #{request.number}
         </Typography>
       </DialogTitle>
-      <DialogContent style={{overflow: "unset"}}>
+
+      {/* Fortschrittsanzeige */}
+      <Stepper
+        activeStep={activeStep}
+        alternativeLabel
+        sx={{pt: 2, pb: 1, px: 2}}
+      >
+        {stepperSteps.map((label, index) => (
+          <Step key={label}>
+            <StepLabel
+              error={isDeclined && index === 1}
+            >
+              {label}
+            </StepLabel>
+          </Step>
+        ))}
+      </Stepper>
+
+      <DialogContent sx={{overflow: "unset"}}>
+        {/* Hinweis bei backToAuthor */}
+        {request.status === RequestStatus.backToAuthor && (
+          <Alert severity="info" sx={{mb: 2}}>
+            {TEXT_REQUEST_BACK_TO_AUTHOR_HINT}
+          </Alert>
+        )}
+
         <List>
           {/* Request Type */}
           <FormListItem
@@ -150,16 +379,19 @@ const DialogRequest = ({
               displayAsCode={true}
             />
           )}
-          {/* Request Name */}
+          {/* Request Name mit externem Link-Icon */}
           <FormListItem
             key={"RequestName"}
             id={"RequestName"}
             value={
               <Link
-                style={{cursor: "pointer"}}
-                onClick={() => handleRecipeOpen(request.requestObject?.uid)}
+                sx={{cursor: "pointer"}}
+                onClick={() => handleRecipeOpen(request.recipeUid)}
               >
-                {request.requestObject?.name}
+                {request.recipeName}
+                <OpenInNewIcon
+                  sx={{fontSize: 14, verticalAlign: "middle", ml: 0.5}}
+                />
               </Link>
             }
             label={TEXT_REQUEST_OBJECT_LABEL}
@@ -172,18 +404,46 @@ const DialogRequest = ({
             label={TEXT_REQUEST_STATUS}
           />
           {/* Nächster möglicher Status */}
-          {/* Nur möglich für andere. Selber kann man nicht verschieben */}
-          {authUser?.uid !== request?.author?.uid && (
-            <FormListItem
-              key={"RequestNextPossibleState"}
-              id={"RequestRequestNextPossibleStateType"}
-              value={
-                request?.assignee?.uid === authUser.uid ? (
+          {(() => {
+            const isBackToAuthor =
+              request.status === RequestStatus.backToAuthor;
+
+            // Autor sieht Übergänge nur bei backToAuthor
+            // Assignee sieht Übergänge bei allen anderen Status
+            const canTransition =
+              (isAuthor && isBackToAuthor) || (!isAuthor && isAssignee);
+
+            if (!canTransition && !isAuthor) {
+              // Nicht-Autor, nicht-Assignee → Hinweis
+              return (
+                <FormListItem
+                  key={"RequestNextPossibleState"}
+                  id={"RequestRequestNextPossibleStateType"}
+                  value={
+                    <Typography color="textSecondary">
+                      {TEXT_WRONG_ASIGNEE}
+                    </Typography>
+                  }
+                  label={TEXT_REQUEST_NEXT_POSSIBLE_TRANSITION_LABEL}
+                />
+              );
+            }
+
+            if (!canTransition) return null;
+
+            const transitions = Request.getNextPossibleTransitions(
+              request.status,
+              request.requestType,
+            );
+            if (transitions.length === 0) return null;
+
+            return (
+              <FormListItem
+                key={"RequestNextPossibleState"}
+                id={"RequestRequestNextPossibleStateType"}
+                value={
                   <React.Fragment>
-                    {Request.getNextPossibleTransitionsForType({
-                      status: request.status,
-                      requestType: request.requestType,
-                    })?.map((possibleTransition, counter) => (
+                    {transitions.map((possibleTransition, counter) => (
                       <React.Fragment
                         key={
                           "transition_" +
@@ -194,9 +454,7 @@ const DialogRequest = ({
                         {counter > 0 && " | "}
                         <Link
                           key={`transitionLink_${counter}`}
-                          style={{
-                            cursor: "pointer",
-                          }}
+                          sx={{cursor: "pointer"}}
                           onClick={() =>
                             onClickNextStatus(possibleTransition.toState)
                           }
@@ -206,26 +464,156 @@ const DialogRequest = ({
                       </React.Fragment>
                     ))}
                   </React.Fragment>
-                ) : (
-                  <Typography color="textSecondary">
-                    {TEXT_WRONG_ASIGNEE}
-                  </Typography>
-                )
-              }
-              label={TEXT_REQUEST_NEXT_POSSIBLE_TRANSITION_LABEL}
-            />
+                }
+                label={TEXT_REQUEST_NEXT_POSSIBLE_TRANSITION_LABEL}
+              />
+            );
+          })()}
+          {/* Begründung für Ablehnung (inline-Formular) */}
+          {pendingDecline && (
+            <ListItem>
+              <ListItemText
+                primary={
+                  <React.Fragment>
+                    <TextField
+                      label={TEXT_REQUEST_DECLINE_REASON_LABEL}
+                      multiline
+                      minRows={3}
+                      variant="outlined"
+                      fullWidth
+                      value={declineReason}
+                      onChange={(event) => {
+                        setDeclineReason(event.target.value);
+                        if (event.target.value.trim()) setDeclineReasonError(false);
+                      }}
+                      error={declineReasonError}
+                      helperText={
+                        declineReasonError
+                          ? TEXT_REQUEST_DECLINE_REASON_REQUIRED
+                          : ""
+                      }
+                      autoFocus
+                      sx={{mb: 1}}
+                    />
+                    <Button
+                      size="small"
+                      color="error"
+                      variant="contained"
+                      onClick={onConfirmDecline}
+                      sx={{mr: 1}}
+                    >
+                      {TEXT_REQUEST_DECLINE_CONFIRM}
+                    </Button>
+                    <Button size="small" onClick={onCancelDecline}>
+                      {TEXT_BUTTON_CANCEL}
+                    </Button>
+                  </React.Fragment>
+                }
+              />
+            </ListItem>
+          )}
+          {/* Optionaler Kommentar beim Abschliessen (inline-Formular) */}
+          {pendingDone && (
+            <ListItem>
+              <ListItemText
+                primary={
+                  <React.Fragment>
+                    <TextField
+                      label={TEXT_REQUEST_DONE_COMMENT_LABEL}
+                      multiline
+                      minRows={3}
+                      variant="outlined"
+                      fullWidth
+                      value={doneComment}
+                      onChange={(event) => setDoneComment(event.target.value)}
+                      autoFocus
+                      sx={{mb: 1}}
+                    />
+                    <Button
+                      size="small"
+                      color="primary"
+                      variant="contained"
+                      onClick={onConfirmDone}
+                      sx={{mr: 1}}
+                    >
+                      {TEXT_REQUEST_DONE_CONFIRM}
+                    </Button>
+                    <Button size="small" onClick={onCancelDone}>
+                      {TEXT_BUTTON_CANCEL}
+                    </Button>
+                  </React.Fragment>
+                }
+              />
+            </ListItem>
+          )}
+          {/* Begründung für Zurück an Autor*in (inline-Formular) */}
+          {pendingBackToAuthor && (
+            <ListItem>
+              <ListItemText
+                primary={
+                  <React.Fragment>
+                    <TextField
+                      label={TEXT_REQUEST_BACK_TO_AUTHOR_REASON_LABEL}
+                      multiline
+                      minRows={3}
+                      variant="outlined"
+                      fullWidth
+                      value={backToAuthorReason}
+                      onChange={(event) => {
+                        setBackToAuthorReason(event.target.value);
+                        if (event.target.value.trim())
+                          setBackToAuthorReasonError(false);
+                      }}
+                      error={backToAuthorReasonError}
+                      helperText={
+                        backToAuthorReasonError
+                          ? TEXT_REQUEST_BACK_TO_AUTHOR_REASON_REQUIRED
+                          : ""
+                      }
+                      autoFocus
+                      sx={{mb: 1}}
+                    />
+                    <Button
+                      size="small"
+                      color="warning"
+                      variant="contained"
+                      onClick={onConfirmBackToAuthor}
+                      sx={{mr: 1}}
+                    >
+                      {TEXT_REQUEST_BACK_TO_AUTHOR_CONFIRM}
+                    </Button>
+                    <Button size="small" onClick={onCancelBackToAuthor}>
+                      {TEXT_BUTTON_CANCEL}
+                    </Button>
+                  </React.Fragment>
+                }
+              />
+            </ListItem>
           )}
           {/* Datum */}
           <FormListItem
             key={"RequestCreateDate"}
             id={"RequestCreateDate"}
-            value={request?.createDate?.toLocaleString("de-CH", {
+            value={request?.createdAt?.toLocaleString("de-CH", {
               year: "numeric",
               month: "2-digit",
               day: "2-digit",
             })}
             label={TEXT_REQUEST_CREATION_DATE}
           />
+          {/* Abschlussdatum (nur bei abgeschlossenen Anträgen) */}
+          {request.resolveDate && (
+            <FormListItem
+              key={"RequestResolveDate"}
+              id={"RequestResolveDate"}
+              value={request.resolveDate.toLocaleString("de-CH", {
+                year: "numeric",
+                month: "2-digit",
+                day: "2-digit",
+              })}
+              label={TEXT_REQUEST_RESOLVE_DATE}
+            />
+          )}
 
           {/* Autor*in */}
           <FormListItem
@@ -233,18 +621,21 @@ const DialogRequest = ({
             id={"RequestAuthor"}
             value={
               <Link
-                style={{cursor: "pointer"}}
+                sx={{cursor: "pointer"}}
                 onClick={() =>
-                  navigate(`${ROUTES_USER_PUBLIC_PROFILE}/${request.author.uid}`, {
-                    state: {
-                      action: Action.VIEW,
-                      displayName: request.author?.displayName,
-                      pictureSrc: request.author?.pictureSrc,
-                    }
-                  })
+                  navigate(
+                    `${ROUTES_USER_PUBLIC_PROFILE}/${request.authorUid}`,
+                    {
+                      state: {
+                        action: Action.VIEW,
+                        displayName: request.authorDisplayName,
+                        pictureSrc: request.authorPictureSrc,
+                      },
+                    },
+                  )
                 }
               >
-                {request.author?.displayName}
+                {request.authorDisplayName}
               </Link>
             }
             label={TEXT_REQUEST_AUTHOR_DISPLAYNAME}
@@ -255,90 +646,88 @@ const DialogRequest = ({
             key={"RequestAsignee"}
             id={"RequestAsignee"}
             value={
-              <React.Fragment>
-                <Link
-                  style={{cursor: "pointer"}}
-                  onClick={() =>
-                    navigate(`${ROUTES_USER_PUBLIC_PROFILE}/${request?.assignee?.uid}`, {
+              <Link
+                sx={{cursor: "pointer"}}
+                onClick={() =>
+                  navigate(
+                    `${ROUTES_USER_PUBLIC_PROFILE}/${request.assigneeUid}`,
+                    {
                       state: {
                         action: Action.VIEW,
-                        displayName: request.assignee?.displayName,
-                        pictureSrc: request.assignee?.pictureSrc,
-                      }
-                    })
-                  }
-                >
-                  {request.assignee?.displayName}
-                </Link>
-                {authUser.roles.includes(Role.communityLeader) &&
-                request?.assignee?.uid !== authUser?.uid &&
-                request?.author?.uid !== authUser?.uid ? (
-                  <Link
-                    style={{cursor: "pointer"}}
-                    onClick={() => handleAssignToMe()}
-                  >
-                    {TEXT_REQUEST_ASSIGN_TO_ME_LABEL}
-                  </Link>
-                ) : null}
-              </React.Fragment>
+                        displayName: request.assigneeDisplayName,
+                        pictureSrc: request.assigneePictureSrc,
+                      },
+                    },
+                  )
+                }
+              >
+                {request.assigneeDisplayName}
+              </Link>
             }
             label={TEXT_REQUEST_ASSIGNEE_DISPLAYNAME}
           />
         </List>
 
-        {request?.comments?.length > 0 && (
-          <React.Fragment>
-            <Typography variant="subtitle1" style={{marginTop: "4ex"}}>
-              {TEXT_COMMENTS}
-            </Typography>
-            <List>
-              {request.comments.map((comment, counter) => (
-                <React.Fragment key={`comment_${counter}`}>
-                  <ListItem alignItems="flex-start">
-                    <ListItemAvatar>
-                      {comment.user?.pictureSrc ? (
-                        <Avatar
-                          alt={comment.user.displayName}
-                          src={comment.user.pictureSrc}
-                        />
-                      ) : (
-                        <Avatar alt={comment.user.displayName}>
-                          {comment.user?.displayName.charAt(0)}
-                        </Avatar>
-                      )}
-                    </ListItemAvatar>
+        {/* Kommentare — immer sichtbar */}
+        <Typography variant="subtitle1" sx={{mt: "4ex"}}>
+          {TEXT_COMMENTS}
+        </Typography>
+        {comments.length > 0 ? (
+          <List>
+            {comments.map((requestComment, commentIndex) => (
+              <React.Fragment key={`comment_${commentIndex}`}>
+                <ListItem alignItems="flex-start">
+                  <ListItemAvatar>
+                    {requestComment.userPictureSrc ? (
+                      <Avatar
+                        alt={requestComment.userDisplayName}
+                        src={requestComment.userPictureSrc}
+                      />
+                    ) : (
+                      <Avatar alt={requestComment.userDisplayName}>
+                        {requestComment.userDisplayName?.charAt(0)}
+                      </Avatar>
+                    )}
+                  </ListItemAvatar>
 
-                    <ListItemText
-                      primary={comment.comment}
-                      secondary={
-                        <React.Fragment>
-                          <Typography
-                            component="span"
-                            variant="body2"
-                            // className={classes.inline}
-                            color="textPrimary"
-                          >
-                            {comment.user.displayName}
-                          </Typography>
-                          {` — ${comment.date.toLocaleString("de-CH", {
-                            year: "numeric",
-                            month: "2-digit",
-                            day: "2-digit",
-                            hour: "2-digit",
-                            minute: "2-digit",
-                          })}`}
-                        </React.Fragment>
-                      }
-                    />
-                  </ListItem>
-                  {counter !== request.comments.length - 1 && (
-                    <Divider variant="inset" component="li" />
-                  )}
-                </React.Fragment>
-              ))}
-            </List>
-          </React.Fragment>
+                  <ListItemText
+                    primary={requestComment.comment}
+                    secondary={
+                      <React.Fragment>
+                        <Typography
+                          component="span"
+                          variant="body2"
+                          color="textPrimary"
+                        >
+                          {requestComment.userDisplayName}
+                        </Typography>
+                        {` — ${requestComment.createdAt.toLocaleString("de-CH", {
+                          year: "numeric",
+                          month: "2-digit",
+                          day: "2-digit",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}`}
+                      </React.Fragment>
+                    }
+                  />
+                </ListItem>
+                {commentIndex !== comments.length - 1 && (
+                  <Divider variant="inset" component="li" />
+                )}
+              </React.Fragment>
+            ))}
+          </List>
+        ) : (
+          <Typography
+            variant="body2"
+            color="textSecondary"
+            sx={{mt: "1ex", mb: "2ex"}}
+          >
+            {TEXT_REQUEST_NO_COMMENTS_YET}
+          </Typography>
         )}
+
         <TextField
           id="outlined-multiline-static"
           label={TEXT_FIELD_YOUR_COMMENT}
@@ -349,14 +738,53 @@ const DialogRequest = ({
           value={comment}
           onChange={onChangeComment}
         />
-        <Button size="small" onClick={saveComment}>
+        <Button size="small" onClick={saveComment} disabled={!comment.trim()}>
           {TEXT_BUTTON_ADD_COMMENT}
         </Button>
         <Button size="small" onClick={clearComment}>
           {TEXT_BUTTON_CANCEL}
         </Button>
+
+        {/* Verlauf (Changelog) */}
+        {request.changeLog && request.changeLog.length > 0 && (
+          <Accordion sx={{mt: 2}} variant="outlined">
+            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+              <Typography variant="subtitle2">
+                {TEXT_REQUEST_CHANGELOG_TITLE}
+              </Typography>
+            </AccordionSummary>
+            <AccordionDetails>
+              <List dense>
+                {request.changeLog.map((entry, index) => (
+                  <ListItem key={`changelog_${index}`}>
+                    <ListItemText
+                      primary={translateChangeLogAction(entry)}
+                      secondary={`${entry.userDisplayName} — ${new Date(entry.date).toLocaleString("de-CH", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}`}
+                    />
+                  </ListItem>
+                ))}
+              </List>
+            </AccordionDetails>
+          </Accordion>
+        )}
       </DialogContent>
       <DialogActions>
+        {/* Assign-to-Me Button links im Footer */}
+        {canAssignToMe && (
+          <Button
+            onClick={handleAssignToMe}
+            startIcon={<AssignmentIndIcon />}
+            sx={{mr: "auto"}}
+          >
+            {TEXT_REQUEST_ASSIGN_TO_ME_LABEL}
+          </Button>
+        )}
         <Button onClick={onCancelClick} variant="outlined">
           {TEXT_BUTTON_CLOSE}
         </Button>
@@ -364,4 +792,3 @@ const DialogRequest = ({
     </Dialog>
   );
 };
-export default DialogRequest;

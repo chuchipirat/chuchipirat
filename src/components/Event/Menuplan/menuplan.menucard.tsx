@@ -1,4 +1,4 @@
-import React, {memo, useRef, useState, useEffect} from "react";
+import React, {memo, useRef, useState, useEffect, useContext} from "react";
 
 import {
   Box,
@@ -21,8 +21,6 @@ import {
   Add as AddIcon,
   ShoppingCart as ShoppingCartIcon,
   Build as BuildIcon,
-  // Close as CloseIcon,
-  // Info as InfoIcon,
   Notes as NotesIcon,
   DeleteSweep as DeleteSweepIcon,
   ArrowDownward as ArrowDownwardIcon,
@@ -45,7 +43,7 @@ import {
   TOOLTIP_MOVE_OTHER_MEAL as TEXT_TOOLTIP_MOVE_OTHER_MEAL,
 } from "../../../constants/text";
 
-import Menuplan, {
+import {
   Meal,
   MealRecipe,
   MealRecipes,
@@ -53,8 +51,9 @@ import Menuplan, {
   MenuplanMaterial,
   MenuplanProduct,
   Note,
-  // MenueListOrderTypes,
-} from "./menuplan.class";
+  MenuplanData,
+} from "./menuplan.types";
+import {createEmptyNote} from "./menuplanService";
 import {
   DragAndDropDirections,
   MenuplanDragDropTypes,
@@ -69,7 +68,7 @@ import {
   extractClosestEdge,
 } from "@atlaskit/pragmatic-drag-and-drop-hitbox/closest-edge";
 import {createPortal} from "react-dom";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import invariant from "tiny-invariant";
 import {combine} from "@atlaskit/pragmatic-drag-and-drop/combine";
@@ -80,7 +79,8 @@ import {
 import {setCustomNativeDragPreview} from "@atlaskit/pragmatic-drag-and-drop/element/set-custom-native-drag-preview";
 import {preserveOffsetOnSource} from "@atlaskit/pragmatic-drag-and-drop/element/preserve-offset-on-source";
 
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
+import {HighlightedMenueContext} from "./highlightContext";
 import {
   DialogType,
   SingleTextInputResult,
@@ -91,12 +91,9 @@ import {
   isDraggingACardListItem,
   getListContainerDropTargetData,
 } from "./menuplan.menucard.list";
-import Action from "../../../constants/actions";
-import Utils from "../../Shared/utils.class";
+import {Action} from "../../../constants/actions";
+import {Utils} from "../../Shared/utils.class";
 
-/* ===================================================================
-// ================== Global Defintion & Type Guards =================
-// =================================================================== */
 
 export type TMenueCard = {
   id: Menue["uid"];
@@ -171,22 +168,6 @@ export function isMenueCardType({
 }): boolean {
   return source.data.itemType == cardType;
 }
-// type TMenueCardDropState =
-//   | {
-//       type: "idle";
-//     }
-//   | {
-//       type: "is-dragging";
-//       dragging: DOMRect;
-//     }
-//   | {
-//       type: "is-over";
-//     }
-//   | {
-//       type: "preview";
-//       container: HTMLElement;
-//       dragging: DOMRect;
-//     };
 const cardDropTargetKey = Symbol("card-list-drop-target");
 export type TMenueCardDropTargetData = {
   [cardDropTargetKey]: true;
@@ -254,19 +235,16 @@ export function isShallowEqual(
   return keys1.every((key1) => Object.is(obj1[key1], obj2[key1]));
 }
 
-/* ===================================================================
-// ======================= Menüs einer Mahlzeit ======================
-// =================================================================== */
 interface MenueListOfMealProps {
   meal: Meal;
-  menues: Menuplan["menues"];
+  menues: MenuplanData["menues"];
   mealRecipes: MealRecipes;
-  products: Menuplan["products"];
-  materials: Menuplan["materials"];
-  notes: Menuplan["notes"];
+  products: MenuplanData["products"];
+  materials: MenuplanData["materials"];
+  notes: MenuplanData["notes"];
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
-  mealTypes: Menuplan["mealTypes"];
+  mealTypes: MenuplanData["mealTypes"];
   onUpdateMenue: (menue: Menue) => void;
   onAddRecipe: (menue: Menue) => void;
   onAddProduct: (menueUid: Menue["uid"]) => void;
@@ -311,6 +289,9 @@ export const MenueListOfMeal = memo(function MenueListOfMeal({
 }: MenueListOfMealProps) {
   const theme = useTheme();
   const listRef = useRef<HTMLDivElement | null>(null);
+  // Ref für stabile Zugriffe in Drag-&-Drop-Callbacks
+  const mealRef = useRef(meal);
+  mealRef.current = meal;
 
   useEffect(() => {
     if (!menuplanSettings.enableDragAndDrop) {
@@ -334,12 +315,12 @@ export const MenueListOfMeal = memo(function MenueListOfMeal({
 
       getData: () =>
         getMenueCardContainerDropTargetData({
-          mealUid: meal.uid,
+          mealUid: mealRef.current.uid,
           listType: MenuplanDragDropTypes.MENU,
-          isEmpty: meal.menuOrder.length === 0,
+          isEmpty: mealRef.current.menuOrder.length === 0,
         }),
     });
-  }, [meal.menuOrder]);
+  }, [menuplanSettings.enableDragAndDrop]);
 
   return (
     <>
@@ -392,9 +373,6 @@ export const MenueListOfMeal = memo(function MenueListOfMeal({
     </>
   );
 });
-/* ===================================================================
-// =============== Drag & Drop Menü-Card-Listeneintrag ===============
-// =================================================================== */
 interface DraggableMenueCardProps extends Omit<
   MenueCardProps,
   "menue" | "outerRef" | "innerRef" | "state"
@@ -411,7 +389,7 @@ const menueCardStateIdle = {type: "idle"} satisfies TMenueCardState;
  * Menü-Card List-Entry: Listeneingtrag der dich Dragen lässt
  * @returns JSX
  */
-const DraggableMenueCard = ({
+const DraggableMenueCard = memo(function DraggableMenueCard({
   listItem,
   listType,
   index,
@@ -434,11 +412,17 @@ const DraggableMenueCard = ({
   onMealProductOpen,
   onMealMaterialOpen,
   onMoveDragAndDropElement,
-}: DraggableMenueCardProps) => {
+}: DraggableMenueCardProps) {
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<TMenueCardState>(menueCardStateIdle);
   const theme = useTheme();
+  // Refs für stabile Zugriffe in Drag-&-Drop-Callbacks
+  const listItemRef = useRef(listItem);
+  listItemRef.current = listItem;
+  const mealUidRef = useRef(meal.uid);
+  mealUidRef.current = meal.uid;
+
   useEffect(() => {
     if (!menuplanSettings.enableDragAndDrop) {
       // Kein DnD
@@ -453,10 +437,10 @@ const DraggableMenueCard = ({
         element: inner,
         getInitialData: ({element}) =>
           getMenueCardData({
-            listItem,
-            mealUid: meal.uid,
+            listItem: listItemRef.current,
+            mealUid: mealUidRef.current,
             rect: element.getBoundingClientRect(),
-            itemType: listItem.type,
+            itemType: listItemRef.current.type,
           }),
         onGenerateDragPreview({nativeSetDragImage, location, source}) {
           const data = source.data;
@@ -504,8 +488,8 @@ const DraggableMenueCard = ({
           ),
         getData: ({element, input}) => {
           const data = getMenueCardDropTargetData({
-            listItem,
-            mealUid: meal.uid,
+            listItem: listItemRef.current,
+            mealUid: mealUidRef.current,
             rect: element.getBoundingClientRect(),
           });
           return attachClosestEdge(data, {
@@ -518,7 +502,7 @@ const DraggableMenueCard = ({
           if (!isMenueCardData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             return;
           }
           const closestEdge = extractClosestEdge(self.data);
@@ -532,7 +516,7 @@ const DraggableMenueCard = ({
           if (!isMenueCardData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             return;
           }
           const closestEdge = extractClosestEdge(self.data);
@@ -556,7 +540,7 @@ const DraggableMenueCard = ({
           if (!isMenueCardData(source.data)) {
             return;
           }
-          if (source.data.listItem.id === listItem.id) {
+          if (source.data.listItem.id === listItemRef.current.id) {
             setState({type: "is-dragging-and-left-self"});
             return;
           }
@@ -575,20 +559,20 @@ const DraggableMenueCard = ({
           const itemType = source.data.itemType as MenuplanDragDropTypes;
           return (
             (itemType === MenuplanDragDropTypes.PRODUCT &&
-              listItem.menue.productOrder.length === 0) ||
+              listItemRef.current.menue.productOrder.length === 0) ||
             (itemType === MenuplanDragDropTypes.MATERIAL &&
-              listItem.menue.materialOrder.length === 0)
+              listItemRef.current.menue.materialOrder.length === 0)
           );
         },
         getData: ({source}) =>
           getListContainerDropTargetData({
-            menueUid: listItem.menue.uid,
+            menueUid: listItemRef.current.menue.uid,
             listType: source.data.itemType as MenuplanDragDropTypes,
             isEmpty: true,
           }),
       }),
     );
-  }, [listItem, meal.uid]);
+  }, [menuplanSettings.enableDragAndDrop]);
 
   return (
     <>
@@ -650,20 +634,17 @@ const DraggableMenueCard = ({
         : null}
     </>
   );
-};
+});
 
-/* ===================================================================
-// ===================== Menü-Card-Listen-Eintrag ====================
-// =================================================================== */
 interface MenueCardProps {
   menue: Menue;
   meal: Meal;
   index: number;
   isLastElement: boolean;
-  notes: Menuplan["notes"];
+  notes: MenuplanData["notes"];
   mealRecipes: MealRecipes;
-  products: Menuplan["products"];
-  materials: Menuplan["materials"];
+  products: MenuplanData["products"];
+  materials: MenuplanData["materials"];
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
   state: TMenueCardState;
@@ -715,15 +696,18 @@ const MenueCard = ({
 }: MenueCardProps) => {
   const classes = useCustomStyles();
   const {customDialog} = useCustomDialog();
+  const highlightedUids = useContext(HighlightedMenueContext);
+  const isHighlighted = highlightedUids.has(menue.uid);
 
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     useState<HTMLElement | null>(null);
-  const [menueName, setMenueName] = useState<Menue["name"]>("");
+  const [menueName, setMenueName] = useState<Menue["name"]>(menue.name);
   const note = Object.values(notes).find((note) => note.menueUid == menue.uid);
 
-  if (menue.name && !menueName) {
+  // Lokalen State mit Prop synchronisieren (z.B. bei Realtime-Updates anderer Benutzer)
+  useEffect(() => {
     setMenueName(menue.name);
-  }
+  }, [menue.name]);
 
   /* ------------------------------------------
   // Kontexmenü
@@ -798,13 +782,14 @@ const MenueCard = ({
     if (userInput?.valid && userInput.input != "") {
       let note: Note;
       if (!existingNote?.text) {
-        note = Menuplan.createEmptyNote();
+        note = createEmptyNote();
       } else {
         note = existingNote;
       }
       note.text = userInput.input;
       note.menueUid = menue.uid;
-      note.date = "";
+      // Menü-Notizen erhalten das Datum der zugehörigen Mahlzeit
+      note.date = meal.date;
       onNoteUpdate({
         action: existingNote?.text ? Action.EDIT : Action.ADD,
         note: note,
@@ -861,6 +846,7 @@ const MenueCard = ({
               ...classes.menuCard,
               ...classes.menueCardDrag[state.type],
               ...(state.type === "is-dragging" && {opacity: 0.4}),
+              ...(isHighlighted && classes.remoteChangeGlow),
             }}
           >
             <CardHeader
@@ -1013,8 +999,7 @@ const MenueCard = ({
                   {TEXT_DELETE_MENUE}
                 </Typography>
               </MenuItem>
-              {/* Wenn nur ein Element, dass gibt Hoch/Runter keinen sinn */}
-              {/* //TODO: alle neuen Felder versorgen */}
+              {/* Wenn nur ein Element, gibt Hoch/Runter keinen Sinn */}
               {!(index === 0 && isLastElement) && (
                 <>
                   <MenuItem
@@ -1053,9 +1038,6 @@ const MenueCard = ({
     </>
   );
 };
-/* ===================================================================
-// ======================= Menü-Karte-Schatten =======================
-// =================================================================== */
 /**
  * Menü-Card-Schatten: Wird angezeigt, wenn der Drag&Drop
  * ausgeführt wird.

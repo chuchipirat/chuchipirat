@@ -1,6 +1,8 @@
 import React from "react";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+import * as Sentry from "@sentry/react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
+import {generateAndDownloadPdf} from "../Shared/pdfUtils";
 import Recipe, {
   RecipeType,
   Ingredient,
@@ -39,18 +41,24 @@ import {
   Card,
   CardContent,
   List,
+  ListItem,
+  ListItemAvatar,
   ListItemText,
+  Avatar,
   Rating,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 
 import {FormListItem} from "../Shared/formListItem";
-import ButtonRow, {CustomButton} from "../Shared/buttonRow";
+import {ButtonRow, CustomButton} from "../Shared/buttonRow";
 
 import AddIcon from "@mui/icons-material/Add";
 import ExpandLess from "@mui/icons-material/ExpandLess";
 import ExpandMore from "@mui/icons-material/ExpandMore";
 import EditIcon from "@mui/icons-material/Edit";
+import DeleteIcon from "@mui/icons-material/Delete";
+import SaveIcon from "@mui/icons-material/Save";
+import CancelIcon from "@mui/icons-material/Cancel";
 
 import {
   VARIANT_NOTE as TEXT_VARIANT_NOTE,
@@ -110,20 +118,29 @@ import {
   DIALOG_TEXT_DELETION_CONFIRMATION as TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
+  COMMENTS as TEXT_COMMENTS,
+  FIELD_YOUR_COMMENT as TEXT_FIELD_YOUR_COMMENT,
+  FIELD_PLACEHOLDER_COMMENT as TEXT_FIELD_PLACEHOLDER_COMMENT,
+  BUTTON_SAVE_COMMENT as TEXT_BUTTON_SAVE_COMMENT,
+  BUTTON_LOAD_OLDER_COMMENTS as TEXT_BUTTON_LOAD_OLDER_COMMENTS,
+  COMMENT_DELETE_TITLE as TEXT_COMMENT_DELETE_TITLE,
+  COMMENT_DELETE_TEXT as TEXT_COMMENT_DELETE_TEXT,
 } from "../../constants/text";
 import * as ROUTES from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
-import RecipePdf from "./recipePdf";
+import {getImageUrl, ImageSize} from "../Shared/imageUrl";
+import {RecipePdf} from "./recipePdf";
 
-import Role from "../../constants/roles";
-import Action from "../../constants/actions";
+import {Role} from "../../constants/roles";
+import {Action} from "../../constants/actions";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import Utils from "../Shared/utils.class";
-import AlertMessage from "../Shared/AlertMessage";
+import {Utils} from "../Shared/utils.class";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
+import {useAuthUser} from "../Session/authUserContext";
 import {OnUpdateRecipeProps, RecipeDivider} from "./recipe";
 import {
   GlutenFreeIcon,
@@ -135,29 +152,35 @@ import {
   VegetarianIcon,
 } from "../Shared/icons";
 import Firebase from "../Firebase/firebase.class";
-import DialogScaleRecipe, {OnScale} from "./dialogScaleRecipe";
-import DialogPublishRecipe from "./dialogPublishRecipe";
+import {useDatabase} from "../Database/DatabaseContext";
+import {RecipeCommentDomain} from "../Database/Repository/RecipeCommentRepository";
+import {FeedType} from "../Shared/feed.class";
+import {RequestAction, RequestType} from "../Request/request.class";
+import {Request as RequestClass} from "../Request/request.class";
+import {RequestService} from "../Request/requestService";
+import {DialogScaleRecipe, OnScale} from "./dialogScaleRecipe";
+import {DialogPublishRecipe} from "./dialogPublishRecipe";
 
-import Product, {Allergen, Diet} from "../Product/product.class";
-import RecipeShort from "./recipeShort.class";
+import {Product, Allergen, Diet} from "../Product/product.types";
+import {RecipeShort, createShortRecipeFromRecipe} from "./recipe.types";
 import {
   PlanedMealsRecipe,
   PlanedDiet,
   PlanedIntolerances,
   MealRecipe,
-} from "../Event/Menuplan/menuplan.class";
-import EventGroupConfiguration from "../Event/GroupConfiguration/groupConfiguration.class";
+} from "../Event/Menuplan/menuplan.types";
+import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfiguration.class";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/navigationContext";
-import UnitConversion, {
+} from "../Navigation/NavigationContext";
+import {
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../Unit/unitConversion.class";
-import DialogReportError from "./dialogReportError";
-import Unit from "../Unit/unit.class";
+import {DialogReportError} from "./dialogReportError";
+import {Unit} from "../Unit/unit.class";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -255,10 +278,19 @@ interface RecipeViewProps {
   onRecipeDelete?: () => void;
   authUser: AuthUser;
 }
-/** @implements {RecipeViewProps} */
-const RecipeView = ({
+/**
+ * Anzeigekomponente für ein Rezept (Lese-Modus).
+ *
+ * Zeigt Header mit Bild, Bewertung, Zutaten, Zubereitung, Material,
+ * Einplanungspanel, Kommentare sowie Aktions-Buttons (Skalieren, Drucken,
+ * Veröffentlichen, Löschen usw.).
+ *
+ * @param props - Siehe {@link RecipeViewProps}.
+ * @returns Die vollständige Rezeptansicht als React-Element.
+ */
+export const RecipeView = ({
   recipe,
-  firebase,
+  firebase: _firebase,
   mealPlan,
   scaledPortions,
   isLoading,
@@ -275,6 +307,7 @@ const RecipeView = ({
   authUser,
 }: RecipeViewProps) => {
   const classes = useCustomStyles();
+  const database = useDatabase();
   const navigate = useNavigate();
   const {customDialog} = useCustomDialog();
   const navigationValuesContext = React.useContext(NavigationValuesContext);
@@ -294,6 +327,21 @@ const RecipeView = ({
     React.useState(false);
   const [reportErrorDialogOpen, setReportErrorDialogOpen] =
     React.useState(false);
+  // Prüft on-demand, ob ein aktiver Veröffentlichungsantrag existiert.
+  // Nur relevant für private Rezepte des Autors.
+  const [isInReview, setIsInReview] = React.useState(false);
+
+  React.useEffect(() => {
+    if (
+      recipe.type === RecipeType.private &&
+      recipe.created.fromUid === authUser.uid
+    ) {
+      database.requests
+        .hasActivePublishRequest(recipe.uid)
+        .then(setIsInReview)
+        .catch(() => setIsInReview(false));
+    }
+  }, [recipe.uid, recipe.type, recipe.created.fromUid, authUser.uid]);
 
   if (!isEmbedded) {
     document.title = recipe.name;
@@ -341,22 +389,48 @@ const RecipeView = ({
   /* ------------------------------------------
   // Rating
   // ------------------------------------------ */
-  const onSetRating = (value: number) => {
-    Recipe.updateRating({
-      firebase: firebase,
-      recipe: recipe,
-      newRating: value,
-      authUser: authUser,
-    }).then((result) => {
+  const onSetRating = async (value: number) => {
+    try {
+      await database.recipeRatings.upsertRating(
+        {uid: "", recipeId: recipe.uid, userId: authUser.uid, rating: value},
+        authUser,
+      );
+      trackEvent(AnalyticsEvent.RECIPE_RATING_SET);
+      // Feed-Eintrag: Rezept bewertet
+      database.feeds
+        .insertFeed(
+          {
+            feedType: FeedType.recipeRated,
+            sourceObjectType: "recipe",
+            sourceObjectUid: recipe.uid,
+            sourceObjectData: {rating: value},
+          },
+          authUser,
+        )
+        .catch((err) => Sentry.captureException(err, {extra: {context: "RecipeView.onSetRating – Feed-Eintrag konnte nicht erstellt werden"}}));
+
+      // DB-Trigger hat avg_rating + no_ratings in recipes aktualisiert → nachladen.
+      // Cache umgehen, damit die vom Trigger aktualisierten Werte gelesen werden.
+      const updatedHeader = await database.recipes.getRecipe(recipe.uid, true);
       onUpdateRecipe({
-        recipe: {...recipe, rating: result},
+        recipe: {
+          ...recipe,
+          rating: {
+            avgRating: updatedHeader?.avgRating ?? recipe.rating.avgRating,
+            noRatings: updatedHeader?.noRatings ?? recipe.rating.noRatings,
+            myRating: value,
+          },
+        },
         snackbar: {
           message: TEXT_THANK_YOU_FOR_YOUR_RATING,
           severity: "info",
           open: true,
         },
       });
-    });
+    } catch (err) {
+      Sentry.captureException(err, {extra: {context: "RecipeView.onSetRating – Bewertung speichern fehlgeschlagen"}});
+      onError && onError(err as Error);
+    }
   };
   /* ------------------------------------------
   // Tags
@@ -367,34 +441,36 @@ const RecipeView = ({
   const handleTagAddDialogClose = () => {
     setTagAddDialogOpen(false);
   };
-  const onTagDelete = (tagToDelete: string) => {
+  const onTagDelete = async (tagToDelete: string) => {
     const tags = Recipe.deleteTag({
       tags: recipe.tags,
       tagToDelete: tagToDelete,
     });
-    Recipe.saveTags({
-      firebase: firebase,
-      recipe: recipe,
-      tags: tags,
-      authUser: authUser,
-    }).then(() => {
-      onUpdateRecipe({
-        recipe: {...recipe, tags: tags},
+    try {
+      await database.recipes.patch({
+        id: recipe.uid,
+        fields: {tags},
+        authUser,
       });
-    });
+      onUpdateRecipe({recipe: {...recipe, tags}});
+    } catch (err) {
+      Sentry.captureException(err, {extra: {context: "RecipeView.onTagDelete – Tag löschen fehlgeschlagen"}});
+      onError && onError(err as Error);
+    }
   };
-  const handleTagAddDialogAdd = (tags: string[]) => {
+  const handleTagAddDialogAdd = async (tags: string[]) => {
     const listOfTags = recipe.tags.concat(tags);
-    Recipe.saveTags({
-      firebase: firebase,
-      recipe: recipe,
-      tags: listOfTags,
-      authUser: authUser,
-    }).then(() => {
-      onUpdateRecipe({
-        recipe: {...recipe, tags: listOfTags},
+    try {
+      await database.recipes.patch({
+        id: recipe.uid,
+        fields: {tags: listOfTags},
+        authUser,
       });
-    });
+      onUpdateRecipe({recipe: {...recipe, tags: listOfTags}});
+    } catch (err) {
+      Sentry.captureException(err, {extra: {context: "RecipeView.handleTagAddDialogAdd – Tags hinzufügen fehlgeschlagen"}});
+      onError && onError(err as Error);
+    }
     setTagAddDialogOpen(false);
   };
   /* ------------------------------------------
@@ -403,7 +479,7 @@ const RecipeView = ({
   const addToEvent = () => {
     onAddToEvent &&
       onAddToEvent({
-        recipe: RecipeShort.createShortRecipeFromRecipe(recipe),
+        recipe: createShortRecipeFromRecipe(recipe),
       });
   };
   /* ------------------------------------------
@@ -429,9 +505,13 @@ const RecipeView = ({
       });
 
       if (!state.unitConversionBasic) {
-        await UnitConversion.getAllConversionBasic({firebase})
+        await database.unitConversionBasic
+          .getAllConversions()
           .then((result) => {
-            unitConversionBasic = result;
+            // Array in Lookup-Map umwandeln (Schlüssel = uid)
+            unitConversionBasic = Object.fromEntries(
+              result.map((conversion) => [conversion.uid, conversion]),
+            ) as unknown as UnitConversionBasic;
           })
           .catch((error) => {
             dispatch({
@@ -441,9 +521,13 @@ const RecipeView = ({
           });
       }
       if (!state.unitConversionProducts) {
-        await UnitConversion.getAllConversionProducts({firebase})
+        await database.unitConversionProducts
+          .getAllConversions()
           .then((result) => {
-            unitConversionProducts = result;
+            // Array in Lookup-Map umwandeln (Schlüssel = uid)
+            unitConversionProducts = Object.fromEntries(
+              result.map((conversion) => [conversion.uid, conversion]),
+            ) as unknown as UnitConversionProducts;
           })
           .catch((error) => {
             dispatch({
@@ -453,15 +537,13 @@ const RecipeView = ({
           });
       }
       if (state.products.length == 0) {
-        await Product.getAllProducts({
-          firebase: firebase,
-          onlyUsable: true,
-        })
+        await database.products
+          .getAllProducts({onlyUsable: true})
           .then((result) => {
-            products = result;
+            products = result as unknown as Product[];
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error, {extra: {context: "RecipeView.onRecipeScale – Produkte laden fehlgeschlagen"}});
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -469,14 +551,13 @@ const RecipeView = ({
           });
       }
       if (!state.units) {
-        await Unit.getAllUnits({
-          firebase: firebase,
-        })
+        await database.units
+          .getAllUnits()
           .then((result) => {
-            units = result;
+            units = result as unknown as Unit[];
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error, {extra: {context: "RecipeView.onRecipeScale – Einheiten laden fehlgeschlagen"}});
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -525,6 +606,10 @@ const RecipeView = ({
       ingredients: scaledIngredients,
       materials: scaledMaterials,
       scalingOptions: scalingOptions,
+    });
+    trackEvent(AnalyticsEvent.RECIPE_SCALED, {
+      scaleFactor: scaledPortions / recipe.portions,
+      servings: scaledPortions,
     });
 
     //PopUp schliessen
@@ -577,6 +662,7 @@ const RecipeView = ({
         recipe: recipe,
         eventUid: groupConfiguration.uid,
       });
+      trackEvent(AnalyticsEvent.RECIPE_VARIANT_CREATED);
       onUpdateRecipe({recipe: recipeVariant});
       // switchEditMode();
     }
@@ -585,12 +671,13 @@ const RecipeView = ({
   // Drucken
   // ------------------------------------------ */
   const onPrint = async () => {
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "recipe"});
     const pdfRecipeData = {...recipe};
     pdfRecipeData.ingredients = Recipe.deleteEmptyIngredients(
       recipe.ingredients,
     );
     pdfRecipeData.materials = Recipe.deleteEmptyMaterials(recipe.materials);
-    pdf(
+    generateAndDownloadPdf(
       <RecipePdf
         recipe={pdfRecipeData}
         scaledPortions={scalingInformation.portions}
@@ -598,11 +685,10 @@ const RecipeView = ({
         scaledMaterials={scalingInformation.materials}
         authUser={authUser}
       />,
-    )
-      .toBlob()
-      .then((result) => {
-        fileSaver.saveAs(result, recipe.name + TEXT_SUFFIX_PDF);
-      });
+      recipe.name + TEXT_SUFFIX_PDF,
+      (error) =>
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+    );
   };
   /* ------------------------------------------
   // Veröffentlichungsrequest
@@ -614,29 +700,56 @@ const RecipeView = ({
     setPublishRecipeDialogOpen(false);
   };
   const onCreateRecipePublishRequest = async (messageForReview: string) => {
-    // File schreiben, der den Request eröffnet (in Review)
-    await Recipe.createRecipePublishRequest({
-      firebase: firebase,
-      recipe: recipe,
-      messageForReview: messageForReview,
-      authUser: authUser,
-    })
-      .then((requestNo) => {
-        recipe.isInReview = true;
-        onUpdateRecipe({
-          recipe: recipe,
-          snackbar: {
-            message: TEXT_PUBLISH_RECIPE_REQUEST_CREATED(requestNo),
-            severity: "success",
-            open: true,
-          },
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        onError && onError(error);
-      });
+    try {
+      // Initialen Changelog-Eintrag erstellen
+      const changeLog = RequestClass.createChangeLogEntry(
+        [],
+        RequestAction.created,
+        {uid: authUser.uid, displayName: authUser.publicProfile.displayName},
+        {status: "created"},
+      );
 
+      // Antrag in Supabase erstellen
+      const created = await database.requests.createRequest(
+        {
+          requestType: RequestType.recipePublish,
+          recipeUid: recipe.uid,
+          changeLog,
+        },
+        authUser,
+      );
+
+      // Initialen Kommentar als Request-Kommentar speichern (falls vorhanden)
+      if (messageForReview?.trim()) {
+        await database.requestComments.insertComment(
+          created.uid,
+          messageForReview.trim(),
+          authUser,
+        );
+      }
+
+      // E-Mail-Benachrichtigung an Community Leaders auslösen
+      RequestService.triggerNewRequestNotification(
+        RequestType.recipePublish,
+        created.uid,
+      );
+
+      // Lokalen Zustand aktualisieren — kein DB-Patch nötig,
+      // da der Review-Status aus der requests-Tabelle abgeleitet wird.
+      setIsInReview(true);
+
+      onUpdateRecipe({
+        recipe: {...recipe},
+        snackbar: {
+          message: TEXT_PUBLISH_RECIPE_REQUEST_CREATED(created.number),
+          severity: "success",
+          open: true,
+        },
+      });
+    } catch (error) {
+      Sentry.captureException(error, {extra: {context: "RecipeView.onCreateRecipePublishRequest – Veröffentlichungsantrag erstellen fehlgeschlagen"}});
+      onError && onError(error as Error);
+    }
     setPublishRecipeDialogOpen(false);
   };
   const onShowRequest = () => {
@@ -657,28 +770,52 @@ const RecipeView = ({
     setReportErrorDialogOpen(false);
   };
   const onReportErrorRequest = async (messageForReview: string) => {
-    // File schreiben, der den Request eröffnet (in Review)
-    await Recipe.createReportErrorRequest({
-      firebase: firebase,
-      recipe: recipe,
-      messageForReview: messageForReview,
-      authUser: authUser,
-    })
-      .then((requestNo) => {
-        onUpdateRecipe({
-          recipe: recipe,
-          snackbar: {
-            message: TEXT_REPORT_ERROR_RECIPE_REQUEST_CREATED(requestNo),
-            severity: "success",
-            open: true,
-          },
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        onError && onError(error);
-      });
+    try {
+      // Initialen Changelog-Eintrag erstellen
+      const changeLog = RequestClass.createChangeLogEntry(
+        [],
+        RequestAction.created,
+        {uid: authUser.uid, displayName: authUser.publicProfile.displayName},
+        {status: "created"},
+      );
 
+      // Antrag in Supabase erstellen
+      const created = await database.requests.createRequest(
+        {
+          requestType: RequestType.reportError,
+          recipeUid: recipe.uid,
+          changeLog,
+        },
+        authUser,
+      );
+
+      // Initialen Kommentar speichern (falls vorhanden)
+      if (messageForReview?.trim()) {
+        await database.requestComments.insertComment(
+          created.uid,
+          messageForReview.trim(),
+          authUser,
+        );
+      }
+
+      // E-Mail-Benachrichtigung an Community Leaders auslösen
+      RequestService.triggerNewRequestNotification(
+        RequestType.reportError,
+        created.uid,
+      );
+
+      onUpdateRecipe({
+        recipe,
+        snackbar: {
+          message: TEXT_REPORT_ERROR_RECIPE_REQUEST_CREATED(created.number),
+          severity: "success",
+          open: true,
+        },
+      });
+    } catch (error) {
+      Sentry.captureException(error, {extra: {context: "RecipeView.onReportErrorRequest – Fehlermeldung erstellen fehlgeschlagen"}});
+      onError && onError(error as Error);
+    }
     setReportErrorDialogOpen(false);
   };
 
@@ -705,36 +842,27 @@ const RecipeView = ({
       payload: {isLoading: true},
     });
 
-    await Recipe.delete({
-      firebase: firebase,
-      recipe: recipe,
-      authUser: authUser,
-    })
-      .then(() => {
-        // Kurzer Timeout, damit der Session-Storage nachmag
-        setTimeout(function () {
-          //Zurück zur Rezeptübersicht
-          if (recipe.type !== RecipeType.variant) {
-            navigate(ROUTES.RECIPES, {
-              state: {
-                acion: Action.DELETE,
-                object: recipe.uid,
-                snackbar: {
-                  open: true,
-                  severity: "success",
-                  message: `Rezept «${recipe.name}» wurde gelöscht.`,
-                },
-              },
-            });
-          } else {
-            onRecipeDelete && onRecipeDelete();
-          }
-        }, 500);
-      })
-      .catch((error) => {
-        onError && onError(error);
-        return;
-      });
+    try {
+      // ON DELETE CASCADE in der DB entfernt alle Kind-Datensätze automatisch
+      await database.recipes.deleteRecipe(recipe.uid);
+      if (recipe.type !== RecipeType.variant) {
+        navigate(ROUTES.RECIPES, {
+          state: {
+            action: Action.DELETE,
+            object: recipe.uid,
+            snackbar: {
+              open: true,
+              severity: "success",
+              message: `Rezept «${recipe.name}» wurde gelöscht.`,
+            },
+          },
+        });
+      } else {
+        onRecipeDelete && onRecipeDelete();
+      }
+    } catch (error) {
+      onError && onError(error as Error);
+    }
   };
 
   return (
@@ -761,6 +889,7 @@ const RecipeView = ({
           onShowRequest={onShowRequest}
           onDelete={onDeleteRecipe}
           authUser={authUser}
+          isInReview={isInReview}
         />
       )}
       <RecipeDivider />
@@ -800,7 +929,7 @@ const RecipeView = ({
           <RecipeDivider style={{marginTop: "1em", marginBottom: "1em"}} />
           <Grid
             size={{xs: 12, sm: 6}}
-            style={{marginTop: "2em", marginBottom: "2em"}}
+            sx={{marginTop: "2em", marginBottom: "2em"}}
           >
             <RecipeIngredients
               recipe={recipe}
@@ -810,7 +939,7 @@ const RecipeView = ({
           </Grid>
           <Grid
             size={{xs: 12, sm: 6}}
-            style={{marginTop: "2em", marginBottom: "2em"}}
+            sx={{marginTop: "2em", marginBottom: "2em"}}
           >
             <RecipePreparation recipe={recipe} />
           </Grid>
@@ -819,7 +948,7 @@ const RecipeView = ({
               .uid !== "" && (
               <Grid
                 size={{xs: 12, sm: 6}}
-                style={{marginTop: "2em", marginBottom: "2em"}}
+                sx={{marginTop: "2em", marginBottom: "2em"}}
               >
                 <RecipeMaterial
                   recipe={recipe}
@@ -830,10 +959,22 @@ const RecipeView = ({
             )}
           {recipe.type === RecipeType.variant &&
             recipe.variantProperties?.note && (
-              <Grid size={12} style={{marginTop: "2em", marginBottom: "2em"}}>
+              <Grid size={12} sx={{marginTop: "2em", marginBottom: "2em"}}>
                 <RecipeVariantNote recipe={recipe} />
               </Grid>
             )}
+          {recipe.type === RecipeType.public && (
+            <React.Fragment>
+              <RecipeDivider style={{marginTop: "1em", marginBottom: "1em"}} />
+              <Grid size={12} sx={{marginTop: "2em", marginBottom: "2em"}}>
+                <RecipeComments
+                  recipeId={recipe.uid}
+                  recipeName={recipe.name}
+                  disableFunctionality={disableFunctionality}
+                />
+              </Grid>
+            </React.Fragment>
+          )}
         </Grid>
       </Container>
       <DialogTagAdd
@@ -905,8 +1046,8 @@ const RecipeHeader = ({
     <React.Fragment>
       <Container
         maxWidth="md"
-        sx={classes.recipeHeader}
-        style={{
+        sx={{
+          ...classes.recipeHeader,
           display: "flex",
           position: "relative",
           paddingLeft: theme.spacing(5),
@@ -914,7 +1055,7 @@ const RecipeHeader = ({
           backgroundImage: `url(${
             recipe.pictureSrc
               ? recipe.pictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           })`,
           backgroundPosition: "center",
@@ -928,7 +1069,7 @@ const RecipeHeader = ({
             variant="h2"
             align="center"
             color="textPrimary"
-            style={{
+            sx={{
               display: "block",
               overflowWrap: "break-word",
               wordBreak: "break-word",
@@ -943,7 +1084,7 @@ const RecipeHeader = ({
               variant="h5"
               align="center"
               color="textPrimary"
-              style={{display: "block"}}
+              sx={{display: "block"}}
               gutterBottom
             >
               {`${TEXT_VARIANT} ${recipe.variantProperties?.variantName}`}
@@ -973,9 +1114,9 @@ const RecipeHeader = ({
                   keepMounted
                   open={Boolean(ratingAnchor)}
                   onClose={handleRatingMenuClose}
-                  style={{padding: "1em"}}
+                  sx={{padding: "1em"}}
                 >
-                  <Box sx={classes.statsKpiBox} style={{margin: "1em"}}>
+                  <Box sx={{...classes.statsKpiBox, margin: "1em"}}>
                     <Typography color="textSecondary" align="center">
                       {TEXT_FIELD_YOUR_RATING}
                     </Typography>
@@ -983,7 +1124,7 @@ const RecipeHeader = ({
                       <Rating
                         name="rating.myRating"
                         value={recipe.rating.myRating}
-                        precision={0.5}
+                        precision={1}
                         size="small"
                         onChange={onUpdateMyRating}
                       />
@@ -1032,6 +1173,7 @@ interface RecipeButtonRowProps {
   onShowRequest: () => void;
   onDelete: () => void;
   authUser: AuthUser;
+  isInReview: boolean;
 }
 
 const RecipeButtonRow = ({
@@ -1048,6 +1190,7 @@ const RecipeButtonRow = ({
   onShowRequest,
   onDelete,
   authUser,
+  isInReview,
 }: RecipeButtonRowProps) => {
   const buttons: CustomButton[] = [];
 
@@ -1074,9 +1217,9 @@ const RecipeButtonRow = ({
           authUser.roles.includes(Role.communityLeader))) ||
       (recipe.type === RecipeType.private &&
         (recipe.created.fromUid === authUser.uid ||
-          // Falls das Rezepte im Freigabeprozess ist, soll es von
-          // der*m Commnunity-Leader*in angepasst weden können
-          (recipe.isInReview &&
+          // Falls das Rezept im Freigabeprozess ist, soll es von
+          // der*m Community-Leader*in angepasst werden können
+          (isInReview &&
             authUser.roles.includes(Role.communityLeader)))) ||
       // Bei der Rezeptvariante, sollen alle anpassen können
       // Die DB-Regel fängt das ab, dass das Rezept nur angezeigt wird
@@ -1125,9 +1268,8 @@ const RecipeButtonRow = ({
       hero: true,
       visible:
         recipe.type === RecipeType.private &&
-        (recipe?.isInReview === false || recipe.isInReview === undefined) &&
-        (recipe.created.fromUid === authUser.uid ||
-          authUser.roles.includes(Role.admin)),
+        !isInReview &&
+        recipe.created.fromUid === authUser.uid,
       label: TEXT_PUBLISH_RECIPE,
       variant: "outlined",
       color: "primary",
@@ -1152,7 +1294,7 @@ const RecipeButtonRow = ({
       visible:
         recipe.type === RecipeType.private &&
         recipe.created.fromUid === authUser.uid &&
-        recipe.isInReview === true,
+        isInReview,
       label: TEXT_SHOW_OPEN_REQUESTS,
       variant: "outlined",
       color: "primary",
@@ -1207,9 +1349,31 @@ export const RecipeInfoPanel = ({
 }: RecipeInfoPanelProps) => {
   const classes = useCustomStyles();
   const navigate = useNavigate();
+  const database = useDatabase();
 
   const [tipsAndTagsSectionOpen, setTipsAndTagsSectionOpen] =
     React.useState(false);
+  const [authorDisplayName, setAuthorDisplayName] = React.useState(
+    recipe.created.fromDisplayName,
+  );
+
+  // Autorname aus der DB laden — recipe.created.fromDisplayName ist bei
+  // Supabase-Rezepten leer, da der Name nicht denormalisiert gespeichert wird.
+  React.useEffect(() => {
+    if (authorDisplayName || !recipe.created.fromUid) return;
+
+    database.users
+      .getUserDisplayInfo([recipe.created.fromUid])
+      .then((profileMap) => {
+        const profile = profileMap.get(recipe.created.fromUid);
+        if (profile?.displayName) {
+          setAuthorDisplayName(profile.displayName);
+        }
+      })
+      .catch(() => {
+        // Stiller Fehler — Autorname bleibt leer
+      });
+  }, [recipe.created.fromUid]);
 
   const handleOnTipsAndTagsClick = () => {
     setTipsAndTagsSectionOpen(!tipsAndTagsSectionOpen);
@@ -1240,20 +1404,20 @@ export const RecipeInfoPanel = ({
             id={"author"}
             value={
               <Link
-                style={{cursor: "pointer"}}
+                sx={{cursor: "pointer"}}
                 onClick={() =>
                   navigate(
                     `${ROUTES.USER_PUBLIC_PROFILE}/${recipe.created.fromUid}`,
                     {
                       state: {
                         action: Action.VIEW,
-                        displayName: recipe.created.fromDisplayName,
+                        displayName: authorDisplayName,
                       },
                     },
                   )
                 }
               >
-                {recipe.created?.fromDisplayName}
+                {authorDisplayName}
               </Link>
             }
             label={TEXT_CREATED_FROM}
@@ -1326,7 +1490,7 @@ export const RecipeInfoPanel = ({
                               authUser.roles.includes(Role.communityLeader)
                               ? () => onTagDelete(tag)
                               : recipe.type === RecipeType.private &&
-                                  authUser.uid === authUser.uid
+                                  recipe.created.fromUid === authUser.uid
                                 ? () => onTagDelete(tag)
                                 : undefined
                             : undefined
@@ -1368,7 +1532,7 @@ const DietProperties = ({recipe}: DietPropertiesProps) => {
   return (
     <React.Fragment>
       <Grid container spacing={2}>
-        <Grid size={4} style={{textAlign: "center"}}>
+        <Grid size={4} sx={{textAlign: "center"}}>
           {recipe.dietProperties.allergens.includes(Allergen.Lactose) ? (
             <React.Fragment>
               <LactoseIcon fontSize="large" />
@@ -1381,7 +1545,7 @@ const DietProperties = ({recipe}: DietPropertiesProps) => {
             </React.Fragment>
           )}
         </Grid>
-        <Grid size={4} style={{textAlign: "center"}}>
+        <Grid size={4} sx={{textAlign: "center"}}>
           {recipe.dietProperties.allergens.includes(Allergen.Gluten) ? (
             <React.Fragment>
               <GlutenIcon fontSize="large" />
@@ -1394,7 +1558,7 @@ const DietProperties = ({recipe}: DietPropertiesProps) => {
             </React.Fragment>
           )}
         </Grid>
-        <Grid size={4} style={{textAlign: "center"}}>
+        <Grid size={4} sx={{textAlign: "center"}}>
           {recipe.dietProperties.diet === Diet.Vegetarian ? (
             <React.Fragment>
               <VegetarianIcon fontSize="large" />
@@ -1457,7 +1621,7 @@ export const MealPlanPanel = ({
               >
                 <ListItemText
                   key={"listitemealListItemText_" + plan.mealPlanRecipe}
-                  style={{margin: 0}}
+                  sx={{margin: 0}}
                   primary={
                     <>
                       {new Date(plan.meal.date).toLocaleString("default", {
@@ -1528,7 +1692,7 @@ export const MealPlanPanel = ({
               </ListItemButton>
               {index !== mealPlan.length - 1 && (
                 <Divider
-                  style={{
+                  sx={{
                     marginTop: theme.spacing(1),
                     marginBottom: theme.spacing(1),
                   }}
@@ -1664,7 +1828,7 @@ export const RecipeIngredients = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_INGREDIENTS}
@@ -1691,7 +1855,7 @@ export const RecipeIngredients = ({
       )}
       <Divider
         variant="middle"
-        style={{
+        sx={{
           marginTop: "1em",
           marginBottom: "1em",
           marginLeft: "8em",
@@ -1754,16 +1918,16 @@ export const RecipeIngredients = ({
                   <Grid
                     size={12}
                     key={"ingredient_section_grid_" + ingredientUid}
-                    style={{marginTop: "0.5em", paddingLeft: "1em"}}
+                    sx={{marginTop: "0.5em", paddingLeft: "1em"}}
                   >
                     {counter > 0 && (
                       <Divider
-                        style={{marginTop: "2em", marginBottom: "1em"}}
+                        sx={{marginTop: "2em", marginBottom: "1em"}}
                       />
                     )}
                     <Typography
                       variant="subtitle1"
-                      style={{fontWeight: "bold"}}
+                      sx={{fontWeight: "bold"}}
                       // align="center"
                     >
                       {section.name}
@@ -1920,7 +2084,7 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_PREPARATION}
@@ -1953,14 +2117,14 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
                 <Grid
                   size={12}
                   key={"preparationStep_section_grid_" + section.uid}
-                  style={{marginTop: "0.5em", paddingLeft: "1em"}}
+                  sx={{marginTop: "0.5em", paddingLeft: "1em"}}
                 >
                   {counter > 0 && (
-                    <Divider style={{marginTop: "2em", marginBottom: "1em"}} />
+                    <Divider sx={{marginTop: "2em", marginBottom: "1em"}} />
                   )}
                   <Typography
                     variant="subtitle1"
-                    style={{fontWeight: "bold"}}
+                    sx={{fontWeight: "bold"}}
                     // align="center"
                   >
                     {section.name}
@@ -2025,7 +2189,7 @@ export const RecipeMaterial = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_MATERIAL}
@@ -2147,7 +2311,7 @@ const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT_VARIANT_NOTE}
@@ -2163,4 +2327,341 @@ const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
   );
 };
 
-export default RecipeView;
+/* ===================================================================
+// ========================== Kommentare ============================
+// =================================================================== */
+/**
+ * Props für die RecipeComments-Komponente.
+ *
+ * @param recipeId - UID des Rezepts, für das Kommentare geladen werden
+ * @param disableFunctionality - Wenn true, ist der Kommentarbereich schreibgeschützt
+ */
+interface RecipeCommentsProps {
+  recipeId: string;
+  recipeName: string;
+  disableFunctionality?: boolean;
+}
+
+/** Anzahl Kommentare pro Seite */
+const COMMENTS_PAGE_SIZE = 50;
+/** Maximale Zeichenanzahl für einen Kommentar */
+const MAX_COMMENT_LENGTH = 500;
+
+/**
+ * Zeigt den Kommentarbereich eines Rezepts an.
+ * Unterstützt Hinzufügen, Bearbeiten (eigene) und Löschen (eigene + CL/Admin) von Kommentaren.
+ *
+ * @param recipeId - UID des Rezepts
+ * @param disableFunctionality - Schreibgeschützter Modus (z.B. im eingebetteten View)
+ */
+const RecipeComments = ({
+  recipeId,
+  recipeName: _recipeName,
+  disableFunctionality = false,
+}: RecipeCommentsProps) => {
+  const database = useDatabase();
+  const authUser = useAuthUser();
+  const {customDialog} = useCustomDialog();
+
+  const [comments, setComments] = React.useState<RecipeCommentDomain[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [offset, setOffset] = React.useState(0);
+  const [hasMore, setHasMore] = React.useState(false);
+  const [newComment, setNewComment] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
+  const [editingText, setEditingText] = React.useState("");
+
+  /* ------------------------------------------
+  // Kommentare laden
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    setLoading(true);
+    database.recipeComments
+      .getCommentsForRecipe(recipeId, COMMENTS_PAGE_SIZE, 0)
+      .then((loadedComments) => {
+        setComments(loadedComments);
+        setHasMore(loadedComments.length === COMMENTS_PAGE_SIZE);
+        setOffset(loadedComments.length);
+      })
+      .catch((error) => Sentry.captureException(error, {extra: {context: "RecipeComments – Kommentare laden fehlgeschlagen", recipeId}}))
+      .finally(() => setLoading(false));
+  }, [recipeId]);
+
+  /* ------------------------------------------
+  // Ältere Kommentare nachladen
+  // ------------------------------------------ */
+  const onLoadMore = () => {
+    database.recipeComments
+      .getCommentsForRecipe(recipeId, COMMENTS_PAGE_SIZE, offset)
+      .then((olderComments) => {
+        setComments((previous) => [...previous, ...olderComments]);
+        setHasMore(olderComments.length === COMMENTS_PAGE_SIZE);
+        setOffset((previous) => previous + olderComments.length);
+      })
+      .catch((error) => Sentry.captureException(error, {extra: {context: "RecipeComments.onLoadMore – Ältere Kommentare laden fehlgeschlagen", recipeId}}));
+  };
+
+  /* ------------------------------------------
+  // Berechtigungsprüfungen
+  // ------------------------------------------ */
+  const canEdit = (comment: RecipeCommentDomain) =>
+    !disableFunctionality && comment.createdBy === authUser?.uid;
+
+  const canDelete = (comment: RecipeCommentDomain) =>
+    !disableFunctionality &&
+    (comment.createdBy === authUser?.uid ||
+      authUser?.roles?.includes(Role.admin) ||
+      authUser?.roles?.includes(Role.communityLeader));
+
+  /* ------------------------------------------
+  // Kommentar hinzufügen
+  // ------------------------------------------ */
+  const onAddComment = async () => {
+    if (!newComment.trim() || !authUser) {
+      return;
+    }
+    setSaving(true);
+    try {
+      const insertedComment = await database.recipeComments.insertComment(
+        {recipeId, comment: newComment.trim()},
+        authUser,
+      );
+      trackEvent(AnalyticsEvent.RECIPE_COMMENT_CREATED);
+      setComments((previous) => [insertedComment, ...previous]);
+      setNewComment("");
+
+      // Feed-Eintrag: Rezept kommentiert
+      database.feeds
+        .insertFeed(
+          {
+            feedType: FeedType.recipeCommented,
+            sourceObjectType: "recipe",
+            sourceObjectUid: recipeId,
+          },
+          authUser,
+        )
+        .catch((err) => Sentry.captureException(err, {extra: {context: "RecipeComments.onAddComment – Feed-Eintrag konnte nicht erstellt werden"}}));
+    } catch (err) {
+      Sentry.captureException(err, {extra: {context: "RecipeComments.onAddComment – Kommentar speichern fehlgeschlagen", recipeId}});
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  /* ------------------------------------------
+  // Inline-Bearbeitung starten/abbrechen
+  // ------------------------------------------ */
+  const onStartEdit = (comment: RecipeCommentDomain) => {
+    setEditingId(comment.uid);
+    setEditingText(comment.comment);
+  };
+
+  const onCancelEdit = () => {
+    setEditingId(null);
+    setEditingText("");
+  };
+
+  /* ------------------------------------------
+  // Eigenen Kommentar speichern
+  // ------------------------------------------ */
+  const onSaveEdit = async () => {
+    if (!editingId || !authUser) {
+      return;
+    }
+    try {
+      await database.recipeComments.updateComment(
+        editingId,
+        editingText.trim(),
+        authUser,
+      );
+      setComments((previous) =>
+        previous.map((comment) =>
+          comment.uid === editingId
+            ? {...comment, comment: editingText.trim()}
+            : comment,
+        ),
+      );
+      setEditingId(null);
+    } catch (err) {
+      Sentry.captureException(err, {extra: {context: "RecipeComments.onSaveEdit – Kommentar bearbeiten fehlgeschlagen", editingId}});
+    }
+  };
+
+  /* ------------------------------------------
+  // Kommentar löschen (mit Bestätigungsdialog)
+  // ------------------------------------------ */
+  const onDeleteComment = async (commentToDelete: RecipeCommentDomain) => {
+    const isConfirmed = await customDialog({
+      dialogType: DialogType.Confirm,
+      title: TEXT_COMMENT_DELETE_TITLE,
+      text: TEXT_COMMENT_DELETE_TEXT,
+      buttonTextCancel: TEXT_CANCEL,
+      buttonTextConfirm: TEXT_DELETE,
+    });
+    if (!isConfirmed) {
+      return;
+    }
+    try {
+      await database.recipeComments.deleteComment(commentToDelete.uid);
+      setComments((previous) =>
+        previous.filter((comment) => comment.uid !== commentToDelete.uid),
+      );
+    } catch (err) {
+      Sentry.captureException(err, {extra: {context: "RecipeComments.onDeleteComment – Kommentar löschen fehlgeschlagen", commentUid: commentToDelete.uid}});
+    }
+  };
+
+  /* ------------------------------------------
+  // Render
+  // ------------------------------------------ */
+  return (
+    <React.Fragment>
+      <Typography component="h2" variant="h4" align="center" gutterBottom>
+        {TEXT_COMMENTS}
+      </Typography>
+
+      {/* Eingabeformular — nur wenn interaktiv und eingeloggt */}
+      {!disableFunctionality && authUser && (
+        <Box sx={{display: "flex", gap: 1, mt: 1, mb: 2, alignItems: "flex-start"}}>
+          <TextField
+            fullWidth
+            multiline
+            minRows={2}
+            label={TEXT_FIELD_YOUR_COMMENT}
+            placeholder={TEXT_FIELD_PLACEHOLDER_COMMENT}
+            value={newComment}
+            onChange={(event) => setNewComment(event.target.value)}
+            inputProps={{maxLength: MAX_COMMENT_LENGTH}}
+            helperText={`${newComment.length} / ${MAX_COMMENT_LENGTH}`}
+          />
+          <Tooltip title={TEXT_BUTTON_SAVE_COMMENT}>
+            <span>
+              <IconButton
+                color="primary"
+                disabled={!newComment.trim() || saving}
+                onClick={onAddComment}
+                sx={{mt: 1}}
+              >
+                <SaveIcon />
+              </IconButton>
+            </span>
+          </Tooltip>
+        </Box>
+      )}
+
+      {/* Ladeanzeige */}
+      {loading && <CircularProgress size={24} sx={{display: "block", mx: "auto", my: 2}} />}
+
+      {/* Kommentarliste */}
+      <List disablePadding>
+        {comments.map((comment) => (
+          <ListItem
+            key={comment.uid}
+            alignItems="flex-start"
+            disableGutters
+            sx={{
+              mb: 1.5,
+              pb: 1.5,
+              borderBottom: "1px solid",
+              borderColor: "divider",
+              "&:last-child": {borderBottom: "none", mb: 0, pb: 0},
+            }}
+          >
+            <ListItemAvatar>
+              <Avatar
+                src={
+                  comment.pictureSrc
+                    ? getImageUrl(comment.pictureSrc, ImageSize.AVATAR)
+                    : undefined
+                }
+                alt={comment.displayName}
+                sx={{width: 40, height: 40}}
+              >
+                {comment.displayName
+                  ? comment.displayName.charAt(0).toUpperCase()
+                  : "?"}
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              disableTypography
+              primary={
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                  }}
+                >
+                  {/* Name + Datum vertikal gestapelt */}
+                  <Box>
+                    <Typography variant="subtitle2" fontWeight="bold" lineHeight={1.3}>
+                      {comment.displayName || "–"}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {comment.createdAt.toLocaleString("de-CH", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </Typography>
+                  </Box>
+                  {/* Aktionsschaltflächen rechts oben */}
+                  <Box sx={{display: "flex", alignItems: "center", flexShrink: 0, ml: 1}}>
+                    {canEdit(comment) && editingId !== comment.uid && (
+                      <IconButton size="small" onClick={() => onStartEdit(comment)}>
+                        <EditIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                    {canDelete(comment) && (
+                      <IconButton size="small" onClick={() => onDeleteComment(comment)}>
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    )}
+                  </Box>
+                </Box>
+              }
+              secondary={
+                editingId === comment.uid ? (
+                  <Box sx={{mt: 0.5}}>
+                    <TextField
+                      fullWidth
+                      multiline
+                      size="small"
+                      value={editingText}
+                      onChange={(event) => setEditingText(event.target.value)}
+                      inputProps={{maxLength: MAX_COMMENT_LENGTH}}
+                      helperText={`${editingText.length} / ${MAX_COMMENT_LENGTH}`}
+                    />
+                    <Box sx={{display: "flex", gap: 1, mt: 0.5}}>
+                      <IconButton size="small" color="primary" onClick={onSaveEdit}>
+                        <SaveIcon fontSize="small" />
+                      </IconButton>
+                      <IconButton size="small" onClick={onCancelEdit}>
+                        <CancelIcon fontSize="small" />
+                      </IconButton>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" sx={{mt: 0.5, whiteSpace: "pre-wrap"}}>
+                    {comment.comment}
+                  </Typography>
+                )
+              }
+            />
+          </ListItem>
+        ))}
+      </List>
+
+      {/* Ältere Kommentare laden */}
+      {hasMore && (
+        <Button onClick={onLoadMore} variant="text" fullWidth sx={{mt: 1}}>
+          {TEXT_BUTTON_LOAD_OLDER_COMMENTS}
+        </Button>
+      )}
+    </React.Fragment>
+  );
+};
+

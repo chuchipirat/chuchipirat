@@ -1,6 +1,18 @@
+/**
+ * MergeItemsPage — Admin-Seite zum Zusammenführen von Produkten und Materialien.
+ *
+ * Ermöglicht es, zwei Produkte oder zwei Materialien auszuwählen und zu
+ * einem zusammenzuführen. Alle Referenzen (Rezeptzutaten, Einkaufslisten,
+ * Menüpläne, Einheitenumrechnungen) werden auf das Ziel-Element
+ * aktualisiert und das Quell-Element wird gelöscht.
+ *
+ * Verwendet den AdminOperationsRepository (Postgres RPC) anstelle der
+ * früheren Firebase Cloud Functions.
+ */
 import React from "react";
+import * as Sentry from "@sentry/react";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 import {
   ListItemText,
@@ -21,8 +33,9 @@ import {
   ListItem,
 } from "@mui/material";
 
-import PageTitle from "../Shared/pageTitle";
-import AlertMessage from "../Shared/AlertMessage";
+import {PageTitle} from "../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "./system";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import {
   MERGE_ITEM_EXPLANATION as TEXT_MERGE_ITEM_EXPLANATION,
@@ -33,7 +46,6 @@ import {
   MERGE_PRODUCT_SELECTION as TEXT_MERGE_PRODUCT_SELECTION,
   MERGE_MATERIAL_SELECTION as TEXT_MERGE_MATERIAL_SELECTION,
   MERGE_ITEMS as TEXT_MERGE_ITEMS,
-  LOG as TEXT_LOG,
   PRODUCT as TEXT_PRODUCT,
   PRODUCTS as TEXT_PRODUCTS,
   MATERIAL as TEXT_MATERIAL,
@@ -49,65 +61,86 @@ import {
   ALLERGENS as TEXT_ALLERGENS,
   TYPE as TEXT_TYPE,
 } from "../../constants/text";
-import {Role} from "../../constants/roles";
 
-import Product, {MergeProductsCallbackDocument} from "../Product/product.class";
-
-import {useFirebase} from "../Firebase/firebaseContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import ProductAutocomplete from "../Product/productAutocomplete";
-import {
-  STORAGE_OBJECT_PROPERTY,
-  SessionStorageHandler,
-} from "../Firebase/Db/sessionStorageHandler.class";
-import {useAuthUser} from "../Session/authUserContext";
-import Material, {
-  MergeMaterialsCallbackDocument,
-} from "../Material/material.class";
-import MaterialAutocomplete from "../Material/materialAutocomplete";
+import {Product} from "../Product/product.types";
+import {Material} from "../Material/material.types";
+import {ProductAutocomplete} from "../Product/productAutocomplete";
+import {MaterialAutocomplete} from "../Material/materialAutocomplete";
 import {FormListItem} from "../Shared/formListItem";
+import {useDatabase} from "../Database/DatabaseContext";
+import {
+  MergeProductsResult,
+  MergeMaterialsResult,
+} from "../Database/Repository/AdminOperationsRepository";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
+
 enum ReducerActions {
-  PRODUCTS_FETCH_INIT,
-  PRODUCTS_FETCH_SUCCESS,
-  PRODUCTS_CHANGE_PRODUCT,
-  PRODUCT_MERGE_START,
-  PRODUCT_MERGE_FINISHED,
-  MATERIALS_FETCH_INIT,
-  MATERIALS_FETCH_SUCCESS,
-  MATERIALS_CHANGE_MATERIAL,
-  MATERIAL_MERGE_START,
-  MATERIAL_MERGE_FINISHED,
-  CLEAR_MERGE_PROTOCOL,
-  GENERIC_ERROR,
+  PRODUCTS_FETCH_INIT = "PRODUCTS_FETCH_INIT",
+  PRODUCTS_FETCH_SUCCESS = "PRODUCTS_FETCH_SUCCESS",
+  PRODUCTS_CHANGE_PRODUCT = "PRODUCTS_CHANGE_PRODUCT",
+  PRODUCT_MERGE_START = "PRODUCT_MERGE_START",
+  PRODUCT_MERGE_FINISHED = "PRODUCT_MERGE_FINISHED",
+  MATERIALS_FETCH_INIT = "MATERIALS_FETCH_INIT",
+  MATERIALS_FETCH_SUCCESS = "MATERIALS_FETCH_SUCCESS",
+  MATERIALS_CHANGE_MATERIAL = "MATERIALS_CHANGE_MATERIAL",
+  MATERIAL_MERGE_START = "MATERIAL_MERGE_START",
+  MATERIAL_MERGE_FINISHED = "MATERIAL_MERGE_FINISHED",
+  CLEAR_MERGE_PROTOCOL = "CLEAR_MERGE_PROTOCOL",
+  GENERIC_ERROR = "GENERIC_ERROR",
 }
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+/** Diskriminierte Union für alle Reducer-Aktionen. */
+type DispatchAction =
+  | {type: ReducerActions.PRODUCTS_FETCH_INIT}
+  | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
+  | {
+      type: ReducerActions.PRODUCTS_CHANGE_PRODUCT;
+      payload: {field: string; value: Product | null};
+    }
+  | {type: ReducerActions.PRODUCT_MERGE_START}
+  | {
+      type: ReducerActions.PRODUCT_MERGE_FINISHED;
+      payload: MergeProductsResult;
+    }
+  | {type: ReducerActions.MATERIALS_FETCH_INIT}
+  | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
+  | {
+      type: ReducerActions.MATERIALS_CHANGE_MATERIAL;
+      payload: {field: string; value: Material | null};
+    }
+  | {type: ReducerActions.MATERIAL_MERGE_START}
+  | {
+      type: ReducerActions.MATERIAL_MERGE_FINISHED;
+      payload: MergeMaterialsResult;
+    }
+  | {type: ReducerActions.CLEAR_MERGE_PROTOCOL}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
+
+/** Zusammenführungsprotokoll — entweder Produkt- oder Material-Ergebnis. */
+type MergeProtocol =
+  | {kind: "product"; result: MergeProductsResult}
+  | {kind: "material"; result: MergeMaterialsResult}
+  | null;
+
+type ItemSelection = {uid: string; name: string};
 
 type State = {
   products: Product[];
   materials: Material[];
-  product_A: {uid: ""; name: ""}; // muss so heissen, kommt so aus dem AutoComplete
-  product_B: {uid: ""; name: ""};
-  material_A: {uid: ""; name: ""};
-  material_B: {uid: ""; name: ""};
-  mergeProtocol:
-    | MergeProductsCallbackDocument
-    | MergeMaterialsCallbackDocument
-    | null;
+  product_A: ItemSelection;
+  product_B: ItemSelection;
+  material_A: ItemSelection;
+  material_B: ItemSelection;
+  mergeProtocol: MergeProtocol;
   isLoading: boolean;
   isMerging: boolean;
   error: Error | null;
-  snackbar: {open: false; severity: "success"; message: ""};
 };
 
-const inititialState: State = {
+const initialState: State = {
   products: [],
   materials: [],
   product_A: {uid: "", name: ""},
@@ -118,15 +151,20 @@ const inititialState: State = {
   isLoading: false,
   isMerging: false,
   error: null,
-  snackbar: {open: false, severity: "success", message: ""},
 };
 
 enum TabValue {
-  products,
-  materials,
+  products = "products",
+  materials = "materials",
 }
 
-const mergeProductsReducer = (state: State, action: DispatchAction): State => {
+/**
+ * Reducer für den Merge-State.
+ *
+ * Verwaltet Lade-, Auswahl- und Zusammenführungszustände
+ * für Produkte und Materialien.
+ */
+const mergeItemsReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.PRODUCTS_FETCH_INIT:
     case ReducerActions.MATERIALS_FETCH_INIT:
@@ -138,24 +176,18 @@ const mergeProductsReducer = (state: State, action: DispatchAction): State => {
       return {
         ...state,
         isLoading: false,
-        products: action.payload as Product[],
+        products: action.payload,
       };
     case ReducerActions.MATERIALS_FETCH_SUCCESS:
       return {
         ...state,
         isLoading: false,
-        materials: action.payload as Material[],
+        materials: action.payload,
       };
     case ReducerActions.PRODUCTS_CHANGE_PRODUCT: {
-      let product;
-      if (!action.payload.value) {
-        product = {uid: "", name: ""};
-      } else {
-        product = {
-          uid: action.payload.value.uid,
-          name: action.payload.value.name,
-        };
-      }
+      const product = action.payload.value
+        ? {uid: action.payload.value.uid, name: action.payload.value.name}
+        : {uid: "", name: ""};
 
       return {
         ...state,
@@ -164,15 +196,9 @@ const mergeProductsReducer = (state: State, action: DispatchAction): State => {
       };
     }
     case ReducerActions.MATERIALS_CHANGE_MATERIAL: {
-      let material;
-      if (!action.payload.value) {
-        material = {uid: "", name: ""};
-      } else {
-        material = {
-          uid: action.payload.value.uid,
-          name: action.payload.value.name,
-        };
-      }
+      const material = action.payload.value
+        ? {uid: action.payload.value.uid, name: action.payload.value.name}
+        : {uid: "", name: ""};
 
       return {
         ...state,
@@ -188,18 +214,13 @@ const mergeProductsReducer = (state: State, action: DispatchAction): State => {
         isMerging: true,
       };
     case ReducerActions.PRODUCT_MERGE_FINISHED: {
+      // Quellprodukt aus der lokalen Liste entfernen
       const products = state.products.filter(
         (product) => product.uid !== state.product_A.uid
       );
-      // Den Session-Storage auch anpassen
-      SessionStorageHandler.deleteDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.PRODUCTS,
-        documentUid: "products",
-        prefix: "",
-      });
       return {
         ...state,
-        mergeProtocol: action.payload as MergeProductsCallbackDocument,
+        mergeProtocol: {kind: "product", result: action.payload},
         products: products,
         product_A: {uid: "", name: ""},
         product_B: {uid: "", name: ""},
@@ -208,18 +229,13 @@ const mergeProductsReducer = (state: State, action: DispatchAction): State => {
       };
     }
     case ReducerActions.MATERIAL_MERGE_FINISHED: {
+      // Quellmaterial aus der lokalen Liste entfernen
       const materials = state.materials.filter(
         (material) => material.uid !== state.material_A.uid
       );
-      // Den Session-Storage auch anpassen
-      SessionStorageHandler.deleteDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.MATERIALS,
-        documentUid: "materials",
-        prefix: "",
-      });
       return {
         ...state,
-        mergeProtocol: action.payload as MergeMaterialsCallbackDocument,
+        mergeProtocol: {kind: "material", result: action.payload},
         material_A: {uid: "", name: ""},
         material_B: {uid: "", name: ""},
         materials: materials,
@@ -233,15 +249,13 @@ const mergeProductsReducer = (state: State, action: DispatchAction): State => {
         mergeProtocol: null,
       };
     case ReducerActions.GENERIC_ERROR:
-      // Allgemeiner Fehler
       return {
         ...state,
         isMerging: false,
-        error: action.payload as Error,
+        error: action.payload,
       };
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error("Unbekannter ActionType im mergeItemsReducer");
   }
 };
 
@@ -249,56 +263,63 @@ const mergeProductsReducer = (state: State, action: DispatchAction): State => {
 // =============================== Page ==============================
 // =================================================================== */
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Hauptkomponente für die Admin-Seite «Elemente zusammenführen».
+ *
+ * Bietet Tabs für Produkte und Materialien. In jedem Tab können
+ * ein Quell- und ein Ziel-Element gewählt werden, die dann per
+ * Postgres-RPC zusammengeführt werden.
+ */
 const MegeItemsPage = () => {
-  const firebase = useFirebase();
-  const authUser = useAuthUser();
+  const database = useDatabase();
   const classes = useCustomStyles();
   const theme = useTheme();
 
-  const [state, dispatch] = React.useReducer(
-    mergeProductsReducer,
-    inititialState
-  );
+  const [state, dispatch] = React.useReducer(mergeItemsReducer, initialState);
   const [tabValue, setTabValue] = React.useState(TabValue.products);
 
   /* ------------------------------------------
-  // Daten aus der DB lesen
+  // Produkte aus der DB lesen
   // ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.PRODUCTS_FETCH_INIT,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT});
 
-    Product.getAllProducts({
-      firebase: firebase,
-      onlyUsable: true,
-      withDepartmentName: true,
-    })
+    database.products
+      .getAllProducts({onlyUsable: true, withDepartmentName: true})
       .then((result) => {
+        // ProductDomain auf Product-Klasse mappen, da Autocomplete dies erwartet
+        const products = result.map((domain) => {
+          const product: Product = {
+            uid: domain.uid,
+            name: domain.name,
+            department: domain.department,
+            shoppingUnit: domain.shoppingUnit,
+            dietProperties: domain.dietProperties,
+            usable: domain.usable,
+            qaChecked: false,
+            qaCheckedAt: null,
+          };
+          return product;
+        });
         dispatch({
           type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-          payload: result,
+          payload: products,
         });
       })
       .catch((error) => {
-        console.error(error);
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error,
-        });
+        Sentry.captureException(error);
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
   }, []);
-  React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.MATERIALS_FETCH_INIT,
-      payload: {},
-    });
 
-    Material.getAllMaterials({firebase: firebase, onlyUsable: true})
+  /* ------------------------------------------
+  // Materialien aus der DB lesen
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    dispatch({type: ReducerActions.MATERIALS_FETCH_INIT});
+
+    database.materials
+      .getAllMaterials(true)
       .then((result) => {
         dispatch({
           type: ReducerActions.MATERIALS_FETCH_SUCCESS,
@@ -306,22 +327,20 @@ const MegeItemsPage = () => {
         });
       })
       .catch((error) => {
-        console.error(error);
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error,
-        });
+        Sentry.captureException(error);
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
   }, []);
+
   /* ------------------------------------------
-  // Change im Select-Feld
+  // Produktauswahl ändern
   // ------------------------------------------ */
   const onChangeProductSelection = (
     event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | Product | null,
     action?: AutocompleteChangeReason
   ) => {
-    if (action == "blur") {
+    if (action === "blur") {
       return;
     }
 
@@ -329,16 +348,20 @@ const MegeItemsPage = () => {
       type: ReducerActions.PRODUCTS_CHANGE_PRODUCT,
       payload: {
         field: event.target.id.split("-")[0],
-        value: newValue,
+        value: newValue as Product | null,
       },
     });
   };
+
+  /* ------------------------------------------
+  // Materialauswahl ändern
+  // ------------------------------------------ */
   const onChangeMaterialSelection = (
     event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | Material | null,
     action?: AutocompleteChangeReason
   ) => {
-    if (action == "blur") {
+    if (action === "blur") {
       return;
     }
 
@@ -346,80 +369,87 @@ const MegeItemsPage = () => {
       type: ReducerActions.MATERIALS_CHANGE_MATERIAL,
       payload: {
         field: event.target.id.split("-")[0],
-        value: newValue,
+        value: newValue as Material | null,
       },
     });
   };
+
   /* ------------------------------------------
-  // Merge starten (CloudFunction)
+  // Produkte zusammenführen (Supabase RPC)
   // ------------------------------------------ */
-  const onMergeProducts = () => {
+  const onMergeProducts = async () => {
     if (state.product_A.uid === state.product_B.uid) {
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
-        payload: {message: TEXT_MERGE_ERROR_SAME_ITEMS(TEXT_PRODUCT)},
+        payload: new Error(TEXT_MERGE_ERROR_SAME_ITEMS(TEXT_PRODUCT)),
       });
       return;
     }
 
-    dispatch({type: ReducerActions.PRODUCT_MERGE_START, payload: {}});
-    Product.mergeProducts({
-      firebase: firebase,
-      productToReplace: state.product_A,
-      productToReplaceWith: state.product_B,
-      authUser: authUser as AuthUser,
-      callbackDone: (mergeResult) => {
-        dispatch({
-          type: ReducerActions.PRODUCT_MERGE_FINISHED,
-          payload: mergeResult,
-        });
-      },
-    }).catch((error) => {
+    dispatch({type: ReducerActions.PRODUCT_MERGE_START});
+    try {
+      const mergeResult = await database.adminOps.mergeProducts(
+        state.product_A.uid,
+        state.product_B.uid
+      );
+      dispatch({
+        type: ReducerActions.PRODUCT_MERGE_FINISHED,
+        payload: mergeResult,
+      });
+    } catch (error) {
+      Sentry.captureException(error);
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
-        payload: error,
+        payload: error as Error,
       });
-    });
+    }
   };
-  const onMegerMaterials = () => {
+
+  /* ------------------------------------------
+  // Materialien zusammenführen (Supabase RPC)
+  // ------------------------------------------ */
+  const onMergeMaterials = async () => {
     if (state.material_A.uid === state.material_B.uid) {
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
-        payload: {message: TEXT_MERGE_ERROR_SAME_ITEMS(TEXT_MATERIAL)},
+        payload: new Error(TEXT_MERGE_ERROR_SAME_ITEMS(TEXT_MATERIAL)),
       });
       return;
     }
-    dispatch({type: ReducerActions.MATERIAL_MERGE_START, payload: {}});
-    Material.mergeMaterials({
-      firebase: firebase,
-      materialToReplace: state.material_A,
-      materialToReplaceWith: state.material_B,
-      authUser: authUser as AuthUser,
-      callbackDone: (mergeResult) => {
-        dispatch({
-          type: ReducerActions.MATERIAL_MERGE_FINISHED,
-          payload: mergeResult,
-        });
-      },
-    }).catch((error) => {
+
+    dispatch({type: ReducerActions.MATERIAL_MERGE_START});
+    try {
+      const mergeResult = await database.adminOps.mergeMaterials(
+        state.material_A.uid,
+        state.material_B.uid
+      );
+      dispatch({
+        type: ReducerActions.MATERIAL_MERGE_FINISHED,
+        payload: mergeResult,
+      });
+    } catch (error) {
+      Sentry.captureException(error);
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
-        payload: error,
+        payload: error as Error,
       });
-    });
+    }
   };
+
   /* ------------------------------------------
-	// Tab-Handler
-	// ------------------------------------------ */
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
-    setTabValue(newValue);
-    dispatch({type: ReducerActions.CLEAR_MERGE_PROTOCOL, payload: {}});
+  // Tab-Handler
+  // ------------------------------------------ */
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
+    setTabValue(
+      newValue === 0 ? TabValue.products : TabValue.materials
+    );
+    dispatch({type: ReducerActions.CLEAR_MERGE_PROTOCOL});
   };
 
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={TEXT_MERGE_ITEMS} subTitle={TEXT_TIME_TO_CLEAN_UP} />
+      <PageTitle title={TEXT_MERGE_ITEMS} subTitle={TEXT_TIME_TO_CLEAN_UP} breadcrumbs={[SYSTEM_BREADCRUMB]} />
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
         <Backdrop sx={classes.backdrop} open={state.isLoading}>
@@ -427,12 +457,12 @@ const MegeItemsPage = () => {
         </Backdrop>
         {state.error && (
           <AlertMessage
-            error={state.error!}
+            error={state.error}
             messageTitle={TEXT_ALERT_TITLE_UUPS}
           />
         )}
         <Tabs
-          value={tabValue}
+          value={tabValue === TabValue.products ? 0 : 1}
           onChange={handleTabChange}
           centered
           style={{marginBottom: theme.spacing(2)}}
@@ -446,15 +476,21 @@ const MegeItemsPage = () => {
             mergeItems={state}
             onChangeProductSelection={onChangeProductSelection}
             onMergeProducts={onMergeProducts}
-            mergeProtocol={state.mergeProtocol as MergeProductsCallbackDocument}
+            mergeProtocol={
+              state.mergeProtocol?.kind === "product"
+                ? state.mergeProtocol.result
+                : null
+            }
           />
         ) : (
           <PanelMergeMaterials
             mergeItems={state}
             onChangeMaterialSelection={onChangeMaterialSelection}
-            onMergeMaterials={onMegerMaterials}
+            onMergeMaterials={onMergeMaterials}
             mergeProtocol={
-              state.mergeProtocol as MergeMaterialsCallbackDocument
+              state.mergeProtocol?.kind === "material"
+                ? state.mergeProtocol.result
+                : null
             }
           />
         )}
@@ -466,7 +502,8 @@ const MegeItemsPage = () => {
 /* ===================================================================
 // ======================== Merge Product Card =======================
 // =================================================================== */
-interface PanelMergeProductsProps {
+
+type PanelMergeProductsProps = {
   mergeItems: State;
   onChangeProductSelection: (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -475,8 +512,15 @@ interface PanelMergeProductsProps {
     objectId?: string
   ) => void;
   onMergeProducts: () => void;
-  mergeProtocol: MergeProductsCallbackDocument | null;
-}
+  mergeProtocol: MergeProductsResult | null;
+};
+
+/**
+ * Panel für die Produkt-Zusammenführung.
+ *
+ * Zeigt zwei Autocomplete-Felder für Quell- und Zielprodukt,
+ * einen Merge-Button und das Ergebnisprotokoll.
+ */
 const PanelMergeProducts = ({
   mergeItems,
   onChangeProductSelection,
@@ -540,61 +584,74 @@ const PanelMergeProducts = ({
           {TEXT_MERGE_ITEMS}
         </Button>
         {mergeProtocol !== null && (
-          <React.Fragment>
-            <br />
-            <List
-              subheader={
-                <ListSubheader component="div" id="subheader-log-result">
-                  {TEXT_LOG}
-                </ListSubheader>
-              }
-            >
-              <ListItem divider key={"listItem_productA"}>
-                <ListItemText
-                  primary={`${TEXT_PRODUCT} A: ${mergeProtocol.productToReplace
-                    .name!}`}
-                  secondary={mergeProtocol.productToReplace.uid}
-                />
-              </ListItem>
-              <ListItem divider key={"listItem_productB"}>
-                <ListItemText
-                  primary={`${TEXT_PRODUCT} B: ${mergeProtocol.productToReplaceWith.name}`}
-                  secondary={mergeProtocol.productToReplaceWith.uid}
-                />
-              </ListItem>
-            </List>
-
-            <br />
-            <List
-              subheader={
-                <ListSubheader component="div" id="subheader-merge-result">
-                  {TEXT_CHANGED_DOCUMENTS}
-                </ListSubheader>
-              }
-            >
-              {mergeProtocol.documentList.map((document, counter) => (
-                <ListItem divider key={"listItem_" + counter}>
-                  <ListItemText
-                    primary={document.name}
-                    secondary={document.document}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </React.Fragment>
+          <MergeProductsResultList result={mergeProtocol} />
         )}
       </CardContent>
     </Card>
   );
 };
+
+/* ===================================================================
+// =================== Ergebnisanzeige Produkt-Merge =================
+// =================================================================== */
+
+/**
+ * Zeigt das Ergebnis einer Produkt-Zusammenführung als Liste
+ * mit Anzahl betroffener Zeilen pro Tabelle.
+ */
+const MergeProductsResultList = ({result}: {result: MergeProductsResult}) => {
+  return (
+    <React.Fragment>
+      <br />
+      <List
+        subheader={
+          <ListSubheader component="div" id="subheader-merge-result">
+            {TEXT_CHANGED_DOCUMENTS}
+          </ListSubheader>
+        }
+      >
+        <ListItem divider key={"result_recipe_ingredients"}>
+          <ListItemText
+            primary="Rezeptzutaten"
+            secondary={`${result.recipe_ingredients} Zeilen aktualisiert`}
+          />
+        </ListItem>
+        <ListItem divider key={"result_shopping_list_items"}>
+          <ListItemText
+            primary="Einkaufslisteneinträge"
+            secondary={`${result.shopping_list_items} Zeilen aktualisiert`}
+          />
+        </ListItem>
+        <ListItem divider key={"result_menue_products"}>
+          <ListItemText
+            primary="Menüplan-Produkte"
+            secondary={`${result.menue_products} Zeilen aktualisiert`}
+          />
+        </ListItem>
+        <ListItem divider key={"result_unit_conversions"}>
+          <ListItemText
+            primary="Einheitenumrechnungen"
+            secondary={`${result.unit_conversions} Zeilen aktualisiert`}
+          />
+        </ListItem>
+      </List>
+    </React.Fragment>
+  );
+};
+
 /* ===================================================================
 // ====================== Detail-Anzeige Produkt =====================
 // =================================================================== */
-interface ProductDetailListProps {
+
+type ProductDetailListProps = {
   productUid: Product["uid"];
   products: Product[];
-}
+};
 
+/**
+ * Zeigt die Details eines ausgewählten Produkts (UID, Name,
+ * Abteilung, Einkaufseinheit, Diäteigenschaften, Allergene).
+ */
 export const ProductDetailList = ({
   products,
   productUid,
@@ -650,10 +707,12 @@ export const ProductDetailList = ({
     </List>
   );
 };
+
 /* ===================================================================
 // ======================== Merge Material Card ======================
 // =================================================================== */
-interface PanelMergeMaterialsProps {
+
+type PanelMergeMaterialsProps = {
   mergeItems: State;
   onChangeMaterialSelection: (
     event: React.ChangeEvent<HTMLInputElement>,
@@ -662,8 +721,15 @@ interface PanelMergeMaterialsProps {
     objectId?: string
   ) => void;
   onMergeMaterials: () => void;
-  mergeProtocol: MergeMaterialsCallbackDocument | null;
-}
+  mergeProtocol: MergeMaterialsResult | null;
+};
+
+/**
+ * Panel für die Material-Zusammenführung.
+ *
+ * Zeigt zwei Autocomplete-Felder für Quell- und Zielmaterial,
+ * einen Merge-Button und das Ergebnisprotokoll.
+ */
 const PanelMergeMaterials = ({
   mergeItems,
   onChangeMaterialSelection,
@@ -730,59 +796,77 @@ const PanelMergeMaterials = ({
           {TEXT_MERGE_ITEMS}
         </Button>
         {mergeProtocol !== null && (
-          <React.Fragment>
-            <br />
-            <List
-              subheader={
-                <ListSubheader component="div" id="subheader-log-result">
-                  {TEXT_LOG}
-                </ListSubheader>
-              }
-            >
-              <ListItem divider key={"listItem_materialA"}>
-                <ListItemText
-                  primary={`${TEXT_MATERIAL} A: ${mergeProtocol.materialToReplace.name}`}
-                  secondary={mergeProtocol.materialToReplace.uid}
-                />
-              </ListItem>
-              <ListItem divider key={"listItem_materialB"}>
-                <ListItemText
-                  primary={`${TEXT_PRODUCT} B: ${mergeProtocol.materialToReplaceWith.name}`}
-                  secondary={mergeProtocol.materialToReplaceWith.uid}
-                />
-              </ListItem>
-            </List>
-
-            <br />
-            <List
-              subheader={
-                <ListSubheader component="div" id="subheader-merge-result">
-                  {TEXT_CHANGED_DOCUMENTS}
-                </ListSubheader>
-              }
-            >
-              {mergeProtocol.documentList.map((document, counter) => (
-                <ListItem divider key={"listItem_" + counter}>
-                  <ListItemText
-                    primary={document.name}
-                    secondary={document.document}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </React.Fragment>
+          <MergeMaterialsResultList result={mergeProtocol} />
         )}
       </CardContent>
     </Card>
   );
-}; /* ===================================================================
-// ====================== Detail-Anzeige Produkt =====================
+};
+
+/* ===================================================================
+// ================== Ergebnisanzeige Material-Merge =================
 // =================================================================== */
-interface MaterialDetailListProps {
+
+/**
+ * Zeigt das Ergebnis einer Material-Zusammenführung als Liste
+ * mit Anzahl betroffener Zeilen pro Tabelle.
+ */
+const MergeMaterialsResultList = ({
+  result,
+}: {
+  result: MergeMaterialsResult;
+}) => {
+  return (
+    <React.Fragment>
+      <br />
+      <List
+        subheader={
+          <ListSubheader component="div" id="subheader-merge-result">
+            {TEXT_CHANGED_DOCUMENTS}
+          </ListSubheader>
+        }
+      >
+        <ListItem divider key={"result_recipe_materials"}>
+          <ListItemText
+            primary="Rezeptmaterialien"
+            secondary={`${result.recipe_materials} Zeilen aktualisiert`}
+          />
+        </ListItem>
+        <ListItem divider key={"result_material_list_items"}>
+          <ListItemText
+            primary="Materiallisten-Einträge"
+            secondary={`${result.material_list_items} Zeilen aktualisiert`}
+          />
+        </ListItem>
+        <ListItem divider key={"result_menue_materials"}>
+          <ListItemText
+            primary="Menüplan-Materialien"
+            secondary={`${result.menue_materials} Zeilen aktualisiert`}
+          />
+        </ListItem>
+        <ListItem divider key={"result_shopping_list_items"}>
+          <ListItemText
+            primary="Einkaufslisteneinträge"
+            secondary={`${result.shopping_list_items} Zeilen aktualisiert`}
+          />
+        </ListItem>
+      </List>
+    </React.Fragment>
+  );
+};
+
+/* ===================================================================
+// ====================== Detail-Anzeige Material ====================
+// =================================================================== */
+
+type MaterialDetailListProps = {
   materialUid: Material["uid"];
   materials: Material[];
-}
+};
 
+/**
+ * Zeigt die Details eines ausgewählten Materials (UID, Name, Typ).
+ */
 export const MaterialDetailList = ({
   materials,
   materialUid,

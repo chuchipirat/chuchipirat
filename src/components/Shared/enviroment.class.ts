@@ -1,3 +1,4 @@
+import * as Sentry from "@sentry/react";
 import Firebase from "../Firebase/firebase.class";
 
 interface GetActualVersion {
@@ -11,7 +12,7 @@ interface GetActualVersion {
  * seinen Browser aktualisieren
  * @param object Objekt mit Firebase Referenz
  * @returns aktuelle Version
- */ export default class Environment {
+ */ export class Environment {
   static getActualVersion = async ({firebase}: GetActualVersion) => {
     let actualVersion = "";
     await firebase.configuration.version
@@ -20,7 +21,7 @@ interface GetActualVersion {
         actualVersion = result.actualVersion;
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
 

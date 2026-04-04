@@ -1,12 +1,26 @@
-import Role from "../../../constants/roles";
-import {Picture} from "../../Shared/global.interface";
+import {Role} from "../../../constants/roles";
+
 export interface AuthUserPublicProfile {
   displayName: string;
   motto: string;
-  pictureSrc: Picture;
+  pictureSrc: string;
 }
 
+/**
+ * Authentifizierter Benutzer — enthält Profil- und Auth-Daten.
+ *
+ * `uid` ist die Supabase Auth UUID (= `auth.users.id` = `public.users.id`).
+ *
+ * @param uid - Benutzer-UUID (identisch mit auth.users.id und public.users.id)
+ * @param email - E-Mail-Adresse des Benutzers
+ * @param emailVerified - Ob die E-Mail verifiziert wurde
+ * @param firstName - Vorname
+ * @param lastName - Nachname
+ * @param roles - Zugewiesene Rollen
+ * @param publicProfile - Öffentlich sichtbare Profildaten
+ */
 export class AuthUser {
+  /** Benutzer-UUID (identisch mit auth.users.id und public.users.id) */
   uid: string;
   email: string;
   emailVerified: boolean;
@@ -24,7 +38,7 @@ export class AuthUser {
     this.publicProfile = {
       displayName: "",
       motto: "",
-      pictureSrc: {smallSize: "", normalSize: "", fullSize: ""},
+      pictureSrc: "",
     };
   }
 }

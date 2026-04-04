@@ -1,7 +1,9 @@
+import * as Sentry from "@sentry/react";
 import React from "react";
 import {useTheme} from "@mui/material/styles";
-import {pdf} from "@react-pdf/renderer";
-import fileSaver from "file-saver";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
+import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
   Card,
@@ -25,7 +27,11 @@ import {
   Stack,
   Alert,
 } from "@mui/material";
-import {Delete as DeleteIcon, Add as AddIcon} from "@mui/icons-material";
+import {
+  Delete as DeleteIcon,
+  Add as AddIcon,
+  ReceiptLong as ReceiptLongIcon,
+} from "@mui/icons-material";
 
 import {
   DEFINE_BASIC_EVENT_DATA as TEXT_DEFINE_BASIC_EVENT_DATA,
@@ -52,19 +58,27 @@ import {
   RECEIPT as TEXT_RECEIPT,
   CREATE_RECEIPT as TEXT_CREATE_RECEIPT,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
+  IMAGE_FORMAT_NOT_SUPPORTED as TEXT_IMAGE_FORMAT_NOT_SUPPORTED,
+  IMAGE_TOO_LARGE as TEXT_IMAGE_TOO_LARGE,
 } from "../../../constants/text";
 
-import useCustomStyles from "../../../constants/styles";
+import {DONATION_RECEIPT_DOWNLOAD as TEXT_DONATION_RECEIPT_DOWNLOAD} from "../../../constants/text/donations";
+import {DonationDomain} from "../../Donate/donation.types";
+import {DonationReceiptPdf} from "../../Donate/DonationReceiptPdf";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {ImageRepository} from "../../../constants/imageRepository";
 
-import Event, {EventRefDocuments} from "./event.class";
-import User from "../../User/user.class";
+import {Event,EventRefDocuments} from "./event.class";
+import {User} from "../../User/user.class";
 
 import Firebase from "../../Firebase/firebase.class";
+import DatabaseService from "../../Database/DatabaseService";
+import {FeedType} from "../../Shared/feed.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Utils from "../../Shared/utils.class";
-import DialogAddUser from "../../User/dialogAddUser";
+import {Utils} from "../../Shared/utils.class";
+import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
+import {DialogAddUser} from "../../User/dialogAddUser";
 import {
   FormValidationFieldError,
   FormValidatorUtil,
@@ -73,16 +87,14 @@ import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {
   NavigationObject,
   NavigationValuesContext,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
-import Receipt from "./receipt.class";
-import EventReceiptPdf from "./eventRecipePdf";
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
+import {Receipt} from "./receipt.class";
+import {EventReceiptPdf} from "./eventRecipePdf";
 import {EventDate} from "./event.class";
 import {DatePicker} from "@mui/x-date-pickers";
+import dayjs, {Dayjs} from "dayjs";
 
-/* ===================================================================
-// ============================== Global =============================
-// =================================================================== */
 
 /** Epoch-Zeitstempel (1.1.1970) für Vergleiche mit leeren Datumsfeldern. */
 const EPOCH_TIME = new Date(0).getTime();
@@ -131,7 +143,7 @@ const autoFillToDate = (eventDate: EventDate, fromDate: Date): void => {
 const autoAppendDateRow = (
   eventDate: EventDate,
   totalDates: number,
-  dates: EventDate[]
+  dates: EventDate[],
 ): EventDate[] => {
   if (eventDate.pos === totalDates) {
     const newDate = Event.createDateEntry();
@@ -141,9 +153,6 @@ const autoAppendDateRow = (
   return dates;
 };
 
-/* ===================================================================
-// ============================ Event-Info ===========================
-// =================================================================== */
 /** Props für die Event-Informationsseite. */
 interface EventInfoPageProps {
   /** Das aktuelle Event-Objekt. */
@@ -152,6 +161,8 @@ interface EventInfoPageProps {
   localPicture: File | null;
   /** Firebase-Instanz für DB-Zugriffe. */
   firebase: Firebase;
+  /** Datenbank-Service für Supabase-Zugriffe. */
+  database: DatabaseService;
   /** Authentifizierter Benutzer. */
   authUser: AuthUser;
   /** Aktuelle Formular-Validierungsfehler. */
@@ -175,6 +186,7 @@ const EventInfoPage = ({
   event,
   localPicture,
   firebase,
+  database,
   authUser,
   formValidation,
   onUpdateEvent,
@@ -186,6 +198,8 @@ const EventInfoPage = ({
 
   // Hier damit der AuthUser übergeben werden kann
   const [dialogAddUserOpen, setDialogAddUserOpen] = React.useState(false);
+  const [eventDonation, setEventDonation] =
+    React.useState<DonationDomain | null>(null);
   const {customDialog} = useCustomDialog();
   /* ------------------------------------------
   // Navigation-Handler
@@ -198,6 +212,24 @@ const EventInfoPage = ({
   }, []);
 
   /* ------------------------------------------
+  // Spende für dieses Event laden
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (!event.uid) return;
+
+    database.donations
+      .getEventDonations(event.uid)
+      .then((donations) => {
+        setEventDonation(donations.length > 0 ? donations[0] : null);
+      })
+      .catch((error) => {
+        Sentry.captureException(error, {
+          extra: {context: "Event-Spende laden"},
+        });
+      });
+  }, [event.uid]);
+
+  /* ------------------------------------------
   // Field-Change
   // ------------------------------------------ */
   const onFieldUpdate = (actionEvent: React.ChangeEvent<HTMLInputElement>) => {
@@ -206,51 +238,59 @@ const EventInfoPage = ({
       [actionEvent.target.name]: actionEvent.target.value,
     } as Event);
   };
-  const onDatePickerUpdate = (date: Date | null, field: string) => {
-    if (!date) {
-      return;
-    }
-
-    const changedPos = field.split("_");
-    let tempDates = [...event.dates];
-    const eventDate = tempDates.find(
-      (eventDate) => eventDate.uid === changedPos[1]
+  const onDatePickerUpdate = (
+    date: Dayjs | null,
+    dateUid: string,
+    fieldName: "from" | "to",
+  ) => {
+    let updatedDates = [...event.dates];
+    const eventDate = updatedDates.find(
+      (eventDate) => eventDate.uid === dateUid,
     );
     if (!eventDate) {
       return;
     }
 
-    const normalizedDate = normalizeDateHours(date, changedPos[0]);
-    eventDate[changedPos[0] as keyof Pick<EventDate, "from" | "to">] =
-      normalizedDate;
+    // Null = Benutzer hat das Feld geleert → auf Epoch zurücksetzen,
+    // damit die Validierung erkennt, dass kein Datum gesetzt ist.
+    if (!date) {
+      eventDate[fieldName] = new Date(0);
+    } else {
+      const normalizedDate = normalizeDateHours(date.toDate(), fieldName);
+      eventDate[fieldName] = normalizedDate;
 
-    if (changedPos[0] === "from") {
-      autoFillToDate(eventDate, normalizedDate);
+      if (fieldName === "from") {
+        autoFillToDate(eventDate, normalizedDate);
+      }
     }
 
-    tempDates = autoAppendDateRow(eventDate, event.dates.length, tempDates);
-    tempDates = Utils.renumberArray({array: tempDates, field: "pos"});
+    updatedDates = autoAppendDateRow(
+      eventDate,
+      event.dates.length,
+      updatedDates,
+    );
+    updatedDates = Utils.renumberArray({array: updatedDates, field: "pos"});
 
-    onUpdateEvent({...event, dates: tempDates} as Event);
+    onUpdateEvent({...event, dates: updatedDates} as Event);
 
     if (onFormValidationUpdate) {
-      onFormValidationUpdate(Event.validateDates(tempDates));
+      onFormValidationUpdate(Event.validateDates(updatedDates));
     }
   };
-  const onDateDeleteClick = (
-    actionEvent: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    let tempDates = event.dates.filter(
-      (eventDate) =>
-        eventDate.uid !== actionEvent.currentTarget.id.split("_")[1]
-    );
-    tempDates = Utils.renumberArray({array: tempDates, field: "pos"});
+  const onDateDeleteClick = (event_: React.MouseEvent<HTMLButtonElement>) => {
+    const dateUid = event_.currentTarget.dataset.dateUid;
+    if (!dateUid) return;
 
-    onUpdateEvent({...event, dates: tempDates} as Event);
+    let updatedDates = event.dates.filter(
+      (eventDate) => eventDate.uid !== dateUid,
+    );
+    updatedDates = Utils.renumberArray({array: updatedDates, field: "pos"});
+
+    onUpdateEvent({...event, dates: updatedDates} as Event);
 
     // Inline-Datumsvalidierung auslösen
     if (onFormValidationUpdate) {
-      onFormValidationUpdate(Event.validateDates(tempDates));
+      onFormValidationUpdate(Event.validateDates(updatedDates));
     }
   };
   /* ------------------------------------------
@@ -271,11 +311,13 @@ const EventInfoPage = ({
       }
 
       try {
-        await Event.deletePicture({
-          firebase: firebase,
-          event: event,
-          authUser: authUser,
+        // Bild aus Supabase Storage löschen
+        await database.storage.events.remove(event.uid + ".jpg").catch(() => {
+          // Ignorieren falls kein Bild vorhanden
         });
+        // Event-Dokument aktualisieren (Bild-URL leeren)
+        const eventDomain = database.events.eventUiToDomain({...event, pictureSrc: ""} as Event);
+        await database.events.updateEvent(eventDomain, authUser);
         onUpdateEvent({...event, pictureSrc: ""} as Event);
       } catch (error) {
         onError?.(error as Error);
@@ -285,13 +327,13 @@ const EventInfoPage = ({
   /* ------------------------------------------
   // Köche-Handling
   // ------------------------------------------ */
-  const onOpenDialogAddUserDialog = () => {
+  const onOpenAddCookDialog = () => {
     setDialogAddUserOpen(true);
   };
-  const onCloseDialogAddUserDialog = () => {
+  const onCloseAddCookDialog = () => {
     setDialogAddUserOpen(false);
   };
-  const onAddUserToEvent = async (personUid: string) => {
+  const onAddCookToEvent = async (personUid: string) => {
     if (!personUid) {
       setDialogAddUserOpen(false);
       return;
@@ -299,37 +341,76 @@ const EventInfoPage = ({
 
     try {
       const publicProfile = await User.getPublicProfile({
-        firebase: firebase,
+        database: database,
         uid: personUid,
       });
-      const updatedCooks = await Event.addCookToEvent({
-        firebase: firebase,
-        authUser: authUser,
-        cookPublicProfile: publicProfile,
-        event: event,
-      });
+
+      // Koch zum lokalen State hinzufügen
+      const updatedCooks = [
+        ...event.cooks,
+        {
+          uid: personUid,
+          displayName: publicProfile.displayName,
+          motto: publicProfile.motto,
+          pictureSrc: publicProfile.pictureSrc,
+        },
+      ];
+
+      if (event.uid) {
+        // Koch in Supabase hinzufügen — publicProfile.uid enthält die Auth-UUID
+        await database.events.addCook(event.uid, personUid, authUser);
+        trackEvent(AnalyticsEvent.EVENT_COOK_ADDED);
+
+        // Feed-Eintrag: Koch zum Team hinzugefügt
+        database.feeds
+          .insertFeed(
+            {
+              feedType: FeedType.eventCookAdded,
+              sourceObjectType: "event",
+              sourceObjectUid: event.uid,
+              userUid: personUid,
+            },
+            authUser,
+          )
+          .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+      }
+
       onUpdateEvent({...event, cooks: updatedCooks} as Event);
     } catch (error) {
       onError?.(error as Error);
     }
     setDialogAddUserOpen(false);
   };
-  const onDeleteCook = async (
-    actionEvent: React.MouseEvent<HTMLButtonElement>
-  ) => {
-    const cookUidToDelete = actionEvent.currentTarget.id.split("_")[1];
+  const onDeleteCook = async (event_: React.MouseEvent<HTMLButtonElement>) => {
+    const cookUidToDelete = event_.currentTarget.dataset.cookUid;
     if (!cookUidToDelete) {
       return;
     }
 
     try {
-      const result = await Event.removeCookFromEvent({
-        firebase: firebase,
-        authUser: authUser,
-        cookUidToRemove: cookUidToDelete,
-        event: event,
-      });
-      onUpdateEvent({...event, cooks: result} as Event);
+      // Koch aus dem lokalen State entfernen
+      const updatedCooks = event.cooks.filter(
+        (cook) => cook.uid !== cookUidToDelete,
+      );
+
+      if (event.uid) {
+        // Den Cook-Eintrag in Supabase finden und löschen
+        // event.cooks enthält Cook-Objekte mit uid = userId (Auth-UUID)
+        // Wir müssen die event_cooks-Zeile via Realtime/Event-Reload finden
+        // Da subscribeToEvent die Köche als EventCookDomain liefert und
+        // eventDomainToClass die userId als cook.uid setzt, können wir über
+        // die Events-Tabelle den richtigen Cook-Record ermitteln.
+        const eventDomain = await database.events.getEvent(event.uid);
+        const cookRecord = eventDomain?.cooks.find(
+          (c) => c.userId === cookUidToDelete,
+        );
+        if (cookRecord) {
+          await database.events.removeCook(cookRecord.uid);
+          trackEvent(AnalyticsEvent.EVENT_COOK_REMOVED);
+        }
+      }
+
+      onUpdateEvent({...event, cooks: updatedCooks} as Event);
     } catch (error) {
       onError?.(error as Error);
     }
@@ -338,20 +419,39 @@ const EventInfoPage = ({
   // Quittung
   // ------------------------------------------ */
   const onDownloadReceipt = async () => {
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "receipt"});
     try {
       const receiptData = await Receipt.getReceipt({
         firebase: firebase,
         eventUid: event.uid,
       });
-      const blob = await pdf(
-        <EventReceiptPdf receiptData={receiptData} authUser={authUser} />
-      ).toBlob();
-      fileSaver.saveAs(
-        blob,
-        event.name + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF
+      await generateAndDownloadPdf(
+        <EventReceiptPdf receiptData={receiptData} authUser={authUser} />,
+        event.name + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
+        (error) => onError?.(error),
+        {eventUid: event.uid},
       );
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error);
+      onError?.(error as Error);
+    }
+  };
+
+  /* ------------------------------------------
+  // Spendenquittung
+  // ------------------------------------------ */
+  const onDownloadDonationReceipt = async () => {
+    if (!eventDonation) return;
+    trackEvent(AnalyticsEvent.DONATION_RECEIPT_DOWNLOADED);
+    try {
+      await generateAndDownloadPdf(
+        <DonationReceiptPdf donation={eventDonation} authUser={authUser} />,
+        `${TEXT_DONATION_RECEIPT_DOWNLOAD}${eventDonation.eventName ? ` ${eventDonation.eventName}` : ""}${TEXT_SUFFIX_PDF}`,
+        (error) => onError?.(error),
+        {donationId: eventDonation.id},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
       onError?.(error as Error);
     }
   };
@@ -367,32 +467,33 @@ const EventInfoPage = ({
           onDateDeleteClick={onDateDeleteClick}
           onImageUpload={onUpdatePicture}
           onImageDelete={onImageDelete}
+          onError={onError}
           previewPictureUrl={
             localPicture ? URL.createObjectURL(localPicture) : ""
           }
           onDownloadReceipt={onDownloadReceipt}
+          eventDonation={eventDonation}
+          onDownloadDonationReceipt={onDownloadDonationReceipt}
         />
         <EventCookingTeamCard
           event={event}
           formValidation={formValidation}
           authUser={authUser}
-          onAddCook={onOpenDialogAddUserDialog}
+          onAddCook={onOpenAddCookDialog}
           onDeleteCook={onDeleteCook}
         />
       </Stack>
       <DialogAddUser
-        firebase={firebase}
+        database={database}
         authUser={authUser}
+        eventId={event.uid || undefined}
         dialogOpen={dialogAddUserOpen}
-        handleAddUser={onAddUserToEvent}
-        handleClose={onCloseDialogAddUserDialog}
+        handleAddUser={onAddCookToEvent}
+        handleClose={onCloseAddCookDialog}
       />
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ============================= Info-Card ===========================
-// =================================================================== */
 /** Props für die Basis-Informationskarte des Events. */
 interface EventBasicInfoCardProps {
   /** Das aktuelle Event-Objekt. */
@@ -402,15 +503,25 @@ interface EventBasicInfoCardProps {
   /** Callback bei Änderung eines Textfeldes. */
   onFieldUpdate: (event: React.ChangeEvent<HTMLInputElement>) => void;
   /** Callback bei Änderung eines Datums. */
-  onDatePickerUpdate: (date: Date | null, field: string) => void;
+  onDatePickerUpdate: (
+    date: Dayjs | null,
+    dateUid: string,
+    fieldName: "from" | "to",
+  ) => void;
   /** Callback zum Löschen einer Datumszeile. */
   onDateDeleteClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   /** Callback beim Hochladen eines Bildes. */
   onImageUpload: (file: File | null) => void;
   /** Callback zum Löschen des Bildes. */
   onImageDelete: () => void;
+  /** Callback bei Fehlern (z.B. Bildvalidierung). */
+  onError?: (error: Error) => void;
   /** Callback zum Herunterladen der Quittung als PDF. */
   onDownloadReceipt: () => void;
+  /** Bestätigte Spende für dieses Event (null wenn keine vorhanden). */
+  eventDonation: DonationDomain | null;
+  /** Callback zum Herunterladen der Spendenquittung als PDF. */
+  onDownloadDonationReceipt: () => void;
   /** Vorschau-URL des lokal ausgewählten Bildes. */
   previewPictureUrl: string | null;
 }
@@ -427,7 +538,10 @@ const EventBasicInfoCard = ({
   onDateDeleteClick,
   onImageUpload,
   onImageDelete,
+  onError,
   onDownloadReceipt,
+  eventDonation,
+  onDownloadDonationReceipt,
   previewPictureUrl,
 }: EventBasicInfoCardProps) => {
   const classes = useCustomStyles();
@@ -439,19 +553,34 @@ const EventBasicInfoCard = ({
         title={TEXT_EVENT_INFO}
         subheader={TEXT_DEFINE_BASIC_EVENT_DATA}
         action={
-          event.refDocuments?.includes(EventRefDocuments.receipt) ? (
-            <Button
-              color="primary"
-              variant="outlined"
-              style={{
-                marginTop: theme.spacing(1),
-                marginRight: theme.spacing(0.6),
-              }}
-              onClick={onDownloadReceipt}
+          (event.refDocuments?.includes(EventRefDocuments.receipt) ||
+            eventDonation) && (
+            <Stack
+              direction="row"
+              spacing={1}
+              sx={{mt: theme.spacing(1), mr: theme.spacing(0.6)}}
             >
-              {TEXT_RECEIPT}
-            </Button>
-          ) : null
+              {event.refDocuments?.includes(EventRefDocuments.receipt) && (
+                <Button
+                  color="primary"
+                  variant="outlined"
+                  onClick={onDownloadReceipt}
+                >
+                  {TEXT_RECEIPT}
+                </Button>
+              )}
+              {eventDonation && (
+                <Button
+                  color="primary"
+                  variant="outlined"
+                  startIcon={<ReceiptLongIcon />}
+                  onClick={onDownloadDonationReceipt}
+                >
+                  {TEXT_DONATION_RECEIPT_DOWNLOAD}
+                </Button>
+              )}
+            </Stack>
+          )
         }
       />
       <CardContent>
@@ -474,14 +603,15 @@ const EventBasicInfoCard = ({
                   helperText={FormValidatorUtil.getHelperText(
                     formValidation,
                     "name",
-                    TEXT_EVENT_NAME_HELPERTEXT
+                    TEXT_EVENT_NAME_HELPERTEXT,
                   )}
                   error={FormValidatorUtil.isFieldErroneous(
                     formValidation,
-                    "name"
+                    "name",
                   )}
                   fullWidth
                   required
+                  slotProps={{htmlInput: {maxLength: 200}}}
                 />
               </Grid>
               <Grid size={12}>
@@ -494,6 +624,7 @@ const EventBasicInfoCard = ({
                   value={event.motto}
                   onChange={onFieldUpdate}
                   fullWidth
+                  slotProps={{htmlInput: {maxLength: 500}}}
                 />
               </Grid>
               <Grid size={12}>
@@ -506,6 +637,7 @@ const EventBasicInfoCard = ({
                   value={event.location}
                   onChange={onFieldUpdate}
                   fullWidth
+                  slotProps={{htmlInput: {maxLength: 200}}}
                 />
               </Grid>
               <Grid size={12}>
@@ -529,6 +661,7 @@ const EventBasicInfoCard = ({
               previewPictureUrl={previewPictureUrl}
               onImageUpload={onImageUpload}
               onImageDelete={onImageDelete}
+              onError={onError}
             />
           </Grid>
         </Grid>
@@ -536,9 +669,6 @@ const EventBasicInfoCard = ({
     </Card>
   );
 };
-/* ===================================================================
-// ========================= Datums-Bereich ==========================
-// =================================================================== */
 /** Props für den Datums-Bereich. */
 interface EventDatesSectionProps {
   /** Das aktuelle Event-Objekt. */
@@ -546,7 +676,11 @@ interface EventDatesSectionProps {
   /** Aktuelle Formular-Validierungsfehler. */
   formValidation: FormValidationFieldError[];
   /** Callback bei Änderung eines Datums. */
-  onDatePickerUpdate: (date: Date | null, field: string) => void;
+  onDatePickerUpdate: (
+    date: Dayjs | null,
+    dateUid: string,
+    fieldName: "from" | "to",
+  ) => void;
   /** Callback zum Löschen einer Datumszeile. */
   onDateDeleteClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
@@ -575,21 +709,23 @@ const EventDatesSection = ({
             <DatePicker
               key={"dateFrom_" + eventDate.uid}
               label={TEXT_FROM}
-              format="dd.MM.yyyy"
+              format="DD.MM.YYYY"
               value={
-                eventDate.from?.getTime() === EPOCH_TIME
-                  ? null
-                  : eventDate.from
+                eventDate.from?.getTime() === EPOCH_TIME ? null : dayjs(eventDate.from)
               }
               onChange={(date) =>
-                onDatePickerUpdate(date, "from_" + eventDate.uid)
+                onDatePickerUpdate(date, eventDate.uid, "from")
               }
               slotProps={{
                 textField: {
                   helperText: FormValidatorUtil.getHelperText(
                     formValidation,
                     "dateFrom_" + eventDate.uid,
-                    ""
+                    "",
+                  ),
+                  error: FormValidatorUtil.isFieldErroneous(
+                    formValidation,
+                    "dateFrom_" + eventDate.uid,
                   ),
                 },
               }}
@@ -602,19 +738,21 @@ const EventDatesSection = ({
             <DatePicker
               key={"dateTo_" + eventDate.uid}
               label={TEXT_TO}
-              format="dd.MM.yyyy"
+              format="DD.MM.YYYY"
               value={
-                eventDate.to?.getTime() === EPOCH_TIME ? null : eventDate.to
+                eventDate.to?.getTime() === EPOCH_TIME ? null : dayjs(eventDate.to)
               }
-              onChange={(date) =>
-                onDatePickerUpdate(date, "to_" + eventDate.uid)
-              }
+              onChange={(date) => onDatePickerUpdate(date, eventDate.uid, "to")}
               slotProps={{
                 textField: {
                   helperText: FormValidatorUtil.getHelperText(
                     formValidation,
                     "dateTo_" + eventDate.uid,
-                    ""
+                    "",
+                  ),
+                  error: FormValidatorUtil.isFieldErroneous(
+                    formValidation,
+                    "dateTo_" + eventDate.uid,
                   ),
                 },
               }}
@@ -624,7 +762,7 @@ const EventDatesSection = ({
             <Tooltip title={TEXT_DELETE_DATES}>
               <span>
                 <IconButton
-                  id={"dateDelete_" + eventDate.uid}
+                  data-date-uid={eventDate.uid}
                   aria-label="delete"
                   onClick={onDateDeleteClick}
                   color="primary"
@@ -650,9 +788,11 @@ const EventDatesSection = ({
     </Grid>
   );
 };
-/* ===================================================================
-// =========================== Bild-Bereich ==========================
-// =================================================================== */
+/** Erlaubte MIME-Typen für Event-Bilder. */
+const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
+/** Maximale Dateigrösse für Event-Bilder (10 MB, wird vor Upload auf <2 MB skaliert). */
+const MAX_FILE_SIZE = 10 * 1024 * 1024;
+
 /** Props für den Bild-Bereich. */
 interface EventImageSectionProps {
   /** Das aktuelle Event-Objekt. */
@@ -663,26 +803,39 @@ interface EventImageSectionProps {
   onImageUpload: (file: File | null) => void;
   /** Callback zum Löschen des Bildes. */
   onImageDelete: () => void;
+  /** Callback bei Fehlern (z.B. ungültiges Format oder zu grosse Datei). */
+  onError?: (error: Error) => void;
 }
 
 /**
  * Bild-Bereich der Event-Informationskarte.
  * Zeigt eine Bildvorschau und Buttons zum Hochladen bzw. Löschen
- * des Event-Bildes.
+ * des Event-Bildes. Validiert Format und Dateigrösse vor der Übernahme.
  */
 const EventImageSection = ({
   event,
   previewPictureUrl,
   onImageUpload,
   onImageDelete,
+  onError,
 }: EventImageSectionProps) => {
   const classes = useCustomStyles();
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
 
-  const handleFileChange = (
-    actionEvent: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const selectedFile = actionEvent.target.files?.[0] || null;
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = event.target.files?.[0] || null;
+    if (!selectedFile) return;
+
+    if (!ALLOWED_MIME_TYPES.includes(selectedFile.type)) {
+      onError?.(new Error(TEXT_IMAGE_FORMAT_NOT_SUPPORTED));
+      return;
+    }
+
+    if (selectedFile.size > MAX_FILE_SIZE) {
+      onError?.(new Error(TEXT_IMAGE_TOO_LARGE));
+      return;
+    }
+
     onImageUpload(selectedFile);
   };
 
@@ -703,7 +856,7 @@ const EventImageSection = ({
                   ? previewPictureUrl
                   : event.pictureSrc
                     ? event.pictureSrc
-                    : ImageRepository.getEnviromentRelatedPicture()
+                    : ImageRepository.getEnvironmentRelatedPicture()
                         .CARD_PLACEHOLDER_MEDIA
               }')`,
               backgroundPosition: "center",
@@ -716,10 +869,11 @@ const EventImageSection = ({
         </Grid>
         <Grid size={6}>
           <input
-            accept="image/*"
+            accept="image/jpeg,image/png,image/webp"
             style={{display: "none"}}
             id="icon-button-file"
             type="file"
+            aria-label="Event-Bild hochladen"
             onChange={handleFileChange}
           />
           <label htmlFor="icon-button-file">
@@ -749,9 +903,6 @@ const EventImageSection = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ============================ Koch-Team ============================
-// =================================================================== */
 /** Props für die Koch-Team-Karte. */
 interface EventCookingTeamCardProps {
   /** Das aktuelle Event-Objekt. */
@@ -803,10 +954,20 @@ const EventCookingTeamCard = ({
                 id={"cookListItem_" + cook.uid}
               >
                 <ListItemAvatar>
-                  {cook.pictureSrc.smallSize ? (
+                  {/* Kompatibilitäts-Shim: In Firestore-Events kann pictureSrc
+                      noch als altes Picture-Objekt vorliegen */}
+                  {(
+                    typeof cook.pictureSrc === "string"
+                      ? cook.pictureSrc
+                      : ((cook.pictureSrc as any)?.smallSize ?? "")
+                  ) ? (
                     <Avatar
                       alt={cook.displayName}
-                      src={String(cook.pictureSrc.smallSize)}
+                      src={
+                        typeof cook.pictureSrc === "string"
+                          ? getImageUrl(cook.pictureSrc, ImageSize.AVATAR)
+                          : String((cook.pictureSrc as any)?.smallSize ?? "")
+                      }
                     />
                   ) : (
                     <Avatar alt={cook.displayName}>
@@ -833,8 +994,8 @@ const EventCookingTeamCard = ({
                   <ListItemSecondaryAction>
                     <IconButton
                       edge="end"
-                      aria-label="delete cook"
-                      id={"deleteCook_" + cook.uid}
+                      aria-label={`Koch ${cook.displayName} entfernen`}
+                      data-cook-uid={cook.uid}
                       color="primary"
                       onClick={onDeleteCook}
                       size="large"
@@ -862,4 +1023,4 @@ const EventCookingTeamCard = ({
   );
 };
 
-export default EventInfoPage;
+export {EventInfoPage};

@@ -1,5 +1,5 @@
 import React from "react";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {
   Button,
@@ -14,8 +14,6 @@ import {
 
 import {FormListItem} from "../../Shared/formListItem";
 
-import Firebase from "../../Firebase/firebase.class";
-
 import {
   LOCATION as TEXT_LOCATION,
   UID as TEXT_UID,
@@ -27,10 +25,10 @@ import {
   CREATED_FROM as TEXT_CREATED_FROM,
 } from "../../../constants/text";
 
-import EventShort from "./eventShort.class";
+import {EventShort} from "./eventShort.class";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {useNavigate} from "react-router";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import {USER_PUBLIC_PROFILE as ROUTES_USER_PUBLIC_PROFILE} from "../../../constants/routes";
 
 export interface DialogQuickViewActions {
@@ -39,15 +37,11 @@ export interface DialogQuickViewActions {
   variant: "text" | "outlined" | "contained";
   onClick: (
     actionEvent: React.MouseEvent<HTMLButtonElement> | undefined,
-    event: EventShort
+    event: EventShort,
   ) => void;
 }
 
-/* ===================================================================
-// ==================== Pop Up Event Kurzübersicht ==================
-// =================================================================== */
 interface DialogEventQuickViewProps {
-  firebase: Firebase;
   eventShort: EventShort;
   dialogOpen: boolean;
   handleClose: (event, reason) => void;
@@ -78,7 +72,7 @@ const DialogEventQuickView = ({
           image={
             eventShort.pictureSrc
               ? eventShort.pictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           }
           title={"Bild " + eventShort.name}
@@ -158,12 +152,15 @@ const DialogEventQuickView = ({
               <Link
                 style={{cursor: "pointer"}}
                 onClick={() =>
-                  navigate(`${ROUTES_USER_PUBLIC_PROFILE}/${eventShort.created.fromUid}`, {
-                    state: {
-                      action: Action.VIEW,
-                      displayName: eventShort.created.fromDisplayName,
-                    }
-                  })
+                  navigate(
+                    `${ROUTES_USER_PUBLIC_PROFILE}/${eventShort.created.fromUid}`,
+                    {
+                      state: {
+                        action: Action.VIEW,
+                        displayName: eventShort.created.fromDisplayName,
+                      },
+                    },
+                  )
                 }
               >
                 {eventShort.created.fromDisplayName}
@@ -198,4 +195,4 @@ const DialogEventQuickView = ({
   );
 };
 
-export default DialogEventQuickView;
+export {DialogEventQuickView};

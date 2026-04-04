@@ -1,4 +1,7 @@
-enum Action {
+/**
+ * Aktionstypen für UI-Operationen (Anzeigen, Bearbeiten, Erstellen, Löschen etc.).
+ */
+export enum Action {
   VIEW = "VIEW",
   EDIT = "EDIT",
   NEW = "NEW",
@@ -12,5 +15,3 @@ enum Action {
   KEEP = "KEEP",
   NONE = "",
 }
-
-export default Action;

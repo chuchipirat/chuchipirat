@@ -1,6 +1,6 @@
 // Default Werte für jegliche Parameter
 
-import Utils, {Enviroment} from "../components/Shared/utils.class";
+import {Utils, Environment} from "../components/Shared/utils.class";
 import {
   WITHOUT_INTOLERANCES as TEXT_WITHOUT_INTOLERANCES,
   LACTOSE_INTOLERANCE as TEXT_LACTOSE_INTOLERANCE,
@@ -10,7 +10,7 @@ import {
 } from "../constants/text";
 
 export const FEEDS_DISPLAY = 10;
-export const RECIPE_DISPLAY = 3;
+export const RECIPE_DISPLAY = 6;
 export const COMMENT_DISPLAY = 3;
 export const RECIPES_SEARCH = 12;
 
@@ -19,8 +19,6 @@ export const MENUPLAN_MEALS = [
   {name: "Zmittag", uid: ""},
   {name: "Znacht", uid: ""},
 ];
-
-export const TWINT_PAYLINK = "https://pay.raisenow.io/jhbvj";
 
 export const MENUPLAN_NO_OF_COLUMS_PRINT = 4;
 
@@ -40,15 +38,18 @@ export const INTOLERANCES = [
 
 export const DIETS = [TEXT_MEAT, TEXT_VEGETARIAN];
 
-// Support User bestimmen
-// HINT 💡: Muss auch in der Cloud-FX nachgeführt werden.
+/**
+ * Gibt die UID des Support-Users für die aktuelle Umgebung zurück.
+ *
+ * @returns UID des Support-Users (DEV/TEST/PROD).
+ */
 export const getSupportUserUid = () => {
-  switch (Utils.getEnviroment()) {
-    case Enviroment.development:
+  switch (Utils.getEnvironment()) {
+    case Environment.development:
       return "uQRD5ZpXkhT0sRo8VSLknNuyVkJ3";
-    case Enviroment.test:
+    case Environment.test:
       return "xCehsNho63VgoAKKmpVeQzAHRAA2";
-    case Enviroment.production:
+    case Environment.production:
       return "yuvhzHC3aGMpw0JYlMxUv8T2USl2";
   }
 };

@@ -43,7 +43,16 @@ interface DialogPublishRecipeProps {
   handleClose: () => void;
 }
 
-const DialogPublishRecipe = ({
+/**
+ * Dialog zum Veröffentlichen eines Rezepts.
+ *
+ * Zeigt die Veröffentlichungsregeln an und ermöglicht das Hinzufügen
+ * einer Nachricht für die Review. Nach Bestätigung wird das Rezept
+ * zur Überprüfung eingereicht.
+ *
+ * @param props - Dialog-Steuerung und Callback-Handler.
+ */
+export const DialogPublishRecipe = ({
   dialogOpen,
   handleOk,
   handleClose,
@@ -70,7 +79,7 @@ const DialogPublishRecipe = ({
   // ------------------------------------------ */
   const onOkClick = () => {
     setFormFields({...formFields, initial: true});
-    handleOk(formFields.messageForReview);
+    handleOk(formFields.messageForReview.trim());
   };
   /* ------------------------------------------
   // PopUp Abbrechen
@@ -124,6 +133,7 @@ const DialogPublishRecipe = ({
           onChange={onChangeField}
           variant="outlined"
           label={TEXT_MESSAGE_TO_REVIEW}
+          slotProps={{htmlInput: {maxLength: 1000}}}
         />
       </DialogContent>
       <DialogActions>
@@ -138,4 +148,3 @@ const DialogPublishRecipe = ({
   );
 };
 
-export default DialogPublishRecipe;

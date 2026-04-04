@@ -1,4 +1,4 @@
-import Event from "../event.class";
+import {Event} from "../event.class";
 
 export const event: Event = {
   uid: "wGhsPDH0WI9IKvg9ERXg",
@@ -11,11 +11,7 @@ export const event: Event = {
     {
       displayName: "Test User",
       motto: "🤪 ich teste mich dumm und dämlich...",
-      pictureSrc: {
-        smallSize: "https://jestjs.io/img/opengraph.png",
-        normalSize: "https://jestjs.io/img/opengraph.png",
-        fullSize: "https://jestjs.io/img/opengraph.png",
-      },
+      pictureSrc: "https://jestjs.io/img/opengraph.png",
       uid: "RvLIR9NDGOWPwos8PrSZVgfIZvj9",
     },
   ],
@@ -48,5 +44,3 @@ export const event: Event = {
   },
   refDocuments: [],
 };
-
-export default event;

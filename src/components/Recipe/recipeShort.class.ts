@@ -1,15 +1,16 @@
+import * as Sentry from "@sentry/react";
 import Recipe, {MenuType, RecipeType} from "./recipe.class";
-import Event from "../Event/Event/event.class";
+import {Event} from "../Event/Event/event.class";
 import Firebase from "../Firebase/firebase.class";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 import {ChangeRecord} from "../Shared/global.interface";
 
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 
 import {ERROR_PARAMETER_NOT_PASSED} from "../../constants/text";
-import {Rating} from "./recipe.rating.class";
-import Product, {Diet, DietProperties} from "../Product/product.class";
+import {PublicRecipeRating} from "./recipe.types";
+import {Diet, DietProperties, createEmptyDietProperty} from "../Product/product.types";
 interface GetShortRecipes {
   firebase: Firebase;
   authUser: AuthUser;
@@ -47,10 +48,6 @@ interface DeleteAllVariants {
   firebase: Firebase;
 }
 
-interface PublicRecipeRating {
-  avgRating: Rating["avgRating"];
-  noRatings: Rating["noRatings"];
-}
 
 // ===================================================================== */
 /**
@@ -77,6 +74,8 @@ export class RecipeShort {
   source: string;
   type: RecipeType;
   rating: PublicRecipeRating;
+  /** Anzahl Kommentare — optional, da für Firebase-Rezepte nicht verfügbar. */
+  noComments?: number;
   variantName?: string;
   // ===================================================================== */
   /**
@@ -88,13 +87,14 @@ export class RecipeShort {
     this.pictureSrc = "";
     this.tags = [];
     this.linkedRecipes = [];
-    this.dietProperties = Product.createEmptyDietProperty();
+    this.dietProperties = createEmptyDietProperty();
     this.menuTypes = [];
     this.outdoorKitchenSuitable = false;
     this.created = {date: new Date(), fromUid: "", fromDisplayName: ""};
     this.source = "";
     this.type = RecipeType.private;
     this.rating = {avgRating: 0, noRatings: 0};
+    this.noComments = 0;
   }
   // ===================================================================== */
   /**
@@ -183,7 +183,7 @@ export class RecipeShort {
       .then((result) => {
         recipesShort = this.moveDbDateFromObjectToArray(result);
       })
-      .catch((error) => console.error(error));
+      .catch((error) => Sentry.captureException(error));
 
     recipesShort = Utils.sortArray({
       array: recipesShort,
@@ -210,7 +210,7 @@ export class RecipeShort {
       .then((result) => {
         recipesShort = this.moveDbDateFromObjectToArray(result);
       })
-      .catch((error) => console.error(error));
+      .catch((error) => Sentry.captureException(error));
 
     recipesShort = Utils.sortArray({
       array: recipesShort,
@@ -344,7 +344,7 @@ export class RecipeShort {
         firebase: firebase,
         recipeUid: recipeUid,
       }).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     } else if (recipeType === RecipeType.private) {
@@ -353,7 +353,7 @@ export class RecipeShort {
         recipeUid: recipeUid,
         userUid: authUser.uid,
       }).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     } else if (recipeType === RecipeType.variant) {
@@ -362,7 +362,7 @@ export class RecipeShort {
         recipeUid: recipeUid,
         eventUid: eventUid,
       }).catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     }
@@ -424,7 +424,7 @@ export class RecipeShort {
    */
   static deleteOverview = async ({eventUid, firebase}: DeleteAllVariants) => {
     firebase.recipeShortVariant.delete({uids: [eventUid]}).catch((error) => {
-      console.error(error);
+      Sentry.captureException(error);
       throw error;
     });
   };

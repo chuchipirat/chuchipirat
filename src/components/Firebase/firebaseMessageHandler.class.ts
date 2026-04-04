@@ -1,10 +1,25 @@
 import {AuthMessages, General} from "../../constants/firebaseMessages";
 import {FIREBASE_MESSAGES as TEXT_FIREBASE_MESSAGES} from "../../constants/text";
 
-// Meldungen auf Deutsch umschreieben
-// Firebase -> gibt nur englische Meldungen zurück
+/**
+ * Übersetzt Fehlermeldungen von Firebase Auth ins Deutsche.
+ *
+ * Firebase-Fehler werden anhand des `error.code` übersetzt.
+ * Gibt `null` zurück, falls der Code nicht erkannt wird.
+ */
 class FirebaseMessageHandler {
-  static translateMessage(error) {
+  /**
+   * Übersetzt eine Firebase-Fehlermeldung ins Deutsche.
+   * Gibt `null` zurück, falls der Code nicht erkannt wird —
+   * der Aufrufer kann dann auf einen anderen Handler zurückgreifen.
+   *
+   * @param error - Fehlerobjekt mit `code` (Firebase Auth error code)
+   * @returns Deutsche Fehlermeldung oder `null` bei unbekanntem Code
+   * @example
+   * FirebaseMessageHandler.translateMessage({code: "auth/wrong-password", message: ""})
+   * // "Passwort falsch."
+   */
+  static translateMessage(error: {code?: string; message: string}): string | null {
     switch (error.code) {
       case AuthMessages.WEAK_PASSWORD:
       case AuthMessages.INVALID_EMAIL:
@@ -23,7 +38,7 @@ class FirebaseMessageHandler {
           FirebaseMessageHandler.getTextCode(error.code)
         ];
       default:
-        return error.message;
+        return null;
     }
   }
   /* =====================================================================

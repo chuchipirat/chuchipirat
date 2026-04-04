@@ -11,6 +11,7 @@
     "@atlaskit/pragmatic-drag-and-drop-react-drop-indicator": "^1.1.3",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.1",
+    "@fontsource/roboto": "^5.2.10",
     "@fontsource/roboto-mono": "^4.5.10",
     "@mui/icons-material": "^7.3.8",
     "@mui/material": "^7.3.8",
@@ -18,26 +19,28 @@
     "@mui/x-data-grid": "^7.29.12",
     "@mui/x-date-pickers": "^7.29.4",
     "@react-pdf/renderer": "^4.3.2",
-    "@sentry/react": "^8.42.0",
+    "@sentry/react": "^10.46.0",
+    "@supabase/supabase-js": "^2.97.0",
+    "@tiptap/extension-link": "^3.22.1",
+    "@tiptap/pm": "^3.22.1",
+    "@tiptap/react": "^3.22.1",
+    "@tiptap/starter-kit": "^3.22.1",
     "@types/react": "^18.3.28",
     "@types/react-dom": "^18.3.7",
-    "date-fns": "^2.30.0",
+    "@zxcvbn-ts/core": "^3.0.4",
+    "@zxcvbn-ts/language-common": "^3.0.4",
+    "@zxcvbn-ts/language-de": "^3.0.2",
+    "dayjs": "^1.11.20",
+    "dompurify": "^3.3.3",
     "file-saver": "^2.0.5",
     "firebase": "^12.9.0",
     "fuse.js": "^7.1.0",
-    "lodash": "^4.17.21",
-    "md5": "^2.3.0",
-    "qs": "^6.15.0",
     "react": "^18.2.0",
-    "react-device-detect": "^2.1.2",
     "react-dom": "^18.2.0",
-    "react-quill-new": "^3.8.3",
     "react-router": "^7.13.0",
     "source-map-explorer": "^2.5.2",
     "tiny-invariant": "^1.3.3",
-    "typeface-roboto": "^1.1.13",
-    "typescript": "^5.9.3",
-    "zxcvbn": "^4.4.2"
+    "typescript": "^5.9.3"
   },
   "scripts": {
     "start": "vite",
@@ -47,23 +50,21 @@
     "build:prod": "vite build --mode production",
     "preview": "vite preview",
     "analyze": "source-map-explorer 'build/static/js/*.js'",
-    "lint": "eslint --ext .ts .",
+    "lint": "eslint --ext .ts,.tsx .",
     "test": "jest --watch --coverage",
-    "postinstall": "patch-package"
+    "test:coverage": "jest --coverage"
   },
   "resolutions": {
     "@types/react": "^18.0.0",
     "@types/react-dom": "^18.0.0"
   },
   "devDependencies": {
-    "@babel/plugin-proposal-private-property-in-object": "^7.21.11",
-    "@babel/preset-typescript": "^7.24.1",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^14.3.1",
     "@testing-library/user-event": "^14.6.1",
+    "@types/dompurify": "^3.0.5",
     "@types/file-saver": "^2.0.7",
     "@types/jest": "^30.0.0",
-    "@types/lodash": "^4.14.202",
     "@types/node": "^20.19.33",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
@@ -72,12 +73,9 @@
     "jest": "^30.2.0",
     "jest-environment-jsdom": "^30.2.0",
     "jest-html-reporters": "^3.1.7",
-    "patch-package": "^8.0.1",
-    "ts-jest": "^29.4.6",
+    "ts-jest": "^29.4.9",
+    "ts-jest-mock-import-meta": "^1.3.1",
     "vite": "^6.4.1",
     "vite-plugin-node-polyfills": "^0.25.0"
-  },
-  "jest": {
-    "collectCoverage": true
   }
 }

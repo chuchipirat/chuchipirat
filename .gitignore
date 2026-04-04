@@ -16,6 +16,7 @@
 
 # misc
 .DS_Store
+*.DS_Store
 .env
 .env-cmdrc
 .env.development
@@ -45,13 +46,26 @@ imageRepository.js
 .firebaserc
 
 # Testing
+.claude/docs/manual-testcases.md
 jest_html_reporters.html
 /html-report
 mailTemplates/
 .vscode/launch.json
 
 # Supabase local dev (runtime data, secrets)
-supabase/volumes/
+supabase/volumes/*
+!supabase/volumes/auth
+supabase/volumes/auth/*
+!supabase/volumes/auth/templates
+supabase/volumes/auth/templates/*
+!supabase/volumes/auth/templates/**
+!supabase/volumes/functions
+!supabase/volumes/functions/*
 supabase/dev/
 supabase/.env
 supabase/.temp/
+supabase/html-report/*
+
+
+# documentation
+firebase-auth-migration.md

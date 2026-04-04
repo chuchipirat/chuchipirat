@@ -1,36 +1,26 @@
-// import app from "firebase/app";
-// import Utils from "../Shared/utils.class";
-// import {StatsField} from "../Shared/stats.class";
-// import Feed, {FeedType} from "../Shared/feed.class";
+import * as Sentry from "@sentry/react";
+
 import {Role} from "../../constants/roles";
 
 import Firebase from "../Firebase/firebase.class";
-import {Timestamp, increment} from "firebase/firestore";
-import {logEvent} from "firebase/analytics";
 
 import {
-  USER_NOT_IDENTIFIED_BY_EMAIL as TEXT_USER_NOT_IDENTIFIED_BY_EMAIL,
   USER_PROFILE_ERROR_DISPLAYNAME_MISSING as TEXT_USER_PROFILE_ERROR_DISPLAYNAME_MISSING,
   NO_USER_WITH_THIS_EMAIL as TEXT_NO_USER_WITH_THIS_EMAIL,
 } from "../../constants/text";
-import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
-import UserPublicProfile from "./user.public.profile.class";
-import UserPublicSearchFields from "./user.public.searchFields.class";
-import {Operator, SortOrder} from "../Firebase/Db/firebase.db.super.class";
+import {UserPublicProfile} from "./user.public.profile.class";
+import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
 
-import {Picture} from "../Shared/global.interface";
-import {
-  IMAGES_SUFFIX,
-  ImageSize,
-} from "../Firebase/Storage/firebase.storage.super.class";
+import {resizeImage} from "../Shared/imageResize";
+import DatabaseService from "../Database/DatabaseService";
 
 /**
- * User Aufbau (kurz)
- * zu verwnden für Useranzeige im Kontext (Kommentar, Koch, usw)
+ * Kurzform eines Users für Anzeige im Kontext (Kommentar, Koch, usw.).
+ *
  * @param userUid - UID des Users
  * @param displayName - Anzeigename des Users
- * @param picutreSrc - Bild-URL des Profilbildes
+ * @param pictureSrc - Bild-URL des Profilbildes
  * @param motto - Motto des Users
  */
 export interface UserShort {
@@ -40,109 +30,164 @@ export interface UserShort {
   motto: string;
 }
 
+/**
+ * Übersichtsstruktur für die Admin-Benutzerübersicht.
+ * Wird von User.getUsersOverview() zurückgegeben.
+ */
 export interface UserOverviewStructure {
+  uid?: User["uid"];
   firstName: User["firstName"];
   lastName: User["lastName"];
   displayName: UserPublicProfile["displayName"];
   email: User["email"];
   memberId: UserPublicProfile["memberId"];
   memberSince: Date;
-  uid?: User["uid"];
 }
 
-export interface UserFullProfile extends User, UserPublicProfile {}
 /**
- * Schnittstelle für die IncrementPublicProfile
- * @param firebase - Referenz auf die DB
- * @param uid - UID des Users
- * @param field - Name des Feldes, dass erhöht/reduziert wird
- * @param step - Anzahl Punkte, die dazugezhält oder abgezogen werden
+ * Vollständiges Benutzerprofil — vereint User (privat) und UserPublicProfile (öffentlich).
  */
+export interface UserFullProfile extends User, UserPublicProfile {}
 
+/** Parameter für {@link User.createUser} */
 interface CreateUser {
-  firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** UID des neuen Users (von Supabase Auth) */
   uid: string;
+  /** Vorname */
   firstName: string;
+  /** Nachname */
   lastName: string;
+  /** E-Mail-Adresse */
   email: string;
 }
-interface CreateUserPublicData {
-  firebase: Firebase;
-  email: string;
-}
+
+/** Parameter für {@link User.registerSignIn} */
 interface RegisterSignIn {
-  firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** Der angemeldete Benutzer */
   authUser: AuthUser;
 }
+
+/** Parameter für {@link User.getUidByEmail} */
 interface GetUidByEmail {
-  firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** E-Mail-Adresse zum Suchen */
   email: string;
+  /** Optionale Event-ID für Koch-Berechtigungsprüfung */
+  eventId?: string;
 }
+
+/** Parameter für {@link User.getUser} */
 interface GetUser {
-  firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** UID des gesuchten Users */
   uid: string;
 }
+
+/** Parameter für {@link User.getAllUsers} */
 interface GetAllUsers {
+  /** Firebase-Instanz (nutzt noch Firebase für diese Abfrage) */
   firebase: Firebase;
 }
 
+/** Parameter für {@link User.getUsersOverview} */
 interface GetUsersOverview {
-  firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
 }
+
+/** Parameter für {@link User.getPublicProfile} */
 interface GetPublicProfile {
-  firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** UID des gesuchten Users */
   uid: string;
 }
+
+/** Parameter für {@link User.getFullProfile} */
 interface GetFullProfile {
-  firebase: Firebase;
+  /** Firebase-Instanz (optional, nicht mehr benötigt seit Supabase-Migration) */
+  firebase?: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** UID des gesuchten Users */
   uid: string;
 }
+
+/** Parameter für {@link User.saveFullProfile} */
 interface SaveFullProfile {
+  /** Firebase-Instanz (für Storage und Cloud Functions) */
   firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** Das zu speichernde Benutzerprofil */
   userProfile: UserFullProfile;
+  /** Der angemeldete Benutzer */
   authUser: AuthUser;
+  /** Optionales lokales Bild zum Hochladen */
   localPicture?: File | null;
 }
+
+/** Parameter für {@link User.uploadPicture} */
 interface UploadPicture {
-  firebase: Firebase;
+  /** DatabaseService-Instanz (für Supabase Storage) */
+  database: DatabaseService;
+  /** Die hochzuladende Bilddatei */
   file: File;
-  authUser: AuthUser;
-}
-interface DeletePicture {
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-interface UpdateEmail {
-  firebase: Firebase;
-  newEmail: string;
-  authUser: AuthUser;
-}
-interface UpdateRoles {
-  firebase: Firebase;
-  userUid: User["uid"];
-  newRoles: User["roles"];
+  /** Der angemeldete Benutzer */
   authUser: AuthUser;
 }
 
-interface UpdateStats {
+/** Parameter für {@link User.deletePicture} */
+interface DeletePicture {
+  /** Firebase-Instanz (für Storage) */
   firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** Der angemeldete Benutzer */
+  authUser: AuthUser;
+}
+
+/** Parameter für {@link User.updateRoles} */
+interface UpdateRoles {
+  /** Firebase-Instanz (noch benötigt während Übergangsphase) */
+  firebase: Firebase;
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** UID des Benutzers, dessen Rollen geändert werden */
   userUid: User["uid"];
-  statsField: string;
+  /** Die neuen Rollen */
+  newRoles: User["roles"];
+  /** Der angemeldete Admin-Benutzer */
+  authUser: AuthUser;
+}
+
+/** Parameter für {@link User.updateStats} */
+interface UpdateStats {
+  /** DatabaseService-Instanz für Supabase-Zugriff */
+  database: DatabaseService;
+  /** UID des Benutzers (Firebase UID / PK in users) */
+  userUid: User["uid"];
+  /** Wert um den no_found_bugs geändert wird (+1 oder -1) */
   statsValue: number;
 }
-// interface SetDisabled {
-//   firebase: Firebase;
-//   userUid: User["uid"];
-//   disabled: boolean;
-//   authUser: AuthUser;
-// }
 
-export default class User {
+/**
+ * Zentrale Service-Klasse für Benutzeroperationen.
+ *
+ * Delegiert die meisten DB-Operationen an das UserRepository (Supabase/Postgres).
+ * Firebase wird noch für Storage und einige Legacy-Abfragen verwendet.
+ */
+export class User {
   uid: string;
   firstName: string;
   lastName: string;
   email: string;
-  lastLogin: Date;
   noLogins: number;
   roles: Role[];
   /* =====================================================================
@@ -153,21 +198,25 @@ export default class User {
     this.firstName = "";
     this.lastName = "";
     this.email = "";
-    this.lastLogin = new Date();
     this.noLogins = 0;
     this.roles = [];
   }
   /* =====================================================================
     // Objekt erzeugen
     // ===================================================================== */
-  static factory({uid, firstName, lastName, email, lastLogin, noLogins}: User) {
+  /**
+   * Erzeugt eine User-Instanz aus einem bestehenden User-Objekt.
+   *
+   * @param user - Quell-User mit uid, firstName, lastName, email, noLogins
+   * @returns Neue User-Instanz mit kopierten Werten
+   */
+  static factory({uid, firstName, lastName, email, noLogins}: User) {
     const user = new User();
 
     user.uid = uid;
     user.firstName = firstName;
     user.lastName = lastName;
     user.email = email;
-    user.lastLogin = lastLogin;
     user.noLogins = noLogins;
     return user;
   }
@@ -175,243 +224,203 @@ export default class User {
   /* =====================================================================
   // Alle User holen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
+  /**
+   * Lädt alle User aus Firebase (Legacy-Methode).
+   *
+   * @param firebase - Firebase-Instanz
+   * @returns Array aller User
+   * @throws Error bei Datenbankfehler
+   */
   static async getAllUsers({firebase}: GetAllUsers) {
-    let userList: User[] = [];
-
-    await firebase.user
-      .readCollection<User>({
+    try {
+      return await firebase.user.readCollection<User>({
         uids: [""],
         orderBy: {field: "firstName", sortOrder: SortOrder.desc},
         ignoreCache: true,
-      })
-      .then((result) => {
-        userList = result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
       });
-
-    return userList;
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
   }
   /* =====================================================================
   // Neuer User anlegen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
+  /**
+   * Legt einen neuen Benutzer in der Datenbank an.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param uid - UUID des neuen Users (= auth.users.id)
+   * @param firstName - Vorname
+   * @param lastName - Nachname
+   * @param email - E-Mail-Adresse
+   * @throws Error bei Datenbankfehler
+   */
   static async createUser({
-    firebase,
+    database,
     uid,
     firstName,
     lastName,
     email,
   }: CreateUser) {
-    const user = new User();
-    user.uid = uid;
-    user.firstName = firstName;
-    user.lastName = lastName;
-    user.email = email.toLocaleLowerCase();
-    user.noLogins = 0;
-    user.roles = [Role.basic];
-
-    await firebase.user
-      .set({uids: [user.uid], value: user, authUser: {} as AuthUser})
-      .catch((error) => {
-        console.error(error);
-        throw error;
+    // Admin-Client verwenden (umgeht RLS, da User noch nicht via Supabase Auth authentifiziert)
+    const users = database.admin?.users ?? database.users;
+    try {
+      await users.upsert({
+        id: uid,
+        value: {
+          uid: uid,
+          firstName: firstName,
+          lastName: lastName,
+          email: email.toLocaleLowerCase(),
+          noLogins: 0,
+          noFoundBugs: 0,
+          roles: [Role.basic],
+          displayName: `${firstName} ${lastName}`.trim() || firstName,
+          memberId: 0,
+          motto: "",
+          pictureSrc: "",
+        },
+        authUser: {} as AuthUser,
       });
-  }
-  /* =====================================================================
-  // Öffentliches Profil anlegen
-  // ===================================================================== */
-  // Öffentlich zugängliche Daten anlegen.
-  static async createUserPublicData({firebase, email}: CreateUserPublicData) {
-    const anonymousUser = new AuthUser();
-    anonymousUser.email = email;
-    anonymousUser.publicProfile.displayName = email;
-
-    await firebase.cloudFunction.createUserPublicData
-      .triggerCloudFunction({values: {email: email}, authUser: anonymousUser})
-      .then(() => {
-        logEvent(firebase.analytics, FirebaseAnalyticEvent.userCreated);
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
   }
   /* =====================================================================
   // Übersicht aller User holen
   // ===================================================================== */
-  static getUsersOverview = async ({firebase}: GetUsersOverview) => {
-    const userOverview = [] as UserOverviewStructure[];
-
-    await firebase.user.short.read({uids: []}).then((result) => {
-      Object.keys(result).forEach((key) => {
-        userOverview.push({uid: key, ...result[key]});
-      });
-    });
-
-    return userOverview;
+  /**
+   * Lädt die Benutzerübersicht für die Admin-Seite.
+   *
+   * @param database - DatabaseService-Instanz
+   * @returns Array mit Benutzerübersichtsdaten
+   */
+  static getUsersOverview = async ({database}: GetUsersOverview) => {
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    return await users.findOverview();
   };
 
-  //   /* =====================================================================
-  //   // Update User bei Anmeldung durch Social-Login
-  //   // ===================================================================== */
-  //   //  Die allenfalls neuen Werte des Social-Provider aufnehmen
-  //   static async createUpdateSocialUser(
-  //     firebase,
-  //     uid,
-  //     firstName,
-  //     lastName,
-  //     email,
-  //     pictureSrc = "",
-  //     newUser = true
-  //   ) {
-  //     const userDoc = firebase.user(uid);
-  //     const userPublicProfileDoc = firebase.user_publicProfile(uid);
-  //     if (newUser) {
-  //       await User.createUser(
-  //         firebase,
-  //         uid,
-  //         firstName,
-  //         lastName,
-  //         email,
-  //         pictureSrc
-  //       );
-  //     } else {
-  //       // Bestehender User, updaten
-  //       await userDoc
-  //         .update({
-  //           firstName: firstName,
-  //           lastName: lastName,
-  //           email: email,
-  //           lastLogin: firebase.timestamp.fromDate(new Date()),
-  //           noLogins: firebase.fieldValue.increment(1),
-  //         })
-  //         .then(async () => {
-  //           // Öffentliches Profil updaten
-  //           await userPublicProfileDoc.update({
-  //             pictureSrc: pictureSrc,
-  //           });
-  //         });
-  //     }
-  //   }
   /* =====================================================================
   // Letztes Login updaten und Anzahl Logins hochzählen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static registerSignIn({firebase, authUser}: RegisterSignIn) {
-    firebase.user.updateFields({
-      uids: [authUser.uid],
-      values: {
-        lastLogin: Timestamp.fromDate(new Date()),
-        noLogins: increment(1),
-      },
-      authUser: authUser,
-    });
+  /**
+   * Registriert einen erfolgreichen Login (zählt noLogins hoch).
+   *
+   * @param database - DatabaseService-Instanz
+   * @param authUser - Der angemeldete Benutzer
+   */
+  static async registerSignIn({database, authUser}: RegisterSignIn) {
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    await users.registerSignIn(authUser.uid);
   }
   /* =====================================================================
   // User anhand der Mailadresse holen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static getUidByEmail = async ({firebase, email}: GetUidByEmail) => {
-    let userUid = "";
-    await firebase.user.public.searchFields
-      .readCollectionGroup<UserPublicSearchFields>({
-        where: [
-          {
-            field: "email",
-            operator: Operator.EQ,
-            value: email.toLocaleLowerCase().trim(),
-          },
-        ],
-      })
-      .then((result) => {
-        if (result.length == 1) {
-          userUid = result[0].uid;
-        } else if (result.length == 0) {
-          throw new Error(TEXT_NO_USER_WITH_THIS_EMAIL);
-        } else {
-          // Nicht Eindeutig
-          throw new Error(TEXT_USER_NOT_IDENTIFIED_BY_EMAIL);
-        }
-      });
+  /**
+   * Sucht die UID eines Benutzers anhand der E-Mail-Adresse.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param email - E-Mail-Adresse zum Suchen
+   * @returns UID des gefundenen Users
+   * @throws Error wenn kein User mit dieser E-Mail gefunden wird
+   */
+  static getUidByEmail = async ({database, email, eventId}: GetUidByEmail) => {
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    const userUid = await users.findByEmail(email, eventId);
+
+    if (!userUid) {
+      throw new Error(TEXT_NO_USER_WITH_THIS_EMAIL);
+    }
     return userUid;
   };
   /* =====================================================================
   // Profile holen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static getUser = async ({firebase, uid}: GetUser) => {
-    return await firebase.user
-      .read({uids: [uid]})
-      .then((result) => {
-        return result as User;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
+  /**
+   * Lädt einen User anhand seiner UID aus der Datenbank.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param uid - UID des gesuchten Users
+   * @returns User-Instanz
+   * @throws Error wenn der User nicht gefunden wird
+   */
+  static getUser = async ({database, uid}: GetUser) => {
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    const result = await users.findById(uid);
+    if (!result) throw new Error(`User not found: ${uid}`);
+
+    const user = new User();
+    user.uid = result.uid;
+    user.firstName = result.firstName;
+    user.lastName = result.lastName;
+    user.email = result.email;
+    user.noLogins = result.noLogins;
+    user.roles = result.roles;
+    return user;
   };
   /* =====================================================================
   // Öffentliches Profil lesen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static getPublicProfile = async ({firebase, uid}: GetPublicProfile) => {
-    let publicProfile = {} as UserPublicProfile;
-
-    return await firebase.user.public.profile
-      .read<UserPublicProfile>({uids: [uid]})
-      .then((result) => {
-        publicProfile = result;
-        publicProfile.uid = uid;
-        return publicProfile;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
+  /**
+   * Lädt das öffentliche Profil eines Users.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param uid - UID des gesuchten Users
+   * @returns Öffentliches Profil
+   */
+  static getPublicProfile = async ({database, uid}: GetPublicProfile) => {
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    return await users.findPublicProfile(uid);
   };
   /* =====================================================================
   // Profil und Öffentliches Profil lesen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static getFullProfile = async ({firebase, uid}: GetFullProfile) => {
-    let user = <User>{};
-    let userPublicProfile: UserPublicProfile;
-    let userFullProfile: UserFullProfile;
+  /**
+   * Lädt das vollständige Benutzerprofil (privat + öffentlich).
+   *
+   * @param database - DatabaseService-Instanz
+   * @param uid - UID des gesuchten Users
+   * @returns Vollständiges Benutzerprofil als UserFullProfile
+   */
+  static getFullProfile = async ({database, uid}: GetFullProfile) => {
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    const fullProfile = await users.findFullProfile(uid);
 
-    return await firebase.user
-      .read<User>({uids: [uid]})
-      .then(async (result) => {
-        user = result;
-      })
-      .then(async () => {
-        await firebase.user.public.profile
-          .read<UserPublicProfile>({
-            uids: [uid],
-          })
-          .then((result) => (userPublicProfile = result));
-      })
-      .then(() => {
-        userFullProfile = {...userPublicProfile, ...user};
-        return userFullProfile;
-      })
-      .catch((error: Error) => {
-        throw error;
-      });
+    const userFullProfile = {
+      uid: fullProfile.uid,
+      firstName: fullProfile.firstName,
+      lastName: fullProfile.lastName,
+      email: fullProfile.email,
+      noLogins: fullProfile.noLogins,
+      roles: fullProfile.roles,
+      displayName: fullProfile.displayName,
+      memberSince: fullProfile.createdAt ?? new Date(0),
+      memberId: fullProfile.memberId,
+      motto: fullProfile.motto,
+      pictureSrc: fullProfile.pictureSrc,
+      stats: fullProfile.stats,
+    } as UserFullProfile;
+
+    return userFullProfile;
   };
   /* =====================================================================
   // Daten prüfen
   // ===================================================================== */
+  /**
+   * Prüft ob die Mindestangaben im Benutzerprofil vorhanden sind.
+   * Fällt auf firstName zurück, wenn displayName fehlt.
+   *
+   * @param userProfile - Das zu prüfende Benutzerprofil
+   * @throws Error wenn weder displayName noch firstName vorhanden
+   */
   static checkUserProfileData(userProfile: UserFullProfile) {
     if (!userProfile.displayName && !userProfile.firstName) {
       throw new Error(TEXT_USER_PROFILE_ERROR_DISPLAYNAME_MISSING);
@@ -421,280 +430,166 @@ export default class User {
   // Profilwerte speichern
   // ===================================================================== */
   // Aber nur diejeinige, die der User auch selbst ändern kann.
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
+  /**
+   * Speichert die vom Benutzer änderbaren Profilwerte.
+   * Lädt optional ein neues Profilbild hoch.
+   *
+   * @param firebase - Firebase-Instanz (für Storage)
+   * @param database - DatabaseService-Instanz
+   * @param userProfile - Das zu speichernde Profil
+   * @param authUser - Der angemeldete Benutzer
+   * @param localPicture - Optionale Bilddatei zum Hochladen
+   */
   static saveFullProfile = async ({
     firebase,
+    database,
     userProfile,
     localPicture,
     authUser,
   }: SaveFullProfile) => {
     let pictureSrc = userProfile.pictureSrc;
 
-    if (userProfile.displayName == "") {
+    if (userProfile.displayName === "") {
       userProfile.displayName = userProfile.firstName;
     }
 
-    // Alte werte holen um zu vergleichen ob die Cloud Function gestartet werden muss
-    let actualPublicProfile = <UserPublicProfile>{};
-    await firebase.user.public.profile
-      .read<UserPublicProfile>({uids: [userProfile.uid]})
-      .then((result) => {
-        actualPublicProfile = result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
     // Bild hochladen wenn vorhanden
     if (localPicture instanceof File) {
-      if (userProfile.pictureSrc) {
+      if (pictureSrc) {
         // Vorhandenes Bild löschen
-        await User.deletePicture({
-          firebase: firebase,
-          authUser: authUser,
-        }).catch(() => {
-          // Nichts tun - wenn das Bild nicht vorhanden ist, kanne es nicht gelöscht werden.
-          return;
-        });
+        try {
+          await User.deletePicture({
+            firebase: firebase,
+            database: database,
+            authUser: authUser,
+          });
+        } catch {
+          // Nichts tun - wenn das Bild nicht vorhanden ist, kann es nicht gelöscht werden.
+        }
       }
 
-      await User.uploadPicture({
-        firebase: firebase,
+      pictureSrc = await User.uploadPicture({
+        database: database,
         file: localPicture,
         authUser: authUser,
-      }).then((result) => {
-        pictureSrc = result;
       });
     }
 
-    await firebase.user
-      .updateFields({
-        uids: [userProfile.uid],
-        authUser: authUser,
-        values: {
-          firstName: userProfile.firstName,
-          lastName: userProfile.lastName,
-        },
-        updateChangeFields: false,
-      })
-      .then(async () => {
-        // Öffentliche Felder updaten
-        await firebase.user.public.profile
-          .updateFields({
-            uids: [userProfile.uid],
-            authUser: authUser,
-            values: {
-              displayName: userProfile.displayName,
-              motto: userProfile.motto,
-              pictureSrc: pictureSrc,
-            },
-            updateChangeFields: false,
-          })
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-      })
-      .catch((error) => {
-        throw error;
-      });
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    await users.patch({
+      id: userProfile.uid,
+      fields: {
+        first_name: userProfile.firstName,
+        last_name: userProfile.lastName,
+        display_name: userProfile.displayName,
+        motto: userProfile.motto,
+        picture_src: pictureSrc ?? "",
+      },
+      authUser: authUser,
+    });
 
-    //CloudFunction starten wenn displayname oder pictureSrc geändert wurde
-    if (
-      actualPublicProfile &&
-      (actualPublicProfile.displayName !== userProfile.displayName ||
-        actualPublicProfile.motto !== userProfile.motto)
-    ) {
-      if (actualPublicProfile.displayName !== userProfile.displayName) {
-        firebase.cloudFunction.updateUserDisplayName.triggerCloudFunction({
-          values: {
-            uid: userProfile.uid,
-            newDisplayName: userProfile.displayName,
-          },
-          authUser: authUser,
-        });
-      }
-      if (actualPublicProfile.motto !== userProfile.motto) {
-        firebase.cloudFunction.updateUserMotto.triggerCloudFunction({
-          values: {
-            uid: userProfile.uid,
-            newValue: userProfile.motto,
-          },
-          authUser: authUser,
-        });
-      }
-      logEvent(firebase.analytics, FirebaseAnalyticEvent.cloudFunctionExecuted);
-    }
   };
   /* =====================================================================
   // Profilbild hochladen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static uploadPicture = async ({firebase, file, authUser}: UploadPicture) => {
-    const pictureSrc: Picture = {normalSize: "", smallSize: "", fullSize: ""};
+  /**
+   * Lädt ein Profilbild hoch (Client-seitig skaliert, als JPEG in Supabase Storage).
+   *
+   * @param database - DatabaseService-Instanz (für Supabase Storage)
+   * @param file - Die hochzuladende Bilddatei
+   * @param authUser - Der angemeldete Benutzer
+   * @returns Öffentliche URL des hochgeladenen Bildes
+   */
+  static uploadPicture = async ({database, file, authUser}: UploadPicture) => {
+    // Client-seitiges Resize auf max. 1200px
+    const resizedBlob = await resizeImage(file);
 
-    await firebase.fileStore.users
-      .uploadFile({file: file, filename: authUser.uid})
-      .then(async () => {
-        // Redimensionierte Varianten holen
-        await firebase.fileStore.users
-          .getPictureVariants({
-            uid: authUser.uid,
-            sizes: [ImageSize.size_600, ImageSize.size_50],
-            // oldDownloadUrl: result,
-          })
-          .then((result) => {
-            // Wir wollen nur eine Grösse
-            result.forEach((size) => {
-              if (size.size === ImageSize.size_50) {
-                pictureSrc.smallSize = size.downloadURL;
-              } else if (size.size === ImageSize.size_600) {
-                pictureSrc.normalSize = size.downloadURL;
-              }
-            });
-          });
-      });
+    // TODO(post-migration): Admin-Fallback entfernen und nur den regulären
+    // authentifizierten Client verwenden: `database.storage.users`.
+    // Der Admin-Client umgeht die Storage-RLS-Policy `media_users_insert_own`,
+    // die sicherstellt, dass Benutzer nur ihr eigenes Profilbild hochladen
+    // können (Dateiname = auth.uid() + '.jpg'). In Produktion ist admin=null,
+    // daher greift RLS korrekt. Siehe Audit-Finding F-017.
+    const storageUsers =
+      database.admin?.storage.users ?? database.storage.users;
+    const result = await storageUsers.upload(
+      `${authUser.uid}.jpg`,
+      resizedBlob,
+      "image/jpeg",
+    );
 
-    return pictureSrc;
+    return result.publicUrl;
   };
   /* =====================================================================
   // Bild löschen
   // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static deletePicture = async ({firebase, authUser}: DeletePicture) => {
-    await firebase.fileStore.users
-      .deleteFile(`${authUser.uid}${IMAGES_SUFFIX.size50.suffix}`)
-      .then(async () => {
-        firebase.fileStore.users
-          .deleteFile(`${authUser.uid}${IMAGES_SUFFIX.size600.suffix}`)
-          .catch((error) => {
-            console.error(error);
-            throw error;
-          });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
+  /**
+   * Löscht das Profilbild aus Supabase Storage und leert die DB-Spalte.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param authUser - Der angemeldete Benutzer
+   * @throws Error bei Storage- oder DB-Fehler
+   */
+  static deletePicture = async ({
+    database,
+    authUser,
+  }: DeletePicture) => {
+    // TODO(post-migration): Admin-Fallback entfernen, siehe F-017.
+    const storageUsers =
+      database.admin?.storage.users ?? database.storage.users;
+    await storageUsers.remove(`${authUser.uid}.jpg`);
 
-    await firebase.user.public.profile
-      .updateFields({
-        uids: [authUser.uid],
-        values: {pictureSrc: {fullSize: "", normalSize: "", smallSize: ""}},
-        authUser: authUser,
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    // CloudFunction Triggern
-    firebase.cloudFunction.updateUserPictureSrc.triggerCloudFunction({
-      values: {
-        uid: authUser.uid,
-        pictureSrc: {smallSize: "", normalSize: "", fullSize: ""} as Picture,
+    // TODO(post-migration): Admin-Fallback entfernen, siehe F-017.
+    const users = database.admin?.users ?? database.users;
+    await users.patch({
+      id: authUser.uid,
+      fields: {
+        picture_src: "",
       },
       authUser: authUser,
     });
-  };
-  /* =====================================================================
-  // E-Mailadresse updaten
-  // ===================================================================== */
-  /* istanbul ignore next */
-  /* DB-Methode wird zur Zeit nicht geprüft */
-  static updateEmail = async ({firebase, newEmail, authUser}: UpdateEmail) => {
-    // Email muss im Profil und in den Searchfiedls angepasst werden
-    firebase.user
-      .updateFields({
-        uids: [authUser.uid],
-        authUser: authUser,
-        values: {email: newEmail},
-        updateChangeFields: false,
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
 
-    firebase.user.public.searchFields
-      .updateFields({
-        uids: [authUser.uid],
-        authUser: authUser,
-        values: {email: newEmail},
-        updateChangeFields: false,
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-    logEvent(firebase.analytics, FirebaseAnalyticEvent.userChangedEmail);
   };
   /* =====================================================================
-  // Berechtigungen aktualiseiren
+  // Berechtigungen aktualisieren
   // ===================================================================== */
+  /**
+   * Aktualisiert die Rollen eines Benutzers.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param userUid - UID des Benutzers
+   * @param newRoles - Die neuen Rollen
+   * @param authUser - Der angemeldete Admin-Benutzer
+   */
   static updateRoles = async ({
-    firebase,
+    database,
     userUid,
     newRoles,
     authUser,
   }: UpdateRoles) => {
-    firebase.user
-      .updateFields({
-        uids: [userUid],
-        values: {roles: newRoles},
-        authUser: authUser,
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
+    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
+    const users = database.admin?.users ?? database.users;
+    await users.patch({
+      id: userUid,
+      fields: {roles: newRoles},
+      authUser: authUser,
+    });
   };
   /* =====================================================================
-  // Statistikfeld hoch- bzw. runterzählen
+  // no_found_bugs hoch- bzw. runterzählen
   // ===================================================================== */
-  static updateStats = async ({
-    firebase,
-    userUid,
-    statsField,
-    statsValue,
-  }: UpdateStats) => {
-    firebase.user.public.profile
-      .incrementField({
-        uids: [userUid],
-        field: `stats.${statsField}`,
-        value: statsValue,
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
+  /**
+   * Zählt no_found_bugs eines Benutzers atomar hoch oder runter.
+   * Nutzt den Supabase-RPC increment_found_bugs — der DB-Wert unterschreitet nie 0.
+   *
+   * @param database - DatabaseService-Instanz
+   * @param userUid - UID des Benutzers (Firebase UID / PK in users)
+   * @param statsValue - +1 (Increment) oder -1 (Decrement)
+   * @throws Error bei Datenbankfehler
+   */
+  static updateStats = async ({database, userUid, statsValue}: UpdateStats) => {
+    const repo = database.admin?.users ?? database.users;
+    await repo.incrementFoundBugs(userUid, statsValue);
   };
-  /* =====================================================================
-  // User aktiv/oder inaktiv schalten
-  // ===================================================================== */
-  // static setDisabledState = async ({
-  //   firebase,
-  //   userUid,
-  //   disabled,
-  //   authUser,
-  // }: SetDisabled) => {
-  //   firebase.auth
-  //     .updateUser(userUid, {disabled: disabled})
-  //     .then(() => {
-  //       // Auf dem Datensatz nachführen
-  //       firebase.user.updateFields({
-  //         uids: [userUid],
-  //         values: {disabled: disabled},
-  //         authUser: authUser,
-  //       });
-  //     })
-  //     .catch((error) => {
-  //       console.error(error);
-  //       throw error;
-  //     });
-  // };
 }

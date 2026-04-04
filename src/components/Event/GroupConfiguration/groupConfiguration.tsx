@@ -1,4 +1,6 @@
 import React, {SyntheticEvent} from "react";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 import {
   Stack,
@@ -54,11 +56,11 @@ import {
   SAVE as TEXT_SAVE,
 } from "../../../constants/text";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 import {ButtonAction} from "../../Shared/global.interface";
-import AlertMessage from "../../Shared/AlertMessage";
-import Event from "../Event/event.class";
-import EventGroupConfiguration from "./groupConfiguration.class";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {Event} from "../Event/event.class";
+import {EventGroupConfiguration} from "./groupConfiguration.class";
 
 import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
@@ -67,18 +69,14 @@ import {
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
-import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
+import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/navigationContext";
-import Action from "../../../constants/actions";
-/* ===================================================================
-// ============================== Global =============================
-// =================================================================== */
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
+} from "../../Navigation/NavigationContext";
+import {Action} from "../../../constants/actions";
+import {useDatabase} from "../../Database/DatabaseContext";
+// Bridge-Import eliminiert — Konvertierung erfolgt direkt im Repository
 /** Alle verfügbaren Aktionstypen für den Gruppen-Konfiguration-Reducer. */
 enum ReducerActions {
   UPDATE_FIELD = "UPDATE_FIELD",
@@ -105,7 +103,7 @@ type DispatchAction =
   | {type: ReducerActions.GENERIC_ERROR; payload: Error}
   | {
       type: ReducerActions.SNACKBAR_SHOW;
-      payload: {severity: Snackbar["severity"]; message: string};
+      payload: {severity: SnackbarState["severity"]; message: string};
     }
   | {type: ReducerActions.SNACKBAR_CLOSE};
 /** Zustand der Gruppenkonfiguration-Komponente. */
@@ -119,7 +117,7 @@ type State = {
   /** Aktuelles Fehler-Objekt (falls vorhanden). */
   error: Error | null;
   /** Snackbar-Zustand für Benachrichtigungen. */
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const initialState: State = {
@@ -183,15 +181,11 @@ const groupConfigurationReducer = (
       };
     default: {
       const _exhaustiveCheck: never = action;
-      console.error("Unbekannter ActionType: ", _exhaustiveCheck);
-      throw new Error();
+      throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
     }
   }
 };
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 /** Props für die Gruppenkonfiguration-Seite. */
 interface EventGroupConfigurationPageProps {
   /** Firebase-Instanz für DB-Zugriffe. */
@@ -202,8 +196,10 @@ interface EventGroupConfigurationPageProps {
   event: Event;
   /** Bestehende Gruppenkonfiguration (beim Bearbeiten). */
   groupConfiguration?: EventGroupConfiguration;
+  /** Wenn true, wird die Gruppenkonfiguration nicht sofort gespeichert. */
+  deferSave?: boolean;
   /** Callback und Button-Text für die Bestätigungs-Aktion. */
-  onConfirm?: ButtonAction;
+  onConfirm?: ButtonAction<EventGroupConfiguration>;
   /** Callback und Button-Text für die Abbruch-Aktion. */
   onCancel?: ButtonAction;
   /** Callback bei Änderung der Portionen (löst Neuberechnung im Menüplan aus). */
@@ -218,10 +214,11 @@ interface EventGroupConfigurationPageProps {
  * und deren Portionenzuordnung.
  */
 const EventGroupConfigurationPage = ({
-  firebase,
+  firebase: _firebase,
   authUser,
   event,
   groupConfiguration,
+  deferSave = false,
   onConfirm,
   onCancel,
   onGroupConfigurationUpdate,
@@ -229,6 +226,7 @@ const EventGroupConfigurationPage = ({
   const classes = useCustomStyles();
   const theme = useTheme();
   const {customDialog} = useCustomDialog();
+  const database = useDatabase();
   const navigationValuesContext = React.useContext(NavigationValuesContext);
 
   const [state, dispatch] = React.useReducer(
@@ -285,13 +283,15 @@ const EventGroupConfigurationPage = ({
   /* ------------------------------------------
   // Weiter // Zurück
   // ------------------------------------------ */
-  const saveEvent = async (event: React.MouseEvent<HTMLButtonElement>) => {
-    await EventGroupConfiguration.save({
-      firebase: firebase,
-      authUser: authUser,
-      groupConfig: state.groupConfig,
-    });
-    onConfirm?.onClick && onConfirm.onClick(event, state.groupConfig);
+  const saveEvent = async (mouseEvent: React.MouseEvent<HTMLButtonElement>) => {
+    if (!deferSave) {
+      const gcDomain = database.eventGroupConfig.groupConfigUiToDomain(state.groupConfig, event.uid);
+      await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
+      trackEvent(AnalyticsEvent.GROUP_CONFIG_CHANGED, {
+        numberOfGroups: state.groupConfig.diets.order.length,
+      });
+    }
+    onConfirm?.onClick && onConfirm.onClick(mouseEvent, state.groupConfig);
   };
   const cancelCreate = async (event: React.MouseEvent<HTMLButtonElement>) => {
     if (onCancel?.onClick) {
@@ -323,11 +323,8 @@ const EventGroupConfigurationPage = ({
     }
 
     try {
-      await EventGroupConfiguration.save({
-        firebase: firebase,
-        authUser: authUser,
-        groupConfig: state.groupConfig,
-      });
+      const gcDomain = database.eventGroupConfig.groupConfigUiToDomain(state.groupConfig, event.uid);
+      await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
 
       // Neue Mengen hochgeben, damit der Menüplan neu berechnet wird
       onGroupConfigurationUpdate(state.groupConfig);
@@ -596,9 +593,6 @@ const EventGroupConfigurationPage = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ========================= Group-Config-Card =======================
-// =================================================================== */
 /** Props für die Gruppenkonfiguration-Karte. */
 interface EventGroupConfigurationCardProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -729,9 +723,6 @@ const EventGroupConfigurationCard = ({
     </div>
   );
 };
-/* ===================================================================
-// ============================ Lead-Spalte ==========================
-// =================================================================== */
 /** Props für die Lead-Spalte (Intoleranzen + Total-Label). */
 interface EventGroupConfigLeadColumnProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -812,9 +803,6 @@ const EventGroupConfigLeadColumn = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// =========================== Diät-Spalte ===========================
-// =================================================================== */
 /** Props für die Diät-Spalten (je eine pro Diätgruppe). */
 interface EventGroupConfigDietColumnProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -929,9 +917,6 @@ const EventGroupConfigDietColumn = ({
     </React.Fragment>
   );
 };
-/* ===================================================================
-// =========================== Total-Spalte ==========================
-// =================================================================== */
 /** Props für die Total-Spalte. */
 interface EventGroupConfigTotalColumnProps {
   /** Aktuelle Gruppenkonfiguration. */
@@ -1012,4 +997,4 @@ const EventGroupConfigTotalColumn = ({
   );
 };
 
-export default EventGroupConfigurationPage;
+export {EventGroupConfigurationPage};

@@ -1,9 +1,8 @@
-import Utils from "../Shared/utils.class";
+import * as Sentry from "@sentry/react";
+import {Utils} from "../Shared/utils.class";
 import Firebase from "../Firebase/firebase.class";
 import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import FirebaseAnalyticEvent from "../../constants/firebaseEvent";
-import {logEvent} from "firebase/analytics";
 
 interface GetAllDepartments {
   firebase: Firebase;
@@ -79,7 +78,7 @@ export default class Department {
     authUser,
   }: CreateDepartment) => {
     const department = new Department();
-    department.uid = Utils.generateUid(20);
+    department.uid = crypto.randomUUID();
     department.name = name;
     department.pos = pos;
 
@@ -92,11 +91,8 @@ export default class Department {
         values: {[department.uid]: dbDepartment},
         authUser: authUser,
       })
-      .then(() => {
-        logEvent(firebase.analytics, FirebaseAnalyticEvent.departmentCreated);
-      })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     return department;
@@ -149,7 +145,7 @@ export default class Department {
         authUser: authUser,
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };

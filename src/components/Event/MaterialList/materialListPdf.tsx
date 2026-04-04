@@ -1,9 +1,9 @@
 import React from "react";
-import {Document, Page, View, Text, Font} from "@react-pdf/renderer";
-// import Utils from "../Shared/utils.class";
-import Event from "../Event/event.class";
+import {Document, Page, View, Text} from "@react-pdf/renderer";
+import "../../Shared/pdfFontRegistration";
+import {Event} from "../Event/event.class";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import StylesPdf from "../../../constants/stylesMaterialListPdf";
+import {pdfStyles} from "../../../constants/stylesMaterialListPdf";
 
 import {
   APP_NAME as TEXT_APP_NAME,
@@ -11,11 +11,36 @@ import {
 } from "../../../constants/text";
 
 import {Footer, Header} from "../../Shared/pdfComponents";
-import {MaterialListEntry, MaterialListMaterial} from "./materialList.class";
-import Utils from "../../Shared/utils.class";
-/* ===================================================================
-// ========================= PDF Einkaufsliste =======================
-// =================================================================== */
+import {MaterialListEntry} from "./materialList.class";
+import {Utils} from "../../Shared/utils.class";
+
+const styles = pdfStyles;
+
+/** Zahlenformat für Mengenangaben (Schweizer Locale, max. 3 signifikante Stellen). */
+const QUANTITY_FORMAT = new Intl.NumberFormat("de-CH", {
+  maximumSignificantDigits: 3,
+});
+
+/**
+ * Erzeugt den kombinierten Style für abgehakte Zellen.
+ *
+ * @param checked - Ob das Item abgehakt ist
+ * @returns Zellen-Style (grau + durchgestrichen wenn checked)
+ */
+const checkedCellStyle = (checked: boolean) =>
+  checked
+    ? {...styles.tableCell, ...styles.gray, ...styles.strikeTrough}
+    : styles.tableCell;
+
+/**
+ * PDF-Dokument für die Materialliste eines Events.
+ *
+ * Rendert eine einseitige Materialliste mit Mengenangaben, alphabetisch
+ * sortiert. Bereits abgehakte Positionen werden durchgestrichen dargestellt.
+ * Zeigt optional eine Koch-Zuordnungs-Spalte an.
+ *
+ * @param props - Materiallistendaten, Zeitabschnitt, Event-Name und Autoreninfo.
+ */
 interface MaterialListPdfProps {
   materialList: MaterialListEntry;
   materialListSelectedTimeSlice: string;
@@ -49,9 +74,11 @@ const MaterialListPdf = ({
   );
 };
 
-/* ===================================================================
-// =========================== Rezept-Seite ==========================
-// =================================================================== */
+/**
+ * Einzelne Seite der Materialliste im PDF.
+ *
+ * @param props - Materiallistendaten, Zeitabschnitt, Zeitstempel und Autoreninfo.
+ */
 interface MaterialListPageProps {
   materialList: MaterialListEntry;
   materialListSelectedTimeSlice: string;
@@ -68,10 +95,11 @@ const MaterialListPage = ({
 }: MaterialListPageProps) => {
   return (
     <Page key={"page_" + materialList.properties.uid} style={styles.body}>
-      <Header text={eventName} uid={"mealRecipe.uid"} />
+      <Header text={eventName} uid={materialList.properties.uid} />
       <MaterialListTitle
         materialListName={materialList.properties.name}
         materialListSelectedTimeSlice={materialListSelectedTimeSlice}
+        itemCount={materialList.items.length}
       />
       <MaterialListList materialList={materialList} />
 
@@ -83,112 +111,89 @@ const MaterialListPage = ({
     </Page>
   );
 };
-/* ===================================================================
-// ============================== Titel ==============================
-// =================================================================== */
+
+/**
+ * Titelbereich der Materialliste mit Name, Zeitraum und Item-Anzahl.
+ *
+ * @param props - Listenname, Zeitabschnitt und Anzahl Positionen.
+ */
 interface MaterialListTitleProps {
-  materialListName: MaterialListMaterial["name"];
+  materialListName: string;
   materialListSelectedTimeSlice: string;
+  itemCount: number;
 }
 const MaterialListTitle = ({
   materialListName,
   materialListSelectedTimeSlice,
+  itemCount,
 }: MaterialListTitleProps) => {
   return (
     <React.Fragment>
       <View>
         <Text style={styles.title}>{TEXT_MATERIAL_LIST}</Text>
       </View>
-      <View style={styles.containerBottomBorder} />
+      <View style={styles.titleUnderline} />
       <Text
-        style={styles.subSubTitle}
-      >{`${materialListName}: ${materialListSelectedTimeSlice}`}</Text>
-      <View style={styles.containerBottomBorder} />
+        style={styles.subTitle}
+      >{`${materialListName}: ${materialListSelectedTimeSlice} (${itemCount} Positionen)`}</Text>
+      <View style={styles.infoSectionDivider} />
     </React.Fragment>
   );
 };
-/* ===================================================================
-// ============================ Item-Liste ===========================
-// =================================================================== */
+
+/**
+ * Tabelle mit den Materiallistenpositionen, alphabetisch sortiert.
+ * Zeigt optional eine Koch-Spalte an, wenn mindestens ein Item eine
+ * Koch-Zuordnung hat.
+ *
+ * @param props - Materiallistendaten mit Positionen.
+ */
 interface MaterialListListProps {
   materialList: MaterialListEntry;
 }
 const MaterialListList = ({materialList}: MaterialListListProps) => {
+  // Koch-Spalte nur anzeigen wenn mindestens ein Item einen Koch hat
+  const hasCookAssignment = materialList.items.some(
+    (material) => material.resolvedCookName || material.assignedCookName,
+  );
+
   return (
     <View style={styles.table} key={"materialBlockTable"}>
       {Utils.sortArray({array: materialList.items, attributeName: "name"}).map(
-        (material, line) => (
-          <View style={styles.tableRow} key={"materialLine_" + "_" + line}>
+        (material, rowIndex) => (
+          <View style={styles.tableRow} key={"materialLine_" + "_" + rowIndex}>
             <View
               style={styles.tableColQuantity}
-              key={"materialBlockQuantity" + line}
+              key={"materialBlockQuantity" + rowIndex}
             >
-              <Text
-                style={
-                  material.checked
-                    ? {
-                        ...styles.tableCell,
-                        ...styles.gray,
-                        ...styles.strikeTrough,
-                      }
-                    : styles.tableCell
-                }
-              >
+              <Text style={checkedCellStyle(material.checked)}>
                 {Number.isNaN(material.quantity) || !material.quantity
                   ? ""
-                  : new Intl.NumberFormat("de-CH", {
-                      maximumSignificantDigits: 3,
-                    }).format(material.quantity)}
+                  : QUANTITY_FORMAT.format(material.quantity)}
               </Text>
             </View>
-            <View style={styles.tableCol5} key={"materialBlockSpacer" + line} />
+            <View style={styles.tableCol5} key={"materialBlockSpacer" + rowIndex} />
 
-            <View style={styles.tableColItem} key={"materialBlockName" + line}>
-              <Text
-                style={
-                  material.checked
-                    ? {
-                        ...styles.tableCell,
-                        ...styles.gray,
-                        ...styles.strikeTrough,
-                      }
-                    : styles.tableCell
-                }
-              >
+            <View
+              style={hasCookAssignment ? styles.tableColItemNarrow : styles.tableColItem}
+              key={"materialBlockName" + rowIndex}
+            >
+              <Text style={checkedCellStyle(material.checked)}>
                 {material.name}
               </Text>
             </View>
+            {hasCookAssignment && (
+              <View style={styles.tableColCook} key={"materialBlockCook" + rowIndex}>
+                <Text style={checkedCellStyle(material.checked)}>
+                  {material.resolvedCookName || material.assignedCookName || ""}
+                </Text>
+              </View>
+            )}
           </View>
-        )
+        ),
       )}
     </View>
   );
 };
 
-export default MaterialListPdf;
-/* ===================================================================
-// ======================== Fonts registrieren =======================
-// =================================================================== */
-//-->gist.github.com/karimnaaji/b6c9c9e819204113e9cabf290d580551
-Font.register({
-  family: "Roboto",
-  fonts: [
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/7MygqTe2zs9YkP0adA9QQQ.ttf",
-      fontStyle: "normal",
-      fontWeight: 100,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v16/zN7GBFwfMP4uA6AR0HCoLQ.ttf",
-      fontWeight: 400,
-      fontStyle: "normal",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/bdHGHleUa-ndQCOrdpfxfw.ttf",
-      fontStyle: "normal",
-      fontWeight: 700,
-    },
-  ],
-});
-
-const styles = StylesPdf.getPdfStyles();
+export {MaterialListPdf};

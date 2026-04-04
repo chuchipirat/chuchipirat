@@ -11,16 +11,16 @@ import {
   StorageObjectProperty,
 } from "./sessionStorageHandler.class";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Feed, {FeedType} from "../../Shared/feed.class";
-import Role from "../../../constants/roles";
+import {FeedType} from "../../Shared/feed.class";
+import {Role} from "../../../constants/roles";
 import {collection, collectionGroup, doc} from "firebase/firestore";
 
 export interface FeedLogDocumemntStructure {
   created: ChangeRecord;
   type: FeedType;
   visibility: Role;
-  title: Feed["title"];
-  text: Feed["text"];
+  title: string;
+  text: string;
 }
 
 export class FirebaseDbFeedLog extends FirebaseDbSuper {

@@ -2,7 +2,6 @@ import Firebase from "../firebase.class";
 import FirebaseDbCloudFunction from "./firebase.db.cloudfunction.class";
 
 import FirebaseDbEvent from "./firebase.db.event.class";
-import FirebaseDbFeed from "./firebase.db.feed.class";
 import FirebaseDbRecipe from "./firebase.db.recipe.class";
 import FirebaseDbStatsCounter from "./firebase.db.stats.counter.class";
 import FirebaseDbUser from "./firebase.db.user.class";
@@ -10,7 +9,6 @@ export class FirebaseDb {
   event: FirebaseDbEvent;
   recipe: FirebaseDbRecipe;
   user: FirebaseDbUser;
-  feed: FirebaseDbFeed;
   stats: FirebaseDbStatsCounter;
   cloudFunction: FirebaseDbCloudFunction;
 
@@ -23,7 +21,6 @@ export class FirebaseDb {
     //RECIPESHORT
     this.event = new FirebaseDbEvent(firebase);
     this.user = new FirebaseDbUser(firebase);
-    this.feed = new FirebaseDbFeed(firebase);
     this.stats = new FirebaseDbStatsCounter(firebase);
     this.cloudFunction = new FirebaseDbCloudFunction(firebase);
   }

@@ -1,31 +1,45 @@
-import Firebase from "../../Firebase/firebase.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Material, {MaterialType} from "../../Material/material.class";
+import * as Sentry from "@sentry/react";
+import {Material, MaterialType} from "../../Material/material.types";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Utils from "../../Shared/utils.class";
-import Event from "../Event/event.class";
-import Menuplan, {
+import {Utils} from "../../Shared/utils.class";
+import {
   Meal,
-  MealRecipeDeletedPrefix,
   Menue,
-} from "../Menuplan/menuplan.class";
-import _ from "lodash";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
 
-import UsedRecipes from "../UsedRecipes/usedRecipes.class";
+import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 
 import {ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND} from "../../../constants/text";
-import Recipe, {RecipeMaterialPosition} from "../../Recipe/recipe.class";
+import Recipe, {RecipeMaterialPosition, Recipes} from "../../Recipe/recipe.class";
 import {ProductTrace} from "../ShoppingList/shoppingListCollection.class";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
-import Stats, {StatsField} from "../../Shared/stats.class";
 import {ItemType} from "../ShoppingList/shoppingList.class";
-import {logEvent} from "firebase/analytics";
 
+/**
+ * Einzelne Liste mit Properties und Items.
+ */
 export interface MaterialListEntry {
   properties: ListProperties;
   items: MaterialListMaterial[];
 }
 
+/**
+ * Materialposition in einer Materialliste.
+ *
+ * @param checked - Abgehakt
+ * @param name - Materialname
+ * @param uid - Material-UID (oder generierte UID bei Freitext)
+ * @param type - Materialtyp
+ * @param quantity - Menge
+ * @param trace - Herkunfts-Trace (nur in-memory, nicht in DB)
+ * @param manualEdit - Manuell bearbeitet
+ * @param manualAdd - Manuell hinzugefügt
+ * @param supabaseId - Supabase-Row-ID für granulare Updates
+ * @param assignedCookId - ID des zugewiesenen Kochs (event_cooks.id)
+ * @param assignedCookName - Freitext-Koch-Name
+ * @param resolvedCookName - Aufgelöster Koch-Anzeigename
+ */
 export interface MaterialListMaterial {
   checked: boolean;
   name: Material["name"];
@@ -35,8 +49,15 @@ export interface MaterialListMaterial {
   trace: ProductTrace[];
   manualEdit?: boolean;
   manualAdd?: boolean;
+  supabaseId?: string;
+  assignedCookId?: string | null;
+  assignedCookName?: string | null;
+  resolvedCookName?: string | null;
 }
 
+/**
+ * Kopfdaten einer Materialliste.
+ */
 interface ListProperties {
   uid: string;
   name: string;
@@ -45,50 +66,21 @@ interface ListProperties {
   generated: ChangeRecord;
 }
 
-interface Save {
-  materialList: MaterialList;
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-interface Delete {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-}
-interface GetMaterialListListener {
-  firebase: Firebase;
-  uid: string;
-  callback: (materialList: MaterialList) => void;
-  errorCallback: (error: Error) => void;
-}
-interface Factory {
-  event: Event;
-  authUser: AuthUser;
-}
-interface CreateNewList {
-  name: string;
-  selectedMenues: Menue["uid"][];
-  menueplan: Menuplan;
-  materials: Material[];
-  firebase: Firebase;
-  authUser: AuthUser;
-}
 interface DeleteList {
   materialList: MaterialList;
   listUidToDelete: ListProperties["uid"];
-  authUser: AuthUser;
 }
 interface EditListName {
   materialList: MaterialList;
   listUidToEdit: ListProperties["uid"];
   newName: ListProperties["name"];
-  authUser: AuthUser;
 }
 interface AddItem {
   material: Material;
   list: MaterialListMaterial[];
   quantity: number;
   planedPortions?: number;
-  manuelAdd?: boolean;
+  manualAdd?: boolean;
   recipeUid?: Recipe["uid"];
   recipeName?: Recipe["name"];
   menueUid?: Menue["uid"];
@@ -97,154 +89,68 @@ interface DeleteMaterialFromList {
   materialUid: Material["uid"];
   list: MaterialListMaterial[];
 }
-interface RefreshLists {
+interface CreateNewListParams {
+  name: string;
+  selectedMenues: Menue["uid"][];
+  menueplan: MenuplanData;
+  materials: Material[];
+  recipes: Recipes;
+}
+interface RefreshListParams {
   listUidToRefresh: string;
   materialList: MaterialList;
   keepManuallyAddedItems?: boolean;
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   materials: Material[];
-  firebase: Firebase;
-  authUser: AuthUser;
+  recipes: Recipes;
 }
 
-export default class MaterialList {
+/**
+ * Domain-Klasse für Materiallisten eines Events.
+ *
+ * Enthält reine Business-Logik (kein Firebase/Supabase). Persistenz
+ * erfolgt über MaterialListRepository via useMaterialListHandlers.
+ */
+export class MaterialList {
   uid: string;
-  noOfLists: number;
   lists: {
     [key: string]: MaterialListEntry;
   };
-  lastChange: ChangeRecord;
-
-  /* =====================================================================
-  // Konstruktor
-  // ===================================================================== */
-  constructor() {
+  lastChange: ChangeRecord;  constructor() {
     this.uid = "";
-    this.noOfLists = 0;
     this.lists = {};
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
   }
-  // ===================================================================== */
   /**
-   * Factory
-   * @param object - Referenz zu Event und AuthUser
-   * @returns Objekt vom Typ MaterialList
+   * Erstellt eine neue Materialliste aus dem Menüplan.
+   *
+   * Verwendet vorgeladene Rezepte statt Firebase-Calls. Berechnet
+   * Materialbedarfe über Math.max (Peak-Bedarf, nicht Summe).
+   *
+   * @param params - Name, Menüs, Menüplan, Materialien, Rezepte
+   * @returns MaterialListEntry mit berechneten Items
+   * @throws {Error} Wenn keine Rezepte gefunden werden
    */
-  static factory = ({event, authUser}: Factory) => {
-    return {
-      uid: event.uid,
-      noOfLists: 0,
-      lists: {},
-      lastChange: Utils.createChangeRecord(authUser),
-    } as MaterialList;
-  };
-  // ===================================================================== */
-  /**
-   * Materialliste Speichern
-   * @param object - Objekt mit Materialliste, Firebase und Authuser
-   * @returns void
-   */
-  static save = async ({materialList, firebase, authUser}: Save) => {
-    materialList.lastChange = Utils.createChangeRecord(authUser);
-
-    firebase.event.materialList
-      .set({
-        uids: [materialList.uid],
-        value: materialList,
-        authUser: authUser,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Materialliste löschen (gesamtes Dokument)
-   * @param object - Objekt Event-UID und Firebase
-   * @returns void
-   */
-  static delete = async ({eventUid, firebase}: Delete) => {
-    firebase.event.materialList
-      .delete({uids: [eventUid]})
-      .then(() => {
-        Stats.incrementStat({
-          field: StatsField.noMaterialLists,
-          value: -1,
-          firebase: firebase,
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Listener für Materialliste holen
-   * @param object - Objekt mit Firebase, Eventuid und Callback Funktion
-   * @returns void
-   */
-  static getMaterialListListener = async ({
-    firebase,
-    uid,
-    callback,
-    errorCallback,
-  }: GetMaterialListListener) => {
-    const materialListCallback = (materialList: MaterialList) => {
-      // Menüplan mit UID anreichern
-      materialList.uid = uid;
-      callback(materialList);
-    };
-
-    return await firebase.event.materialList
-      .listen<MaterialList>({
-        uids: [uid],
-        callback: materialListCallback,
-        errorCallback: errorCallback,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Neue Liste erstellen
-   * @param object - Objekt mit Name der Liste, gewählte Menüs, Menüplan,
-   *                 Event-UID, Liste mit Materialien, Firebase und AuthUser
-   * @returns void
-   */
-  static createNewList = async ({
+  static createNewList({
     name,
     selectedMenues,
     menueplan,
     materials,
-    firebase,
-    authUser,
-  }: CreateNewList) => {
-    // Es wird mit den Menüs gearbeitet. Aber gespeichert werden die
-    // Mahlzeiten. --> Wenn die Menüs verschoben werden, müssen die
-    // Augrund der gewählten Mahlzeit neu bestimmt werden.
-    const listEntry = {
+    recipes,
+  }: CreateNewListParams): MaterialListEntry {
+    const listEntry: MaterialListEntry = {
       properties: {
         uid: Utils.generateUid(5),
         name: name,
-        selectedMeals: Menuplan.getMealsOfMenues({
+        selectedMeals: getMealsOfMenues({
           menuplan: menueplan,
           menues: selectedMenues,
         }),
         selectedMenues: selectedMenues,
-        generated: Utils.createChangeRecord(authUser),
+        generated: {date: new Date(), fromUid: "", fromDisplayName: ""},
       },
       items: [],
-    } as MaterialListEntry;
+    };
 
     // Alle Rezepte in den Menüs herausfiltern, die selektiert wurden
     const recipeList = UsedRecipes.defineSelectedRecipes({
@@ -252,182 +158,209 @@ export default class MaterialList {
       menueplan: menueplan,
     });
 
-    if (recipeList == undefined || recipeList.length == 0) {
+    if (!recipeList || recipeList.length === 0) {
       throw new Error(TEXT_ERROR_NO_RECIPES_FOUND);
     }
 
-    // Alle Rezepte holen
-    await Recipe.getMultipleRecipes({
-      firebase: firebase,
-      recipes: recipeList,
-    })
-      .then((result) => {
-        // Über gewählte Menüs loopen
-        selectedMenues.forEach((menueUid) => {
-          // Über alle Rezepte dieses Menü loopen
-          menueplan.menues[menueUid].mealRecipeOrder.forEach(
-            (mealRecipeUid) => {
-              if (
-                menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid.includes(
-                  MealRecipeDeletedPrefix
-                )
-              ) {
-                // gelöschte Rezepte ausschliessen
-                return;
-              }
+    // Über gewählte Menüs loopen
+    selectedMenues.forEach((menueUid) => {
+      // Über alle Rezepte dieses Menü loopen
+      menueplan.menues[menueUid].mealRecipeOrder.forEach((mealRecipeUid) => {
+        // Gelöschtes Rezept überspringen
+        if (!menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid) {
+          return;
+        }
 
-              // Alle Zutaten und Materiale holen
-              const scaledMaterials = Recipe.scaleMaterials({
-                recipe:
-                  result[menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid],
-                portionsToScale:
+        const recipeUid = menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid;
+        const recipe = recipes[recipeUid];
+        if (!recipe) {
+          Sentry.addBreadcrumb({
+            category: "materialList",
+            message: `Rezept ${recipeUid} nicht in vorgeladenen Rezepten gefunden`,
+            level: "warning",
+          });
+          return;
+        }
+
+        // Alle Materialien holen und skalieren
+        const scaledMaterials = Recipe.scaleMaterials({
+          recipe: recipe,
+          portionsToScale: menueplan.mealRecipes[mealRecipeUid].totalPortions,
+        });
+
+        // Alle skalierten Materialien hinzufügen
+        Object.values(scaledMaterials).forEach(
+          (recipeMaterial: RecipeMaterialPosition) => {
+            const material = materials.find(
+              (candidate) => candidate.uid === recipeMaterial.material.uid,
+            );
+
+            if (material?.type === MaterialType.usage) {
+              listEntry.items = MaterialList.addMaterialToList({
+                material: material,
+                list: listEntry.items,
+                quantity: recipeMaterial.quantity,
+                planedPortions:
                   menueplan.mealRecipes[mealRecipeUid].totalPortions,
+                recipeName: recipe.name,
+                recipeUid: recipe.uid,
+                menueUid: menueUid,
               });
-
-              // Alle skalierten Materialien hinzufügen
-              Object.values(scaledMaterials).forEach(
-                (recipeMaterial: RecipeMaterialPosition) => {
-                  // Prüfen ob ein Gebrauchsmaterial
-                  const material = materials.find(
-                    (materialRecord) =>
-                      materialRecord.uid == recipeMaterial.material.uid
-                  );
-
-                  if (material?.type == MaterialType.usage) {
-                    listEntry.items = MaterialList.addMaterialToList({
-                      material: material,
-                      list: listEntry.items,
-                      quantity: recipeMaterial.quantity,
-                      planedPortions:
-                        menueplan.mealRecipes[mealRecipeUid].totalPortions,
-                      recipeName:
-                        result[
-                          menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid
-                        ].name,
-                      recipeUid:
-                        result[
-                          menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid
-                        ].uid,
-                      menueUid: menueUid,
-                    });
-                  }
-                }
-              );
             }
-          );
-          // Material aus dem Menü ebenefalls hinzufügen
-          menueplan.menues[menueUid].materialOrder.forEach(
-            (materialMenuUid) => {
-              const menuPlanMaterialEntry =
-                menueplan.materials[materialMenuUid];
-
-              const material = materials.find(
-                (material) => material.uid == menuPlanMaterialEntry.materialUid
-              );
-              if (material?.type == MaterialType.usage) {
-                listEntry.items = MaterialList.addMaterialToList({
-                  material: material,
-                  list: listEntry.items,
-                  quantity: menuPlanMaterialEntry.totalQuantity,
-                  menueUid: menueUid,
-                });
-              }
-            }
-          );
-        });
-      })
-      .then(() => {
-        // Statistik mitführen
-        Stats.incrementStat({
-          firebase: firebase,
-          field: StatsField.noMaterialLists,
-          value: 1,
-        });
-
-        logEvent(
-          firebase.analytics,
-          FirebaseAnalyticEvent.materialListGenerated
+          },
         );
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
       });
 
+      // Material aus dem Menü ebenfalls hinzufügen
+      menueplan.menues[menueUid].materialOrder.forEach((materialMenuUid) => {
+        const menuPlanMaterialEntry = menueplan.materials[materialMenuUid];
+
+        const material = materials.find(
+          (candidate) => candidate.uid === menuPlanMaterialEntry.materialUid,
+        );
+        if (material?.type === MaterialType.usage) {
+          listEntry.items = MaterialList.addMaterialToList({
+            material: material,
+            list: listEntry.items,
+            quantity: menuPlanMaterialEntry.totalQuantity,
+            menueUid: menueUid,
+          });
+        }
+      });
+    });
+
     return listEntry;
-  };
-  // ===================================================================== */
+  }
   /**
-   * Neue Liste erstellen
-   * @param object - Objekt mit MateriaListe und UID die es zu löschen gilt
-   * @returns Angepasstes MateriaListe
+   * Aktualisiert eine bestehende Materialliste mit dem aktuellen Menüplan.
+   *
+   * Erkennt Drift (verschobene Menüs) und behält bei Bedarf
+   * manuell hinzugefügte Items.
+   *
+   * @param params - Liste-ID, MaterialList, Flags, Menüplan, Materialien, Rezepte
+   * @returns Aktualisierte MaterialList
    */
-  static deleteList = ({
+  static refreshList({
+    listUidToRefresh,
     materialList,
-    listUidToDelete,
-    authUser,
-  }: DeleteList) => {
-    const updatedMaterialList = _.cloneDeep(materialList) as MaterialList;
+    keepManuallyAddedItems = false,
+    menueplan,
+    materials,
+    recipes,
+  }: RefreshListParams): MaterialList {
+    let manuallyAddedItems: MaterialListMaterial[] = [];
+    // Tiefe Kopie erstellen
+    const updatedMaterialList = JSON.parse(JSON.stringify(materialList)) as MaterialList;
+    const listToUpdate = updatedMaterialList.lists[listUidToRefresh];
 
-    delete updatedMaterialList.lists[listUidToDelete];
+    if (keepManuallyAddedItems) {
+      manuallyAddedItems = listToUpdate.items.filter(
+        (material) => material.manualAdd === true,
+      );
+    }
 
-    updatedMaterialList.lastChange = Utils.createChangeRecord(authUser);
-    updatedMaterialList.noOfLists--;
+    // Drift-Erkennung: Menüs im Menüplan verschoben?
+    if (
+      !Utils.areStringArraysEqual(
+        listToUpdate.properties.selectedMeals,
+        getMealsOfMenues({
+          menuplan: menueplan,
+          menues: listToUpdate.properties.selectedMenues,
+        }),
+      ) ||
+      listToUpdate.properties.selectedMenues.length !==
+        getMenuesOfMeals({
+          menuplan: menueplan,
+          meals: listToUpdate.properties.selectedMeals,
+        }).length
+    ) {
+      listToUpdate.properties.selectedMenues = getMenuesOfMeals({
+        menuplan: menueplan,
+        meals: listToUpdate.properties.selectedMeals,
+      });
+    }
+
+    const result = MaterialList.createNewList({
+      name: listToUpdate.properties.name,
+      selectedMenues: listToUpdate.properties.selectedMenues,
+      menueplan: menueplan,
+      materials: materials,
+      recipes: recipes,
+    });
+
+    // selectedMeals beibehalten (Refresh, nicht Neuerstellung)
+    result.properties.selectedMeals = listToUpdate.properties.selectedMeals;
+
+    if (keepManuallyAddedItems) {
+      updatedMaterialList.lists[listUidToRefresh] = {
+        properties: result.properties,
+        items: [...result.items, ...manuallyAddedItems],
+      };
+    } else {
+      updatedMaterialList.lists[listUidToRefresh] = result;
+    }
+    updatedMaterialList.lists[listUidToRefresh].properties.uid =
+      listUidToRefresh;
 
     return updatedMaterialList;
-  };
-  // ===================================================================== */
+  }
   /**
-   * Name einer Liste anpassen
-   * @param object - Objekt mit UsedRecipes und UID angepasst wird, neuer
-   * Name der Liste und Authuser
-   * @returns Angepasstes Used Recipes
+   * Entfernt eine Liste aus der MaterialList-Struktur.
+   *
+   * @param params - MaterialList und UID der zu löschenden Liste
+   * @returns Aktualisierte MaterialList ohne die gelöschte Liste
+   */
+  static deleteList = ({materialList, listUidToDelete}: DeleteList) => {
+    const updatedMaterialList = JSON.parse(JSON.stringify(materialList)) as MaterialList;
+    delete updatedMaterialList.lists[listUidToDelete];
+    return updatedMaterialList;
+  };
+  /**
+   * Ändert den Namen einer bestehenden Liste.
+   *
+   * @param params - MaterialList, Listen-UID und neuer Name
+   * @returns Aktualisierte MaterialList mit neuem Namen
    */
   static editListName = ({
     materialList,
     listUidToEdit,
     newName,
-    authUser,
   }: EditListName) => {
-    const updatedMaterialList = _.cloneDeep(materialList) as MaterialList;
-
+    const updatedMaterialList = JSON.parse(JSON.stringify(materialList)) as MaterialList;
     updatedMaterialList.lists[listUidToEdit].properties.name = newName;
-    updatedMaterialList.lastChange = Utils.createChangeRecord(authUser);
-
     return updatedMaterialList;
   };
-
-  // ===================================================================== */
   /**
-   * Material zur Liste hinzufügen
-   * @param object - Objekt mit Material und Array der bestehenden Liste
-   * @returns Liste mit hinzugefügten Material
+   * Fügt ein Material zur Liste hinzu oder passt die Menge an.
+   *
+   * Bei Materialien wird Math.max verwendet (Peak-Bedarf), nicht die Summe.
+   * Jeder Aufruf erzeugt einen Trace-Eintrag.
+   *
+   * @param params - Material, Liste, Menge und Trace-Infos
+   * @returns Aktualisierte Item-Liste
    */
   static addMaterialToList = ({
     material,
     list,
     quantity,
     planedPortions,
-    manuelAdd = false,
+    manualAdd = false,
     recipeUid = "",
     recipeName = "",
     menueUid = "",
   }: AddItem) => {
-    // Prüfen ob es das Material bereits gibt
-    const materialInList = list.find(
-      (materialInList) => materialInList.uid == material.uid
-    );
+    const materialInList = list.find((existingMaterial) => existingMaterial.uid === material.uid);
 
     if (materialInList) {
-      // Nur die Menge anpassen und einen Trace Eintrag hinzufügen
+      // Peak-Bedarf: Math.max statt Summe
       materialInList.quantity = Math.max(materialInList.quantity, quantity);
       materialInList.trace.push({
         menueUid: menueUid,
         recipe: {uid: recipeUid, name: recipeName},
-        planedPortions: planedPortions ? planedPortions : 0,
+        planedPortions: planedPortions ?? 0,
         quantity: quantity,
         unit: "",
-        manualAdd: manuelAdd,
+        manualAdd: manualAdd,
         itemType: ItemType.material,
       });
     } else {
@@ -441,10 +374,10 @@ export default class MaterialList {
           {
             menueUid: menueUid,
             recipe: {uid: recipeUid, name: recipeName},
-            planedPortions: planedPortions ? planedPortions : 0,
+            planedPortions: planedPortions ?? 0,
             quantity: quantity,
             unit: "",
-            manualAdd: manuelAdd,
+            manualAdd: manualAdd,
             itemType: ItemType.material,
           },
         ],
@@ -453,11 +386,11 @@ export default class MaterialList {
 
     return list;
   };
-  // ===================================================================== */
   /**
-   * Material von Liste entfernen
-   * @param object - Objekt mit Material und Array der bestehenden Liste
-   * @returns Liste mit hinzugefügten Material
+   * Entfernt ein Material aus der Liste.
+   *
+   * @param params - Material-UID und aktuelle Liste
+   * @returns Gefilterte Liste ohne das entfernte Material
    */
   static deleteMaterialFromList = ({
     materialUid,
@@ -465,109 +398,102 @@ export default class MaterialList {
   }: DeleteMaterialFromList) => {
     return list.filter((material) => material.uid !== materialUid);
   };
-  // ===================================================================== */
   /**
-   * Bestehende Liste aktualisieren
-   * @param object - Objekt mit Referenz zu Materialliste, ID der Liste,
-   *                 die angepasst werden soll, Wert ob manuelle Werte bei-
-   *                 behalten werden sollen, Menüplan, Materialien,
-   *                 Firebase und Authuser
-   * @returns Aktualisierte Materialliste
+   * Berechnet den Herkunfts-Trace für ein Material on-demand.
+   *
+   * Durchsucht die ausgewählten Menüs im Menüplan und ermittelt,
+   * welche Rezepte das gegebene Material verwenden.
+   *
+   * @param materialUid - UID des Materials
+   * @param selectedMenues - Ausgewählte Menü-UIDs
+   * @param menueplan - Aktueller Menüplan
+   * @param materials - Alle Materialien
+   * @param recipes - Vorgeladene Rezepte
+   * @returns Array von ProductTrace-Einträgen
    */
-  static refreshList = async ({
-    listUidToRefresh,
-    materialList,
-    keepManuallyAddedItems = false,
+  static computeTrace({
+    materialUid,
+    selectedMenues,
     menueplan,
     materials,
-    firebase,
-    authUser,
-  }: RefreshLists) => {
-    let manuallyAddedItems: MaterialListMaterial[] = [];
-    const updatedMaterialList = _.cloneDeep(materialList) as MaterialList;
-    const listToUpdate = updatedMaterialList.lists[listUidToRefresh];
+    recipes,
+  }: {
+    materialUid: string;
+    selectedMenues: string[];
+    menueplan: MenuplanData;
+    materials: Material[];
+    recipes: Recipes;
+  }): ProductTrace[] {
+    const traces: ProductTrace[] = [];
 
-    if (keepManuallyAddedItems) {
-      manuallyAddedItems = listToUpdate.items.filter((material) =>
-        material.trace.some((trace) => trace.manualAdd == true)
-      );
-    }
-
-    // überprüfen ob die gewählten Menüs auch in den Mahlzeiten sind.
-    // Wenn die Menüs im Menüplan verschoben werden, müssen die Menüs neu definiert werden
-    // Anhand der Mahlzeiten (die mitgespeichert werden)
-    if (
-      !Utils.areStringArraysEqual(
-        listToUpdate.properties.selectedMeals,
-        Menuplan.getMealsOfMenues({
-          menuplan: menueplan,
-          menues: listToUpdate.properties.selectedMenues,
-        })
-      ) ||
-      // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
-      // Auswahl entfernt
-      listToUpdate.properties.selectedMenues.length !==
-        Menuplan.getMenuesOfMeals({
-          menuplan: menueplan,
-          meals: listToUpdate.properties.selectedMeals,
-        }).length
-    ) {
-      // Die Menüs wurden geändert. Daher müssen wir jetzt
-      // die Menüs neu bestimmen anhand der Mahlzeiten
-      listToUpdate.properties.selectedMenues = Menuplan.getMenuesOfMeals({
-        menuplan: menueplan,
-        meals: listToUpdate.properties.selectedMeals,
-      });
-    }
-
-    await MaterialList.createNewList({
-      name: listToUpdate.properties.name,
-      selectedMenues: listToUpdate.properties.selectedMenues,
-      menueplan: menueplan,
-      materials: materials,
-      firebase: firebase,
-      authUser: authUser,
-    })
-      .then((result) => {
-        // Die selectedMeals werden im CreateNewList neu bestimmt
-        // da dies ein Refresh ist, müssen wir da die alten wieder
-        // überklatschen
-        result.properties.selectedMeals = listToUpdate.properties.selectedMeals;
-
-        if (keepManuallyAddedItems) {
-          updatedMaterialList.lists[listUidToRefresh] = {
-            properties: result.properties,
-            items: [...result.items, ...manuallyAddedItems],
-          };
-        } else {
-          updatedMaterialList.lists[listUidToRefresh] = result;
+    selectedMenues.forEach((menueUid) => {
+      menueplan.menues[menueUid]?.mealRecipeOrder.forEach((mealRecipeUid) => {
+        // Gelöschtes Rezept überspringen
+        if (!menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid) {
+          return;
         }
-        updatedMaterialList.lists[listUidToRefresh].properties.uid =
-          listUidToRefresh;
-        updatedMaterialList.lastChange = Utils.createChangeRecord(authUser);
-        logEvent(
-          firebase.analytics,
-          FirebaseAnalyticEvent.materialListRefreshed
-        );
-      })
-      .then(() => {
-        // Statistik mitführen
-        Stats.incrementStat({
-          firebase: firebase,
-          field: StatsField.noMaterialLists,
-          value: -1,
+
+        const recipeUid = menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid;
+        const recipe = recipes[recipeUid];
+        if (!recipe) return;
+
+        const scaledMaterials = Recipe.scaleMaterials({
+          recipe: recipe,
+          portionsToScale: menueplan.mealRecipes[mealRecipeUid].totalPortions,
         });
-      })
-      .then(() => {
-        logEvent(
-          firebase.analytics,
-          FirebaseAnalyticEvent.materialListGenerated
+
+        Object.values(scaledMaterials).forEach(
+          (recipeMaterial: RecipeMaterialPosition) => {
+            if (recipeMaterial.material.uid === materialUid) {
+              const material = materials.find(
+                (candidate) => candidate.uid === materialUid,
+              );
+              if (material?.type === MaterialType.usage) {
+                traces.push({
+                  menueUid: menueUid,
+                  recipe: {uid: recipe.uid, name: recipe.name},
+                  planedPortions:
+                    menueplan.mealRecipes[mealRecipeUid].totalPortions,
+                  quantity: recipeMaterial.quantity,
+                  unit: "",
+                  manualAdd: false,
+                  itemType: ItemType.material,
+                });
+              }
+            }
+          },
         );
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
       });
-    return updatedMaterialList;
-  };
+
+      // Material direkt am Menü
+      menueplan.menues[menueUid]?.materialOrder.forEach((materialMenuUid) => {
+        const entry = menueplan.materials[materialMenuUid];
+        if (entry?.materialUid === materialUid) {
+          traces.push({
+            menueUid: menueUid,
+            recipe: {uid: "", name: ""},
+            planedPortions: 0,
+            quantity: entry.totalQuantity,
+            unit: "",
+            manualAdd: false,
+            itemType: ItemType.material,
+          });
+        }
+      });
+    });
+
+    return traces;
+  }
+  /**
+   * Zählt die Gesamtanzahl der Items über alle Listen.
+   *
+   * @param materialList - Die MaterialList-Instanz
+   * @returns Gesamtanzahl der Items
+   */
+  static countItems(materialList: MaterialList): number {
+    return Object.values(materialList.lists).reduce(
+      (sum, entry) => sum + entry.items.length,
+      0,
+    );
+  }
 }

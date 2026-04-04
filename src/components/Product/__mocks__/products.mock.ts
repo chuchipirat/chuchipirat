@@ -1,4 +1,4 @@
-import Product, {Allergen, Diet} from "../product.class";
+import {Product, Allergen, Diet} from "../product.types";
 
 export const products: Product[] = [
   {
@@ -8,6 +8,8 @@ export const products: Product[] = [
     shoppingUnit: "kg",
     dietProperties: {allergens: [], diet: Diet.Meat},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
   {
     uid: "mozza",
@@ -16,6 +18,8 @@ export const products: Product[] = [
     shoppingUnit: "kg",
     dietProperties: {allergens: [Allergen.Lactose], diet: Diet.Vegetarian},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
   {
     uid: "n0r!",
@@ -24,6 +28,8 @@ export const products: Product[] = [
     shoppingUnit: "g",
     dietProperties: {allergens: [], diet: Diet.Vegan},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
   {
     uid: "g1ng3",
@@ -32,6 +38,8 @@ export const products: Product[] = [
     shoppingUnit: "g",
     dietProperties: {allergens: [], diet: Diet.Vegan},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
   {
     uid: "soys0ce",
@@ -40,6 +48,8 @@ export const products: Product[] = [
     shoppingUnit: "l",
     dietProperties: {allergens: [Allergen.Gluten], diet: Diet.Vegan},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
   {
     uid: "t4hini",
@@ -48,6 +58,8 @@ export const products: Product[] = [
     shoppingUnit: "kg",
     dietProperties: {allergens: [], diet: Diet.Vegan},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
   {
     uid: "h0n3y",
@@ -56,6 +68,8 @@ export const products: Product[] = [
     shoppingUnit: "kg",
     dietProperties: {allergens: [], diet: Diet.Vegetarian},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
 ];
 export default products;

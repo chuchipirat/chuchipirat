@@ -15,9 +15,9 @@ import {
   useTheme,
 } from "@mui/material";
 
-import Menuplan, {Meal} from "./menuplan.class";
-import Utils from "../../Shared/utils.class";
-import useCustomStyles from "../../../constants/styles";
+import {Meal, MenuplanData} from "./menuplan.types";
+import {Utils} from "../../Shared/utils.class";
+import {useCustomStyles} from "../../../constants/styles";
 
 import {
   CONTINUE as TEXT_CONTINUE,
@@ -29,15 +29,12 @@ import {getMealForMealTypeAndDate} from "./dialogSelectMenues";
 // ============================== Global =============================
 // =================================================================== */
 
-/* ===================================================================
-   Dialog-Mahlzeit-Auswahl
-=================================================================== */
 interface DialogSelectMealsProps {
   open: boolean;
   title: string;
-  dates: Menuplan["dates"];
-  mealTypes: Menuplan["mealTypes"];
-  meals: Menuplan["meals"];
+  dates: MenuplanData["dates"];
+  mealTypes: MenuplanData["mealTypes"];
+  meals: MenuplanData["meals"];
   onClose: () => void;
   onConfirm: (mealUid: Meal["uid"]) => void;
 }

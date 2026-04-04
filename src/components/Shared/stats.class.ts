@@ -1,6 +1,6 @@
+import * as Sentry from "@sentry/react";
 import {HOME_STATS_CAPTIONS as TEXT_HOME_STATS_CAPTIONS} from "../../constants/text";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import {CloudFunctionRebuildStatsDocumentStructure} from "../Firebase/Db/firebase.db.cloudfunction.rebuildStats.class";
 import Firebase from "../Firebase/firebase.class";
 import Recipe from "../Recipe/recipe.class";
 
@@ -41,23 +41,13 @@ interface IncrementRecipeVariantCounter {
   recipeUid: Recipe["uid"];
   value: number;
 }
-interface RebuildStats {
-  firebase: Firebase;
-  authUser: AuthUser;
-  callback: ({
-    date,
-    done,
-    errorMessage,
-    processedDocuments,
-  }: CloudFunctionRebuildStatsDocumentStructure) => void;
-}
 export interface Kpi {
   id: StatsField;
   value: number;
   caption: string;
 }
 //HINT💡: Muss in der Cloud-FX nachgeführt werden
-export default class Stats {
+export class Stats {
   // HINT: auch in enum StatsField nachführen
   noEvents: number;
   noIngredients: number;
@@ -120,7 +110,7 @@ export default class Stats {
     await firebase.stats.counter
       .set<Stats>({uids: [], value: stats, authUser: authUser})
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };
@@ -144,7 +134,7 @@ export default class Stats {
         );
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
     return stats;
@@ -193,7 +183,7 @@ export default class Stats {
         return result;
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };
@@ -209,7 +199,7 @@ export default class Stats {
         return result;
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };
@@ -228,54 +218,5 @@ export default class Stats {
       field: recipeUid,
       value: value,
     });
-  };
-  /* =====================================================================
-  // Alle Zähler neu zählen
-  // ===================================================================== */
-  static rebuildStats = async ({
-    firebase,
-    authUser,
-    callback,
-  }: RebuildStats) => {
-    let unsubscribe: () => void;
-    let documentId = "";
-
-    await firebase.cloudFunction.rebuildStats
-      .triggerCloudFunction({
-        values: {},
-        authUser: authUser,
-      })
-      .then((result) => {
-        documentId = result;
-      })
-      .then(() => {
-        // Melden wenn fertig
-        const callbackCaller = (data) => {
-          if (data?.done) {
-            callback(data);
-            unsubscribe();
-          }
-        };
-
-        const errorCallback = (error: Error) => {
-          console.error(error);
-          throw error;
-        };
-
-        firebase.cloudFunction.rebuildStats
-          .listen({
-            uids: [documentId],
-            callback: callbackCaller,
-            errorCallback: errorCallback,
-          })
-          .then((result) => {
-            console.warn(result);
-            unsubscribe = result;
-          });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
   };
 }

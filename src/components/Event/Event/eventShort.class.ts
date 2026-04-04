@@ -1,6 +1,7 @@
+import * as Sentry from "@sentry/react";
 import Firebase from "../../Firebase/firebase.class";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Event from "./event.class";
+import {Event} from "./event.class";
 
 interface Delete {
   event: Event;
@@ -71,7 +72,7 @@ export class EventShort {
     firebase.eventShort
       .deleteField({fieldName: event.uid, uids: []})
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
   };
@@ -104,5 +105,3 @@ export class EventShort {
     return eventsShort;
   }
 }
-
-export default EventShort;

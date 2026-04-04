@@ -6,11 +6,11 @@ import {
   createFilterOptions,
 } from "@mui/material";
 
-import Material, {MaterialType} from "../../Material/material.class";
-import Utils from "../../Shared/utils.class";
+import {Material, MaterialType, createEmptyMaterial} from "../../Material/material.types";
+import {Utils} from "../../Shared/utils.class";
 
 import {ITEM, ADD, ITEM_CANT_BE_CHANGED} from "../../../constants/text";
-import Product from "../../Product/product.class";
+import {Product} from "../../Product/product.types";
 import {ItemType} from "./shoppingList.class";
 import {TextFieldSize} from "../../../constants/defaultValues";
 
@@ -313,10 +313,10 @@ const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
         ) {
           if (allowCreateNewItem) {
             const newMaterial: MaterialItem = {
-              ...new Material(),
+              ...createEmptyMaterial(),
               itemType: ItemType.material,
+              name: `"${params.inputValue}" ${ADD}`,
             };
-            newMaterial.name = `"${params.inputValue}" ${ADD}`;
             filtered.push(newMaterial);
           }
         }
@@ -368,4 +368,4 @@ const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
     />
   );
 };
-export default ItemAutocomplete;
+export {ItemAutocomplete};

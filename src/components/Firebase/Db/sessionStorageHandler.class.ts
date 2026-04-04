@@ -1,7 +1,7 @@
 import {Operator, OrderBy, ValueObject, Where} from "./firebase.db.super.class";
 
 import {ERROR_NOT_IMPLEMENTED_YET} from "../../../constants/text";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
 export interface StorageObjectProperty {
   durationOfValidity: number; // in Minuten
@@ -12,76 +12,76 @@ export interface StorageObjectProperty {
 
 export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
   STATS_COUNTER: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/stats",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   STATS_RECIPE_VARIANTS: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/stats",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   STATS_RECIPES_IN_MENUPLAN: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/stats",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   FEED: {
-    durationOfValidity: 15,
+    durationOfValidity: 0,
     uid: "/feed",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   EVENT: {
-    durationOfValidity: 15,
+    durationOfValidity: 0,
     uid: "/event",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   EVENT_SHORT: {
-    durationOfValidity: 90,
+    durationOfValidity: 0,
     uid: "/eventShort",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   RECIPE_SHORT_PUBLIC: {
-    durationOfValidity: 720,
+    durationOfValidity: 0,
     uid: "/recipeShortPublic",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   RECIPE_SHORT_PRIVATE: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/recipeShortPrivate",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   RECIPE_SHORT_VARIANT: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/recipeShortVariant",
     respectPrefix: true,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   SEARCH_SETTINGS: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/searchSettings",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   RECIPE: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/recipe",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   PRODUCTS: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/products",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   DEPARTMENTS: {
     durationOfValidity: 1440,
@@ -90,10 +90,10 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     excludeFromCaching: false,
   },
   MATERIALS: {
-    durationOfValidity: 60,
+    durationOfValidity: 0,
     uid: "/materials",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   UNITS: {
     durationOfValidity: 1440,
@@ -132,16 +132,22 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     excludeFromCaching: true,
   },
   MAILBOX: {
-    durationOfValidity: 720, // 12 Stunden
+    durationOfValidity: 0,
     uid: "/mailbox",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
+  },
+  DONATIONS: {
+    durationOfValidity: 0,
+    uid: "/donations",
+    respectPrefix: false,
+    excludeFromCaching: true,
   },
   CLOUDFUNCTION: {
-    durationOfValidity: 720,
+    durationOfValidity: 0,
     uid: "/cloudfunction",
     respectPrefix: true,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   USER_SHORT: {
     durationOfValidity: 0,
@@ -156,10 +162,10 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     excludeFromCaching: true,
   },
   VERSION: {
-    durationOfValidity: 720, // 12 Stunden
+    durationOfValidity: 0,
     uid: "/configuration",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
   },
   CONFIGURATION: {
     durationOfValidity: 0,
@@ -174,10 +180,64 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     excludeFromCaching: true,
   },
   SYSTEM_MESSAGE: {
-    durationOfValidity: 360,
+    durationOfValidity: 0,
     uid: "/configuration",
     respectPrefix: false,
-    excludeFromCaching: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_INGREDIENT: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_PREPARATION_STEP: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_MATERIAL: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_RATING: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  RECIPE_COMMENT: {
+    durationOfValidity: 0,
+    uid: "",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  SHOPPING_LISTS: {
+    durationOfValidity: 0,
+    uid: "/shoppingLists",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  MATERIAL_LISTS: {
+    durationOfValidity: 0,
+    uid: "/materialLists",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  REQUESTS: {
+    durationOfValidity: 0,
+    uid: "/requests",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  REQUEST_COMMENTS: {
+    durationOfValidity: 0,
+    uid: "/requestComments",
+    respectPrefix: false,
+    excludeFromCaching: true,
   },
 };
 

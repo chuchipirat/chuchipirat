@@ -1,324 +1,222 @@
-import Firebase from "../../Firebase/firebase.class";
+/**
+ * UsedRecipes — Domain-Klasse für benannte Rezeptlisten eines Events.
+ *
+ * Enthält reine Business-Logik. Persistenz erfolgt über das
+ * UsedRecipeListRepository.
+ *
+ * @example
+ * const usedRecipes = UsedRecipes.factory({event});
+ * const recipeIds = UsedRecipes.defineSelectedRecipes({menueplan, selectedMenues});
+ */
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import Recipe, {RecipeIndetifier} from "../../Recipe/recipe.class";
+import Recipe, {RecipeIdentifier} from "../../Recipe/recipe.class";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Utils from "../../Shared/utils.class";
-import Event from "../Event/event.class";
-import _ from "lodash";
-import Menuplan, {
+import {Utils} from "../../Shared/utils.class";
+import {Event} from "../Event/event.class";
+
+import {
   Meal,
-  MealRecipeDeletedPrefix,
   Menue,
-} from "../Menuplan/menuplan.class";
+  MenuplanData,
+} from "../Menuplan/menuplan.types";
+import {getMealsOfMenues, getMenuesOfMeals} from "../Menuplan/menuplanService";
+import {UsedRecipeListDomain} from "../../Database/Repository/UsedRecipeListRepository";
 
 import {ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND} from "../../../constants/text";
+
 
 interface Factory {
   event: Event;
 }
 
-interface Save {
-  usedRecipes: UsedRecipes;
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-interface Delete {
-  eventUid: Event["uid"];
-  firebase: Firebase;
-}
-
-interface GetUsedRecipesListener {
-  firebase: Firebase;
-  uid: string;
-  callback: (usedRecipes: UsedRecipes) => void;
-  errorCallback: (error: Error) => void;
-}
-
-interface CreateNewList {
-  name: string;
-  selectedMenues: Menue["uid"][];
-  menueplan: Menuplan;
-  firebase: Firebase;
-  authUser: AuthUser;
-}
-interface RefreshLists {
-  usedRecipes: UsedRecipes;
-  menueplan: Menuplan;
-  firebase: Firebase;
-  authUser: AuthUser;
-}
 interface DeleteList {
   usedRecipes: UsedRecipes;
   listUidToDelete: ListProperties["uid"];
   authUser: AuthUser;
 }
+
 interface EditListName {
   usedRecipes: UsedRecipes;
   listUidToEdit: ListProperties["uid"];
   newName: ListProperties["name"];
   authUser: AuthUser;
 }
-interface ListProperties {
+
+interface CreateNewListProperties {
+  name: string;
+  selectedMenues: Menue["uid"][];
+  menueplan: MenuplanData;
+}
+
+/**
+ * Eigenschaften einer benannten Rezeptliste.
+ *
+ * @param uid - Eindeutige ID der Liste
+ * @param name - Anzeigename der Liste
+ * @param selectedMeals - IDs der ausgewählten Mahlzeiten
+ * @param selectedMenues - IDs der ausgewählten Menüs
+ * @param generated - Änderungsprotokoll
+ */
+export interface ListProperties {
   uid: string;
   name: string;
   selectedMeals: Meal["uid"][];
   selectedMenues: Menue["uid"][];
   generated: ChangeRecord;
 }
+
 interface _DefineSelectedRecipes {
-  menueplan: Menuplan;
+  menueplan: MenuplanData;
   selectedMenues: string[];
 }
+
+/**
+ * Ergebnis der Drift-Erkennung.
+ *
+ * @param hasDrift - true, wenn Menüs im Menüplan verschoben wurden
+ * @param currentMealsFromMenues - Aktuelle Meals, abgeleitet aus den gespeicherten Menüs
+ * @param currentMenuesFromMeals - Aktuelle Menüs, abgeleitet aus den gespeicherten Meals
+ */
+export interface DriftDetectionResult {
+  hasDrift: boolean;
+  currentMealsFromMenues: string[];
+  currentMenuesFromMeals: string[];
+}
+
+/**
+ * Eintrag einer benannten Rezeptliste.
+ *
+ * @param properties - Kopfdaten der Liste (Name, Menü-Auswahl)
+ * @param recipes - Rezepte der Liste
+ */
 export interface UsedRecipeListEntry {
   properties: ListProperties;
   recipes: {[key: Recipe["uid"]]: Recipe};
 }
 
-export default class UsedRecipes {
+
+/**
+ * Domain-Klasse für benannte Rezeptlisten eines Events.
+ *
+ * Statische Methoden für reine Business-Logik (Validierung,
+ * In-Memory-Transformationen, Rezept-Identifikation).
+ * Persistenz erfolgt über das UsedRecipeListRepository.
+ */
+export class UsedRecipes {
   uid: string;
   noOfLists: number;
   lists: {[key: string]: UsedRecipeListEntry};
-  lastChange: ChangeRecord;
-  /* =====================================================================
-  // Constructor
-  // ===================================================================== */
-  constructor() {
+  lastChange: ChangeRecord;  constructor() {
     this.uid = "";
     this.noOfLists = 0;
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
     this.lists = {};
-  }
-  // ===================================================================== */
-  /**
-   * Factory Methode
-   * @returns usedRecipes
+  }  /**
+   * Erstellt eine leere UsedRecipes-Instanz für ein Event.
+   *
+   * @param object - Objekt mit dem Event
+   * @returns Neue UsedRecipes-Instanz mit gesetzter UID
    */
   static factory({event}: Factory) {
     const usedRecipes = new UsedRecipes();
     usedRecipes.uid = event.uid;
     return usedRecipes;
-  }
-  // ===================================================================== */
-  /**
-   * Daten speichern
-   * @param object - Objekt mit UsedRecipes, Firebase, AuthUser
-   * @returns usedRecipes
+  }  /**
+   * Erstellt ein UsedRecipes-Objekt aus Supabase-Domain-Listen.
+   *
+   * Konvertiert `UsedRecipeListDomain[]` in die UI-erwartete Struktur.
+   * `selectedMeals` wird aus der persistierten Meal-Auswahl übernommen.
+   * Fallback: Wenn `selectedMeals` leer ist (Pre-Migration-Listen), werden
+   * die Meals aus den Menüs abgeleitet (Backfill-Pfad).
+   * Rezepte (`recipes`) bleiben leer — sie werden bei Bedarf per
+   * Repository + RPC geladen.
+   *
+   * @param lists - Array der Domain-Listen aus dem Repository
+   * @param eventUid - UID des Events
+   * @param menuplan - Menüplan-Daten (für Backfill-Ableitung)
+   * @returns UsedRecipes-Instanz mit allen Listen (ohne Rezepte)
    */
-  static save = async ({usedRecipes, firebase, authUser}: Save) => {
-    usedRecipes.lastChange = Utils.createChangeRecord(authUser);
-    firebase.event.usedRecipes
-      .set({
-        uids: [usedRecipes.uid],
-        value: usedRecipes,
-        authUser: authUser,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Alle Listen löschen (gesamte Dokument)
-   * @param object - Objekt mit Event-UID und Firebase-Referenz
-   */
-  static delete = async ({eventUid, firebase}: Delete) => {
-    firebase.event.usedRecipes.delete({uids: [eventUid]}).catch((error) => {
-      console.error(error);
-      throw error;
-    });
-  };
-  // ===================================================================== */
-  /**
-   * Listener holen
-   * @param object - Objekt mit Firebase, UID, und Callback-Funktion
-   * @returns listener
-   */
-  static getUsedRecipesListener = async ({
-    firebase,
-    uid,
-    callback,
-    errorCallback,
-  }: GetUsedRecipesListener) => {
-    const usedRecipesCallback = (usedRecipes: UsedRecipes) => {
-      // Menüplan mit UID anreichern
-      usedRecipes.uid = uid;
-      callback(usedRecipes);
-    };
+  static fromDomainLists({
+    lists,
+    eventUid,
+    menuplan,
+  }: {
+    lists: UsedRecipeListDomain[];
+    eventUid: string;
+    menuplan: MenuplanData;
+  }): UsedRecipes {
+    const usedRecipes = new UsedRecipes();
+    usedRecipes.uid = eventUid;
+    usedRecipes.noOfLists = lists.length;
 
-    return await firebase.event.usedRecipes
-      .listen<UsedRecipes>({
-        uids: [uid],
-        callback: usedRecipesCallback,
-        errorCallback: errorCallback,
-      })
-      .then((result) => {
-        return result;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-  };
-  // ===================================================================== */
-  /**
-   * Neue Liste erstellen
-   * @param object - Objekt Name der Liste, ausgewählte Menües [menueUid], a
-   *                 ausgewählte Rezepte [recipeUid], Firebase und Authuser
-   * @returns Generierte Liste als Objekt
-   */
-  static createNewList = async ({
-    name,
-    selectedMenues,
-    menueplan,
-    firebase,
-    authUser,
-  }: CreateNewList) => {
-    const listEntry = {} as UsedRecipeListEntry;
+    for (const list of lists) {
+      // Persistierte Meals verwenden; Fallback auf Ableitung für Pre-Migration-Listen
+      const selectedMeals =
+        list.selectedMeals.length > 0
+          ? list.selectedMeals
+          : getMealsOfMenues({menuplan, menues: list.selectedMenues});
 
-    // Es wird mit den Menüs gearbeitet. Aber gespeichert werden die
-    // Mahlzeiten. --> Wenn die Menüs verschoben werden, müssen die
-    // Augrund der gewählten Mahlzeit neu bestimmt werden.
-    listEntry.properties = {
-      uid: Utils.generateUid(5),
-      name: name,
-      selectedMeals: Menuplan.getMealsOfMenues({
-        menuplan: menueplan,
-        menues: selectedMenues,
-      }),
-      selectedMenues: selectedMenues,
-      generated: Utils.createChangeRecord(authUser),
-    };
-
-    const recipeList = UsedRecipes.defineSelectedRecipes({
-      selectedMenues: selectedMenues,
-      menueplan: menueplan,
-    });
-
-    if (recipeList == undefined || recipeList.length == 0) {
-      throw new Error(TEXT_ERROR_NO_RECIPES_FOUND);
-    }
-
-    await Recipe.getMultipleRecipes({
-      firebase: firebase,
-      recipes: recipeList,
-    })
-      .then((result) => {
-        listEntry.recipes = result;
-        return listEntry;
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
-
-    return listEntry;
-  };
-  // ===================================================================== */
-  /**
-   * Liste aktualisieren
-   * @param object - Objekt Name der Liste, ausgewählte Menües [menueUid], a
-   *                 ausgewählte Rezepte [recipeUid], Firebase und Authuser
-   * @returns Aktualisierte Liste als Objekt
-   */
-  static refreshLists = async ({
-    usedRecipes,
-    menueplan,
-    firebase,
-    authUser,
-  }: RefreshLists) => {
-    let recipeList: RecipeIndetifier[] = [];
-    const usedRecipesPerList: {[key: string]: RecipeIndetifier[]} = {};
-    // Für alle Listen die die Rezepte neu sammeln.
-    Object.values(usedRecipes.lists).forEach((list) => {
-      // Alle Rezepte hiervon zusammensammeln
-      list.properties.generated = {
-        fromDisplayName: authUser.publicProfile.displayName,
-        fromUid: authUser.uid,
-        date: new Date(),
+      usedRecipes.lists[list.id] = {
+        properties: {
+          uid: list.id,
+          name: list.name,
+          selectedMeals,
+          selectedMenues: list.selectedMenues,
+          generated: {
+            date: list.updatedAt,
+            fromUid: "",
+            fromDisplayName: "",
+          },
+        },
+        recipes: {},
       };
-
-      // überprüfen ob die gewählten Menüs auch in den Mahlzeiten sind.
-      // Wenn die Menüs im Menüplan verschoben werden, müssen die Menüs neu definiert werden
-      // Anhand der Mahlzeiten (die mitgespeichert werden)
-      if (
-        !Utils.areStringArraysEqual(
-          list.properties.selectedMeals,
-          Menuplan.getMealsOfMenues({
-            menuplan: menueplan,
-            menues: list.properties.selectedMenues,
-          })
-        ) ||
-        // Sind neue Menü dazugekommen/ oder wurden Menüs aus der
-        // Auswahl entfernt
-        list.properties.selectedMenues.length !==
-          Menuplan.getMenuesOfMeals({
-            menuplan: menueplan,
-            meals: list.properties.selectedMeals,
-          }).length
-      ) {
-        // Die Menüs wurden geändert. Daher müssen wir jetzt
-        // die Menüs neu bestimmen anhand der Mahlzeiten
-        list.properties.selectedMenues = Menuplan.getMenuesOfMeals({
-          menuplan: menueplan,
-          meals: list.properties.selectedMeals,
-        });
-      }
-
-      usedRecipesPerList[list.properties.uid] =
-        UsedRecipes.defineSelectedRecipes({
-          selectedMenues: list.properties.selectedMenues,
-          menueplan: menueplan,
-        });
-
-      recipeList = recipeList.concat(usedRecipesPerList[list.properties.uid]);
-    });
-    // Dupplikate löschen und alle Rezepte holen
-    // Dies ist nötig, weil in verschiedenen Listen, das gleiche Rezept
-    // mehrmals vorkommen kann. Wir wollen es aber nur einmal lesen.
-    recipeList = UsedRecipes._getUniqRecipes(recipeList);
-
-    if (recipeList.length === 0) {
-      throw new Error(TEXT_ERROR_NO_RECIPES_FOUND);
     }
 
-    await Recipe.getMultipleRecipes({
-      firebase: firebase,
-      recipes: recipeList,
-    })
-      .then((result) => {
-        //Hier nochmals darüberloopen und benötigte Rezepte hinzufügen....
-        Object.values(usedRecipes.lists).forEach((list) => {
-          list.recipes = {};
-          usedRecipesPerList[list.properties.uid].forEach((recipe) => {
-            if (result[recipe.uid]) {
-              list.recipes[recipe.uid] = result[recipe.uid];
-            }
-          });
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        throw error;
-      });
     return usedRecipes;
-  };
+  }  /**
+   * Erkennt, ob Menüs im Menüplan zwischen Tagen/Mahlzeiten verschoben wurden.
+   *
+   * Vergleicht die gespeicherten Meals mit den aktuell aus den Menüs abgeleiteten
+   * Meals. Drift liegt vor, wenn:
+   * 1. Die Meals nicht mehr übereinstimmen (Menüs wurden verschoben)
+   * 2. Die Anzahl Menüs sich ändert (neue Menüs in den Meals oder Menüs entfernt)
+   *
+   * @param selectedMeals - Gespeicherte Meal-IDs
+   * @param selectedMenues - Gespeicherte Menü-IDs
+   * @param menuplan - Aktueller Menüplan
+   * @returns Ergebnis der Drift-Erkennung
+   */
+  static detectDrift(
+    selectedMeals: Meal["uid"][],
+    selectedMenues: Menue["uid"][],
+    menuplan: MenuplanData,
+  ): DriftDetectionResult {
+    const currentMealsFromMenues = getMealsOfMenues({
+      menuplan,
+      menues: selectedMenues,
+    });
+    const currentMenuesFromMeals = getMenuesOfMeals({
+      menuplan,
+      meals: selectedMeals,
+    });
 
-  // ===================================================================== */
-  /**
-   * Liste löschen
-   * @param object - Objekt mit UsedRecipes und UID die es zu löschen gilt
-   * @returns Angepasstes Used Recipes
+    const hasDrift =
+      !Utils.areStringArraysEqual(selectedMeals, currentMealsFromMenues) ||
+      selectedMenues.length !== currentMenuesFromMeals.length;
+
+    return {hasDrift, currentMealsFromMenues, currentMenuesFromMeals};
+  }  /**
+   * Entfernt eine Liste aus dem UsedRecipes-Objekt (in-memory).
+   *
+   * @param object - Objekt mit UsedRecipes und UID der zu löschenden Liste
+   * @returns Kopie des UsedRecipes ohne die gelöschte Liste
    */
   static deleteList = ({
     usedRecipes,
     listUidToDelete,
     authUser,
   }: DeleteList) => {
-    const updatedUsedRecipes = _.cloneDeep(usedRecipes) as UsedRecipes;
+    const updatedUsedRecipes = structuredClone(usedRecipes) as UsedRecipes;
 
     delete updatedUsedRecipes.lists[listUidToDelete];
 
@@ -326,13 +224,11 @@ export default class UsedRecipes {
     updatedUsedRecipes.noOfLists--;
 
     return updatedUsedRecipes;
-  };
-  // ===================================================================== */
-  /**
-   * Name einer Liste anpassen
-   * @param object - Objekt mit UsedRecipes und UID angepasst wird, neuer
-   * Name der Liste und Authuser
-   * @returns Angepasstes Used Recipes
+  };  /**
+   * Ändert den Namen einer Liste (in-memory).
+   *
+   * @param object - Objekt mit UsedRecipes, Listen-UID, neuem Namen und AuthUser
+   * @returns Kopie des UsedRecipes mit geändertem Listennamen
    */
   static editListName = ({
     usedRecipes,
@@ -340,32 +236,64 @@ export default class UsedRecipes {
     newName,
     authUser,
   }: EditListName) => {
-    const updatedUsedRecipes = _.cloneDeep(usedRecipes) as UsedRecipes;
+    const updatedUsedRecipes = structuredClone(usedRecipes) as UsedRecipes;
 
     updatedUsedRecipes.lists[listUidToEdit].properties.name = newName;
     updatedUsedRecipes.lastChange = Utils.createChangeRecord(authUser);
 
     return updatedUsedRecipes;
-  };
-  // ===================================================================== */
-  /**
-   * Rezepte aus den ausgewählten Rezepten bestimmen
-   * @param object - Objekt mit SelectedMenues und Menueplan
-   * @returns Liste der Rezept-UIDs
+  };  /**
+   * Validiert die Eingaben und erstellt die Eigenschaften für eine neue Liste.
+   *
+   * Prüft, ob die ausgewählten Menüs Rezepte enthalten. Die tatsächliche
+   * Persistenz erfolgt über das UsedRecipeListRepository.
+   *
+   * @param object - Objekt mit Name, ausgewählten Menüs und Menüplan
+   * @returns ListProperties für die neue Liste
+   * @throws {Error} Wenn keine Rezepte in den ausgewählten Menüs gefunden werden
+   */
+  static createNewListProperties = ({
+    name,
+    selectedMenues,
+    menueplan,
+  }: CreateNewListProperties): ListProperties => {
+    const recipeList = UsedRecipes.defineSelectedRecipes({
+      selectedMenues,
+      menueplan,
+    });
+
+    if (recipeList == undefined || recipeList.length == 0) {
+      throw new Error(TEXT_ERROR_NO_RECIPES_FOUND);
+    }
+
+    return {
+      uid: "",
+      name,
+      selectedMeals: [],
+      selectedMenues,
+      generated: {date: new Date(0), fromUid: "", fromDisplayName: ""},
+    };
+  };  /**
+   * Leitet die Rezept-Identifikatoren aus den ausgewählten Menüs ab.
+   *
+   * Iteriert über alle Menüs → deren mealRecipeOrder → extrahiert Rezept-UIDs.
+   * Gelöschte Rezepte (leere recipeUid) werden ignoriert.
+   * Duplikate werden entfernt.
+   *
+   * @param object - Objekt mit Menüplan und ausgewählten Menüs
+   * @returns Array eindeutiger RecipeIdentifier
    */
   static defineSelectedRecipes = ({
     menueplan,
     selectedMenues,
   }: _DefineSelectedRecipes) => {
-    const usedRecipesList: RecipeIndetifier[] = [];
+    const usedRecipesList: RecipeIdentifier[] = [];
 
     selectedMenues.forEach((menueUid) => {
       menueplan.menues[menueUid].mealRecipeOrder.forEach((mealRecipeUid) => {
         if (
           menueplan.mealRecipes[mealRecipeUid].recipe &&
-          !menueplan.mealRecipes[
-            mealRecipeUid
-          ].recipe.recipeUid.includes(MealRecipeDeletedPrefix)
+          menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid
         ) {
           usedRecipesList.push({
             uid: menueplan.mealRecipes[mealRecipeUid].recipe.recipeUid,
@@ -379,18 +307,17 @@ export default class UsedRecipes {
     });
     // Doppelte Werte löschen
     return UsedRecipes._getUniqRecipes(usedRecipesList);
-  };
-  // ===================================================================== */
-  /**
-   * Doppelte Rezepte löschen
-   * @param usedRecipes - Array mit allen Rezepten
-   * @returns Liste mit den Rezepten ohne Dupplikate
+  };  /**
+   * Entfernt doppelte Rezepte aus einer Liste (nach UID).
+   *
+   * @param usedRecipesList - Array mit allen Rezepten (kann Duplikate enthalten)
+   * @returns Array ohne Duplikate
    */
-  static _getUniqRecipes = (usedRecipesList: RecipeIndetifier[]) => {
+  static _getUniqRecipes = (usedRecipesList: RecipeIdentifier[]) => {
     return Array.from(new Set(usedRecipesList.map((recipe) => recipe.uid))).map(
       (uid) => {
         return usedRecipesList.find((recipe) => recipe.uid == uid);
-      }
-    ) as RecipeIndetifier[];
+      },
+    ) as RecipeIdentifier[];
   };
 }

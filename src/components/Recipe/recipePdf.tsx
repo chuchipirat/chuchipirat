@@ -1,8 +1,9 @@
 import React from "react";
-import {Document, Page, View, Text, Link, Font} from "@react-pdf/renderer";
-import Utils from "../Shared/utils.class";
+import {Document, Page, View, Text, Link} from "@react-pdf/renderer";
+import {Utils} from "../Shared/utils.class";
+import "../Shared/pdfFontRegistration";
 
-import StylesPdf from "../../constants/stylesRecipePdf";
+import {pdfStyles} from "../../constants/stylesRecipePdf";
 import * as TEXT from "../../constants/text";
 import Recipe, {
   Ingredient,
@@ -14,12 +15,21 @@ import Recipe, {
   Section,
 } from "./recipe.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import {MenueCoordinates} from "../Event/Menuplan/menuplan.class";
+import {MenueCoordinates} from "../Event/Menuplan/menuplan.types";
 import {Footer} from "../Shared/pdfComponents";
 
 /* ===================================================================
 // ============================ Rezept PDF ===========================
 // =================================================================== */
+/**
+ * PDF-Dokument für ein einzelnes Rezept.
+ *
+ * Rendert ein PDF mit Teal-Akzenten, kompakteren Abständen und
+ * vertikaler Trennlinie zwischen den zwei Spalten (Zutaten links,
+ * Zubereitung rechts). Visuell abgestimmt auf das Menüplan-PDF V2.
+ *
+ * @param props - Rezeptdaten, Skalierungsinformationen und Autoreninfo.
+ */
 interface RecipePdfProps {
   recipe: Recipe;
   scaledPortions: number | null;
@@ -27,7 +37,7 @@ interface RecipePdfProps {
   scaledMaterials: RecipeObjectStructure<RecipeMaterialPosition>;
   authUser: AuthUser;
 }
-const RecipePdf = ({
+export const RecipePdf = ({
   recipe,
   scaledPortions,
   scaledIngredients,
@@ -55,9 +65,15 @@ const RecipePdf = ({
     </Document>
   );
 };
+
 /* ===================================================================
 // =========================== Rezept-Seite ==========================
 // =================================================================== */
+/**
+ * Einzelne Seite des Rezept-PDFs mit allen Sektionen.
+ *
+ * @param props - Rezeptdaten, Skalierung, Zeitstempel und Autoreninfo.
+ */
 interface RecipePageProps {
   recipe: Recipe;
   scaledPortions: number | null;
@@ -74,56 +90,57 @@ const RecipePage = ({
   actualDate,
   authUser,
 }: RecipePageProps) => {
+  const hasMaterials =
+    recipe.materials?.order.length > 0 &&
+    recipe.materials.entries[recipe.materials.order[0]].uid !== "";
+
   return (
     <Page key={"page_" + recipe.uid} style={styles.body}>
       <RecipeHeader recipe={recipe} scaledPortions={scaledPortions} />
-      <View style={styles.containerBottomBorder} />
-      <View style={styles.table}>
-        <View style={styles.tableRow}>
-          <View style={styles.tableCol50}>
-            <View style={styles.tableNoMargin}>
+      {/* Zweispaltiges Layout: Zutaten links, Zubereitung rechts.
+          Die linke Spalte hat eine vertikale Teal-Trennlinie. */}
+      <View style={styles.twoColumnRow}>
+        <View style={styles.tableCol50Left}>
+          <View style={styles.tableNoMargin}>
+            <View style={styles.tableCol100}>
+              <RecipeIngredients
+                ingredients={recipe.ingredients}
+                scaledIngredients={scaledIngredients}
+                scaledPortions={scaledPortions}
+              />
+            </View>
+            {hasMaterials ? (
               <View style={styles.tableCol100}>
-                <RecipeIngredients
-                  ingredients={recipe.ingredients}
-                  scaledIngredients={scaledIngredients}
+                <RecipeMaterial
+                  materials={recipe.materials}
                   scaledPortions={scaledPortions}
+                  scaledMaterials={scaledMaterials}
                 />
               </View>
-              {recipe.materials?.order.length > 0 &&
-              recipe.materials.entries[recipe.materials.order[0]].uid !== "" ? (
-                <View style={styles.tableCol100}>
-                  <RecipeMaterial
-                    materials={recipe.materials}
-                    scaledPortions={scaledPortions}
-                    scaledMaterials={scaledMaterials}
-                  />
-                </View>
-              ) : (
-                <View />
-              )}
-            </View>
-            <View style={styles.tableCol100}></View>
+            ) : (
+              <View />
+            )}
           </View>
+        </View>
 
-          <View style={styles.tableCol50}>
-            <View style={styles.tableNoMargin}>
-              <View style={styles.tableCol100}>
-                <RecipePreparation recipe={recipe} />
-              </View>
+        <View style={styles.tableCol50Right}>
+          <View style={styles.tableNoMargin}>
+            <View style={styles.tableCol100}>
+              <RecipePreparation recipe={recipe} />
             </View>
           </View>
         </View>
       </View>
       {recipe.note ? (
         <React.Fragment>
-          <View style={styles.containerBottomBorder} />
+          <View style={styles.notesDivider} />
           <RecipeNote recipe={recipe} />
         </React.Fragment>
       ) : null}
       {recipe.type == RecipeType.variant &&
       recipe.variantProperties?.note !== "" ? (
         <React.Fragment>
-          <View style={styles.containerBottomBorder} />
+          <View style={styles.notesDivider} />
           <RecipeVariantNote recipe={recipe} />
         </React.Fragment>
       ) : null}
@@ -131,9 +148,18 @@ const RecipePage = ({
     </Page>
   );
 };
+
 /* ===================================================================
 // ===================== Titel und oberste Infos =====================
 // =================================================================== */
+/**
+ * Kopfbereich des Rezept-PDFs mit Teal-Unterstrich und Metadaten.
+ *
+ * Zeigt bei Varianten den Variantennamen an. Bei Einplanung im Menüplan
+ * werden Datum und Mahlzeittyp statt der Zubereitungszeiten angezeigt.
+ *
+ * @param props - Rezept, skalierte Portionen, optionale Menüplan-Koordinaten.
+ */
 interface RecipeHeaderProps {
   recipe: Recipe;
   scaledPortions: number | null;
@@ -157,7 +183,8 @@ export const RecipeHeader = ({
           </Text>
         </View>
       )}
-      <View style={styles.containerBottomBorder} />
+      {/* Teal-Unterstrich statt dicker Trennlinie */}
+      <View style={styles.titleUnderline} />
 
       {/*===== Details =====*/}
       <View style={styles.table}>
@@ -275,12 +302,23 @@ export const RecipeHeader = ({
           )}
         </View>
       </View>
+      {/* Trennlinie unter dem Info-Block */}
+      <View style={styles.infoSectionDivider} />
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================== Zutaten ============================
 // =================================================================== */
+/**
+ * Zutatentabelle des Rezept-PDFs.
+ *
+ * Zeigt Original- und skalierte Mengen nebeneinander an, falls Skalierung
+ * aktiv ist. Unterstützt Abschnitts-Trennzeilen ({@link Section}).
+ *
+ * @param props - Zutaten, skalierte Werte und Portionsinformation.
+ */
 interface RecipeIngredientsProps {
   ingredients: Recipe["ingredients"];
   scaledPortions?: number | null;
@@ -292,12 +330,12 @@ export const RecipeIngredients = ({
   scaledIngredients,
 }: RecipeIngredientsProps) => {
   return (
-    (<React.Fragment>
+    <React.Fragment>
       {/*===== Überschriften =====*/}
       <View style={styles.table}>
         <View style={styles.tableRow}>
           <View style={styles.tableCol100}>
-            <Text style={styles.subTitle}>{TEXT.PANEL_INGREDIENTS}</Text>
+            <Text style={styles.columnHeading}>{TEXT.PANEL_INGREDIENTS}</Text>
           </View>
         </View>
         {scaledPortions ? (
@@ -314,10 +352,10 @@ export const RecipeIngredients = ({
             <View style={styles.tableColItem} />
           </View>
         ) : (
-          //leer
-          (<View style={styles.tableRow}>
+          // Kein Leerzeilen-Platzhalter — spart vertikalen Raum
+          <View>
             <View style={styles.tableCol100} />
-          </View>)
+          </View>
         )}
         {/*===== Zutaten =====*/}
         {ingredients.order.map((ingredientUid, counter) => {
@@ -346,7 +384,7 @@ export const RecipeIngredients = ({
             : (unit = ingredient.unit);
 
           return (
-            (<React.Fragment key={"ingredient_row_" + ingredientUid}>
+            <React.Fragment key={"ingredient_row_" + ingredientUid}>
               {ingredients.entries[ingredientUid].posType ==
               PositionType.section ? (
                 <RecipeSection
@@ -365,7 +403,7 @@ export const RecipeIngredients = ({
                 >
                   {scaledPortions && scaledIngredients ? (
                     // Originalmenge
-                    (<React.Fragment>
+                    <React.Fragment>
                       <View
                         style={styles.tableColQuantitySmall}
                         key={
@@ -401,7 +439,7 @@ export const RecipeIngredients = ({
                             : ingredient?.unit}
                         </Text>
                       </View>
-                    </React.Fragment>)
+                    </React.Fragment>
                   ) : (
                     <View
                       key={
@@ -458,16 +496,25 @@ export const RecipeIngredients = ({
                   </View>
                 </View>
               )}
-            </React.Fragment>)
+            </React.Fragment>
           );
         })}
       </View>
-    </React.Fragment>)
+    </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ============================ Zubereitung ==========================
 // =================================================================== */
+/**
+ * Zubereitungsschritte des Rezept-PDFs.
+ *
+ * Nummerierte Liste aller Schritte mit optionalen Abschnitts-Trennzeilen.
+ * Schrittnummern in Teal.
+ *
+ * @param props - Rezept mit Zubereitungsschritten.
+ */
 interface RecipePreparationProps {
   recipe: Recipe;
 }
@@ -475,7 +522,7 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
   return (
     <View style={styles.table}>
       <View style={styles.tableCol100}>
-        <Text style={styles.subTitle}>{TEXT.PANEL_PREPARATION}</Text>
+        <Text style={styles.columnHeading}>{TEXT.PANEL_PREPARATION}</Text>
       </View>
       {recipe.preparationSteps.order.map((stepUid, counter) => {
         let step: PreparationStep;
@@ -530,12 +577,17 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
   );
 };
 
+/* ===================================================================
+// ============================== Abschnitt ==========================
+// =================================================================== */
+/**
+ * Abschnitts-Trennzeile in Zutaten oder Zubereitung.
+ *
+ * @param props - Abschnittsdaten mit Name.
+ */
 interface RecipeSectionProps {
   section: Section;
 }
-/* ===================================================================
-// =0=========================== Abschnitt ===========================
-// =================================================================== */
 const RecipeSection = ({section}: RecipeSectionProps) => {
   return (
     <View style={styles.tableRow}>
@@ -545,9 +597,17 @@ const RecipeSection = ({section}: RecipeSectionProps) => {
     </View>
   );
 };
+
 /* ===================================================================
 // ============================== Material ===========================
 // =================================================================== */
+/**
+ * Materialtabelle des Rezept-PDFs (z.B. Backpapier, Alufolie).
+ *
+ * Analoger Aufbau zur Zutatentabelle mit Original-/skalierter Menge.
+ *
+ * @param props - Materialpositionen, Skalierung und Portionsinformation.
+ */
 interface RecipeMaterialProps {
   materials: Recipe["materials"];
   scaledPortions?: number | null;
@@ -559,12 +619,12 @@ export const RecipeMaterial = ({
   scaledMaterials,
 }: RecipeMaterialProps) => {
   return (
-    (<React.Fragment>
+    <React.Fragment>
       {/*===== Überschriften =====*/}
       <View style={styles.table}>
         <View style={styles.tableRow}>
           <View style={styles.tableCol100}>
-            <Text style={styles.subTitle}>{TEXT.MATERIAL}</Text>
+            <Text style={styles.columnHeading}>{TEXT.MATERIAL}</Text>
           </View>
         </View>
         {scaledPortions ? (
@@ -581,10 +641,9 @@ export const RecipeMaterial = ({
             <View style={styles.tableColItem} />
           </View>
         ) : (
-          //leer
-          (<View style={styles.tableRow}>
+          <View style={styles.tableRow}>
             <View style={styles.tableCol100} />
-          </View>)
+          </View>
         )}
         {/*===== Material =====*/}
         {materials.order.map((materialUid, counter) => {
@@ -596,13 +655,13 @@ export const RecipeMaterial = ({
             : (quantity = material.quantity);
 
           return (
-            (<View
+            <View
               style={styles.tableRow}
               key={"materialBlock_" + material.uid + "_" + counter}
             >
               {scaledPortions && scaledMaterials ? (
                 // Originalmenge
-                (<View
+                <View
                   style={styles.tableColQuantitySmall}
                   key={
                     "materialOrignalQuantity_" + material.uid + "_" + counter
@@ -613,7 +672,7 @@ export const RecipeMaterial = ({
                       ? ""
                       : material.quantity.toLocaleString("de-CH")}
                   </Text>
-                </View>)
+                </View>
               ) : (
                 <View />
               )}
@@ -649,17 +708,22 @@ export const RecipeMaterial = ({
               >
                 <Text style={styles.tableCell}>{material.material.name}</Text>
               </View>
-            </View>)
+            </View>
           );
         })}
       </View>
-    </React.Fragment>)
+    </React.Fragment>
   );
 };
 
 /* ===================================================================
 // ========================== Hinweis Rezept =========================
 // =================================================================== */
+/**
+ * Notizblock des Rezepts im PDF.
+ *
+ * @param props - Rezept mit optionalem Notiztext.
+ */
 interface RecipeNoteProps {
   recipe: Recipe;
 }
@@ -668,7 +732,7 @@ export const RecipeNote = ({recipe}: RecipeNoteProps) => {
     <React.Fragment>
       <View style={styles.table}>
         <View style={styles.tableCol100}>
-          <Text style={styles.subTitle}>{TEXT.PANEL_NOTES}</Text>
+          <Text style={styles.columnHeading}>{TEXT.PANEL_NOTES}</Text>
         </View>
         <View style={styles.tableRow} key={"recipeNote_" + recipe.uid}>
           <View
@@ -682,9 +746,15 @@ export const RecipeNote = ({recipe}: RecipeNoteProps) => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ========================= Varianten Notiz  ========================
 // =================================================================== */
+/**
+ * Notizblock für Rezeptvarianten im PDF.
+ *
+ * @param props - Rezept mit Varianten-Notiztext.
+ */
 interface RecipeVariantNoteProps {
   recipe: Recipe;
 }
@@ -693,9 +763,12 @@ export const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
     <React.Fragment>
       <View style={styles.table}>
         <View style={styles.tableCol100}>
-          <Text style={styles.subTitle}>{TEXT.PANEL_NOTES}</Text>
+          <Text style={styles.columnHeading}>{TEXT.PANEL_NOTES}</Text>
         </View>
-        <View style={styles.tableRow} key={"recipeVariantNote_" + recipe.uid}>
+        <View
+          style={styles.tableRow}
+          key={"recipeVariantNote_" + recipe.uid}
+        >
           <View
             style={styles.tableColNote}
             key={"recipeNoteVariantText_" + recipe.uid}
@@ -710,30 +783,4 @@ export const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
   );
 };
 
-export default RecipePdf;
-/* ===================================================================
-// ======================== Fonts registrieren =======================
-// =================================================================== */
-//-->gist.github.com/karimnaaji/b6c9c9e819204113e9cabf290d580551
-Font.register({
-  family: "Roboto",
-  fonts: [
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/7MygqTe2zs9YkP0adA9QQQ.ttf",
-      fontStyle: "normal",
-      fontWeight: 100,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v16/zN7GBFwfMP4uA6AR0HCoLQ.ttf",
-      fontWeight: 400,
-      fontStyle: "normal",
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/bdHGHleUa-ndQCOrdpfxfw.ttf",
-      fontStyle: "normal",
-      fontWeight: 700,
-    },
-  ],
-});
-
-const styles = StylesPdf.getPdfStyles();
+const styles = pdfStyles;

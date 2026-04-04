@@ -11,20 +11,15 @@ export interface ChangeRecord {
   fromDisplayName: string;
 }
 /**
- * Bilder-URL in verschiedenen grössen
- * @param smallSize - für Avatar
- * @param normalSize - normale Grösse
- * @param fullSize - Grösse in voller Auflösung
+ * Generische Aktion mit Button-Text und onClick-Handler.
+ * Der Typ-Parameter T erlaubt typsichere Übergabe von Zusatzwerten.
+ *
+ * @param T Typ des optionalen Werts, der an onClick übergeben wird (Standard: unknown).
  */
-export interface Picture {
-  smallSize: string;
-  normalSize: string;
-  fullSize: string;
-}
-export interface ButtonAction {
+export interface ButtonAction<T = unknown> {
   buttonText: string;
   onClick: (
     event: React.MouseEvent<HTMLButtonElement>,
-    value?: {[key: string]: any}
+    value?: T,
   ) => void;
 }

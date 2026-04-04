@@ -1,16 +1,16 @@
 import React, {Suspense, SyntheticEvent, lazy} from "react";
 import {useNavigate, useLocation} from "react-router";
+import * as Sentry from "@sentry/react";
 
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 import {Container, Divider, SnackbarCloseReason} from "@mui/material";
 import Recipe, {RecipeType} from "./recipe.class";
 
-import RecipeView from "./recipe.view";
-import FallbackLoading from "../Shared/fallbackLoading";
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
+import {RecipeView} from "./recipe.view";
+import {FallbackLoading} from "../Shared/fallbackLoading";
+import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 
 import {RECIPES as ROUTE_RECIPES} from "../../constants/routes";
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
 import {
   DialogType,
   useCustomDialog,
@@ -24,9 +24,12 @@ import {
 } from "../../constants/text";
 import {useAuthUser} from "../Session/authUserContext";
 import {useFirebase} from "../Firebase/firebaseContext";
+import {useDatabase} from "../Database/DatabaseContext";
 
 // Lazy Loading
-const RecipeEdit = lazy(() => import("./recipe.edit"));
+const RecipeEdit = lazy(() =>
+  import("./recipe.edit").then((module) => ({default: module.RecipeEdit}))
+);
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -44,20 +47,39 @@ enum ReducerActions {
 }
 export interface OnUpdateRecipeProps {
   recipe: Recipe;
-  snackbar?: Snackbar;
+  snackbar?: SnackbarState;
 }
 
-type DispatchAction = {
-  type: ReducerActions;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  payload: {[key: string]: any};
-};
+/**
+ * Diskriminierte Union für alle Reducer-Actions der RecipePage.
+ */
+type ReducerAction =
+  | {type: ReducerActions.RECIPE_FETCH_INIT}
+  | {type: ReducerActions.RECIPE_FETCH_SUCCESS; payload: {recipe: Recipe}}
+  | {type: ReducerActions.RECIPE_UPDATE; payload: {recipe: Recipe; snackbar?: SnackbarState}}
+  | {type: ReducerActions.RECIPE_CHECK_POSITIONS}
+  | {
+      type: ReducerActions.SET_PROPS;
+      payload: {
+        recipe?: Recipe;
+        uid?: string;
+        name?: string;
+        pictureSrc?: string;
+      };
+    }
+  | {type: ReducerActions.MANAGE_LOADING_SCREEN; payload: {isLoading: boolean}}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {
+      type: ReducerActions.SNACKBAR_SHOW;
+      payload: {severity: SnackbarState["severity"]; message: string};
+    };
 type State = {
   recipe: Recipe;
   isLoading: boolean;
   isLoadingPicture: boolean;
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
 const inititialState: State = {
@@ -70,8 +92,8 @@ const inititialState: State = {
 export interface SwitchEditMode {
   ignoreState?: boolean;
 }
-const recipeReducer = (state: State, action: DispatchAction): State => {
-  let tempSnackbar: Snackbar;
+const recipeReducer = (state: State, action: ReducerAction): State => {
+  let tempSnackbar: SnackbarState;
   let tempIngredients: Recipe["ingredients"];
   let tempPreparationSteps: Recipe["preparationSteps"];
   let tempMaterials: Recipe["materials"];
@@ -88,7 +110,7 @@ const recipeReducer = (state: State, action: DispatchAction): State => {
       // {recipe, scaledPortions, scaledIngredients}
       return {
         ...state,
-        recipe: action.payload.recipe as Recipe,
+        recipe: action.payload.recipe,
         isLoading: false,
       };
     case ReducerActions.SET_PROPS:
@@ -103,9 +125,9 @@ const recipeReducer = (state: State, action: DispatchAction): State => {
           ...state,
           recipe: {
             ...state.recipe,
-            uid: action.payload.uid,
-            name: action.payload.name,
-            pictureSrc: action.payload.pictureSrc,
+            uid: action.payload.uid ?? state.recipe.uid,
+            name: action.payload.name ?? state.recipe.name,
+            pictureSrc: action.payload.pictureSrc ?? state.recipe.pictureSrc,
           },
         };
       }
@@ -171,11 +193,17 @@ const recipeReducer = (state: State, action: DispatchAction): State => {
       return {
         ...state,
         isLoading: false,
-        error: action.payload as Error,
+        error: action.payload,
       };
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
+    default: {
+      // Exhaustiveness-Check: action ist hier 'never'
+      const exhaustiveCheck: never = action;
+      Sentry.captureMessage(
+        `Unbekannter ActionType: ${(exhaustiveCheck as ReducerAction).type}`,
+        "error",
+      );
       throw new Error();
+    }
   }
 };
 
@@ -186,8 +214,17 @@ const recipeReducer = (state: State, action: DispatchAction): State => {
 /* ===================================================================
 // =============================== Base ==============================
 // =================================================================== */
-const RecipePage = () => {
+/**
+ * Hauptseite für ein einzelnes Rezept — steuert Ansichts- und Bearbeitungsmodus.
+ *
+ * Lädt das Rezept anhand der URL-Parameter aus der Datenbank und wechselt
+ * zwischen {@link RecipeView} (Ansicht) und {@link RecipeEdit} (Bearbeitung).
+ *
+ * @returns Die Rezeptseite mit Ansichts-/Bearbeitungsmodus und Snackbar.
+ */
+export const RecipePage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const location = useLocation();
   const navigate = useNavigate();
@@ -195,8 +232,6 @@ const RecipePage = () => {
 
   let action: Action;
   let recipeUid = "";
-  let recipeType: RecipeType;
-  let userUid: string;
   let scaledPortions = 0;
 
   const [editMode, setEditMode] = React.useState(false);
@@ -205,10 +240,7 @@ const RecipePage = () => {
   if (location.state) {
     action = location?.state?.action;
     if (
-      Object.prototype.hasOwnProperty.call(
-        location.state,
-        "scaledPortions"
-      )
+      Object.prototype.hasOwnProperty.call(location.state, "scaledPortions")
     ) {
       scaledPortions = parseInt(location.state!.scaledPortions!);
     } else {
@@ -227,16 +259,9 @@ const RecipePage = () => {
         // Beispiel: /recipe/
         action = Action.NEW;
       } else if (urlParameter.length === 3) {
-        // öffentliches Rezepte
+        // Rezept anhand UID laden (öffentlich oder privat)
         // Beispiel: /recipe/HWEvHBnRM56GDapkWtsd
         recipeUid = urlParameter[2];
-        recipeType = RecipeType.public;
-      } else if (urlParameter.length === 4) {
-        // privates Rezept
-        // Beispiel: /recipe/tasT02c6mxOWDstBdvwzjbs5Tfc2/t3jKjgl5QnDpe9EHDWZ9
-        userUid = urlParameter[2];
-        recipeUid = urlParameter[3];
-        recipeType = RecipeType.private;
       }
     }
     // Wen das Ereignis NEW ist, wird ein neues Rezept angelegt.
@@ -259,27 +284,44 @@ const RecipePage = () => {
         },
       });
       if (!location.state?.recipe) {
-        //TODO: Wenn das ganze Rezept übergeben wird, muss nicht nachgelesen werden.
-        dispatch({type: ReducerActions.RECIPE_FETCH_INIT, payload: {}});
-        // Rezept lesen (es können auch fremde private Rezepte gelesen werden -
-        // darum wird hier nicht die eigene User-ID übergeben)
-        Recipe.getRecipe({
-          firebase: firebase,
-          authUser: authUser!,
-          uid: recipeUid,
-          userUid: userUid,
-          type: recipeType,
-        })
-          .then((result) => {
+        dispatch({type: ReducerActions.RECIPE_FETCH_INIT});
+        // Rezept und alle Kind-Datensätze parallel laden
+        Promise.all([
+          database.recipes.getRecipe(recipeUid),
+          database.recipeIngredients.getIngredientsForRecipe(recipeUid),
+          database.recipePreparationSteps.getStepsForRecipe(recipeUid),
+          database.recipeMaterials.getMaterialsForRecipe(recipeUid),
+          // Eigene Bewertung laden (authUser.uid = Supabase-UUID)
+          authUser
+            ? database.recipeRatings.getRatingForUser(recipeUid, authUser.uid)
+            : Promise.resolve(null),
+        ])
+          .then(async ([header, ingredients, steps, materials, myRatingDomain]) => {
+            if (!header) {
+              throw new Error(`Rezept ${recipeUid} nicht gefunden.`);
+            }
+            const recipe = Recipe.fromRepositoryData(
+              header,
+              ingredients,
+              steps,
+              materials,
+            );
+            recipe.rating.myRating = myRatingDomain?.rating ?? 0;
+            // Ersteller-Anzeigenamen nachladen (fromRepositoryData setzt fromDisplayName="")
+            if (header.createdBy) {
+              const creatorNameMap = await database.users.findDisplayNamesByIds([
+                header.createdBy,
+              ]);
+              recipe.created.fromDisplayName =
+                creatorNameMap.get(header.createdBy) ?? "";
+            }
             dispatch({
               type: ReducerActions.RECIPE_FETCH_SUCCESS,
-              payload: {
-                recipe: result,
-              },
+              payload: {recipe},
             });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error, {extra: {context: "RecipePage: Rezept laden fehlgeschlagen"}});
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -297,7 +339,7 @@ const RecipePage = () => {
   // Edit-Modus umschiessen
   // ------------------------------------------ */
   const switchEditMode = async (
-    {ignoreState}: SwitchEditMode = {ignoreState: false}
+    {ignoreState}: SwitchEditMode = {ignoreState: false},
   ) => {
     // Wenn der ignoreState true ist, wird nicht geprüft
     // ob die UID leer ist. --> dies damit nach dem speichern
@@ -310,7 +352,7 @@ const RecipePage = () => {
     }
 
     // sicherstellen, dass alle Positionen, mindestens 1x vokommen
-    dispatch({type: ReducerActions.RECIPE_CHECK_POSITIONS, payload: {}});
+    dispatch({type: ReducerActions.RECIPE_CHECK_POSITIONS});
 
     // falls das Rezept öffentlich ist, kurz warnen! (unbeabsichtigte Änderungen verhinern)
     if (state.recipe.type === RecipeType.public && !editMode) {
@@ -340,7 +382,7 @@ const RecipePage = () => {
     });
   };
   const onError = (error: Error) => {
-    console.error(error);
+    Sentry.captureException(error, {extra: {context: "RecipePage: Fehler in Unterkomponente"}});
     dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
   };
 
@@ -349,15 +391,12 @@ const RecipePage = () => {
   // ------------------------------------------ */
   const handleSnackbarClose = (
     _event: Event | SyntheticEvent<Element, Event>,
-    reason: SnackbarCloseReason
+    reason: SnackbarCloseReason,
   ) => {
     if (reason === "clickaway") {
       return;
     }
-    dispatch({
-      type: ReducerActions.SNACKBAR_CLOSE,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
   return (
     <Suspense fallback={<FallbackLoading />}>
@@ -365,7 +404,6 @@ const RecipePage = () => {
         <RecipeEdit
           dbRecipe={state.recipe}
           mealPlan={[]}
-          firebase={firebase}
           isLoading={state.isLoading}
           isEmbedded={false}
           switchEditMode={switchEditMode}
@@ -400,7 +438,7 @@ const RecipePage = () => {
 // ============================= Divider =============================
 // =================================================================== */
 interface RecipeDividerProps {
-  style?: ValueObject;
+  style?: React.CSSProperties;
 }
 export const RecipeDivider = ({style}: RecipeDividerProps) => {
   return (
@@ -410,4 +448,3 @@ export const RecipeDivider = ({style}: RecipeDividerProps) => {
   );
 };
 
-export default RecipePage;

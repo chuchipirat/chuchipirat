@@ -15,26 +15,71 @@
       media="(prefers-color-scheme: dark)"
     />
     <meta
-      name="chuchipirat"
-      content="Kochen in Lagern, Kursen oder Anlässe einfach gemacht."
-    />
-    <meta
       name="description"
-      content="Gruppenkochen leicht gemacht! chuchipirat: Dein digitaler Küchenassistent für müheloses Planen, Menüpläne und Einkaufslisten. Jetzt wird Planen einfach!"
+      content="Kostenlose Web-App für die Planung von Lagerküchen in Schweizer Jugendverbänden. Rezepte skalieren, Menüpläne erstellen, Einkaufslisten generieren."
     />
     <meta name="robots" content="index, follow" />
-
     <meta
       name="keywords"
-      content="planung, kochen, menüplan, einkaufsliste, kurs, lager"
+      content="lagerküche, kochen, menüplan, einkaufsliste, lager, pfadi, jungwacht, blauring, cevi, rezepte, gruppenkochen"
     />
     <link rel="canonical" href="https://chuchipirat.ch/" />
-    <link rel="apple-touch-icon" href="/logo192.png" />
-    <link rel="preconnect" href="https://firebasestorage.googleapis.com" />
-    <link rel="preconnect" href="https://firebase.googleapis.com" />
 
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content="https://chuchipirat.ch/" />
+    <meta property="og:title" content="chuchipirat — Lagerküche planen" />
+    <meta
+      property="og:description"
+      content="Kostenlose Web-App für die Planung von Lagerküchen in Schweizer Jugendverbänden. Rezepte skalieren, Menüpläne erstellen, Einkaufslisten generieren."
+    />
+    <meta property="og:image" content="https://chuchipirat.ch/og-image.png" />
+    <meta property="og:locale" content="de_CH" />
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="chuchipirat — Lagerküche planen" />
+    <meta
+      name="twitter:description"
+      content="Kostenlose Web-App für die Planung von Lagerküchen in Schweizer Jugendverbänden."
+    />
+    <meta
+      name="twitter:image"
+      content="https://chuchipirat.ch/og-image.png"
+    />
+
+    <link rel="apple-touch-icon" href="/logo192.png" />
     <link rel="manifest" href="/manifest.json" />
-    <title>chuchipirat</title>
+    <title>chuchipirat — Lagerküche planen</title>
+
+    <!-- Structured Data (JSON-LD) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "name": "chuchipirat",
+            "url": "https://chuchipirat.ch",
+            "logo": "https://chuchipirat.ch/images/logo/logo_gray.svg"
+          },
+          {
+            "@type": "WebApplication",
+            "name": "chuchipirat",
+            "url": "https://chuchipirat.ch",
+            "applicationCategory": "UtilitiesApplication",
+            "operatingSystem": "Web",
+            "description": "Kostenlose Web-App für die Planung von Lagerküchen in Schweizer Jugendverbänden.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "CHF"
+            }
+          }
+        ]
+      }
+    </script>
+
     <script>window.global = window;</script>
   </head>
   <body>

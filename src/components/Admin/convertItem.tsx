@@ -1,14 +1,33 @@
+/**
+ * ConvertItemPage — Admin-Seite zum Konvertieren von Produkten in Materialien
+ * und umgekehrt.
+ *
+ * Zwei Tabs: Produkt → Material und Material → Produkt. Ruft die
+ * Postgres-RPCs über das AdminOperationsRepository auf.
+ */
 import React from "react";
+import * as Sentry from "@sentry/react";
 
-import Product, {
+import {
+  Product,
   Allergen,
   Diet,
   DietProperties,
-  ConvertMaterialToProductCallbackDocument,
-} from "../Product/product.class";
-import Role from "../../constants/roles";
-import {useFirebase} from "../Firebase/firebaseContext";
-import PageTitle from "../Shared/pageTitle";
+} from "../Product/product.types";
+import {Material, MaterialType} from "../Material/material.types";
+import Department from "../Department/department.class";
+import {Unit, UnitDimension} from "../Unit/unit.class";
+
+import {PageTitle} from "../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "./system";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {ProductAutocomplete} from "../Product/productAutocomplete";
+import {MaterialAutocomplete} from "../Material/materialAutocomplete";
+import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";
+import {UnitAutocomplete} from "../Unit/unitAutocomplete";
+import {MaterialDetailList, ProductDetailList} from "./mergeItems";
+import {useCustomStyles} from "../../constants/styles";
+import {useDatabase} from "../Database/DatabaseContext";
 
 import {
   CONVERT_ITEM as TEXT_CONVERT_ITEM,
@@ -59,44 +78,36 @@ import {
 
 import Grid from "@mui/material/Grid";
 
-import AlertMessage from "../Shared/AlertMessage";
-import ProductAutocomplete from "../Product/productAutocomplete";
-
-import Material, {
-  ConvertProductToMaterialCallbackDocument,
-  MaterialType,
-} from "../Material/material.class";
 import {
-  STORAGE_OBJECT_PROPERTY,
-  SessionStorageHandler,
-} from "../Firebase/Db/sessionStorageHandler.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {useAuthUser} from "../Session/authUserContext";
-import Department from "../Department/department.class";
-import Unit, {UnitDimension} from "../Unit/unit.class";
-import MaterialAutocomplete from "../Material/materialAutocomplete";
-import {MaterialDetailList, ProductDetailList} from "./mergeItems";
-import DepartmentAutocomplete from "../Department/departmentAutocomplete";
-import UnitAutocomplete from "../Unit/unitAutocomplete";
-import useCustomStyles from "../../constants/styles";
+  ConvertProductToMaterialResult,
+  ConvertMaterialToProductResult,
+} from "../Database/Repository/AdminOperationsRepository";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
+
+/** Zuordnung numerischer MaterialType-Wert → DB-ENUM-String für das RPC. */
+const MATERIAL_TYPE_TO_DB: Record<number, string> = {
+  0: "none",
+  1: "consumable",
+  2: "usage",
+};
+
 enum ReducerActions {
-  PRODUCTS_FETCH_INIT,
-  PRODUCTS_FETCH_SUCCESS,
-  PRODUCT_CONVERT_START,
-  PRODUCT_CONVERT_FINISHED,
-  PRODUCTS_CHANGE_PRODUCT,
-  CHANGE_MATERIAL_TYPE,
-  MATERIALS_FETCH_INIT,
-  MATERIALS_FETCH_SUCCESS,
-  MATERIALS_CONVERT_START,
-  MATERIALS_CONVERT_FINISHED,
-  MATERIALS_CHANGE_MATERIAL,
-  MATERIAL_CHANGE_PRODUCT_PROPERTY,
-  GENERIC_ERROR,
+  PRODUCTS_FETCH_INIT = "PRODUCTS_FETCH_INIT",
+  PRODUCTS_FETCH_SUCCESS = "PRODUCTS_FETCH_SUCCESS",
+  PRODUCT_CONVERT_START = "PRODUCT_CONVERT_START",
+  PRODUCT_CONVERT_FINISHED = "PRODUCT_CONVERT_FINISHED",
+  PRODUCTS_CHANGE_PRODUCT = "PRODUCTS_CHANGE_PRODUCT",
+  CHANGE_MATERIAL_TYPE = "CHANGE_MATERIAL_TYPE",
+  MATERIALS_FETCH_INIT = "MATERIALS_FETCH_INIT",
+  MATERIALS_FETCH_SUCCESS = "MATERIALS_FETCH_SUCCESS",
+  MATERIALS_CONVERT_START = "MATERIALS_CONVERT_START",
+  MATERIALS_CONVERT_FINISHED = "MATERIALS_CONVERT_FINISHED",
+  MATERIALS_CHANGE_MATERIAL = "MATERIALS_CHANGE_MATERIAL",
+  MATERIAL_CHANGE_PRODUCT_PROPERTY = "MATERIAL_CHANGE_PRODUCT_PROPERTY",
+  GENERIC_ERROR = "GENERIC_ERROR",
 }
 
 enum TabValue {
@@ -104,35 +115,82 @@ enum TabValue {
   materials,
 }
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
+/** Konvertierungsprotokoll für die Anzeige nach einer Produkt→Material Konvertierung. */
+type ProductToMaterialProtocol = {
+  kind: "productToMaterial";
+  productName: string;
+  result: ConvertProductToMaterialResult;
 };
+
+/** Konvertierungsprotokoll für die Anzeige nach einer Material→Produkt Konvertierung. */
+type MaterialToProductProtocol = {
+  kind: "materialToProduct";
+  materialName: string;
+  result: ConvertMaterialToProductResult;
+};
+
+type ConvertProtocol = ProductToMaterialProtocol | MaterialToProductProtocol;
+
+/* ------------------------------------------
+// Diskriminierte Union für Reducer-Aktionen
+// ------------------------------------------ */
+type DispatchAction =
+  | {type: ReducerActions.PRODUCTS_FETCH_INIT}
+  | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
+  | {type: ReducerActions.PRODUCT_CONVERT_START}
+  | {
+      type: ReducerActions.PRODUCT_CONVERT_FINISHED;
+      payload: ProductToMaterialProtocol;
+    }
+  | {
+      type: ReducerActions.PRODUCTS_CHANGE_PRODUCT;
+      payload: {value: Product | null};
+    }
+  | {type: ReducerActions.CHANGE_MATERIAL_TYPE; payload: {value: MaterialType}}
+  | {type: ReducerActions.MATERIALS_FETCH_INIT}
+  | {
+      type: ReducerActions.MATERIALS_FETCH_SUCCESS;
+      payload: {
+        units: Unit[];
+        materials: Material[];
+        departments: Department[];
+      };
+    }
+  | {type: ReducerActions.MATERIALS_CONVERT_START}
+  | {
+      type: ReducerActions.MATERIALS_CONVERT_FINISHED;
+      payload: MaterialToProductProtocol;
+    }
+  | {
+      type: ReducerActions.MATERIALS_CHANGE_MATERIAL;
+      payload: {value: Material | null};
+    }
+  | {
+      type: ReducerActions.MATERIAL_CHANGE_PRODUCT_PROPERTY;
+      payload: {key: string; value: unknown};
+    }
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
   products: Product[];
   materials: Material[];
   departments: Department[];
   units: Unit[];
-  product: {uid: ""; name: ""};
-  material: {uid: ""; name: ""};
-  materialProperty: {type: Material["type"]};
+  product: {uid: string; name: string};
+  material: {uid: string; name: string};
+  materialProperty: {type: MaterialType};
   productProperty: {
     department: Department;
     unit: Unit;
     dietProperties: DietProperties;
   };
-  convertProtocol:
-    | ConvertProductToMaterialCallbackDocument
-    | ConvertMaterialToProductCallbackDocument
-    | null;
+  convertProtocol: ConvertProtocol | null;
   isLoading: boolean;
   isConverting: boolean;
   error: Error | null;
-  snackbar: {open: false; severity: "success"; message: ""};
 };
 
-const inititialState: State = {
+const initialState: State = {
   products: [],
   materials: [],
   departments: [],
@@ -149,17 +207,9 @@ const inititialState: State = {
   isLoading: false,
   isConverting: false,
   error: null,
-  snackbar: {open: false, severity: "success", message: ""},
 };
 
-const convertProductToMaterialReducer = (
-  state: State,
-  action: DispatchAction
-): State => {
-  let product: State["product"];
-  let material: State["material"];
-  let products: Product[] = [];
-  let materials: Material[] = [];
+const convertItemReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.PRODUCTS_FETCH_INIT:
     case ReducerActions.MATERIALS_FETCH_INIT:
@@ -171,7 +221,7 @@ const convertProductToMaterialReducer = (
       return {
         ...state,
         isLoading: false,
-        products: action.payload as Product[],
+        products: action.payload,
       };
     case ReducerActions.MATERIALS_FETCH_SUCCESS:
       return {
@@ -181,42 +231,31 @@ const convertProductToMaterialReducer = (
         materials: action.payload.materials,
         departments: action.payload.departments,
       };
-    case ReducerActions.PRODUCTS_CHANGE_PRODUCT:
-      if (!action.payload.value) {
-        product = {uid: "", name: ""};
-      } else {
-        product = {
-          uid: action.payload.value.uid,
-          name: action.payload.value.name,
-        };
-      }
-
+    case ReducerActions.PRODUCTS_CHANGE_PRODUCT: {
+      const selectedProduct = action.payload.value;
       return {
         ...state,
-        product: product,
+        product: selectedProduct
+          ? {uid: selectedProduct.uid, name: selectedProduct.name}
+          : {uid: "", name: ""},
         error: null,
       };
-    case ReducerActions.MATERIALS_CHANGE_MATERIAL:
-      if (!action.payload.value) {
-        material = {uid: "", name: ""};
-      } else {
-        material = {
-          uid: action.payload.value.uid,
-          name: action.payload.value.name,
-        };
-      }
-
+    }
+    case ReducerActions.MATERIALS_CHANGE_MATERIAL: {
+      const selectedMaterial = action.payload.value;
       return {
         ...state,
-        material: material,
+        material: selectedMaterial
+          ? {uid: selectedMaterial.uid, name: selectedMaterial.name}
+          : {uid: "", name: ""},
         error: null,
       };
-
+    }
     case ReducerActions.CHANGE_MATERIAL_TYPE:
       return {
         ...state,
         materialProperty: {
-          type: action.payload.value as unknown as MaterialType,
+          type: action.payload.value,
         },
       };
     case ReducerActions.MATERIAL_CHANGE_PRODUCT_PROPERTY:
@@ -224,74 +263,47 @@ const convertProductToMaterialReducer = (
         ...state,
         productProperty: {
           ...state.productProperty,
-          [action.payload.key]: action.payload.value,
+          [action.payload.key as string]: action.payload.value,
         },
       };
     case ReducerActions.PRODUCT_CONVERT_START:
     case ReducerActions.MATERIALS_CONVERT_START:
       return {...state, isConverting: true};
-    case ReducerActions.PRODUCT_CONVERT_FINISHED:
-      products = state.products.filter(
+    case ReducerActions.PRODUCT_CONVERT_FINISHED: {
+      // Konvertiertes Produkt aus der Liste entfernen
+      const filteredProducts = state.products.filter(
         (product) => product.uid !== state.product.uid
       );
-
-      // Den Session-Storage auch anpassen
-      SessionStorageHandler.deleteDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.PRODUCTS,
-        documentUid: "products",
-        prefix: "",
-      });
-      SessionStorageHandler.deleteDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.MATERIALS,
-        documentUid: "materials",
-
-        prefix: "",
-      });
-
       return {
         ...state,
-        convertProtocol:
-          action.payload as ConvertProductToMaterialCallbackDocument,
-        products: products,
+        convertProtocol: action.payload,
+        products: filteredProducts,
         isConverting: false,
         error: null,
       };
-    case ReducerActions.MATERIALS_CONVERT_FINISHED:
-      materials = state.materials.filter(
+    }
+    case ReducerActions.MATERIALS_CONVERT_FINISHED: {
+      // Konvertiertes Material aus der Liste entfernen
+      const filteredMaterials = state.materials.filter(
         (material) => material.uid !== state.material.uid
       );
-
-      // Den Session-Storage auch anpassen
-      SessionStorageHandler.deleteDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.PRODUCTS,
-        documentUid: "products",
-        prefix: "",
-      });
-      SessionStorageHandler.deleteDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.MATERIALS,
-        documentUid: "materials",
-        prefix: "",
-      });
-
       return {
         ...state,
-        convertProtocol:
-          action.payload as ConvertProductToMaterialCallbackDocument,
-        materials: materials,
+        convertProtocol: action.payload,
+        materials: filteredMaterials,
         isConverting: false,
         error: null,
       };
+    }
     case ReducerActions.GENERIC_ERROR:
-      // Allgemeiner Fehler
       return {
         ...state,
         isConverting: false,
-        error: action.payload as Error,
+        isLoading: false,
+        error: action.payload,
       };
-
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error(`Unbekannter ActionType im convertItemReducer`);
   }
 };
 
@@ -299,131 +311,138 @@ const convertProductToMaterialReducer = (
 // =============================== Page ==============================
 // =================================================================== */
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Admin-Seite zum Konvertieren von Produkten in Materialien und umgekehrt.
+ *
+ * Bietet zwei Tabs: Produkt→Material (mit Materialtyp-Auswahl) und
+ * Material→Produkt (mit Abteilungs-, Einheits- und Diät-Auswahl).
+ * Die Konvertierung erfolgt atomar über Postgres-RPC-Funktionen.
+ */
 const ConvertItemPage = () => {
-  const firebase = useFirebase();
-  const authUser = useAuthUser();
+  const database = useDatabase();
   const classes = useCustomStyles();
   const theme = useTheme();
 
-  const [state, dispatch] = React.useReducer(
-    convertProductToMaterialReducer,
-    inititialState
-  );
+  const [state, dispatch] = React.useReducer(convertItemReducer, initialState);
   const [tabValue, setTabValue] = React.useState(TabValue.products);
 
   /* ------------------------------------------
-  // Daten aus der DB lesen
+  // Produkte aus der DB laden
   // ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.PRODUCTS_FETCH_INIT,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT});
 
-    Product.getAllProducts({firebase: firebase, onlyUsable: true})
+    database.products
+      .getAllProducts({onlyUsable: true})
       .then((result) => {
+        // Domain-Objekte auf die Klassenstruktur mappen, da Autocomplete
+        // Product-Instanzen erwartet
+        const products = result.map((productDomain) => {
+          const product: Product = {
+            uid: productDomain.uid,
+            name: productDomain.name,
+            department: {
+              uid: productDomain.department.uid,
+              name: productDomain.department.name,
+            },
+            shoppingUnit: productDomain.shoppingUnit,
+            dietProperties: {
+              allergens: productDomain.dietProperties.allergens,
+              diet: productDomain.dietProperties.diet,
+            },
+            usable: productDomain.usable,
+            qaChecked: false,
+            qaCheckedAt: null,
+          };
+          return product;
+        });
         dispatch({
           type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-          payload: result,
+          payload: products,
         });
       })
       .catch((error) => {
-        console.error(error);
-        dispatch({
-          type: ReducerActions.GENERIC_ERROR,
-          payload: error,
-        });
+        Sentry.captureException(error);
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-  }, []);
+  }, [database]);
+
+  /* ------------------------------------------
+  // Materialien, Abteilungen und Einheiten laden (beim Tab-Wechsel)
+  // ------------------------------------------ */
   React.useEffect(() => {
     const fetchMasterdata = async () => {
-      // useEffect darf nicht asynchron sein. Darum separate Funktion,
-      // die weiter unten aufgerufen wird.
-      if (tabValue === TabValue.materials && state.units.length == 0) {
-        dispatch({
-          type: ReducerActions.PRODUCTS_FETCH_INIT,
-          payload: {},
-        });
-        let units: Unit[] = [];
-        let departments: Department[] = [];
-        let materials: Material[] = [];
-        const fetchMasterdata: Promise<
-          void | Unit[] | Department[] | Material[]
-        >[] = [];
+      if (tabValue === TabValue.materials && state.units.length === 0) {
+        dispatch({type: ReducerActions.MATERIALS_FETCH_INIT});
 
-        fetchMasterdata.push(
-          Unit.getAllUnits({firebase: firebase})
-            .then((result) => (units = result))
-            .catch((error) => {
-              console.error(error);
-              dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        try {
+          const [materialDomains, departmentDomains, unitDomains] =
+            await Promise.all([
+              database.materials.getAllMaterials(),
+              database.departments.getAllDepartments(),
+              database.units.getAllUnits(),
+            ]);
+
+          const materials = materialDomains;
+
+          const departments: Department[] = departmentDomains.map(
+            (departmentDomain) => ({
+              uid: departmentDomain.uid,
+              name: departmentDomain.name,
+              pos: departmentDomain.pos,
+              usable: departmentDomain.usable,
             })
-        );
+          );
 
-        fetchMasterdata.push(
-          Department.getAllDepartments({firebase: firebase})
-            .then((result) => (departments = result))
-            .catch((error) => {
-              console.error(error);
-              dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-            })
-        );
+          const units: Unit[] = unitDomains.map((unitDomain) => ({
+            key: unitDomain.key,
+            name: unitDomain.name,
+            dimension: unitDomain.dimension as UnitDimension,
+          }));
 
-        fetchMasterdata.push(
-          Material.getAllMaterials({firebase: firebase})
-            .then((result) => (materials = result))
-            .catch((error) => {
-              console.error(error);
-              dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-            })
-        );
-
-        await Promise.all(fetchMasterdata);
-        dispatch({
-          type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-          payload: {
-            units: units,
-            departments: departments,
-            materials: materials,
-          },
-        });
+          dispatch({
+            type: ReducerActions.MATERIALS_FETCH_SUCCESS,
+            payload: {units, materials, departments},
+          });
+        } catch (error) {
+          Sentry.captureException(error);
+          dispatch({
+            type: ReducerActions.GENERIC_ERROR,
+            payload: error as Error,
+          });
+        }
       }
     };
 
     fetchMasterdata();
-  }, [tabValue]);
+  }, [tabValue, database, state.units.length]);
+
   /* ------------------------------------------
-  // Change im Select-Feld
+  // Änderung der Produkt-Auswahl
   // ------------------------------------------ */
   const onChangeProductSelection = (
-    event: React.ChangeEvent<HTMLInputElement>,
+    _event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | Product | null,
     action?: AutocompleteChangeReason
   ) => {
-    if (action == "blur") {
-      return;
-    }
+    if (action === "blur") return;
     dispatch({
       type: ReducerActions.PRODUCTS_CHANGE_PRODUCT,
-      payload: {
-        field: event.target.id.split("-")[0],
-        value: newValue,
-      },
+      payload: {value: (newValue as Product) ?? null},
     });
   };
+
+  /* ------------------------------------------
+  // Änderung der Material-/Abteilungs-/Einheits-Auswahl
+  // ------------------------------------------ */
   const onChangeAutocompleteSelection = (
     event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | Material | Department | Unit | null,
     action?: AutocompleteChangeReason
   ) => {
-    if (action == "blur") {
-      return;
-    }
-    let field = "";
+    if (action === "blur") return;
 
+    let field = "";
     if (event.target.id) {
       field = event.target.id.split("-")[0];
     }
@@ -431,10 +450,7 @@ const ConvertItemPage = () => {
     if (field === "material") {
       dispatch({
         type: ReducerActions.MATERIALS_CHANGE_MATERIAL,
-        payload: {
-          key: event.target.id.split("-")[0],
-          value: newValue,
-        },
+        payload: {value: (newValue as Material) ?? null},
       });
     } else {
       dispatch({
@@ -446,80 +462,102 @@ const ConvertItemPage = () => {
       });
     }
   };
+
   /* ------------------------------------------
-  // Merge Prodct starten (CloudFunction)
+  // Produkt → Material konvertieren
   // ------------------------------------------ */
-  const onConvertProductToMaterial = () => {
-    dispatch({type: ReducerActions.PRODUCT_CONVERT_START, payload: {}});
+  const onConvertProductToMaterial = async () => {
+    dispatch({type: ReducerActions.PRODUCT_CONVERT_START});
 
-    Material.createMaterialFromProduct({
-      firebase: firebase,
-      product: state.product,
-      newMaterialType: state.materialProperty.type,
-      authUser: authUser!,
-      callbackDone: (mergeResult) => {
-        dispatch({
-          type: ReducerActions.PRODUCT_CONVERT_FINISHED,
-          payload: mergeResult,
-        });
-      },
-    }).catch((error) => {
-      dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: error,
-      });
-    });
-  };
-  const onConvertMaterial = () => {
-    dispatch({type: ReducerActions.MATERIALS_CONVERT_START, payload: {}});
+    try {
+      const materialTypeDbValue =
+        MATERIAL_TYPE_TO_DB[state.materialProperty.type] ?? "consumable";
+      const result = await database.adminOps.convertProductToMaterial(
+        state.product.uid,
+        materialTypeDbValue
+      );
 
-    Product.createProductFromMaterial({
-      firebase: firebase,
-      material: state.material,
-      department: state.productProperty.department,
-      shoppingUnit: state.productProperty.unit,
-      dietProperties: state.productProperty.dietProperties,
-      authUser: authUser!,
-      callbackDone: (mergeResult) => {
-        dispatch({
-          type: ReducerActions.MATERIALS_CONVERT_FINISHED,
-          payload: mergeResult,
-        });
-      },
-    }).catch((error) => {
       dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: error,
+        type: ReducerActions.PRODUCT_CONVERT_FINISHED,
+        payload: {
+          kind: "productToMaterial",
+          productName: state.product.name,
+          result,
+        },
       });
-    });
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
-  const onChangeMaterialType = (event: React.ChangeEvent<HTMLInputElement>) => {
+
+  /* ------------------------------------------
+  // Material → Produkt konvertieren
+  // ------------------------------------------ */
+  const onConvertMaterial = async () => {
+    dispatch({type: ReducerActions.MATERIALS_CONVERT_START});
+
+    try {
+      const result = await database.adminOps.convertMaterialToProduct(
+        state.material.uid,
+        state.productProperty.department.uid || undefined,
+        state.productProperty.unit.key || undefined
+      );
+
+      dispatch({
+        type: ReducerActions.MATERIALS_CONVERT_FINISHED,
+        payload: {
+          kind: "materialToProduct",
+          materialName: state.material.name,
+          result,
+        },
+      });
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
+  };
+
+  /* ------------------------------------------
+  // Materialtyp-Auswahl ändern
+  // ------------------------------------------ */
+  const onChangeMaterialType = (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
     dispatch({
       type: ReducerActions.CHANGE_MATERIAL_TYPE,
-      payload: {value: parseInt((event.target as HTMLInputElement).value)},
+      payload: {
+        value: parseInt(
+          (event.target as HTMLInputElement).value
+        ) as MaterialType,
+      },
     });
   };
+
+  /* ------------------------------------------
+  // Allergene ändern
+  // ------------------------------------------ */
   const onChangeAllergens = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const dietProperties = state.productProperty.dietProperties;
+    const dietProperties = {...state.productProperty.dietProperties};
+    // Allergene-Array kopieren, um Mutation zu vermeiden
+    dietProperties.allergens = [...dietProperties.allergens];
 
     switch (event.target.id) {
       case "dietProperties.allergens.containsLactose":
         if (event.target.checked) {
-          // Hinzufügen
           dietProperties.allergens.push(Allergen.Lactose);
         } else {
           dietProperties.allergens = dietProperties.allergens.filter(
-            (allergen) => allergen != Allergen.Lactose
+            (allergen) => allergen !== Allergen.Lactose
           );
         }
         break;
       case "dietProperties.allergens.containsGluten":
         if (event.target.checked) {
-          // Hinzufügen
           dietProperties.allergens.push(Allergen.Gluten);
         } else {
           dietProperties.allergens = dietProperties.allergens.filter(
-            (allergen) => allergen != Allergen.Gluten
+            (allergen) => allergen !== Allergen.Gluten
           );
         }
         break;
@@ -529,28 +567,30 @@ const ConvertItemPage = () => {
       payload: {key: "dietProperties", value: dietProperties},
     });
   };
+
+  /* ------------------------------------------
+  // Diät-Eigenschaft ändern
+  // ------------------------------------------ */
   const onChangeDiet = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const dietProperties = state.productProperty.dietProperties;
+    const dietProperties = {...state.productProperty.dietProperties};
     dietProperties.diet = parseInt(event.target.value);
     dispatch({
       type: ReducerActions.MATERIAL_CHANGE_PRODUCT_PROPERTY,
       payload: {key: "dietProperties", value: dietProperties},
     });
   };
+
   /* ------------------------------------------
-	// Tab-Handler
-	// ------------------------------------------ */
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  // Tab-Handler
+  // ------------------------------------------ */
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
 
-  if (!authUser) {
-    return null;
-  }
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={TEXT_CONVERT_ITEM} />
+      <PageTitle title={TEXT_CONVERT_ITEM} breadcrumbs={[SYSTEM_BREADCRUMB]} />
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
         <Backdrop sx={classes.backdrop} open={state.isLoading}>
@@ -558,7 +598,7 @@ const ConvertItemPage = () => {
         </Backdrop>
         {state.error && (
           <AlertMessage
-            error={state.error!}
+            error={state.error}
             messageTitle={TEXT_ALERT_TITLE_UUPS}
           />
         )}
@@ -579,7 +619,9 @@ const ConvertItemPage = () => {
             materialProperty={state.materialProperty}
             isConverting={state.isConverting}
             convertProtocol={
-              state.convertProtocol as ConvertProductToMaterialCallbackDocument | null
+              state.convertProtocol?.kind === "productToMaterial"
+                ? state.convertProtocol
+                : null
             }
             onChangeProductSelection={onChangeProductSelection}
             onConvertProduct={onConvertProductToMaterial}
@@ -594,7 +636,9 @@ const ConvertItemPage = () => {
             productProperty={state.productProperty}
             isConverting={state.isConverting}
             convertProtocol={
-              state.convertProtocol as ConvertMaterialToProductCallbackDocument
+              state.convertProtocol?.kind === "materialToProduct"
+                ? state.convertProtocol
+                : null
             }
             onChangeAutocompleteSelection={onChangeAutocompleteSelection}
             onConvertMaterial={onConvertMaterial}
@@ -606,15 +650,17 @@ const ConvertItemPage = () => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
 // ====================== Convert Product Card =======================
 // =================================================================== */
-interface PanelConvertProductToMaterialProps {
+
+type PanelConvertProductToMaterialProps = {
   product: State["product"];
   products: State["products"];
   materialProperty: State["materialProperty"];
   isConverting: boolean;
-  convertProtocol: ConvertProductToMaterialCallbackDocument | null;
+  convertProtocol: ProductToMaterialProtocol | null;
   onChangeProductSelection: (
     event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | Product | null,
@@ -623,7 +669,14 @@ interface PanelConvertProductToMaterialProps {
   ) => void;
   onConvertProduct: () => void;
   onChangeMaterialType: (event: React.ChangeEvent<HTMLInputElement>) => void;
-}
+};
+
+/**
+ * Panel für die Konvertierung eines Produkts in ein Material.
+ *
+ * Zeigt Produkt-Auswahl, Materialtyp-Selektor, Konvertier-Button
+ * und nach erfolgreicher Konvertierung das Ergebnisprotokoll.
+ */
 const PanelConvertProductToMaterial = ({
   product,
   products,
@@ -689,7 +742,7 @@ const PanelConvertProductToMaterial = ({
         <Button
           fullWidth
           disabled={
-            product?.uid == "" || materialProperty.type == MaterialType.none
+            product?.uid === "" || materialProperty.type === MaterialType.none
           }
           variant="contained"
           color="primary"
@@ -701,7 +754,7 @@ const PanelConvertProductToMaterial = ({
         {convertProtocol !== null && (
           <React.Fragment>
             <br />
- <Grid size={12} >
+            <Grid size={12}>
               <List
                 subheader={
                   <ListSubheader component="div" id="subheader-log-result">
@@ -709,31 +762,46 @@ const PanelConvertProductToMaterial = ({
                   </ListSubheader>
                 }
               >
-                <ListItem divider key={"listItem_productA"}>
+                <ListItem divider key={"listItem_product"}>
                   <ListItemText
-                    primary={`${TEXT_PRODUCT}: ${convertProtocol.product.name}`}
-                    secondary={convertProtocol.product.uid}
+                    primary={`${TEXT_PRODUCT}: ${convertProtocol.productName}`}
                   />
                 </ListItem>
               </List>
               <br />
             </Grid>
- <Grid size={12} >
+            <Grid size={12}>
               <List
                 subheader={
-                  <ListSubheader component="div" id="subheader-merge-result">
+                  <ListSubheader component="div" id="subheader-convert-result">
                     {TEXT_CHANGED_DOCUMENTS}
                   </ListSubheader>
                 }
               >
-                {convertProtocol.documentList.map((document, counter) => (
-                  <ListItem divider key={"listItem_" + counter}>
-                    <ListItemText
-                      primary={document.name}
-                      secondary={document.document}
-                    />
-                  </ListItem>
-                ))}
+                <ListItem divider key={"listItem_newMaterial"}>
+                  <ListItemText
+                    primary={`Neues Material ID`}
+                    secondary={convertProtocol.result.new_material_id}
+                  />
+                </ListItem>
+                <ListItem divider key={"listItem_recipeIngredients"}>
+                  <ListItemText
+                    primary={`Rezeptzutaten verschoben`}
+                    secondary={convertProtocol.result.recipe_ingredients}
+                  />
+                </ListItem>
+                <ListItem divider key={"listItem_shoppingListItems"}>
+                  <ListItemText
+                    primary={`Einkaufslisteneinträge aktualisiert`}
+                    secondary={convertProtocol.result.shopping_list_items}
+                  />
+                </ListItem>
+                <ListItem divider key={"listItem_menueItems"}>
+                  <ListItemText
+                    primary={`Menüplan-Einträge verschoben`}
+                    secondary={convertProtocol.result.menue_items}
+                  />
+                </ListItem>
               </List>
             </Grid>
           </React.Fragment>
@@ -742,17 +810,19 @@ const PanelConvertProductToMaterial = ({
     </Card>
   );
 };
+
 /* ===================================================================
-// ====================== Convert Product Card =======================
+// ===================== Convert Material Card =======================
 // =================================================================== */
-interface PanelConvertMaterialToProductProps {
+
+type PanelConvertMaterialToProductProps = {
   material: State["material"];
   materials: State["materials"];
   departments: State["departments"];
   units: State["units"];
   productProperty: State["productProperty"];
   isConverting: boolean;
-  convertProtocol: ConvertMaterialToProductCallbackDocument | null;
+  convertProtocol: MaterialToProductProtocol | null;
   onChangeAutocompleteSelection: (
     event: React.ChangeEvent<HTMLInputElement>,
     newValue?: string | Material | Department | Unit | null,
@@ -762,8 +832,15 @@ interface PanelConvertMaterialToProductProps {
   onChangeAllergens: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onChangeDiet: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onConvertMaterial: () => void;
-  // onChangeMaterialType: (event: React.ChangeEvent<HTMLInputElement>) => void;
-}
+};
+
+/**
+ * Panel für die Konvertierung eines Materials in ein Produkt.
+ *
+ * Zeigt Material-Auswahl, Abteilungs- und Einheitsselektor,
+ * Diäteigenschaften-Formular und nach erfolgreicher Konvertierung
+ * das Ergebnisprotokoll.
+ */
 const PanelConvertMaterialToProduct = ({
   material,
   materials,
@@ -776,15 +853,14 @@ const PanelConvertMaterialToProduct = ({
   onChangeDiet,
   onChangeAutocompleteSelection,
   onConvertMaterial,
-}: // onChangeMaterialType,
-PanelConvertMaterialToProductProps) => {
+}: PanelConvertMaterialToProductProps) => {
   const classes = useCustomStyles();
 
   return (
     <Card sx={classes.card} key={"cardInfo"}>
       <CardContent sx={classes.cardContent} key={"cardContentInfo"}>
         <Grid container spacing={2}>
- <Grid size={12} >
+          <Grid size={12}>
             <Typography gutterBottom={true} variant="h5" component="h2">
               {TEXT_MERGE_MATERIAL_SELECTION}
             </Typography>
@@ -793,7 +869,7 @@ PanelConvertMaterialToProductProps) => {
               {TEXT_CONVERT_ITEM_EXPLANATION(TEXT_MATERIAL, TEXT_PRODUCT)}
             </Typography>
           </Grid>
- <Grid size={12} >
+          <Grid size={12}>
             <MaterialAutocomplete
               material={material}
               materials={materials}
@@ -802,14 +878,14 @@ PanelConvertMaterialToProductProps) => {
               disabled={false}
             />
           </Grid>
- <Grid size={12} >
+          <Grid size={12}>
             <MaterialDetailList
               materialUid={material.uid}
               materials={materials}
             />
           </Grid>
           <br />
- <Grid size={12} >
+          <Grid size={12}>
             <DepartmentAutocomplete
               department={productProperty.department}
               departments={departments}
@@ -817,7 +893,7 @@ PanelConvertMaterialToProductProps) => {
               onChange={onChangeAutocompleteSelection}
             />
           </Grid>
- <Grid size={12} >
+          <Grid size={12}>
             <UnitAutocomplete
               unitKey={productProperty.unit.key}
               units={units}
@@ -825,7 +901,7 @@ PanelConvertMaterialToProductProps) => {
             />
           </Grid>
           <br />
- <Grid size={{ xs: 12, sm: 6 }} >
+          <Grid size={{xs: 12, sm: 6}}>
             <FormControl fullWidth>
               <FormLabel component="legend">{TEXT_INTOLERANCES}</FormLabel>
               <FormGroup>
@@ -858,7 +934,7 @@ PanelConvertMaterialToProductProps) => {
               </FormGroup>
             </FormControl>
           </Grid>
- <Grid size={{ xs: 12, sm: 6 }} >
+          <Grid size={{xs: 12, sm: 6}}>
             <FormControl fullWidth>
               <FormGroup>
                 <FormLabel component="legend">
@@ -899,7 +975,7 @@ PanelConvertMaterialToProductProps) => {
           <Button
             fullWidth
             disabled={
-              material?.uid == "" || productProperty.department.uid == ""
+              material?.uid === "" || productProperty.department.uid === ""
             }
             variant="contained"
             color="primary"
@@ -911,7 +987,7 @@ PanelConvertMaterialToProductProps) => {
           {convertProtocol !== null && (
             <React.Fragment>
               <br />
- <Grid size={12} >
+              <Grid size={12}>
                 <List
                   subheader={
                     <ListSubheader component="div" id="subheader-log-result">
@@ -919,31 +995,55 @@ PanelConvertMaterialToProductProps) => {
                     </ListSubheader>
                   }
                 >
-                  <ListItem divider key={"listItem_productA"}>
+                  <ListItem divider key={"listItem_material"}>
                     <ListItemText
-                      primary={`${TEXT_MATERIAL}: ${convertProtocol.material.name}`}
-                      secondary={convertProtocol.material.uid}
+                      primary={`${TEXT_MATERIAL}: ${convertProtocol.materialName}`}
                     />
                   </ListItem>
                 </List>
                 <br />
               </Grid>
- <Grid size={12} >
+              <Grid size={12}>
                 <List
                   subheader={
-                    <ListSubheader component="div" id="subheader-merge-result">
+                    <ListSubheader
+                      component="div"
+                      id="subheader-convert-result"
+                    >
                       {TEXT_CHANGED_DOCUMENTS}
                     </ListSubheader>
                   }
                 >
-                  {convertProtocol.documentList.map((document, counter) => (
-                    <ListItem divider key={"listItem_" + counter}>
-                      <ListItemText
-                        primary={document.name}
-                        secondary={document.document}
-                      />
-                    </ListItem>
-                  ))}
+                  <ListItem divider key={"listItem_newProduct"}>
+                    <ListItemText
+                      primary={`Neues Produkt ID`}
+                      secondary={convertProtocol.result.new_product_id}
+                    />
+                  </ListItem>
+                  <ListItem divider key={"listItem_recipeMaterials"}>
+                    <ListItemText
+                      primary={`Rezeptmaterialien verschoben`}
+                      secondary={convertProtocol.result.recipe_materials}
+                    />
+                  </ListItem>
+                  <ListItem divider key={"listItem_materialListItems"}>
+                    <ListItemText
+                      primary={`Materiallisten-Einträge aktualisiert`}
+                      secondary={convertProtocol.result.material_list_items}
+                    />
+                  </ListItem>
+                  <ListItem divider key={"listItem_shoppingListItems"}>
+                    <ListItemText
+                      primary={`Einkaufslisteneinträge aktualisiert`}
+                      secondary={convertProtocol.result.shopping_list_items}
+                    />
+                  </ListItem>
+                  <ListItem divider key={"listItem_menueItems"}>
+                    <ListItemText
+                      primary={`Menüplan-Einträge verschoben`}
+                      secondary={convertProtocol.result.menue_items}
+                    />
+                  </ListItem>
                 </List>
               </Grid>
             </React.Fragment>

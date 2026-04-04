@@ -1,113 +1,133 @@
 import React from "react";
 
-import {useNavigate, useLocation} from "react-router";
+import {useNavigate} from "react-router";
+import * as Sentry from "@sentry/react";
 
 import Container from "@mui/material/Container";
-import {useFirebase} from "../Firebase/firebaseContext";
-import FirebaseMessageHandler from "../Firebase/firebaseMessageHandler.class";
-
 import * as ROUTES from "../../constants/routes";
 import {
   WELCOME_ON_BOARD as TEXT_WELCOME_ON_BOARD,
   WELCOME_ON_BOARD_REDIRECT as TEXT_WELCOME_ON_BOARD_REDIRECT,
-  ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   AYE_AYE_CAPTAIN as TEXT_AYE_AYE_CAPTAIN,
   THANK_YOU_FOR_VERIFYING_YOUR_EMAIL as TEXT_THANK_YOU_FOR_VERIFYING_YOUR_EMAIL,
 } from "../../constants/text";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
+import {useDatabase} from "../Database/DatabaseContext";
+import {supabase} from "../Database/supabaseClient";
+import {FeedType} from "../Shared/feed.class";
+import AuthUser from "../Firebase/Authentication/authUser.class";
 
-import PageTitle from "../Shared/pageTitle";
-import { Typography, Alert, AlertTitle } from "@mui/material";
-import qs from "qs";
-import User from "../User/user.class";
-import {checkActionCode, applyActionCode} from "firebase/auth";
+import {PageTitle} from "../Shared/pageTitle";
+import {Typography, Alert, AlertTitle} from "@mui/material";
 
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
-const VerifyEmailPage = () => {
-  const firebase = useFirebase();
-  const location = useLocation();
+/**
+ * Seite zur E-Mail-Verifizierung (Supabase PKCE-Flow).
+ *
+ * Der Supabase-Client hat den Authorization-Code aus der URL bereits
+ * automatisch gegen eine Session eingetauscht. Diese Seite zeigt eine
+ * Erfolgsmeldung, löst die Vestaboard-Benachrichtigung aus und leitet
+ * nach einem Countdown auf die Home-Seite weiter.
+ */
+export const VerifyEmailPage = () => {
   const [timer, setTimer] = React.useState(10);
-  const [isVerified, setIsVerified] = React.useState(false);
-  const [error, setError] = React.useState(null);
-  const [forwardDestination, setForwardDestination] = React.useState(
-    ROUTES.SIGN_IN
-  );
   const navigate = useNavigate();
   const classes = useCustomStyles();
+  const database = useDatabase();
 
-  let oobCode = "";
-  // Die URL enthält einen ObjektCode. Mit diesem kann die Adresse
-  // verifziert werden....
-  location.search &&
-    (oobCode = qs.parse(location.search).oobCode as string);
-
-  // Verifizierung ausführen
+  // Login registrieren und Vestaboard-Benachrichtigung auslösen
   React.useEffect(() => {
-    // Zuerst Infos holen, damit wir anhand des Action-Codes
-    // Die E-Mailadresse des Users erhalten
+    let cancelled = false;
 
-    checkActionCode(firebase.auth, oobCode)
-      .then(async (actionCodeInfo) => {
-        applyActionCode(firebase.auth, oobCode)
-          .then(async () => {
-            setIsVerified(true);
-            await User.createUserPublicData({
-              firebase: firebase,
-              email: actionCodeInfo.data.email as string,
-            });
-          })
-          .then(() => {
-            // damit die der Authuser sauber nochmals gelesen wird,
-            // ist eine erneute Anmeldung nötig.
-            firebase.signOut();
-            setForwardDestination(ROUTES.SIGN_IN);
-            setTimer(9);
-          })
-          .catch((error) => {
-            console.error(error);
-            setError(error);
-          });
-      })
-      .catch((error) => {
-        console.error(error);
-        setError(error);
-      });
-  }, [firebase, oobCode]);
+    const onVerified = async () => {
+      try {
+        const user = await database.auth.getUser();
+        if (!user || cancelled) return;
 
-  // Nach 10 Sekunden auf Home umleiten
-  React.useEffect(() => {
-    if (isVerified) {
-      if (timer === 0) {
-        setTimeout(() => navigate(forwardDestination), 500);
-      } else {
-        setTimeout(() => setTimer(timer - 1), 1000);
+        // Admin-Client verwenden, da die Session nach PKCE-Austausch
+        // möglicherweise noch nicht vollständig für RLS-Abfragen bereit ist.
+        const users = database.admin?.users ?? database.users;
+        const userDomain = await users.findById(user.id);
+        if (!userDomain || cancelled) return;
+
+        // Login-Zähler hochzählen (erster Login nach E-Mail-Verifizierung)
+        await users.registerSignIn(userDomain.uid);
+
+        // Feed-Eintrag für neuen User (nur bei Erstregistrierung, nicht bei E-Mail-Änderung)
+        const {data: sessionData} = await supabase.auth.getSession();
+        const isSignup = sessionData?.session?.user?.app_metadata?.provider !== "email"
+          || userDomain.noLogins <= 1;
+        if (isSignup) {
+          const feedAuthUser = new AuthUser();
+          feedAuthUser.uid = user.id;
+          feedAuthUser.publicProfile = {
+            displayName: userDomain.displayName,
+            motto: "",
+            pictureSrc: userDomain.pictureSrc ?? "",
+          };
+          database.feeds
+            .insertFeed(
+              {
+                feedType: FeedType.userCreated,
+                sourceObjectType: "user",
+                sourceObjectUid: user.id,
+              },
+              feedAuthUser,
+            )
+            .catch((err) => Sentry.captureException(err));
+        }
+
+        // Willkommens-E-Mail senden (nur bei Erstregistrierung)
+        if (isSignup) {
+          supabase.functions
+            .invoke("send-welcome-email", {
+              body: {user_id: user.id},
+            })
+            .catch((err) =>
+              Sentry.captureException(err),
+            );
+        }
+
+        // Vestaboard-Benachrichtigung (nicht kritisch)
+        await supabase.functions.invoke("notify-vestaboard", {
+          body: {
+            firstName: userDomain.firstName,
+            memberId: userDomain.memberId,
+          },
+        });
+      } catch (error) {
+        Sentry.captureException(error);
       }
+    };
+
+    onVerified();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [database]);
+
+  // Nach 10 Sekunden auf Home weiterleiten
+  React.useEffect(() => {
+    if (timer === 0) {
+      const timeout = setTimeout(() => navigate(ROUTES.HOME), 500);
+      return () => clearTimeout(timeout);
     }
-  }, [timer, isVerified, push]);
+    const timeout = setTimeout(() => setTimer(timer - 1), 1000);
+    return () => clearTimeout(timeout);
+  }, [timer, navigate]);
 
   return (
-    <React.Fragment>
+    <>
       <PageTitle
         title={TEXT_AYE_AYE_CAPTAIN}
         subTitle={TEXT_THANK_YOU_FOR_VERIFYING_YOUR_EMAIL}
       />
       <Container sx={classes.container} component="main" maxWidth="xs">
-        {error ? (
-          <Alert severity="error">
-            <AlertTitle>{TEXT_ALERT_TITLE_UUPS}</AlertTitle>
-            {FirebaseMessageHandler.translateMessage(error)}
-          </Alert>
-        ) : (
-          <Alert severity="info">
-            <AlertTitle>{TEXT_WELCOME_ON_BOARD}</AlertTitle>
-            <Typography>{TEXT_WELCOME_ON_BOARD_REDIRECT(timer)}</Typography>
-          </Alert>
-        )}
+        <Alert severity="info">
+          <AlertTitle>{TEXT_WELCOME_ON_BOARD}</AlertTitle>
+          <Typography>{TEXT_WELCOME_ON_BOARD_REDIRECT(timer)}</Typography>
+        </Alert>
       </Container>
-    </React.Fragment>
+    </>
   );
 };
-
-export default VerifyEmailPage;

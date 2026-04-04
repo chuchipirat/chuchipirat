@@ -1,10 +1,49 @@
 {
   "preset": "ts-jest",
   "testEnvironment": "jsdom",
+  "transform": {
+    "^.+\\.tsx?$": [
+      "ts-jest",
+      {
+        "tsconfig": "tsconfig.test.json",
+        "diagnostics": false,
+        "astTransformers": {
+          "before": [
+            {
+              "path": "ts-jest-mock-import-meta",
+              "options": {
+                "metaObjectReplacement": {
+                  "env": {
+                    "VITE_ENVIRONMENT": "DEV",
+                    "VITE_SUPABASE_URL": "http://localhost:8000",
+                    "VITE_SUPABASE_ANON_KEY": "test-key",
+                    "VITE_CONFIRMATION_EMAIL_REDIRECT": "http://localhost:3000/home"
+                  }
+                }
+              }
+            }
+          ]
+        }
+      }
+    ]
+  },
+  "setupFiles": ["<rootDir>/src/__mocks__/jestSetup.ts"],
   "testMatch": ["**/__tests__/**/*.ts?(x)", "**/?(*.)+(spec|test).ts?(x)"],
   "coverageDirectory": "coverage",
-  "collectCoverageFrom": ["src/**/*.ts"],
+  "collectCoverage": true,
+  "collectCoverageFrom": [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.d.ts",
+    "!src/**/*.test.ts",
+    "!src/**/*.spec.ts",
+    "!src/**/*.test.tsx",
+    "!src/**/*.spec.tsx"
+  ],
   "moduleFileExtensions": ["ts", "tsx", "js", "jsx", "json", "node"],
+  "moduleNameMapper": {
+    "^.*/supabaseClient$": "<rootDir>/src/components/Database/__mocks__/supabaseClient.ts",
+    "\\.(css|less|scss|sass)$": "<rootDir>/src/__mocks__/styleMock.ts"
+  },
   "reporters": [
     "default",
     [

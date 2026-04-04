@@ -1,4 +1,6 @@
 import React from "react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import Grid from "@mui/material/Grid";
 import {
@@ -24,13 +26,15 @@ import {
   Typography,
 } from "@mui/material";
 
-import Product, {Allergen, Diet} from "./product.class";
-import AlertMessage from "../Shared/AlertMessage";
+import * as Sentry from "@sentry/react";
+
+import {Product, Allergen, Diet} from "./product.types";
+import {findSimilarProducts} from "./productUtils";
+import {AlertMessage} from "../Shared/AlertMessage";
 import {
   GIVE_PRODUCT as TEXT_GIVE_PRODUCT,
   GIVE_DEPARTMENT as TEXT_GIVE_DEPARTMENT,
   ERROR_PRODUCT_WITH_THIS_NAME_ALREADY_EXISTS as TEXT_ERROR_PRODUCT_WITH_THIS_NAME_ALREADY_EXISTS,
-  ERROR_PARAMETER_NOT_PASSED as TEXT_ERROR_PARAMETER_NOT_PASSED,
   PRODUCT_ADD as TEXT_PRODUCT_ADD,
   PRODUCT_EDIT as TEXT_PRODUCT_EDIT,
   PRODUCT as TEXT_PRODUCT,
@@ -58,16 +62,21 @@ import {
   THERE_ARE_SIMILAR_PRODUCTS as TEXT_THERE_ARE_SIMILAR_PRODUCTS,
 } from "../../constants/text";
 import Department from "../Department/department.class";
-import Unit, {UnitDimension} from "../Unit/unit.class";
+import {Unit, UnitDimension} from "../Unit/unit.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import UnitAutocomplete from "../Unit/unitAutocomplete";
+import {UnitAutocomplete} from "../Unit/unitAutocomplete";
 
-import Firebase from "../Firebase/firebase.class";
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
-import DepartmentAutocomplete from "../Department/departmentAutocomplete";
+import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";
+import {useDatabase} from "../Database/DatabaseContext";
+import {FeedType} from "../Shared/feed.class";
+import {Role} from "../../constants/roles";
+
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
+/**
+ * Initialzustand für das Produkt-Formular im Dialog.
+ */
 export const PRODUCT_POP_UP_VALUES_INITIAL_STATE = {
   uid: "",
   name: "",
@@ -78,30 +87,52 @@ export const PRODUCT_POP_UP_VALUES_INITIAL_STATE = {
     diet: Diet.Meat,
   },
   usable: true,
-  clear: false,
   showNameWarning: false,
-  roundtripDone: false,
 };
-export const SIMILIAR_PRODCTUS_POP_UP_VALUES_INITIAL_STATE = {
+
+/**
+ * Initialzustand für den Dialog mit ähnlichen Produkten.
+ */
+export const SIMILAR_PRODUCTS_POPUP_INITIAL_STATE = {
   similarProducts: [] as Product[],
   popUpOpen: false,
 };
 
+/**
+ * Typ des Produkt-Dialogs.
+ */
 export enum ProductDialog {
   CREATE = "create",
   EDIT = "edit",
 }
-export const PRODUCT_DIALOG_TYPE = {
-  CREATE: "create",
-  EDIT: "edit",
-};
+
+
 /* ===================================================================
 // ===================== Pop Up Produkt hinzufügen ===================
 // =================================================================== */
 
+/**
+ * Props für den Produkt-Dialog.
+ *
+ * @param firebase - Firebase-Instanz (nicht mehr benötigt, wird ignoriert). Veraltet.
+ * @param dialogType - Art des Dialogs (CREATE oder EDIT)
+ * @param productName - Vorausgefüllter Produktname
+ * @param productUid - UID des zu bearbeitenden Produkts (nur EDIT)
+ * @param productDietProperties - Vorausgefüllte Diät-Eigenschaften
+ * @param productUsable - Vorausgefüllter Usable-Status
+ * @param products - Alle bekannten Produkte (für Duplikat-Prüfung)
+ * @param dialogOpen - Gibt an, ob der Dialog geöffnet ist
+ * @param handleOk - Callback bei Bestätigung
+ * @param handleClose - Callback beim Schliessen
+ * @param handleChooseExisting - Callback bei Auswahl eines ähnlichen Produkts
+ * @param selectedDepartment - Vorausgewählte Abteilung
+ * @param selectedUnit - Vorausgewählte Einheit
+ * @param usable - Vorausgefüllter Usable-Status (Alias)
+ * @param departments - Verfügbare Abteilungen
+ * @param units - Verfügbare Einheiten
+ * @param authUser - Angemeldeter Benutzer
+ */
 interface DialogProductProps {
-  // Muss nicht übergeben werden, da diese vom Export (ganz unten) versorgt wird
-  firebase?: Firebase;
   dialogType: ProductDialog;
   productName: Product["name"];
   productUid: Product["uid"];
@@ -120,8 +151,13 @@ interface DialogProductProps {
   authUser: AuthUser;
 }
 
+/**
+ * Dialog zum Erstellen und Bearbeiten von Produkten.
+ * Im CREATE-Modus wird das Produkt per Supabase eingefügt und das
+ * resultierende Domain-Objekt über handleOk zurückgegeben.
+ * Im EDIT-Modus werden die Änderungen an den Aufrufer zurückgegeben.
+ */
 const DialogProduct = ({
-  firebase,
   dialogType,
   productName = "",
   productUid = "",
@@ -138,11 +174,13 @@ const DialogProduct = ({
   units = [],
   authUser,
 }: DialogProductProps) => {
+  const database = useDatabase();
+
   const [productPopUpValues, setProductPopUpValues] = React.useState(
-    PRODUCT_POP_UP_VALUES_INITIAL_STATE
+    PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   );
   const [similarProductPopupValues, setSimilarProductPopupValues] =
-    React.useState(SIMILIAR_PRODCTUS_POP_UP_VALUES_INITIAL_STATE);
+    React.useState(SIMILAR_PRODUCTS_POPUP_INITIAL_STATE);
 
   const [validation, setValidation] = React.useState({
     name: {hasError: false, errorText: ""},
@@ -150,15 +188,51 @@ const DialogProduct = ({
   });
 
   /* ------------------------------------------
+  // Formular bei Dialog-Öffnung initialisieren
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (!dialogOpen) {
+      return;
+    }
+    // Im CREATE-Modus auf ähnliche Produkte prüfen
+    if (dialogType === ProductDialog.CREATE && productName) {
+      const similar = findSimilarProducts({
+        productName,
+        existingProducts: products,
+      });
+      if (similar.length > 0) {
+        setSimilarProductPopupValues({
+          similarProducts: similar,
+          popUpOpen: true,
+        });
+      }
+    }
+    setProductPopUpValues({
+      ...PRODUCT_POP_UP_VALUES_INITIAL_STATE,
+      uid: productUid,
+      name: productName.trim(),
+      department: selectedDepartment,
+      shoppingUnit: selectedUnit,
+      dietProperties: {
+        allergens: productDietProperties?.allergens ?? [],
+        diet: productDietProperties?.diet ?? Diet.Meat,
+      },
+      usable: usable ?? true,
+    });
+    // Abhängigkeiten bewusst auf dialogOpen beschränkt: das Formular wird nur
+    // beim Öffnen/Schliessen des Dialogs neu initialisiert, nicht bei Prop-Änderungen.
+  }, [dialogOpen]);
+
+  /* ------------------------------------------
   // Change Ereignis Felder
   // ------------------------------------------ */
   const onChangeField = (
     event: React.ChangeEvent<HTMLInputElement>,
-    newValue?: any,
+    newValue: string | Product | Department | Unit | boolean | null = null,
     action?: string,
-    objectId?: string
+    objectId?: string,
   ) => {
-    let value: string | ValueObject | boolean;
+    let value: string | Product | Department | Unit | boolean | null;
     let field: string;
 
     if (event.target.id) {
@@ -196,53 +270,47 @@ const DialogProduct = ({
     setProductPopUpValues({
       ...productPopUpValues,
       [field]: value,
-      clear: false,
-      // Warnung anzeigen falls der Name geändert wird
-      showNameWarning: field == "name",
-      roundtripDone: true,
+      // Warnung anzeigen, falls der Name geändert wird
+      showNameWarning: field === "name",
     });
   };
+
   const onChangeDietCheckbox = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const dietProperties = productPopUpValues.dietProperties;
+    let updatedAllergens = [...productPopUpValues.dietProperties.allergens];
 
     switch (event.target.id) {
       case "dietProperties.allergens.containsLactose":
-        if (event.target.checked) {
-          // Hinzufügen
-          dietProperties.allergens.push(Allergen.Lactose);
-        } else {
-          dietProperties.allergens = dietProperties.allergens.filter(
-            (allergen) => allergen != Allergen.Lactose
-          );
-        }
+        updatedAllergens = event.target.checked
+          ? [...updatedAllergens, Allergen.Lactose]
+          : updatedAllergens.filter(
+              (allergen) => allergen !== Allergen.Lactose,
+            );
         break;
       case "dietProperties.allergens.containsGluten":
-        if (event.target.checked) {
-          // Hinzufügen
-          dietProperties.allergens.push(Allergen.Gluten);
-        } else {
-          dietProperties.allergens = dietProperties.allergens.filter(
-            (allergen) => allergen != Allergen.Gluten
-          );
-        }
+        updatedAllergens = event.target.checked
+          ? [...updatedAllergens, Allergen.Gluten]
+          : updatedAllergens.filter((allergen) => allergen !== Allergen.Gluten);
         break;
     }
 
     setProductPopUpValues({
       ...productPopUpValues,
-      dietProperties: dietProperties,
+      dietProperties: {
+        ...productPopUpValues.dietProperties,
+        allergens: updatedAllergens,
+      },
     });
   };
+
   const onChangeDietRadioButton = (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
-    const dietProperties = productPopUpValues.dietProperties;
-
-    dietProperties.diet = parseInt(event.target.value);
-
     setProductPopUpValues({
       ...productPopUpValues,
-      dietProperties: dietProperties,
+      dietProperties: {
+        ...productPopUpValues.dietProperties,
+        diet: parseInt(event.target.value, 10),
+      },
     });
   };
 
@@ -255,6 +323,7 @@ const DialogProduct = ({
     });
     handleClose();
   };
+
   /* ------------------------------------------
   // PopUp Ok - schliessen
   // ------------------------------------------ */
@@ -272,7 +341,7 @@ const DialogProduct = ({
       !productPopUpValues.department ||
       !Object.prototype.hasOwnProperty.call(
         productPopUpValues.department,
-        "name"
+        "name",
       )
     ) {
       setValidation({
@@ -290,7 +359,7 @@ const DialogProduct = ({
       products.find(
         (product) =>
           product.name.toLowerCase() ===
-          productPopUpValues.name.toLowerCase().trim()
+          productPopUpValues.name.toLowerCase().trim(),
       ) !== undefined
     ) {
       // Ein Produkt mit diesem Namen besteht schon. --> Abbruch
@@ -306,128 +375,121 @@ const DialogProduct = ({
     if (hasError) {
       return;
     }
-    const product = new Product();
-
     switch (dialogType) {
-      case PRODUCT_DIALOG_TYPE.CREATE:
-        if (!firebase) {
-          // Firebase fehlt
-          throw new Error(TEXT_ERROR_PARAMETER_NOT_PASSED);
-        }
-        //Neues Produkt anlegen
-        Product.createProduct({
-          firebase: firebase,
-          name: productPopUpValues.name,
-          departmentUid: productPopUpValues?.department?.uid,
-          shoppingUnit: productPopUpValues?.shoppingUnit?.key,
-          dietProperties: productPopUpValues.dietProperties,
-          authUser: authUser,
-        }).then((result) => {
-          handleOk(result);
-          setProductPopUpValues({
-            ...PRODUCT_POP_UP_VALUES_INITIAL_STATE,
-            clear: true,
+      case ProductDialog.CREATE:
+        // Neues Produkt in Supabase einfügen
+        database.products
+          .insertProduct(
+            {
+              name: productPopUpValues.name,
+              // Im Dialog gibt es kein separates Singular-Feld — Name wird übernommen
+              nameSingular: productPopUpValues.name,
+              department: {
+                uid: productPopUpValues?.department?.uid ?? "",
+                name: productPopUpValues?.department?.name ?? "",
+              },
+              shoppingUnit: productPopUpValues?.shoppingUnit?.key ?? "",
+              dietProperties: productPopUpValues.dietProperties,
+              usable: true,
+              qaChecked: false,
+              qaCheckedAt: null,
+            },
+            authUser,
+          )
+          .then((result) => {
+            // ProductDomain → Product konvertieren fuer den Aufrufer
+            const createdProduct: Product = {
+              uid: result.uid,
+              name: result.name,
+              department: {
+                uid: result.department?.uid ?? "",
+                name: result.department?.name ?? "",
+              },
+              shoppingUnit: result.shoppingUnit,
+              dietProperties: result.dietProperties,
+              usable: result.usable,
+              qaChecked: false,
+              qaCheckedAt: null,
+            };
+            trackEvent(AnalyticsEvent.PRODUCT_CREATED);
+            handleOk(createdProduct);
+            setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
+
+            // Feed-Eintrag: Produkt erstellt
+            database.feeds
+              .insertFeed(
+                {
+                  feedType: FeedType.productCreated,
+                  visibility: Role.communityLeader,
+                  sourceObjectType: "product",
+                  sourceObjectUid: result.uid,
+                },
+                authUser,
+              )
+              .catch((err) => Sentry.captureException(err, {extra: {context: "Feed-Eintrag fuer neues Produkt"}}));
+          })
+          .catch((error) => {
+            Sentry.captureException(error, {extra: {context: "Produkt anlegen"}});
           });
-        });
         break;
-      case PRODUCT_DIALOG_TYPE.EDIT:
-        // PopUp Werte aufbereiten für aufrufende Komponente
-
-        product.uid = productPopUpValues.uid;
-        product.name = productPopUpValues.name;
-        product.department = productPopUpValues.department;
-        product.shoppingUnit = productPopUpValues.shoppingUnit.key;
-        product.usable = productPopUpValues.usable;
-        product.dietProperties.diet = productPopUpValues.dietProperties.diet;
-        if (
-          productPopUpValues.dietProperties.allergens.includes(Allergen.Lactose)
-        ) {
-          product.dietProperties.allergens.push(Allergen.Lactose);
-        }
-        if (
-          productPopUpValues.dietProperties.allergens.includes(Allergen.Gluten)
-        ) {
-          product.dietProperties.allergens.push(Allergen.Gluten);
-        }
-        handleOk(product);
-        setProductPopUpValues({
-          ...PRODUCT_POP_UP_VALUES_INITIAL_STATE,
-          clear: true,
-        });
-    }
-  };
-  /* ------------------------------------------
-  // PopUp Ok - schliessen
-  // ------------------------------------------ */
-  const onClose = (event: ValueObject, reason: string) => {
-    if (reason !== "backdropClick" && reason !== "escapeKeyDown") {
-      handleClose();
-    }
-  };
-
-  // Werte setzen, wenn das erste Mal PopUp geöffnet wird
-  if (
-    productPopUpValues.name === "" &&
-    productName &&
-    !productPopUpValues.roundtripDone
-  ) {
-    // Prüfen ob es bereits ein ähnliches Produkt gibt, wenn ja, dann
-    // die Liste mit diesen Produkten über diesen Dialog anzeigen.
-    if (dialogType === ProductDialog.CREATE) {
-      const similarProducts = Product.findSimilarProducts({
-        productName: productName,
-        existingProducts: products,
-      });
-
-      if (similarProducts.length !== 0) {
-        // Liste zeigen mit den möglichen Produkten
-        setSimilarProductPopupValues({
-          similarProducts: similarProducts,
-          popUpOpen: true,
-        });
+      case ProductDialog.EDIT: {
+        // PopUp Werte aufbereiten fuer aufrufende Komponente
+        const editedProduct: Product = {
+          uid: productPopUpValues.uid,
+          name: productPopUpValues.name,
+          department: productPopUpValues.department,
+          shoppingUnit: productPopUpValues.shoppingUnit.key,
+          usable: productPopUpValues.usable,
+          dietProperties: {
+            diet: productPopUpValues.dietProperties.diet,
+            allergens: productPopUpValues.dietProperties.allergens.filter(
+              (allergen) =>
+                allergen === Allergen.Lactose || allergen === Allergen.Gluten,
+            ),
+          },
+          qaChecked: false,
+          qaCheckedAt: null,
+        };
+        handleOk(editedProduct);
+        setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
+        break;
       }
     }
+  };
 
-    setProductPopUpValues({
-      ...productPopUpValues,
-      uid: productUid,
-      name: productName.trim(),
-      department: selectedDepartment,
-      shoppingUnit: selectedUnit,
-      dietProperties: {
-        allergens: productDietProperties?.allergens
-          ? productDietProperties.allergens
-          : [],
-        diet: productDietProperties?.diet
-          ? productDietProperties.diet
-          : Diet.Meat,
-      },
-      usable: usable,
-    });
-  }
+  /* ------------------------------------------
+  // Dialog schliessen (via Backdrop/Escape abfangen)
+  // ------------------------------------------ */
+  const onClose = (_event: object, reason: string) => {
+    // Nur Backdrop-Klick blockieren; ESC schliesst den Dialog
+    if (reason === "backdropClick") {
+      return;
+    }
+    handleClose();
+  };
+
   /* ------------------------------------------
   // Similar Product PopUp - Handling
   // ------------------------------------------ */
   const onSimilarProductPopUpChooseProduct = (
-    event: React.MouseEvent<HTMLElement, MouseEvent>
+    event: React.MouseEvent<HTMLElement, MouseEvent>,
   ) => {
-    const proudctUid = event.currentTarget.id.split("_")[1];
-    const product = products.find((product) => product.uid === proudctUid);
+    const productUid = event.currentTarget.id.split("_")[1];
+    const product = products.find((candidate) => candidate.uid === productUid);
 
     if (!product) {
       return;
     }
 
     handleChooseExisting(product);
-    setSimilarProductPopupValues(SIMILIAR_PRODCTUS_POP_UP_VALUES_INITIAL_STATE);
-    setProductPopUpValues({
-      ...PRODUCT_POP_UP_VALUES_INITIAL_STATE,
-      clear: true,
-    });
+    setSimilarProductPopupValues(SIMILAR_PRODUCTS_POPUP_INITIAL_STATE);
+    setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
   };
+
   const onSimilarProductPopUpClose = () => {
-    setSimilarProductPopupValues(SIMILIAR_PRODCTUS_POP_UP_VALUES_INITIAL_STATE);
+    setSimilarProductPopupValues(SIMILAR_PRODUCTS_POPUP_INITIAL_STATE);
   };
+
   return (
     <React.Fragment>
       <Dialog
@@ -437,16 +499,12 @@ const DialogProduct = ({
         maxWidth="sm"
       >
         <DialogTitle id="dialogAddProduct">
-          {dialogType === PRODUCT_DIALOG_TYPE.CREATE
+          {dialogType === ProductDialog.CREATE
             ? TEXT_PRODUCT_ADD
             : TEXT_PRODUCT_EDIT}
         </DialogTitle>
 
         <DialogContent>
-          {/* <Alert severity="info">
-          {TEXT_RECORD_INGREDIENT_WITH_NECCESSARY_INFO}
-        </Alert>
-        <br /> */}
           {dialogType === ProductDialog.CREATE && (
             <Alert severity="warning">
               <AlertTitle>{`${TEXT_NEW_PRODUCT}?`}</AlertTitle>
@@ -462,9 +520,9 @@ const DialogProduct = ({
             </Alert>
           )}
           <DialogContentText>
-            {dialogType === PRODUCT_DIALOG_TYPE.CREATE && TEXT_PRODUCT}
+            {dialogType === ProductDialog.CREATE && TEXT_PRODUCT}
           </DialogContentText>
-          {dialogType === PRODUCT_DIALOG_TYPE.EDIT &&
+          {dialogType === ProductDialog.EDIT &&
             productPopUpValues.showNameWarning && (
               <AlertMessage
                 severity="warning"
@@ -479,7 +537,7 @@ const DialogProduct = ({
               />
             )}
           <Grid container spacing={2}>
- <Grid size={12} >
+            <Grid size={12}>
               <TextField
                 error={validation.name.hasError}
                 margin="dense"
@@ -495,7 +553,7 @@ const DialogProduct = ({
                 autoFocus
               />
             </Grid>
- <Grid size={12} >
+            <Grid size={12}>
               <FormControl fullWidth>
                 <DepartmentAutocomplete
                   department={productPopUpValues.department}
@@ -505,7 +563,7 @@ const DialogProduct = ({
                 />
               </FormControl>
             </Grid>
- <Grid size={dialogType === PRODUCT_DIALOG_TYPE.EDIT ? 6 : 12} >
+            <Grid size={dialogType === ProductDialog.EDIT ? 6 : 12}>
               <FormControl fullWidth>
                 <UnitAutocomplete
                   componentKey={"shoppingUnit"}
@@ -516,8 +574,8 @@ const DialogProduct = ({
                 <FormHelperText>{TEXT_SHOPPING_UNIT_INFO}</FormHelperText>
               </FormControl>
             </Grid>
-            {dialogType === PRODUCT_DIALOG_TYPE.EDIT && (
- <Grid size={6} >
+            {dialogType === ProductDialog.EDIT && (
+              <Grid size={6}>
                 <FormControlLabel
                   control={
                     <Checkbox
@@ -531,7 +589,7 @@ const DialogProduct = ({
                 />
               </Grid>
             )}
- <Grid size={{ xs: 12, sm: 6 }} >
+            <Grid size={{xs: 12, sm: 6}}>
               <FormControl fullWidth>
                 <FormLabel component="legend">{TEXT_INTOLERANCES}</FormLabel>
                 <FormGroup>
@@ -539,7 +597,7 @@ const DialogProduct = ({
                     control={
                       <Checkbox
                         checked={productPopUpValues.dietProperties?.allergens?.includes(
-                          Allergen.Lactose
+                          Allergen.Lactose,
                         )}
                         onChange={onChangeDietCheckbox}
                         name="dietProperties.allergens.containsLactose"
@@ -552,7 +610,7 @@ const DialogProduct = ({
                     control={
                       <Checkbox
                         checked={productPopUpValues.dietProperties?.allergens?.includes(
-                          Allergen.Gluten
+                          Allergen.Gluten,
                         )}
                         onChange={onChangeDietCheckbox}
                         name="dietProperties.allergens.containsGluten"
@@ -564,7 +622,7 @@ const DialogProduct = ({
                 </FormGroup>
               </FormControl>
             </Grid>
- <Grid size={{ xs: 12, sm: 6 }} >
+            <Grid size={{xs: 12, sm: 6}}>
               <FormControl fullWidth>
                 <FormGroup>
                   <FormLabel component="legend">
@@ -597,7 +655,7 @@ const DialogProduct = ({
               </FormControl>
             </Grid>
             {dialogType === ProductDialog.CREATE && (
- <Grid size={12} >
+              <Grid size={12}>
                 <FormHelperText>{TEXT_INFO_DIET_PROPERTIES}</FormHelperText>
               </Grid>
             )}
@@ -608,7 +666,7 @@ const DialogProduct = ({
             {TEXT_CANCEL}
           </Button>
           <Button onClick={onOkClick} color="primary" variant="contained">
-            {dialogType === PRODUCT_DIALOG_TYPE.CREATE ? TEXT_CREATE : TEXT_OK}
+            {dialogType === ProductDialog.CREATE ? TEXT_CREATE : TEXT_OK}
           </Button>
         </DialogActions>
       </Dialog>
@@ -653,4 +711,4 @@ const DialogProduct = ({
   );
 };
 
-export default DialogProduct;
+export {DialogProduct};

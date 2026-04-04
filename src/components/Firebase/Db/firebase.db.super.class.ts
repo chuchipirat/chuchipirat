@@ -27,7 +27,6 @@ import {
   StorageObjectProperty,
 } from "./sessionStorageHandler.class";
 
-import _ from "lodash";
 
 import {DB_DOCUMENT_DELETED as TEXT_DB_DOCUMENT_DELETED} from "../../../constants/text";
 
@@ -157,7 +156,7 @@ export abstract class FirebaseDbSuper {
   }: Create<T>): Promise<{documentUid: string; value: T}> {
     value = FirebaseDbSuper.setCreatedFields<T>(value, authUser, force);
 
-    let dbObject = _.cloneDeep(this.convertDateValuesToTimestamp(value));
+    let dbObject = structuredClone(this.convertDateValuesToTimestamp(value));
     // Felder auf Firebase anpassen
     dbObject = this.prepareDataForDb({value: dbObject});
 
@@ -461,7 +460,7 @@ export abstract class FirebaseDbSuper {
   }: Update<T>): Promise<ValueObject> {
     value = FirebaseDbSuper.setLastChangeFields(value, authUser) as T;
     // Felder auf Firebase anpassen
-    let dbObject = _.cloneDeep(this.prepareDataForDb<T>({value: value}));
+    let dbObject = structuredClone(this.prepareDataForDb<T>({value: value}));
     dbObject = this.convertDateValuesToTimestamp(dbObject);
 
     const document = this.getDocument(uids);
@@ -520,7 +519,7 @@ export abstract class FirebaseDbSuper {
     }
 
     // Daten vorbereiten (z. B. Datumsfelder in Timestamps konvertieren)
-    values = _.cloneDeep(this.convertDateValuesToTimestamp(values));
+    values = structuredClone(this.convertDateValuesToTimestamp(values));
 
     // Dokumentreferenz abrufen
     const document = this.getDocument(uids);
@@ -558,7 +557,7 @@ export abstract class FirebaseDbSuper {
     authUser,
   }: Set<T>): Promise<T> {
     // Letzte Änderungen in den Werten speichern
-    let dbObject = _.cloneDeep(
+    let dbObject = structuredClone(
       FirebaseDbSuper.setLastChangeFields(value, authUser) as T
     );
 

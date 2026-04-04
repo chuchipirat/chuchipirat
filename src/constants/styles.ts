@@ -1,8 +1,14 @@
-// import {makeStyles} from "@mui/material/styles";
 import {alpha} from "@mui/system/colorManipulator";
 import {useTheme} from "@mui/material/styles";
-import Utils from "../components/Shared/utils.class";
+import {Utils} from "../components/Shared/utils.class";
 
+/**
+ * Zentrale MUI-Styles für die gesamte App.
+ *
+ * Verwendet `useTheme()` für dynamische Farbwerte.
+ *
+ * @returns Objekt mit allen Style-Definitionen.
+ */
 const useCustomStyles = () => {
   const theme = useTheme();
 
@@ -277,34 +283,6 @@ const useCustomStyles = () => {
       color: "white",
     },
     /* ------------------------------------------
-    // Twint Button
-    // ------------------------------------------ */
-    cardMediaQrCode: {
-      height: "100%",
-      margin: "auto",
-      maxWidth: "350px",
-    },
-    twintButton: {
-      textTransform: "none",
-      maxWidth: "420px",
-    },
-    twintButtonLightMode: {
-      backgroundColor: "#262626",
-      color: "#fff",
-      "&:hover": {
-        backgroundColor: "#262626", // Hintergrundfarbe beim Hover-Effekt
-        boxShadow: "#fff", // Schatten beim Hover-Effekt
-      },
-    },
-    twintButtonDarkMode: {
-      backgroundColor: "#fff",
-      color: "#000",
-      "&:hover": {
-        backgroundColor: "#fff", // Hintergrundfarbe beim Hover-Effekt
-        boxShadow: "#000", // Schatten beim Hover-Effekt
-      },
-    },
-    /* ------------------------------------------
   // Menüplan
   // ------------------------------------------ */
     menuplanTabsContainer: {
@@ -505,6 +483,10 @@ const useCustomStyles = () => {
       backgroundColor: "#B71C1C !important",
       color: "white !important",
     },
+    workflowChipBackToAuthor: {
+      backgroundColor: "#E65100 !important",
+      color: "white !important",
+    },
     /* ------------------------------------------
     // Tabelle
     // ------------------------------------------ */
@@ -637,7 +619,26 @@ const useCustomStyles = () => {
       height: "100%",
       whiteSpace: "nowrap",
     },
+    /* ------------------------------------------
+    // Realtime-Highlight: Glow-Animation für Änderungen
+    // anderer Benutzer (Supabase Realtime).
+    // ------------------------------------------ */
+    remoteChangeGlow: {
+      "@keyframes remoteChangeGlow": {
+        "0%": {
+          boxShadow: `0 0 8px 3px ${alpha(theme.palette.primary.main, 0.5)}`,
+        },
+        "100%": {
+          boxShadow: `0 0 0 0 ${alpha(theme.palette.primary.main, 0)}`,
+        },
+      },
+      animation: "remoteChangeGlow 2s ease-out",
+    },
   };
 };
 
-export default useCustomStyles;
+/** Typ-Definition für alle Custom-Styles der App. */
+type CustomStyles = ReturnType<typeof useCustomStyles>;
+
+export {useCustomStyles};
+export type {CustomStyles};

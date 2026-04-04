@@ -1,8 +1,17 @@
+/**
+ * Seite zum Ändern von E-Mail-Adresse und/oder Passwort.
+ *
+ * Zwei Modi:
+ * - **Reset-Flow** (oobCode vorhanden): Nur Passwort-Änderung, keine Reauthentifizierung.
+ * - **Login-Change-Flow** (kein oobCode): E-Mail- und Passwort-Änderung nach Reauthentifizierung.
+ */
 import React from "react";
+import * as Sentry from "@sentry/react";
 
 import {Link, useNavigate} from "react-router";
 
 import {
+  Box,
   Container,
   Button,
   IconButton,
@@ -14,18 +23,20 @@ import {
   InputAdornment,
   Alert,
   AlertTitle,
+  FormHelperText,
+  CircularProgress,
 } from "@mui/material";
 
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
-import PasswordStrengthMeter from "../Shared/passwordStrengthMeter";
-import PageTitle from "../Shared/pageTitle";
-import useCustomStyles from "../../constants/styles";
+import {PasswordStrengthMeter} from "../Shared/passwordStrengthMeter";
+import {PageTitle} from "../Shared/pageTitle";
+import {useCustomStyles} from "../../constants/styles";
 
-import AlertMessage from "../Shared/AlertMessage";
-import DialogReauthenticate from "../SignIn/dialogReauthenticate";
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {DialogReauthenticate} from "../SignIn/dialogReauthenticate";
+import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 
 import {AuthMessages} from "../../constants/firebaseMessages";
 import * as ROUTES from "../../constants/routes";
@@ -34,13 +45,12 @@ import {
   PASSWORD_CHANGE as TEXT_PASSWORD_CHANGE,
   LOGIN_CHANGE as TEXT_LOGIN_CHANGE,
   PASSWORD_CHANGE_ARE_YOU_READY as TEXT_PASSWORD_CHANGE_ARE_YOU_READY,
-  LOGIN_CHANGE_ARE_YOU_READY as TEXT_LOGIN_CHANGE_ARE_YOU_READY,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   PASSWORD_RESET_EXPIRED as TEXT_PASSWORD_RESET_EXPIRED,
   ONE_TWO_TRHEE_DONE as TEXT_ONE_TWO_TRHEE_DONE,
   PASSWORD_HAS_BEEN_CHANGED as TEXT_PASSWORD_HAS_BEEN_CHANGED,
   EMAIL_HAS_BEEN_CHANGED as TEXT_EMAIL_HAS_BEEN_CHANGED,
-  VERIFICATION_EMAIL_SENT as TEXT_VERIFICATION_EMAIL_SENT,
+  EMAIL_CHANGE_CONFIRMATION_SENT as TEXT_EMAIL_CHANGE_CONFIRMATION_SENT,
   GIVE_VALID_EMAIL as TEXT_GIVE_VALID_EMAIL,
   CHANGE_EMAIL as TEXT_CHANGE_EMAIL,
   PASSWORD as TEXT_PASSWORD,
@@ -48,57 +58,88 @@ import {
   CHANGE_PASSWORD as TEXT_CHANGE_PASSWORD,
   LOGIN_SUCCESSFULL as TEXT_LOGIN_SUCCESSFULL,
   NEW_EMAIL_IDENTICAL as TEXT_NEW_EMAIL_IDENTICAL,
+  PASSWORDS_DONT_MATCH as TEXT_PASSWORDS_DONT_MATCH,
+  PASSWORD_REQUIREMENTS_HINT as TEXT_PASSWORD_REQUIREMENTS_HINT,
+  CONFIRM_PASSWORD as TEXT_CONFIRM_PASSWORD,
+  PASSWORD_RESET_GO_TO_SIGN_IN as TEXT_GO_TO_SIGN_IN,
 } from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
-import LocalStorageKey from "../../constants/localStorage";
 import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
-import Utils from "../Shared/utils.class";
-import User from "../User/user.class";
+import {Utils} from "../Shared/utils.class";
 import {FirebaseError} from "@firebase/util";
 import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import {useDatabase} from "../Database/DatabaseContext";
 
 // ===================================================================
 // ======================== globale Funktionen =======================
 // ===================================================================
 enum ReducerActions {
   UPDATE_FIELD,
-  GENERIC_ERROR,
+  EMAIL_ERROR,
+  PASSWORD_ERROR,
   SUCCESS_MAIL_CHANGE,
   SUCCESS_PW_CHANGE,
   SUCCESS_REAUTHENTICATION,
   SNACKBAR_CLOSE,
+  SET_SUBMITTING,
 }
 
+/** Daten für E-Mail- und Passwortänderung. */
 type PasswordChangeData = {
   email: string;
   password: string;
+  passwordConfirm: string;
 };
 
+/** State der PasswordChange-Seite mit getrennten Fehler-/Erfolgsfeldern. */
 type State = {
   passwordChangeData: PasswordChangeData;
+  emailError: FirebaseError | null;
+  passwordError: FirebaseError | null;
   successPwChange: boolean;
   successEmailChange: boolean;
-  error: FirebaseError | null;
-  snackbar: Snackbar;
-};
-type DispatchAction = {
-  type: ReducerActions;
-  payload: any;
+  isSubmittingEmail: boolean;
+  isSubmittingPassword: boolean;
+  snackbar: SnackbarState;
 };
 
-const inititialState: State = {
+/**
+ * Diskriminierte Union für typsichere Reducer-Actions.
+ */
+type DispatchAction =
+  | {type: ReducerActions.UPDATE_FIELD; payload: {field: string; value: string}}
+  | {type: ReducerActions.EMAIL_ERROR; payload: FirebaseError}
+  | {type: ReducerActions.PASSWORD_ERROR; payload: FirebaseError}
+  | {type: ReducerActions.SUCCESS_MAIL_CHANGE}
+  | {type: ReducerActions.SUCCESS_PW_CHANGE}
+  | {type: ReducerActions.SUCCESS_REAUTHENTICATION}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.SET_SUBMITTING; payload: {field: "email" | "password"; value: boolean}};
+
+const initialState: State = {
   passwordChangeData: {
     email: "",
     password: "",
+    passwordConfirm: "",
   },
-  error: null,
+  emailError: null,
+  passwordError: null,
   successPwChange: false,
   successEmailChange: false,
+  isSubmittingEmail: false,
+  isSubmittingPassword: false,
   snackbar: {open: false, severity: "info", message: ""},
 };
 
+/**
+ * Reducer für die PasswordChange-Seite.
+ * Verwaltet Formularfelder, getrennte Fehler für E-Mail/Passwort
+ * sowie Erfolgs-, Lade- und Snackbar-Zustände.
+ *
+ * @param state - Aktueller State.
+ * @param action - Dispatch-Aktion (diskriminierte Union).
+ * @returns Neuer State.
+ */
 const passwordChangeReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.UPDATE_FIELD:
@@ -115,9 +156,19 @@ const passwordChangeReducer = (state: State, action: DispatchAction): State => {
         snackbar: {...state.snackbar, open: false},
       };
     case ReducerActions.SUCCESS_MAIL_CHANGE:
-      return {...state, successEmailChange: true};
+      return {
+        ...state,
+        successEmailChange: true,
+        emailError: null,
+        isSubmittingEmail: false,
+      };
     case ReducerActions.SUCCESS_PW_CHANGE:
-      return {...state, successPwChange: true};
+      return {
+        ...state,
+        successPwChange: true,
+        passwordError: null,
+        isSubmittingPassword: false,
+      };
     case ReducerActions.SUCCESS_REAUTHENTICATION:
       return {
         ...state,
@@ -127,54 +178,80 @@ const passwordChangeReducer = (state: State, action: DispatchAction): State => {
           message: TEXT_LOGIN_SUCCESSFULL,
         },
       };
-    case ReducerActions.GENERIC_ERROR:
-      return {...state, error: action.payload as FirebaseError};
-    default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+    case ReducerActions.EMAIL_ERROR:
+      return {
+        ...state,
+        emailError: action.payload,
+        successEmailChange: false,
+        isSubmittingEmail: false,
+      };
+    case ReducerActions.PASSWORD_ERROR:
+      return {
+        ...state,
+        passwordError: action.payload,
+        successPwChange: false,
+        isSubmittingPassword: false,
+      };
+    case ReducerActions.SET_SUBMITTING:
+      return {
+        ...state,
+        ...(action.payload.field === "email"
+          ? {isSubmittingEmail: action.payload.value}
+          : {isSubmittingPassword: action.payload.value}),
+      };
+    default: {
+      const _exhaustiveCheck: never = action;
+      throw new Error(`Unbekannter ActionType: ${_exhaustiveCheck}`);
+    }
   }
 };
 
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
+/** Props für die PasswordChangePage-Komponente. */
 interface PasswordChangePageProps {
+  /** Optionaler oobCode aus einem Passwort-Zurücksetzen-Link. */
   oobCode?: string;
 }
 
+/**
+ * Seite zum Ändern von E-Mail-Adresse und/oder Passwort.
+ * Zeigt zwei getrennte Karten: eine für E-Mail-Änderung (nur wenn
+ * kein resetCode), eine für Passwort-Änderung (immer sichtbar).
+ *
+ * @param oobCode - Optionaler Code aus einem Passwort-Reset-Link.
+ */
 const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
-  const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const navigate = useNavigate();
   const classes = useCustomStyles();
-  let resetCode = oobCode as string;
+  const resetCode = oobCode;
 
   const [state, dispatch] = React.useReducer(
     passwordChangeReducer,
-    inititialState
+    initialState,
   );
 
-  // kommt die Anfrage aus der Passwort-Zurücksetzen-Mail.
-  // Dann ist in der URL der objektCode
-  if (oobCode && !resetCode) {
-    resetCode = oobCode;
-  }
   /* ------------------------------------------
-  // Email-setzen
+  // E-Mail setzen
   // ------------------------------------------ */
   React.useEffect(() => {
-    if (!state.passwordChangeData.email && resetCode && !state.error) {
-      // Mailadresse herausfinden
-      firebase
-        .getEmailFromVerifyCode(resetCode)
-        .then((result) => {
-          dispatch({
-            type: ReducerActions.UPDATE_FIELD,
-            payload: {field: "email", value: result},
-          });
+    if (!state.passwordChangeData.email && resetCode && !state.passwordError) {
+      // Bei Supabase Recovery wird die E-Mail aus der Session geladen
+      database.auth
+        .getUser()
+        .then((user) => {
+          if (user?.email) {
+            dispatch({
+              type: ReducerActions.UPDATE_FIELD,
+              payload: {field: "email", value: user.email},
+            });
+          }
         })
         .catch((error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+          dispatch({type: ReducerActions.PASSWORD_ERROR, payload: error});
         });
     } else if (!state.passwordChangeData.email && authUser) {
       dispatch({
@@ -184,96 +261,50 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
     }
   }, []);
 
-  // Neu Authentifizieren, wenn nicht über resetCode eingestiegen
-  const [reauthenticattion, setReauthenticattion] = React.useState({
-    needed: resetCode !== undefined ? false : true,
+  // Reauthentifizierung nur nötig, wenn kein resetCode vorhanden
+  const [reauthentication, setReauthentication] = React.useState({
+    needed: resetCode === undefined,
     done: false,
   });
 
   /* ------------------------------------------
   // E-Mail ändern
   // ------------------------------------------ */
-  const onEmailChange = () => {
-    if (!authUser) {
-      // um die Mailadresse zu wechseln, muss man angemeldet seint
-      return;
-    }
+  const onEmailChange = async () => {
+    if (!authUser) return;
 
-    if (authUser.email == state.passwordChangeData.email) {
+    if (authUser.email === state.passwordChangeData.email) {
       dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: {code: "", message: TEXT_NEW_EMAIL_IDENTICAL},
+        type: ReducerActions.EMAIL_ERROR,
+        payload: {code: "", message: TEXT_NEW_EMAIL_IDENTICAL} as FirebaseError,
       });
       return;
     }
 
-    firebase
-      .emailChange(state.passwordChangeData.email)
-      .then(() => {
-        // Profilfelder updaten
-        User.updateEmail({
-          firebase: firebase,
-          newEmail: state.passwordChangeData.email,
-          authUser: authUser,
-        }).then(() => {
-          dispatch({type: ReducerActions.SUCCESS_MAIL_CHANGE, payload: {}});
-        });
-      })
-      .then(() => {
-        // Local Storage anpassen
-        updateLocalStorage();
-      })
-      .then(() => {
-        //Email verification code
-        firebase.sendEmailVerification().catch((error) => {
-          console.error(error);
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
-  };
-  /* ------------------------------------------
-  // Session-Storage auf Änderungen umbiegen
-  // ------------------------------------------ */
-  const updateLocalStorage = () => {
-    // Nach dem ändern der Mailadresse muss der Auth-Prozess gestartet werden.
-    const user = JSON.parse(localStorage.getItem(LocalStorageKey.AUTH_USER)!);
-    user.email = state.passwordChangeData.email;
-    user.emailVerified = false;
-    localStorage.setItem(LocalStorageKey.AUTH_USER, JSON.stringify(user));
+    // Supabase sendet automatisch eine Bestätigungs-E-Mail an die neue Adresse.
+    // DB- und localStorage-Update erfolgen erst nach Bestätigung (confirmEmailChange).
+    dispatch({type: ReducerActions.SET_SUBMITTING, payload: {field: "email", value: true}});
+    try {
+      await database.auth.updateEmail(state.passwordChangeData.email);
+      dispatch({type: ReducerActions.SUCCESS_MAIL_CHANGE});
+    } catch (error) {
+      Sentry.captureException(error, {extra: {context: "E-Mail ändern"}});
+      dispatch({type: ReducerActions.EMAIL_ERROR, payload: error as FirebaseError});
+    }
   };
   /* ------------------------------------------
   // Passwort ändern
   // ------------------------------------------ */
-  const onPwChange = () => {
-    if (!resetCode && authUser) {
-      // User angemeldet und ändert PW
-      firebase
-        .passwordUpdate({password: state.passwordChangeData.password})
-        .then(() => {
-          dispatch({type: ReducerActions.SUCCESS_PW_CHANGE, payload: {}});
-        })
-        .catch((error) => {
-          console.error(error);
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        });
-    } else if (resetCode) {
-      // PW Anhand Reset-Code zurücksetzen
-      firebase
-        .confirmPasswordReset({
-          resetCode: resetCode,
-          password: state.passwordChangeData.password,
-        })
-        .then(() => {
-          dispatch({type: ReducerActions.SUCCESS_PW_CHANGE, payload: {}});
-        })
-        .catch((error) => {
-          console.error(error);
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        });
+  const onPwChange = async () => {
+    // Supabase Auth: updatePassword funktioniert sowohl für eingeloggte User
+    // als auch nach Token-Verifizierung (Recovery-Link)
+    dispatch({type: ReducerActions.SET_SUBMITTING, payload: {field: "password", value: true}});
+    try {
+      await database.auth.updatePassword(state.passwordChangeData.password);
+      dispatch({type: ReducerActions.SUCCESS_PW_CHANGE});
+    } catch (error) {
+      Sentry.captureException(error, {extra: {context: "Passwort ändern"}});
+      dispatch({type: ReducerActions.PASSWORD_ERROR, payload: error as FirebaseError});
     }
   };
   /* ------------------------------------------
@@ -286,47 +317,59 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
     });
   };
   /* ------------------------------------------
-// Authentifzierung abbrechen
-// ------------------------------------------ */
-  const onReauthenticattionCancel = () => {
+  // Reauthentifizierung abbrechen
+  // ------------------------------------------ */
+  const onReauthenticationCancel = () => {
     navigate(-1);
   };
   /* ------------------------------------------
-  // Authentifzierung erledigt
+  // Reauthentifizierung erledigt
   // ------------------------------------------ */
-  const onReauthenticattionOk = () => {
-    dispatch({type: ReducerActions.SUCCESS_REAUTHENTICATION, payload: {}});
-    setReauthenticattion({...reauthenticattion, done: true});
+  const onReauthenticationOk = () => {
+    dispatch({type: ReducerActions.SUCCESS_REAUTHENTICATION});
+    setReauthentication({...reauthentication, done: true});
   };
   /* ------------------------------------------
   // Snackbar schliessen
   // ------------------------------------------ */
   const onSnackbarClose = () => {
-    dispatch({type: ReducerActions.SNACKBAR_CLOSE, payload: {}});
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
 
   return (
     <React.Fragment>
       <PageTitle title={resetCode ? TEXT_PASSWORD_CHANGE : TEXT_LOGIN_CHANGE} />
       <Container sx={classes.container} component="main" maxWidth="xs">
-        <PasswordChangeForm
+        {!resetCode && (
+          <EmailChangeCard
+            email={state.passwordChangeData.email}
+            successEmailChange={state.successEmailChange}
+            isSubmitting={state.isSubmittingEmail}
+            error={state.emailError}
+            onFieldChange={onFieldChange}
+            onEmailChange={onEmailChange}
+          />
+        )}
+        <Box sx={{mt: 3}} />
+        <PasswordChangeCard
           resetCode={resetCode}
-          passwordChangeData={state.passwordChangeData}
-          successEmailChange={state.successEmailChange}
+          password={state.passwordChangeData.password}
+          passwordConfirm={state.passwordChangeData.passwordConfirm}
           successPwChange={state.successPwChange}
-          error={state.error}
+          isSubmitting={state.isSubmittingPassword}
+          error={state.passwordError}
           onFieldChange={onFieldChange}
-          onEmailChange={onEmailChange}
           onPwChange={onPwChange}
+          onNavigateToSignIn={() => navigate(ROUTES.SIGN_IN)}
         />
 
         {/* PopUp für Reauthentifizierung */}
-        {(!authUser || reauthenticattion.needed) && (
+        {(!authUser || reauthentication.needed) && (
           <DialogReauthenticate
-            firebase={firebase}
-            dialogOpen={reauthenticattion.needed && !reauthenticattion.done}
-            handleOk={onReauthenticattionOk}
-            handleClose={onReauthenticattionCancel}
+            database={database}
+            dialogOpen={reauthentication.needed && !reauthentication.done}
+            handleOk={onReauthenticationOk}
+            handleClose={onReauthenticationCancel}
             authUser={authUser!}
           />
         )}
@@ -340,169 +383,284 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
     </React.Fragment>
   );
 };
+
 /* ===================================================================
-// ================================ Form =============================
+// =========================== EmailChangeCard ========================
 // =================================================================== */
-interface PasswordChangeFormProps {
-  resetCode: string;
-  passwordChangeData: PasswordChangeData;
-  onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
-  error: FirebaseError | null;
-  successPwChange: boolean;
+/** Props für die EmailChangeCard-Komponente. */
+interface EmailChangeCardProps {
+  /** Aktuelle E-Mail-Adresse im Formular. */
+  email: string;
+  /** Ob die E-Mail-Änderung erfolgreich war. */
   successEmailChange: boolean;
+  /** Ob gerade eine API-Anfrage läuft. */
+  isSubmitting: boolean;
+  /** Fehler bei der E-Mail-Änderung (oder null). */
+  error: FirebaseError | null;
+  /** Handler für Feldänderungen. */
+  onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Handler zum Absenden der E-Mail-Änderung. */
   onEmailChange: () => void;
-  onPwChange: () => void;
 }
-const PasswordChangeForm = ({
-  resetCode,
-  passwordChangeData,
+
+/**
+ * Karte für die E-Mail-Änderung.
+ * Enthält Header-Bild, E-Mail-Feld mit Validierung und eigene
+ * Erfolgs-/Fehlermeldungen. Feld und Button werden nach Erfolg deaktiviert.
+ *
+ * @param props - EmailChangeCardProps
+ */
+const EmailChangeCard = ({
+  email,
+  successEmailChange,
+  isSubmitting,
+  error,
   onFieldChange,
   onEmailChange,
+}: EmailChangeCardProps) => {
+  const classes = useCustomStyles();
+  const [emailTouched, setEmailTouched] = React.useState(false);
+  const isValidEmail = Utils.isEmail(email);
+
+  return (
+    <Card>
+      <CardMedia
+        sx={classes.cardMedia}
+        image={ImageRepository.getEnvironmentRelatedPicture().SIGN_IN_HEADER}
+        title={"Logo"}
+      />
+      <CardContent sx={classes.cardContent}>
+        <Typography
+          gutterBottom={true}
+          variant="h5"
+          align="center"
+          component="h2"
+        >
+          {TEXT_CHANGE_EMAIL}
+        </Typography>
+        {successEmailChange && (
+          <Alert severity="success">
+            <AlertTitle>{TEXT_EMAIL_HAS_BEEN_CHANGED}</AlertTitle>
+            {TEXT_EMAIL_CHANGE_CONFIRMATION_SENT}
+          </Alert>
+        )}
+        {error && <AlertMessage error={error} severity="error" />}
+        <TextField
+          type="email"
+          margin="normal"
+          fullWidth
+          id="email"
+          label={TEXT_EMAIL}
+          name="email"
+          autoComplete="email"
+          autoFocus
+          value={email}
+          disabled={successEmailChange}
+          onChange={onFieldChange}
+          onBlur={() => setEmailTouched(true)}
+        />
+        {emailTouched && !isValidEmail && (
+          <Typography color="error">{TEXT_GIVE_VALID_EMAIL}</Typography>
+        )}
+        <Button
+          disabled={!isValidEmail || successEmailChange || isSubmitting}
+          fullWidth
+          variant="contained"
+          color="primary"
+          sx={classes.submit}
+          onClick={onEmailChange}
+          startIcon={isSubmitting ? <CircularProgress size={20} /> : undefined}
+        >
+          {TEXT_CHANGE_EMAIL}
+        </Button>
+      </CardContent>
+    </Card>
+  );
+};
+
+/* ===================================================================
+// ========================= PasswordChangeCard =======================
+// =================================================================== */
+/** Props für die PasswordChangeCard-Komponente. */
+interface PasswordChangeCardProps {
+  /** Code aus dem Passwort-Zurücksetzen-Link (falls vorhanden). */
+  resetCode: string | undefined;
+  /** Aktuelles Passwort im Formular. */
+  password: string;
+  /** Passwort-Bestätigung im Formular. */
+  passwordConfirm: string;
+  /** Ob die Passwort-Änderung erfolgreich war. */
+  successPwChange: boolean;
+  /** Ob gerade eine API-Anfrage läuft. */
+  isSubmitting: boolean;
+  /** Fehler bei der Passwort-Änderung (oder null). */
+  error: FirebaseError | null;
+  /** Handler für Feldänderungen. */
+  onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Handler zum Absenden der Passwort-Änderung. */
+  onPwChange: () => void;
+  /** Navigation zur Anmeldeseite (nach erfolgreichem Reset). */
+  onNavigateToSignIn: () => void;
+}
+
+/**
+ * Karte für die Passwort-Änderung.
+ * Zeigt das Header-Bild nur im Reset-Flow. Enthält Passwortfeld mit
+ * Bestätigungsfeld, Stärkeanzeige und eigene Erfolgs-/Fehlermeldungen.
+ * Felder werden nach Erfolg deaktiviert.
+ *
+ * @param props - PasswordChangeCardProps
+ */
+const PasswordChangeCard = ({
+  resetCode,
+  password,
+  passwordConfirm,
+  onFieldChange,
   onPwChange,
+  onNavigateToSignIn,
   successPwChange,
-  successEmailChange,
+  isSubmitting,
   error,
-}: PasswordChangeFormProps) => {
+}: PasswordChangeCardProps) => {
   const classes = useCustomStyles();
   const [showPassword, setShowPassword] = React.useState(false);
 
-  const isValidEmail = Utils.isEmail(passwordChangeData.email);
-
-  /* ------------------------------------------
-  // PW Feld-Handler
-  // ------------------------------------------ */
   const handleClickShowPassword = () => {
     setShowPassword(!showPassword);
   };
-  const handleMouseDownPassword = (event) => {
+  const handleMouseDownPassword = (event: React.MouseEvent) => {
     event.preventDefault();
   };
 
+  // Passwörter stimmen nur überein, wenn beide ausgefüllt und identisch sind
+  const passwordsMatch = password === passwordConfirm;
+  // Mismatch-Hinweis nur anzeigen, wenn beide Felder ausgefüllt wurden
+  const showMismatchError = passwordConfirm.length > 0 && !passwordsMatch;
+
+  const isButtonDisabled =
+    password.length < 6 ||
+    !passwordsMatch ||
+    successPwChange ||
+    isSubmitting;
+
+  /** Endornment für Passwort-Sichtbarkeit (gemeinsam für beide Felder). */
+  const passwordVisibilityAdornment = (
+    <InputAdornment position="end">
+      <IconButton
+        aria-label={TEXT_SHOW_PASSWORD}
+        onClick={handleClickShowPassword}
+        onMouseDown={handleMouseDownPassword}
+        size="large"
+      >
+        {showPassword ? <Visibility /> : <VisibilityOff />}
+      </IconButton>
+    </InputAdornment>
+  );
+
   return (
-    <React.Fragment>
-      <Card>
+    <Card>
+      {/* Header-Bild nur im Reset-Flow, sonst hat die EmailChangeCard es */}
+      {resetCode && (
         <CardMedia
           sx={classes.cardMedia}
-          image={ImageRepository.getEnviromentRelatedPicture().SIGN_IN_HEADER}
+          image={ImageRepository.getEnvironmentRelatedPicture().SIGN_IN_HEADER}
           title={"Logo"}
         />
-        <CardContent sx={classes.cardContent}>
-          <Typography
-            gutterBottom={true}
-            variant="h5"
-            align="center"
-            component="h2"
-          >
-            {resetCode
-              ? TEXT_PASSWORD_CHANGE_ARE_YOU_READY
-              : TEXT_LOGIN_CHANGE_ARE_YOU_READY}
-          </Typography>
-          {error &&
-          (error.code === AuthMessages.EXPIRED_ACTION_CODE ||
-            error.code === AuthMessages.INVALID_ACTION_CODE) ? (
-            <Alert severity="warning">
-              <AlertTitle>{TEXT_ALERT_TITLE_UUPS}</AlertTitle>
-              {TEXT_PASSWORD_RESET_EXPIRED}
-              <ForgotPasswordLink />
-            </Alert>
-          ) : null}
-          {successPwChange && (
-            <Alert severity="success">
-              <AlertTitle>{TEXT_ONE_TWO_TRHEE_DONE}</AlertTitle>
-              {TEXT_PASSWORD_HAS_BEEN_CHANGED}
-            </Alert>
-          )}
-          {successEmailChange && (
-            <Alert severity="success">
-              <AlertTitle>{TEXT_EMAIL_HAS_BEEN_CHANGED}</AlertTitle>
-              {TEXT_VERIFICATION_EMAIL_SENT}
-            </Alert>
-          )}
-          {error && <AlertMessage error={error} severity="error" />}
-          {/* Mailadresse */}
-          <TextField
-            type="email"
-            margin="normal"
-            disabled={resetCode !== undefined}
-            fullWidth
-            id="email"
-            label={TEXT_EMAIL}
-            name="email"
-            autoComplete="email"
-            autoFocus
-            value={passwordChangeData.email}
-            onChange={onFieldChange}
-          />
-          {!isValidEmail && (
-            <Typography color="error">{TEXT_GIVE_VALID_EMAIL}</Typography>
-          )}
-          {!resetCode && (
-            <Button
-              disabled={!isValidEmail}
-              fullWidth
-              variant="contained"
-              color="primary"
-              sx={classes.submit}
-              onClick={onEmailChange}
-            >
-              {TEXT_CHANGE_EMAIL}
-            </Button>
-          )}
-
-          {/* Passwort*/}
-          <TextField
-            type={showPassword ? "text" : "password"}
-            margin="normal"
-            required
-            fullWidth
-            id="password"
-            name="password"
-            label={TEXT_PASSWORD}
-            value={passwordChangeData.password}
-            onChange={onFieldChange}
-            InputProps={{
-              endAdornment: (
-                <InputAdornment position="end">
-                  <IconButton
-                    aria-label={TEXT_SHOW_PASSWORD}
-                    onClick={handleClickShowPassword}
-                    onMouseDown={handleMouseDownPassword}
-                    size="large"
-                  >
-                    {showPassword ? <Visibility /> : <VisibilityOff />}
-                  </IconButton>
-                </InputAdornment>
-              ),
-            }}
-          />
-          {/* Stärke Passwort */}
-          <PasswordStrengthMeter password={passwordChangeData.password} />
+      )}
+      <CardContent sx={classes.cardContent}>
+        <Typography
+          gutterBottom={true}
+          variant="h5"
+          align="center"
+          component="h2"
+        >
+          {resetCode ? TEXT_PASSWORD_CHANGE_ARE_YOU_READY : TEXT_CHANGE_PASSWORD}
+        </Typography>
+        {error &&
+        (error.code === AuthMessages.EXPIRED_ACTION_CODE ||
+          error.code === AuthMessages.INVALID_ACTION_CODE) ? (
+          <Alert severity="warning">
+            <AlertTitle>{TEXT_ALERT_TITLE_UUPS}</AlertTitle>
+            {TEXT_PASSWORD_RESET_EXPIRED}
+            <ForgotPasswordLink />
+          </Alert>
+        ) : null}
+        {successPwChange && (
+          <Alert severity="success">
+            <AlertTitle>{TEXT_ONE_TWO_TRHEE_DONE}</AlertTitle>
+            {TEXT_PASSWORD_HAS_BEEN_CHANGED}
+          </Alert>
+        )}
+        {error && <AlertMessage error={error} severity="error" />}
+        <TextField
+          type={showPassword ? "text" : "password"}
+          margin="normal"
+          required
+          fullWidth
+          id="password"
+          name="password"
+          label={TEXT_PASSWORD}
+          value={password}
+          disabled={successPwChange}
+          onChange={onFieldChange}
+          slotProps={{
+            input: {endAdornment: passwordVisibilityAdornment},
+          }}
+        />
+        <FormHelperText>{TEXT_PASSWORD_REQUIREMENTS_HINT}</FormHelperText>
+        <PasswordStrengthMeter password={password} />
+        <TextField
+          type={showPassword ? "text" : "password"}
+          margin="normal"
+          required
+          fullWidth
+          id="passwordConfirm"
+          name="passwordConfirm"
+          label={TEXT_CONFIRM_PASSWORD}
+          value={passwordConfirm}
+          disabled={successPwChange}
+          onChange={onFieldChange}
+          error={showMismatchError}
+          helperText={showMismatchError ? TEXT_PASSWORDS_DONT_MATCH : ""}
+        />
+        <Button
+          disabled={isButtonDisabled}
+          fullWidth
+          variant="contained"
+          color="primary"
+          sx={classes.submit}
+          onClick={onPwChange}
+          startIcon={isSubmitting ? <CircularProgress size={20} /> : undefined}
+        >
+          {TEXT_CHANGE_PASSWORD}
+        </Button>
+        {successPwChange && resetCode && (
           <Button
-            disabled={
-              passwordChangeData.password === "" ||
-              passwordChangeData.password.length < 6
-            }
             fullWidth
-            variant="contained"
+            variant="outlined"
             color="primary"
-            sx={classes.submit}
-            onClick={onPwChange}
+            sx={{mt: 2}}
+            onClick={onNavigateToSignIn}
           >
-            {TEXT_CHANGE_PASSWORD}
+            {TEXT_GO_TO_SIGN_IN}
           </Button>
-        </CardContent>
-      </Card>
-    </React.Fragment>
+        )}
+      </CardContent>
+    </Card>
   );
 };
 
 // ===================================================================
 // =============================== Link ==============================
 // ===================================================================
+/**
+ * Link zur Passwort-Zurücksetzen-Seite.
+ */
 export const PasswordChangeLink = () => (
   <Typography variant="body2">
     <Link to={ROUTES.PASSWORD_RESET}>{TEXT_PASSWORD_CHANGE}</Link>
   </Typography>
 );
 
-export default PasswordChangePage;
+export {PasswordChangePage, passwordChangeReducer, ReducerActions, initialState};
+export type {State, DispatchAction};

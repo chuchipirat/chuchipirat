@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Container,
   Typography,
@@ -9,15 +8,13 @@ import {
   Box,
 } from "@mui/material";
 import {PRIVACY_POLICY as ROUTE_PRIVACY_POLICY} from "../../constants/routes";
-import {useNavigate} from "react-router";
-import PageTitle from "../Shared/pageTitle";
+import {Link as RouterLink} from "react-router";
+import {PageTitle} from "../Shared/pageTitle";
 import {
   PRIVACY_POLICY as TEXT_PRIVACY_POLICY,
   SMALL_PRINT as TEXT_SMALL_PRINT,
 } from "../../constants/text";
-/* ===================================================================
-// ======================== globale Funktionen =======================
-// =================================================================== */
+
 const customStyles = {
   customOrderedList: {
     counterReset: "item",
@@ -38,10 +35,8 @@ const customStyles = {
     },
   },
   subListItem: {
-    // fontSize: "0.9rem",
     fontWeight: "normal",
     paddingBottom: "0.5rem",
-
     "&:before": {
       content: 'counters(item, ".") " "',
       counterIncrement: "item",
@@ -51,33 +46,42 @@ const customStyles = {
     },
   },
 };
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
+
+/**
+ * Seite «Datenschutzerklärung» — rendert Titel und Karte mit dem
+ * vollständigen Datenschutztext.
+ *
+ * @returns JSX-Element der Datenschutzerklärung-Seite.
+ */
 const PrivacyPolicyPage = () => {
   return (
-    <React.Fragment>
+    <>
       <PageTitle title={TEXT_PRIVACY_POLICY} subTitle={TEXT_SMALL_PRINT} />
 
       <Container component="main" maxWidth="md">
-        <Card style={{marginTop: "2rem", marginBottom: "3rem"}}>
+        <Card sx={{mt: "2rem", mb: "3rem"}}>
           <CardHeader title={TEXT_PRIVACY_POLICY} />
           <CardContent>
             <PrivacyPolicyText />
           </CardContent>
         </Card>
       </Container>
-    </React.Fragment>
+    </>
   );
 };
-/* ===================================================================
-// ======================= Datenschutzerklärung ======================
-// =================================================================== */
-export const PrivacyPolicyText = () => {
-  const navigate = useNavigate();
+
+/**
+ * Datenschutzerklärungs-Text — enthält alle 10 Abschnitte der
+ * Datenschutzerklärung als nummerierte Liste.
+ *
+ * Wird auch im Footer als Standalone-Text verwendet.
+ *
+ * @returns JSX-Element mit dem vollständigen Datenschutztext.
+ */
+const PrivacyPolicyText = () => {
   return (
-    <React.Fragment>
-      <Typography>Stand: 1. März 2024</Typography>
+    <>
+      <Typography>Stand: 21. März 2026</Typography>
 
       <Box component="ol" sx={customStyles.customOrderedList}>
         <Box component="li" sx={customStyles.listItem}>
@@ -210,35 +214,22 @@ export const PrivacyPolicyText = () => {
           «https://» Adresszeile deines Browsers.
         </Box>
         <Box component="li" sx={customStyles.listItem}>
-          <strong>Nutzung von Google Analytics</strong>
+          <strong>Nutzung von Umami Analytics</strong>
           <br />
-          Die Webapp chuchipirat verwendet Google Analytics, einen
-          Webanalysedienst der Google Inc. (
-          <Link
-            href="https://www.google.de/intl/de/policies/privacy"
-            target="_blank"
-          >
-            Google Datenschutzerklärung
-          </Link>
-          ). Google Analytics verwendet Cookies, die auf deinem Computer
-          gespeichert werden und die eine Analyse der Benutzung der Webapp durch
-          dich ermöglichen. Die durch den Cookie erzeugten Informationen über
-          deine Benutzung dieser Website werden in der Regel an einen Server von
-          Google in den USA übertragen und dort gespeichert.
+          Die Webapp chuchipirat verwendet Umami, eine datenschutzfreundliche
+          Webanalyse-Lösung. Umami wird auf eigenen Servern von Hetzner in der
+          EU (Deutschland) betrieben. Es werden keine Cookies gesetzt und keine
+          personenbezogenen Daten an Dritte übermittelt. Die erhobenen Daten
+          dienen ausschliesslich der anonymen Nutzungsanalyse.
         </Box>
         <Box component="li" sx={customStyles.listItem}>
-          <strong>Nutzung von Google Firebase</strong>
+          <strong>Nutzung von Supabase</strong>
           <br />
-          Die Webapp chuchipirat wird auf dem Serviceangebot von Google Firebase
-          betrieben. Firebase bietet verschiedene Dienste, darunter Hosting,
-          Datenbanken und Authentifizierung. Durch die Nutzung von Firebase
-          können bestimmte personenbezogene Daten auf Servern von Google in den
-          USA gespeichert werden. Weitere Informationen findest du in der{" "}
-          <Link
-            href="https://firebase.google.com/support/privacy"
-            target="_blank"
-          >
-            Datenschutzerklärung von Firebase
+          Die Webapp chuchipirat verwendet Supabase für Datenbanken und
+          Authentifizierung. Die Daten werden auf Servern von Hetzner in der EU
+          (Deutschland) gespeichert. Weitere Informationen findest du in der{" "}
+          <Link href="https://supabase.com/privacy" target="_blank">
+            Datenschutzerklärung von Supabase
           </Link>
           .
         </Box>
@@ -282,23 +273,14 @@ export const PrivacyPolicyText = () => {
           Diese Datenschutzerklärung kann sich aufgrund gesetzlicher Neuerungen
           oder Änderungen der Webapp chuchipirat ändern. Die jeweils aktuelle
           Datenschutzerklärung findest du jederzeit auf&nbsp;
-          <Link onClick={() => navigate(ROUTE_PRIVACY_POLICY)}>
+          <Link component={RouterLink} to={ROUTE_PRIVACY_POLICY}>
             chuchipirat.ch/privacypolicy
           </Link>
           .
         </Box>
-        {/* <li className={customStyle.listItem}>
-          <strong>X</strong>
-          <br />
-          <ol className={customStyle.customOrderedList}>
-            <li className={customStyle.listItem}>xx</Box>
-            <li className={customStyle.listItem}>xx</Box>
-            <li className={customStyle.listItem}>xx</Box>
-          </Box>
-        </Box> */}
       </Box>
-    </React.Fragment>
+    </>
   );
 };
 
-export default PrivacyPolicyPage;
+export {PrivacyPolicyPage, PrivacyPolicyText};

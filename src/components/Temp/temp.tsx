@@ -36,13 +36,11 @@ import {
   ArrowForward as ArrowForwardIcon,
 } from "@mui/icons-material";
 
-import Role from "../../constants/roles";
 
 import {useFirebase} from "../Firebase/firebaseContext";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {useAuthUser} from "../Session/authUserContext";
-import PageTitle from "../Shared/pageTitle";
+// import {useAuthUser} from "../Session/authUserContext";
+import {PageTitle} from "../Shared/pageTitle";
 import useCustomStyles from "../../constants/styles";
 import Grid from "@mui/material/Grid";
 
@@ -70,7 +68,7 @@ import {reorder} from "@atlaskit/pragmatic-drag-and-drop/reorder";
 import {createPortal} from "react-dom";
 
 import invariant from "tiny-invariant";
-import Utils from "../Shared/utils.class";
+import {Utils} from "../Shared/utils.class";
 
 // type Item = {
 //   label: string;
@@ -351,7 +349,7 @@ export const blockBoardPanningAttr = "data-block-board-panning" as const;
 // =============================== Base ==============================
 // =================================================================== */
 const TempPage = () => {
-  const firebase = useFirebase();
+  const _firebase = useFirebase();
   // const classes = useCustomStyles();
 
   const [data, setData] = useState(initialData);
@@ -438,7 +436,6 @@ const TempPage = () => {
               //   data.columns.entries[home.id].cardsOrder
               // );
               // oldCardsOrder
-              console.log(updated);
               setData({
                 ...data,
                 columns: {
@@ -453,7 +450,6 @@ const TempPage = () => {
 
             // unable to find destination
             if (!destination) {
-              console.warn("Drag & Drop kein Ziel gefunden");
               return;
             }
 
@@ -513,8 +509,6 @@ const TempPage = () => {
 
             // dropping on home
             if (home === destination) {
-              console.info("moving card to home column");
-
               // move to last position
               const reordered = reorder({
                 list: home[memberName],
@@ -543,8 +537,6 @@ const TempPage = () => {
               });
               return;
             }
-
-            console.info("moving card to another column");
 
             // remove card from home list
 
@@ -807,12 +799,10 @@ const Column = ({
       // optimization - don't update state if we don't need to.
       setStateColumn((current) => {
         if (isShallowEqual(proposed, current)) {
-          console.log(proposed, current);
           return current;
         }
         return proposed;
       });
-      console.log("hier, setIsCardOver");
     }
 
     return combine(
@@ -847,12 +837,9 @@ const Column = ({
           });
         },
         onDragStart() {
-          console.log("hier", "onDragStart");
-
           setStateColumn({type: "is-dragging"});
         },
         onDrop() {
-          console;
           setStateColumn(columnIdle);
         },
       }),
@@ -878,7 +865,6 @@ const Column = ({
             isColumnData(source.data) &&
             source.data.column.id !== column.id
           ) {
-            console.log("hier, isColumnData");
             setStateColumn({type: "is-column-over"});
           }
         },
@@ -895,11 +881,9 @@ const Column = ({
           ) {
             return;
           }
-          console.log("hier, onDragLeave", columnIdle);
           setStateColumn(columnIdle);
         },
         onDrop() {
-          console.log("hier, onDrop");
           setStateColumn(columnIdle);
         },
       })
@@ -1009,7 +993,6 @@ const CardList = memo(function CardList({
   entries: TBoard["cards"];
   entryType: EntryType;
 }) {
-  console.info("memo exe", columnId);
   return (
     <>
       <Box component={"div"}>

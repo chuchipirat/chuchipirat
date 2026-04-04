@@ -61,7 +61,7 @@ export class FirebaseDbRecipeRating extends FirebaseDbSuper {
   /* =====================================================================
   // Daten für DB-Strutkur vorbereiten
   // ===================================================================== */
-  prepareDataForApp<T extends ValueObject>({uid, value}: PrepareDataForApp) {
+  prepareDataForApp<T extends ValueObject>({uid: _uid, value}: PrepareDataForApp) {
     return {
       rating: value.rating,
     } as unknown as T;

@@ -1,4 +1,12 @@
+/**
+ * Übersicht der versendeten E-Mails (Admin-Bereich).
+ *
+ * Zeigt eine tabellarische Auflistung aller Mail-Log-Einträge aus der
+ * Supabase-Tabelle `mail_log`. Bietet eine Detail-Ansicht (Dialog) und
+ * eine Lösch-Funktion für ältere Protokolle.
+ */
 import React from "react";
+import * as Sentry from "@sentry/react";
 
 import {
   MAILBOX as TEXT_MAILBOX,
@@ -6,14 +14,12 @@ import {
   OVERVIEW as TEXT_OVERVIEW,
   DELETE as TEXT_DELETE,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
-  UID as TEXT_UID,
   RECIPIENTS as TEXT_RECIPIENTS,
   NO_RECIPIENTS as TEXT_NO_RECIPIENTS,
   MAIL_TEMPLATE as TEXT_MAIL_TEMPLATE,
   TIMESTAMP as TEXT_TIMESTAMP,
   MAILS as TEXT_MAILS,
   RECIPIENT_TO as TEXT_RECIPIENT_TO,
-  RECIPIENT_BCC as TEXT_RECIPIENT_BBC,
   MAIL_DATA as TEXT_MAIL_DATA,
   DELETE_MAIL_PROTOCOLS as TEXT_DELETE_MAIL_PROTOCOLS,
   DELETE_MAIL_PROTOCOLS_OLDER_THAN as TEXT_DELETE_MAIL_PROTOCOLS_OLDER_THAN,
@@ -21,17 +27,18 @@ import {
   FROM as TEXT_FROM,
   OPEN as TEXT_OPEN,
   MAIL_PROTOCOLS_DELETED as TEXT_MAIL_PROTOCOLS_DELETED,
+  SUBJECT as TEXT_SUBJECT,
 } from "../../constants/text";
 
 import {OpenInNew as OpenInNewIcon} from "@mui/icons-material";
 
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
+import {SYSTEM_BREADCRUMB} from "./system";
 
-import Role from "../../constants/roles";
-import useCustomStyles from "../../constants/styles";
-import CustomSnackbar, {
+import {useCustomStyles} from "../../constants/styles";
+import {CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
-  Snackbar,
+  SnackbarState,
 } from "../Shared/customSnackbar";
 import {
   Backdrop,
@@ -55,39 +62,26 @@ import {
   Stack,
 } from "@mui/material";
 
-import AlertMessage from "../Shared/AlertMessage";
-import SearchPanel from "../Shared/searchPanel";
+import {AlertMessage} from "../Shared/AlertMessage";
+import {SearchPanel} from "../Shared/searchPanel";
 
 import {FormListItem} from "../Shared/formListItem";
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
-import {
-  DataGrid,
-  GridColDef,
-} from "@mui/x-data-grid";
+import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
-
-import MailConsole, {
-  MailLogEntry,
-  MailLogOverviewStructure,
-  MailProtocol,
-} from "./mailConsole.class";
-import {ImageRepository} from "../../constants/imageRepository";
+import {useDatabase} from "../Database/DatabaseContext";
+import {MailLogDomain} from "../Database/Repository/MailLogRepository";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
 enum ReducerActions {
-  MAILS_FETCH_INIT,
-  MAILS_FETCH_SUCCESS,
-  MAIL_FETCH_INIT,
-  MAIL_FETCH_SUCCESS,
-  MAIL_DELETING_INIT,
-  MAIL_DELETING_SUCCESS,
-  SNACKBAR_SET,
-  SNACKBAR_CLOSE,
-  GENERIC_ERROR,
+  MAILS_FETCH_INIT = "MAILS_FETCH_INIT",
+  MAILS_FETCH_SUCCESS = "MAILS_FETCH_SUCCESS",
+  MAIL_DELETING_INIT = "MAIL_DELETING_INIT",
+  MAIL_DELETING_SUCCESS = "MAIL_DELETING_SUCCESS",
+  SNACKBAR_SET = "SNACKBAR_SET",
+  SNACKBAR_CLOSE = "SNACKBAR_CLOSE",
+  GENERIC_ERROR = "GENERIC_ERROR",
 }
 
 enum TabValue {
@@ -95,23 +89,29 @@ enum TabValue {
   delete,
 }
 
-type DispatchAction = {
-  type: ReducerActions;
-  payload: {[key: string]: any};
-};
+/** Diskriminierte Union für Reducer-Aktionen. */
+type DispatchAction =
+  | {type: ReducerActions.MAILS_FETCH_INIT}
+  | {type: ReducerActions.MAILS_FETCH_SUCCESS; payload: MailLogDomain[]}
+  | {type: ReducerActions.MAIL_DELETING_INIT}
+  | {
+      type: ReducerActions.MAIL_DELETING_SUCCESS;
+      payload: {counter: number; mailLog: MailLogDomain[]};
+    }
+  | {type: ReducerActions.SNACKBAR_SET; payload: SnackbarState}
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
-  mailLog: MailLogEntry[];
-  mailProtocols: {[key: MailProtocol["uid"]]: MailProtocol};
+  mailLog: MailLogDomain[];
   error: Error | null;
   isLoading: boolean;
   isDeleting: boolean;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
 };
 
-const inititialState: State = {
+const initialState: State = {
   mailLog: [],
-  mailProtocols: {},
   error: null,
   isLoading: false,
   isDeleting: false,
@@ -119,8 +119,6 @@ const inititialState: State = {
 };
 
 const mailboxReducer = (state: State, action: DispatchAction): State => {
-  // let tempUsers: State["users"] = [];
-  // let index: number;
   switch (action.type) {
     case ReducerActions.MAILS_FETCH_INIT:
       return {
@@ -131,18 +129,7 @@ const mailboxReducer = (state: State, action: DispatchAction): State => {
       return {
         ...state,
         isLoading: false,
-        mailLog: action.payload.value as MailLogEntry[],
-      };
-    case ReducerActions.MAIL_FETCH_INIT:
-      return {...state, isLoading: true};
-    case ReducerActions.MAIL_FETCH_SUCCESS:
-      return {
-        ...state,
-        isLoading: false,
-        mailProtocols: {
-          ...state.mailProtocols,
-          [action.payload.uid]: action.payload,
-        },
+        mailLog: action.payload,
       };
     case ReducerActions.MAIL_DELETING_INIT:
       return {...state, isDeleting: true};
@@ -160,7 +147,7 @@ const mailboxReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.SNACKBAR_SET:
       return {
         ...state,
-        snackbar: action.payload as Snackbar,
+        snackbar: action.payload,
       };
     case ReducerActions.SNACKBAR_CLOSE:
       // Snackbar schliessen
@@ -172,12 +159,11 @@ const mailboxReducer = (state: State, action: DispatchAction): State => {
       // allgemeiner Fehler
       return {
         ...state,
-        error: action.payload as Error,
+        error: action.payload,
         isLoading: false,
       };
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error("Unbekannter ActionType");
   }
 };
 /* ===================================================================
@@ -188,40 +174,44 @@ const mailboxReducer = (state: State, action: DispatchAction): State => {
 // =============================== Base ==============================
 // =================================================================== */
 interface MailProtocolDialogValues {
-  selectedMailProtocoll: null | MailProtocol;
+  selectedMailLogEntry: null | MailLogDomain;
   open: boolean;
 }
+
+/**
+ * Admin-Seite zur Anzeige und Verwaltung der versendeten E-Mails.
+ *
+ * Stellt eine Tabelle aller Mail-Log-Einträge dar, erlaubt die Detail-Ansicht
+ * einzelner Einträge und das Löschen älterer Protokolle.
+ */
 const OverviewMailboxPage = () => {
-  const firebase = useFirebase();
-  const authUser = useAuthUser();
+  const database = useDatabase();
   const classes = useCustomStyles();
   const theme = useTheme();
 
-  const [state, dispatch] = React.useReducer(mailboxReducer, inititialState);
+  const [state, dispatch] = React.useReducer(mailboxReducer, initialState);
   const [tabValue, setTabValue] = React.useState(TabValue.overview);
   const [dialogValues, setDialogValues] =
     React.useState<MailProtocolDialogValues>({
-      selectedMailProtocoll: null,
+      selectedMailLogEntry: null,
       open: false,
     });
   /* ------------------------------------------
 	// Daten aus DB holen
 	// ------------------------------------------ */
   React.useEffect(() => {
-    dispatch({
-      type: ReducerActions.MAILS_FETCH_INIT,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.MAILS_FETCH_INIT});
 
-    MailConsole.getMailboxOverview({firebase: firebase})
+    database.mailLog
+      .getAll()
       .then((result) => {
         dispatch({
           type: ReducerActions.MAILS_FETCH_SUCCESS,
-          payload: {value: result},
+          payload: result,
         });
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: error,
@@ -231,83 +221,73 @@ const OverviewMailboxPage = () => {
   /* ------------------------------------------
 	// Tab-Handler
 	// ------------------------------------------ */
-  const handleTabChange = (event: React.SyntheticEvent, newValue: number) => {
+  const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
   };
   /* ------------------------------------------
-  // User-Profil-PopUp-Handling
+  // Detail-Dialog-Handling
   // ------------------------------------------ */
-  const onOpenDialog = async (maillogUid: MailLogEntry["uid"]) => {
-    if (!maillogUid) {
+  const onOpenDialog = (mailLogId: MailLogDomain["id"]) => {
+    if (!mailLogId) {
       return;
     }
 
-    // Prüfen ob wir dieses Mail bereits gelesen haben.
-    if (
-      !Object.prototype.hasOwnProperty.call(state.mailProtocols, maillogUid)
-    ) {
-      dispatch({
-        type: ReducerActions.MAIL_FETCH_INIT,
-        payload: {},
-      });
-      await MailConsole.getSendProtocol({
-        firebase: firebase,
-        mailUid: maillogUid,
-      }).then((result) => {
-        dispatch({
-          type: ReducerActions.MAIL_FETCH_SUCCESS,
-          payload: result,
-        });
-        setDialogValues({selectedMailProtocoll: result, open: true});
-      });
-    } else {
-      setDialogValues({
-        selectedMailProtocoll: state.mailProtocols[maillogUid],
-        open: true,
-      });
+    // Eintrag aus dem bereits geladenen State suchen
+    const entry = state.mailLog.find((mail) => mail.id === mailLogId);
+    if (entry) {
+      setDialogValues({selectedMailLogEntry: entry, open: true});
     }
   };
   const onDialogClose = () => {
-    setDialogValues({open: false, selectedMailProtocoll: null});
+    setDialogValues({open: false, selectedMailLogEntry: null});
   };
 
-  if (!authUser) {
-    return null;
-  }
   /* ------------------------------------------
   // Handling Mails löschen
   // ------------------------------------------ */
-  const onDeleteMails = (days: number) => {
-    dispatch({type: ReducerActions.MAIL_DELETING_INIT, payload: {}});
+  const onDeleteMails = async (days: number) => {
+    dispatch({type: ReducerActions.MAIL_DELETING_INIT});
 
-    MailConsole.deleteMailProtocols({
-      firebase: firebase,
-      authUser: authUser,
-      dayOffset: days,
-      mailLog: state.mailLog,
-    }).then((result) => {
+    // Datum berechnen, das «days» Tage in der Vergangenheit liegt
+    const cutoffDate = new Date();
+    cutoffDate.setDate(cutoffDate.getDate() - days);
+
+    try {
+      const deletedCount = await database.mailLog.deleteOlderThan(cutoffDate);
+
+      // Lokale Liste filtern – Einträge behalten, die neuer als cutoffDate sind
+      const remainingMailLog = state.mailLog.filter(
+        (mail) => mail.sentAt >= cutoffDate,
+      );
+
       dispatch({
         type: ReducerActions.MAIL_DELETING_SUCCESS,
-        payload: {counter: result.counter, mailLog: result.mailLog},
+        payload: {counter: deletedCount, mailLog: remainingMailLog},
       });
-    });
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as Error,
+      });
+    }
   };
   /* ------------------------------------------
   // Snackbar
   // ------------------------------------------ */
-  const handleSnackbarClose = (event, reason) => {
+  const handleSnackbarClose = (
+    _event: React.SyntheticEvent | Event,
+    reason?: string,
+  ) => {
     if (reason === "clickaway") {
       return;
     }
-    dispatch({
-      type: ReducerActions.SNACKBAR_CLOSE,
-      payload: {},
-    });
+    dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={`${TEXT_MAILBOX} ${TEXT_MONITOR}`} />
+      <PageTitle title={`${TEXT_MAILBOX} ${TEXT_MONITOR}`} breadcrumbs={[SYSTEM_BREADCRUMB]} />
 
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="xl">
@@ -333,7 +313,7 @@ const OverviewMailboxPage = () => {
         </Tabs>
         {tabValue === TabValue.overview && (
           <MaillogTable
-            dbMaillog={state.mailLog}
+            mailLog={state.mailLog}
             onMailLogSelect={onOpenDialog}
           />
         )}
@@ -352,11 +332,11 @@ const OverviewMailboxPage = () => {
         snackbarOpen={state.snackbar.open}
         handleClose={handleSnackbarClose}
       />
-      {dialogValues.selectedMailProtocoll !== null && (
+      {dialogValues.selectedMailLogEntry !== null && (
         <DialogMailProtocol
           dialogOpen={dialogValues.open}
           handleClose={onDialogClose}
-          mailProtocol={dialogValues.selectedMailProtocoll}
+          mailLogEntry={dialogValues.selectedMailLogEntry}
         />
       )}
     </React.Fragment>
@@ -365,17 +345,36 @@ const OverviewMailboxPage = () => {
 /* ===================================================================
 // ========================== Mail-Log Panel =========================
 // =================================================================== */
+
+/** Darstellungstyp für eine Zeile in der DataGrid-Tabelle. */
+type MailLogTableRow = {
+  id: string;
+  subject: string;
+  recipients: string;
+  noRecipients: number;
+  templateName: string;
+  sentAt: Date;
+  deliveryStatus: string;
+};
+
 interface MaillogTableProps {
-  dbMaillog: MailLogEntry[];
-  onMailLogSelect: (mailUid: MailLogEntry["uid"]) => void;
+  mailLog: MailLogDomain[];
+  onMailLogSelect: (mailId: MailLogDomain["id"]) => void;
 }
 
-const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
+/**
+ * Tabelle mit allen Mail-Log-Einträgen.
+ *
+ * Zeigt eine durchsuchbare DataGrid-Ansicht der Mail-Log-Einträge.
+ *
+ * @param mailLog Array der Mail-Log-Domain-Objekte.
+ * @param onMailLogSelect Callback, wenn ein Eintrag geöffnet wird.
+ */
+const MaillogTable = ({mailLog, onMailLogSelect}: MaillogTableProps) => {
   const [searchString, setSearchString] = React.useState("");
-  const [maillog, setMaillog] = React.useState<MailLogOverviewStructure[]>([]);
-
-  const [filteredMaillogUi, setFilteredMaillogUi] = React.useState<
-    MailLogOverviewStructure[]
+  const [tableRows, setTableRows] = React.useState<MailLogTableRow[]>([]);
+  const [filteredTableRows, setFilteredTableRows] = React.useState<
+    MailLogTableRow[]
   >([]);
   const classes = useCustomStyles();
   const theme = useTheme();
@@ -392,7 +391,7 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
 
         return (
           <IconButton
-            aria-label="open User"
+            aria-label="open Mail"
             style={{margin: theme.spacing(1)}}
             size="small"
             onClick={onClick}
@@ -403,11 +402,10 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
       },
     },
     {
-      field: "uid",
-      headerName: TEXT_UID,
+      field: "subject",
+      headerName: TEXT_SUBJECT,
       editable: false,
-      width: 200,
-      cellClassName: () => `super-app ${classes.typographyCode}`,
+      width: 250,
     },
     {
       field: "recipients",
@@ -425,16 +423,22 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
       field: "templateName",
       headerName: TEXT_MAIL_TEMPLATE,
       editable: false,
-      width: 250,
+      width: 200,
     },
     {
-      field: "timestamp",
+      field: "deliveryStatus",
+      headerName: "Status",
+      editable: false,
+      width: 100,
+    },
+    {
+      field: "sentAt",
       headerName: TEXT_TIMESTAMP,
       editable: false,
       width: 200,
       valueFormatter: (value) => {
-        if (value && value instanceof Date) {
-          return value.toLocaleString("de-CH", {
+        if (value && (value as unknown) instanceof Date) {
+          return (value as Date).toLocaleString("de-CH", {
             day: "2-digit",
             month: "2-digit",
             year: "numeric",
@@ -453,59 +457,55 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
   // ------------------------------------------ */
   const clearSearchString = () => {
     setSearchString("");
-    setFilteredMaillogUi(filterMaillog(maillog, ""));
+    setFilteredTableRows(filterMaillog(tableRows, ""));
   };
   const updateSearchString = (
-    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>
+    event: React.ChangeEvent<HTMLTextAreaElement | HTMLInputElement>,
   ) => {
     setSearchString(event.target.value);
-    setFilteredMaillogUi(filterMaillog(maillog, event.target.value as string));
+    setFilteredTableRows(
+      filterMaillog(tableRows, event.target.value as string),
+    );
   };
   /* ------------------------------------------
   // Filter-Logik
   // ------------------------------------------ */
   const filterMaillog = (
-    maillog: MailLogOverviewStructure[],
-    searchString: string
-  ) => {
-    let filteredMaillog: MailLogOverviewStructure[] = [];
-    if (searchString) {
-      searchString = searchString.toLowerCase();
-      filteredMaillog = maillog.filter(
-        (mail) =>
-          mail.uid!.toLocaleLowerCase().includes(searchString) ||
-          mail.recipients.toLowerCase().includes(searchString) ||
-          mail.templateName.toLowerCase().includes(searchString)
-      );
-    } else {
-      filteredMaillog = maillog;
+    rows: MailLogTableRow[],
+    search: string,
+  ): MailLogTableRow[] => {
+    if (!search) {
+      return rows;
     }
-    return filteredMaillog;
+    const lowerSearch = search.toLowerCase();
+    return rows.filter(
+      (row) =>
+        row.subject.toLowerCase().includes(lowerSearch) ||
+        row.recipients.toLowerCase().includes(lowerSearch) ||
+        row.templateName.toLowerCase().includes(lowerSearch),
+    );
   };
   /* ------------------------------------------
   // Initiale Werte
   // ------------------------------------------ */
-  if (dbMaillog.length > 0 && maillog.length === 0) {
-    // Deep-Copy, damit der Cancel-Befehl wieder die DB-Daten zeigt,
-    // werden die Daten hier für die Tabelle geklont.
-    const maillogUiStructure: MailLogOverviewStructure[] = [];
+  if (mailLog.length > 0 && tableRows.length === 0) {
+    // Domain-Objekte in Tabellenzeilen umwandeln
+    const rows: MailLogTableRow[] = mailLog.map((mail) => ({
+      id: mail.id,
+      subject: mail.subject,
+      recipients: mail.recipients.join("; "),
+      noRecipients: mail.recipients.length,
+      templateName: mail.templateName ?? "",
+      sentAt: mail.sentAt,
+      deliveryStatus: mail.deliveryStatus,
+    }));
 
-    dbMaillog.forEach((mail) =>
-      maillogUiStructure.push({
-        uid: mail.uid,
-        recipients: mail.recipients.join("; "),
-        noRecipients: mail.noRecipients,
-        templateName: mail.template.name,
-        timestamp: mail.timestamp,
-      })
-    );
-
-    setMaillog(maillogUiStructure);
+    setTableRows(rows);
   }
 
-  if (!searchString && maillog.length > 0 && filteredMaillogUi.length === 0) {
+  if (!searchString && tableRows.length > 0 && filteredTableRows.length === 0) {
     // Initialer Aufbau
-    setFilteredMaillogUi(filterMaillog(maillog, ""));
+    setFilteredTableRows(filterMaillog(tableRows, ""));
   }
 
   return (
@@ -525,19 +525,19 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
             variant="body2"
             style={{marginTop: "0.5em", marginBottom: "2em"}}
           >
-            {filteredMaillogUi.length == maillog.length
-              ? `${maillog.length} ${TEXT_MAILS}`
-              : `${filteredMaillogUi.length} ${TEXT_FROM.toLowerCase()} ${
-                  maillog.length
+            {filteredTableRows.length == tableRows.length
+              ? `${tableRows.length} ${TEXT_MAILS}`
+              : `${filteredTableRows.length} ${TEXT_FROM.toLowerCase()} ${
+                  tableRows.length
                 } ${TEXT_MAILS}`}
           </Typography>
           <Box component="div" style={{display: "flex", height: "100%"}}>
             <Box component="div" style={{flexGrow: 1}}>
               <DataGrid
                 autoHeight
-                rows={filteredMaillogUi}
+                rows={filteredTableRows}
                 columns={DATA_GRID_COLUMNS}
-                getRowId={(row) => row.uid}
+                getRowId={(row) => row.id}
                 localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
                 getRowClassName={(params) => {
                   if (params.row?.disabled) {
@@ -560,12 +560,20 @@ const MaillogTable = ({dbMaillog, onMailLogSelect}: MaillogTableProps) => {
 // =================================================================== */
 interface DialogMailProtocolProps {
   dialogOpen: boolean;
-  mailProtocol: MailProtocol;
+  mailLogEntry: MailLogDomain;
   handleClose: () => void;
 }
+
+/**
+ * Dialog zur Detailansicht eines einzelnen Mail-Log-Eintrags.
+ *
+ * @param dialogOpen Ob der Dialog geöffnet ist.
+ * @param mailLogEntry Der anzuzeigende Mail-Log-Eintrag.
+ * @param handleClose Callback zum Schliessen des Dialogs.
+ */
 const DialogMailProtocol = ({
   dialogOpen,
-  mailProtocol,
+  mailLogEntry,
   handleClose,
 }: DialogMailProtocolProps) => {
   const classes = useCustomStyles();
@@ -578,73 +586,59 @@ const DialogMailProtocol = ({
       fullWidth={true}
       maxWidth="sm"
     >
-      <DialogTitle
-        sx={classes.dialogHeaderWithPicture}
-        style={{
-          backgroundImage: `url(${
-            mailProtocol.template.data?.headerPictureSrc
-              ? mailProtocol.template.data?.headerPictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
-                  .CARD_PLACEHOLDER_MEDIA
-          })`,
-          backgroundPosition: "center",
-          backgroundSize: "cover",
-          backgroundRepeat: "no-repeat",
-        }}
-      >
+      <DialogTitle sx={classes.dialogHeaderWithPicture}>
         <Typography
           variant="h4"
           component="h1"
           sx={classes.dialogHeaderWithPictureTitle}
           style={{paddingLeft: "2ex"}}
         >
-          {mailProtocol.template.name}
+          {mailLogEntry.templateName ?? mailLogEntry.subject}
         </Typography>
       </DialogTitle>
       <DialogContent style={{overflow: "unset"}}>
+        <Typography>{TEXT_SUBJECT}</Typography>
+        <Typography variant="body2" style={{marginBottom: theme.spacing(2)}}>
+          {mailLogEntry.subject}
+        </Typography>
+
         <Typography>{TEXT_RECIPIENTS}</Typography>
         <List dense style={{marginBottom: theme.spacing(2)}}>
-          {typeof mailProtocol.to === "string" ? (
+          {mailLogEntry.recipients.map((recipient) => (
             <FormListItem
-              key={`recipient_to}`}
-              id={"recipient_to"}
-              value={mailProtocol.to}
+              key={`recipient_${recipient}`}
+              id={`recipient_${recipient}`}
+              value={recipient}
               label={TEXT_RECIPIENT_TO}
             />
-          ) : Array.isArray(mailProtocol.to) ? (
-            mailProtocol.to.map((recipient) => (
-              <FormListItem
-                key={`recipient_to_${recipient}`}
-                id={`recipient_to_${recipient}`}
-                value={recipient}
-                label={TEXT_RECIPIENT_TO}
-              />
-            ))
-          ) : null}
-          {typeof mailProtocol.bcc === "string" ? (
-            <FormListItem
-              key={`recipient_bbc}`}
-              id={"recipient_bbc"}
-              value={mailProtocol.bcc}
-              label={TEXT_RECIPIENT_BBC}
-            />
-          ) : Array.isArray(mailProtocol.bcc) ? (
-            mailProtocol.bcc.map((recipient) => (
-              <FormListItem
-                key={`recipient_to_${recipient}`}
-                id={`recipient_to_${recipient}`}
-                value={recipient}
-                label={TEXT_RECIPIENT_BBC}
-              />
-            ))
-          ) : null}
-        </List>
-        <Typography>{TEXT_MAIL_DATA}</Typography>
-        <List dense style={{marginBottom: theme.spacing(2)}}>
-          {Object.entries(mailProtocol.template.data).map(([key, value]) => (
-            <FormListItem key={key} id={key} value={value} label={key} />
           ))}
         </List>
+
+        {mailLogEntry.details &&
+          Object.keys(mailLogEntry.details).length > 0 && (
+            <React.Fragment>
+              <Typography>{TEXT_MAIL_DATA}</Typography>
+              <List dense style={{marginBottom: theme.spacing(2)}}>
+                {Object.entries(mailLogEntry.details).map(([key, value]) => (
+                  <FormListItem
+                    key={key}
+                    id={key}
+                    value={String(value)}
+                    label={key}
+                  />
+                ))}
+              </List>
+            </React.Fragment>
+          )}
+
+        {mailLogEntry.errorMessage && (
+          <React.Fragment>
+            <Typography color="error">Fehler</Typography>
+            <Typography variant="body2" color="error">
+              {mailLogEntry.errorMessage}
+            </Typography>
+          </React.Fragment>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -657,6 +651,13 @@ interface DeleteMailsPanelProps {
   isDeleting: boolean;
   onDelete: (days: number) => void;
 }
+
+/**
+ * Panel zum Löschen älterer Mail-Protokolle.
+ *
+ * @param isDeleting Ob gerade ein Löschvorgang läuft.
+ * @param onDelete Callback mit der Anzahl Tage als Offset.
+ */
 const DeleteMailsPanel = ({isDeleting, onDelete}: DeleteMailsPanelProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();

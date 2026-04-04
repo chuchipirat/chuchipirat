@@ -1,0 +1,272 @@
+/**
+ * Unit-Tests für UnitConversionBasicRepository.
+ *
+ * Testet toRow/toDomain-Mapping (fromUnit/toUnit ↔ from_unit/to_unit) sowie
+ * die Convenience-Methoden getAllConversions(), saveAllConversions()
+ * (mit Löschung entfernter Einträge) und deleteConversion().
+ */
+import {
+  UnitConversionBasicRepository,
+  UnitConversionBasicDomain,
+  UnitConversionBasicRow,
+} from "../UnitConversionBasicRepository";
+import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
+import {createSupabaseMock, createQueryMock} from "../__mocks__/supabaseMock";
+import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
+
+// SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
+jest.mock("../../../Firebase/Db/sessionStorageHandler.class", () => {
+  const actual = jest.requireActual("../../../Firebase/Db/sessionStorageHandler.class");
+  return {
+    ...actual,
+    SessionStorageHandler: {
+      getDocument: jest.fn().mockReturnValue(null),
+      upsertDocument: jest.fn(),
+      deleteDocument: jest.fn(),
+      updateDocumentField: jest.fn(),
+      incrementFieldValue: jest.fn(),
+    },
+  };
+});
+
+/* =====================================================================
+// Test-Daten
+// ===================================================================== */
+const testRow: UnitConversionBasicRow = {
+  id: "conv-uuid-001",
+  firebase_uid: "fb-conv-001",
+  from_unit: "kg",
+  to_unit: "g",
+  numerator: 1000,
+  denominator: 1,
+  created_at: "2026-01-01T00:00:00Z",
+  created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
+  updated_at: "2026-01-01T00:00:00Z",
+  updated_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
+};
+
+const testRow2: UnitConversionBasicRow = {
+  id: "conv-uuid-002",
+  firebase_uid: "fb-conv-002",
+  from_unit: "l",
+  to_unit: "dl",
+  numerator: 10,
+  denominator: 1,
+  created_at: "2026-02-01T00:00:00Z",
+  created_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
+  updated_at: "2026-02-01T00:00:00Z",
+  updated_by: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
+};
+
+const testDomain: UnitConversionBasicDomain = {
+  uid: "conv-uuid-001",
+  fromUnit: "kg",
+  toUnit: "g",
+  numerator: 1000,
+  denominator: 1,
+};
+
+const authUser = {uid: "auth-uuid-123"} as AuthUser;
+
+/* =====================================================================
+// Tests
+// ===================================================================== */
+describe("UnitConversionBasicRepository", () => {
+  let repo: UnitConversionBasicRepository;
+  let supabaseMock: ReturnType<typeof createSupabaseMock>;
+
+  beforeEach(() => {
+    supabaseMock = createSupabaseMock();
+    repo = new UnitConversionBasicRepository();
+    (repo as any).client = supabaseMock.client;
+  });
+
+  /* ------------------------------------------
+  // Grundlegende Properties
+  // ------------------------------------------ */
+  test("tableName ist 'unit_conversion_basic'", () => {
+    expect(repo.tableName).toBe("unit_conversion_basic");
+  });
+
+  test("getCacheConfig() gibt UNIT_CONVERSION zurück", () => {
+    expect(repo.getCacheConfig()).toBe(STORAGE_OBJECT_PROPERTY.UNIT_CONVERSION);
+  });
+
+  /* ------------------------------------------
+  // toRow / toDomain
+  // ------------------------------------------ */
+  describe("toRow() / toDomain()", () => {
+    test("toRow(): Domain → DB-Zeile — mappt fromUnit/toUnit auf from_unit/to_unit", () => {
+      const row = repo.toRow(testDomain);
+      expect(row.from_unit).toBe("kg");
+      expect(row.to_unit).toBe("g");
+      expect(row.numerator).toBe(1000);
+      expect(row.denominator).toBe(1);
+      // id darf nicht mitgesendet werden
+      expect(row.id).toBeUndefined();
+    });
+
+    test("toDomain(): DB-Zeile → Domain — mappt from_unit/to_unit auf fromUnit/toUnit", () => {
+      const domain = repo.toDomain(testRow);
+      expect(domain.uid).toBe(testRow.id);
+      expect(domain.fromUnit).toBe("kg");
+      expect(domain.toUnit).toBe("g");
+      expect(domain.numerator).toBe(1000);
+      expect(domain.denominator).toBe(1);
+    });
+
+    test("Roundtrip: toRow → toDomain ergibt Ursprungswerte", () => {
+      const row = repo.toRow(testDomain) as UnitConversionBasicRow;
+      row.id = testDomain.uid;
+      row.firebase_uid = null;
+      row.created_at = "2026-01-01T00:00:00Z";
+      row.created_by = "";
+      row.updated_at = "2026-01-01T00:00:00Z";
+      row.updated_by = "";
+      const domain = repo.toDomain(row);
+      expect(domain).toEqual(testDomain);
+    });
+  });
+
+  /* ------------------------------------------
+  // getAllConversions()
+  // ------------------------------------------ */
+  describe("getAllConversions()", () => {
+    test("Lädt alle Umrechnungen sortiert nach from_unit", async () => {
+      const mockData = [testRow, testRow2];
+      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+        data: mockData,
+        error: null,
+      });
+
+      const result = await repo.getAllConversions();
+
+      expect(supabaseMock.client.from).toHaveBeenCalledWith(
+        "unit_conversion_basic"
+      );
+      expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("from_unit", {
+        ascending: true,
+      });
+      expect(result).toHaveLength(2);
+      expect(result[0].fromUnit).toBe("kg");
+      expect(result[1].fromUnit).toBe("l");
+    });
+
+    test("Gibt leeres Array zurück wenn keine Umrechnungen vorhanden", async () => {
+      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+        data: [],
+        error: null,
+      });
+
+      const result = await repo.getAllConversions();
+      expect(result).toHaveLength(0);
+    });
+  });
+
+  /* ------------------------------------------
+  // saveAllConversions()
+  // ------------------------------------------ */
+  describe("saveAllConversions()", () => {
+    test("Löscht entfernte Einträge per batchRemove und upserted neue per batchUpsert", async () => {
+      // saveAllConversions ruft from() 3× auf:
+      // 1. getAllConversions — select().order()
+      // 2. batchRemove — delete().in()
+      // 3. batchUpsert — upsert().select()
+      const loadMock = createQueryMock();
+      loadMock.order = jest.fn().mockResolvedValue({
+        data: [testRow, testRow2],
+        error: null,
+      });
+
+      const deleteMock = createQueryMock();
+      deleteMock.in = jest.fn().mockResolvedValue({error: null});
+
+      const upsertMock = createQueryMock();
+      upsertMock.select = jest.fn().mockResolvedValue({
+        data: [testRow],
+        error: null,
+      });
+
+      supabaseMock.client.from
+        .mockReturnValueOnce(loadMock)    // 1. getAllConversions
+        .mockReturnValueOnce(deleteMock)  // 2. batchRemove
+        .mockReturnValueOnce(upsertMock); // 3. batchUpsert
+
+      // Nur testDomain übergeben — testRow2 (conv-uuid-002) soll gelöscht werden
+      await repo.saveAllConversions([testDomain], authUser);
+
+      // batchRemove: delete().in() für den entfernten Eintrag
+      expect(deleteMock.delete).toHaveBeenCalled();
+      expect(deleteMock.in).toHaveBeenCalledWith(
+        "id",
+        ["conv-uuid-002"],
+      );
+      // batchUpsert: upsert(rows).select() für den verbleibenden Eintrag
+      expect(upsertMock.upsert).toHaveBeenCalledTimes(1);
+    });
+
+    test("Upserted alle Einträge in einem Batch ohne Löschung", async () => {
+      // saveAllConversions ruft from() 2× auf:
+      // 1. getAllConversions — select().order()
+      // 2. batchUpsert — upsert().select()
+      const loadMock = createQueryMock();
+      loadMock.order = jest.fn().mockResolvedValue({data: [], error: null});
+
+      const upsertMock = createQueryMock();
+      upsertMock.select = jest.fn().mockResolvedValue({
+        data: [testRow, testRow2],
+        error: null,
+      });
+
+      supabaseMock.client.from
+        .mockReturnValueOnce(loadMock)    // 1. getAllConversions
+        .mockReturnValueOnce(upsertMock); // 2. batchUpsert
+
+      const conversions: UnitConversionBasicDomain[] = [
+        testDomain,
+        {uid: "conv-uuid-002", fromUnit: "l", toUnit: "dl", numerator: 10, denominator: 1},
+      ];
+      await repo.saveAllConversions(conversions, authUser);
+
+      // Kein Delete, da keine bestehenden Einträge (batchRemove wird mit leerem Array aufgerufen)
+      // Ein Batch-Upsert mit allen Einträgen
+      expect(upsertMock.upsert).toHaveBeenCalledTimes(1);
+      const upsertArg = upsertMock.upsert.mock.calls[0][0];
+      expect(upsertArg).toHaveLength(2);
+    });
+  });
+
+  /* ------------------------------------------
+  // deleteConversion()
+  // ------------------------------------------ */
+  describe("deleteConversion()", () => {
+    test("Löscht eine Umrechnung anhand der UID", async () => {
+      supabaseMock.queryMock.eq = jest.fn().mockResolvedValue({
+        data: null,
+        error: null,
+      });
+
+      await repo.deleteConversion("conv-uuid-001");
+
+      expect(supabaseMock.client.from).toHaveBeenCalledWith(
+        "unit_conversion_basic"
+      );
+      expect(supabaseMock.queryMock.delete).toHaveBeenCalled();
+      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith(
+        "id",
+        "conv-uuid-001"
+      );
+    });
+
+    test("Fehler bei deleteConversion() werfen", async () => {
+      supabaseMock.queryMock.eq = jest.fn().mockResolvedValue({
+        data: null,
+        error: {message: "Delete failed"},
+      });
+
+      await expect(repo.deleteConversion("conv-uuid-001")).rejects.toEqual({
+        message: "Delete failed",
+      });
+    });
+  });
+});

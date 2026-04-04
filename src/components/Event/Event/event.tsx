@@ -1,7 +1,7 @@
+import * as Sentry from "@sentry/react";
 import React, {SyntheticEvent} from "react";
 
-import {useNavigate, useLocation} from "react-router";
-import _ from "lodash";
+import {useNavigate, useLocation, useSearchParams} from "react-router";
 
 import {
   Container,
@@ -17,10 +17,12 @@ import {
   SnackbarCloseReason,
 } from "@mui/material";
 
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
 
-import Event, {EventRefDocuments} from "./event.class";
-import PageTitle from "../../Shared/pageTitle";
+import {Event} from "./event.class";
+// Bridge-Importe eliminiert — Konvertierung erfolgt direkt in den Repositories
+import {resizeImage} from "../../Shared/imageResize";
+import {PageTitle} from "../../Shared/pageTitle";
 
 import {
   MENUPLAN as TEXT_MENUPLAN,
@@ -46,7 +48,6 @@ import {
   DIALOG_TEXT_DELETION_CONFIRMATION as TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
-  DB_DOCUMENT_DELETED as TEXT_DB_DOCUMENT_DELETED,
   CONSISTENCY_CHECK as TEXT_CONSISTENCY_CHECK,
   MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED as TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
   MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES as TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
@@ -55,49 +56,61 @@ import {
 import {HOME as ROUTE_HOME} from "../../../constants/routes";
 
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
-import Unit from "../../Unit/unit.class";
+import {Unit} from "../../Unit/unit.class";
 
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import EventGroupConfiguration from "../GroupConfiguration/groupConfiguration.class";
-import MenuplanPage from "../Menuplan/menuplan";
-import EventGroupConfigurationPage from "../GroupConfiguration/groupConfiguration";
-import EventUsedRecipesPage from "../UsedRecipes/usedRecipes";
-import Menuplan from "../Menuplan/menuplan.class";
-import UsedRecipes from "../UsedRecipes/usedRecipes.class";
-import Utils from "../../Shared/utils.class";
-import RecipeShort from "../../Recipe/recipeShort.class";
-import Material from "../../Material/material.class";
-import Product from "../../Product/product.class";
-import CustomSnackbar, {Snackbar} from "../../Shared/customSnackbar";
+import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
+import {MenuplanPage} from "../Menuplan/menuplan";
+import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
+import {EventUsedRecipesPage} from "../UsedRecipes/usedRecipes";
+import {MenuplanData} from "../Menuplan/menuplan.types";
+import {createEmptyMenuplan, recalculatePortions, adjustMenuplanWithNewDays, fixMenuplan} from "../Menuplan/menuplanService";
+import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
+import {Utils} from "../../Shared/utils.class";
+import {RecipeShort, createEmptyRecipeShort, createShortRecipeFromRecipe} from "../../Recipe/recipe.types";
+import {RecipeType} from "../../Recipe/recipe.class";
+import {RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
+import {Material} from "../../Material/material.types";
+import {Product} from "../../Product/product.types";
+import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import Department from "../../Department/department.class";
-import UnitConversion, {
+import {
   UnitConversionBasic,
   UnitConversionProducts,
 } from "../../Unit/unitConversion.class";
-import EventShoppingListPage from "../ShoppingList/shoppingList";
-import ShoppingListCollection from "../ShoppingList/shoppingListCollection.class";
-import ShoppingList from "../ShoppingList/shoppingList.class";
-import EventMaterialListPage from "../MaterialList/materialList";
-import MaterialList from "../MaterialList/materialList.class";
-import EventInfoPage from "./eventInfo";
-import {FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
+import {EventShoppingListPage} from "../ShoppingList/shoppingList";
+import {ShoppingListCollection} from "../ShoppingList/shoppingListCollection.class";
+import {ShoppingList,ShoppingListItem} from "../ShoppingList/shoppingList.class";
+import {
+  headersDomainToCollection,
+  itemsDomainToShoppingList,
+} from "../ShoppingList/shoppingListAdapter";
+import {EventMaterialListPage} from "../MaterialList/materialList";
+import {MaterialList} from "../MaterialList/materialList.class";
+import {
+  headersDomainToMaterialList,
+  itemsDomainToMaterialListItems,
+} from "../MaterialList/materialListAdapter";
+import {EventInfoPage} from "./eventInfo";
+import {FieldValidationError, FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
 import {
   DialogType,
   SingleTextInputResult,
   useCustomDialog,
 } from "../../Shared/customDialogContext";
-import Action from "../../../constants/actions";
+import {Action} from "../../../constants/actions";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
 import {useFirebase} from "../../Firebase/firebaseContext";
+import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
-import AlertMessage from "../../Shared/AlertMessage";
-import Stats, {StatsField} from "../../Shared/stats.class";
-import {logEvent} from "firebase/analytics";
-import FirebaseAnalyticEvent from "../../../constants/firebaseEvent";
+import {AlertMessage} from "../../Shared/AlertMessage";
+import {Stats, StatsField} from "../../Shared/stats.class";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
+import {HighlightedMenueContext} from "../Menuplan/highlightContext";
+import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
+import {EventMasterDataContext,EventMasterData} from "./eventMasterDataContext";
 
-/* ===================================================================
-// ============================== Global =============================
-// =================================================================== */
 enum EventTabs {
   menuplan,
   quantityCalculation,
@@ -117,6 +130,103 @@ const deriveEventUid = ({event, pathname}: DeriveEventUid) => {
     return pathname.split("/").slice(-1).toString();
   }
 };
+/**
+ * Ermittelt die UIDs von Menüs, die sich zwischen zwei Menuplan-Zuständen
+ * geändert haben. Vergleicht Name, Rezept-/Produkt-/Material-Reihenfolge
+ * und erkennt neu hinzugekommene Menüs.
+ *
+ * @param oldMenuplan - Vorheriger Menuplan-Zustand
+ * @param newMenuplan - Neuer Menuplan-Zustand (z.B. aus Realtime-Reload)
+ * @returns Set mit den UIDs der geänderten Menüs
+ */
+function getChangedMenueUids(
+  oldMenuplan: MenuplanData,
+  newMenuplan: MenuplanData,
+): Set<string> {
+  const changed = new Set<string>();
+  const allUids = new Set([
+    ...Object.keys(oldMenuplan.menues),
+    ...Object.keys(newMenuplan.menues),
+  ]);
+
+  for (const uid of allUids) {
+    const oldM = oldMenuplan.menues[uid];
+    const newM = newMenuplan.menues[uid];
+
+    // Neues Menü hinzugefügt
+    if (!oldM && newM) {
+      changed.add(uid);
+      continue;
+    }
+    // Menü entfernt — kein Highlight nötig (Element existiert nicht mehr)
+    if (!newM) continue;
+
+    // Inhalt vergleichen: Name und Reihenfolge der Kinder
+    if (
+      oldM.name !== newM.name ||
+      oldM.mealRecipeOrder.join(",") !== newM.mealRecipeOrder.join(",") ||
+      oldM.productOrder.join(",") !== newM.productOrder.join(",") ||
+      oldM.materialOrder.join(",") !== newM.materialOrder.join(",")
+    ) {
+      changed.add(uid);
+    }
+  }
+  return changed;
+}
+
+/**
+ * Stabiler Vergleichs-Key für ein Shopping-List-Item.
+ * Verwendet den Artikelnamen statt der UID, da Freitext-Items bei
+ * jedem delete-all + re-insert eine neue Supabase-UUID erhalten.
+ */
+function shoppingListItemKey(item: ShoppingListItem): string {
+  return item.item.name + "_" + item.unit;
+}
+
+/**
+ * Vergleicht zwei ShoppingLists und liefert die Keys der Items zurück,
+ * die sich geändert haben oder neu hinzugekommen sind.
+ *
+ * @param oldList - Bisherige Einkaufsliste (oder null)
+ * @param newList - Neu geladene Einkaufsliste
+ * @returns Set von geänderten Item-Keys (`name_unit`)
+ */
+function getChangedShoppingListItemKeys(
+  oldList: ShoppingList | null,
+  newList: ShoppingList,
+): Set<string> {
+  const changed = new Set<string>();
+
+  // Alte Items in eine Map packen: key → {quantity, checked}
+  const oldMap = new Map<string, {quantity: number; checked: boolean}>();
+  if (oldList) {
+    Object.values(oldList.list).forEach((dept) => {
+      dept.items.forEach((item) => {
+        const key = shoppingListItemKey(item);
+        oldMap.set(key, {quantity: item.quantity, checked: item.checked});
+      });
+    });
+  }
+
+  // Neue Items durchgehen und mit alten vergleichen
+  Object.values(newList.list).forEach((dept) => {
+    dept.items.forEach((item) => {
+      const key = shoppingListItemKey(item);
+      const old = oldMap.get(key);
+
+      if (!old) {
+        // Neues Item
+        changed.add(key);
+      } else if (old.quantity !== item.quantity || old.checked !== item.checked) {
+        // Geänderte Menge oder Checkbox
+        changed.add(key);
+      }
+    });
+  });
+
+  return changed;
+}
+
 export interface OnMenuplanUpdate {
   field: string;
   value: ValueObject;
@@ -151,9 +261,6 @@ function tabProps(index: number) {
     "aria-controls": `scrollable-auto-tabpanel-${index}`,
   };
 }
-/* ===================================================================
-// ============================ Dispatcher ===========================
-// =================================================================== */
 enum ReducerActions {
   EVENT_FETCH_INIT,
   EVENT_FETCH_SUCCESS,
@@ -221,7 +328,7 @@ type DispatchAction =
       type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS;
       payload: EventGroupConfiguration;
     }
-  | {type: ReducerActions.MENUPLAN_FETCH_SUCCESS; payload: Menuplan}
+  | {type: ReducerActions.MENUPLAN_FETCH_SUCCESS; payload: MenuplanData}
   | {type: ReducerActions.USED_RECIPES_FETCH_SUCCESS; payload: UsedRecipes}
   | {
       type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS;
@@ -258,13 +365,13 @@ type DispatchAction =
     }
   | {
       type: ReducerActions.SNACKBAR_SHOW;
-      payload: {severity: Snackbar["severity"]; message: string};
+      payload: {severity: SnackbarState["severity"]; message: string};
     }
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
 type State = {
   event: Event;
-  menuplan: Menuplan;
+  menuplan: MenuplanData;
   groupConfig: EventGroupConfiguration;
   usedRecipes: UsedRecipes;
   shoppingListCollection: ShoppingListCollection;
@@ -279,7 +386,7 @@ type State = {
   departments: Department[];
   unitConversionBasic: UnitConversionBasic | null;
   unitConversionProducts: UnitConversionProducts | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
   isLoading: boolean;
   isSaving: boolean;
   loadingComponents: {
@@ -368,7 +475,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.MENUPLAN_FETCH_SUCCESS:
       return {
         ...state,
-        menuplan: action.payload as Menuplan,
+        menuplan: action.payload as MenuplanData,
         isLoading: Utils.deriveIsLoading({
           ...state.loadingComponents,
           menuplan: false,
@@ -611,11 +718,11 @@ const eventReducer = (state: State, action: DispatchAction): State => {
 
       if (arrayIndex !== -1) {
         updatedRecipeList[arrayIndex] =
-          RecipeShort.createShortRecipeFromRecipe(newRecipe);
+          createShortRecipeFromRecipe(newRecipe);
       } else {
         // Neues Rezept aufnehmen
         updatedRecipeList.push(
-          RecipeShort.createShortRecipeFromRecipe(newRecipe),
+          createShortRecipeFromRecipe(newRecipe),
         );
       }
       // Array sortieren
@@ -669,7 +776,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.GENERIC_ERROR:
       // Allgemeiner Fehler
-      console.warn(action.payload);
+      Sentry.captureException(action.payload);
       return {
         ...state,
         isLoading: false,
@@ -677,7 +784,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       };
     default: {
       const _exhaustiveCheck: never = action;
-      console.error("Unbekannter ActionType: ", _exhaustiveCheck);
+      
       throw new Error();
     }
   }
@@ -685,7 +792,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
 
 const INITITIAL_STATE: State = {
   event: new Event(),
-  menuplan: new Menuplan(),
+  menuplan: createEmptyMenuplan(),
   groupConfig: new EventGroupConfiguration(),
   usedRecipes: new UsedRecipes(),
   shoppingListCollection: new ShoppingListCollection(),
@@ -697,7 +804,7 @@ const INITITIAL_STATE: State = {
   products: [],
   materials: [],
   departments: [],
-  snackbar: {} as Snackbar,
+  snackbar: {} as SnackbarState,
   unitConversionBasic: null,
   unitConversionProducts: null,
   isLoading: false,
@@ -731,31 +838,89 @@ const INTITIAL_STATE_EVENT_DRAF: EventDraftState = {
   localPicture: null,
   formValidation: [],
 };
-interface LocationState {
-  event: Event;
-}
-/* ===================================================================
-// =============================== Page ==============================
-// =================================================================== */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
+/**
+ * Zuordnung von URL-Query-Parameter `?tab=` auf den passenden EventTabs-Wert.
+ * Ermöglicht Deep-Links auf bestimmte Tabs (z.B. aus dem Verwendungsnachweis).
+ */
+const TAB_QUERY_PARAM_MAP: Record<string, EventTabs> = {
+  menuplan: EventTabs.menuplan,
+  shoppinglist: EventTabs.shoppingList,
+  materiallist: EventTabs.materialList,
+  eventinfo: EventTabs.eventInfo,
+};
+
 const EventPage = () => {
   const firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const theme = useTheme();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const {customDialog} = useCustomDialog();
   const navigate = useNavigate();
 
   const classes = useCustomStyles();
   let eventUid = "";
 
+  // Initialen Tab aus ?tab= Query-Parameter ableiten (Deep-Link-Unterstützung)
+  const initialTab = TAB_QUERY_PARAM_MAP[searchParams.get("tab") ?? ""] ?? EventTabs.menuplan;
+
   const [state, dispatch] = React.useReducer(eventReducer, INITITIAL_STATE);
-  const [activeTab, setActiveTab] = React.useState(EventTabs.menuplan);
+  const [activeTab, setActiveTab] = React.useState(initialTab);
   const [eventDraft, setEventDraft] = React.useState(INTITIAL_STATE_EVENT_DRAF);
+  // Flag: Während ein Menuplan-Save läuft, soll die Realtime-Subscription
+  // keine Reloads auslösen — das delete-all + re-insert würde sonst einen
+  // leeren Zwischenstand laden und das optimistische Update überschreiben.
+  const menuplanSaveInProgress = React.useRef(false);
+
+  // Menü-UIDs, die durch einen anderen Benutzer geändert wurden — kurzzeitig
+  // hervorgehoben (Glow-Animation), dann automatisch geleert.
+  const [highlightedMenueUids, setHighlightedMenueUids] = React.useState<
+    Set<string>
+  >(new Set());
+  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+
+  // Shopping-List-Item-Keys, die durch einen anderen Benutzer geändert wurden.
+  const [highlightedShoppingItemKeys, setHighlightedShoppingItemKeys] =
+    React.useState<Set<string>>(new Set());
+  const shoppingHighlightTimeoutRef =
+    React.useRef<ReturnType<typeof setTimeout>>();
+  // Flag: Während ein Shopping-List-Save läuft, Highlighting unterdrücken —
+  // eigene Änderungen sollen nicht hervorgehoben werden.
+  const shoppingListSaveInProgress = React.useRef(false);
+  // Flag: Während ein Material-List-Save läuft, Realtime-Reloads unterdrücken —
+  // eigene Änderungen sollen den optimistischen State nicht überschreiben.
+  const materialListSaveInProgress = React.useRef(false);
+  // Ref für die aktuelle ShoppingList — wird synchron in den Realtime-
+  // Callbacks und beim initialen Laden aktualisiert, damit der nächste
+  // Callback immer den aktuellen Stand als Vergleichsbasis hat.
+  const shoppingListRef = React.useRef<ShoppingList | null>(null);
+  // Ref für den aktuellen Menuplan, damit der Debounce-Callback (der in einem
+  // useEffect mit [] lebt) immer Zugriff auf den neuesten Stand hat.
+  const menuplanRef = React.useRef<MenuplanData>(state.menuplan);
+  React.useEffect(() => {
+    menuplanRef.current = state.menuplan;
+  }, [state.menuplan]);
+
+  // Memoized Stammdaten für Sub-Pages (eliminiert Prop-Drilling)
+  const masterData = React.useMemo<EventMasterData>(
+    () => ({
+      products: state.products,
+      units: state.units,
+      departments: state.departments,
+      unitConversionBasic: state.unitConversionBasic,
+      unitConversionProducts: state.unitConversionProducts,
+    }),
+    [
+      state.products,
+      state.units,
+      state.departments,
+      state.unitConversionBasic,
+      state.unitConversionProducts,
+    ],
+  );
 
   /* ------------------------------------------
   // Daten aus der DB lesen
@@ -768,130 +933,219 @@ const EventPage = () => {
   }
 
   React.useEffect(() => {
-    // Event
-    let unsubscribe: (() => void) | undefined;
+    // Event — Supabase Realtime Subscription
     if (!state.event.uid) {
       dispatch({type: ReducerActions.EVENT_FETCH_INIT, payload: {}});
-      Event.getEventListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (event) => {
-          dispatch({
-            type: ReducerActions.EVENT_FETCH_SUCCESS,
-            payload: event,
-          });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
+
+      // Initialer Load — Köche-Profile werden direkt via RPC geladen
+      database.events
+        .getEvent(eventUid)
+        .then((eventDomain) => {
+          if (eventDomain) {
+            const event = database.events.eventDomainToUi(eventDomain);
+            dispatch({
+              type: ReducerActions.EVENT_FETCH_SUCCESS,
+              payload: event,
+            });
+
+            // Sentry-Kontext setzen, damit Fehler innerhalb eines Events
+            // dem Event zugeordnet werden können.
+            Sentry.setContext("event", {
+              id: event.uid,
+              name: event.name,
+              location: event.location,
+              numberOfDays: event.numberOfDays,
+              cooksCount: event.cooks?.length ?? 0,
+            });
+          }
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
     }
+
+    // Realtime-Subscription für laufende Änderungen
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
+    const unsubscribe = database.events.subscribeToEvent(
+      eventUid,
+      (eventDomain) => {
+        const event = database.events.eventDomainToUi(eventDomain);
+        dispatch({
+          type: ReducerActions.EVENT_FETCH_SUCCESS,
+          payload: event,
+        });
+      },
+      (error) => {
+        Sentry.captureException(error, {extra: {context: "Realtime event subscription"}});
+      },
+    );
+
     return function cleanup() {
-      unsubscribe && unsubscribe();
+      unsubscribe();
+      // Sentry-Event-Kontext zurücksetzen, wenn die Event-Seite verlassen wird.
+      Sentry.setContext("event", null);
     };
   }, []);
   React.useEffect(() => {
-    //Group-Config
-    let unsubscribe: (() => void) | undefined;
+    // Group-Config — Supabase Realtime Subscription
     dispatch({type: ReducerActions.GROUP_CONFIG_FETCH_INIT, payload: {}});
-    try {
-      EventGroupConfiguration.getGroupConfigurationListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (groupConfiguration) => {
-          dispatch({
-            type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-            payload: groupConfiguration,
-          });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
-        })
-        .catch((error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+
+    // Initialer Load
+    database.eventGroupConfig
+      .getGroupConfig(eventUid)
+      .then((gcDomain) => {
+        dispatch({
+          type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
+          payload: database.eventGroupConfig.groupConfigDomainToUi(gcDomain, eventUid),
         });
-    } catch (error) {
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
-    }
+      })
+      .catch((error) => {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      });
+
+    // Realtime-Subscription für laufende Änderungen
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
+    const unsubscribe = database.eventGroupConfig.subscribeToGroupConfig(
+      eventUid,
+      (gcDomain) => {
+        dispatch({
+          type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
+          payload: database.eventGroupConfig.groupConfigDomainToUi(gcDomain, eventUid),
+        });
+      },
+      (error) => {
+        Sentry.captureException(error, {extra: {context: "Realtime groupconfig subscription"}});
+      },
+    );
+
     return function cleanup() {
-      unsubscribe && unsubscribe();
+      unsubscribe();
     };
   }, []);
   React.useEffect(() => {
-    //Menüplan
-    let unsubscribe: (() => void) | undefined;
+    // Menüplan — Supabase Realtime Subscription
     if (!state.menuplan.uid) {
       dispatch({type: ReducerActions.MENUPLAN_FETCH_INIT, payload: {}});
 
-      Menuplan.getMenuplanListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (menuplan) => {
+      // Initialer Load
+      database.menuplan
+        .getMenuplanForUi(eventUid)
+        .then((menuplanData) => {
           dispatch({
             type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
-            payload: menuplan,
+            payload: menuplanData,
           });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
     }
 
+    // Debounced Reload-Funktion — saveMenuplan() löst mehrere Realtime-Events
+    // gleichzeitig aus (delete + insert über 8 Tabellen), daher zusammenfassen.
+    // Während eines Saves wird der Reload übersprungen, damit der leere
+    // Zwischenstand (nach DELETE, vor INSERT) nicht das optimistische Update überschreibt.
+    // Einfache Debounce-Implementierung (ersetzt lodash _.debounce)
+    let debounceTimer: ReturnType<typeof setTimeout> | null = null;
+    const debouncedReload = () => {
+      if (debounceTimer) clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(() => {
+        if (menuplanSaveInProgress.current) return;
+
+        database.menuplan
+          .getMenuplanForUi(eventUid)
+          .then((newMenuplan) => {
+            if (menuplanSaveInProgress.current) return;
+
+            // Geänderte Menüs ermitteln und kurzzeitig hervorheben
+            const changedUids = getChangedMenueUids(
+              menuplanRef.current,
+              newMenuplan,
+            );
+            if (changedUids.size > 0) {
+              setHighlightedMenueUids(changedUids);
+              if (highlightTimeoutRef.current)
+                clearTimeout(highlightTimeoutRef.current);
+              highlightTimeoutRef.current = setTimeout(
+                () => setHighlightedMenueUids(new Set()),
+                2000,
+              );
+            }
+
+            dispatch({
+              type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
+              payload: newMenuplan,
+            });
+          })
+          .catch((error) => {
+            dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+          });
+      }, 200);
+    };
+
+    // Realtime-Subscription für laufende Änderungen
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
+    const unsubscribe = database.menuplan.subscribeToMenuplan(
+      eventUid,
+      debouncedReload,
+      (error) => {
+        Sentry.captureException(error, {extra: {context: "Realtime menuplan subscription"}});
+      },
+    );
+
     return function cleanup() {
-      unsubscribe && unsubscribe();
+      if (debounceTimer) clearTimeout(debounceTimer);
+      unsubscribe();
+      if (highlightTimeoutRef.current)
+        clearTimeout(highlightTimeoutRef.current);
     };
   }, []);
   React.useEffect(() => {
-    // ShoppingList-Collection
-    if (
-      activeTab == EventTabs.shoppingList &&
-      state.event.refDocuments?.includes(EventRefDocuments.shoppingList)
-    ) {
-      let unsubscribe: (() => void) | undefined;
+    // ShoppingList-Collection aus Supabase laden + Realtime-Subscription
+    if (activeTab == EventTabs.shoppingList) {
       dispatch({
         type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_INIT,
         payload: {},
       });
-      ShoppingListCollection.getShoppingListCollectionListener({
-        firebase: firebase,
-        eventUid: eventUid,
-        callback: (shoppingListCollection) => {
+
+      // Initiale Daten laden
+      database.shoppingLists
+        .getListsForEvent(eventUid)
+        .then((headers) => {
+          const collection = headersDomainToCollection(headers, eventUid);
           dispatch({
             type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS,
-            payload: shoppingListCollection,
+            payload: collection,
           });
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
+
+      // Realtime-Subscription für laufende Änderungen
+      const unsubscribe = database.shoppingLists.subscribeToLists(
+        eventUid,
+        (headers) => {
+          const collection = headersDomainToCollection(headers, eventUid);
+          dispatch({
+            type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS,
+            payload: collection,
+          });
+        },
+        (error) => {
+          Sentry.captureException(error, {extra: {context: "Realtime shopping list subscription"}});
+        },
+      );
+
       return function cleanup() {
-        unsubscribe && unsubscribe();
+        unsubscribe();
+        if (shoppingHighlightTimeoutRef.current)
+          clearTimeout(shoppingHighlightTimeoutRef.current);
       };
     }
-  }, [activeTab, state.event.refDocuments]);
+  }, [activeTab]);
   React.useEffect(() => {
-    // Unit Conversion
+    // Unit Conversion — aus Supabase laden
     if (
       (activeTab == EventTabs.quantityCalculation ||
         activeTab == EventTabs.shoppingList) &&
@@ -900,20 +1154,36 @@ const EventPage = () => {
     ) {
       dispatch({type: ReducerActions.UNIT_CONVERSION_FETCH_INIT, payload: {}});
 
-      UnitConversion.getAllConversionBasic({firebase: firebase})
-        .then((result) => {
-          const unitConversionBasic = result;
-          UnitConversion.getAllConversionProducts({firebase: firebase}).then(
-            (result) => {
-              dispatch({
-                type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
-                payload: {
-                  unitConversionBasic: unitConversionBasic,
-                  unitConversionProducts: result,
-                },
-              });
-            },
-          );
+      Promise.all([
+        database.unitConversionBasic.getAllConversions(),
+        database.unitConversionProducts.getAllConversions(),
+      ])
+        .then(([basicDomains, productDomains]) => {
+          // Domain-Arrays in die Map-Strukturen konvertieren
+          const unitConversionBasic: UnitConversionBasic = {};
+          for (const d of basicDomains) {
+            unitConversionBasic[d.uid] = {
+              fromUnit: d.fromUnit,
+              toUnit: d.toUnit,
+              numerator: d.numerator,
+              denominator: d.denominator,
+            };
+          }
+          const unitConversionProducts: UnitConversionProducts = {};
+          for (const d of productDomains) {
+            unitConversionProducts[d.uid] = {
+              fromUnit: d.fromUnit,
+              toUnit: d.toUnit,
+              numerator: d.numerator,
+              denominator: d.denominator,
+              productUid: d.productUid,
+              productName: d.productName,
+            };
+          }
+          dispatch({
+            type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
+            payload: {unitConversionBasic, unitConversionProducts},
+          });
         })
         .catch((error) => {
           dispatch({
@@ -924,22 +1194,29 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Produkte
+    // Produkte — aus Supabase laden
     if (
       (activeTab == EventTabs.quantityCalculation ||
         activeTab == EventTabs.shoppingList) &&
       state.products.length == 0
     ) {
       dispatch({type: ReducerActions.PRODUCTS_FETCH_INIT, payload: {}});
-      Product.getAllProducts({
-        firebase: firebase,
-        onlyUsable: true,
-        withDepartmentName: false,
-      })
-        .then((result) => {
+      database.products
+        .getAllProducts({onlyUsable: true, withDepartmentName: false})
+        .then((productDomains) => {
+          const products: Product[] = productDomains.map((d) => ({
+            uid: d.uid,
+            name: d.name,
+            department: d.department,
+            shoppingUnit: d.shoppingUnit,
+            dietProperties: d.dietProperties,
+            usable: d.usable,
+            qaChecked: false,
+            qaCheckedAt: null,
+          }));
           dispatch({
             type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-            payload: result,
+            payload: products,
           });
         })
         .catch((error) => {
@@ -951,14 +1228,22 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Abteilungen
+    // Abteilungen — aus Supabase laden
     if (activeTab == EventTabs.shoppingList && state.departments.length == 0) {
       dispatch({type: ReducerActions.DEPARTMENTS_FETCH_INIT, payload: {}});
-      Department.getAllDepartments({firebase: firebase})
-        .then((result) => {
+      database.departments
+        .getAllDepartments()
+        .then((deptDomains) => {
+          const departments: Department[] = deptDomains.map((d) => {
+            const dept = new Department();
+            dept.uid = d.uid;
+            dept.name = d.name;
+            dept.pos = d.pos;
+            return dept;
+          });
           dispatch({
             type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-            payload: result,
+            payload: departments,
           });
         })
         .catch((error) => {
@@ -970,7 +1255,7 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Materiale
+    // Materiale — aus Supabase laden
     if (
       (activeTab == EventTabs.shoppingList ||
         activeTab == EventTabs.materialList) &&
@@ -978,14 +1263,12 @@ const EventPage = () => {
     ) {
       dispatch({type: ReducerActions.MATERIALS_FETCH_INIT, payload: {}});
 
-      Material.getAllMaterials({
-        firebase: firebase,
-        onlyUsable: true,
-      })
-        .then((result) => {
+      database.materials
+        .getAllMaterials(true)
+        .then((materialDomains) => {
           dispatch({
             type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-            payload: result,
+            payload: materialDomains,
           });
         })
         .catch((error) => {
@@ -997,17 +1280,23 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Einheiten
+    // Einheiten — aus Supabase laden
     if (activeTab == EventTabs.shoppingList && state.units.length == 0) {
       dispatch({type: ReducerActions.UNTIS_FETCH_INIT, payload: {}});
 
-      Unit.getAllUnits({
-        firebase: firebase,
-      })
-        .then((result) => {
+      database.units
+        .getAllUnits()
+        .then((unitDomains) => {
+          const units: Unit[] = unitDomains.map(
+            (d) => {
+              const u = new Unit({key: d.key, name: d.name});
+              u.dimension = d.dimension as Unit["dimension"];
+              return u;
+            },
+          );
           dispatch({
             type: ReducerActions.UNITS_FETCH_SUCCESS,
-            payload: result,
+            payload: units,
           });
         })
         .catch((error) => {
@@ -1019,72 +1308,109 @@ const EventPage = () => {
     }
   }, [activeTab]);
   React.useEffect(() => {
-    // Verwendete Rezepte
-    if (
-      activeTab == EventTabs.usedRecipes &&
-      state.event.refDocuments?.includes(EventRefDocuments.usedRecipes)
-    ) {
-      let unsubscribe: () => void;
+    // Verwendete Rezepte (Supabase)
+    if (activeTab == EventTabs.usedRecipes) {
       dispatch({type: ReducerActions.USED_RECIPES_FETCH_INIT, payload: {}});
-      UsedRecipes.getUsedRecipesListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (usedRecipes) => {
+
+      // Initialer Load
+      database.usedRecipeLists
+        .getListsForEvent(eventUid)
+        .then((lists) => {
           dispatch({
             type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
-            payload: usedRecipes,
+            payload: UsedRecipes.fromDomainLists({
+              lists,
+              eventUid,
+              menuplan: menuplanRef.current,
+            }),
           });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
+
+      // Realtime-Subscription — bei jeder Änderung Listen neu laden
+      const unsubscribe = database.usedRecipeLists.subscribeToLists(
+        eventUid,
+        (lists) => {
+          dispatch({
+            type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
+            payload: UsedRecipes.fromDomainLists({
+              lists,
+              eventUid,
+              menuplan: menuplanRef.current,
+            }),
+          });
+        },
+        (error) => {
+          Sentry.captureException(error, {extra: {context: "Realtime usedrecipelists subscription"}});
+        },
+      );
+
       return function cleanup() {
         unsubscribe();
       };
     }
-  }, [activeTab, state.event.refDocuments]);
+  }, [activeTab]);
   React.useEffect(() => {
-    // Materialliste
-    if (
-      activeTab == EventTabs.materialList &&
-      state.event.refDocuments?.includes(EventRefDocuments.materialList)
-    ) {
-      let unsubscribe: () => void;
+    // Materialliste (Supabase)
+    if (activeTab == EventTabs.materialList) {
       dispatch({type: ReducerActions.MATERIALLIST_FETCH_INIT, payload: {}});
-      MaterialList.getMaterialListListener({
-        firebase: firebase,
-        uid: eventUid,
-        callback: (materialList) => {
+
+      // Initialer Load
+      database.materialLists
+        .getListsForEvent(eventUid)
+        .then(async (headers) => {
+          const ml = headersDomainToMaterialList(headers, eventUid);
+
+          // Items für alle Listen laden
+          for (const header of headers) {
+            const items = await database.materialLists.getListItems(header.id);
+            ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
+          }
+
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
-            payload: materialList,
+            payload: ml,
           });
-        },
-        errorCallback: (error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      })
-        .then((result) => {
-          unsubscribe = result;
         })
         .catch((error) => {
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
         });
+
+      // Realtime-Subscription auf Kopfzeilen
+      const unsubscribe = database.materialLists.subscribeToLists(
+        eventUid,
+        async (headers) => {
+          // Während eines Saves den Realtime-Reload unterdrücken,
+          // damit der optimistische State nicht überschrieben wird.
+          if (materialListSaveInProgress.current) return;
+
+          const ml = headersDomainToMaterialList(headers, eventUid);
+
+          for (const header of headers) {
+            const items = await database.materialLists.getListItems(header.id);
+            ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
+          }
+
+          dispatch({
+            type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
+            payload: ml,
+          });
+        },
+        (error) => {
+          Sentry.captureException(error, {extra: {context: "Realtime materiallists subscription"}});
+        },
+      );
+
       return function cleanup() {
         unsubscribe();
       };
     }
-  }, [activeTab, state.event.refDocuments]);
+  }, [activeTab]);
   React.useEffect(() => {
     if (activeTab === EventTabs.eventInfo && !eventDraft.event.uid) {
-      setEventDraft(_.cloneDeep({...eventDraft, event: state.event}));
+      setEventDraft(structuredClone({...eventDraft, event: state.event}));
     }
   }, [activeTab]);
   if (!authUser) {
@@ -1099,16 +1425,35 @@ const EventPage = () => {
   /* ------------------------------------------
   // Change-Handling
   // ------------------------------------------ */
-  const onMenuplanUpdate = (menuplan: Menuplan) => {
-    Menuplan.save({
-      menuplan: menuplan,
-      firebase: firebase,
-      authUser: authUser as AuthUser,
-    }).catch((error) => {
-      console.error(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-    });
-    // Kein zurückschreiben in den State, da der Listener, das wieder erhält....
+  const onMenuplanUpdate = (menuplan: MenuplanData) => {
+    // Vorherigen Zustand sichern für Rollback bei Fehler
+    const previousMenuplan = state.menuplan;
+
+    // Optimistisches Update: State sofort aktualisieren, damit die UI
+    // den neuen Zustand zeigt, ohne auf den Realtime-Roundtrip zu warten.
+    // (saveMenuplan macht delete-all + re-insert, was mehrere Realtime-Events
+    // auslöst, die durch den Debounce verloren gehen können.)
+    dispatch({type: ReducerActions.MENUPLAN_FETCH_SUCCESS, payload: menuplan});
+
+    // Save-Flag setzen, damit Realtime-Reloads den optimistischen State nicht
+    // mit leerem Zwischenstand (nach DELETE, vor INSERT) überschreiben.
+    menuplanSaveInProgress.current = true;
+
+    database.menuplan
+      .saveMenuplanFromUi(eventUid, menuplan, authUser as AuthUser)
+      .then(() => {
+        menuplanSaveInProgress.current = false;
+      })
+      .catch((error) => {
+        menuplanSaveInProgress.current = false;
+        Sentry.captureException(error, {extra: {context: "Menuplan-Speichern"}});
+        // Rollback: vorherigen Zustand wiederherstellen, damit keine Daten verloren gehen
+        dispatch({
+          type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
+          payload: previousMenuplan,
+        });
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      });
   };
   const onRecipeUpdate = (recipe: Recipe) => {
     // in den bestehenden Rezepten anpassen
@@ -1121,10 +1466,9 @@ const EventPage = () => {
     // Alle Portionen im Menüplan neu berechnen und update
     groupConfiguration: EventGroupConfiguration,
   ) => {
-    const menuplan = Menuplan.recalculatePortions({
+    const menuplan = recalculatePortions({
       menuplan: state.menuplan,
       groupConfig: groupConfiguration,
-      firebase: firebase,
     });
 
     // neuer Menüplan speichern
@@ -1133,78 +1477,36 @@ const EventPage = () => {
     // Kein zurückschreiben in den State, da der Listener, das wieder erhält....
   };
   const onShoppingListUpdate = (shoppingList: ShoppingList) => {
-    ShoppingList.save({
-      firebase: firebase,
-      eventUid: state.event.uid,
-      shoppingList: shoppingList,
-      authUser: authUser,
+    // Optimistisches State-Update — Persistenz erfolgt direkt in useShoppingListHandlers
+    // via Repository. Die Realtime-Subscription synchronisiert den Zustand.
+    dispatch({
+      type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
+      payload: shoppingList,
     });
-    // Kein zurückschreiben in den State, da der Listener, das wieder erhält....
   };
   const onShoppingCollectionUpdate = (
     shoppingListCollection: ShoppingListCollection,
   ) => {
-    ShoppingListCollection.save({
-      firebase: firebase,
-      eventUid: state.event.uid,
-      shoppingListCollection: shoppingListCollection,
-      authUser: authUser,
-    }).then(() => {
-      if (!state.event.refDocuments?.includes(EventRefDocuments.shoppingList)) {
-        // Den Event-Updaten mit der Info, dass ein neues Dokument vorhanden ist
-        // dann springt auch der Listener für die Used Recipes an.
-        const updateRefDocuments = Event.addRefDocument({
-          refDocuments: state.event.refDocuments,
-          newDocumentType: EventRefDocuments.shoppingList,
-        });
-        Event.save({
-          firebase: firebase,
-          event: {...state.event, refDocuments: updateRefDocuments},
-          authUser: authUser,
-        });
-      }
+    // Optimistisches State-Update — Persistenz erfolgt direkt in useShoppingListHandlers
+    dispatch({
+      type: ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_SUCCESS,
+      payload: shoppingListCollection,
     });
   };
   const onUsedRecipesUpdate = (usedRecipes: UsedRecipes) => {
-    UsedRecipes.save({
-      firebase: firebase,
-      usedRecipes: usedRecipes,
-      authUser: authUser,
-    }).then(() => {
-      if (!state.event.refDocuments?.includes(EventRefDocuments.usedRecipes)) {
-        // Den Event-Updaten mit der Info, dass ein neues Dokument vorhanden ist
-        // dann springt auch der Listener für die Used Recipes an.
-        const updateRefDocuments = Event.addRefDocument({
-          refDocuments: state.event.refDocuments,
-          newDocumentType: EventRefDocuments.usedRecipes,
-        });
-        Event.save({
-          firebase: firebase,
-          event: {...state.event, refDocuments: updateRefDocuments},
-          authUser: authUser,
-        });
-      }
+    // Optimistisches State-Update — Persistenz erfolgt direkt in usedRecipes.tsx
+    // via Repository. Die Realtime-Subscription synchronisiert den Zustand.
+    dispatch({
+      type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
+      payload: usedRecipes,
     });
   };
   const onMaterialListUpdate = (materialList: MaterialList) => {
-    MaterialList.save({
-      firebase: firebase,
-      materialList: materialList,
-      authUser: authUser,
-    }).then(() => {
-      if (!state.event.refDocuments?.includes(EventRefDocuments.materialList)) {
-        // Den Event-Updaten mit der Info, dass ein neues Dokument vorhanden ist
-        // dann springt auch der Listener für die Used Recipes an.
-        const updateRefDocuments = Event.addRefDocument({
-          refDocuments: state.event.refDocuments,
-          newDocumentType: EventRefDocuments.materialList,
-        });
-        Event.save({
-          firebase: firebase,
-          event: {...state.event, refDocuments: updateRefDocuments},
-          authUser: authUser,
-        });
-      }
+    // Optimistisches State-Update — Persistenz erfolgt direkt in useMaterialListHandlers
+    // via Repository. Die Realtime-Subscription synchronisiert den Zustand.
+    dispatch({
+      type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
+      payload: materialList,
     });
   };
   const onEventUpdate = (event: Event) => {
@@ -1222,20 +1524,32 @@ const EventPage = () => {
   };
   const onEventSave = async (event: Event) => {
     dispatch({type: ReducerActions.EVENT_SAVE_INIT, payload: {}});
-    await Event.save({
-      firebase: firebase,
-      event: event,
-      localPicture: eventDraft.localPicture,
-      authUser: authUser,
-    })
-      .then(() => {
-        setEventDraft({...eventDraft, event: event});
-        dispatch({type: ReducerActions.EVENT_SAVE_SUCCESS, payload: {}});
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
+    try {
+      // Bild hochladen, falls vorhanden
+      if (eventDraft.localPicture) {
+        const resized = await resizeImage(eventDraft.localPicture);
+        const uploadResult = await database.storage.events.upload(
+          event.uid + ".jpg",
+          resized,
+          "image/jpeg",
+        );
+        event.pictureSrc = uploadResult.publicUrl;
+      }
+
+      // Event-Kopfdaten speichern
+      const eventDomain = database.events.eventUiToDomain(event);
+      await database.events.updateEvent(eventDomain, authUser as AuthUser);
+
+      // Zeitscheiben speichern
+      const dateDomains = database.events.eventDatesToDateDomains(event.dates);
+      await database.events.saveDates(event.uid, dateDomains, authUser as AuthUser);
+
+      setEventDraft((prev) => ({...prev, event: event, localPicture: null, formValidation: []}));
+      dispatch({type: ReducerActions.EVENT_SAVE_SUCCESS, payload: {}});
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
   const onEventPictureUpdate = (picture: File | null) => {
     setEventDraft({
@@ -1247,18 +1561,45 @@ const EventPage = () => {
   // Handling Einstellungen Event
   // ------------------------------------------ */
   const onEventDiscardChanges = () => {
-    setEventDraft(_.cloneDeep({...eventDraft, event: state.event}));
+    setEventDraft(structuredClone({...eventDraft, event: state.event}));
   };
   const onEventSaveChanges = async () => {
+    // Leere Datumszeilen entfernen und Pflichtfelder validieren
+    const preparedEvent = {...eventDraft.event};
+    preparedEvent.dates = Event.deleteEmptyDates(preparedEvent.dates);
+    try {
+      Event.checkEventData(preparedEvent);
+    } catch (error) {
+      if (error instanceof FieldValidationError) {
+        setEventDraft((prev) => ({
+          ...prev,
+          event: preparedEvent,
+          formValidation: error.formValidation,
+        }));
+        // Zum ersten fehlerhaften Feld scrollen
+        const firstField = error.formValidation[0]?.fieldName;
+        if (firstField) {
+          document.getElementById(firstField)?.scrollIntoView({behavior: "smooth"});
+        }
+        return;
+      }
+      throw error;
+    }
+    // Validierung bestanden → formValidation zurücksetzen
+    setEventDraft((prev) => ({...prev, event: preparedEvent, formValidation: []}));
+
     // Prüfen ob die Anzahl Tage unterschiedlich sind,
     // wenn durch die Änderung Tage gelöscht wurden und
     // im Menüplan in diesen Tage in den Menüs etwas steht
     // Warnmeldung ausgeben, dass Daten allefalls gelöscht
     // werden.
 
+    // TODO: Prüfen ob diese Warnung korrekt funktioniert, sobald der Menuplan
+    // vollständig über Supabase läuft. Falls Zeitscheiben gelöscht werden, die
+    // bereits geplante Mahlzeiten/Menüs enthalten, muss die Warnung erscheinen.
     if (
       Event.checkIfDeletedDayArePlanned({
-        event: eventDraft.event,
+        event: preparedEvent,
         menuplan: state.menuplan,
       })
     ) {
@@ -1274,9 +1615,9 @@ const EventPage = () => {
         return;
       }
     }
-    const updatedMenuplan = Menuplan.adjustMenuplanWithNewDays({
+    const updatedMenuplan = adjustMenuplanWithNewDays({
       menuplan: state.menuplan,
-      newEvent: eventDraft.event,
+      newEvent: preparedEvent,
       existingEvent: state.event,
     });
 
@@ -1284,16 +1625,16 @@ const EventPage = () => {
     Stats.incrementStat({
       firebase: firebase,
       field: StatsField.noPlanedDays,
-      value: eventDraft.event.numberOfDays - state.event.numberOfDays,
+      value: preparedEvent.numberOfDays - state.event.numberOfDays,
     });
 
     onMenuplanUpdate(updatedMenuplan);
-    onEventSave(eventDraft.event);
+    onEventSave(preparedEvent);
     dispatch({
       type: ReducerActions.SNACKBAR_SHOW,
       payload: {
         severity: "success",
-        message: TEXT_EVENT_SAVE_SUCCESS(state.event.name),
+        message: TEXT_EVENT_SAVE_SUCCESS(preparedEvent.name),
       },
     });
   };
@@ -1311,35 +1652,39 @@ const EventPage = () => {
       return;
     }
     dispatch({type: ReducerActions.EVENT_DELETE_START, payload: {}});
-    await Event.delete({
-      event: state.event,
-      firebase: firebase,
-      authUser: authUser,
-    })
-      .then(() => {
-        // Kurzer Timeout, damit der Session-Storage nachmag
-        setTimeout(function () {
-          navigate(ROUTE_HOME, {
-            state: {
-              acion: Action.DELETE,
-              object: state.event.uid,
-              snackbar: {
-                open: true,
-                severity: "success",
-                message: `Anlass «${state.event.name}» wurde gelöscht.`,
-              },
+    try {
+      // Bild löschen (Fehler ignorieren, falls kein Bild vorhanden)
+      await database.storage.events
+        .remove(state.event.uid + ".jpg")
+        .catch(() => {});
+
+      // Event löschen — CASCADE entfernt alle Supabase-Kinder
+      // (MaterialLists, ShoppingLists, UsedRecipes etc.)
+      await database.events.deleteEvent(state.event.uid);
+      trackEvent(AnalyticsEvent.EVENT_DELETED);
+
+      // Kurzer Timeout, damit der Session-Storage nachmag
+      setTimeout(function () {
+        navigate(ROUTE_HOME, {
+          state: {
+            acion: Action.DELETE,
+            object: state.event.uid,
+            snackbar: {
+              open: true,
+              severity: "success",
+              message: `Anlass «${state.event.name}» wurde gelöscht.`,
             },
-          });
-        }, 500);
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-      });
+          },
+        });
+      }, 500);
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
   const onEventConsistencyCheck = () => {
-    console.debug("Starte Konsistenzprüfung für Event:");
-    const fixedMenuplan = Menuplan.fixMenuplan(state.menuplan);
+    Sentry.addBreadcrumb({category: "event.consistency", message: "Starte Konsistenzprüfung"});
+    const fixedMenuplan = fixMenuplan(state.menuplan);
 
     if (!fixedMenuplan.isConsistent) {
       // Neuer Menüplan speichern
@@ -1353,10 +1698,7 @@ const EventPage = () => {
           message: TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
         },
       });
-      logEvent(
-        firebase.analytics,
-        FirebaseAnalyticEvent.menuplanConsistencyCheckErrorsFound,
-      );
+      trackEvent(AnalyticsEvent.MENUPLAN_CONSISTENCY_ERRORS);
     } else {
       dispatch({
         type: ReducerActions.SNACKBAR_SHOW,
@@ -1365,12 +1707,8 @@ const EventPage = () => {
           message: TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
         },
       });
-      logEvent(
-        firebase.analytics,
-        FirebaseAnalyticEvent.menuplanConsistencyCheckNoErrors,
-      );
     }
-    console.debug;
+    Sentry.addBreadcrumb({category: "event.consistency", message: "Konsistenzprüfung abgeschlossen"});
     ("Konsistenzprüfung abgeschlossen.");
   };
   /* ------------------------------------------
@@ -1384,19 +1722,47 @@ const EventPage = () => {
     switch (type) {
       case FetchMissingDataType.RECIPES:
         dispatch({type: ReducerActions.RECIPE_LIST_FETCH_INIT, payload: {}});
-        RecipeShort.getShortRecipes({
-          firebase: firebase,
-          authUser: authUser,
-          eventUid: state.event.uid,
-        })
-          .then((result) => {
+        // Rezepte aus Supabase laden (öffentliche + private + Varianten dieses Events)
+        Promise.all([
+          database.recipes.getAllPublicRecipeShorts(),
+          database.recipes.getPrivateRecipeShortsForUser(authUser.uid),
+          database.recipes.getVariantShortsForEvent(state.event.uid),
+        ])
+          .then(([publicRecipes, privateRecipes, variantRecipes]) => {
+            // RecipeShortDomain → RecipeShort konvertieren
+            const toRecipeShort = (d: RecipeShortDomain): RecipeShort => {
+              const rs = createEmptyRecipeShort();
+              rs.uid = d.uid;
+              rs.name = d.name;
+              rs.source = d.source;
+              rs.pictureSrc = d.pictureSrc;
+              rs.tags = d.tags;
+              rs.menuTypes = d.menuTypes;
+              rs.dietProperties = {
+                allergens: d.dietProperties.allergens,
+                diet: d.dietProperties.diet,
+              };
+              rs.outdoorKitchenSuitable = d.outdoorKitchenSuitable;
+              rs.rating = {avgRating: d.avgRating, noRatings: d.noRatings};
+              rs.noComments = d.noComments;
+              rs.type = d.recipeType as RecipeType;
+              rs.variantName = d.variantName ?? undefined;
+              rs.created = {date: d.createdAt, fromUid: d.createdBy, fromDisplayName: ""};
+              return rs;
+            };
+            const allRecipes = [
+              ...publicRecipes.map(toRecipeShort),
+              ...privateRecipes.map(toRecipeShort),
+              ...variantRecipes.map(toRecipeShort),
+            ];
+            allRecipes.sort((a, b) => a.name.localeCompare(b.name));
             dispatch({
               type: ReducerActions.RECIPE_LIST_FETCH_SUCCESS,
-              payload: result,
+              payload: allRecipes,
             });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -1415,15 +1781,22 @@ const EventPage = () => {
           payload: recipeShort,
         });
 
-        Recipe.getRecipe({
-          firebase: firebase,
-          authUser: authUser,
-          uid: recipeShort.uid,
-          type: recipeShort.type,
-          userUid: recipeShort.created.fromUid,
-          eventUid: state.event.uid,
-        })
-          .then((result) => {
+        // Rezept aus Supabase laden (Header + Zutaten + Schritte + Material)
+        Promise.all([
+          database.recipes.getRecipe(recipeShort.uid),
+          database.recipeIngredients.getIngredientsForRecipe(recipeShort.uid),
+          database.recipePreparationSteps.getStepsForRecipe(recipeShort.uid),
+          database.recipeMaterials.getMaterialsForRecipe(recipeShort.uid),
+        ])
+          .then(([header, ingredients, steps, materials]) => {
+            if (!header) throw new Error("Rezept nicht gefunden");
+            const result = Recipe.fromRepositoryData(
+              header,
+              ingredients,
+              steps,
+              materials,
+            );
+
             dispatch({
               type: ReducerActions.RECIPE_FETCH_SUCCESS,
               payload: result,
@@ -1443,11 +1816,17 @@ const EventPage = () => {
           payload: {},
         });
 
-        Unit.getAllUnits({firebase: firebase})
-          .then((result) => {
+        database.units
+          .getAllUnits()
+          .then((unitDomains) => {
+            const units: Unit[] = unitDomains.map((d) => {
+              const u = new Unit({key: d.key, name: d.name});
+              u.dimension = d.dimension as Unit["dimension"];
+              return u;
+            });
             dispatch({
               type: ReducerActions.UNITS_FETCH_SUCCESS,
-              payload: result,
+              payload: units,
             });
           })
           .catch((error) => {
@@ -1464,15 +1843,22 @@ const EventPage = () => {
           payload: {},
         });
 
-        Product.getAllProducts({
-          firebase: firebase,
-          onlyUsable: true,
-          withDepartmentName: false,
-        })
-          .then((result) => {
+        database.products
+          .getAllProducts({onlyUsable: true, withDepartmentName: false})
+          .then((productDomains) => {
+            const products: Product[] = productDomains.map((d) => ({
+              uid: d.uid,
+              name: d.name,
+              department: d.department,
+              shoppingUnit: d.shoppingUnit,
+              dietProperties: d.dietProperties,
+              usable: d.usable,
+              qaChecked: false,
+              qaCheckedAt: null,
+            }));
             dispatch({
               type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-              payload: result,
+              payload: products,
             });
           })
           .catch((error) => {
@@ -1489,14 +1875,12 @@ const EventPage = () => {
           payload: {},
         });
 
-        Material.getAllMaterials({
-          firebase: firebase,
-          onlyUsable: true,
-        })
-          .then((result) => {
+        database.materials
+          .getAllMaterials(true)
+          .then((materialDomains) => {
             dispatch({
               type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-              payload: result,
+              payload: materialDomains,
             });
           })
           .catch((error) => {
@@ -1513,11 +1897,19 @@ const EventPage = () => {
           payload: {},
         });
 
-        Department.getAllDepartments({firebase: firebase})
-          .then((result) => {
+        database.departments
+          .getAllDepartments()
+          .then((deptDomains) => {
+            const departments: Department[] = deptDomains.map((d) => {
+              const dept = new Department();
+              dept.uid = d.uid;
+              dept.name = d.name;
+              dept.pos = d.pos;
+              return dept;
+            });
             dispatch({
               type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-              payload: result,
+              payload: departments,
             });
           })
           .catch((error) => {
@@ -1532,20 +1924,35 @@ const EventPage = () => {
           type: ReducerActions.UNIT_CONVERSION_FETCH_INIT,
           payload: {},
         });
-        UnitConversion.getAllConversionBasic({firebase: firebase})
-          .then((result) => {
-            const unitConversionBasic = result;
-            UnitConversion.getAllConversionProducts({firebase: firebase}).then(
-              (result) => {
-                dispatch({
-                  type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
-                  payload: {
-                    unitConversionBasic: unitConversionBasic,
-                    unitConversionProducts: result,
-                  },
-                });
-              },
-            );
+        Promise.all([
+          database.unitConversionBasic.getAllConversions(),
+          database.unitConversionProducts.getAllConversions(),
+        ])
+          .then(([basicDomains, productDomains]) => {
+            const unitConversionBasic: UnitConversionBasic = {};
+            for (const d of basicDomains) {
+              unitConversionBasic[d.uid] = {
+                fromUnit: d.fromUnit,
+                toUnit: d.toUnit,
+                numerator: d.numerator,
+                denominator: d.denominator,
+              };
+            }
+            const unitConversionProducts: UnitConversionProducts = {};
+            for (const d of productDomains) {
+              unitConversionProducts[d.uid] = {
+                fromUnit: d.fromUnit,
+                toUnit: d.toUnit,
+                numerator: d.numerator,
+                denominator: d.denominator,
+                productUid: d.productUid,
+                productName: d.productName,
+              };
+            }
+            dispatch({
+              type: ReducerActions.UNIT_CONVERSION_FETCH_SUCCES,
+              payload: {unitConversionBasic, unitConversionProducts},
+            });
           })
           .catch((error) => {
             dispatch({
@@ -1560,32 +1967,88 @@ const EventPage = () => {
           state.shoppingList.unsubscribe();
         }
         dispatch({type: ReducerActions.SHOPPINGLIST_FETCH_INIT, payload: {}});
-        ShoppingList.getShoppingListListener({
-          firebase: firebase,
-          eventUid: eventUid,
-          shoppingListUid: objectUid as string,
-          callback: (shoppingList) => {
+
+        // Items aus Supabase laden
+        database.shoppingLists
+          .getListItems(objectUid as string)
+          .then((items) => {
+            const shoppingList = itemsDomainToShoppingList(
+              items,
+              objectUid as string,
+            );
+            // Ref sofort setzen — Basis für Realtime-Vergleiche
+            shoppingListRef.current = shoppingList;
             dispatch({
               type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
               payload: shoppingList,
             });
-          },
-          errorCallback: (error) => {
-            if (error.message !== TEXT_DB_DOCUMENT_DELETED) {
-              dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-            }
-          },
-        })
-          .then((result) => {
-            dispatch({
-              type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_LISTENER,
-              payload: result,
-            });
           })
           .catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
             dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
           });
+
+        // Realtime-Subscription für Item-Änderungen
+        {
+          const unsubscribe = database.shoppingLists.subscribeToListItems(
+            objectUid as string,
+            (items) => {
+              const newShoppingList = itemsDomainToShoppingList(
+                items,
+                objectUid as string,
+              );
+
+              // Leere Liste ignorieren — entsteht kurzzeitig beim
+              // delete-all + re-insert in saveListItems(). Würde sonst
+              // den Ref auf leer setzen und beim INSERT alles highlighten.
+              const newItemCount = Object.values(newShoppingList.list)
+                .reduce((sum, dept) => sum + dept.items.length, 0);
+              const oldItemCount = shoppingListRef.current
+                ? Object.values(shoppingListRef.current.list)
+                    .reduce((sum, dept) => sum + dept.items.length, 0)
+                : 0;
+
+              if (newItemCount === 0 && oldItemCount > 0) {
+                return;
+              }
+
+              // Highlighting nur für Änderungen anderer Benutzer —
+              // eigene Saves setzen shoppingListSaveInProgress.
+              if (!shoppingListSaveInProgress.current && newItemCount > 0) {
+                const changedKeys = getChangedShoppingListItemKeys(
+                  shoppingListRef.current,
+                  newShoppingList,
+                );
+                if (changedKeys.size > 0) {
+                  setHighlightedShoppingItemKeys(changedKeys);
+                  if (shoppingHighlightTimeoutRef.current)
+                    clearTimeout(shoppingHighlightTimeoutRef.current);
+                  shoppingHighlightTimeoutRef.current = setTimeout(
+                    () => setHighlightedShoppingItemKeys(new Set()),
+                    2000,
+                  );
+                }
+              }
+
+              // Ref sofort aktualisieren, damit der nächste Realtime-Callback
+              // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
+              // asynchronen useEffect-Zyklus zu warten.
+              shoppingListRef.current = newShoppingList;
+
+              dispatch({
+                type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
+                payload: newShoppingList,
+              });
+            },
+            (error) => {
+              Sentry.captureException(error, {extra: {context: "Realtime shopping list items subscription"}});
+            },
+          );
+          dispatch({
+            type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_LISTENER,
+            payload: unsubscribe,
+          });
+        }
     }
   };
   /* ------------------------------------------
@@ -1709,25 +2172,27 @@ const EventPage = () => {
         )}
       </Container>
       {!state.error && (
-        <React.Fragment>
+        <EventMasterDataContext.Provider value={masterData}>
           {activeTab == EventTabs.menuplan ? (
-            <MenuplanPage
-              menuplan={state.menuplan}
-              groupConfiguration={state.groupConfig}
-              event={state.event}
-              recipeList={state.recipeList}
-              recipes={state.recipes}
-              units={state.units}
-              products={state.products}
-              materials={state.materials}
-              departments={state.departments}
-              firebase={firebase}
-              authUser={authUser}
-              onMenuplanUpdate={onMenuplanUpdate}
-              fetchMissingData={fetchMissingData}
-              onMasterdataCreate={onMasterdataCreate}
-              onRecipeUpdate={onRecipeUpdate}
-            />
+            <HighlightedMenueContext.Provider value={highlightedMenueUids}>
+              <MenuplanPage
+                menuplan={state.menuplan}
+                groupConfiguration={state.groupConfig}
+                event={state.event}
+                recipeList={state.recipeList}
+                recipes={state.recipes}
+                units={state.units}
+                products={state.products}
+                materials={state.materials}
+                departments={state.departments}
+                firebase={firebase}
+                authUser={authUser}
+                onMenuplanUpdate={onMenuplanUpdate}
+                fetchMissingData={fetchMissingData}
+                onMasterdataCreate={onMasterdataCreate}
+                onRecipeUpdate={onRecipeUpdate}
+              />
+            </HighlightedMenueContext.Provider>
           ) : activeTab == EventTabs.quantityCalculation ? (
             <Container>
               <EventGroupConfigurationPage
@@ -1743,46 +2208,39 @@ const EventPage = () => {
           ) : activeTab == EventTabs.usedRecipes ? (
             <Container>
               <EventUsedRecipesPage
-                firebase={firebase}
                 authUser={authUser}
                 event={state.event}
                 groupConfiguration={state.groupConfig}
                 menuplan={state.menuplan}
                 usedRecipes={state.usedRecipes}
-                products={state.products}
-                units={state.units}
-                unitConversionBasic={state.unitConversionBasic}
-                unitConversionProducts={state.unitConversionProducts}
                 fetchMissingData={fetchMissingData}
                 onUsedRecipesUpdate={onUsedRecipesUpdate}
               />
             </Container>
           ) : activeTab == EventTabs.shoppingList ? (
             <Container>
-              <EventShoppingListPage
-                firebase={firebase}
-                authUser={authUser}
-                menuplan={state.menuplan}
-                event={state.event}
-                products={state.products}
-                materials={state.materials}
-                units={state.units}
-                departments={state.departments}
-                recipes={state.recipes}
-                unitConversionBasic={state.unitConversionBasic}
-                unitConversionProducts={state.unitConversionProducts}
-                shoppingListCollection={state.shoppingListCollection}
-                shoppingList={state.shoppingList.value}
-                fetchMissingData={fetchMissingData}
-                onShoppingListUpdate={onShoppingListUpdate}
-                onShoppingCollectionUpdate={onShoppingCollectionUpdate}
-                // onMasterdataCreate={onMasterdataCreate}
-              />
+              <HighlightedShoppingListItemContext.Provider
+                value={highlightedShoppingItemKeys}
+              >
+                <EventShoppingListPage
+                  authUser={authUser}
+                  menuplan={state.menuplan}
+                  event={state.event}
+                  materials={state.materials}
+                  recipes={state.recipes}
+                  shoppingListCollection={state.shoppingListCollection}
+                  shoppingList={state.shoppingList.value}
+                  saveInProgressRef={shoppingListSaveInProgress}
+                  fetchMissingData={fetchMissingData}
+                  onShoppingListUpdate={onShoppingListUpdate}
+                  onShoppingCollectionUpdate={onShoppingCollectionUpdate}
+                  initialListId={searchParams.get("listId") ?? undefined}
+                />
+              </HighlightedShoppingListItemContext.Provider>
             </Container>
           ) : activeTab == EventTabs.materialList ? (
             <Container>
               <EventMaterialListPage
-                firebase={firebase}
                 authUser={authUser}
                 materialList={state.materialList}
                 event={state.event}
@@ -1790,8 +2248,7 @@ const EventPage = () => {
                 menuplan={state.menuplan}
                 materials={state.materials}
                 recipes={state.recipes}
-                unitConversionBasic={state.unitConversionBasic}
-                unitConversionProducts={state.unitConversionProducts}
+                saveInProgressRef={materialListSaveInProgress}
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}
@@ -1805,6 +2262,7 @@ const EventPage = () => {
                   localPicture={eventDraft.localPicture}
                   formValidation={eventDraft.formValidation}
                   firebase={firebase}
+                  database={database}
                   authUser={authUser}
                   onUpdateEvent={onEventUpdate}
                   onUpdatePicture={onEventPictureUpdate}
@@ -1861,7 +2319,7 @@ const EventPage = () => {
               </Stack>
             </Container>
           )}
-        </React.Fragment>
+        </EventMasterDataContext.Provider>
       )}
       <CustomSnackbar
         message={state.snackbar.message}
@@ -1873,4 +2331,4 @@ const EventPage = () => {
   );
 };
 
-export default EventPage;
+export {EventPage};

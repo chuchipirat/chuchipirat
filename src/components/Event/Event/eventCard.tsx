@@ -10,20 +10,95 @@ import {
   Skeleton,
 } from "@mui/material";
 
-import Event from "./event.class";
 import {ImageRepository} from "../../../constants/imageRepository";
-import useCustomStyles from "../../../constants/styles";
+import {useCustomStyles} from "../../../constants/styles";
+
+/**
+ * Minimale Datumsangabe fuer die EventCard-Anzeige.
+ * Kompatibel mit EventDateDomain (dateFrom/dateTo) und EventDate (from/to).
+ */
+interface CardDateEntry {
+  dateFrom?: Date;
+  dateTo?: Date;
+  from?: Date;
+  to?: Date;
+}
+
+/**
+ * Minimales Interface fuer die EventCard-Daten.
+ * Wird sowohl von EventDomain als auch von der alten Event-Klasse erfuellt.
+ *
+ * @param uid - Eindeutige ID des Events
+ * @param name - Name des Events
+ * @param motto - Motto des Events
+ * @param pictureSrc - URL des Event-Bilds
+ * @param dates - Zeitscheiben (optional, fuer Datumsanzeige)
+ */
+export interface EventCardData {
+  uid: string;
+  name: string;
+  motto: string;
+  pictureSrc: string;
+  dates?: CardDateEntry[];
+}
+
 interface EventCardProps {
-  event: Event;
+  event: EventCardData;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
+
+
+const formatDay = (d: Date) =>
+  `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.`;
+
+const formatFull = (d: Date) =>
+  `${formatDay(d)}${d.getFullYear()}`;
+
+/**
+ * Formatiert eine einzelne Zeitscheibe als lesbaren Datumsstring.
+ * Zeigt nur ein Datum, falls Start und Ende identisch sind, sonst einen Bereich.
+ *
+ * @param from - Startdatum
+ * @param to - Enddatum
+ * @returns Formatierter String (z.B. "12.03. – 14.03.2026")
+ */
+function formatSingleRange(from: Date, to: Date): string {
+  if (from.getTime() === to.getTime()) {
+    return formatFull(from);
+  }
+  return `${formatDay(from)} – ${formatFull(to)}`;
+}
+
+/**
+ * Formatiert alle Zeitscheiben eines Events als separate Strings.
+ * Jede Zeitscheibe wird einzeln dargestellt, damit bei mehreren
+ * Zeitscheiben alle Bereiche sichtbar sind.
+ *
+ * @param dates - Die Zeitscheiben des Events
+ * @returns Array mit einem formatierten String pro Zeitscheibe
+ */
+function formatDateRanges(dates?: CardDateEntry[]): string[] {
+  if (!dates || dates.length === 0) return [];
+
+  return dates
+    .map((d) => {
+      // Kompatibel mit EventDateDomain (dateFrom/dateTo) und EventDate (from/to)
+      const from = d.dateFrom ?? d.from;
+      const to = d.dateTo ?? d.to;
+      if (!from || !to) return "";
+      return formatSingleRange(from, to);
+    })
+    .filter(Boolean);
+}
+
 // ===================================================================== */
 /**
- * Rezept-Karte
- * @param Objekt nach mit Event und onCardClickAction
+ * Event-Karte mit Bild, Name, Motto und optionalem Datumsbereich.
+ *
+ * @param event - Die Event-Daten
+ * @param onCardClick - Callback beim Klick auf die Karte
  * @returns JSX-Element
  */
-
 const EventCard = ({event, onCardClick}: EventCardProps) => {
   const classes = useCustomStyles();
   const [hover, setHover] = React.useState(false);
@@ -37,6 +112,9 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
   const handleMouseOut = () => {
     setHover(false);
   };
+
+  const dateLines = formatDateRanges(event.dates);
+
   return (
     <Card
       sx={classes.card}
@@ -45,7 +123,7 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
       key={"eventcard_" + event.uid}
     >
       <CardActionArea
-        name={"eventCardActionArea_" + event.uid}
+        data-event-uid={event.uid}
         onClick={onCardClick}
         style={{height: "100%"}}
       >
@@ -56,7 +134,7 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
               image={
                 event.pictureSrc
                   ? event.pictureSrc
-                  : ImageRepository.getEnviromentRelatedPicture()
+                  : ImageRepository.getEnvironmentRelatedPicture()
                       .CARD_PLACEHOLDER_MEDIA
               }
               title={event.name}
@@ -66,17 +144,22 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
                 backgroundPosition: "center",
                 backgroundRepeat: "no-repeat",
                 backgroundSize: "contain",
-
-                // backgroundSize: "contain",
               }}
             />
           </div>
           <CardHeader
             title={event.name}
             subheader={
-              <Typography variant="body2" color="textSecondary">
-                {event.motto}
-              </Typography>
+              <React.Fragment>
+                <Typography variant="body2" color="textSecondary">
+                  {event.motto}
+                </Typography>
+                {dateLines.map((line, i) => (
+                  <Typography variant="caption" color="textSecondary" key={i} display="block">
+                    {line}
+                  </Typography>
+                ))}
+              </React.Fragment>
             }
           />
         </Box>
@@ -84,9 +167,6 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
     </Card>
   );
 };
-/* ===================================================================
-// =====================Rezept Karte am laden ========================
-// =================================================================== */
 const EventCardLoading = () => {
   const classes = useCustomStyles();
 
@@ -107,5 +187,5 @@ const EventCardLoading = () => {
   );
 };
 
-export default EventCard;
+export {EventCard};
 export {EventCardLoading};

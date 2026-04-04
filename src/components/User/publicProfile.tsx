@@ -20,14 +20,17 @@ import {
   HowToReg as HowToRegIcon,
   Fastfood as FastfoodIcon,
   BugReport as BugReportIcon,
+  Comment as CommentIcon,
+  Star as StarIcon,
+  ContentCopy as ContentCopyIcon,
 } from "@mui/icons-material";
 
-import PageTitle from "../Shared/pageTitle";
-import ButtonRow from "../Shared/buttonRow";
+import {PageTitle} from "../Shared/pageTitle";
+import {ButtonRow} from "../Shared/buttonRow";
 
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
-import User from "./user.class";
+import {User} from "./user.class";
 import {
   INTRODUCING_NAME as TEXT_INTRODUCING_NAME,
   EDIT as TEXT_EDIT,
@@ -36,17 +39,23 @@ import {
   MOTTO as TEXT_MOTTO,
   RECIPES_CREATED_PUBLIC as TEXT_RECIPES_CREATED_PUBLIC,
   RECIPES_CREATED_PRIVATE as TEXT_RECIPES_CREATED_PRIVATE,
+  RECIPES_CREATED_VARIANTS as TEXT_RECIPES_CREATED_VARIANTS,
   EVENTS_PARTICIPATED as TEXT_EVENTS_PARTICIPATED,
+  COMMENTS_WRITTEN as TEXT_COMMENTS_WRITTEN,
+  RATINGS_GIVEN as TEXT_RATINGS_GIVEN,
   FOUND_BUGS as TEXT_FOUND_BUGS,
+  ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
 } from "../../constants/text";
-import Action from "../../constants/actions";
+import {Action} from "../../constants/actions";
 import * as ROUTES from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
 import {useFirebase} from "../Firebase/firebaseContext";
-import UserPublicProfile from "./user.public.profile.class";
+import {useDatabase} from "../Database/DatabaseContext";
+import {UserPublicProfile} from "./user.public.profile.class";
+import {getImageUrl, ImageSize} from "../Shared/imageUrl";
 import {FormListItem} from "../Shared/formListItem";
+import {AlertMessage} from "../Shared/AlertMessage";
 import {useAuthUser} from "../Session/authUserContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -62,15 +71,27 @@ type State = {
   error: Error | null;
 };
 
-const inititialState: State = {
+const initialState: State = {
   publicProfile: new UserPublicProfile(),
   isLoading: false,
   error: null,
 };
-type DispatchAction = {
-  type: ReducerActions;
-  payload: any;
-};
+
+/**
+ * Diskriminierte Union für alle Reducer-Aktionen.
+ * Jede Aktion hat einen eigenen Payload-Typ (oder keinen).
+ */
+type DispatchAction =
+  | {
+      type: ReducerActions.FETCH_PUBLIC_PROFILE;
+      payload: {displayName: string; pictureSrc: string};
+    }
+  | {
+      type: ReducerActions.FETCH_PUBLIC_PROFILE_SUCCESS;
+      payload: UserPublicProfile;
+    }
+  | {type: ReducerActions.SET_IS_LOADING; payload: boolean}
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 const publicProfileReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.FETCH_PUBLIC_PROFILE: {
@@ -88,22 +109,13 @@ const publicProfileReducer = (state: State, action: DispatchAction): State => {
       };
     }
     case ReducerActions.SET_IS_LOADING:
-      return {...state, isLoading: true};
+      return {...state, isLoading: action.payload};
     case ReducerActions.GENERIC_ERROR:
-      return {...state, error: action.payload as Error};
+      return {...state, isLoading: false, error: action.payload};
     default:
-      console.error("Unbekannter ActionType: ", action.type);
-      throw new Error();
+      throw new Error(`Unbekannter ActionType: ${(action as {type: unknown}).type}`);
   }
 };
-
-interface MatchParams {
-  id: string;
-}
-interface LocationState {
-  displayName: string;
-  pictureSrc: string;
-}
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -112,8 +124,16 @@ interface LocationState {
 /* ===================================================================
 // =============================== Base ==============================
 // =================================================================== */
+/**
+ * Seite für das öffentliche Benutzerprofil.
+ *
+ * Zeigt Anzeigename, Profilbild, Motto, Mitglied-seit-Datum und Statistiken
+ * (Rezepte, Anlässe, Kommentare, Bewertungen, gefundene Bugs).
+ * Bietet einen Bearbeiten-Button, wenn das eigene Profil angeschaut wird.
+ */
 const PublicProfilePage = () => {
-  const firebase = useFirebase();
+  const _firebase = useFirebase();
+  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const location = useLocation();
@@ -122,7 +142,7 @@ const PublicProfilePage = () => {
 
   const [state, dispatch] = React.useReducer(
     publicProfileReducer,
-    inititialState
+    initialState,
   );
 
   const urlUid = id ?? "";
@@ -144,13 +164,17 @@ const PublicProfilePage = () => {
       });
     }
 
-    User.getPublicProfile({firebase: firebase, uid: urlUid}).then((result) => {
-      dispatch({
-        type: ReducerActions.FETCH_PUBLIC_PROFILE_SUCCESS,
-        payload: result,
+    User.getPublicProfile({database: database, uid: urlUid})
+      .then((result) => {
+        dispatch({
+          type: ReducerActions.FETCH_PUBLIC_PROFILE_SUCCESS,
+          payload: result,
+        });
+      })
+      .catch((error) => {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-    });
-  }, []);
+  }, [urlUid]);
 
   if (authUser === null) {
     return null;
@@ -161,7 +185,7 @@ const PublicProfilePage = () => {
   // ------------------------------------------ */
   const onEditClick = () => {
     navigate(`${ROUTES.USER_PROFILE}/${authUser!.uid}`, {
-      state: {action: Action.VIEW}
+      state: {action: Action.VIEW},
     });
   };
   return (
@@ -172,7 +196,7 @@ const PublicProfilePage = () => {
       />
       {state.publicProfile.uid === authUser?.uid ? (
         // Nur Anzeigen wenn die Person das eigene Profil anschaut
-        (<ButtonRow
+        <ButtonRow
           key="buttons_view"
           buttons={[
             {
@@ -185,7 +209,7 @@ const PublicProfilePage = () => {
               onClick: onEditClick,
             },
           ]}
-        />)
+        />
       ) : null}
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="sm">
@@ -193,15 +217,24 @@ const PublicProfilePage = () => {
           <CircularProgress color="inherit" />
         </Backdrop>
         <Stack spacing={2}>
+          {state.error && (
+            <AlertMessage
+              error={state.error}
+              messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+            />
+          )}
           <Card sx={classes.card}>
             <Box component={"div"} style={{position: "relative"}}>
               <React.Fragment>
                 <CardMedia
                   sx={classes.cardMedia}
                   image={
-                    state.publicProfile.pictureSrc.normalSize
-                      ? state.publicProfile.pictureSrc.normalSize
-                      : ImageRepository.getEnviromentRelatedPicture()
+                    state.publicProfile.pictureSrc
+                      ? getImageUrl(
+                          state.publicProfile.pictureSrc,
+                          ImageSize.PROFILE_CARD,
+                        )
+                      : ImageRepository.getEnvironmentRelatedPicture()
                           .CARD_PLACEHOLDER_MEDIA
                   }
                   title={state.publicProfile.displayName}
@@ -239,7 +272,12 @@ const PublicProfilePage = () => {
 interface PublicProfileListProps {
   userProfile: UserPublicProfile;
 }
-export const PublicProfileList = ({userProfile}: PublicProfileListProps) => {
+/**
+ * Listenansicht der Profilbasisdaten (Mitglied seit, Motto).
+ *
+ * @param userProfile - Das öffentliche Benutzerprofil.
+ */
+export const PublicProfileList = React.memo(({userProfile}: PublicProfileListProps) => {
   return (
     <React.Fragment>
       <List>
@@ -268,33 +306,47 @@ export const PublicProfileList = ({userProfile}: PublicProfileListProps) => {
       </List>
     </React.Fragment>
   );
-};
+});
+PublicProfileList.displayName = "PublicProfileList";
 /* ===================================================================
 // ========================== Gefunden Schätze =======================
 // =================================================================== */
 interface AchievedRewardsListProps {
   userProfile: UserPublicProfile;
 }
-export const AchievedRewardsList = ({
+/**
+ * Listenansicht der erreichten Belohnungen/Statistiken.
+ *
+ * @param userProfile - Das öffentliche Benutzerprofil mit Statistiken.
+ */
+export const AchievedRewardsList = React.memo(({
   userProfile,
 }: AchievedRewardsListProps) => {
   return (
     <List>
       <FormListItem
-        id={"noRecipesPrivate"}
-        key={"noRecipesPrivate"}
+        id={"noRecipesPublic"}
+        key={"noRecipesPublic"}
         value={userProfile.stats.noRecipesPublic.toLocaleString("de-CH")}
         label={TEXT_RECIPES_CREATED_PUBLIC}
         icon={<FastfoodIcon fontSize="small" />}
       />
+      {userProfile.stats.noRecipesPrivate > 0 && (
+        <FormListItem
+          id={"noRecipesPrivate"}
+          key={"noRecipesPrivate"}
+          value={userProfile.stats.noRecipesPrivate.toLocaleString("de-CH")}
+          label={TEXT_RECIPES_CREATED_PRIVATE}
+          icon={<FastfoodIcon fontSize="small" />}
+        />
+      )}
       <FormListItem
-        id={"noRecipesPublic"}
-        key={"noRecipesPublic"}
-        value={userProfile.stats.noRecipesPrivate.toLocaleString("de-CH")}
-        label={TEXT_RECIPES_CREATED_PRIVATE}
-        icon={<FastfoodIcon fontSize="small" />}
+        id={"noRecipesVariants"}
+        key={"noRecipesVariants"}
+        value={userProfile.stats.noRecipesVariants.toLocaleString("de-CH")}
+        label={TEXT_RECIPES_CREATED_VARIANTS}
+        icon={<ContentCopyIcon fontSize="small" />}
       />
-
       <FormListItem
         id={"noEvents"}
         key={"noEvents"}
@@ -302,10 +354,24 @@ export const AchievedRewardsList = ({
         label={TEXT_EVENTS_PARTICIPATED}
         icon={<TodayIcon fontSize="small" />}
       />
+      <FormListItem
+        id={"noComments"}
+        key={"noComments"}
+        value={userProfile.stats.noComments.toLocaleString("de-CH")}
+        label={TEXT_COMMENTS_WRITTEN}
+        icon={<CommentIcon fontSize="small" />}
+      />
+      <FormListItem
+        id={"noRatings"}
+        key={"noRatings"}
+        value={userProfile.stats.noRatings.toLocaleString("de-CH")}
+        label={TEXT_RATINGS_GIVEN}
+        icon={<StarIcon fontSize="small" />}
+      />
       {userProfile.stats?.noFoundBugs > 0 && (
         <FormListItem
-          id={"noFoundBungs"}
-          key={"noFoundBungs"}
+          id={"noFoundBugs"}
+          key={"noFoundBugs"}
           value={userProfile.stats.noFoundBugs.toLocaleString("de-CH")}
           label={TEXT_FOUND_BUGS}
           icon={<BugReportIcon fontSize="small" />}
@@ -313,6 +379,7 @@ export const AchievedRewardsList = ({
       )}
     </List>
   );
-};
+});
+AchievedRewardsList.displayName = "AchievedRewardsList";
 
-export default PublicProfilePage;
+export {PublicProfilePage};

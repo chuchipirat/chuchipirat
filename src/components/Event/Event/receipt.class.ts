@@ -1,7 +1,8 @@
+import * as Sentry from "@sentry/react";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import Firebase from "../../Firebase/firebase.class";
 import {ChangeRecord} from "../../Shared/global.interface";
-import Event, {EventRefDocuments} from "./event.class";
+import {Event,EventRefDocuments} from "./event.class";
 
 interface Save {
   firebase: Firebase;
@@ -13,7 +14,7 @@ interface GetReceipt {
   eventUid: Event["uid"];
 }
 
-export default class Receipt {
+export class Receipt {
   eventUid: Event["uid"];
   eventName: Event["name"];
   payDate: Date;
@@ -30,11 +31,7 @@ export default class Receipt {
     this.donorEmail = "";
     this.donorName = "";
     this.created = {date: new Date(0), fromUid: "", fromDisplayName: ""};
-  }
-  /* =====================================================================
-  // Quittung anlegen
-  // ===================================================================== */
-  static save = async ({firebase, authUser, receipt}: Save) => {
+  }  static save = async ({firebase, authUser, receipt}: Save) => {
     receipt.created = {
       fromDisplayName: authUser.publicProfile.displayName,
       fromUid: authUser.uid,
@@ -47,6 +44,7 @@ export default class Receipt {
       authUser: authUser,
     });
 
+    // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
     await Event.getEvent({firebase: firebase, uid: receipt.eventUid}).then(
       (result) => {
         if (!result.refDocuments?.includes(EventRefDocuments.receipt)) {
@@ -55,22 +53,19 @@ export default class Receipt {
             newDocumentType: EventRefDocuments.receipt,
           });
 
+          // @ts-expect-error — Legacy Firebase-Methode, wird bei Migration entfernt
           Event.save({
             firebase: firebase,
             event: result,
             authUser: authUser,
           }).catch((error) => {
-            console.error(error);
+            Sentry.captureException(error);
             throw error;
           });
         }
       }
     );
-  };
-  /* =====================================================================
-  // Lesen
-  // ===================================================================== */
-  static getReceipt = async ({firebase, eventUid}: GetReceipt) => {
+  };  static getReceipt = async ({firebase, eventUid}: GetReceipt) => {
     return firebase.event.receipt
       .read<Receipt>({uids: [eventUid]})
       .then((result) => {

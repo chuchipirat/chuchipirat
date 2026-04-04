@@ -44,7 +44,15 @@ interface DialogScaleRecipeProps {
   scaledPortions: number;
 }
 
-const DialogScaleRecipe = ({
+/**
+ * Dialog zum Skalieren eines Rezepts auf eine andere Portionenanzahl.
+ *
+ * Ermöglicht die Eingabe der gewünschten Portionen und bietet optional
+ * die automatische Umrechnung von Einheiten (z.B. g → kg) an.
+ *
+ * @param props - Dialog-Steuerung, aktuelle Portionen und Callback-Handler.
+ */
+export const DialogScaleRecipe = ({
   dialogOpen,
   handleOk,
   handleClose,
@@ -130,7 +138,7 @@ const DialogScaleRecipe = ({
  <Grid size={10} >
             <Typography variant="body1">{TEXT_CONVERT_UNITS}</Typography>
           </Grid>
- <Grid size={2} style={{textAlign: "right"}}>
+ <Grid size={2} sx={{textAlign: "right"}}>
             <Switch
               checked={formFields.convertUnits}
               onChange={onChangeSwitch}
@@ -142,7 +150,7 @@ const DialogScaleRecipe = ({
             </Typography>
           </Grid>
  <Grid size={12} >
-            <Alert severity="info" style={{marginTop: theme.spacing(1)}}>
+            <Alert severity="info" sx={{marginTop: theme.spacing(1)}}>
               <AlertTitle>{TEXT_INFO_PANEL_TITLE_SCALE}</AlertTitle>
               {TEXT_INFO_PANEL_TEXT_SCALE}
             </Alert>
@@ -161,4 +169,3 @@ const DialogScaleRecipe = ({
   );
 };
 
-export default DialogScaleRecipe;

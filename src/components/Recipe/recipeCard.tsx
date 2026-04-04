@@ -1,5 +1,5 @@
 import React from "react";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 import {
   Typography,
@@ -16,9 +16,13 @@ import {
   Skeleton,
   Box,
 } from "@mui/material";
-import {Info as InfoIcon, Add as AddIcon} from "@mui/icons-material";
+import {
+  Info as InfoIcon,
+  Add as AddIcon,
+  ChatBubbleOutline as ChatBubbleOutlineIcon,
+} from "@mui/icons-material";
 
-import RecipeShort from "./recipeShort.class";
+import {RecipeShort} from "./recipe.types";
 import {ImageRepository} from "../../constants/imageRepository";
 import {OnRecipeCardClickProps} from "./recipes";
 import {
@@ -29,8 +33,8 @@ import {
   VARIANT as TEXT_VARIANT,
 } from "../../constants/text";
 
-import Utils from "../Shared/utils.class";
-import {Allergen, Diet, DietProperties} from "../Product/product.class";
+import {Utils} from "../Shared/utils.class";
+import {Allergen, Diet, DietProperties} from "../Product/product.types";
 import {RecipeType} from "./recipe.class";
 // ===================================================================== */
 /**
@@ -56,18 +60,19 @@ export interface RecipeCardActions {
 interface RecipeCardProps {
   recipe: RecipeShort;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
-  // cardActions: RecipeCardActions[];
   ribbon?: CardRibbonProps;
   fabButtonIcon?: JSX.Element;
   onFabButtonClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 // ===================================================================== */
 /**
- * Rezept-Karte
- * @param Objekt nach RecipeCardActions
- * @returns JSX-Element
+ * Rezept-Karte zur Anzeige eines Kurz-Rezepts mit Bild, Titel, Bewertungen
+ * und optionalem Ribbon sowie FAB-Button. Wird im Rezeptübersichtsraster verwendet.
+ *
+ * @param props - Eigenschaften gemäss RecipeCardProps.
+ * @returns JSX-Element der Rezeptkarte.
  */
-const RecipeCard = ({
+export const RecipeCard = ({
   recipe,
   onCardClick,
   ribbon,
@@ -94,7 +99,7 @@ const RecipeCard = ({
         ) {
           infoLine = addTextEntry(
             infoLine,
-            TEXT_ALLERGENS_FREE_TYPES[parseInt(allergen)]
+            TEXT_ALLERGENS_FREE_TYPES[parseInt(allergen)],
           );
         }
       });
@@ -118,7 +123,7 @@ const RecipeCard = ({
   /* ------------------------------------------
   // Fab-Button Handling
   // ------------------------------------------ */
-  const onFabButtonClick = (event) => {
+  const onFabButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
     if (!onFabButtonClickSuper) {
       return;
     }
@@ -137,7 +142,7 @@ const RecipeCard = ({
       <CardActionArea
         id={"recipeCardActionArea_" + recipe.uid}
         onClick={onCardClick}
-        style={{height: "100%"}}
+        sx={{height: "100%"}}
       >
         <Box component="div" sx={classes.card}>
           <div style={{overflow: "hidden"}}>
@@ -149,18 +154,18 @@ const RecipeCard = ({
               />
             )}
             <CardMedia
-              sx={classes.cardMedia}
-              image={
-                recipe.pictureSrc
-                  ? recipe.pictureSrc
-                  : ImageRepository.getEnviromentRelatedPicture()
-                      .CARD_PLACEHOLDER_MEDIA
-              }
-              title={recipe.name}
-              style={{
+              sx={{
+                ...classes.cardMedia,
                 transform: hover ? "scale(1.05)" : "scale(1)",
                 transition: "0.5s ease",
               }}
+              image={
+                recipe.pictureSrc
+                  ? recipe.pictureSrc
+                  : ImageRepository.getEnvironmentRelatedPicture()
+                      .CARD_PLACEHOLDER_MEDIA
+              }
+              title={recipe.name}
             />
           </div>
           <CardHeader
@@ -208,21 +213,27 @@ const RecipeCard = ({
               alignItems: "center",
             }}
           >
-            <Box sx={{display: "flex", alignItems: "center"}}>
-              <Rating
-                value={recipe.rating.avgRating}
-                size="small"
-                readOnly
-              />
-              <Typography
-                variant="body2"
-                color="textSecondary"
-                sx={{marginLeft: "0.5rem"}}
-              >
-                {`${recipe.rating.noRatings} ${
-                  recipe.rating.noRatings === 1 ? TEXT_VOTE : TEXT_VOTES
-                }`}
-              </Typography>
+            <Box sx={{display: "flex", alignItems: "center", gap: 1}}>
+              <Box sx={{display: "flex", alignItems: "center"}}>
+                <Rating value={recipe.rating.avgRating} size="small" readOnly />
+                <Typography
+                  variant="body2"
+                  color="textSecondary"
+                  sx={{marginLeft: "0.5rem"}}
+                >
+                  {`${recipe.rating.noRatings} ${
+                    recipe.rating.noRatings === 1 ? TEXT_VOTE : TEXT_VOTES
+                  }`}
+                </Typography>
+              </Box>
+              {(recipe.noComments ?? 0) > 0 && (
+                <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
+                  <ChatBubbleOutlineIcon fontSize="small" color="action" />
+                  <Typography variant="body2" color="textSecondary">
+                    {recipe.noComments}
+                  </Typography>
+                </Box>
+              )}
             </Box>
             {onFabButtonClickSuper ? (
               <Fab
@@ -293,5 +304,4 @@ export const CardRibbon = ({cssProperty, icon, tooltip}: CardRibbonProps) => {
   );
 };
 
-export default RecipeCard;
 export {RecipeCardLoading};

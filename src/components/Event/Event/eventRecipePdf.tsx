@@ -1,8 +1,9 @@
 import React from "react";
-import {Document, Page, View, Text, Font, Image} from "@react-pdf/renderer";
+import {Document, Page, View, Text, Image} from "@react-pdf/renderer";
+import "../../Shared/pdfFontRegistration";
 
-import Receipt from "./receipt.class";
-import StylesPdf from "../../../constants/stylesEventReceiptPdf";
+import {Receipt} from "./receipt.class";
+import {pdfStyles} from "../../../constants/stylesEventReceiptPdf";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 
 import {
@@ -17,11 +18,17 @@ import {
 } from "../../../constants/text";
 import {Footer} from "../../Shared/pdfComponents";
 import {ImageRepository} from "../../../constants/imageRepository";
-import Utils from "../../Shared/utils.class";
+import {Utils} from "../../Shared/utils.class";
 
-/* ===================================================================
-// =========================== Quittung PDF ==========================
-// =================================================================== */
+/**
+ * PDF-Dokument für eine Event-Quittung (Spendenbeleg).
+ *
+ * Rendert eine A5-Querformat-Quittung mit Event-Bild, Spenderangaben
+ * und Betrag. Bei Neugenerierung einer bereits erstellten Quittung
+ * wird das Originaldatum beibehalten.
+ *
+ * @param props - Autoreninfo und Quittungsdaten.
+ */
 interface EventRecipePdfProps {
   authUser: AuthUser;
   receiptData: Receipt;
@@ -54,9 +61,11 @@ const EventReceiptPdf = ({receiptData, authUser}: EventRecipePdfProps) => {
     </Document>
   );
 };
-/* ===================================================================
-// ========================== Quittung Page ==========================
-// =================================================================== */
+/**
+ * Einzelne Seite der Quittung im A5-Querformat.
+ *
+ * @param props - Quittungsdaten, Zeitstempel und Autoreninfo.
+ */
 interface EventReceiptPdfPageProps {
   receiptData: Receipt;
   actualDate: Date;
@@ -86,7 +95,7 @@ const EventReceiptPdfPage = ({
           <View style={styles.tableCol40}>
             <Image
               style={styles.Image}
-              src={ImageRepository.getEnviromentRelatedPicture().RECEIPT_IMAGE}
+              src={ImageRepository.getEnvironmentRelatedPicture().RECEIPT_IMAGE}
             />
           </View>
           {/* Quittungsangaben rechts */}
@@ -104,9 +113,11 @@ const EventReceiptPdfPage = ({
     </Page>
   );
 };
-/* ===================================================================
-// =========================== Daten Block ===========================
-// =================================================================== */
+/**
+ * Datenblock der Quittung mit Event-Name, Datum, Spender und Betrag.
+ *
+ * @param props - Quittungsdaten.
+ */
 interface DataBlockProps {
   receiptData: Receipt;
 }
@@ -162,7 +173,7 @@ const DataBlock = ({receiptData}: DataBlockProps) => {
         </View>
         <View style={styles.tableCol70}>
           <Text style={styles.dataValue}>{`Fr. ${receiptData.amount.toFixed(
-            2
+            2,
           )}`}</Text>
         </View>
       </View>
@@ -197,40 +208,5 @@ const DataBlock = ({receiptData}: DataBlockProps) => {
   );
 };
 
-/* ===================================================================
-// ======================== Fonts registrieren =======================
-// =================================================================== */
-//-->gist.github.com/karimnaaji/b6c9c9e819204113e9cabf290d580551
-Font.register({
-  family: "Roboto",
-  fonts: [
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/7MygqTe2zs9YkP0adA9QQQ.ttf",
-      fontStyle: "normal",
-      fontWeight: 100,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/T1xnudodhcgwXCmZQ490TPesZW2xOQ-xsNqO47m55DA.ttf",
-      fontStyle: "italic",
-      fontWeight: 100,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/dtpHsbgPEm2lVWciJZ0P-A.ttf",
-      fontStyle: "normal",
-      fontWeight: 300,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v16/zN7GBFwfMP4uA6AR0HCoLQ.ttf",
-      fontStyle: "normal",
-      fontWeight: 400,
-    },
-    {
-      src: "https://fonts.gstatic.com/s/roboto/v15/bdHGHleUa-ndQCOrdpfxfw.ttf",
-      fontStyle: "normal",
-      fontWeight: 700,
-    },
-  ],
-});
-
-const styles = StylesPdf.getPdfStyles();
-export default EventReceiptPdf;
+const styles = pdfStyles;
+export {EventReceiptPdf};

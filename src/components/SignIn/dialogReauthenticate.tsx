@@ -14,6 +14,7 @@ import {
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 
+import * as Sentry from "@sentry/react";
 import {
   REAUTHENTICATE_DIALOG_TITLE as TEXT_REAUTHENTICATE_DIALOG_TITLE,
   SIGN_IN_WHY_REAUTHENTICATE as TEXT_SIGN_IN_WHY_REAUTHENTICATE,
@@ -23,12 +24,10 @@ import {
   CANCEL as TEXT_CANCEL,
   SIGN_IN as TEXT_SIGN_IN,
 } from "../../constants/text";
-import User from "../User/user.class";
+import {User} from "../User/user.class";
 
-import AlertMessage from "../Shared/AlertMessage";
-import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
-import {FirebaseError} from "@firebase/util";
-import Firebase from "../Firebase/firebase.class";
+import {AlertMessage} from "../Shared/AlertMessage";
+import DatabaseService from "../Database/DatabaseService";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 
 /* ===================================================================
@@ -46,7 +45,7 @@ type ReAuthData = {
 };
 type State = {
   reAuthData: ReAuthData;
-  error: FirebaseError | null;
+  error: Error | null;
 };
 
 type DispatchAction =
@@ -55,15 +54,37 @@ type DispatchAction =
       payload: {field: string; value: string};
     }
   | {type: ReducerActions.SET_INITIAL_VALUES; payload: Record<string, never>}
-  | {type: ReducerActions.GENERIC_ERROR; payload: FirebaseError};
+  | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
-const inititialState: State = {
+const initialState: State = {
   reAuthData: {
     email: "",
     password: "",
   },
   error: null,
 };
+
+/**
+ * Erstellt den initialen State basierend auf dem angemeldeten Benutzer.
+ * Wird als Lazy-Initializer für useReducer verwendet, um
+ * Dispatch-Aufrufe im Render-Body zu vermeiden.
+ *
+ * @param authUser - Aktuell angemeldeter Benutzer (oder null).
+ * @returns Initialer State mit vorausgefüllter E-Mail.
+ */
+const getInitialState = (authUser: AuthUser | null): State => ({
+  reAuthData: {email: authUser?.email ?? "", password: ""},
+  error: null,
+});
+
+/**
+ * Reducer für den Reauthentifizierungs-Dialog.
+ * Verwaltet Formulardaten und Fehlerzustand.
+ *
+ * @param state - Aktueller State
+ * @param action - Auszuführende Aktion
+ * @returns Neuer State
+ */
 const reAuthenticateReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
     case ReducerActions.UPDATE_FIELD:
@@ -75,7 +96,7 @@ const reAuthenticateReducer = (state: State, action: DispatchAction): State => {
         },
       };
     case ReducerActions.SET_INITIAL_VALUES:
-      return inititialState;
+      return initialState;
     case ReducerActions.GENERIC_ERROR:
       return {...state, error: action.payload};
     default: {
@@ -86,17 +107,34 @@ const reAuthenticateReducer = (state: State, action: DispatchAction): State => {
 };
 
 /* ===================================================================
-// ==================== Pop Up Abteilung hinzufügen ==================
+// ==================== Reauthentifizierungs-Dialog ==================
 // =================================================================== */
+/**
+ * Props für den Reauthentifizierungs-Dialog.
+ *
+ * @param database - DatabaseService-Instanz für Auth-Aufrufe.
+ * @param dialogOpen - Ob der Dialog geöffnet ist.
+ * @param handleOk - Callback bei erfolgreicher Anmeldung.
+ * @param handleClose - Callback beim Abbrechen.
+ * @param authUser - Aktuell angemeldeter Benutzer (für E-Mail-Vorausfüllung).
+ */
 interface DialogReauthenticateProps {
-  firebase: Firebase;
+  database: DatabaseService;
   dialogOpen: boolean;
   handleOk: () => void;
   handleClose: () => void;
   authUser: AuthUser | null;
 }
+
+/**
+ * Dialog zur erneuten Authentifizierung.
+ * Wird vor sicherheitsrelevanten Aktionen (E-Mail-/Passwortänderung)
+ * angezeigt, damit der Benutzer seine Identität bestätigt.
+ *
+ * @param props - DialogReauthenticateProps
+ */
 const DialogReauthenticate = ({
-  firebase,
+  database,
   dialogOpen,
   handleOk,
   handleClose: handleCloseSuper,
@@ -104,57 +142,71 @@ const DialogReauthenticate = ({
 }: DialogReauthenticateProps) => {
   const [state, dispatch] = React.useReducer(
     reAuthenticateReducer,
-    inititialState,
+    authUser,
+    (authUserArg) => getInitialState(authUserArg),
   );
   const [showPassword, setShowPassword] = React.useState(false);
-
-  if (!state.reAuthData.email && authUser) {
-    dispatch({
-      type: ReducerActions.UPDATE_FIELD,
-      payload: {field: "email", value: authUser.email},
-    });
-  }
 
   /* ------------------------------------------
   // Change Ereignis Felder
   // ------------------------------------------ */
+  /**
+   * Aktualisiert ein Formularfeld im State. Entfernt den "reauth-"-Prefix
+   * von der Element-ID, um den Feldnamen zu ermitteln.
+   *
+   * @param event - Change-Event des Eingabefelds
+   */
   const onChangeField = (event: React.ChangeEvent<HTMLInputElement>) => {
+    // ID-Prefix "reauth-" entfernen, um den Feldnamen zu erhalten
+    const field = event.target.id.replace("reauth-", "");
     dispatch({
       type: ReducerActions.UPDATE_FIELD,
-      payload: {field: event.target.id, value: event.target.value},
+      payload: {field, value: event.target.value},
     });
   };
   /* ------------------------------------------
   // PopUp Ok
   // ------------------------------------------ */
+  /**
+   * Führt die Reauthentifizierung über Supabase Auth durch.
+   * Bei Erfolg wird der Login registriert und der Dialog geschlossen.
+   */
   const onSignIn = async () => {
-    let hasError = false;
-    await firebase
-      .reauthenticateWithCredential({
-        email: state.reAuthData.email,
-        password: state.reAuthData.password,
-      })
-      .then(() => {
-        // Login in eigener Sammlung registrieren
-        User.registerSignIn({
-          firebase: firebase,
-          authUser: authUser!,
-        });
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        hasError = true;
+    try {
+      await database.auth.signInWithPassword(
+        state.reAuthData.email,
+        state.reAuthData.password
+      );
+    } catch (error) {
+      Sentry.captureException(error, {extra: {context: "Reauthentifizierung"}});
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error as Error,
       });
-
-    if (!hasError) {
-      handleOk();
-      dispatch({type: ReducerActions.SET_INITIAL_VALUES, payload: {}});
+      return;
     }
+
+    // Login in eigener Sammlung registrieren
+    if (authUser) {
+      User.registerSignIn({
+        database: database,
+        authUser: authUser,
+      });
+    }
+
+    handleOk();
+    dispatch({type: ReducerActions.SET_INITIAL_VALUES, payload: {}});
   };
   /* ------------------------------------------
   // PopUp Schliessen
   // ------------------------------------------ */
+  /**
+   * Schliesst den Dialog. Ignoriert versehentliche Klicks
+   * ausserhalb des Dialogs (clickaway).
+   *
+   * @param event - Das auslösende Event
+   * @param reason - Grund für das Schliessen (z.B. "clickaway", "escapeKeyDown")
+   */
   const handleClose = (
     event: React.SyntheticEvent | React.MouseEvent,
     reason?: string,
@@ -194,25 +246,16 @@ const DialogReauthenticate = ({
           />
         )}
         {state.error && (
-          <AlertMessage
-            error={state.error}
-            body={
-              state.error.code === "auth/too-many-requests" ? (
-                <ForgotPasswordLink />
-              ) : (
-                ""
-              )
-            }
-          />
+          <AlertMessage error={state.error} />
         )}
         {/* Mailadresse */}
         <TextField
-          disabled={authUser ? true : false}
+          disabled={!!authUser}
           type="email"
           margin="normal"
           required
           fullWidth
-          id="email"
+          id="reauth-email"
           label={TEXT_EMAIL}
           name="reAuth_email"
           autoFocus
@@ -225,10 +268,10 @@ const DialogReauthenticate = ({
           margin="normal"
           required
           fullWidth
-          id="password"
+          id="reauth-password"
           name="password"
           label={TEXT_PASSWORD}
-          autoComplete="new-password"
+          autoComplete="current-password"
           value={state.reAuthData.password}
           onChange={onChangeField}
           slotProps={{
@@ -261,4 +304,4 @@ const DialogReauthenticate = ({
   );
 };
 
-export default DialogReauthenticate;
+export {DialogReauthenticate};

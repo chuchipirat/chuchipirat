@@ -1,8 +1,8 @@
-import Recipe, {PositionType, RecipeType} from "../recipe.class";
+import Recipe, {Ingredient, PositionType, RecipeType} from "../recipe.class";
 import recipe from "../__mocks__/recipe.mock";
 import products from "../../Product/__mocks__/products.mock";
 import units from "../../Unit/__mocks__/units.mock";
-import {Allergen, Diet} from "../../Product/product.class";
+import {Allergen, Diet} from "../../Product/product.types";
 import {
   RECIPE_NAME_CANT_BE_EMPTY as TEXT_RECIPE_NAME_CANT_BE_EMPTY,
   RECIPE_VARIANT_NAME_CANT_BE_EMPTY as TEXT_RECIPE_VARIANT_NAME_CANT_BE_EMPTY,
@@ -14,7 +14,7 @@ import {
   ERROR_POS_WITHOUT_MATERIAL as TEXT_ERROR_POS_WITHOUT_MATERIAL,
   ERROR_PRODUCT_UNKNOWN as TEXT_ERROR_PRODUCT_UNKNOWN,
 } from "../../../constants/text";
-import _ from "lodash";
+
 import unitConversionBasic from "../../Unit/__mocks__/unitConversionBasic.mock";
 import unitConversionProducts from "../../Unit/__mocks__/unitConversionProducts.mock";
 /* =====================================================================
@@ -87,16 +87,13 @@ test("Recipe.constructor(): Konstruktor der Klasse", () => {
 
   expect(recipe).toHaveProperty("rating");
   expect(Object.keys(recipe.rating).length).toBe(3);
-
-  expect(recipe).toHaveProperty("isInReview");
-  expect(recipe.isInReview).toBeFalsy();
 });
 /* =====================================================================
 // Variante erstellen
 // ===================================================================== */
 test("Recipe.createRecipeVariant(), erwartete Werte in den Attributen", () => {
   const eventUid = "YhrA1BfwES7SM61P1WdW";
-  const recipeMock = _.cloneDeep(recipe);
+  const recipeMock = structuredClone(recipe);
 
   // Calling the method
   const recipeVariant = Recipe.createRecipeVariant({
@@ -124,11 +121,73 @@ test("Recipe.createRecipeVariant(), erwartete Werte in den Attributen", () => {
   expect(recipeMock).not.toBe(recipeVariant); // Check if a new object is created
   expect(recipeMock.uid).toEqual("HWEvHBnRM56GDapkWtsd");
 });
+
+test("Recipe.createRecipeVariant(), Variante erhält neue UIDs für Zutaten, Schritte und Material", () => {
+  const eventUid = "YhrA1BfwES7SM61P1WdW";
+  const recipeMock = structuredClone(recipe);
+
+  const originalIngredientUids = [...recipeMock.ingredients.order];
+  const originalStepUids = [...recipeMock.preparationSteps.order];
+  const originalMaterialUids = [...recipeMock.materials.order];
+
+  const recipeVariant = Recipe.createRecipeVariant({
+    recipe: recipeMock,
+    eventUid: eventUid,
+  });
+
+  // Variante muss gleich viele Einträge haben wie das Original
+  expect(recipeVariant.ingredients.order).toHaveLength(
+    originalIngredientUids.length,
+  );
+  expect(recipeVariant.preparationSteps.order).toHaveLength(
+    originalStepUids.length,
+  );
+  expect(recipeVariant.materials.order).toHaveLength(
+    originalMaterialUids.length,
+  );
+
+  // Keine UID der Variante darf mit einer UID des Originals übereinstimmen
+  for (const variantUid of recipeVariant.ingredients.order) {
+    expect(originalIngredientUids).not.toContain(variantUid);
+    // Eintrag muss unter der neuen UID in entries existieren
+    expect(recipeVariant.ingredients.entries[variantUid]).toBeDefined();
+    expect(recipeVariant.ingredients.entries[variantUid].uid).toBe(variantUid);
+  }
+
+  for (const variantUid of recipeVariant.preparationSteps.order) {
+    expect(originalStepUids).not.toContain(variantUid);
+    expect(recipeVariant.preparationSteps.entries[variantUid]).toBeDefined();
+    expect(recipeVariant.preparationSteps.entries[variantUid].uid).toBe(
+      variantUid,
+    );
+  }
+
+  for (const variantUid of recipeVariant.materials.order) {
+    expect(originalMaterialUids).not.toContain(variantUid);
+    expect(recipeVariant.materials.entries[variantUid]).toBeDefined();
+    expect(recipeVariant.materials.entries[variantUid].uid).toBe(variantUid);
+  }
+
+  // Original-Rezept darf nicht verändert worden sein
+  expect(recipeMock.ingredients.order).toEqual(originalIngredientUids);
+  expect(recipeMock.preparationSteps.order).toEqual(originalStepUids);
+  expect(recipeMock.materials.order).toEqual(originalMaterialUids);
+
+  // Inhalt der Einträge muss erhalten bleiben (nur UID ist anders)
+  const originalFirstIngredient =
+    recipeMock.ingredients.entries[originalIngredientUids[0]];
+  const variantFirstIngredient =
+    recipeVariant.ingredients.entries[recipeVariant.ingredients.order[0]];
+  expect((variantFirstIngredient as Ingredient).product).toEqual(
+    (originalFirstIngredient as Ingredient).product,
+  );
+  expect((variantFirstIngredient as Ingredient).quantity).toBe((originalFirstIngredient as Ingredient).quantity);
+});
 /* =====================================================================
 // Leere Einträge erzeugen
 // ===================================================================== */
 test("Recipe.createEmptyListEntries(), leere Einträge erzeugen", () => {
-  let recipeMock = _.cloneDeep(recipe);
+  let recipeMock = structuredClone(recipe);
 
   let recipeWithEmptyEntries = Recipe.createEmptyListEntries({
     recipe: recipeMock,
@@ -153,7 +212,7 @@ test("Recipe.createEmptyListEntries(), leere Einträge erzeugen", () => {
   // Prüfen ob ein Eintrag eingefügt wurde
   expect(recipeWithEmptyEntries.ingredients.order).toHaveLength(8);
 
-  recipeMock = _.cloneDeep(recipe);
+  recipeMock = structuredClone(recipe);
   recipeMock.ingredients = {
     entries: {
       abcde: {
@@ -198,7 +257,7 @@ test("Recipe.createEmptyListEntries(), leere Einträge erzeugen", () => {
 });
 
 test("Recipe.createEmptyListEntries(), mit leeren Listen", () => {
-  const recipeMock = _.cloneDeep(recipe);
+  const recipeMock = structuredClone(recipe);
 
   recipeMock.ingredients = {entries: {}, order: []};
   recipeMock.preparationSteps = {entries: {}, order: []};
@@ -300,7 +359,7 @@ test("Recipe.addTag(), leerer Input behandeln", () => {
 // Prüfung Rezept
 // ===================================================================== */
 test("Recipe.checkRecipeData(), kein Name", () => {
-  const recipeMock = _.cloneDeep(recipe);
+  const recipeMock = structuredClone(recipe);
   recipeMock.name = "";
 
   expect(() => Recipe.checkRecipeData(recipeMock)).toThrow(
@@ -308,7 +367,7 @@ test("Recipe.checkRecipeData(), kein Name", () => {
   );
 });
 test("Recipe.checkRecipeData(), fehlender Variantennamen", () => {
-  const recipeMock = _.cloneDeep(recipe);
+  const recipeMock = structuredClone(recipe);
 
   recipeMock.type = RecipeType.variant;
   recipeMock.variantProperties = {
@@ -324,7 +383,7 @@ test("Recipe.checkRecipeData(), fehlender Variantennamen", () => {
   );
 });
 test("Recipe.checkRecipeData(), fehlende Portionen", () => {
-  const recipeMock = _.cloneDeep(recipe);
+  const recipeMock = structuredClone(recipe);
 
   recipeMock.portions = 0;
   expect(() => Recipe.checkRecipeData(recipeMock)).toThrow(
@@ -344,13 +403,13 @@ test("Recipe.checkRecipeData(), fehlende Portionen", () => {
   // );
 });
 test("Recipe.checkRecipeData(), Zutaten", () => {
-  let recipeMock = _.cloneDeep(recipe);
+  let recipeMock = structuredClone(recipe);
   recipeMock.ingredients = {entries: {}, order: []};
   expect(() => Recipe.checkRecipeData(recipeMock)).toThrow(
     TEXT_ERROR_NO_INGREDIENTS_GIVEN
   );
 
-  recipeMock = _.cloneDeep(recipe);
+  recipeMock = structuredClone(recipe);
   recipeMock.ingredients = {
     order: ["section1"],
     entries: {
@@ -361,7 +420,7 @@ test("Recipe.checkRecipeData(), Zutaten", () => {
   expect(() => Recipe.checkRecipeData(recipeMock)).toThrow(
     TEXT_ERROR_NO_INGREDIENTS_GIVEN
   );
-  recipeMock = _.cloneDeep(recipe);
+  recipeMock = structuredClone(recipe);
   recipeMock.ingredients = {
     order: ["abc"],
     entries: {
@@ -377,7 +436,7 @@ test("Recipe.checkRecipeData(), Zutaten", () => {
     TEXT_ERROR_NO_INGREDIENTS_GIVEN
   );
 
-  recipeMock = _.cloneDeep(recipe);
+  recipeMock = structuredClone(recipe);
   recipeMock.ingredients = {
     order: ["abc", "def"],
     entries: {
@@ -400,7 +459,7 @@ test("Recipe.checkRecipeData(), Zutaten", () => {
   );
 });
 test("Recipe.checkRecipeData(), Materialien", () => {
-  const recipeMock = _.cloneDeep(recipe);
+  const recipeMock = structuredClone(recipe);
   recipeMock.materials = {
     entries: {abc: {uid: "abc", quantity: 1, material: {uid: "", name: ""}}},
     order: ["abc"],
@@ -432,8 +491,8 @@ test("Recipe.checkRecipeData(), Materialien", () => {
 // ===================================================================== */
 describe("Recipe.preparesave()", () => {
   test("Leere Einträge in Listen entfernen", () => {
-    let recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
+    let recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
 
     recipeMock = Recipe.prepareSave({
       recipe: recipeMock,
@@ -447,8 +506,8 @@ describe("Recipe.preparesave()", () => {
     expect(recipeMock.materials.order).toHaveLength(2);
   });
   test("Exception bei fehlerhaften Rezept", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
 
     recipeMock.portions = -4;
 
@@ -462,8 +521,8 @@ describe("Recipe.preparesave()", () => {
 // ===================================================================== */
 describe("Recipe.defineDietProperties()", () => {
   test("unknown Product", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
     (recipeMock.ingredients.entries.abc = {
       uid: "abc",
       product: {uid: "123", name: "Fake"},
@@ -481,7 +540,7 @@ describe("Recipe.defineDietProperties()", () => {
       ).toThrow(TEXT_ERROR_PRODUCT_UNKNOWN("Fake"));
   });
   test("Vegan", () => {
-    const recipeMock = _.cloneDeep(recipe);
+    const recipeMock = structuredClone(recipe);
     recipeMock.ingredients.entries = {
       a: {
         uid: "a",
@@ -511,6 +570,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -519,6 +580,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({
@@ -528,7 +591,7 @@ describe("Recipe.defineDietProperties()", () => {
     expect(dietProperties.diet).toBe(Diet.Vegan);
   });
   test("Vegetarisch", () => {
-    const recipeMock = _.cloneDeep(recipe);
+    const recipeMock = structuredClone(recipe);
     recipeMock.ingredients.entries = {
       a: {
         uid: "a",
@@ -558,6 +621,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [1], diet: Diet.Vegetarian},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -566,6 +631,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({
@@ -576,9 +643,9 @@ describe("Recipe.defineDietProperties()", () => {
     expect(dietProperties.allergens).toContain(Allergen.Lactose);
   });
   test("Fleisch", () => {
-    const productsMock = _.cloneDeep(products);
+    const productsMock = structuredClone(products);
     const recipeMock = Recipe.prepareSave({
-      recipe: _.cloneDeep(recipe),
+      recipe: structuredClone(recipe),
       products: productsMock,
     });
     const dietProperties = Recipe.defineDietProperties({
@@ -589,7 +656,7 @@ describe("Recipe.defineDietProperties()", () => {
     expect(dietProperties.diet).toBe(Diet.Meat);
   });
   test("keine Allergene", () => {
-    const recipeMock = _.cloneDeep(recipe);
+    const recipeMock = structuredClone(recipe);
     recipeMock.ingredients.entries = {
       a: {
         uid: "a",
@@ -619,6 +686,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -627,6 +696,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({
@@ -636,7 +707,7 @@ describe("Recipe.defineDietProperties()", () => {
     expect(dietProperties.allergens).toHaveLength(0);
   });
   test("mit Allergene", () => {
-    const recipeMock = _.cloneDeep(recipe);
+    const recipeMock = structuredClone(recipe);
     recipeMock.ingredients.entries = {
       a: {
         uid: "a",
@@ -675,6 +746,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [1], diet: Diet.Vegetarian},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "tomato",
@@ -683,6 +756,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
       {
         uid: "flour",
@@ -691,6 +766,8 @@ describe("Recipe.defineDietProperties()", () => {
         shoppingUnit: "g",
         dietProperties: {allergens: [2], diet: Diet.Vegan},
         usable: true,
+        qaChecked: false,
+        qaCheckedAt: null,
       },
     ];
     const dietProperties = Recipe.defineDietProperties({
@@ -752,7 +829,9 @@ describe("Recipe.createEmptySection()", () => {
   test("Abschnitt erzeugen", () => {
     const section = Recipe.createEmptySection();
 
-    expect(section.uid.length).toBe(5);
+    expect(section.uid).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+    );
     expect(section.posType).toBe(PositionType.section);
     expect(section.name).toBe("");
   });
@@ -762,7 +841,7 @@ describe("Recipe.createEmptySection()", () => {
 // ===================================================================== */
 describe("Recipe.scaleIngredients()", () => {
   test("linear skalieren, gleiche Einheit", () => {
-    const recipeMock = _.cloneDeep(recipe);
+    const recipeMock = structuredClone(recipe);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -772,11 +851,11 @@ describe("Recipe.scaleIngredients()", () => {
     expect(scaledIngredients["abc"].quantity).toBe(462);
   });
   test("linear skalieren, andere Einheit", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
-    const unitsMock = _.cloneDeep(units);
-    const unitConversionMock = _.cloneDeep(unitConversionBasic);
-    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -791,11 +870,11 @@ describe("Recipe.scaleIngredients()", () => {
     expect(scaledIngredients["def"].unit).toBe("kg");
   });
   test("linear skalieren, skalierung ohne Umrechnung - ScalingOption = Off", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
-    const unitsMock = _.cloneDeep(units);
-    const unitConversionMock = _.cloneDeep(unitConversionBasic);
-    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -810,11 +889,11 @@ describe("Recipe.scaleIngredients()", () => {
     expect(scaledIngredients["def"].unit).toBe("g");
   });
   test("Produktspezifisch skalieren", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
-    const unitsMock = _.cloneDeep(units);
-    const unitConversionMock = _.cloneDeep(unitConversionBasic);
-    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -830,11 +909,11 @@ describe("Recipe.scaleIngredients()", () => {
     expect(scaledIngredients["mno"].unit).toBe("l");
   });
   test("Keine Umrechung gefunden", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
-    const unitsMock = _.cloneDeep(units);
-    const unitConversionMock = _.cloneDeep(unitConversionBasic);
-    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -850,11 +929,11 @@ describe("Recipe.scaleIngredients()", () => {
     expect(scaledIngredients["pqr"].unit).toBe("EL");
   });
   test("Von TL nach EL nach KG", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
-    const unitsMock = _.cloneDeep(units);
-    const unitConversionMock = _.cloneDeep(unitConversionBasic);
-    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -871,11 +950,11 @@ describe("Recipe.scaleIngredients()", () => {
     expect(scaledIngredients["stu"].unit).toBe("kg");
   });
   test("linear skalieren mit Skalierungsfaktor", () => {
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
-    const unitsMock = _.cloneDeep(units);
-    const unitConversionMock = _.cloneDeep(unitConversionBasic);
-    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -889,14 +968,52 @@ describe("Recipe.scaleIngredients()", () => {
     expect(scaledIngredients["ghi"].quantity).toBe(11);
     expect(scaledIngredients["ghi"].unit).toBe("");
   });
+  test("kein Absturz wenn Produkt nicht im Produktkatalog enthalten (convertUnits=true)", () => {
+    // Regression: product.uid in der Zutat ist nicht in products[] vorhanden.
+    // scaleIngredients() darf nicht mit "Cannot read properties of undefined
+    // (reading 'shoppingUnit')" abstürzen — stattdessen wird die skalierte
+    // Menge in der Originaleinheit übernommen.
+    const recipeMock = structuredClone(recipe);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
+
+    // Produkte-Array enthält das Produkt der Zutat "abc" (okt0) absichtlich nicht.
+    const partialProducts = [
+      {
+        uid: "mozza",
+        name: "Mozzarella",
+        department: {uid: "molk", name: "Molkerei"},
+        shoppingUnit: "kg",
+        dietProperties: {allergens: [], diet: 0},
+        usable: true,
+      },
+    ];
+
+    expect(() => {
+      const result = Recipe.scaleIngredients({
+        recipe: recipeMock,
+        portionsToScale: 44,
+        scalingOptions: {convertUnits: true},
+        products: partialProducts as any,
+        units: unitsMock,
+        unitConversionBasic: unitConversionMock,
+        unitConversionProducts: unitConversionProductsMock,
+      });
+      // "abc" hat Produkt "okt0" (nicht in partialProducts) → keine Umrechnung,
+      // aber die skalierte Menge muss trotzdem korrekt sein.
+      expect(result["abc"].quantity).toBe(462);
+      expect(result["abc"].unit).toBe("");
+    }).not.toThrow();
+  });
   test("linear skalieren mit Skalierungsfaktor - kleine Menge", () => {
     // angenommen es wird skaliert, aber die skalierte Menge ist weniger
     // als die Menge mit der Originalmenge, dann belassen wir die Originalmenge
-    const recipeMock = _.cloneDeep(recipe);
-    const productsMock = _.cloneDeep(products);
-    const unitsMock = _.cloneDeep(units);
-    const unitConversionMock = _.cloneDeep(unitConversionBasic);
-    const unitConversionProductsMock = _.cloneDeep(unitConversionProducts);
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+    const unitsMock = structuredClone(units);
+    const unitConversionMock = structuredClone(unitConversionBasic);
+    const unitConversionProductsMock = structuredClone(unitConversionProducts);
 
     const scaledIngredients = Recipe.scaleIngredients({
       recipe: recipeMock,
@@ -914,7 +1031,7 @@ describe("Recipe.scaleIngredients()", () => {
 
 describe("Recipe.scaleMaterials()", () => {
   test("Material skalieren, mit Mengen", () => {
-    const recipeMock = _.cloneDeep(recipe);
+    const recipeMock = structuredClone(recipe);
     const scaledMaterials = Recipe.scaleMaterials({
       recipe: recipeMock,
       portionsToScale: 42,
@@ -923,7 +1040,7 @@ describe("Recipe.scaleMaterials()", () => {
     expect(scaledMaterials["xxx"].quantity).toBe(10.5);
   });
   test("Material skalieren, ohne Mengen", () => {
-    const recipeMock = _.cloneDeep(recipe);
+    const recipeMock = structuredClone(recipe);
     const scaledMaterials = Recipe.scaleMaterials({
       recipe: recipeMock,
       portionsToScale: 42,

@@ -10,6 +10,9 @@ import React, {
 } from "react";
 
 import {useNavigate} from "react-router";
+import * as Sentry from "@sentry/react";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 import {useTheme} from "@mui/material/styles";
 import useMediaQuery from "@mui/material/useMediaQuery";
 
@@ -74,11 +77,12 @@ import {
   ArrowUpward as ArrowUpwardIcon,
   ArrowDownward as ArrowDownwardIcon,
 } from "@mui/icons-material";
-import CustomSnackbar, {Snackbar} from "../Shared/customSnackbar";
-import ButtonRow from "../Shared/buttonRow";
+import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
+import {ButtonRow} from "../Shared/buttonRow";
 import {FormListItem} from "../Shared/formListItem";
-import ProductAutocomplete from "../Product/productAutocomplete";
-import DialogProduct, {
+import {ProductAutocomplete} from "../Product/productAutocomplete";
+import {
+  DialogProduct,
   PRODUCT_POP_UP_VALUES_INITIAL_STATE,
   ProductDialog,
 } from "../Product/dialogProduct";
@@ -86,34 +90,34 @@ import {
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../Material/dialogMaterial";
-import UnitAutocomplete from "../Unit/unitAutocomplete";
-import MaterialAutocomplete from "../Material/materialAutocomplete";
+import {UnitAutocomplete} from "../Unit/unitAutocomplete";
+import {MaterialAutocomplete} from "../Material/materialAutocomplete";
 
-import useCustomStyles from "../../constants/styles";
-import Action from "../../constants/actions";
+import {useCustomStyles} from "../../constants/styles";
+import {Action} from "../../constants/actions";
 
-import Product from "../Product/product.class";
-import Unit, {UnitDimension} from "../Unit/unit.class";
-import Utils from "../Shared/utils.class";
+import {Product} from "../Product/product.types";
+import {Unit, UnitDimension} from "../Unit/unit.class";
+import {Utils} from "../Shared/utils.class";
 import Department from "../Department/department.class";
-import RecipeShort from "./recipeShort.class";
-import AlertMessage from "../Shared/AlertMessage";
+import {AlertMessage} from "../Shared/AlertMessage";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import * as TEXT from "../../constants/text";
 import * as ROUTES from "../../constants/routes";
 
-import Firebase from "../Firebase/firebase.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
+import {useDatabase} from "../Database/DatabaseContext";
+import type {RecipeDomain, RecipeShortDomain} from "../Database/Repository/RecipeRepository";
 import {DialogTagAdd} from "./recipe.view";
-import Material from "../Material/material.class";
-import DialogMaterial from "../Material/dialogMaterial";
+import {Material} from "../Material/material.types";
+import {DialogMaterial} from "../Material/dialogMaterial";
 import {
   RecipeInfoPanel as RecipeInfoPanelView,
   MealPlanPanel as MealPlanPanelView,
 } from "./recipe.view";
-import EventGroupConfiguration from "../Event/GroupConfiguration/groupConfiguration.class";
-import {PlanedMealsRecipe} from "../Event/Menuplan/menuplan.class";
+import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfiguration.class";
+import {PlanedMealsRecipe} from "../Event/Menuplan/menuplan.types";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {
   attachClosestEdge,
@@ -146,7 +150,7 @@ import Fuse, {FuseResult} from "fuse.js";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/navigationContext";
+} from "../Navigation/NavigationContext";
 import {HELPCENTER_URL} from "../../constants/defaultValues";
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -235,7 +239,7 @@ type DispatchAction =
   | {type: ReducerActions.MATERIALS_FETCH_INIT}
   | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
   | {type: ReducerActions.PUBLIC_RECIPES_FETCH_INIT}
-  | {type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS; payload: RecipeShort[]}
+  | {type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS; payload: RecipeShortDomain[]}
   | {
       type: ReducerActions.SNACKBAR_SHOW;
       payload: {severity: AlertColor; message: string};
@@ -249,9 +253,9 @@ type State = {
   products: Product[];
   departments: Department[];
   materials: Material[];
-  publicRecipes: RecipeShort[];
+  publicRecipes: RecipeShortDomain[];
   error: Error | null;
-  snackbar: Snackbar;
+  snackbar: SnackbarState;
   loadCollector: {
     units: boolean;
     products: boolean;
@@ -535,15 +539,17 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
           products: true,
         },
       };
-    case ReducerActions.PRODUCTS_FETCH_SUCCESS:
+    case ReducerActions.PRODUCTS_FETCH_SUCCESS: {
+      const loadedProducts = action.payload;
       return {
         ...state,
-        products: action.payload,
+        products: loadedProducts,
         loadCollector: {
           ...state.loadCollector,
           products: false,
         },
       };
+    }
     case ReducerActions.DEPARTMENTS_FETCH_INIT:
       return {
         ...state,
@@ -754,7 +760,6 @@ interface RecipeEditProps {
   dbRecipe: Recipe;
   mealPlan: Array<PlanedMealsRecipe>;
   groupConfiguration?: EventGroupConfiguration;
-  firebase: Firebase;
   isLoading: boolean;
   isEmbedded: boolean; // in einer Drawer eingebetettet, oder so...
   switchEditMode?: ({ignoreState}: SwitchEditMode) => void;
@@ -767,11 +772,24 @@ interface PositionMenuSelectedItem {
   firstElement: boolean;
   lastElement: boolean;
 }
+/**
+ * Bearbeitungsansicht für ein Rezept. Ermöglicht das Erstellen und Bearbeiten
+ * von Rezepten inkl. Zutaten, Zubereitungsschritte, Materialien und Varianten.
+ * Wird sowohl als eigenständige Seite als auch eingebettet in einem Drawer verwendet.
+ *
+ * @param dbRecipe Das Rezept-Objekt aus der Datenbank.
+ * @param mealPlan Array der geplanten Mahlzeiten, in denen das Rezept vorkommt.
+ * @param groupConfiguration Optionale Gruppenkonfiguration des Events.
+ * @param isLoading Ob die Daten noch geladen werden.
+ * @param isEmbedded Ob die Komponente in einem Drawer eingebettet ist.
+ * @param switchEditMode Callback zum Wechseln zwischen Ansichts- und Bearbeitungsmodus.
+ * @param onUpdateRecipe Callback zum Aktualisieren des Rezepts im übergeordneten State.
+ * @param authUser Der aktuell angemeldete Benutzer.
+ */
 const RecipeEdit = ({
   dbRecipe,
   mealPlan,
   groupConfiguration,
-  firebase,
   isLoading,
   isEmbedded,
   switchEditMode,
@@ -779,6 +797,7 @@ const RecipeEdit = ({
   authUser,
 }: RecipeEditProps) => {
   const classes = useCustomStyles();
+  const database = useDatabase();
   const navigate = useNavigate();
 
   const navigationValuesContext = useContext(NavigationValuesContext);
@@ -805,7 +824,7 @@ const RecipeEdit = ({
     ...{popUpOpen: false},
   });
   const [possibleDuplicateRecipes, setPossibleDuplicateRecipes] = useState<
-    FuseResult<RecipeShort>[]
+    FuseResult<RecipeShortDomain>[]
   >([]);
 
   const {customDialog} = useCustomDialog();
@@ -844,7 +863,8 @@ const RecipeEdit = ({
         type: ReducerActions.UNITS_FETCH_INIT,
       });
 
-      Unit.getAllUnits({firebase: firebase})
+      database.units
+        .getAllUnits()
         .then((result) => {
           // leeres Feld gehört auch dazu
           result.push({
@@ -855,11 +875,11 @@ const RecipeEdit = ({
 
           dispatch({
             type: ReducerActions.UNITS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Unit[],
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Einheiten laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -870,18 +890,17 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.PRODUCTS_FETCH_INIT,
       });
-      Product.getAllProducts({
-        firebase: firebase,
-        onlyUsable: true,
-      })
+      // Produkte aus Supabase laden (enthält Postgres-UUIDs, passend zu recipe_ingredients.product_id)
+      database.products
+        .getAllProducts({onlyUsable: true})
         .then((result) => {
           dispatch({
             type: ReducerActions.PRODUCTS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Product[],
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Produkte laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -892,15 +911,17 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.DEPARTMENTS_FETCH_INIT,
       });
-      Department.getAllDepartments({firebase: firebase})
+      // Abteilungen aus Supabase laden (Postgres-UUIDs, passend zu products.department_id)
+      database.departments
+        .getAllDepartments()
         .then((result) => {
           dispatch({
             type: ReducerActions.DEPARTMENTS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Department[],
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Abteilungen laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -911,15 +932,17 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.MATERIALS_FETCH_INIT,
       });
-      Material.getAllMaterials({firebase: firebase})
+      // Materialien aus Supabase laden (Postgres-UUIDs, passend zu recipe_materials.material_id)
+      database.materials
+        .getAllMaterials(true)
         .then((result) => {
           dispatch({
             type: ReducerActions.MATERIALS_FETCH_SUCCESS,
-            payload: result,
+            payload: result as unknown as Material[],
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Materialien laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -930,7 +953,8 @@ const RecipeEdit = ({
       dispatch({
         type: ReducerActions.PUBLIC_RECIPES_FETCH_INIT,
       });
-      RecipeShort.getShortRecipesPublic({firebase: firebase})
+      database.recipes
+        .getAllPublicRecipeShorts()
         .then((result) => {
           dispatch({
             type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS,
@@ -938,7 +962,7 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          console.error(error);
+          Sentry.captureException(error, {extra: {context: "RecipeEdit – Öffentliche Rezepte laden"}});
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -1032,30 +1056,22 @@ const RecipeEdit = ({
     action?: AutocompleteChangeReason,
     objectId?: string,
   ) => {
-    let ingredientPos: string[];
     let product: Product;
 
-    if (!event?.target.id && action !== "clear") {
+    // objectId bevorzugen: Autocomplete-Components setzen es explizit auf
+    // "<field>_<UUID>". event.target.id enthält bei Autocompletes die
+    // Option-Listen-ID (z.B. "product_<UUID>-option-0") — unzuverlässig.
+    const sourceId = objectId ?? event?.target.id;
+    if (!sourceId && action !== "clear") {
       return;
     }
-
-    if (event?.target.id) {
-      // alt id={"quantity_" + ingredient.uid + "_" + ingredient.pos}
-      // neu id={"quantity_" + ingredient.uid}
-
-      ingredientPos = event.target.id.split("_");
-    } else {
-      if (!objectId) {
-        return;
-      }
-      ingredientPos = objectId.split("_");
+    if (!sourceId) {
+      return;
     }
+    const ingredientPos = sourceId.split("_");
 
     const fieldName = ingredientPos[0];
-    let ingredientUid = ingredientPos[1];
-    if (ingredientUid.includes("-")) {
-      ingredientUid = ingredientUid.split("-")[0];
-    }
+    const ingredientUid = ingredientPos[1];
 
     let value: string | IngredientProduct;
     if (
@@ -1130,28 +1146,22 @@ const RecipeEdit = ({
     action?: AutocompleteChangeReason,
     objectId?: string,
   ) => {
-    let materialPos: string[];
     let material: Material;
 
-    if (!event?.target.id && action !== "clear") {
+    // objectId bevorzugen: Autocomplete-Components setzen es explizit auf
+    // "<field>_<UUID>". event.target.id enthält bei Autocompletes die
+    // Option-Listen-ID (z.B. "material_<UUID>-option-0") — unzuverlässig.
+    const sourceId = objectId ?? event?.target.id;
+    if (!sourceId && action !== "clear") {
       return;
     }
-
-    if (event?.target.id) {
-      materialPos = event.target.id.split("_");
-    } else {
-      if (!objectId) {
-        return;
-      }
-      materialPos = objectId.split("_");
+    if (!sourceId) {
+      return;
     }
+    const materialPos = sourceId.split("_");
 
     const fieldName = materialPos[0];
-    let materialUid = materialPos[1];
-    if (materialUid.includes("-")) {
-      // Falls über Dropdown ausgewählt, kommt noch der präfix -Option-1 zurück
-      materialUid = materialUid.split("-")[0];
-    }
+    const materialUid = materialPos[1];
     let value: string | RecipeProduct;
 
     if (
@@ -1252,65 +1262,106 @@ const RecipeEdit = ({
     try {
       Recipe.checkRecipeData(state.recipe);
     } catch (error) {
-      console.error(error);
+      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezeptdaten validieren"}});
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error as Error,
       });
       return;
     }
-    await Recipe.save({
-      firebase: firebase,
-      recipe: state.recipe,
-      products: state.products,
-      authUser: authUser,
-    })
-      .then((result) => {
-        if (
-          state.recipe.uid == "" &&
-          result.type !== RecipeType.variant &&
-          !isEmbedded
-        ) {
-          // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,
-          // die bei leerer UID zur Rezeptübersicht navigieren würde.
-          if (switchEditMode) {
-            switchEditMode({ignoreState: true});
-          }
-          navigate(`${ROUTES.RECIPE}/${result.created.fromUid}/${result.uid}`, {
-            replace: true,
-            state: {
-              action: Action.VIEW,
-              recipe: result,
-            },
-          });
-        } else {
-          if (switchEditMode) {
-            switchEditMode({});
-          }
-          // Angepasstes Rezept Hochgeben und in den Read-Modus wechseln
-          onUpdateRecipe({
-            recipe: result,
-            snackbar: {
-              message: TEXT.RECIPE_SAVE_SUCCESS,
-              severity: "success",
-              open: true,
-            },
-          });
+    try {
+      const isNew = state.recipe.uid === "";
 
-          // Meldung auf gleicher Seite anzeigen
-          dispatch({
-            type: ReducerActions.SNACKBAR_SHOW,
-            payload: {
-              severity: "success",
-              message: TEXT.RECIPE_SAVE_SUCCESS,
-            },
-          });
-        }
-      })
-      .catch((error) => {
-        console.error(error);
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+      // Rezept für das Speichern vorbereiten (Diät-Properties, Bereinigung)
+      const preparedRecipe = Recipe.prepareSave({
+        recipe: state.recipe,
+        products: state.products,
       });
+
+      // In RecipeDomain konvertieren und in der DB speichern
+      const domain: RecipeDomain = Recipe.toDomain(preparedRecipe);
+      const savedHeader = isNew
+        ? await database.recipes.insertRecipe(domain, authUser)
+        : await database.recipes.updateRecipe(domain, authUser);
+
+      // Kind-Datensätze (Zutaten, Schritte, Materialien) parallel speichern
+      const ingredientRows = Recipe.toIngredientRows(
+        preparedRecipe,
+        savedHeader.uid,
+      );
+      const stepRows = Recipe.toPreparationStepRows(
+        preparedRecipe,
+        savedHeader.uid,
+      );
+      const materialRows = Recipe.toMaterialRows(
+        preparedRecipe,
+        savedHeader.uid,
+      );
+      // saveAllForRecipe gibt die gespeicherten Daten mit aufgelösten
+      // Produkt-/Materialnamen zurück — kein separater Reload nötig.
+      const [savedIngredients, savedSteps, savedMaterials] = await Promise.all([
+        database.recipeIngredients.saveAllForRecipe(
+          savedHeader.uid,
+          ingredientRows,
+          authUser,
+        ),
+        database.recipePreparationSteps.saveAllForRecipe(
+          savedHeader.uid,
+          stepRows,
+          authUser,
+        ),
+        database.recipeMaterials.saveAllForRecipe(
+          savedHeader.uid,
+          materialRows,
+          authUser,
+        ),
+      ]);
+
+      const result = Recipe.fromRepositoryData(
+        savedHeader,
+        savedIngredients,
+        savedSteps,
+        savedMaterials,
+      );
+      if (isNew) {
+        const eventName = result.type === RecipeType.variant
+          ? AnalyticsEvent.RECIPE_VARIANT_CREATED
+          : AnalyticsEvent.RECIPE_CREATED;
+        trackEvent(eventName);
+      }
+      if (isNew && result.type !== RecipeType.variant && !isEmbedded) {
+        // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,
+        // die bei leerer UID zur Rezeptübersicht navigieren würde.
+        if (switchEditMode) {
+          switchEditMode({ignoreState: true});
+        }
+        navigate(`${ROUTES.RECIPE}/${result.uid}`, {
+          replace: true,
+          state: {action: Action.VIEW, recipe: result},
+        });
+      } else {
+        if (switchEditMode) {
+          switchEditMode({});
+        }
+        // Angepasstes Rezept hochgeben und in den Read-Modus wechseln
+        onUpdateRecipe({
+          recipe: result,
+          snackbar: {
+            message: TEXT.RECIPE_SAVE_SUCCESS,
+            severity: "success",
+            open: true,
+          },
+        });
+        // Meldung auf gleicher Seite anzeigen
+        dispatch({
+          type: ReducerActions.SNACKBAR_SHOW,
+          payload: {severity: "success", message: TEXT.RECIPE_SAVE_SUCCESS},
+        });
+      }
+    } catch (error) {
+      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezept speichern"}});
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
   const onCancel = async () => {
     const isConfirmed = await customDialog({
@@ -1376,8 +1427,6 @@ const RecipeEdit = ({
     // 0 = Name des Buttons (moreClick)
     // 1 = Abschnitt in dem er geklickt wurde (ingredients)
     // 2 = UID der Position
-
-    console.log(pressedButton);
 
     setPositionMenuSelectedItem({
       type: pressedButton[1] as RecipeBlock,
@@ -1483,7 +1532,7 @@ const RecipeEdit = ({
 
         break;
       default:
-        console.error("Aktion unbekannt:", pressedButton[1]);
+        Sentry.captureMessage(`Aktion unbekannt: ${pressedButton[1]}`, {level: "error", extra: {context: "RecipeEdit – onPositionMoreClick"}});
     }
 
     dispatch({
@@ -1726,7 +1775,6 @@ const RecipeEdit = ({
         // noListEntries={positionMenuSelectedItem.noOfPostitions}
       />
       <DialogProduct
-        firebase={firebase}
         productName={productAddPopupValues.name}
         productUid={productAddPopupValues.uid}
         productDietProperties={productAddPopupValues.dietProperties}
@@ -1742,7 +1790,6 @@ const RecipeEdit = ({
         authUser={authUser}
       />
       <DialogMaterial
-        firebase={firebase}
         materialName={materialAddPopupValues.name}
         materialUid={materialAddPopupValues.uid}
         materialType={materialAddPopupValues.type}
@@ -1773,7 +1820,7 @@ const RecipeEdit = ({
 // =================================================================== */
 interface RecipeHeaderProps {
   recipe: Recipe;
-  possibleDuplicateRecipes: FuseResult<RecipeShort>[];
+  possibleDuplicateRecipes: FuseResult<RecipeShortDomain>[];
   onChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onBlur: (event: React.FocusEvent<HTMLInputElement>) => void;
 }
@@ -1790,14 +1837,14 @@ const RecipeHeader = ({
     <React.Fragment>
       <Container
         maxWidth="md"
-        sx={classes.recipeHeader}
-        style={{
+        sx={{
+          ...classes.recipeHeader,
           display: "flex",
           position: "relative",
           backgroundImage: `url(${
             recipe.pictureSrc
               ? recipe.pictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           })`,
           backgroundPosition: "center",
@@ -1817,10 +1864,11 @@ const RecipeHeader = ({
             onChange={onChange}
             onBlur={onBlur}
             autoFocus
-            style={{marginBottom: "1ex"}}
+            sx={{marginBottom: "1ex"}}
+            slotProps={{htmlInput: {maxLength: 200}}}
           />
           {!recipe.uid && possibleDuplicateRecipes.length > 0 && (
-            <Alert severity="warning" style={{marginBottom: "1ex"}}>
+            <Alert severity="warning" sx={{marginBottom: "1ex"}}>
               {TEXT.POSSIBLE_DUPLICATE_FOUND}
               {/* <br /> */}
               <ul>
@@ -1847,7 +1895,7 @@ const RecipeHeader = ({
               value={recipe.pictureSrc}
               onChange={onChange}
               helperText={TEXT.HELPERTEXT_RECIPE_IMAGE_SOURCE}
-              style={{marginTop: "1ex"}}
+              sx={{marginTop: "1ex"}}
             />
           </Tooltip>
         </Box>
@@ -1869,14 +1917,14 @@ const RecipeHeaderVariant = ({recipe, onChange}: RecipeHeaderVariantProps) => {
     <React.Fragment>
       <Container
         maxWidth="md"
-        sx={classes.recipeHeader}
-        style={{
+        sx={{
+          ...classes.recipeHeader,
           display: "flex",
           position: "relative",
           backgroundImage: `url(${
             recipe.pictureSrc
               ? recipe.pictureSrc
-              : ImageRepository.getEnviromentRelatedPicture()
+              : ImageRepository.getEnvironmentRelatedPicture()
                   .CARD_PLACEHOLDER_MEDIA
           })`,
           backgroundPosition: "center",
@@ -1890,7 +1938,7 @@ const RecipeHeaderVariant = ({recipe, onChange}: RecipeHeaderVariantProps) => {
             variant="h2"
             align="center"
             color="textPrimary"
-            style={{display: "block"}}
+            sx={{display: "block"}}
             gutterBottom
           >
             {recipe.name}
@@ -1906,7 +1954,7 @@ const RecipeHeaderVariant = ({recipe, onChange}: RecipeHeaderVariantProps) => {
             placeholder={TEXT.DESCRIBE_YOUR_VARIANT}
             onChange={onChange}
             autoFocus
-            style={{marginBottom: "2ex"}}
+            sx={{marginBottom: "2ex"}}
           />
         </Box>
         {recipe.pictureSrc && (
@@ -2003,6 +2051,7 @@ const RecipeInfoPanel = ({
             editMode={true}
             helperText={TEXT.HELPTER_TEXT_RECIPE_SOURCE}
             onChange={onChange}
+            maxLength={500}
           />
           {/* Zubereitungszeit */}
           <FormListItem
@@ -2101,6 +2150,7 @@ const RecipeInfoPanel = ({
             editMode={true}
             onChange={onChange}
             multiLine={true}
+            maxLength={2000}
           />
           {/* Tags */}
           <FormListItem
@@ -2295,7 +2345,7 @@ const RecipeIngredients = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.INGREDIENTS}
@@ -2326,7 +2376,7 @@ const RecipeIngredients = ({
 
         <Grid size={12} sx={classes.centerCenter}>
           <IngredientListContext.Provider value={contextValue}>
-            <List key={"listIngredients"} style={{flexGrow: 1}}>
+            <List key={"listIngredients"} sx={{flexGrow: 1}}>
               {recipe.ingredients.order.map((ingredientUid, index) => (
                 <React.Fragment key={"ingredient_" + ingredientUid}>
                   <IngredientListEntry
@@ -2790,7 +2840,7 @@ const RecipePreparationSteps = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.PREPARATION}
@@ -2798,7 +2848,7 @@ const RecipePreparationSteps = ({
       <Grid container spacing={2} alignItems="center">
         <Grid size={12} sx={classes.centerCenter}>
           <PreparationListContext.Provider value={contextValue}>
-            <List key={"listPreparationSteps"} style={{flexGrow: 1}}>
+            <List key={"listPreparationSteps"} sx={{flexGrow: 1}}>
               {/* Zutaten auflsiten */}
               {recipe.preparationSteps.order.map(
                 (preparationStepUid, index) => (
@@ -3171,7 +3221,7 @@ const RecipeMaterials = ({
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.MATERIAL}
@@ -3179,7 +3229,7 @@ const RecipeMaterials = ({
       <Grid container spacing={2} alignItems="center">
         <Grid size={12} sx={classes.centerCenter}>
           <MaterialListContext.Provider value={contextValue}>
-            <List key={"listMaterials"} style={{flexGrow: 1}}>
+            <List key={"listMaterials"} sx={{flexGrow: 1}}>
               {recipe.materials.order.map((materialUid, index) => (
                 <MaterialListEntry
                   key={"material_" + materialUid}
@@ -3303,7 +3353,7 @@ const MaterialListEntry = ({
       id={"listitem_materials_" + material.uid}
       secondaryAction={
         <IconButton
-          id={"MoreBtn_" + RecipeBlock.prepartionSteps + "_" + material.uid}
+          id={"MoreBtn_" + RecipeBlock.materials + "_" + material.uid}
           aria-label="position-options"
           onClick={onPositionMoreClick}
           size="small"
@@ -3418,7 +3468,7 @@ const SectionPosition = ({
     <React.Fragment>
       <ListItemText>
         <Grid container spacing={2} alignItems="center">
-          {index !== 1 && <Grid size={12} style={{marginTop: "0.5em"}} />}
+          {index !== 1 && <Grid size={12} sx={{marginTop: "0.5em"}} />}
           {!breakpointIsXs && (
             <Grid
               size={{xs: 1, sm: 1}}
@@ -3548,7 +3598,7 @@ const RecipeVariantNote = ({recipe, onChange}: RecipeVariantNoteProps) => {
         component="h2"
         variant="h4"
         align="center"
-        style={{display: "block"}}
+        sx={{display: "block"}}
         gutterBottom
       >
         {TEXT.VARIANT_NOTE}
@@ -3566,11 +3616,11 @@ const RecipeVariantNote = ({recipe, onChange}: RecipeVariantNoteProps) => {
             label={TEXT.NOTE}
             value={recipe.variantProperties?.note}
             onChange={onChange}
-            style={{marginBottom: "2ex"}}
+            sx={{marginBottom: "2ex"}}
           />
         </Grid>
       </Grid>
     </React.Fragment>
   );
 };
-export default RecipeEdit;
+export {RecipeEdit};

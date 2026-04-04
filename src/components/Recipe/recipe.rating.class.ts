@@ -1,14 +1,13 @@
+import * as Sentry from "@sentry/react";
 import Firebase from "../Firebase/firebase.class";
 import {AuthUser} from "../Firebase/Authentication/authUser.class";
-import Feed, {FeedType} from "../Shared/feed.class";
+import {FeedType} from "../Shared/feed.class";
 import Recipe from "./recipe.class";
-import Role from "../../constants/roles";
+import {Role} from "../../constants/roles";
+import DatabaseService from "../Database/DatabaseService";
 
-export interface Rating {
-  avgRating: number;
-  noRatings: number;
-  myRating: number;
-}
+// Re-export aus recipe.types.ts für Abwärtskompatibilität
+export type {Rating} from "./recipe.types";
 interface GetRatingOfUser {
   firebase: Firebase;
   recipeUid: string;
@@ -16,6 +15,7 @@ interface GetRatingOfUser {
 }
 interface UpdateUserRating {
   firebase: Firebase;
+  database: DatabaseService;
   recipe: Recipe;
   newRating: number;
   authUser: AuthUser;
@@ -62,10 +62,11 @@ export class RecipeRating {
   /**
    * Bewertung eines Users speichern/aktualisieren. Das Dokument wird
    * angelegt/überschrieben.
-   * @param param0 - Objekt mit Firebase-Referenz, Rezept-UID, und User-UID
+   * @param param0 - Objekt mit Firebase-Referenz, Database, Rezept, Rating und User
    */
   static async updateUserRating({
     firebase,
+    database,
     recipe,
     newRating,
     authUser,
@@ -79,21 +80,27 @@ export class RecipeRating {
         authUser: authUser,
       })
       .catch((error) => {
-        console.error(error);
+        Sentry.captureException(error);
         throw error;
       });
 
-    // Feed aktualisieren
-    Feed.createFeedEntry({
-      firebase: firebase,
-      authUser: authUser,
-      feedType: FeedType.recipeRated,
-      feedVisibility: Role.basic,
-      objectUid: recipe.uid,
-      objectName: recipe.name,
-      objectPictureSrc: recipe.pictureSrc,
-      textElements: [recipe.name, newRating.toString()],
-    });
+    // Feed-Eintrag erstellen
+    database.feeds
+      .insertFeed(
+        {
+          feedType: FeedType.recipeRated,
+          visibility: Role.basic,
+          sourceObjectType: "recipe",
+          sourceObjectUid: recipe.uid,
+          sourceObjectData: {rating: newRating},
+        },
+        authUser,
+      )
+      .catch((error) => {
+        Sentry.captureException(error, {
+          extra: {context: "Feed-Eintrag konnte nicht erstellt werden"},
+        });
+      });
   }
 }
 export default RecipeRating;

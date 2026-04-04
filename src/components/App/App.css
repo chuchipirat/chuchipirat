@@ -1,14 +1,28 @@
-/* ===================================================================
-// ========================== Globale Variablen ======================
-// =================================================================== */
+/* Globale Variablen */
 :root {
   --primary-color-light: #006064;
   --primary-color-dark: #00bcd4;
   --primary-color-hover-light: #00616433;
   --primary-color-hover-dark: #00bcd480;
-} /* ===================================================================
-// ============================ Input Fields =========================
-// =================================================================== */
+
+  /* Ribbon-Farben */
+  --ribbon-red: #d32f2f;
+  --ribbon-orange-start: #e7711b;
+  --ribbon-orange-end: #f7981d;
+  --ribbon-yellow-start: #f1ca3a;
+  --ribbon-yellow-end: #f6eb3b;
+  --ribbon-green-start: #5f9654;
+  --ribbon-green-end: #65b045;
+  --ribbon-blue-start: #1c91c0;
+  --ribbon-blue-end: #11a9cc;
+  --ribbon-purple-start: #5c3292;
+  --ribbon-purple-end: #7e3794;
+  --ribbon-grey-start: #999999;
+  --ribbon-grey-end: #cccccc;
+  --corner-tape-border: #a32525;
+}
+
+/* Input Fields */
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
   -webkit-appearance: none;
@@ -20,10 +34,7 @@ input[type="number"] {
   -moz-appearance: textfield;
 }
 
-/* ===================================================================
-// ========================= Navigation Ribbon =======================
-// =================================================================== */
-
+/* Navigation Ribbon */
 .ribbon {
   line-height: 0.8em;
   font-size: 1.5em;
@@ -35,7 +46,7 @@ input[type="number"] {
   display: block;
   width: 3rem;
   height: 4rem;
-  background: linear-gradient(to bottom, #999999 0%, #cccccc 100%);
+  background: linear-gradient(to bottom, var(--ribbon-grey-start) 0%, var(--ribbon-grey-end) 100%);
   color: white;
   margin: 0 0.5em 0;
   float: left;
@@ -58,49 +69,43 @@ input[type="number"] {
 }
 
 .ribbon--red {
-  background: #d32f2f;
+  background: var(--ribbon-red);
 }
 .ribbon--red::after {
-  border-top: 1.5rem solid #d32f2f;
+  border-top: 1.5rem solid var(--ribbon-red);
 }
 .ribbon--orange {
-  background: linear-gradient(to bottom, #e7711b 0%, #f7981d 100%);
+  background: linear-gradient(to bottom, var(--ribbon-orange-start) 0%, var(--ribbon-orange-end) 100%);
 }
 .ribbon--orange::after {
-  border-top: 1.5rem solid #f7981d;
+  border-top: 1.5rem solid var(--ribbon-orange-end);
 }
-
 .ribbon--yellow {
-  background: linear-gradient(to bottom, #f1ca3a 0%, #f6eb3b 100%);
+  background: linear-gradient(to bottom, var(--ribbon-yellow-start) 0%, var(--ribbon-yellow-end) 100%);
 }
 .ribbon--yellow::after {
-  border-top: 1.5rem solid #f6eb3b;
+  border-top: 1.5rem solid var(--ribbon-yellow-end);
 }
 .ribbon--green {
-  background: linear-gradient(to bottom, #5f9654 0%, #65b045 100%);
+  background: linear-gradient(to bottom, var(--ribbon-green-start) 0%, var(--ribbon-green-end) 100%);
 }
-
 .ribbon--green::after {
-  border-top: 1.5rem solid #65b045;
+  border-top: 1.5rem solid var(--ribbon-green-end);
 }
-
 .ribbon--blue {
-  background: linear-gradient(to bottom, #1c91c0 0%, #11a9cc 100%);
+  background: linear-gradient(to bottom, var(--ribbon-blue-start) 0%, var(--ribbon-blue-end) 100%);
 }
 .ribbon--blue::after {
-  border-top: 1.5rem solid #11a9cc;
+  border-top: 1.5rem solid var(--ribbon-blue-end);
 }
-
 .ribbon--purple {
-  background: linear-gradient(to bottom, #5c3292 0%, #7e3794 100%);
+  background: linear-gradient(to bottom, var(--ribbon-purple-start) 0%, var(--ribbon-purple-end) 100%);
 }
-.ribbon--purple:after {
-  border-top: 1.5rem solid #7e3794;
+.ribbon--purple::after {
+  border-top: 1.5rem solid var(--ribbon-purple-end);
 }
 
-/* ===================================================================
-// =========================== Corner Ribbon =========================
-// =================================================================== */
+/* Corner Ribbon */
 .cornerRibon {
   width: 250px;
   padding: 0.5rem;
@@ -114,7 +119,7 @@ input[type="number"] {
   position: absolute;
 }
 
-/* Positions */
+/* Positionen */
 .cornerRibon-top {
   top: 5.5rem;
 }
@@ -128,7 +133,7 @@ input[type="number"] {
   right: -5rem;
 }
 
-/* Rotations */
+/* Rotationen */
 .cornerRibon-top.cornerRibon-left,
 .cornerRibon-bottom.cornerRibon-right {
   transform: rotate(-45deg);
@@ -139,7 +144,7 @@ input[type="number"] {
   transform: rotate(45deg);
 }
 
-/* Colors */
+/* Farben */
 .cornerRibon-white {
   background-color: #f0f0f0;
   color: #444;
@@ -163,7 +168,7 @@ input[type="number"] {
   background-color: #95b;
 }
 .cornerRibon-red {
-  background-color: #d32f2f;
+  background-color: var(--ribbon-red);
 }
 .cornerRibon-orange {
   background-color: #e82;
@@ -172,9 +177,7 @@ input[type="number"] {
   background-color: #ec0;
 }
 
-/* ===================================================================
-// ============================ Card Ribbon ==========================
-// =================================================================== */
+/* Card Ribbon */
 .cardRibbon {
   line-height: 1em;
   font-size: 1.5em;
@@ -186,9 +189,8 @@ input[type="number"] {
   display: block;
   width: 2rem;
   height: 2rem;
-  background: linear-gradient(to bottom, #999999 0%, #cccccc 100%);
+  background: linear-gradient(to bottom, var(--ribbon-grey-start) 0%, var(--ribbon-grey-end) 100%);
   color: white;
-  /* margin-right: 2em; */
   float: right;
   padding-top: 0.5rem;
   position: absolute;
@@ -203,61 +205,53 @@ input[type="number"] {
   height: 0;
   border-right: 1rem solid transparent;
   border-left: 1rem solid transparent;
-  /* border-top: 0.5rem solid #cccccc; */
   position: absolute;
   top: 2rem;
   left: 0;
 }
 
 .cardRibbon--red {
-  background: #d32f2f;
+  background: var(--ribbon-red);
 }
 .cardRibbon--red::after {
-  border-top: 1rem solid #d32f2f;
+  border-top: 1rem solid var(--ribbon-red);
 }
 .cardRibbon--orange {
-  background: linear-gradient(to bottom, #e7711b 0%, #f7981d 100%);
+  background: linear-gradient(to bottom, var(--ribbon-orange-start) 0%, var(--ribbon-orange-end) 100%);
 }
 .cardRibbon--orange::after {
-  border-top: 1.5rem solid #f7981d;
+  border-top: 1.5rem solid var(--ribbon-orange-end);
 }
-
 .cardRibbon--yellow {
-  background: linear-gradient(to bottom, #f1ca3a 0%, #f6eb3b 100%);
+  background: linear-gradient(to bottom, var(--ribbon-yellow-start) 0%, var(--ribbon-yellow-end) 100%);
 }
 .cardRibbon--yellow::after {
-  border-top: 1.5rem solid #f6eb3b;
+  border-top: 1.5rem solid var(--ribbon-yellow-end);
 }
 .cardRibbon--green {
-  background: linear-gradient(to bottom, #5f9654 0%, #65b045 100%);
+  background: linear-gradient(to bottom, var(--ribbon-green-start) 0%, var(--ribbon-green-end) 100%);
 }
-
 .cardRibbon--green::after {
-  border-top: 1.5rem solid #65b045;
+  border-top: 1.5rem solid var(--ribbon-green-end);
 }
-
 .cardRibbon--blue {
-  background: linear-gradient(to bottom, #1c91c0 0%, #11a9cc 100%);
+  background: linear-gradient(to bottom, var(--ribbon-blue-start) 0%, var(--ribbon-blue-end) 100%);
 }
 .cardRibbon--blue::after {
-  border-top: 1.5rem solid #11a9cc;
+  border-top: 1.5rem solid var(--ribbon-blue-end);
 }
-
 .cardRibbon--purple {
-  background: linear-gradient(to bottom, #5c3292 0%, #7e3794 100%);
+  background: linear-gradient(to bottom, var(--ribbon-purple-start) 0%, var(--ribbon-purple-end) 100%);
+}
+.cardRibbon--purple::after {
+  border-top: 1.5rem solid var(--ribbon-purple-end);
 }
 
-.cardRibbon--purple:after {
-  border-top: 1.5rem solid #7e3794;
-}
-/* ===================================================================
-// ======================== Corner Tape Ribbon =======================
-// =================================================================== */
+/* Corner Tape Ribbon */
 .cornerTapeBox {
   position: relative;
 }
 
-/* common */
 .cornerTape {
   width: 8rem;
   height: 8rem;
@@ -268,26 +262,24 @@ input[type="number"] {
 .cornerTape::before,
 .cornerTape::after {
   position: absolute;
-  /* z-index: 999; */
   content: "";
   display: block;
-  border: 5px solid #a32525;
+  border: 5px solid var(--corner-tape-border);
 }
 .cornerTape span {
   position: absolute;
   display: block;
   width: 13rem;
   padding: 0.75rem 0;
-  background-color: #d32f2f;
+  background-color: var(--ribbon-red);
   box-shadow: 0 5px 10px rgba(0, 0, 0, 0.1);
   color: #fff;
   font: 700 18px/1 "Lato", sans-serif;
-  /* text-shadow: 0 1px 1px rgba(0, 0, 0, 0.2); */
   text-transform: uppercase;
   text-align: center;
 }
 
-/* top left*/
+/* top left */
 .cornerTape-top-left {
   top: -10px;
   left: -10px;
@@ -311,7 +303,7 @@ input[type="number"] {
   transform: rotate(-45deg);
 }
 
-/* top right*/
+/* top right */
 .cornerTape-top-right {
   top: -10px;
   right: -10px;
@@ -335,7 +327,7 @@ input[type="number"] {
   transform: rotate(45deg);
 }
 
-/* bottom left*/
+/* bottom left */
 .cornerTape-bottom-left {
   bottom: -10px;
   left: -10px;
@@ -359,7 +351,7 @@ input[type="number"] {
   transform: rotate(225deg);
 }
 
-/* bottom right*/
+/* bottom right */
 .cornerTape-bottom-right {
   bottom: -10px;
   right: -10px;
@@ -382,96 +374,47 @@ input[type="number"] {
   bottom: 30px;
   transform: rotate(-225deg);
 }
-/* ===================================================================
-// =========================== Quill Editor ==========================
-// =================================================================== */
-.quill > * {
-  border-color: inherit !important;
-  color: inherit !important;
-}
-.quill > .ql-toolbar {
-  /* border radius of the toolbar */
-  border-radius: 4px 4px 0 0;
-}
-.quill > .ql-container {
-  /* border radius of the container and for font size*/
+
+/* TipTap Editor */
+.tiptap {
   font-size: inherit;
-  border-radius: 0 0 4px 4px;
-}
-.ql-toolbar.ql-snow .ql-picker-label {
-  color: inherit !important;
-  opacity: 0.76;
-}
-.ql-snow .ql-picker {
-  color: inherit !important;
-}
-.quill > .ql-container > .ql-editor.ql-blank::before {
-  /* for placeholder */
   color: inherit;
 }
-.ql-snow.ql-toolbar button svg {
-  opacity: 0.76;
-  color: currentColor;
+.tiptap:focus {
+  outline: none;
 }
-.ql-snow .ql-stroke {
-  /* for the border of the editor */
-  stroke: currentColor !important;
+.tiptap a {
+  color: var(--primary-color-light);
+  cursor: pointer;
 }
-.ql-snow .ql-fill {
-  /* for the bg color */
-  fill: currentColor !important;
-}
-.ql-picker-item {
-  /* for dropdown */
-  color: #444 !important;
-}
-.ql-active {
-  color: var(--primary-color-light) !important;
-}
-/* Stile für den Dark Mode */
 @media (prefers-color-scheme: dark) {
-  .ql-active {
-    color: var(--primary-color-dark) !important;
+  .tiptap a {
+    color: var(--primary-color-dark);
   }
 }
 
-/* Test umgebung */
-/* .ql-active {
-  color: #AB47BC !important;
-}
-
-@media (prefers-color-scheme: dark) {
-  .ql-active {
-    color: #6a1b9a !important;
-  }
-} */
-/* ===================================================================
-// =========================== Sentry Input ==========================
-// =================================================================== */
+/* Sentry Feedback */
 #sentry-feedback {
   --font-family: "Roboto", "Helvetica", "Arial";
   --dialog-border-radius: 4px;
 }
-/* ===================================================================
-// =========================== Drag & Drop ==========================
-// =================================================================== */
-/* Wo wird das Item eingefügt */
+
+/* Drag & Drop */
 .custom-drop-indicator {
-  --ds-border-selected: var(--primary-color-light); /* Light-Mode Farbe */
+  --ds-border-selected: var(--primary-color-light);
 }
 @media (prefers-color-scheme: dark) {
   .custom-drop-indicator {
-    --ds-border-selected: var(--primary-color-dark); /* Dark-Mode Farbe */
+    --ds-border-selected: var(--primary-color-dark);
   }
 }
-/* Blinken nach dem Drop --> Welches Item hat sich verändert? */
+
+/* Blinken nach dem Drop — welches Item hat sich verändert? */
 .custom-drop-trigger-post-move-flash {
-  --ds-background-selected: var(
-    --primary-color-hover-light
-  ); /* Light-Mode Farbe */
+  --ds-background-selected: var(--primary-color-hover-light);
 }
 @media (prefers-color-scheme: dark) {
   .custom-drop-trigger-post-move-flash {
-    --ds-border-selected: var(--primary-color-hover-dark); /* Dark-Mode Farbe */
+    --ds-border-selected: var(--primary-color-hover-dark);
   }
 }

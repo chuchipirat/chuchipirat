@@ -8,12 +8,28 @@ import {
 } from "@mui/material";
 
 import {RecipeProduct} from "../Recipe/recipe.class";
-import Material, {MaterialType} from "./material.class";
-import Utils from "../Shared/utils.class";
+import {Material, MaterialType, createEmptyMaterial} from "./material.types";
+import {Utils} from "../Shared/utils.class";
 
 import {MATERIAL, ADD, ITEM_CANT_BE_CHANGED} from "../../constants/text";
 import {TextFieldSize} from "../../constants/defaultValues";
 
+/** Statelose Filterfunktion — wird einmalig auf Modulebene erzeugt. */
+const materialFilter = createFilterOptions<Material>();
+
+/**
+ * Props für das MaterialAutocomplete.
+ *
+ * @param componentKey - Optionaler Schlüssel für mehrere Instanzen auf derselben Seite.
+ * @param material - Aktuell gewähltes Material (oder null).
+ * @param materials - Verfügbare Materialien für die Auswahlliste.
+ * @param label - Label des Eingabefelds (Standard: "Material").
+ * @param disabled - Ob das Feld deaktiviert ist.
+ * @param allowCreateNewMaterial - Ob ein neues Material erstellt werden darf.
+ * @param onChange - Callback bei Auswahl oder Eingabe.
+ * @param error - Fehlerzustand mit Fehlertext.
+ * @param size - Grösse des Textfelds.
+ */
 interface MaterialAutocompleteProps {
   componentKey?: string;
   material: Material | RecipeProduct | null;
@@ -36,13 +52,19 @@ interface filterHelpWithSortRank {
   type: MaterialType;
   sortRank?: number;
   usable: boolean;
+  qaChecked: boolean;
+  qaCheckedAt: string | null;
 }
 
 // ===================================================================== */
 /**
- * Autocomplete Feld für Material
- * @param param0
- * @returns
+ * Autocomplete-Feld zur Auswahl oder Erstellung eines Materials.
+ *
+ * Zeigt eine filterbare Liste aller Materialien. Optional kann der Benutzer
+ * ein neues Material direkt aus dem Eingabefeld heraus erfassen.
+ *
+ * @param props - MaterialAutocompleteProps
+ * @returns JSX-Element mit Autocomplete und optionaler Fehleranzeige.
  */
 const MaterialAutocomplete = ({
   componentKey,
@@ -55,9 +77,6 @@ const MaterialAutocomplete = ({
   error,
   size = TextFieldSize.medium,
 }: MaterialAutocompleteProps) => {
-  // Handler für Zutaten/Produkt hinzufügen
-  const filter = createFilterOptions<Material>();
-
   return (
     <Autocomplete
       id={componentKey ? "material_" + componentKey : "material"}
@@ -72,7 +91,7 @@ const MaterialAutocomplete = ({
         )
       }
       filterOptions={(options, params) => {
-        let filtered = filter(options, params) as Material[];
+        let filtered = materialFilter(options, params) as Material[];
         if (
           params.inputValue !== "" &&
           // Sicherstellen, dass kein Produkt mit gleichem Namen erfasst wird
@@ -84,9 +103,10 @@ const MaterialAutocomplete = ({
         ) {
           if (allowCreateNewMaterial) {
             // Hinzufügen-Möglichkeit auch als Produkt reinschmuggeln
-            const newMaterial = new Material();
-            newMaterial.name = `"${params.inputValue}" ${ADD}`;
-            filtered.push(newMaterial);
+            filtered.push({
+              ...createEmptyMaterial(),
+              name: `"${params.inputValue}" ${ADD}`,
+            });
           }
         }
         // So sortieren, dass Zutaten, die mit den gleichen Zeichen beginnen
@@ -168,4 +188,4 @@ const MaterialAutocomplete = ({
     />
   );
 };
-export default MaterialAutocomplete;
+export {MaterialAutocomplete};

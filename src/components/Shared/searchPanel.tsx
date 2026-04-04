@@ -64,4 +64,4 @@ const SearchPanel = ({
   );
 };
 
-export default SearchPanel;
+export {SearchPanel};

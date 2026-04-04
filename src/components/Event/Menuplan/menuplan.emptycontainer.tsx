@@ -3,12 +3,9 @@ import {Container, Button} from "@mui/material";
 import {dropTargetForElements} from "@atlaskit/pragmatic-drag-and-drop/element/adapter";
 import {combine} from "@atlaskit/pragmatic-drag-and-drop/combine";
 import invariant from "tiny-invariant";
-import useCustomStyles from "../../../constants/styles";
-import {Meal} from "./menuplan.class";
+import {useCustomStyles} from "../../../constants/styles";
+import {Meal} from "./menuplan.types";
 
-/* ===================================================================
-// ===================== Type Guards & Data ==========================
-// =================================================================== */
 const emptyContainerKey = Symbol("empty-container");
 
 export type TEmptyContainerData = {
@@ -36,9 +33,6 @@ function getEmptyContainerData({
 type StateType = "idle" | "draggedOver";
 const idleState: StateType = "idle";
 const draggedOverState: StateType = "draggedOver";
-/* ===================================================================
-// ==================== Empty Container Component ====================
-// =================================================================== */
 interface EmptyMealContainerProps {
   mealUid: Meal["uid"];
   buttonText: string;

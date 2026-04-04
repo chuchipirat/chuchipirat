@@ -1,5 +1,5 @@
 import React from "react";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 
 import {
   ListItem,
@@ -10,6 +10,26 @@ import {
   TextField,
 } from "@mui/material";
 
+/**
+ * Eigenschaften für ein einzelnes Formularelement in einer Liste.
+ *
+ * @param value Anzuzeigender Wert (Text, Zahl, Datum oder JSX).
+ * @param id Eindeutige ID des Feldes.
+ * @param label Beschriftung / Label.
+ * @param icon Optionales Icon links.
+ * @param type HTML-Input-Typ (z.B. "number", "text").
+ * @param multiLine Mehrzeilige Eingabe erlauben.
+ * @param disabled Feld deaktivieren.
+ * @param required Feld als Pflichtfeld markieren.
+ * @param editMode Bearbeitungsmodus (TextField) statt Anzeige (ListItemText).
+ * @param helperText Hilfetext unter dem Feld.
+ * @param onChange Änderungs-Handler.
+ * @param displayAsCode Wert als Code-Schrift anzeigen.
+ * @param withDivider Trennlinie nach dem Eintrag anzeigen.
+ * @param secondaryAction Optionale sekundäre Aktion (z.B. IconButton).
+ * @param endAdornment Optionales Element am Ende des Eingabefeldes.
+ * @param maxLength Maximale Zeichenlänge für das Eingabefeld.
+ */
 interface FormListItemProps {
   value: string | number | Date | JSX.Element | JSX.Element[];
   id: string;
@@ -21,6 +41,7 @@ interface FormListItemProps {
   required?: boolean;
   editMode?: boolean;
   helperText?: string;
+  maxLength?: number;
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   displayAsCode?: boolean;
   withDivider?: boolean;
@@ -28,6 +49,10 @@ interface FormListItemProps {
   endAdornment?: JSX.Element;
 }
 
+/**
+ * Formular-Listeneintrag — zeigt im Bearbeitungsmodus ein TextField,
+ * im Ansichtsmodus einen ListItemText mit Label und Wert.
+ */
 export const FormListItem = ({
   value,
   id,
@@ -40,6 +65,7 @@ export const FormListItem = ({
   editMode = false,
   withDivider = true,
   helperText = "",
+  maxLength,
   onChange,
   displayAsCode,
   secondaryAction,
@@ -56,9 +82,11 @@ export const FormListItem = ({
             key={id}
             name={id}
             type={type}
-            InputProps={{
-              ...{endAdornment: endAdornment},
-              ...{inputProps: {min: 0}},
+            slotProps={{
+              input: {
+                endAdornment: endAdornment,
+                inputProps: {min: 0, ...(maxLength ? {maxLength} : {})},
+              },
             }}
             label={label}
             disabled={disabled}
@@ -77,13 +105,13 @@ export const FormListItem = ({
             <ListItemText sx={classes.listItemTitle} secondary={label} />
             {typeof value === "string" ? (
               <ListItemText
-                sx={
-                  !displayAsCode
-                    ? classes.listItemContent
-                    : [classes.listItemContent, classes.typographyCode]
-                }
-                disableTypography={displayAsCode}
+                sx={classes.listItemContent}
                 primary={value}
+                primaryTypographyProps={
+                  displayAsCode
+                    ? {sx: classes.typographyCode}
+                    : undefined
+                }
               />
             ) : value instanceof Date ? (
               <ListItemText sx={classes.listItemContent}>

@@ -1,5 +1,5 @@
 import React from "react";
-import PageTitle from "../Shared/pageTitle";
+import {PageTitle} from "../Shared/pageTitle";
 import {Container, Link, Typography, Alert, AlertTitle} from "@mui/material";
 import {
   HOME as ROUTE_HOME,
@@ -15,27 +15,35 @@ import {
   IF_YOU_ARE_IMPATIENT as TEXT_IF_YOU_ARE_IMPATIENT,
   HERE as TEXT_HERE,
 } from "../../constants/text";
-import useCustomStyles from "../../constants/styles";
+import {useCustomStyles} from "../../constants/styles";
 import {useAuthUser} from "./authUserContext";
 
-const NoAuthPage = () => {
+/** Countdown-Dauer in Sekunden bis zur automatischen Weiterleitung. */
+const REDIRECT_COUNTDOWN_SECONDS = 10;
+
+/**
+ * Seite für fehlende Berechtigungen — zeigt einen Countdown und leitet
+ * danach automatisch zur Startseite (eingeloggt) oder zur Anmeldeseite
+ * (nicht eingeloggt) um.
+ */
+export const NoAuthPage = () => {
   const authUser = useAuthUser();
-  const [timer, setTimer] = React.useState(20);
+  const [timer, setTimer] = React.useState(REDIRECT_COUNTDOWN_SECONDS);
   const navigate = useNavigate();
   const classes = useCustomStyles();
 
+  const redirectTarget = authUser !== null ? ROUTE_HOME : ROUTE_SIGN_IN;
+
   React.useEffect(() => {
     if (timer === 0) {
-      setTimeout(
-        () =>
-          authUser !== null
-            ? navigate(ROUTE_HOME)
-            : navigate(ROUTE_SIGN_IN),
-        500
-      );
-    } else {
-      setTimeout(() => setTimer(timer - 1), 1000);
+      const timeoutId = setTimeout(() => navigate(redirectTarget), 500);
+      return () => clearTimeout(timeoutId);
     }
+    const timeoutId = setTimeout(
+      () => setTimer((previous) => previous - 1),
+      1000,
+    );
+    return () => clearTimeout(timeoutId);
   }, [timer]);
 
   return (
@@ -53,11 +61,7 @@ const NoAuthPage = () => {
             {TEXT_OR_CLICK}
             <Link
               component="button"
-              onClick={() => {
-                authUser !== null
-                  ? navigate(ROUTE_HOME)
-                  : navigate(ROUTE_SIGN_IN);
-              }}
+              onClick={() => navigate(redirectTarget)}
             >
               {TEXT_HERE}
             </Link>
@@ -69,5 +73,3 @@ const NoAuthPage = () => {
     </React.Fragment>
   );
 };
-
-export default NoAuthPage;
