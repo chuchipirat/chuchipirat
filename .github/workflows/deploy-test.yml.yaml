@@ -6,39 +6,54 @@ on:
       - develop
 
 jobs:
-  # ─── 1. Edge Functions ────────────────────────────────
-  edge-functions:
-    name: Deploy Edge Functions
+  # ─── 1. Build React App ───────────────────────────────
+  build:
+    name: Build React App
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Copy Edge Functions to Server
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_ENVIRONMENT: ${{ secrets.VITE_ENVIRONMENT }}
+          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+          VITE_CONFIRMATION_EMAIL_REDIRECT: ${{ secrets.VITE_CONFIRMATION_EMAIL_REDIRECT }}
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+          VITE_SENTRY_DSN: ${{ secrets.VITE_SENTRY_DSN }}
+          VITE_UMAMI_HOST: ${{ secrets.VITE_UMAMI_HOST }}
+          VITE_UMAMI_WEBSITE_ID: ${{ secrets.VITE_UMAMI_WEBSITE_ID }}
+          VITE_SUPPORT_USER_ID: ${{ secrets.VITE_SUPPORT_USER_ID }}
+
+      - name: Copy build to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "supabase/volumes/functions/"
-          target: "/data/coolify/services/fwss10fwbxvszdflkag7wmpl/volumes/functions/"
-          strip_components: 3
-
-      - name: Restart Edge Functions
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            docker restart supabase-edge-functions-fwss10fwbxvszdflkag7wmpl
-            sleep 5
-            docker ps | grep edge-functions
+          source: "build/"
+          target: "/data/coolify/applications/ow76qijbdnxr4urlvp4xeal4/"
+          strip_components: 1
 
   # ─── 2. DB Migrations ─────────────────────────────────
   migrations:
     name: DB Migrations
     runs-on: ubuntu-latest
-    needs: edge-functions
+    needs: build
     steps:
       - uses: actions/checkout@v4
 
@@ -68,19 +83,31 @@ jobs:
             done
             rm -rf /tmp/chuchipirat-migrations/
 
-  # ─── 3. App Deploy ────────────────────────────────────
-  app:
-    name: Deploy App
+  # ─── 3. Edge Functions ────────────────────────────────
+  edge-functions:
+    name: Deploy Edge Functions
     runs-on: ubuntu-latest
     needs: migrations
     steps:
-      - name: Deploy via SSH
+      - uses: actions/checkout@v4
+
+      - name: Copy Edge Functions to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "supabase/volumes/functions/"
+          target: "/data/coolify/services/fwss10fwbxvszdflkag7wmpl/volumes/functions/"
+          strip_components: 3
+
+      - name: Restart Edge Functions
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cd /data/coolify/applications/ow76qijbdnxr4urlvp4xeal4
-            docker compose pull
-            docker compose up -d --force-recreate
+            docker restart supabase-edge-functions-fwss10fwbxvszdflkag7wmpl
+            sleep 5
+            docker ps | grep edge-functions
