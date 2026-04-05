@@ -4,7 +4,7 @@ import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {UserDomain} from "../../Database/Repository/UserRepository";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
-import {supabaseAdmin} from "../../Database/supabaseClient";
+import {supabase} from "../../Database/supabaseClient";
 
 /* =====================================================================
 // Typ der zusammengeführten Firebase-Daten (User + Public Profile)
@@ -166,7 +166,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
     database: DatabaseService,
     record: SourceRecord<FirebaseUserData>
   ): Promise<boolean> {
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     const existingId = await users.findByEmail(record.data.email);
     return existingId !== null;
   }
@@ -200,16 +200,10 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
 
     // Supabase-UUID direkt aus auth.users ermitteln (public.users existiert
     // zu diesem Zeitpunkt noch nicht — findByEmail() würde fehlschlagen).
-    if (!supabaseAdmin) {
-      throw new Error(
-        "Admin-Client nicht verfügbar. VITE_SUPABASE_SERVICE_ROLE_KEY muss gesetzt sein."
-      );
-    }
-
     // Auth-User-Liste einmalig laden und cachen
     if (!this.authUsersByEmail) {
       const {data: listData, error: listError} =
-        await supabaseAdmin.auth.admin.listUsers({perPage: 1000});
+        await supabase.auth.admin.listUsers({perPage: 1000});
 
       if (listError) throw listError;
 
@@ -251,7 +245,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
       legacyFirebaseUid: record.id,
     };
 
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     await users.upsert({
       id: supabaseUserId,
       value: userDomain,

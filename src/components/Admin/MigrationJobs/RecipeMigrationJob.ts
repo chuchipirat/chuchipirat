@@ -31,7 +31,7 @@ import {getDocs, collectionGroup} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabaseAdmin, supabase} from "../../Database/supabaseClient";
+import {supabase} from "../../Database/supabaseClient";
 import {SupabaseClient} from "@supabase/supabase-js";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
@@ -295,7 +295,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
     database: DatabaseService,
     record: SourceRecord<FirebaseRecipeData>,
   ): Promise<boolean> {
-    const recipes = database.admin?.recipes ?? database.recipes;
+    const recipes = database.recipes;
     const existing = await recipes.findMany({
       filters: [{field: "firebase_uid", operator: "eq", value: record.id}],
     });
@@ -324,10 +324,10 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
     authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const recipes = database.admin?.recipes ?? database.recipes;
-    const ingredients = database.admin?.recipeIngredients ?? database.recipeIngredients;
-    const steps = database.admin?.recipePreparationSteps ?? database.recipePreparationSteps;
-    const materials = database.admin?.recipeMaterials ?? database.recipeMaterials;
+    const recipes = database.recipes;
+    const ingredients = database.recipeIngredients;
+    const steps = database.recipePreparationSteps;
+    const materials = database.recipeMaterials;
 
     // 1. Supabase-Auth-UUID des Erstellers auflösen (für created_by / RLS)
     const createdBy =
@@ -489,9 +489,8 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
    * Lädt alle Produkte, Materialien und Benutzer aus Postgres und
    * befüllt die internen Lookup-Maps für schnelle FK-Auflösungen.
    *
-   * Verwendet `supabaseAdmin` (Service Role) für den direkten Zugriff auf
+   * Verwendet den Supabase-Client für den direkten Zugriff auf
    * die `firebase_uid`-Spalten, die nicht Teil der Domain-Modelle sind.
-   * Fällt auf den Anon-Client zurück, falls kein Admin-Client konfiguriert ist.
    *
    * Wird einmalig beim Start von `fetchSourceRecords` aufgerufen.
    *
@@ -500,7 +499,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
   private async buildLookupMaps(_database: DatabaseService): Promise<void> {
     // Für reine Lookup-Queries verwenden wir den Admin-Client direkt,
     // da die Domain-Objekte die firebase_uid-Spalte nicht enthalten.
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
 
     // Produkte: firebase_uid → Postgres-id
     const {data: productRows, error: productError} = await client

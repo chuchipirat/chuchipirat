@@ -49,20 +49,6 @@ export interface UserOverviewStructure {
  */
 export interface UserFullProfile extends User, UserPublicProfile {}
 
-/** Parameter für {@link User.createUser} */
-interface CreateUser {
-  /** DatabaseService-Instanz für Supabase-Zugriff */
-  database: DatabaseService;
-  /** UID des neuen Users (von Supabase Auth) */
-  uid: string;
-  /** Vorname */
-  firstName: string;
-  /** Nachname */
-  lastName: string;
-  /** E-Mail-Adresse */
-  email: string;
-}
-
 /** Parameter für {@link User.registerSignIn} */
 interface RegisterSignIn {
   /** DatabaseService-Instanz für Supabase-Zugriff */
@@ -244,51 +230,6 @@ export class User {
     }
   }
   /* =====================================================================
-  // Neuer User anlegen
-  // ===================================================================== */
-  /**
-   * Legt einen neuen Benutzer in der Datenbank an.
-   *
-   * @param database - DatabaseService-Instanz
-   * @param uid - UUID des neuen Users (= auth.users.id)
-   * @param firstName - Vorname
-   * @param lastName - Nachname
-   * @param email - E-Mail-Adresse
-   * @throws Error bei Datenbankfehler
-   */
-  static async createUser({
-    database,
-    uid,
-    firstName,
-    lastName,
-    email,
-  }: CreateUser) {
-    // Admin-Client verwenden (umgeht RLS, da User noch nicht via Supabase Auth authentifiziert)
-    const users = database.admin?.users ?? database.users;
-    try {
-      await users.upsert({
-        id: uid,
-        value: {
-          uid: uid,
-          firstName: firstName,
-          lastName: lastName,
-          email: email.toLocaleLowerCase(),
-          noLogins: 0,
-          noFoundBugs: 0,
-          roles: [Role.basic],
-          displayName: `${firstName} ${lastName}`.trim() || firstName,
-          memberId: 0,
-          motto: "",
-          pictureSrc: "",
-        },
-        authUser: {} as AuthUser,
-      });
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
-  }
-  /* =====================================================================
   // Übersicht aller User holen
   // ===================================================================== */
   /**
@@ -298,8 +239,7 @@ export class User {
    * @returns Array mit Benutzerübersichtsdaten
    */
   static getUsersOverview = async ({database}: GetUsersOverview) => {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     return await users.findOverview();
   };
 
@@ -313,8 +253,7 @@ export class User {
    * @param authUser - Der angemeldete Benutzer
    */
   static async registerSignIn({database, authUser}: RegisterSignIn) {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     await users.registerSignIn(authUser.uid);
   }
   /* =====================================================================
@@ -329,8 +268,7 @@ export class User {
    * @throws Error wenn kein User mit dieser E-Mail gefunden wird
    */
   static getUidByEmail = async ({database, email, eventId}: GetUidByEmail) => {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     const userUid = await users.findByEmail(email, eventId);
 
     if (!userUid) {
@@ -350,8 +288,7 @@ export class User {
    * @throws Error wenn der User nicht gefunden wird
    */
   static getUser = async ({database, uid}: GetUser) => {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     const result = await users.findById(uid);
     if (!result) throw new Error(`User not found: ${uid}`);
 
@@ -375,8 +312,7 @@ export class User {
    * @returns Öffentliches Profil
    */
   static getPublicProfile = async ({database, uid}: GetPublicProfile) => {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     return await users.findPublicProfile(uid);
   };
   /* =====================================================================
@@ -390,8 +326,7 @@ export class User {
    * @returns Vollständiges Benutzerprofil als UserFullProfile
    */
   static getFullProfile = async ({database, uid}: GetFullProfile) => {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     const fullProfile = await users.findFullProfile(uid);
 
     const userFullProfile = {
@@ -475,8 +410,7 @@ export class User {
       });
     }
 
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     await users.patch({
       id: userProfile.uid,
       fields: {
@@ -505,14 +439,7 @@ export class User {
     // Client-seitiges Resize auf max. 1200px
     const resizedBlob = await resizeImage(file);
 
-    // TODO(post-migration): Admin-Fallback entfernen und nur den regulären
-    // authentifizierten Client verwenden: `database.storage.users`.
-    // Der Admin-Client umgeht die Storage-RLS-Policy `media_users_insert_own`,
-    // die sicherstellt, dass Benutzer nur ihr eigenes Profilbild hochladen
-    // können (Dateiname = auth.uid() + '.jpg'). In Produktion ist admin=null,
-    // daher greift RLS korrekt. Siehe Audit-Finding F-017.
-    const storageUsers =
-      database.admin?.storage.users ?? database.storage.users;
+    const storageUsers = database.storage.users;
     const result = await storageUsers.upload(
       `${authUser.uid}.jpg`,
       resizedBlob,
@@ -535,13 +462,9 @@ export class User {
     database,
     authUser,
   }: DeletePicture) => {
-    // TODO(post-migration): Admin-Fallback entfernen, siehe F-017.
-    const storageUsers =
-      database.admin?.storage.users ?? database.storage.users;
-    await storageUsers.remove(`${authUser.uid}.jpg`);
+    await database.storage.users.remove(`${authUser.uid}.jpg`);
 
-    // TODO(post-migration): Admin-Fallback entfernen, siehe F-017.
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     await users.patch({
       id: authUser.uid,
       fields: {
@@ -568,8 +491,7 @@ export class User {
     newRoles,
     authUser,
   }: UpdateRoles) => {
-    // Admin-Client verwenden (umgeht RLS während Übergangsphase)
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     await users.patch({
       id: userUid,
       fields: {roles: newRoles},
@@ -589,7 +511,7 @@ export class User {
    * @throws Error bei Datenbankfehler
    */
   static updateStats = async ({database, userUid, statsValue}: UpdateStats) => {
-    const repo = database.admin?.users ?? database.users;
+    const repo = database.users;
     await repo.incrementFoundBugs(userUid, statsValue);
   };
 }

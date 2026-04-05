@@ -3,7 +3,6 @@ import {useNavigate} from "react-router";
 import * as Sentry from "@sentry/react";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {LocalStorageKey} from "../../constants/localStorage";
 
@@ -62,21 +61,28 @@ const isValidCachedAuthUser = (value: unknown): value is AuthUser => {
 /**
  * AuthUserProvider — Stellt den authentifizierten Benutzer via Context bereit.
  *
- * Hört primär auf Supabase Auth State-Änderungen. Bei einem Supabase-Login
- * wird das Benutzerprofil via findById geladen. Wenn kein Supabase-User
- * gefunden wird, fällt der Provider auf den Firebase-Listener zurück
- * (für User, die noch nicht migriert wurden).
+ * Hört auf Supabase Auth State-Änderungen. Bei einem Login wird das
+ * Benutzerprofil via `get_own_profile()` RPC geladen (SECURITY DEFINER,
+ * umgeht das RLS-Timing-Problem beim Auth-State-Change).
  */
 export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
   children,
 }) => {
-  const firebase = useFirebase();
   const database = useDatabase();
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
+
+  // Initialer Wert aus dem localStorage-Cache, damit nach einem Hard-Refresh
+  // sofort der richtige Benutzer angezeigt wird (kein Flash von "Anmelden").
+  // Der Cache wird später durch den onAuthStateChange-Listener verifiziert.
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => {
+    const cachedString = localStorage.getItem(LocalStorageKey.AUTH_USER);
+    if (!cachedString) return null;
+    const parsed: unknown = JSON.parse(cachedString);
+    return isValidCachedAuthUser(parsed) ? parsed : null;
+  });
 
   // Ref hält den aktuellen authUser-Wert, damit Listener-Closures
   // nicht auf veraltete Werte zugreifen (Stale-Closure-Problem).
-  const authUserRef = useRef<AuthUser | null>(null);
+  const authUserRef = useRef<AuthUser | null>(authUser);
 
   /**
    * Setzt authUser im State und im Ref gleichzeitig.
@@ -140,14 +146,11 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
             }
           }
 
-          // Benutzerprofil via User-ID laden
-          // Admin-Client verwenden, da RLS den eigenen User erst nach vollständigem
-          // Session-Setup erlaubt (Timing-Problem beim Auth-State-Change)
-          const usersRepo = database.admin?.users ?? database.users;
+          // Benutzerprofil via get_own_profile() RPC laden.
+          // SECURITY DEFINER umgeht das RLS-Timing-Problem — auth.uid()
+          // ist im JWT immer verfügbar, auch direkt nach dem Auth-State-Change.
           try {
-            const userDomain = await usersRepo.findById(
-              session.user.id
-            );
+            const userDomain = await database.users.findOwnProfile();
 
             if (userDomain) {
               const newAuthUser: AuthUser = {
@@ -174,39 +177,6 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
           } catch (err) {
             Sentry.captureException(err);
           }
-
-          // Fallback: Benutzer via E-Mail suchen (noch nicht migrierte User)
-          try {
-            const userId = await usersRepo.findByEmail(
-              session.user.email ?? ""
-            );
-            if (userId) {
-              const fullProfile = await usersRepo.findFullProfile(userId);
-
-              const newAuthUser: AuthUser = {
-                uid: session.user.id,
-                email: fullProfile.email,
-                emailVerified: !!session.user.email_confirmed_at,
-                firstName: fullProfile.firstName,
-                lastName: fullProfile.lastName,
-                roles: fullProfile.roles,
-                publicProfile: {
-                  displayName: fullProfile.displayName,
-                  motto: fullProfile.motto,
-                  pictureSrc: fullProfile.pictureSrc,
-                },
-              };
-
-              localStorage.setItem(
-                LocalStorageKey.AUTH_USER,
-                JSON.stringify(newAuthUser)
-              );
-              updateAuthUser(newAuthUser);
-              return;
-            }
-          } catch (err) {
-            Sentry.captureException(err);
-          }
         } else if (event === "SIGNED_OUT") {
           localStorage.removeItem(LocalStorageKey.AUTH_USER);
           updateAuthUser(null);
@@ -214,23 +184,8 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
       }
     );
 
-    // Sekundär: Firebase Auth Listener (Fallback für noch nicht migrierte User)
-    const unsubscribeFirebase = firebase.onAuthUserListener(
-      (firebaseAuthUser) => {
-        // authUserRef statt authUser verwenden, um Stale-Closure zu vermeiden.
-        // Nur setzen, falls Supabase keinen User geliefert hat.
-        if (!authUserRef.current && firebaseAuthUser) {
-          updateAuthUser(firebaseAuthUser);
-        } else if (!firebaseAuthUser && !authUserRef.current) {
-          updateAuthUser(null);
-        }
-      },
-      database
-    );
-
     return () => {
       unsubscribeSupabase();
-      unsubscribeFirebase();
     };
   }, []);
 

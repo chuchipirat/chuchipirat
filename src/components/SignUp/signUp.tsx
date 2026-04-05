@@ -67,7 +67,7 @@ import {
   SIGN_UP_PRIVACY_POLICY_SUFFIX as TEXT_SIGN_UP_PRIVACY_POLICY_SUFFIX,
   PRIVACY_POLICY_DIALOG_TITLE as TEXT_PRIVACY_POLICY_DIALOG_TITLE,
 } from "../../constants/text";
-import {User} from "../User/user.class";
+
 import {PrivacyPolicyText} from "../App/privacyPolicy";
 import {TermOfUseText} from "../App/termOfUse";
 import {AlertMaintenanceMode} from "../SignIn/signIn";
@@ -265,26 +265,25 @@ const SignUpPage = () => {
   // Registrierung ausfuehren
   // ------------------------------------------ */
   /**
-   * Fuehrt die Registrierung durch: Supabase Auth Account erstellen
-   * und Benutzer in der users-Tabelle anlegen.
+   * Fuehrt die Registrierung durch: Supabase Auth Account erstellen.
+   * Der public.users-Eintrag wird automatisch durch den DB-Trigger
+   * handle_new_user() angelegt (SECURITY DEFINER, liest firstName/lastName
+   * aus raw_user_meta_data).
    */
   const onSignUp = async () => {
     dispatch({type: ReducerActions.SIGN_UP_START});
     try {
-      // Supabase Auth Account erstellen (E-Mail-Bestätigung nötig, keine Session)
-      const user = await database.auth.signUp(
+      // Supabase Auth Account erstellen (E-Mail-Bestätigung nötig, keine Session).
+      // firstName/lastName werden als user_metadata übergeben — der DB-Trigger
+      // handle_new_user() liest sie und erstellt den public.users-Eintrag.
+      await database.auth.signUp(
         state.signUpData.email,
         state.signUpData.password,
+        {
+          firstName: state.signUpData.firstName,
+          lastName: state.signUpData.lastName,
+        },
       );
-
-      // Benutzer in der users-Tabelle anlegen (Admin-Client, da User noch keine Session hat)
-      await User.createUser({
-        database: database,
-        uid: user.id,
-        firstName: state.signUpData.firstName,
-        lastName: state.signUpData.lastName,
-        email: state.signUpData.email,
-      });
 
       // Bestätigungsmeldung anzeigen statt Home-Redirect
       dispatch({type: ReducerActions.SIGN_UP_SUCCESS});

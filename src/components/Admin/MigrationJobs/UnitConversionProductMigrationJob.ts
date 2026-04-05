@@ -129,7 +129,7 @@ export class UnitConversionProductMigrationJob
     record: SourceRecord<FirebaseUnitConversionProductData>
   ): Promise<boolean> {
     const conversions =
-      database.admin?.unitConversionProducts ?? database.unitConversionProducts;
+      database.unitConversionProducts;
     const existing = await conversions.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
@@ -160,8 +160,8 @@ export class UnitConversionProductMigrationJob
   ): Promise<void> {
     const data = record.data;
     const conversions =
-      database.admin?.unitConversionProducts ?? database.unitConversionProducts;
-    const products = database.admin?.products ?? database.products;
+      database.unitConversionProducts;
+    const products = database.products;
 
     // Produkt-FK auflösen: Firebase-UID → Postgres-ID
     let productId = "";

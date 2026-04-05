@@ -6,10 +6,11 @@
 -- =============================================================================
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 1. User Profiles (SECURITY DEFINER – intentionally public)
+-- 1. User Profiles (security_invoker=false → View-Owner-Rechte, umgeht RLS)
+-- Absichtlich ohne RLS: Zeigt nur öffentliche Felder (kein Email, keine Rollen).
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE VIEW public.user_profiles WITH (security_invoker='true') AS
+CREATE VIEW public.user_profiles WITH (security_invoker='false') AS
  SELECT users.id,
     users.display_name,
     users.created_at,

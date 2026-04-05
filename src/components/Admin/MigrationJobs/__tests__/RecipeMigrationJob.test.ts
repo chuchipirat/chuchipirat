@@ -16,7 +16,6 @@ jest.mock("../../../Database/supabaseClient", () => ({
       select: jest.fn().mockResolvedValue({data: [], error: null}),
     }),
   },
-  supabaseAdmin: null,
 }));
 
 /* =====================================================================

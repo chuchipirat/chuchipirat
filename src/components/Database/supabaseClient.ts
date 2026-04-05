@@ -1,13 +1,12 @@
 /**
  * Supabase Client Singletons
  *
- * Erstellt und exportiert zwei Supabase-Client-Instanzen:
- * - `supabase` (Anon Key): Für normale Benutzeroperationen, unterliegt RLS.
- * - `supabaseAdmin` (Service Role Key): Für Admin-Operationen (z.B. Migration),
- *   umgeht RLS. Nur verwenden, wenn RLS-Bypass nötig ist.
+ * - `supabase` (Anon Key): Für alle normalen Operationen, unterliegt RLS.
+ * - `supabaseAdmin` (Service Role Key): NUR für die Datenmigration im
+ *   lokalen Dev-Server. Ist `null` in deployten Builds (Key darf dort
+ *   nicht gesetzt sein — vite.config.ts blockiert den Build).
  */
 import {createClient, SupabaseClient} from "@supabase/supabase-js";
-import * as Sentry from "@sentry/react";
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -26,33 +25,13 @@ export const supabase: SupabaseClient = createClient(
 );
 
 /**
- * Supabase-Client mit Service Role Key (umgeht RLS).
- * Nur für Admin-Operationen wie Datenmigration verwenden.
- * Ist `null`, falls der Service Role Key nicht konfiguriert ist.
- *
- * TODO(post-migration): Nach Abschluss der Firebase→Supabase-Migration:
- * 1. VITE_SUPABASE_SERVICE_ROLE_KEY aus allen .env-Dateien entfernen
- * 2. Diesen `supabaseAdmin`-Export löschen
- * 3. `DatabaseService.admin`-Property in DatabaseService.ts entfernen
- * 4. Alle `database.admin?.x ?? database.x`-Aufrufe (42 Stellen) durch
- *    `database.x` ersetzen
- * 5. Verbleibende Admin-Operationen (overviewUsers, Rollenänderungen)
- *    in Edge Functions verschieben
+ * Admin-Client für die Datenmigration (Service Role Key, umgeht RLS).
+ * Ist `null` wenn VITE_SUPABASE_SERVICE_ROLE_KEY nicht gesetzt ist —
+ * also in allen deployten Builds (TEST/PROD).
+ * Nur für MigrationJobs verwenden, NIEMALS in normalem App-Code.
  */
 export const supabaseAdmin: SupabaseClient | null = supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey, {
       auth: {autoRefreshToken: false, persistSession: false},
     })
   : null;
-
-// Sicherheitsnetz: Warnung, falls der Admin-Client in einer
-// Nicht-DEV-Umgebung aktiv ist (z.B. nach Migration vergessen, neu zu builden).
-if (supabaseAdmin && import.meta.env.VITE_ENVIRONMENT !== "DEV") {
-  console.error(
-    "SECURITY WARNING: supabaseAdmin client active in non-DEV environment. Rebuild without VITE_SUPABASE_SERVICE_ROLE_KEY after migration."
-  );
-  Sentry.captureMessage(
-    "supabaseAdmin client active in non-DEV environment",
-    "warning"
-  );
-}

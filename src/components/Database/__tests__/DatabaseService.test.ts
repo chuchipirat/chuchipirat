@@ -56,14 +56,7 @@ jest.mock("../Repository/UserStorageRepository", () => ({
   UserStorageRepository: MockUserStorageRepository,
 }));
 
-/** Wert für supabaseAdmin, der pro Test geändert werden kann */
-let mockSupabaseAdmin: object | null = null;
-
-jest.mock("../supabaseClient", () => ({
-  get supabaseAdmin() {
-    return mockSupabaseAdmin;
-  },
-}));
+jest.mock("../supabaseClient", () => ({}));
 
 import {DatabaseService} from "../DatabaseService";
 
@@ -73,7 +66,6 @@ import {DatabaseService} from "../DatabaseService";
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockSupabaseAdmin = null;
 });
 
 describe("DatabaseService", () => {
@@ -158,89 +150,4 @@ describe("DatabaseService", () => {
     });
   });
 
-  describe("Admin-Client — ohne Service Role Key", () => {
-    test("admin ist null wenn supabaseAdmin nicht verfügbar ist", () => {
-      mockSupabaseAdmin = null;
-
-      const service = new DatabaseService();
-
-      expect(service.admin).toBeNull();
-    });
-
-    test("Nur reguläre Repositories werden erstellt (kein doppelter Aufruf)", () => {
-      mockSupabaseAdmin = null;
-
-      new DatabaseService();
-
-      // Jedes Repository wird genau 1x instanziiert (nur regulär, kein Admin)
-      expect(MockUserRepository).toHaveBeenCalledTimes(1);
-      expect(MockGlobalSettingsRepository).toHaveBeenCalledTimes(1);
-      expect(MockSystemMessageRepository).toHaveBeenCalledTimes(1);
-      expect(MockDepartmentRepository).toHaveBeenCalledTimes(1);
-      expect(MockUnitRepository).toHaveBeenCalledTimes(1);
-      expect(MockMaterialRepository).toHaveBeenCalledTimes(1);
-      expect(MockProductRepository).toHaveBeenCalledTimes(1);
-      expect(MockUnitConversionBasicRepository).toHaveBeenCalledTimes(1);
-      expect(MockUnitConversionProductRepository).toHaveBeenCalledTimes(1);
-      expect(MockUserStorageRepository).toHaveBeenCalledTimes(1);
-    });
-  });
-
-  describe("Admin-Client — mit Service Role Key", () => {
-    const fakeAdminClient = {id: "admin-client"};
-
-    beforeEach(() => {
-      mockSupabaseAdmin = fakeAdminClient;
-    });
-
-    test("admin ist gesetzt wenn supabaseAdmin verfügbar ist", () => {
-      const service = new DatabaseService();
-
-      expect(service.admin).not.toBeNull();
-    });
-
-    test("Admin-Repositories werden mit Admin-Client erstellt", () => {
-      const _service = new DatabaseService();
-
-      // Jedes Repository wird 2x instanziiert: regulär + Admin
-      expect(MockUserRepository).toHaveBeenCalledTimes(2);
-      expect(MockGlobalSettingsRepository).toHaveBeenCalledTimes(2);
-      expect(MockSystemMessageRepository).toHaveBeenCalledTimes(2);
-      expect(MockDepartmentRepository).toHaveBeenCalledTimes(2);
-      expect(MockUnitRepository).toHaveBeenCalledTimes(2);
-      expect(MockMaterialRepository).toHaveBeenCalledTimes(2);
-      expect(MockProductRepository).toHaveBeenCalledTimes(2);
-      expect(MockUnitConversionBasicRepository).toHaveBeenCalledTimes(2);
-      expect(MockUnitConversionProductRepository).toHaveBeenCalledTimes(2);
-      expect(MockUserStorageRepository).toHaveBeenCalledTimes(2);
-
-      // Admin-Aufrufe erhalten den Admin-Client
-      expect(MockUserRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockGlobalSettingsRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockSystemMessageRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockDepartmentRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockUnitRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockMaterialRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockProductRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockUnitConversionBasicRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockUnitConversionProductRepository).toHaveBeenCalledWith(fakeAdminClient);
-      expect(MockUserStorageRepository).toHaveBeenCalledWith(fakeAdminClient);
-    });
-
-    test("admin enthält alle erwarteten Repositories", () => {
-      const service = new DatabaseService();
-
-      expect(service.admin!.users).toBeDefined();
-      expect(service.admin!.globalSettings).toBeDefined();
-      expect(service.admin!.systemMessages).toBeDefined();
-      expect(service.admin!.departments).toBeDefined();
-      expect(service.admin!.units).toBeDefined();
-      expect(service.admin!.materials).toBeDefined();
-      expect(service.admin!.products).toBeDefined();
-      expect(service.admin!.unitConversionBasic).toBeDefined();
-      expect(service.admin!.unitConversionProducts).toBeDefined();
-      expect(service.admin!.storage).toBeDefined();
-      expect(service.admin!.storage.users).toBeDefined();
-    });
-  });
 });

@@ -105,7 +105,7 @@ export class MaterialMigrationJob
     database: DatabaseService,
     record: SourceRecord<FirebaseMaterialData>
   ): Promise<boolean> {
-    const materials = database.admin?.materials ?? database.materials;
+    const materials = database.materials;
     const existing = await materials.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
@@ -131,7 +131,7 @@ export class MaterialMigrationJob
     authUser: AuthUser
   ): Promise<void> {
     const data = record.data;
-    const materials = database.admin?.materials ?? database.materials;
+    const materials = database.materials;
 
     // Material einfügen
     const {id} = await materials.insert({

@@ -22,7 +22,7 @@ import {collection, getDocs, doc, getDoc} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabaseAdmin} from "../../Database/supabaseClient";
+import {supabase} from "../../Database/supabaseClient";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
 /* =====================================================================
@@ -153,10 +153,8 @@ export class DonationMigrationJob
     database: DatabaseService,
     record: SourceRecord<FirebaseReceiptData>,
   ): Promise<boolean> {
-    if (!supabaseAdmin) return false;
-
     // Prüfen ob bereits eine migrierte Spende für dieses Event existiert
-    const {data} = await supabaseAdmin
+    const {data} = await supabase
       .from("donations")
       .select("id")
       .eq("status", "migrated")
@@ -178,14 +176,10 @@ export class DonationMigrationJob
     record: SourceRecord<FirebaseReceiptData>,
     authUser: AuthUser,
   ): Promise<void> {
-    if (!supabaseAdmin) {
-      throw new Error("Service Role Key nicht konfiguriert");
-    }
-
     const receiptData = record.data;
 
     // Event-ID auflösen: prüfen ob das Event in Postgres existiert
-    const {data: eventRow} = await supabaseAdmin
+    const {data: eventRow} = await supabase
       .from("events")
       .select("id")
       .eq("id", receiptData.eventUid)
@@ -196,7 +190,7 @@ export class DonationMigrationJob
     // Spender per E-Mail zuordnen
     let donorUid: string | null = null;
     if (receiptData.donorEmail) {
-      const {data: userRow} = await supabaseAdmin
+      const {data: userRow} = await supabase
         .from("users")
         .select("id")
         .eq("email", receiptData.donorEmail.toLocaleLowerCase().trim())
@@ -217,12 +211,12 @@ export class DonationMigrationJob
     const paidAt = toDate(receiptData.payDate);
 
     // Quittungsnummer generieren
-    const {data: receiptNumber} = await supabaseAdmin.rpc(
+    const {data: receiptNumber} = await supabase.rpc(
       "generate_donation_receipt_number",
     );
 
     // In donations-Tabelle einfügen
-    const {error} = await supabaseAdmin.from("donations").insert({
+    const {error} = await supabase.from("donations").insert({
       event_id: eventId,
       amount_in_cents: amountInCents,
       currency: "CHF",

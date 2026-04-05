@@ -192,6 +192,155 @@ Users without `passwordHash` (OAuth-only, never set password) are skipped. Optio
 
 ---
 
+## Runbook: Datenmigration auf TEST und PROD
+
+### Voraussetzungen
+
+- Supabase-Infrastruktur läuft auf Coolify (Docker Compose)
+- Datenbank-Schema ist deployed (Baseline-Migrations angewendet)
+- Firebase-Projekte sind erreichbar (Auth Export + Firestore-Lesezugriff)
+- `VITE_SUPABASE_SERVICE_ROLE_KEY` ist **nicht** in deployten Builds gesetzt
+- Lokal: Node 20, npm, Firebase CLI, Supabase CLI
+
+### Architektur
+
+Die Migration läuft **lokal auf deinem Rechner** — nicht auf dem Server. Du startest den Vite Dev-Server mit dem jeweiligen Environment-Mode und verbindest dich so mit der richtigen Firebase- und Supabase-Instanz.
+
+```
+Dein Rechner (localhost:3000)
+  ├─ Firebase (TST/PRD)  ← liest Daten
+  └─ Supabase (TST/PRD)  ← schreibt Daten (via Service Role Key)
+```
+
+Der Service Role Key ist nur im lokalen Dev-Server aktiv — er gelangt nie in einen deployten Build.
+
+### Schritt-für-Schritt: TEST-Umgebung
+
+#### 1. Env-Dateien vorbereiten
+
+In `.env.test` sicherstellen, dass folgende Werte gesetzt sind:
+
+- `VITE_FIREBASE_*` → Firebase-Projekt `chuchipirat-tst`
+- `VITE_SUPABASE_URL` → `https://api.test.chuchipirat.ch`
+- `VITE_SUPABASE_ANON_KEY` → TEST Anon Key
+- `VITE_SUPABASE_SERVICE_ROLE_KEY` → TEST Service Role Key (**temporär hinzufügen!**)
+
+#### 2. Firebase Auth Export (TEST)
+
+```bash
+firebase use chuchipirat-tst
+firebase auth:export firebase-auth-users-tst.json --format=json
+```
+
+Firebase Console → Authentication → Password hash parameters notieren.
+
+#### 3. Auth-Import-SQL generieren
+
+```bash
+# Script konfigurieren mit TST Hash-Parametern
+# firebase-auth-users-tst.json als Input
+node scripts/generate-auth-import.mjs
+# Output: auth-import.sql
+```
+
+Generiertes SQL reviewen.
+
+#### 4. Auth-Import-SQL ausführen
+
+Via Supabase Studio SQL Editor auf der TEST-Instanz oder per psql:
+
+```bash
+psql postgresql://supabase_admin:<password>@<test-db-host>:5432/postgres < auth-import.sql
+```
+
+#### 5. Lokalen Dev-Server mit TEST-Modus starten
+
+```bash
+npm run dev -- --mode test
+```
+
+Öffnet `localhost:3000` — verbunden mit TEST-Firebase + TEST-Supabase.
+
+#### 6. Anmelden und Migration ausführen
+
+1. Im Browser einloggen (als Admin-User)
+2. Admin → Migration öffnen
+3. Jobs in Reihenfolge ausführen (siehe «Jobs in dependency order» oben):
+   - Users → Images → Departments → Units → Materials → Products → ...
+4. Jeden Job abwarten, Ergebnis prüfen
+
+#### 7. Sequenzen zurücksetzen
+
+Im Supabase Studio SQL Editor:
+
+```sql
+SELECT setval('public.request_number_seq', COALESCE((SELECT MAX(number) FROM public.requests), 0));
+```
+
+#### 8. Verifizieren
+
+```sql
+-- Alle public.users mit auth.users verknüpft?
+SELECT COUNT(*) AS total, COUNT(*) FILTER (WHERE id IN (SELECT id FROM auth.users)) AS linked
+FROM public.users;
+
+-- Stichprobe: Login testen mit bestehendem Passwort
+```
+
+Im Browser: Verschiedene Benutzer einloggen, Daten prüfen.
+
+#### 9. Service Role Key entfernen
+
+`VITE_SUPABASE_SERVICE_ROLE_KEY` aus `.env.test` **wieder entfernen!**
+
+---
+
+### Schritt-für-Schritt: PROD-Umgebung
+
+**Identisch wie TEST**, aber mit folgenden Unterschieden:
+
+| Schritt            | TEST                           | PROD                               |
+| ------------------ | ------------------------------ | ---------------------------------- |
+| Firebase-Projekt   | `chuchipirat-tst`              | `chuchipirat`                      |
+| Env-Datei          | `.env.test`                    | `.env.production`                  |
+| Dev-Server         | `npm run dev -- --mode test`   | `npm run dev -- --mode production` |
+| Auth Export        | `firebase-auth-users-tst.json` | `firebase-auth-users-prd.json`     |
+| Supabase URL       | `api.test.chuchipirat.ch`      | `api.chuchipirat.ch`               |
+| **Backup vorher!** | Optional                       | **Pflicht**                        |
+
+#### PROD-spezifische Schritte
+
+**Vor der Migration:**
+
+- [ ] Datenbank-Backup erstellen (`pg_dump` oder Coolify Backup)
+- [ ] Wartungsmodus aktivieren (SystemMessage oder Coolify stoppen)
+- [ ] Zeitfenster mit wenig Aktivität wählen (Abend/Wochenende)
+
+**Nach der Migration:**
+
+- [ ] Service Role Key aus `.env.production` entfernen
+- [ ] Wartungsmodus deaktivieren
+- [ ] Stichproben-Login mit verschiedenen Rollen (basic, communityLeader, admin)
+- [ ] Rezepte, Events, Menupläne, Einkaufslisten stichprobenartig prüfen
+
+### Migration Checkliste
+
+| Schritt                                         | TEST | PROD |
+| ----------------------------------------------- | ---- | ---- |
+| Env-Datei mit Service Role Key vorbereitet      | [ ]  | [ ]  |
+| Firebase Auth Export erstellt                   | [ ]  | [ ]  |
+| Auth-Import-SQL generiert und reviewed          | [ ]  | [ ]  |
+| Auth-Import-SQL ausgeführt                      | [ ]  | [ ]  |
+| Lokaler Dev-Server mit richtigem Mode gestartet | [ ]  | [ ]  |
+| Alle Migration Jobs ausgeführt (in Reihenfolge) | [ ]  | [ ]  |
+| Sequenzen zurückgesetzt                         | [ ]  | [ ]  |
+| Verifizierung bestanden                         | [ ]  | [ ]  |
+| Service Role Key aus Env-Datei entfernt         | [ ]  | [ ]  |
+| Login getestet (verschiedene Rollen)            | [ ]  | [ ]  |
+| Daten stichprobenartig geprüft                  | [ ]  | [ ]  |
+
+---
+
 ## Post-Migration Tasks
 
 Post-migration cleanup items (enum conversions, missing DB functions, security fixes, performance refactors) are tracked in `tech-debt.md`. This file (`migration.md`) covers only the migration process itself and will be archived once complete.

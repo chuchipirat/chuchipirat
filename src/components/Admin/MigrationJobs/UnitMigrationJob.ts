@@ -105,7 +105,7 @@ export class UnitMigrationJob implements MigrationJob<FirebaseUnitData> {
     database: DatabaseService,
     record: SourceRecord<FirebaseUnitData>
   ): Promise<boolean> {
-    const units = database.admin?.units ?? database.units;
+    const units = database.units;
     const existing = await units.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
@@ -131,7 +131,7 @@ export class UnitMigrationJob implements MigrationJob<FirebaseUnitData> {
     authUser: AuthUser
   ): Promise<void> {
     const data = record.data;
-    const units = database.admin?.units ?? database.units;
+    const units = database.units;
 
     // Einheit einfügen — key = Firebase-Key (Abkürzung)
     const {id} = await units.insert({

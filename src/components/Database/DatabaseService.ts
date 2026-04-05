@@ -31,17 +31,10 @@ import {StatsRepository} from "./Repository/StatsRepository";
 import {AdminOperationsRepository} from "./Repository/AdminOperationsRepository";
 import {CronJobLogRepository} from "./Repository/CronJobLogRepository";
 import {MailLogRepository} from "./Repository/MailLogRepository";
-import {supabaseAdmin} from "./supabaseClient";
-
 /* =====================================================================
 // DatabaseService — Zentraler Einstiegspunkt für Datenbankzugriff
-// Ersetzt die DB-bezogenen Teile von firebase.class.ts.
-// Neue Repositories werden hier als Properties ergänzt,
-// sobald sie implementiert sind (z.B. EventRepository).
-//
-// TODO(post-migration): Nach Abschluss der Firebase→Supabase-Migration
-// die `admin`-Property (samt aller Repository-Instanzen mit supabaseAdmin)
-// entfernen. Siehe TODO in supabaseClient.ts für den vollständigen Plan.
+// Bündelt alle Repository-Instanzen und den AuthService.
+// Admin-Operationen laufen über SECURITY DEFINER Funktionen in der DB.
 // ===================================================================== */
 
 /**
@@ -81,9 +74,6 @@ import {supabaseAdmin} from "./supabaseClient";
  * @property stats - Repository für Plattform-Statistiken (KPIs)
  * @property adminOps - Repository für Admin-Operationen (Merge, Convert, Where-Used)
  * @property storage - Storage-Repositories für Datei-Uploads (Bilder etc.)
- * @property admin - Admin-Repositories mit Service Role Key (umgeht RLS).
- *   Nur für Migration und Admin-Operationen verwenden. Ist `null`, falls
- *   der Service Role Key nicht konfiguriert ist.
  */
 export class DatabaseService {
   auth: AuthService;
@@ -118,36 +108,6 @@ export class DatabaseService {
   cronJobLog: CronJobLogRepository;
   mailLog: MailLogRepository;
   storage: {users: UserStorageRepository; events: EventStorageRepository};
-  admin: {
-    users: UserRepository;
-    globalSettings: GlobalSettingsRepository;
-    systemMessages: SystemMessageRepository;
-    departments: DepartmentRepository;
-    units: UnitRepository;
-    materials: MaterialRepository;
-    products: ProductRepository;
-    productSynonyms: ProductSynonymRepository;
-    unitConversionBasic: UnitConversionBasicRepository;
-    unitConversionProducts: UnitConversionProductRepository;
-    recipes: RecipeRepository;
-    recipeIngredients: RecipeIngredientRepository;
-    recipePreparationSteps: RecipePreparationStepRepository;
-    recipeMaterials: RecipeMaterialRepository;
-    recipeRatings: RecipeRatingRepository;
-    recipeComments: RecipeCommentRepository;
-    events: EventRepository;
-    eventGroupConfig: EventGroupConfigRepository;
-    menuplan: MenuplanRepository;
-    usedRecipeLists: UsedRecipeListRepository;
-    shoppingLists: ShoppingListRepository;
-    materialLists: MaterialListRepository;
-    requests: RequestRepository;
-    requestComments: RequestCommentRepository;
-    feeds: FeedRepository;
-    donations: DonationRepository;
-    stats: StatsRepository;
-    storage: {users: UserStorageRepository; events: EventStorageRepository};
-  } | null;
 
   constructor() {
     this.auth = new AuthService();
@@ -182,38 +142,6 @@ export class DatabaseService {
     this.cronJobLog = new CronJobLogRepository();
     this.mailLog = new MailLogRepository();
     this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
-    this.admin = supabaseAdmin
-      ? {
-          users: new UserRepository(supabaseAdmin),
-          globalSettings: new GlobalSettingsRepository(supabaseAdmin),
-          systemMessages: new SystemMessageRepository(supabaseAdmin),
-          departments: new DepartmentRepository(supabaseAdmin),
-          units: new UnitRepository(supabaseAdmin),
-          materials: new MaterialRepository(supabaseAdmin),
-          products: new ProductRepository(supabaseAdmin),
-          productSynonyms: new ProductSynonymRepository(supabaseAdmin),
-          unitConversionBasic: new UnitConversionBasicRepository(supabaseAdmin),
-          unitConversionProducts: new UnitConversionProductRepository(supabaseAdmin),
-          recipes: new RecipeRepository(supabaseAdmin),
-          recipeIngredients: new RecipeIngredientRepository(supabaseAdmin),
-          recipePreparationSteps: new RecipePreparationStepRepository(supabaseAdmin),
-          recipeMaterials: new RecipeMaterialRepository(supabaseAdmin),
-          recipeRatings: new RecipeRatingRepository(supabaseAdmin),
-          recipeComments: new RecipeCommentRepository(supabaseAdmin),
-          events: new EventRepository(supabaseAdmin),
-          eventGroupConfig: new EventGroupConfigRepository(supabaseAdmin),
-          menuplan: new MenuplanRepository(supabaseAdmin),
-          usedRecipeLists: new UsedRecipeListRepository(supabaseAdmin),
-          shoppingLists: new ShoppingListRepository(supabaseAdmin),
-          materialLists: new MaterialListRepository(supabaseAdmin),
-          requests: new RequestRepository(supabaseAdmin),
-          requestComments: new RequestCommentRepository(supabaseAdmin),
-          feeds: new FeedRepository(supabaseAdmin),
-          donations: new DonationRepository(supabaseAdmin),
-          stats: new StatsRepository(supabaseAdmin),
-          storage: {users: new UserStorageRepository(supabaseAdmin), events: new EventStorageRepository(supabaseAdmin)},
-        }
-      : null;
   }
 }
 

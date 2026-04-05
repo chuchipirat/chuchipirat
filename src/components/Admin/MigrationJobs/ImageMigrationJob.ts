@@ -84,7 +84,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
       throw new Error("DatabaseService wird für die Bild-Migration benötigt.");
     }
 
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     const allUsers = await users.findMany({});
 
     const records: SourceRecord<ImageSourceData>[] = [];
@@ -144,7 +144,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
     database: DatabaseService,
     record: SourceRecord<ImageSourceData>
   ): Promise<boolean> {
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     const user = await users.findById(record.id, true);
     if (!user) return true; // User existiert nicht in Postgres
 
@@ -190,7 +190,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
     const resizedBlob = await resizeImage(file);
 
     // Admin-Storage verwenden (umgeht RLS)
-    const storage = database.admin?.storage.users ?? database.storage.users;
+    const storage = database.storage.users;
     const result = await storage.upload(
       `${userId}.jpg`,
       resizedBlob,
@@ -198,7 +198,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
     );
 
     // DB-URL aktualisieren
-    const users = database.admin?.users ?? database.users;
+    const users = database.users;
     await users.patch({
       id: userId,
       fields: {picture_src: result.publicUrl},

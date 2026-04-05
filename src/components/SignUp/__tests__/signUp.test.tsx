@@ -87,14 +87,6 @@ const mockGetSettings = jest.fn().mockResolvedValue({
   allowSignUp: true,
 });
 
-/** Mock: User.createUser */
-const mockCreateUser = jest.fn().mockResolvedValue(undefined);
-jest.mock("../../User/user.class", () => ({
-  User: {
-    createUser: (...args: unknown[]) => mockCreateUser(...args),
-  },
-}));
-
 /** Mock: ImageRepository */
 jest.mock("../../../constants/imageRepository", () => ({
   ImageRepository: {
@@ -333,7 +325,7 @@ describe("SignUpPage", () => {
   });
 
   describe("Erfolgreiche Registrierung", () => {
-    test("Supabase signUp und User.createUser werden aufgerufen", async () => {
+    test("Supabase signUp wird mit firstName/lastName aufgerufen", async () => {
       mockAuthSignUp.mockResolvedValueOnce({id: "new-supabase-uuid"});
       renderSignUpPage();
 
@@ -343,17 +335,7 @@ describe("SignUpPage", () => {
         expect(mockAuthSignUp).toHaveBeenCalledWith(
           "max@example.com",
           "geheim123",
-        );
-      });
-
-      await waitFor(() => {
-        expect(mockCreateUser).toHaveBeenCalledWith(
-          expect.objectContaining({
-            uid: "new-supabase-uuid",
-            firstName: "Max",
-            lastName: "Muster",
-            email: "max@example.com",
-          }),
+          {firstName: "Max", lastName: "Muster"},
         );
       });
     });

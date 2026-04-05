@@ -23,7 +23,7 @@ import {collection, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabaseAdmin, supabase} from "../../Database/supabaseClient";
+import {supabase} from "../../Database/supabaseClient";
 import {SupabaseClient} from "@supabase/supabase-js";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
@@ -184,7 +184,7 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
     _database: DatabaseService,
     record: SourceRecord<FirebaseEventData>,
   ): Promise<boolean> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
     const {data, error} = await client
       .from("events")
       .select("id")
@@ -217,7 +217,7 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
     _authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
 
     // 1. Event-Kopfdaten einfügen
     const {data: eventRow, error: eventError} = await client
@@ -288,7 +288,7 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
    * @throws {PostgrestError} bei Datenbankfehler
    */
   private async buildLookupMaps(): Promise<void> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
 
     // Benutzer: legacy_firebase_uid → id (UUID, identisch mit auth.users.id)
     // Nach der id-Vereinheitlichung (Phase 3) ist users.id die Supabase-UUID,

@@ -6,15 +6,16 @@ import react from "@vitejs/plugin-react";
 // Siehe: .claude/security/audit-2026-04-02.md [F-041], [F-045]
 import {nodePolyfills} from "vite-plugin-node-polyfills";
 
-// Sicherheitscheck: Service-Role-Key darf nie in Produktions-Builds gelangen
-// TODO(post-migration): Zurück auf throw new Error() wechseln, sobald die Migration abgeschlossen ist
+// Sicherheitscheck: Service-Role-Key darf nie in deployten Builds gelangen.
+// Der Dev-Server (npm run dev) ist erlaubt — wird nur lokal ausgeführt und
+// wird für die Firebase→Supabase-Datenmigration benötigt.
 if (
   process.env.NODE_ENV === "production" &&
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 ) {
-  console.warn(
-    "⚠️  WARNING: VITE_SUPABASE_SERVICE_ROLE_KEY is set in a production build. " +
-      "Remove it as soon as the Firebase migration is complete.",
+  throw new Error(
+    "FATAL: VITE_SUPABASE_SERVICE_ROLE_KEY must NEVER be set in production builds. " +
+      "The service role key belongs in the backend (supabase/.env), not the frontend.",
   );
 }
 

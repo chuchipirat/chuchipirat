@@ -245,8 +245,8 @@ const OverviewUsersPage = () => {
     setUserEvents([]);
 
     try {
-      const repo = database.admin?.users ?? database.users;
-      const recipeRepo = database.admin?.recipes ?? database.recipes;
+      const repo = database.users;
+      const recipeRepo = database.recipes;
 
       const [domain, counts, events] = await Promise.all([
         repo.findById(user.uid ?? ""),
@@ -317,7 +317,7 @@ const OverviewUsersPage = () => {
     if (!selectedUser?.uid) return;
 
     try {
-      const repo = database.admin?.users ?? database.users;
+      const repo = database.users;
       await repo.patch({
         id: selectedUser.uid,
         fields: {roles: newRoles},

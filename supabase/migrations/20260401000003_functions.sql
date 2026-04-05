@@ -43,6 +43,78 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION public.handle_new_user() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+AS $$
+DECLARE
+  v_first_name TEXT := COALESCE(NEW.raw_user_meta_data->>'firstName', '');
+  v_last_name  TEXT := COALESCE(NEW.raw_user_meta_data->>'lastName', '');
+  v_display    TEXT := NULLIF(TRIM(v_first_name || ' ' || v_last_name), '');
+BEGIN
+  INSERT INTO public.users (id, email, first_name, last_name, display_name, roles)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.email, ''),
+    v_first_name,
+    v_last_name,
+    COALESCE(v_display, v_first_name, ''),
+    ARRAY['basic'::user_role]
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.prevent_role_escalation() RETURNS trigger
+    LANGUAGE plpgsql SECURITY DEFINER
+    SET search_path TO 'public'
+AS $$
+BEGIN
+  -- Nur Admins dürfen Rollen ändern
+  IF NEW.roles IS DISTINCT FROM OLD.roles AND NOT is_admin() THEN
+    NEW.roles := OLD.roles;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION public.get_own_profile()
+RETURNS TABLE(
+  id uuid, email text, first_name text, last_name text,
+  roles user_role[], no_logins integer, display_name text,
+  member_id integer, motto text, picture_src text,
+  no_found_bugs integer, created_at timestamptz
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT u.id, u.email, u.first_name, u.last_name,
+         u.roles, u.no_logins, u.display_name,
+         u.member_id, u.motto, u.picture_src,
+         u.no_found_bugs, u.created_at
+  FROM public.users u
+  WHERE u.id = (SELECT auth.uid());
+$$;
+
+CREATE FUNCTION public.admin_get_users_overview()
+RETURNS TABLE(
+  id uuid, first_name text, last_name text, email text,
+  display_name text, roles user_role[], member_id integer,
+  no_logins integer, no_found_bugs integer,
+  created_at timestamptz
+)
+LANGUAGE sql STABLE SECURITY DEFINER
+SET search_path TO 'public'
+AS $$
+  SELECT u.id, u.first_name, u.last_name, u.email,
+         u.display_name, u.roles, u.member_id,
+         u.no_logins, u.no_found_bugs, u.created_at
+  FROM public.users u
+  WHERE public.is_admin()
+  ORDER BY u.first_name;
+$$;
+
 CREATE FUNCTION public.update_recipe_rating_aggregate() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'

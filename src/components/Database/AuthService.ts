@@ -3,7 +3,7 @@ import {
   Session,
   User,
 } from "@supabase/supabase-js";
-import {supabase, supabaseAdmin} from "./supabaseClient";
+import {supabase} from "./supabaseClient";
 
 /**
  * AuthService — Kapselt alle Supabase Auth Methoden.
@@ -53,23 +53,25 @@ export class AuthService {
    *
    * @param email - E-Mail-Adresse des neuen Benutzers
    * @param password - Gewähltes Passwort
-   * @param options - Optionale Zusatzdaten
-   * @param options.displayName - Anzeigename für das Auth-Profil (user_metadata)
+   * @param options - Optionale Zusatzdaten (werden als raw_user_meta_data gespeichert)
+   * @param options.firstName - Vorname des Benutzers
+   * @param options.lastName - Nachname des Benutzers
    * @returns Der erstellte User (noch nicht bestätigt)
    * @throws {AuthError} Bei bereits existierender E-Mail oder ungültigem Passwort
    */
   async signUp(
     email: string,
     password: string,
-    options?: {displayName?: string},
+    options?: {firstName?: string; lastName?: string},
   ): Promise<User> {
     const {data, error} = await supabase.auth.signUp({
       email,
       password,
       options: {
-        ...(options?.displayName
-          ? {data: {display_name: options.displayName}}
-          : {}),
+        data: {
+          firstName: options?.firstName ?? "",
+          lastName: options?.lastName ?? "",
+        },
         emailRedirectTo: `${window.location.origin}/authservicehandler`,
       },
     });
@@ -101,55 +103,6 @@ export class AuthService {
     if (error) throw error;
   }
 
-  /* =====================================================================
-  // Bestätigten Benutzer erstellen (Admin, ohne E-Mail-Verifizierung)
-  // ===================================================================== */
-  /**
-   * Erstellt einen neuen Supabase Auth Account mit bereits bestätigter
-   * E-Mail-Adresse. Wird für die stille Migration von Firebase-Benutzern
-   * verwendet, die ihre E-Mail bereits über Firebase verifiziert haben.
-   *
-   * Verwendet den Admin-Client (Service Role Key), um die E-Mail-Bestätigung
-   * zu überspringen.
-   *
-   * @param email - E-Mail-Adresse des Benutzers
-   * @param password - Passwort des Benutzers
-   * @param options - Optionale Zusatzdaten
-   * @param options.displayName - Anzeigename für das Auth-Profil
-   * @returns Der erstellte User mit bestätigter E-Mail
-   * @throws {Error} Wenn der Admin-Client nicht verfügbar ist
-   * @throws {AuthError} Bei bereits existierender E-Mail oder ungültigem Passwort
-   */
-  async createConfirmedUser(
-    email: string,
-    password: string,
-    options?: {displayName?: string},
-  ): Promise<User> {
-    if (!supabaseAdmin) {
-      throw new Error("Admin client not available");
-    }
-
-    const {data, error} = await supabaseAdmin.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-      user_metadata: options?.displayName
-        ? {display_name: options.displayName}
-        : undefined,
-    });
-
-    if (error) throw error;
-    return data.user;
-  }
-
-  /* =====================================================================
-  // Passwort eines Benutzers administrativ aktualisieren
-  // ===================================================================== */
-  /**
-   * Aktualisiert das Passwort eines Benutzers über den Admin-Client.
-   *
-   * Wird verwendet, wenn ein bereits migrierter Benutzer sich mit dem
-   * Firebase-Passwort anmeldet, das vom Supabase-Passwort abweicht.
   /* =====================================================================
   // Abmelden
   // ===================================================================== */

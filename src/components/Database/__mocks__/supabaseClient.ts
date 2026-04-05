@@ -21,5 +21,5 @@ export const supabase = {
   },
 };
 
-/** Mock für den Admin-Client (Service Role Key, umgeht RLS) */
+/** Mock: Admin-Client ist in Tests immer null (kein Service Role Key) */
 export const supabaseAdmin = null;

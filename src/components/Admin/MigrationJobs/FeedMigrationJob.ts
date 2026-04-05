@@ -20,7 +20,7 @@ import {collection, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabaseAdmin, supabase} from "../../Database/supabaseClient";
+import {supabase} from "../../Database/supabaseClient";
 import {SupabaseClient} from "@supabase/supabase-js";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
@@ -107,7 +107,7 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
     database: DatabaseService,
     record: SourceRecord<FirebaseFeed>,
   ): Promise<boolean> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
     const {data, error} = await client
       .from("feeds")
       .select("id")
@@ -134,7 +134,7 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
     _authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
 
     // Feed-Typ mappen
     let feedType = data.type;

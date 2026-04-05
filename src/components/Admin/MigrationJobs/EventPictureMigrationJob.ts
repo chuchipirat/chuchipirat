@@ -17,7 +17,7 @@
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabaseAdmin, supabase} from "../../Database/supabaseClient";
+import {supabase} from "../../Database/supabaseClient";
 import {SupabaseClient} from "@supabase/supabase-js";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
@@ -67,7 +67,7 @@ export class EventPictureMigrationJob implements MigrationJob<EventPictureData> 
     _firebase: Firebase,
     _database?: DatabaseService,
   ): Promise<SourceRecord<EventPictureData>[]> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
 
     const {data, error} = await client
       .from("events")
@@ -103,7 +103,7 @@ export class EventPictureMigrationJob implements MigrationJob<EventPictureData> 
     database: DatabaseService,
     record: SourceRecord<EventPictureData>,
   ): Promise<boolean> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
     const {data, error} = await client
       .from("events")
       .select("picture_src")
@@ -137,7 +137,7 @@ export class EventPictureMigrationJob implements MigrationJob<EventPictureData> 
     record: SourceRecord<EventPictureData>,
     _authUser: AuthUser,
   ): Promise<void> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
     const {eventId, firebasePictureUrl} = record.data;
 
     // 1. Bild von Firebase Storage herunterladen

@@ -24,10 +24,10 @@ jest.mock("../../Shared/utils.class", () => ({
 }));
 
 // Mocks müssen vor dem Import der Komponente definiert werden
-jest.mock("../../Navigation/Navigation", () => ({
+jest.mock("../../Navigation/navigation", () => ({
   Navigation: () => <div>Navigation</div>,
 }));
-jest.mock("../../Navigation/ScrollToTop", () => ({
+jest.mock("../../Navigation/scrollToTop", () => ({
   ScrollToTop: () => null,
 }));
 jest.mock("../../../constants/styles", () => ({

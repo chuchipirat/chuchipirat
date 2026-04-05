@@ -12,9 +12,17 @@
 CREATE TRIGGER trg_users_updated_at BEFORE UPDATE ON public.users
   FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
+-- Verhindert Rollen-Eskalation durch Nicht-Admins
+CREATE TRIGGER trg_prevent_role_escalation BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.prevent_role_escalation();
+
 -- Sync auth.users email → public.users email
 CREATE TRIGGER trg_sync_auth_email AFTER UPDATE OF email ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.sync_auth_email();
+
+-- Automatisch public.users-Eintrag bei neuem auth.users anlegen
+CREATE TRIGGER trg_handle_new_user AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Global Config

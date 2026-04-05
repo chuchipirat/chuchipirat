@@ -79,7 +79,7 @@ GRANT ALL ON public.rpc_rate_limits TO authenticated;
 -- anon: selective SELECT only (3 tables/views)
 GRANT SELECT ON public.global_settings TO anon;
 GRANT SELECT ON public.system_messages TO anon;
-GRANT SELECT ON public.user_profiles TO anon;
+-- user_profiles: nur für authentifizierte Benutzer (kein anon-Zugriff)
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 3. View Grants
@@ -103,6 +103,8 @@ GRANT SELECT ON public.donations_view TO authenticated;
 REVOKE ALL ON FUNCTION public.update_updated_at() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.update_updated_by() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.sync_auth_email() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.handle_new_user() FROM PUBLIC, anon, authenticated;
+REVOKE ALL ON FUNCTION public.prevent_role_escalation() FROM PUBLIC, anon, authenticated;
 REVOKE ALL ON FUNCTION public.update_recipe_rating_aggregate() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.update_recipe_no_comments() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.is_admin() FROM PUBLIC, anon;
@@ -139,6 +141,8 @@ REVOKE ALL ON FUNCTION public.cleanup_unused_materials(text[]) FROM PUBLIC, anon
 REVOKE ALL ON FUNCTION public.cleanup_recipes_without_events(text[]) FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.generate_donation_receipt_number() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.get_donation_goal_stats() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.get_own_profile() FROM PUBLIC, anon;
+REVOKE ALL ON FUNCTION public.admin_get_users_overview() FROM PUBLIC, anon;
 REVOKE ALL ON FUNCTION public.revoke_user_sessions(uuid[]) FROM PUBLIC, anon;
 
 -- Grant to authenticated
@@ -179,6 +183,8 @@ GRANT EXECUTE ON FUNCTION public.check_users_without_events() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_unused_products(text[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_unused_materials(text[]) TO authenticated;
 GRANT EXECUTE ON FUNCTION public.cleanup_recipes_without_events(text[]) TO authenticated;
+GRANT EXECUTE ON FUNCTION public.get_own_profile() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.admin_get_users_overview() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_donation_receipt_number() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_donation_goal_stats() TO authenticated;
 

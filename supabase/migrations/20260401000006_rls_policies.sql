@@ -17,7 +17,7 @@ CREATE POLICY "users_insert" ON public.users FOR INSERT TO authenticated
 
 CREATE POLICY "users_update" ON public.users FOR UPDATE TO authenticated
   USING (id = (( SELECT auth.uid())) OR is_admin())
-  WITH CHECK (id = (( SELECT auth.uid())) AND roles = (( SELECT users_1.roles FROM users users_1 WHERE users_1.id = (( SELECT auth.uid())))) OR is_admin());
+  WITH CHECK (id = (( SELECT auth.uid())) OR is_admin());
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Global Config

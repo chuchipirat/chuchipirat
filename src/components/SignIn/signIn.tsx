@@ -45,6 +45,8 @@ import {HOME as ROUTE_HOME} from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
 
 import {useDatabase} from "../Database/DatabaseContext";
+import {useAuthUser} from "../Session/authUserContext";
+import {LocalStorageKey} from "../../constants/localStorage";
 import {useNavigate} from "react-router";
 import {Utils} from "../Shared/utils.class";
 import {useCustomStyles} from "../../constants/styles";
@@ -176,10 +178,20 @@ const signInReducer = (state: State, action: DispatchAction): State => {
  */
 const SignInPage = () => {
   const database = useDatabase();
+  const authUser = useAuthUser();
   const classes = useCustomStyles();
   const navigate = useNavigate();
 
   const [state, dispatch] = React.useReducer(signInReducer, initialState);
+
+  // Navigation erst wenn Login erfolgreich UND authUser im Context gesetzt ist.
+  // Verhindert "Hoi undefined" auf der Home-Seite.
+  const [signInSucceeded, setSignInSucceeded] = React.useState(false);
+  React.useEffect(() => {
+    if (signInSucceeded && authUser) {
+      navigate(ROUTE_HOME);
+    }
+  }, [signInSucceeded, authUser, navigate]);
 
   /* ------------------------------------------
   // Einstellungen holen
@@ -231,34 +243,59 @@ const SignInPage = () => {
   // ------------------------------------------ */
   /**
    * Führt den Login über Supabase Auth durch.
-   * Bei Erfolg wird das Benutzerprofil geladen, der Login registriert
-   * und zur Home-Seite navigiert.
+   * Bei Erfolg wird der Login registriert und zur Home-Seite navigiert.
+   * Das Benutzerprofil wird automatisch vom AuthUserProvider via
+   * `get_own_profile()` RPC geladen (kein manuelles Laden nötig).
    */
   const onSignIn = async () => {
     dispatch({type: ReducerActions.SIGN_IN});
 
     try {
+      // Alten Cache leeren, damit onAuthStateChange frische Daten lädt
+      localStorage.removeItem(LocalStorageKey.AUTH_USER);
+
       const session = await database.auth.signInWithPassword(
         state.signInData.email,
         state.signInData.password,
       );
 
-      // User-Daten laden und Login registrieren
-      const usersRepo = database.admin?.users ?? database.users;
+      // Profil laden und Login registrieren — beides SECURITY DEFINER RPCs,
+      // daher kein RLS-Timing-Problem.
       try {
-        const user = await usersRepo.findById(session.user.id);
-        if (user) {
-          await usersRepo.registerSignIn(session.user.id);
+        const [userDomain] = await Promise.all([
+          database.users.findOwnProfile(),
+          database.users.registerSignIn(session.user.id),
+        ]);
+
+        // Profil im Cache speichern, damit authUserContext es sofort findet
+        if (userDomain) {
+          const authUserData = {
+            uid: session.user.id,
+            email: userDomain.email,
+            emailVerified: !!session.user.email_confirmed_at,
+            firstName: userDomain.firstName,
+            lastName: userDomain.lastName,
+            roles: userDomain.roles,
+            publicProfile: {
+              displayName: userDomain.displayName,
+              motto: userDomain.motto,
+              pictureSrc: userDomain.pictureSrc,
+            },
+          };
+          localStorage.setItem(
+            LocalStorageKey.AUTH_USER,
+            JSON.stringify(authUserData),
+          );
         }
       } catch (profileError) {
         Sentry.captureException(profileError, {
-          extra: {context: "SignIn - Profil laden"},
+          extra: {context: "SignIn - Profil laden / Login registrieren"},
         });
       }
 
-      // Kurz warten, damit der Auth-Context nachziehen kann
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-      navigate(ROUTE_HOME);
+      // State setzen — der useEffect oben navigiert, sobald authUser
+      // vom AuthUserProvider im Context gesetzt wird.
+      setSignInSucceeded(true);
     } catch (error) {
       dispatch({
         type: ReducerActions.GENERIC_ERROR,

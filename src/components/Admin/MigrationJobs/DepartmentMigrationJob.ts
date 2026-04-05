@@ -107,7 +107,7 @@ export class DepartmentMigrationJob
     database: DatabaseService,
     record: SourceRecord<FirebaseDepartmentData>
   ): Promise<boolean> {
-    const departments = database.admin?.departments ?? database.departments;
+    const departments = database.departments;
     const existing = await departments.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
@@ -133,7 +133,7 @@ export class DepartmentMigrationJob
     authUser: AuthUser
   ): Promise<void> {
     const data = record.data;
-    const departments = database.admin?.departments ?? database.departments;
+    const departments = database.departments;
 
     // Abteilung einfügen
     const {id} = await departments.insert({

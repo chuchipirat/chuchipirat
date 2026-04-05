@@ -455,6 +455,66 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
     );
   }
 
+  /* =====================================================================
+  // Eigenes Profil laden (SECURITY DEFINER)
+  // ===================================================================== */
+  /**
+   * Lädt das eigene Benutzerprofil über die SECURITY DEFINER Funktion
+   * `get_own_profile()`. Da die Funktion als Definer läuft, umgeht sie
+   * die RLS-Policy und gibt immer genau die Zeile des eingeloggten
+   * Benutzers zurück.
+   *
+   * @returns Das eigene Benutzerprofil als UserDomain oder null, falls kein Profil gefunden.
+   * @throws {PostgrestError} Bei Datenbankfehler.
+   */
+  async findOwnProfile(): Promise<UserDomain | null> {
+    const {data, error} = await this.client.rpc("get_own_profile");
+
+    if (error) throw error;
+
+    // get_own_profile() gibt eine Tabelle zurück → Supabase liefert ein Array
+    const rows = data as UserRow[] | null;
+    if (!rows || rows.length === 0) return null;
+
+    return this.toDomain(rows[0]);
+  }
+
+  /* =====================================================================
+  // Admin-Benutzerübersicht via RPC (SECURITY DEFINER)
+  // ===================================================================== */
+  /**
+   * Lädt die Benutzerübersicht für Admins über die SECURITY DEFINER Funktion
+   * `admin_get_users_overview()`. Die Funktion prüft serverseitig, ob der
+   * aufrufende Benutzer die Admin-Rolle besitzt.
+   *
+   * @returns Array mit Benutzerübersichts-Daten (Name, Email, MemberId, etc.)
+   * @throws {PostgrestError} Bei Datenbankfehler oder fehlender Admin-Berechtigung.
+   */
+  async findUsersOverviewAsAdmin(): Promise<UserOverviewStructure[]> {
+    const {data, error} = await this.client.rpc("admin_get_users_overview");
+
+    if (error) throw error;
+
+    return ((data ?? []) as Pick<
+      UserRow,
+      | "id"
+      | "first_name"
+      | "last_name"
+      | "email"
+      | "display_name"
+      | "member_id"
+      | "created_at"
+    >[]).map((row) => ({
+      uid: row.id,
+      firstName: row.first_name,
+      lastName: row.last_name,
+      email: row.email,
+      displayName: row.display_name,
+      memberId: row.member_id,
+      memberSince: new Date(row.created_at),
+    }));
+  }
+
   /**
    * Gibt die minimalen Anzeige-Felder (display_name, picture_src) für eine
    * Menge von Benutzer-UUIDs zurück. Verwendet die SECURITY DEFINER Funktion

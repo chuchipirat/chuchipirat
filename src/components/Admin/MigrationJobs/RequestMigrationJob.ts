@@ -23,7 +23,7 @@ import {collection, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabaseAdmin, supabase} from "../../Database/supabaseClient";
+import {supabase} from "../../Database/supabaseClient";
 import {SupabaseClient} from "@supabase/supabase-js";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
@@ -172,7 +172,7 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
     _database: DatabaseService,
     record: SourceRecord<FirebaseRequest>,
   ): Promise<boolean> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
 
     const {data} = await client
       .from("requests")
@@ -198,7 +198,7 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
     record: SourceRecord<FirebaseRequest>,
     _authUser: AuthUser,
   ): Promise<void> {
-    const client: SupabaseClient = supabaseAdmin ?? supabase;
+    const client: SupabaseClient = supabase;
     const fb = record.data;
     const adminClient = client;
 

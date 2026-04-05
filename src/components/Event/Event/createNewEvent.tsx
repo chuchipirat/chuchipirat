@@ -366,19 +366,15 @@ const CreateEventPage = () => {
       authUser,
     );
 
-    // 3. Weitere Köche hinzufügen — cook.uid ist die Firebase UID,
-    //    muss zu Supabase Auth UUID aufgelöst werden.
-    const usersRepo = database.admin?.users ?? database.users;
+    // 3. Weitere Köche hinzufügen — cook.uid ist bereits die Supabase Auth UUID
+    //    (stammt aus find_user_id_by_email im Add-Cook-Dialog).
     for (const cook of state.event.cooks) {
       if (cook.uid !== authUser.uid) {
-        const userDomain = await usersRepo.findById(cook.uid);
-        if (userDomain?.uid) {
-          await database.events.addCook(
-            eventDomain.uid,
-            userDomain.uid,
-            authUser,
-          );
-        }
+        await database.events.addCook(
+          eventDomain.uid,
+          cook.uid,
+          authUser,
+        );
       }
     }
 
@@ -435,7 +431,7 @@ const CreateEventPage = () => {
       )
       .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
 
-    const usersForFeed = database.admin?.users ?? database.users;
+    const usersForFeed = database.users;
     for (const cook of state.event.cooks) {
       if (cook.uid !== authUser.uid) {
         usersForFeed

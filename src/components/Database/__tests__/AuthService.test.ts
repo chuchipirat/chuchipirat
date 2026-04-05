@@ -22,23 +22,9 @@ const mockAuth = {
   getSession: jest.fn(),
 };
 
-/** Mock-Admin-Auth-Objekt für supabaseAdmin.auth.admin */
-const mockAdminAuth = {
-  createUser: jest.fn(),
-  updateUserById: jest.fn(),
-};
-
-/** Referenz auf supabaseAdmin — kann pro Test auf null gesetzt werden */
-let mockSupabaseAdmin: any = {
-  auth: {admin: mockAdminAuth},
-};
-
 jest.mock("../supabaseClient", () => ({
   get supabase() {
     return {auth: mockAuth};
-  },
-  get supabaseAdmin() {
-    return mockSupabaseAdmin;
   },
 }));
 
@@ -58,7 +44,6 @@ const ORIGIN = window.location.origin;
 
 beforeEach(() => {
   jest.clearAllMocks();
-  mockSupabaseAdmin = {auth: {admin: mockAdminAuth}};
   authService = new AuthService();
 });
 
@@ -127,13 +112,14 @@ describe("AuthService", () => {
         email: "new@example.com",
         password: "password123",
         options: {
+          data: {firstName: "", lastName: ""},
           emailRedirectTo: `${ORIGIN}/authservicehandler`,
         },
       });
       expect(result).toBe(mockUser);
     });
 
-    test("Übergibt displayName als user_metadata", async () => {
+    test("Übergibt firstName/lastName als user_metadata", async () => {
       const mockUser = {id: "new-user-id"};
       mockAuth.signUp.mockResolvedValue({
         data: {user: mockUser},
@@ -141,14 +127,15 @@ describe("AuthService", () => {
       });
 
       await authService.signUp("new@example.com", "password123", {
-        displayName: "Max Muster",
+        firstName: "Max",
+        lastName: "Muster",
       });
 
       expect(mockAuth.signUp).toHaveBeenCalledWith({
         email: "new@example.com",
         password: "password123",
         options: {
-          data: {display_name: "Max Muster"},
+          data: {firstName: "Max", lastName: "Muster"},
           emailRedirectTo: `${ORIGIN}/authservicehandler`,
         },
       });
@@ -202,76 +189,6 @@ describe("AuthService", () => {
 
       await expect(
         authService.resendConfirmationEmail("test@example.com")
-      ).rejects.toBe(authError);
-    });
-  });
-
-  /* ------------------------------------------
-  // createConfirmedUser()
-  // ------------------------------------------ */
-  describe("createConfirmedUser()", () => {
-    test("Erstellt bestätigten User via Admin-Client", async () => {
-      const mockUser = {id: "admin-created-id", email: "migrated@example.com"};
-      mockAdminAuth.createUser.mockResolvedValue({
-        data: {user: mockUser},
-        error: null,
-      });
-
-      const result = await authService.createConfirmedUser(
-        "migrated@example.com",
-        "password123"
-      );
-
-      expect(mockAdminAuth.createUser).toHaveBeenCalledWith({
-        email: "migrated@example.com",
-        password: "password123",
-        email_confirm: true,
-        user_metadata: undefined,
-      });
-      expect(result).toBe(mockUser);
-    });
-
-    test("Übergibt displayName als user_metadata", async () => {
-      const mockUser = {id: "admin-created-id"};
-      mockAdminAuth.createUser.mockResolvedValue({
-        data: {user: mockUser},
-        error: null,
-      });
-
-      await authService.createConfirmedUser(
-        "migrated@example.com",
-        "password123",
-        {displayName: "Migrated User"}
-      );
-
-      expect(mockAdminAuth.createUser).toHaveBeenCalledWith({
-        email: "migrated@example.com",
-        password: "password123",
-        email_confirm: true,
-        user_metadata: {display_name: "Migrated User"},
-      });
-    });
-
-    test("Wirft Error wenn Admin-Client nicht verfügbar", async () => {
-      mockSupabaseAdmin = null;
-
-      // Neue Instanz erstellen, damit der null-Wert greift
-      const service = new AuthService();
-
-      await expect(
-        service.createConfirmedUser("test@example.com", "pw")
-      ).rejects.toThrow("Admin client not available");
-    });
-
-    test("Wirft AuthError bei Fehler", async () => {
-      const authError = {message: "User already exists", status: 422};
-      mockAdminAuth.createUser.mockResolvedValue({
-        data: {user: null},
-        error: authError,
-      });
-
-      await expect(
-        authService.createConfirmedUser("existing@example.com", "pw")
       ).rejects.toBe(authError);
     });
   });

@@ -117,7 +117,7 @@ export class UnitConversionBasicMigrationJob
     record: SourceRecord<FirebaseUnitConversionBasicData>
   ): Promise<boolean> {
     const conversions =
-      database.admin?.unitConversionBasic ?? database.unitConversionBasic;
+      database.unitConversionBasic;
     const existing = await conversions.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
@@ -144,7 +144,7 @@ export class UnitConversionBasicMigrationJob
   ): Promise<void> {
     const data = record.data;
     const conversions =
-      database.admin?.unitConversionBasic ?? database.unitConversionBasic;
+      database.unitConversionBasic;
 
     // Umrechnung einfügen — fromUnit/toUnit sind direkt die Unit-Keys
     const {id} = await conversions.insert({

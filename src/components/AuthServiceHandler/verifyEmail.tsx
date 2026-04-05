@@ -43,14 +43,13 @@ export const VerifyEmailPage = () => {
         const user = await database.auth.getUser();
         if (!user || cancelled) return;
 
-        // Admin-Client verwenden, da die Session nach PKCE-Austausch
-        // möglicherweise noch nicht vollständig für RLS-Abfragen bereit ist.
-        const users = database.admin?.users ?? database.users;
-        const userDomain = await users.findById(user.id);
+        // Profil via get_own_profile() RPC laden (SECURITY DEFINER,
+        // umgeht das RLS-Timing-Problem nach PKCE-Austausch).
+        const userDomain = await database.users.findOwnProfile();
         if (!userDomain || cancelled) return;
 
-        // Login-Zähler hochzählen (erster Login nach E-Mail-Verifizierung)
-        await users.registerSignIn(userDomain.uid);
+        // Login-Zähler hochzählen (RPC ist SECURITY DEFINER)
+        await database.users.registerSignIn(userDomain.uid);
 
         // Feed-Eintrag für neuen User (nur bei Erstregistrierung, nicht bei E-Mail-Änderung)
         const {data: sessionData} = await supabase.auth.getSession();

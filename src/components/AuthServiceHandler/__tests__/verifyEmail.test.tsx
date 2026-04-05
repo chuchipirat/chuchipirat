@@ -12,8 +12,8 @@ import {DatabaseContext} from "../../Database/DatabaseContext";
 /** Mock für auth.getUser — gibt standardmässig einen User zurück */
 const mockGetUser = jest.fn().mockResolvedValue({id: "test-auth-uid"});
 
-/** Mock für users.findById — gibt ein User-Domain-Objekt zurück */
-const mockFindByAuthUid = jest.fn().mockResolvedValue({
+/** Mock für users.findOwnProfile — gibt ein User-Domain-Objekt zurück */
+const mockFindOwnProfile = jest.fn().mockResolvedValue({
   uid: "domain-uid-42",
   firstName: "Testina",
   memberId: "M-007",
@@ -31,13 +31,12 @@ const mockDatabase = {
     getUser: mockGetUser,
   },
   users: {
-    findById: mockFindByAuthUid,
+    findOwnProfile: mockFindOwnProfile,
     registerSignIn: mockRegisterSignIn,
   },
   feeds: {
     insertFeed: jest.fn().mockResolvedValue(undefined),
   },
-  admin: null,
 } as any;
 
 /** Mock: supabaseClient — Edge-Function-Aufruf und Auth-Session simulieren */
@@ -85,7 +84,7 @@ beforeEach(() => {
 
   // Standard-Mocks zurücksetzen
   mockGetUser.mockResolvedValue({id: "test-auth-uid"});
-  mockFindByAuthUid.mockResolvedValue({
+  mockFindOwnProfile.mockResolvedValue({
     uid: "domain-uid-42",
     firstName: "Testina",
     memberId: "42",
@@ -121,7 +120,7 @@ describe("VerifyEmailPage", () => {
     });
 
     await waitFor(() => {
-      expect(mockFindByAuthUid).toHaveBeenCalledWith("test-auth-uid");
+      expect(mockFindOwnProfile).toHaveBeenCalled();
     });
 
     await waitFor(() => {

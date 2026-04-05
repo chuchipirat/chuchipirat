@@ -122,53 +122,6 @@ describe("factory()", () => {
 });
 
 /* =====================================================================
-// createUser()
-// ===================================================================== */
-describe("createUser()", () => {
-  test("Upsert mit korrekten Werten aufrufen", async () => {
-    mockDatabase.users.upsert.mockResolvedValue(undefined);
-
-    await User.createUser({
-      database: mockDatabase as any,
-      uid: "new-user",
-      firstName: "Anna",
-      lastName: "Test",
-      email: "ANNA@Test.CH",
-    });
-
-    expect(mockDatabase.users.upsert).toHaveBeenCalledWith({
-      id: "new-user",
-      value: expect.objectContaining({
-        uid: "new-user",
-        firstName: "Anna",
-        lastName: "Test",
-        email: "anna@test.ch",
-        noLogins: 0,
-        roles: [Role.basic],
-        displayName: "Anna Test",
-        memberId: 0,
-        motto: "",
-      }),
-      authUser: expect.anything(),
-    });
-  });
-
-  test("Fehler propagieren", async () => {
-    mockDatabase.users.upsert.mockRejectedValue(new Error("DB error"));
-
-    await expect(
-      User.createUser({
-        database: mockDatabase as any,
-        uid: "x",
-        firstName: "A",
-        lastName: "B",
-        email: "a@b.ch",
-      })
-    ).rejects.toThrow("DB error");
-  });
-});
-
-/* =====================================================================
 // getAllUsers()
 // ===================================================================== */
 describe("getAllUsers()", () => {
@@ -632,30 +585,8 @@ describe("updateRoles()", () => {
 describe("updateStats()", () => {
   test("Supabase incrementFoundBugs aufrufen", async () => {
     const mockIncrementFoundBugs = jest.fn().mockResolvedValue(undefined);
-    const dbWithAdmin = {
+    const dbWithIncrementFoundBugs = {
       ...mockDatabase,
-      admin: {
-        users: {
-          ...mockDatabase.users,
-          incrementFoundBugs: mockIncrementFoundBugs,
-        },
-      },
-    };
-
-    await User.updateStats({
-      database: dbWithAdmin as any,
-      userUid: "u1",
-      statsValue: 1,
-    });
-
-    expect(mockIncrementFoundBugs).toHaveBeenCalledWith("u1", 1);
-  });
-
-  test("Verwendet database.users wenn kein admin-Client vorhanden", async () => {
-    const mockIncrementFoundBugs = jest.fn().mockResolvedValue(undefined);
-    const dbWithoutAdmin = {
-      ...mockDatabase,
-      admin: null,
       users: {
         ...mockDatabase.users,
         incrementFoundBugs: mockIncrementFoundBugs,
@@ -663,7 +594,26 @@ describe("updateStats()", () => {
     };
 
     await User.updateStats({
-      database: dbWithoutAdmin as any,
+      database: dbWithIncrementFoundBugs as any,
+      userUid: "u1",
+      statsValue: 1,
+    });
+
+    expect(mockIncrementFoundBugs).toHaveBeenCalledWith("u1", 1);
+  });
+
+  test("Decrement-Wert korrekt weiterleiten", async () => {
+    const mockIncrementFoundBugs = jest.fn().mockResolvedValue(undefined);
+    const dbWithIncrementFoundBugs = {
+      ...mockDatabase,
+      users: {
+        ...mockDatabase.users,
+        incrementFoundBugs: mockIncrementFoundBugs,
+      },
+    };
+
+    await User.updateStats({
+      database: dbWithIncrementFoundBugs as any,
       userUid: "u1",
       statsValue: -1,
     });
