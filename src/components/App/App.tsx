@@ -9,8 +9,8 @@ import {CssBaseline, useMediaQuery} from "@mui/material";
 import * as Sentry from "@sentry/react";
 
 import "./App.css";
-import {Navigation} from "../Navigation/Navigation";
-import {ScrollToTop} from "../Navigation/ScrollToTop";
+import {Navigation} from "../Navigation/navigation";
+import {ScrollToTop} from "../Navigation/scrollToTop";
 import {FallbackLoading} from "../Shared/fallbackLoading";
 import {CustomDialog} from "../Shared/customDialog";
 import {getTheme} from "./customTheme";
