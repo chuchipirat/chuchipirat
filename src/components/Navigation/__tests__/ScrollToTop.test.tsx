@@ -9,7 +9,7 @@ Object.assign(global, {TextEncoder, TextDecoder});
 import {render} from "@testing-library/react";
 import {MemoryRouter} from "react-router";
 
-import {ScrollToTop} from "../ScrollToTop";
+import {ScrollToTop} from "../scrollToTop";
 
 /* ===================================================================
 // ============================== Tests ==============================
