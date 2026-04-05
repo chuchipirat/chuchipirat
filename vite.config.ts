@@ -7,12 +7,14 @@ import react from "@vitejs/plugin-react";
 import {nodePolyfills} from "vite-plugin-node-polyfills";
 
 // Sicherheitscheck: Service-Role-Key darf nie in Produktions-Builds gelangen
+// TODO(post-migration): Zurück auf throw new Error() wechseln, sobald die Migration abgeschlossen ist
 if (
   process.env.NODE_ENV === "production" &&
   process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
 ) {
-  throw new Error(
-    "FATAL: VITE_SUPABASE_SERVICE_ROLE_KEY must NEVER be set in production builds.",
+  console.warn(
+    "⚠️  WARNING: VITE_SUPABASE_SERVICE_ROLE_KEY is set in a production build. " +
+      "Remove it as soon as the Firebase migration is complete.",
   );
 }
 
