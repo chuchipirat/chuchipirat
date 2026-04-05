@@ -50,7 +50,7 @@ import {FeedType} from "../../Shared/feed.class";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/NavigationContext";
+} from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {

@@ -73,7 +73,7 @@ import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/NavigationContext";
+} from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
 import {useDatabase} from "../../Database/DatabaseContext";
 // Bridge-Import eliminiert — Konvertierung erfolgt direkt im Repository

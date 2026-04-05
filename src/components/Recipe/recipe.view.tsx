@@ -174,7 +174,7 @@ import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/NavigationContext";
+} from "../Navigation/navigationContext";
 import {
   UnitConversionBasic,
   UnitConversionProducts,

@@ -87,7 +87,7 @@ import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {
   NavigationObject,
   NavigationValuesContext,
-} from "../../Navigation/NavigationContext";
+} from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
 import {Receipt} from "./receipt.class";
 import {EventReceiptPdf} from "./eventRecipePdf";

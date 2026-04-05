@@ -58,7 +58,7 @@ import {Utils} from "../../Shared/utils.class";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/NavigationContext";
+} from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
 import {
   FetchMissingDataProps,

@@ -8,7 +8,7 @@ import {getMatchingHelpPage} from "../helpCenter";
 import * as ROUTES from "../../../constants/routes";
 import {HELPCENTER_URL} from "../../../constants/defaultValues";
 import {Action} from "../../../constants/actions";
-import {NavigationObject} from "../NavigationContext";
+import {NavigationObject} from "../navigationContext";
 
 /* ===================================================================
 // ======================== Tests =====================================

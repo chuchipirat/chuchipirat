@@ -74,7 +74,7 @@ import {SearchPanel} from "../Shared/searchPanel";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/NavigationContext";
+} from "../Navigation/navigationContext";
 import {Action} from "../../constants/actions";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";

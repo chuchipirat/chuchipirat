@@ -49,7 +49,7 @@ import {UsedRecipesPdf} from "./usedRecipesPdf";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/NavigationContext";
+} from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
 import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
 import {OperationType} from "../Event/eventSharedComponents";

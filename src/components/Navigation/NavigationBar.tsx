@@ -20,7 +20,7 @@ import {getMatchingHelpPage} from "./helpCenter";
 import {TestTenantRibbon} from "./TestTenantRibbon";
 import {NavigationDrawer} from "./NavigationDrawer";
 import {useSignOut} from "./useSignOut";
-import {NavigationValuesContext} from "./NavigationContext";
+import {NavigationValuesContext} from "./navigationContext";
 import {Utils} from "../Shared/utils.class";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 

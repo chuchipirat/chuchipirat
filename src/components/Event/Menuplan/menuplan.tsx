@@ -13,7 +13,7 @@ import {
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../../Navigation/NavigationContext";
+} from "../../Navigation/navigationContext";
 import {DialogSelectMeals} from "./dialogSelectMeals";
 import {MenuplanHeaderRow} from "./menuplan.headerRow";
 import {MealTypeRows} from "./menuplan.mealTypeRows";

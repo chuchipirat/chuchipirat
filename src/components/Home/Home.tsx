@@ -69,7 +69,7 @@ import {Kpi, KpiGroup, StatsRepository} from "../Database/Repository/StatsReposi
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/NavigationContext";
+} from "../Navigation/navigationContext";
 import {CustomSnackbar} from "../Shared/customSnackbar";
 import {useDatabase} from "../Database/DatabaseContext";
 import {AlertSystemMessage} from "../Admin/SystemMessage/systemMessage";

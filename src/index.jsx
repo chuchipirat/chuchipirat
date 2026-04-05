@@ -11,7 +11,7 @@ import "@fontsource/roboto";
 import "@fontsource/roboto-mono";
 
 import {CustomDialogContextProvider} from "./components/Shared/customDialogContext";
-import {NavigationContextProvider} from "./components/Navigation/NavigationContext";
+import {NavigationContextProvider} from "./components/Navigation/navigationContext";
 import Firebase from "./components/Firebase/firebase.class";
 import {DatabaseContext} from "./components/Database/DatabaseContext";
 import DatabaseService from "./components/Database/DatabaseService";

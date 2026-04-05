@@ -150,7 +150,7 @@ import Fuse, {FuseResult} from "fuse.js";
 import {
   NavigationValuesContext,
   NavigationObject,
-} from "../Navigation/NavigationContext";
+} from "../Navigation/navigationContext";
 import {HELPCENTER_URL} from "../../constants/defaultValues";
 /* ===================================================================
 // ======================== globale Funktionen =======================
