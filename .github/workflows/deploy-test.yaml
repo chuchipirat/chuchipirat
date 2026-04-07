@@ -36,7 +36,7 @@ jobs:
             for f in $(ls /tmp/chuchipirat-migrations/*.sql | sort); do
               echo "Running migration: $f"
               docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
-                psql -U postgres -d postgres \
+                psql -U supabase_admin -d postgres \
                 -v ON_ERROR_STOP=1 \
                 < "$f"
             done
