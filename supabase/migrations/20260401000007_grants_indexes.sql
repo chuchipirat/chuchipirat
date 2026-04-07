@@ -332,10 +332,12 @@ VALUES ('media', 'media', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Public read access
+DROP POLICY IF EXISTS "media_select_public" ON storage.objects;
 CREATE POLICY "media_select_public" ON storage.objects FOR SELECT
   USING (bucket_id = 'media');
 
 -- Events: cooks can manage event images
+DROP POLICY IF EXISTS "media_events_insert" ON storage.objects;
 CREATE POLICY "media_events_insert" ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'media'
@@ -343,6 +345,7 @@ CREATE POLICY "media_events_insert" ON storage.objects FOR INSERT
     AND is_event_cook((regexp_match(storage.filename(name), '^([0-9a-f-]+).jpg$'))[1])
   );
 
+DROP POLICY IF EXISTS "media_events_update" ON storage.objects;
 CREATE POLICY "media_events_update" ON storage.objects FOR UPDATE
   USING (
     bucket_id = 'media'
@@ -350,6 +353,7 @@ CREATE POLICY "media_events_update" ON storage.objects FOR UPDATE
     AND is_event_cook((regexp_match(storage.filename(name), '^([0-9a-f-]+).jpg$'))[1])
   );
 
+DROP POLICY IF EXISTS "media_events_delete" ON storage.objects;
 CREATE POLICY "media_events_delete" ON storage.objects FOR DELETE
   USING (
     bucket_id = 'media'
@@ -358,6 +362,7 @@ CREATE POLICY "media_events_delete" ON storage.objects FOR DELETE
   );
 
 -- Users: can manage own profile picture
+DROP POLICY IF EXISTS "media_users_insert_own" ON storage.objects;
 CREATE POLICY "media_users_insert_own" ON storage.objects FOR INSERT
   WITH CHECK (
     bucket_id = 'media'
@@ -365,6 +370,7 @@ CREATE POLICY "media_users_insert_own" ON storage.objects FOR INSERT
     AND storage.filename(name) = ((SELECT auth.uid())::text || '.jpg')
   );
 
+DROP POLICY IF EXISTS "media_users_update_own" ON storage.objects;
 CREATE POLICY "media_users_update_own" ON storage.objects FOR UPDATE
   USING (
     bucket_id = 'media'
@@ -372,6 +378,7 @@ CREATE POLICY "media_users_update_own" ON storage.objects FOR UPDATE
     AND storage.filename(name) = ((SELECT auth.uid())::text || '.jpg')
   );
 
+DROP POLICY IF EXISTS "media_users_delete_own" ON storage.objects;
 CREATE POLICY "media_users_delete_own" ON storage.objects FOR DELETE
   USING (
     bucket_id = 'media'
