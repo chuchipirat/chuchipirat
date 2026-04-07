@@ -90,16 +90,14 @@ jobs:
           target: "/data/coolify/services/fwss10fwbxvszdflkag7wmpl/volumes/auth/templates/"
           strip_components: 4
 
-      - name: Restart Mail Templates Container
+      - name: Verify Templates Deployed
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker restart chuchipirat-mail-templates
-            sleep 2
-            docker ps | grep mail-templates
+            ls -la /data/coolify/services/fwss10fwbxvszdflkag7wmpl/volumes/auth/templates/
 
   # ─── 4. Build React App ───────────────────────────────
   build:
