@@ -18,12 +18,14 @@ ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
   GRANT EXECUTE ON FUNCTIONS TO authenticated, service_role;
 
 -- Default privileges for supabase_admin role
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-  GRANT ALL ON TABLES TO authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-  GRANT ALL ON SEQUENCES TO authenticated, service_role;
-ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public
-  GRANT EXECUTE ON FUNCTIONS TO authenticated, service_role;
+-- Nur ausführbar wenn der aktuelle Benutzer Mitglied von supabase_admin ist
+DO $$ BEGIN
+  EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON TABLES TO authenticated, service_role';
+  EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT ALL ON SEQUENCES TO authenticated, service_role';
+  EXECUTE 'ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin IN SCHEMA public GRANT EXECUTE ON FUNCTIONS TO authenticated, service_role';
+EXCEPTION WHEN insufficient_privilege THEN
+  RAISE NOTICE 'Übersprungen: ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin (kein Mitglied)';
+END $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 2. Table Grants
