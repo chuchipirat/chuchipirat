@@ -32,6 +32,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            set -e
             for f in $(ls /tmp/chuchipirat-migrations/*.sql | sort); do
               echo "Running migration: $f"
               docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \

@@ -66,6 +66,53 @@ BEGIN
 END;
 $$;
 
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. RLS Helper Functions (must be defined before any function that references them)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE FUNCTION public.is_admin() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = (SELECT auth.uid()) AND 'admin'::public.user_role = ANY(roles)
+  );
+$$;
+
+CREATE FUNCTION public.is_community_leader() RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.users
+    WHERE id = (SELECT auth.uid())
+      AND ('admin'::public.user_role = ANY(roles) OR 'communityLeader'::public.user_role = ANY(roles))
+  );
+$$;
+
+CREATE FUNCTION public.is_event_cook(p_event_id text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.event_cooks
+    WHERE event_id = p_event_id AND user_id = (SELECT auth.uid())
+  );
+$$;
+
+CREATE FUNCTION public.event_has_cooks(p_event_id text) RETURNS boolean
+    LANGUAGE sql STABLE SECURITY DEFINER
+    SET search_path TO 'public'
+AS $$
+  SELECT EXISTS (
+    SELECT 1 FROM public.event_cooks
+    WHERE event_id = p_event_id
+  );
+$$;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+
 CREATE FUNCTION public.prevent_role_escalation() RETURNS trigger
     LANGUAGE plpgsql SECURITY DEFINER
     SET search_path TO 'public'
@@ -165,51 +212,6 @@ BEGIN
   END IF;
   RETURN NULL;
 END;
-$$;
-
--- ─────────────────────────────────────────────────────────────────────────────
--- 2. RLS Helper Functions
--- ─────────────────────────────────────────────────────────────────────────────
-
-CREATE FUNCTION public.is_admin() RETURNS boolean
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.users
-    WHERE id = (SELECT auth.uid()) AND 'admin'::public.user_role = ANY(roles)
-  );
-$$;
-
-CREATE FUNCTION public.is_community_leader() RETURNS boolean
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.users
-    WHERE id = (SELECT auth.uid())
-      AND ('admin'::public.user_role = ANY(roles) OR 'communityLeader'::public.user_role = ANY(roles))
-  );
-$$;
-
-CREATE FUNCTION public.is_event_cook(p_event_id text) RETURNS boolean
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.event_cooks
-    WHERE event_id = p_event_id AND user_id = (SELECT auth.uid())
-  );
-$$;
-
-CREATE FUNCTION public.event_has_cooks(p_event_id text) RETURNS boolean
-    LANGUAGE sql STABLE SECURITY DEFINER
-    SET search_path TO 'public'
-AS $$
-  SELECT EXISTS (
-    SELECT 1 FROM public.event_cooks
-    WHERE event_id = p_event_id
-  );
 $$;
 
 -- ─────────────────────────────────────────────────────────────────────────────
