@@ -34,7 +34,7 @@ jobs:
           script: |
             for f in $(ls /tmp/chuchipirat-migrations/*.sql | sort); do
               echo "Running migration: $f"
-              docker exec -i supabase-db-fwss10fwbxvszdflkag7wmpl \
+              docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
                 psql -U postgres -d postgres \
                 -v ON_ERROR_STOP=1 \
                 < "$f"
@@ -57,7 +57,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "supabase/volumes/functions/"
-          target: "/data/coolify/services/fwss10fwbxvszdflkag7wmpl/volumes/functions/"
+          target: "/data/coolify/services/omi0gcom96660cnqfz6f0e4q/volumes/functions/"
           strip_components: 3
 
       - name: Restart Edge Functions
@@ -68,7 +68,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker restart supabase-edge-functions-fwss10fwbxvszdflkag7wmpl
+            docker restart supabase-edge-functions-omi0gcom96660cnqfz6f0e4q
             sleep 5
             docker ps | grep edge-functions
 
@@ -87,7 +87,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "supabase/volumes/auth/templates/"
-          target: "/data/coolify/services/fwss10fwbxvszdflkag7wmpl/volumes/auth/templates/"
+          target: "/data/coolify/services/omi0gcom96660cnqfz6f0e4q/volumes/auth/templates/"
           strip_components: 4
 
       - name: Verify Templates Deployed
@@ -97,7 +97,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            ls -la /data/coolify/services/fwss10fwbxvszdflkag7wmpl/volumes/auth/templates/
+            ls -la /data/coolify/services/omi0gcom96660cnqfz6f0e4q/volumes/auth/templates/
 
   # ─── 4. Build React App ───────────────────────────────
   build:
