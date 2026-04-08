@@ -59,6 +59,9 @@ CREATE TABLE public.global_settings (
 
 ALTER TABLE public.global_settings ENABLE ROW LEVEL SECURITY;
 
+-- Singleton-Zeile einfügen (wird von der App per UPDATE aktualisiert)
+INSERT INTO public.global_settings (id) VALUES ('default') ON CONFLICT DO NOTHING;
+
 CREATE TABLE public.system_messages (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     title text DEFAULT ''::text NOT NULL,
