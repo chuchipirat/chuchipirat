@@ -991,10 +991,8 @@ CREATE TABLE public.mail_log (
 
 ALTER TABLE public.mail_log ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.rpc_rate_limits (
+CREATE TABLE internal.rpc_rate_limits (
     user_id       UUID NOT NULL,
     function_name TEXT NOT NULL,
     called_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
-
-ALTER TABLE public.rpc_rate_limits ENABLE ROW LEVEL SECURITY;

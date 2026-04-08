@@ -74,7 +74,7 @@ GRANT ALL ON public.donations TO authenticated;
 GRANT ALL ON public.donation_goal_sections TO authenticated;
 GRANT ALL ON public.cron_job_log TO authenticated;
 GRANT ALL ON public.mail_log TO authenticated;
-GRANT ALL ON public.rpc_rate_limits TO authenticated;
+-- rpc_rate_limits: kein GRANT nötig — Zugriff nur via SECURITY DEFINER Funktion
 
 -- anon: selective SELECT only (3 tables/views)
 GRANT SELECT ON public.global_settings TO anon;
@@ -321,7 +321,7 @@ CREATE INDEX idx_mail_log_delivery_status ON public.mail_log USING btree (delive
 
 -- Rate-Limiting
 CREATE INDEX idx_rpc_rate_limits_lookup
-    ON public.rpc_rate_limits (user_id, function_name, called_at);
+    ON internal.rpc_rate_limits (user_id, function_name, called_at);
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 7. Storage – Media Bucket & Policies

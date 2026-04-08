@@ -18,6 +18,12 @@ CREATE EXTENSION IF NOT EXISTS pg_net SCHEMA extensions;
 -- pg_cron: wird von Supabase automatisch bereitgestellt (pg_catalog)
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- Internal Schema (System-/Infrastruktur-Tabellen, nicht via API exponiert)
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE SCHEMA IF NOT EXISTS internal;
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- Enums
 -- ─────────────────────────────────────────────────────────────────────────────
 

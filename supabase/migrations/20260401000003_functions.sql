@@ -280,12 +280,12 @@ BEGIN
   IF max_calls IS NULL THEN max_calls := 10; END IF;
 
   -- Alte Einträge bereinigen
-  DELETE FROM public.rpc_rate_limits
+  DELETE FROM internal.rpc_rate_limits
   WHERE called_at < NOW() - INTERVAL '1 hour';
 
   -- Aktuelle Aufrufe zählen
   SELECT COUNT(*) INTO call_count
-  FROM public.rpc_rate_limits
+  FROM internal.rpc_rate_limits
   WHERE user_id = auth.uid()
     AND function_name = 'find_user_id_by_email';
 
@@ -293,7 +293,7 @@ BEGIN
     RAISE EXCEPTION 'Rate-Limit erreicht. Bitte später erneut versuchen.';
   END IF;
 
-  INSERT INTO public.rpc_rate_limits (user_id, function_name)
+  INSERT INTO internal.rpc_rate_limits (user_id, function_name)
   VALUES (auth.uid(), 'find_user_id_by_email');
 
   -- Eigentliche Abfrage
