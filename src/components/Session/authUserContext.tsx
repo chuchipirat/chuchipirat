@@ -147,36 +147,41 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
           }
 
           // Benutzerprofil via get_own_profile() RPC laden.
-          // SECURITY DEFINER umgeht das RLS-Timing-Problem — auth.uid()
-          // ist im JWT immer verfügbar, auch direkt nach dem Auth-State-Change.
-          try {
-            const userDomain = await database.users.findOwnProfile();
+          // WICHTIG: Supabase-Aufrufe dürfen im onAuthStateChange-Callback
+          // NICHT mit await blockiert werden, da signInWithPassword intern
+          // einen Lock hält und getSession() denselben Lock benötigt → Deadlock.
+          // Stattdessen wird der Aufruf per setTimeout aus dem Lock-Kontext
+          // herausgelöst.
+          const sessionUser = session.user;
+          setTimeout(async () => {
+            try {
+              const userDomain = await database.users.findOwnProfile();
 
-            if (userDomain) {
-              const newAuthUser: AuthUser = {
-                uid: session.user.id,
-                email: userDomain.email,
-                emailVerified: !!session.user.email_confirmed_at,
-                firstName: userDomain.firstName,
-                lastName: userDomain.lastName,
-                roles: userDomain.roles,
-                publicProfile: {
-                  displayName: userDomain.displayName,
-                  motto: userDomain.motto,
-                  pictureSrc: userDomain.pictureSrc,
-                },
-              };
+              if (userDomain) {
+                const newAuthUser: AuthUser = {
+                  uid: sessionUser.id,
+                  email: userDomain.email,
+                  emailVerified: !!sessionUser.email_confirmed_at,
+                  firstName: userDomain.firstName,
+                  lastName: userDomain.lastName,
+                  roles: userDomain.roles,
+                  publicProfile: {
+                    displayName: userDomain.displayName,
+                    motto: userDomain.motto,
+                    pictureSrc: userDomain.pictureSrc,
+                  },
+                };
 
-              localStorage.setItem(
-                LocalStorageKey.AUTH_USER,
-                JSON.stringify(newAuthUser)
-              );
-              updateAuthUser(newAuthUser);
-              return;
+                localStorage.setItem(
+                  LocalStorageKey.AUTH_USER,
+                  JSON.stringify(newAuthUser),
+                );
+                updateAuthUser(newAuthUser);
+              }
+            } catch (err) {
+              Sentry.captureException(err);
             }
-          } catch (err) {
-            Sentry.captureException(err);
-          }
+          }, 0);
         } else if (event === "SIGNED_OUT") {
           localStorage.removeItem(LocalStorageKey.AUTH_USER);
           updateAuthUser(null);
