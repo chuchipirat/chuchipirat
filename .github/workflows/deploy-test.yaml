@@ -33,12 +33,33 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             set -e
+            # Tracking-Tabelle erstellen (idempotent)
+            docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
+              psql -U supabase_admin -d postgres -c "
+                CREATE TABLE IF NOT EXISTS public.schema_migrations (
+                  filename TEXT PRIMARY KEY,
+                  applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                );"
             for f in $(ls /tmp/chuchipirat-migrations/*.sql | sort); do
-              echo "Running migration: $f"
+              fname=$(basename "$f")
+              # Migration überspringen wenn bereits angewendet
+              already=$(docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
+                psql -U supabase_admin -d postgres -t -A -c \
+                "SELECT 1 FROM public.schema_migrations WHERE filename = '$fname';")
+              if [ "$already" = "1" ]; then
+                echo "Skipping (already applied): $fname"
+                continue
+              fi
+              echo "Running migration: $fname"
               docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
                 psql -U supabase_admin -d postgres \
                 -v ON_ERROR_STOP=1 \
                 < "$f"
+              # Migration als angewendet markieren
+              docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
+                psql -U supabase_admin -d postgres -c \
+                "INSERT INTO public.schema_migrations (filename) VALUES ('$fname');"
+              echo "Applied: $fname"
             done
             rm -rf /tmp/chuchipirat-migrations/
 
