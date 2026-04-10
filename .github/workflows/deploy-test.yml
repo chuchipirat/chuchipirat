@@ -34,7 +34,7 @@ jobs:
           script: |
             set -e
             # Internal Schema und Tracking-Tabelle erstellen (idempotent)
-            docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
+            docker exec -i supabase-db-${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }} \
               psql -U supabase_admin -d postgres -c "
                 CREATE SCHEMA IF NOT EXISTS internal;
                 CREATE TABLE IF NOT EXISTS internal.schema_migrations (
@@ -44,7 +44,7 @@ jobs:
             for f in $(ls /tmp/chuchipirat-migrations/*.sql | sort); do
               fname=$(basename "$f")
               # Migration überspringen wenn bereits angewendet
-              already=$(docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
+              already=$(docker exec -i supabase-db-${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }} \
                 psql -U supabase_admin -d postgres -t -A -c \
                 "SELECT 1 FROM internal.schema_migrations WHERE filename = '$fname';")
               if [ "$already" = "1" ]; then
@@ -52,12 +52,12 @@ jobs:
                 continue
               fi
               echo "Running migration: $fname"
-              docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
+              docker exec -i supabase-db-${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }} \
                 psql -U supabase_admin -d postgres \
                 -v ON_ERROR_STOP=1 \
                 < "$f"
               # Migration als angewendet markieren
-              docker exec -i supabase-db-omi0gcom96660cnqfz6f0e4q \
+              docker exec -i supabase-db-${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }} \
                 psql -U supabase_admin -d postgres -c \
                 "INSERT INTO internal.schema_migrations (filename) VALUES ('$fname');"
               echo "Applied: $fname"
@@ -80,7 +80,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "supabase/volumes/functions/"
-          target: "/data/coolify/services/omi0gcom96660cnqfz6f0e4q/volumes/functions/"
+          target: "/data/coolify/services/${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }}/volumes/functions/"
           strip_components: 3
 
       - name: Restart Edge Functions
@@ -91,7 +91,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker restart supabase-edge-functions-omi0gcom96660cnqfz6f0e4q
+            docker restart supabase-edge-functions-${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }}
             sleep 5
             docker ps | grep edge-functions
 
@@ -110,7 +110,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "supabase/volumes/auth/templates/"
-          target: "/data/coolify/services/omi0gcom96660cnqfz6f0e4q/volumes/auth/templates/"
+          target: "/data/coolify/services/${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }}/volumes/auth/templates/"
           strip_components: 4
 
       - name: Verify Templates Deployed
@@ -120,9 +120,32 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            ls -la /data/coolify/services/omi0gcom96660cnqfz6f0e4q/volumes/auth/templates/
+            ls -la /data/coolify/services/${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }}/volumes/auth/templates/
 
-  # ─── 4. Build React App ───────────────────────────────
+  # ─── 4. Docker Compose ────────────────────────────────
+  compose:
+    name: Deploy Docker Compose
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Replace COOLIFY_SERVICE_ID in compose file
+        run: |
+          sed 's/\${COOLIFY_SERVICE_ID}/${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }}/g' \
+            supabase/docker-compose-coolify.yml > /tmp/docker-compose.yml
+
+      - name: Copy compose file to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: /tmp/docker-compose.yml
+          target: /data/coolify/services/${{ secrets.COOLIFY_SUPABASE_SERVICE_ID }}/
+          strip_components: 1
+
+  # ─── 5. Build React App ───────────────────────────────
   build:
     name: Build React App
     runs-on: ubuntu-latest
@@ -168,5 +191,5 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "build/"
-          target: "/data/coolify/applications/ow76qijbdnxr4urlvp4xeal4/"
+          target: "/data/coolify/applications/${{ secrets.COOLIFY_APP_SERVICE_ID }}/"
           strip_components: 1
