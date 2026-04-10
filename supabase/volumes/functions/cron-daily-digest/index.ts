@@ -25,6 +25,7 @@ import {
 } from "../_shared/emailService.ts";
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {
+  authenticateCronRequest,
   startCronJob,
   completeCronJob,
   failCronJob,
@@ -797,19 +798,9 @@ serve(async (req: Request) => {
     return new Response(null, {status: 204, headers: CORS_HEADERS});
   }
 
-  // ── Authentifizierung: Nur service_role darf Cron-Jobs auslösen ──
-  const authHeader = req.headers.get("Authorization");
-  if (!authHeader?.startsWith("Bearer ")) {
-    return errorResponse(JOB_NAME, "Missing Authorization header", 401);
-  }
-  try {
-    const payload = JSON.parse(atob(authHeader.split(".")[1]));
-    if (payload.role !== "service_role") {
-      return errorResponse(JOB_NAME, "Forbidden: service_role required", 403);
-    }
-  } catch {
-    return errorResponse(JOB_NAME, "Invalid token", 401);
-  }
+  // ── Authentifizierung: service_role oder Admin-Benutzer ──
+  const authError = await authenticateCronRequest(req, JOB_NAME);
+  if (authError) return authError;
 
   // Umgebungsvariablen
   const supabaseUrl = Deno.env.get("SUPABASE_URL");

@@ -49,6 +49,89 @@ interface SupabaseAdminClient {
 type SentryCheckInStatus = "in_progress" | "ok" | "error";
 
 /* =====================================================================
+// Authentifizierung
+// ===================================================================== */
+
+/**
+ * Prüft ob der Request von einem service_role-Client oder einem
+ * authentifizierten Admin-Benutzer stammt.
+ *
+ * - service_role JWT → sofort erlaubt (pg_cron, Admin-Client)
+ * - authenticated JWT → Admin-Rolle wird via PostgREST geprüft
+ * - Alle anderen → abgelehnt
+ *
+ * @param req Der eingehende Request
+ * @param jobName Name des Jobs (für Fehlermeldungen)
+ * @returns null wenn autorisiert, oder eine Response mit Fehlerstatus
+ */
+export async function authenticateCronRequest(
+  req: Request,
+  jobName: string,
+): Promise<Response | null> {
+  const authHeader = req.headers.get("Authorization");
+  if (!authHeader?.startsWith("Bearer ")) {
+    return errorResponse(jobName, "Missing Authorization header", 401);
+  }
+
+  try {
+    const token = authHeader.split(" ")[1];
+    const payload = JSON.parse(atob(token.split(".")[1]));
+
+    if (payload.role === "service_role") {
+      return null; // Erlaubt
+    }
+
+    if (payload.role === "authenticated") {
+      // Admin-Rolle über PostgREST prüfen (mit dem User-Token)
+      const supabaseUrl = Deno.env.get("SUPABASE_URL");
+      if (!supabaseUrl) {
+        return errorResponse(jobName, "SUPABASE_URL not configured", 500);
+      }
+
+      const response = await fetch(
+        `${supabaseUrl}/rest/v1/rpc/is_admin`,
+        {
+          method: "POST",
+          headers: {
+            "Authorization": authHeader,
+            "apikey": Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+            "Content-Type": "application/json",
+          },
+          body: "{}",
+        },
+      );
+
+      if (response.ok) {
+        const isAdmin = await response.json();
+        if (isAdmin === true) {
+          return null; // Admin bestätigt
+        }
+      }
+
+      return errorResponse(jobName, "Forbidden: admin role required", 403);
+    }
+
+    return errorResponse(jobName, "Forbidden: invalid role", 403);
+  } catch {
+    return errorResponse(jobName, "Invalid token", 401);
+  }
+}
+
+/**
+ * Erzeugt eine JSON-Fehlerantwort mit CORS-Headern.
+ */
+function errorResponse(jobName: string, message: string, status: number): Response {
+  console.error(`${jobName}: ${message}`);
+  return new Response(
+    JSON.stringify({error: message}),
+    {
+      status,
+      headers: {"Content-Type": "application/json", "Access-Control-Allow-Origin": "*"},
+    },
+  );
+}
+
+/* =====================================================================
 // Cron-Job-Logging (cron_job_log Tabelle)
 // ===================================================================== */
 
