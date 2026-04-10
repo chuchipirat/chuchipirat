@@ -75,3 +75,4 @@ firebase-auth-migration.md
 
 # Migration
 generate-auth-import.mjs
+supabase/volumes/functions/.DS_Store
