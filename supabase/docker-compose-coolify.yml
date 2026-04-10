@@ -186,7 +186,6 @@ services:
       - "PGRST_APP_SETTINGS_JWT_SECRET=${SERVICE_PASSWORD_JWT}"
       - "PGRST_APP_SETTINGS_JWT_EXP=${JWT_EXPIRY:-3600}"
     command: postgrest
-    exclude_from_hc: true
   supabase-auth:
     image: "supabase/gotrue:v2.185.0"
     depends_on:
