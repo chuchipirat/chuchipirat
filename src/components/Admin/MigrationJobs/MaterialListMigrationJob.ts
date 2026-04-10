@@ -25,9 +25,8 @@ import {collection, doc, getDoc, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 import {MaterialListEditSource} from "../../Database/Repository/MaterialListRepository";
 
 /* =====================================================================
@@ -93,6 +92,8 @@ export class MaterialListMigrationJob
   private menueIdByFirebaseUid: Map<string, string> = new Map();
   /** Meal firebase_uid → Postgres ID */
   private mealIdByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Event-IDs (Postgres) für schnelle Existenzprüfung */
+  private existingEventIds: Set<string> | null = null;
 
   /* =====================================================================
   // Quelldaten lesen
@@ -111,6 +112,10 @@ export class MaterialListMigrationJob
   ): Promise<SourceRecord<FirebaseMaterialListData>[]> {
     if (database) {
       await this.buildLookupMaps();
+
+      // Bereits migrierte Event-IDs vorladen für schnelle Existenzprüfung
+      const existingRows = await fetchAllRows(supabaseAdmin!, "event_material_lists", "event_id");
+      this.existingEventIds = new Set(existingRows.map((row) => row.event_id as string));
     }
 
     const eventsSnapshot = await getDocs(
@@ -153,23 +158,15 @@ export class MaterialListMigrationJob
 
   /**
    * Prüft ob für das Event bereits Materiallisten in Postgres vorhanden sind.
+   * Nutzt das vorab geladene Set für O(1)-Lookups statt einzelner DB-Abfragen.
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseMaterialListData>,
   ): Promise<boolean> {
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);
     if (!eventId) return false;
-
-    const client: SupabaseClient = supabase;
-    const {data, error} = await client
-      .from("event_material_lists")
-      .select("id")
-      .eq("event_id", eventId)
-      .limit(1);
-
-    if (error) throw error;
-    return (data ?? []).length > 0;
+    return this.existingEventIds?.has(eventId) ?? false;
   }
 
   /* =====================================================================
@@ -184,7 +181,7 @@ export class MaterialListMigrationJob
     record: SourceRecord<FirebaseMaterialListData>,
     _authUser: AuthUser,
   ): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);
     if (!eventId) {
       throw new Error(
@@ -192,12 +189,15 @@ export class MaterialListMigrationJob
       );
     }
 
+    // Alle Header und Items sammeln, dann als 2 Batch-INSERTs einfügen
+    const headerRows: Record<string, unknown>[] = [];
+    const allItemRows: Record<string, unknown>[] = [];
+
     for (const [listKey, listEntry] of Object.entries(record.data.materialListDoc.lists)) {
       const props = listEntry.properties;
-      if (!props) {
-        if (import.meta.env.DEV) console.warn(`MaterialListMigrationJob: Liste ${listKey} hat keine properties, übersprungen.`);
-        continue;
-      }
+      if (!props) continue;
+
+      const listId = crypto.randomUUID();
 
       // Menü-IDs auflösen
       const selectedMenues = (props.selectedMenues ?? [])
@@ -214,49 +214,34 @@ export class MaterialListMigrationJob
         (item) => item.manualAdd === true,
       );
 
-      // Header einfügen
-      const {data: headerRow, error: headerError} = await client
-        .from("event_material_lists")
-        .insert({
-          event_id: eventId,
-          name: props.name ?? "",
-          selected_menues: selectedMenues,
-          selected_meals: selectedMeals,
-          has_manually_added_items: hasManuallyAddedItems,
-          firebase_uid: props.uid ?? listKey,
-        })
-        .select("id")
-        .single();
+      headerRows.push({
+        id: listId,
+        event_id: eventId,
+        name: props.name ?? "",
+        selected_menues: selectedMenues,
+        selected_meals: selectedMeals,
+        has_manually_added_items: hasManuallyAddedItems,
+        firebase_uid: props.uid ?? listKey,
+      });
 
-      if (headerError) throw headerError;
-      const listId = (headerRow as {id: string}).id;
-
-      // Items migrieren
+      // Items sammeln
       const items = listEntry.items ?? [];
-      if (items.length === 0) continue;
-
-      const itemRows: Array<Record<string, unknown>> = [];
-
       for (const [itemIdx, item] of items.entries()) {
         let materialId: string | null = null;
         let freeTextName: string | null = null;
 
-        // Material-ID auflösen
         if (item.uid) {
           materialId = this.materialIdByUid.get(item.uid) ?? null;
         }
-
-        // Fallback auf Freitext
         if (!materialId) {
           freeTextName = item.name || "Unbekanntes Material";
         }
 
-        // edit_source bestimmen
         let editSource: MaterialListEditSource = "generated";
         if (item.manualAdd) editSource = "manual_add";
         else if (item.manualEdit) editSource = "manual_edit";
 
-        itemRows.push({
+        allItemRows.push({
           list_id: listId,
           material_id: materialId,
           free_text_name: freeTextName,
@@ -266,14 +251,17 @@ export class MaterialListMigrationJob
           sort_order: Number(itemIdx),
         });
       }
+    }
 
-      if (itemRows.length > 0) {
-        const {error: itemsError} = await client
-          .from("event_material_list_items")
-          .insert(itemRows);
+    if (headerRows.length > 0) {
+      const {error} = await client.from("event_material_lists").insert(headerRows);
+      if (error) throw error;
+    }
 
-        if (itemsError) throw itemsError;
-      }
+    if (allItemRows.length > 0) {
+      const {error} = await client.from("event_material_list_items")
+        .insert(allItemRows);
+      if (error) throw error;
     }
   }
 
@@ -285,30 +273,25 @@ export class MaterialListMigrationJob
    * Lädt Stammdaten aus Postgres und befüllt die Lookup-Maps.
    */
   private async buildLookupMaps(): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     const [eventRows, materialRows, menueRows, mealRows] = await Promise.all([
-      client.from("events").select("id, firebase_uid"),
-      client.from("materials").select("id, firebase_uid"),
-      client.from("event_menues").select("id, firebase_uid"),
-      client.from("event_meals").select("id, firebase_uid"),
+      fetchAllRows(client, "events", "id, firebase_uid"),
+      fetchAllRows(client, "materials", "id, firebase_uid"),
+      fetchAllRows(client, "event_menues", "id, firebase_uid"),
+      fetchAllRows(client, "event_meals", "id, firebase_uid"),
     ]);
 
-    if (eventRows.error) throw eventRows.error;
-    if (materialRows.error) throw materialRows.error;
-    if (menueRows.error) throw menueRows.error;
-    if (mealRows.error) throw mealRows.error;
-
-    for (const row of eventRows.data ?? []) {
+    for (const row of eventRows) {
       if (row.firebase_uid) this.eventIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of materialRows.data ?? []) {
+    for (const row of materialRows) {
       if (row.firebase_uid) this.materialIdByUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of menueRows.data ?? []) {
+    for (const row of menueRows) {
       if (row.firebase_uid) this.menueIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of mealRows.data ?? []) {
+    for (const row of mealRows) {
       if (row.firebase_uid) this.mealIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
   }

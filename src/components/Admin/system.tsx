@@ -159,7 +159,7 @@ const SystemPage = () => {
     (routeDestination: string) => {
       navigate(routeDestination);
     },
-    [navigate]
+    [navigate],
   );
 
   return (
@@ -445,10 +445,7 @@ const AdminTile = React.memo(
     return (
       <Card sx={classes.card} key={"card_" + id}>
         <CardActionArea onClick={() => action(routeDestination)}>
-          <CardHeader
-            title={text}
-            action={icon ? icon : <ForwardIcon />}
-          />
+          <CardHeader title={text} action={icon ? icon : <ForwardIcon />} />
           {description && (
             <CardContent>
               <Typography>{description}</Typography>
@@ -457,7 +454,7 @@ const AdminTile = React.memo(
         </CardActionArea>
       </Card>
     );
-  }
+  },
 );
 AdminTile.displayName = "AdminTile";
 
@@ -488,20 +485,12 @@ const ExternalLinkTile = React.memo(
 
     return (
       <Card sx={classes.card} key={"card_" + id}>
-        <CardActionArea
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <CardHeader
-            title={text}
-            action={<OpenInNewIcon />}
-            avatar={icon}
-          />
+        <CardActionArea href={url} target="_blank" rel="noopener noreferrer">
+          <CardHeader title={text} action={<OpenInNewIcon />} avatar={icon} />
         </CardActionArea>
       </Card>
     );
-  }
+  },
 );
 ExternalLinkTile.displayName = "ExternalLinkTile";
 

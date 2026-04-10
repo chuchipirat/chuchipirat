@@ -1,6 +1,62 @@
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {SupabaseClient} from "@supabase/supabase-js";
+
+/* =====================================================================
+// Paginierte Abfrage — Hilfs-Utility für Migrations-Lookups
+// ===================================================================== */
+
+const PAGE_SIZE = 1000;
+
+/**
+ * Lädt alle Zeilen einer Supabase-Tabelle paginiert, um das Standardlimit
+ * von 1000 Zeilen zu umgehen. Optionale Filter (z.B. `.not(...)`) können
+ * über den `filter`-Callback angehängt werden.
+ *
+ * @param client - Supabase-Client (Admin oder Anon)
+ * @param table - Name der Tabelle
+ * @param columns - Kommaseparierte Spaltenliste (z.B. "id, firebase_uid")
+ * @param filter - Optionaler Callback, der den Query-Builder erweitert
+ * @returns Alle Zeilen als Array
+ * @throws PostgrestError bei Datenbankfehler
+ *
+ * @example
+ * const rows = await fetchAllRows(client, "products", "id, firebase_uid");
+ * const filtered = await fetchAllRows(client, "users", "id, legacy_firebase_uid",
+ *   (query) => query.not("legacy_firebase_uid", "is", null));
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function fetchAllRows<T = Record<string, any>>(
+  client: SupabaseClient,
+  table: string,
+  columns: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  filter?: (query: any) => any,
+): Promise<T[]> {
+  const allRows: T[] = [];
+  let offset = 0;
+  let hasMore = true;
+
+  while (hasMore) {
+    let query = client
+      .from(table)
+      .select(columns)
+      .range(offset, offset + PAGE_SIZE - 1);
+
+    if (filter) query = filter(query);
+
+    const {data, error} = await query;
+    if (error) throw error;
+
+    const rows = (data ?? []) as T[];
+    allRows.push(...rows);
+    hasMore = rows.length === PAGE_SIZE;
+    offset += PAGE_SIZE;
+  }
+
+  return allRows;
+}
 
 /* =====================================================================
 // Generische Typen für die Migration von Firebase → Postgres

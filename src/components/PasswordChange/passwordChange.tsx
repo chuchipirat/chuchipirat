@@ -69,6 +69,8 @@ import {Utils} from "../Shared/utils.class";
 import {FirebaseError} from "@firebase/util";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 // ===================================================================
 // ======================== globale Funktionen =======================
@@ -286,6 +288,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
     dispatch({type: ReducerActions.SET_SUBMITTING, payload: {field: "email", value: true}});
     try {
       await database.auth.updateEmail(state.passwordChangeData.email);
+      trackEvent(AnalyticsEvent.EMAIL_CHANGED);
       dispatch({type: ReducerActions.SUCCESS_MAIL_CHANGE});
     } catch (error) {
       Sentry.captureException(error, {extra: {context: "E-Mail ändern"}});
@@ -301,6 +304,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
     dispatch({type: ReducerActions.SET_SUBMITTING, payload: {field: "password", value: true}});
     try {
       await database.auth.updatePassword(state.passwordChangeData.password);
+      trackEvent(AnalyticsEvent.PASSWORD_CHANGED);
       dispatch({type: ReducerActions.SUCCESS_PW_CHANGE});
     } catch (error) {
       Sentry.captureException(error, {extra: {context: "Passwort ändern"}});

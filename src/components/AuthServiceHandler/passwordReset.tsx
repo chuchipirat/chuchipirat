@@ -31,6 +31,8 @@ import * as Sentry from "@sentry/react";
 import {useNavigate, useLocation} from "react-router";
 import {Utils} from "../Shared/utils.class";
 import {useDatabase} from "../Database/DatabaseContext";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 enum ReducerActions {
   UPDATE_FIELD,
@@ -127,6 +129,7 @@ export const PasswordResetPage = () => {
 
     try {
       await database.auth.resetPassword(state.email);
+      trackEvent(AnalyticsEvent.PASSWORD_RESET);
       dispatch({type: ReducerActions.PASSWORD_LINK_SENT_SUCCESS});
     } catch (error) {
       Sentry.captureException(error);

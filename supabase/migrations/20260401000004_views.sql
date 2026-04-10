@@ -149,6 +149,24 @@ CREATE VIEW public.request_comments_view WITH (security_invoker='true') AS
      LEFT JOIN public.user_profiles u ON ((u.id = rc.created_by)));
 
 -- ─────────────────────────────────────────────────────────────────────────────
+-- 4b. Recipe Comments View
+-- ─────────────────────────────────────────────────────────────────────────────
+
+CREATE VIEW public.recipe_comments_view WITH (security_invoker='true') AS
+ SELECT rc.id,
+    rc.recipe_id,
+    rc.comment,
+    rc.created_at,
+    rc.created_by AS user_uid,
+    rc.updated_at,
+    r.name AS recipe_name,
+    u.display_name AS user_display_name,
+    u.picture_src AS user_picture_src
+   FROM ((public.recipe_comments rc
+     LEFT JOIN public.recipes r ON ((r.id = rc.recipe_id)))
+     LEFT JOIN public.user_profiles u ON ((u.id = rc.created_by)));
+
+-- ─────────────────────────────────────────────────────────────────────────────
 -- 5. Feed View
 -- ─────────────────────────────────────────────────────────────────────────────
 

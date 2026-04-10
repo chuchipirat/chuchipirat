@@ -27,7 +27,10 @@ import {
 } from "@mui/material";
 
 import Grid from "@mui/material/Grid";
-import {Add as AddIcon, ExpandMore as ExpandMoreIcon} from "@mui/icons-material";
+import {
+  Add as AddIcon,
+  ExpandMore as ExpandMoreIcon,
+} from "@mui/icons-material";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {AlertMessage} from "../Shared/AlertMessage";
@@ -47,7 +50,12 @@ import {
   HOME_EMPTY_RECIPES as TEXT_HOME_EMPTY_RECIPES,
   HOME_EMPTY_FEED as TEXT_HOME_EMPTY_FEED,
 } from "../../constants/text";
-import {EVENT, CREATE_NEW_EVENT, RECIPE, USER_PUBLIC_PROFILE} from "../../constants/routes";
+import {
+  EVENT,
+  CREATE_NEW_EVENT,
+  RECIPE,
+  USER_PUBLIC_PROFILE,
+} from "../../constants/routes";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import {EventDomain, getMaxDate} from "../Database/Repository/EventRepository";
@@ -65,7 +73,11 @@ import {
   FEEDS_DISPLAY as DEFAULT_VALUES_FEEDS_DISPLAY,
   RECIPE_DISPLAY as DEFAULT_RECIPE_DISPLAY,
 } from "../../constants/defaultValues";
-import {Kpi, KpiGroup, StatsRepository} from "../Database/Repository/StatsRepository";
+import {
+  Kpi,
+  KpiGroup,
+  StatsRepository,
+} from "../Database/Repository/StatsRepository";
 import {
   NavigationValuesContext,
   NavigationObject,
@@ -141,7 +153,10 @@ export const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        dispatch({type: ReducerActions.EVENTS_FETCH_ERROR, payload: error as Error});
+        dispatch({
+          type: ReducerActions.EVENTS_FETCH_ERROR,
+          payload: error as Error,
+        });
       });
   }, [authUser]);
 
@@ -151,7 +166,11 @@ export const HomePage = () => {
     dispatch({type: ReducerActions.NEWEST_RECIPES_FETCH_INIT});
 
     database.feeds
-      .getNewestFeeds(DEFAULT_RECIPE_DISPLAY, Role.basic, FeedType.recipePublished)
+      .getNewestFeeds(
+        DEFAULT_RECIPE_DISPLAY,
+        Role.basic,
+        FeedType.recipePublished,
+      )
       .then((result) => {
         dispatch({
           type: ReducerActions.NEWEST_RECIPES_FETCH_SUCCESS,
@@ -160,7 +179,10 @@ export const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        dispatch({type: ReducerActions.NEWEST_RECIPES_FETCH_ERROR, payload: error as Error});
+        dispatch({
+          type: ReducerActions.NEWEST_RECIPES_FETCH_ERROR,
+          payload: error as Error,
+        });
       });
   }, [authUser]);
 
@@ -179,7 +201,10 @@ export const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        dispatch({type: ReducerActions.FEED_FETCH_ERROR, payload: error as Error});
+        dispatch({
+          type: ReducerActions.FEED_FETCH_ERROR,
+          payload: error as Error,
+        });
       });
   }, [authUser]);
 
@@ -198,7 +223,10 @@ export const HomePage = () => {
       })
       .catch((error) => {
         Sentry.captureException(error);
-        dispatch({type: ReducerActions.STATS_FETCH_ERROR, payload: error as Error});
+        dispatch({
+          type: ReducerActions.STATS_FETCH_ERROR,
+          payload: error as Error,
+        });
       });
   }, [authUser]);
 
@@ -300,16 +328,13 @@ export const HomePage = () => {
           });
           break;
         default:
-          navigate(
-            `${USER_PUBLIC_PROFILE}/${feedEntry.user.uid}`,
-            {
-              state: {
-                action: Action.VIEW,
-                displayName: feedEntry.user.displayName,
-                pictureSrc: feedEntry.user.pictureSrc,
-              },
+          navigate(`${USER_PUBLIC_PROFILE}/${feedEntry.user.uid}`, {
+            state: {
+              action: Action.VIEW,
+              displayName: feedEntry.user.displayName,
+              pictureSrc: feedEntry.user.pictureSrc,
             },
-          );
+          });
       }
     },
     [state.feed, navigate],
@@ -434,82 +459,86 @@ interface HomeNextEventsProps {
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onCreateNewEvent: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
-const HomeNextEvents = React.memo(({
-  events,
-  isLoadingEvents,
-  error,
-  onCardClick,
-  onCreateNewEvent,
-}: HomeNextEventsProps) => {
-  const classes = useCustomStyles();
-  return (
-    <React.Fragment>
-      {error && (
-        <AlertMessage
-          error={error}
-          messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
-        />
-      )}
-      <Grid container spacing={2} justifyContent="center">
-        {isLoadingEvents && (
+const HomeNextEvents = React.memo(
+  ({
+    events,
+    isLoadingEvents,
+    error,
+    onCardClick,
+    onCreateNewEvent,
+  }: HomeNextEventsProps) => {
+    const classes = useCustomStyles();
+    return (
+      <React.Fragment>
+        {error && (
+          <AlertMessage
+            error={error}
+            messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+          />
+        )}
+        <Grid container spacing={2} justifyContent="center">
+          {isLoadingEvents && (
+            <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
+              <EventCardLoading key={"loadingEventCard"} />
+            </Grid>
+          )}
+          {!isLoadingEvents && events.length === 0 && !error && (
+            <Grid size={12}>
+              <Typography
+                align="center"
+                color="textSecondary"
+                sx={{mb: "1rem"}}
+              >
+                {TEXT_HOME_EMPTY_EVENTS}
+              </Typography>
+            </Grid>
+          )}
+          {events.map((event) => (
+            <Grid
+              size={{xs: 12, sm: 6, md: 4, lg: 3}}
+              key={"eventGrid_" + event.uid}
+            >
+              <EventCard
+                event={event}
+                onCardClick={onCardClick}
+                key={"eventCard_" + event.uid}
+              />
+            </Grid>
+          ))}
           <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
-            <EventCardLoading key={"loadingEventCard"} />
-          </Grid>
-        )}
-        {!isLoadingEvents && events.length === 0 && !error && (
-          <Grid size={12}>
-            <Typography
-              align="center"
-              color="textSecondary"
-              sx={{mb: "1rem"}}
-            >
-              {TEXT_HOME_EMPTY_EVENTS}
-            </Typography>
-          </Grid>
-        )}
-        {events.map((event) => (
-          <Grid
-            size={{xs: 12, sm: 6, md: 4, lg: 3}}
-            key={"eventGrid_" + event.uid}
-          >
-            <EventCard
-              event={event}
-              onCardClick={onCardClick}
-              key={"eventCard_" + event.uid}
-            />
-          </Grid>
-        ))}
-        <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
-          <Card
-            sx={{
-              ...classes.card,
-              border: "2px dashed",
-              borderColor: "divider",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              minHeight: 200,
-            }}
-            key={"eventCardNew"}
-          >
-            <CardActionArea
-              onClick={onCreateNewEvent}
+            <Card
               sx={{
-                height: "100%",
+                ...classes.card,
+                border: "2px dashed",
+                borderColor: "divider",
                 display: "flex",
-                flexDirection: "column",
+                alignItems: "center",
                 justifyContent: "center",
+                minHeight: 200,
               }}
+              key={"eventCardNew"}
             >
-              <AddIcon sx={{fontSize: 48, color: "text.secondary", mb: 1}} />
-              <Typography color="text.secondary">{TEXT_CREATE_EVENT}</Typography>
-            </CardActionArea>
-          </Card>
+              <CardActionArea
+                onClick={onCreateNewEvent}
+                sx={{
+                  height: "100%",
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "center",
+                }}
+              >
+                <AddIcon sx={{fontSize: 48, color: "text.secondary", mb: 1}} />
+                <Typography color="text.secondary">
+                  {TEXT_CREATE_EVENT}
+                </Typography>
+              </CardActionArea>
+            </Card>
+          </Grid>
         </Grid>
-      </Grid>
-    </React.Fragment>
-  );
-});
+      </React.Fragment>
+    );
+  },
+);
 HomeNextEvents.displayName = "HomeNextEvents";
 
 /* ===================================================================
@@ -531,76 +560,78 @@ interface HomePassedEventsProps {
   showPassedEvents: boolean;
   onShowPassedEvents: () => void;
 }
-const HomePassedEvents = React.memo(({
-  events,
-  onCardClick,
-  showPassedEvents,
-  onShowPassedEvents,
-}: HomePassedEventsProps) => {
-  const classes = useCustomStyles();
-  const theme = useTheme();
+const HomePassedEvents = React.memo(
+  ({
+    events,
+    onCardClick,
+    showPassedEvents,
+    onShowPassedEvents,
+  }: HomePassedEventsProps) => {
+    const classes = useCustomStyles();
+    const theme = useTheme();
 
-  const breakpointIsXs = useMediaQuery(theme.breakpoints.down("sm"));
-  const breakpointIsSm = useMediaQuery(theme.breakpoints.down("md"));
+    const breakpointIsXs = useMediaQuery(theme.breakpoints.down("sm"));
+    const breakpointIsSm = useMediaQuery(theme.breakpoints.down("md"));
 
-  // Korrekte Berechnung: fehlende Plätze = columns - remainder
-  const rowFiller = React.useMemo(() => {
-    if (breakpointIsXs) return [];
-    const columns = breakpointIsSm ? 2 : 3;
-    const remainder = events.length % columns;
-    if (remainder === 0) return [];
-    return [...Array(columns - remainder).keys()];
-  }, [breakpointIsXs, breakpointIsSm, events.length]);
+    // Korrekte Berechnung: fehlende Plätze = columns - remainder
+    const rowFiller = React.useMemo(() => {
+      if (breakpointIsXs) return [];
+      const columns = breakpointIsSm ? 2 : 3;
+      const remainder = events.length % columns;
+      if (remainder === 0) return [];
+      return [...Array(columns - remainder).keys()];
+    }, [breakpointIsXs, breakpointIsSm, events.length]);
 
-  return (
-    <React.Fragment>
-      <Grid container spacing={2} justifyContent="center">
-        {!showPassedEvents ? (
-          <Grid size={12} sx={classes.centerCenter}>
-            <Button
-              color="primary"
-              sx={classes.button}
-              onClick={onShowPassedEvents}
-            >
-              {TEXT_EVENT_SHOW_PAST_EVENTS(events.length)}
-            </Button>
-          </Grid>
-        ) : (
-          <Grid size={12} sx={classes.centerCenter}>
-            <Typography
-              variant="h5"
-              align="center"
-              color="textSecondary"
-              sx={{mt: "1rem"}}
-            >
-              {TEXT_EVENT_PAST_EVENTS}
-            </Typography>
-          </Grid>
-        )}
-        {showPassedEvents &&
-          events.map((event) => (
-            <Grid
-              size={{xs: 12, sm: 6, md: 4, lg: 3}}
-              key={"eventGrid_" + event.uid}
-            >
-              <EventCard
-                event={event}
-                onCardClick={onCardClick}
-                key={"eventCard_" + event.uid}
-              />
+    return (
+      <React.Fragment>
+        <Grid container spacing={2} justifyContent="center">
+          {!showPassedEvents ? (
+            <Grid size={12} sx={classes.centerCenter}>
+              <Button
+                color="primary"
+                sx={classes.button}
+                onClick={onShowPassedEvents}
+              >
+                {TEXT_EVENT_SHOW_PAST_EVENTS(events.length)}
+              </Button>
             </Grid>
-          ))}
-        {showPassedEvents &&
-          rowFiller.map((number) => (
-            <Grid
-              size={{xs: 12, sm: 6, md: 4, lg: 3}}
-              key={"gridRowFiller_" + number}
-            />
-          ))}
-      </Grid>
-    </React.Fragment>
-  );
-});
+          ) : (
+            <Grid size={12} sx={classes.centerCenter}>
+              <Typography
+                variant="h5"
+                align="center"
+                color="textSecondary"
+                sx={{mt: "1rem"}}
+              >
+                {TEXT_EVENT_PAST_EVENTS}
+              </Typography>
+            </Grid>
+          )}
+          {showPassedEvents &&
+            events.map((event) => (
+              <Grid
+                size={{xs: 12, sm: 6, md: 4, lg: 3}}
+                key={"eventGrid_" + event.uid}
+              >
+                <EventCard
+                  event={event}
+                  onCardClick={onCardClick}
+                  key={"eventCard_" + event.uid}
+                />
+              </Grid>
+            ))}
+          {showPassedEvents &&
+            rowFiller.map((number) => (
+              <Grid
+                size={{xs: 12, sm: 6, md: 4, lg: 3}}
+                key={"gridRowFiller_" + number}
+              />
+            ))}
+        </Grid>
+      </React.Fragment>
+    );
+  },
+);
 HomePassedEvents.displayName = "HomePassedEvents";
 
 /* ===================================================================
@@ -622,91 +653,85 @@ interface HomeNewestRecipesProps {
   error: Error | null;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
-const HomeNewestRecipes = React.memo(({
-  recipes,
-  isLoadingRecipes,
-  error,
-  onCardClick,
-}: HomeNewestRecipesProps) => {
-  const classes = useCustomStyles();
+const HomeNewestRecipes = React.memo(
+  ({recipes, isLoadingRecipes, error, onCardClick}: HomeNewestRecipesProps) => {
+    const classes = useCustomStyles();
 
-  return (
-    <Grid container spacing={2} justifyContent="center">
-      <Grid size={12} key={"recipeTitle"}>
-        <Typography
-          align="center"
-          gutterBottom={true}
-          variant="h5"
-          component="h2"
-        >
-          {TEXT_NEWEST_RECIPES}
-        </Typography>
-      </Grid>
-      {error && (
-        <Grid size={12}>
-          <AlertMessage
-            error={error}
-            messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
-          />
-        </Grid>
-      )}
-      {isLoadingRecipes &&
-        [...Array(DEFAULT_RECIPE_DISPLAY).keys()].map((index) => (
-          <Grid size={6} key={"emptyRecipeGrid_" + index}>
-            <RecipeCardLoading key={"emptyRecipeCard_" + index} />
-          </Grid>
-        ))}
-      {!isLoadingRecipes && recipes.length === 0 && !error && (
-        <Grid size={12}>
-          <Typography align="center" color="textSecondary">
-            {TEXT_HOME_EMPTY_RECIPES}
+    return (
+      <Grid container spacing={2} justifyContent="center">
+        <Grid size={12} key={"recipeTitle"}>
+          <Typography
+            align="center"
+            gutterBottom={true}
+            variant="h5"
+            component="h2"
+          >
+            {TEXT_NEWEST_RECIPES}
           </Typography>
         </Grid>
-      )}
-      {recipes.map((recipe) => (
-        <Grid size={6} key={"recipeGrid_" + recipe.uid}>
-          <Card
-            sx={classes.card}
-            key={"recipeCard_" + recipe.uid}
-          >
-            <CardActionArea
-              data-recipe-uid={recipe.sourceObject.uid}
-              onClick={onCardClick}
-              sx={{
-                height: "100%",
-                "&:hover .MuiCardMedia-root": {
-                  transform: "scale(1.05)",
-                },
-              }}
-            >
-              <Box component={"div"} sx={classes.card}>
-                <Box sx={{overflow: "hidden"}}>
-                  <Box
-                    className="MuiCardMedia-root"
-                    sx={{
-                      ...classes.cardMedia,
-                      backgroundImage: `url(${
-                        recipe.sourceObject.pictureSrc
-                          ? recipe.sourceObject.pictureSrc
-                          : ImageRepository.getEnvironmentRelatedPicture()
-                              .CARD_PLACEHOLDER_MEDIA
-                      })`,
-                      backgroundSize: "cover",
-                      backgroundPosition: "center",
-                      transition: "transform 0.5s ease",
-                    }}
-                    title={recipe.sourceObject.name}
-                  />
+        {error && (
+          <Grid size={12}>
+            <AlertMessage
+              error={error}
+              messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+            />
+          </Grid>
+        )}
+        {isLoadingRecipes &&
+          [...Array(DEFAULT_RECIPE_DISPLAY).keys()].map((index) => (
+            <Grid size={6} key={"emptyRecipeGrid_" + index}>
+              <RecipeCardLoading key={"emptyRecipeCard_" + index} />
+            </Grid>
+          ))}
+        {!isLoadingRecipes && recipes.length === 0 && !error && (
+          <Grid size={12}>
+            <Typography align="center" color="textSecondary">
+              {TEXT_HOME_EMPTY_RECIPES}
+            </Typography>
+          </Grid>
+        )}
+        {recipes.map((recipe) => (
+          <Grid size={6} key={"recipeGrid_" + recipe.uid}>
+            <Card sx={classes.card} key={"recipeCard_" + recipe.uid}>
+              <CardActionArea
+                data-recipe-uid={recipe.sourceObject.uid}
+                onClick={onCardClick}
+                sx={{
+                  height: "100%",
+                  "&:hover .MuiCardMedia-root": {
+                    transform: "scale(1.05)",
+                  },
+                }}
+              >
+                <Box component={"div"} sx={classes.card}>
+                  <Box sx={{overflow: "hidden"}}>
+                    <Box
+                      className="MuiCardMedia-root"
+                      sx={{
+                        ...classes.cardMedia,
+                        backgroundImage: `url(${
+                          recipe.sourceObject.pictureSrc
+                            ? recipe.sourceObject.pictureSrc
+                            : ImageRepository.getEnvironmentRelatedPicture()
+                                .CARD_PLACEHOLDER_MEDIA
+                        })`,
+                        backgroundSize: "cover",
+                        backgroundPosition: "center",
+                        transition: "transform 0.5s ease",
+                      }}
+                      title={recipe.sourceObject.name}
+                    />
+                  </Box>
+                  <CardHeader title={recipe.sourceObject.name} />
                 </Box>
-                <CardHeader title={recipe.sourceObject.name} />
-              </Box>
-            </CardActionArea>
-          </Card>
-        </Grid>
-      ))}
-    </Grid>
-  );
-});
+              </CardActionArea>
+            </Card>
+          </Grid>
+        ))}
+      </Grid>
+    );
+  },
+);
 HomeNewestRecipes.displayName = "HomeNewestRecipes";
 
 /* ===================================================================
@@ -744,16 +769,14 @@ const HomeFeed = React.memo(
           <Card sx={classes.card}>
             <List>
               {isLoadingFeed &&
-                [...Array(DEFAULT_VALUES_FEEDS_DISPLAY).keys()].map(
-                  (index) => (
-                    <ListItem key={"feedListItem_skeleton_" + index}>
-                      <ListItemText
-                        primary={<Skeleton />}
-                        secondary={<Skeleton />}
-                      />
-                    </ListItem>
-                  ),
-                )}
+                [...Array(DEFAULT_VALUES_FEEDS_DISPLAY).keys()].map((index) => (
+                  <ListItem key={"feedListItem_skeleton_" + index}>
+                    <ListItemText
+                      primary={<Skeleton />}
+                      secondary={<Skeleton />}
+                    />
+                  </ListItem>
+                ))}
               {!isLoadingFeed && feed.length === 0 && (
                 <ListItem>
                   <ListItemText
@@ -851,12 +874,7 @@ const HomeStats = React.memo(({stats, isLoadingStats}: HomeStatsProps) => {
       {!isLoadingStats &&
         kpiGroups.map((group, groupIndex) => (
           <React.Fragment key={"statsGroup_" + group.title}>
-            {groupIndex > 0 && (
-              <Divider
-                sx={{mx: "1rem"}}
-                component="li"
-              />
-            )}
+            {groupIndex > 0 && <Divider sx={{mx: "1rem"}} component="li" />}
             <ListItem>
               <ListItemText
                 primary={
@@ -903,14 +921,10 @@ const HomeStats = React.memo(({stats, isLoadingStats}: HomeStatsProps) => {
             <AccordionSummary expandIcon={<ExpandMoreIcon />}>
               <Typography>{TEXT_STATS}</Typography>
             </AccordionSummary>
-            <AccordionDetails sx={{p: 0}}>
-              {statsContent}
-            </AccordionDetails>
+            <AccordionDetails sx={{p: 0}}>{statsContent}</AccordionDetails>
           </Accordion>
         ) : (
-          <Card sx={classes.card}>
-            {statsContent}
-          </Card>
+          <Card sx={classes.card}>{statsContent}</Card>
         )}
       </Grid>
     </Grid>

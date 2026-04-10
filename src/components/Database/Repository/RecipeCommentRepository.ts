@@ -75,11 +75,19 @@ export interface RecipeCommentDomain {
   pictureSrc: string;
 }
 
-/** Hilftyp für eine Zeile aus get_comment_author_profiles() */
-interface CommentAuthorProfileRow {
+/**
+ * Zeilentyp für die recipe_comments_view (enthält angereicherte Profilfelder).
+ */
+interface RecipeCommentViewRow {
   id: string;
-  display_name: string;
-  picture_src: string;
+  recipe_id: string;
+  comment: string;
+  created_at: string;
+  user_uid: string | null;
+  updated_at: string;
+  recipe_name: string | null;
+  user_display_name: string | null;
+  user_picture_src: string | null;
 }
 
 /* =====================================================================
@@ -159,14 +167,11 @@ export class RecipeCommentRepository extends BaseRepository<
   // Convenience-Methoden
   // ===================================================================== */
   /**
-   * Lädt Kommentare für ein Rezept und reichert sie mit Profildaten an.
+   * Lädt Kommentare für ein Rezept via `recipe_comments_view`.
    *
-   * Da `recipe_comments.created_by` auf `auth.users` zeigt (nicht auf
-   * `public.users`), ist ein PostgREST-Join auf `public.users` nicht
-   * direkt möglich. Stattdessen werden Profilfelder (displayName,
-   * pictureSrc) über die SECURITY DEFINER-Funktion
-   * `get_comment_author_profiles()` nachgeladen, die RLS umgeht und
-   * ausschliesslich öffentliche Felder zurückgibt.
+   * Die View joined `recipe_comments` mit `user_profiles` und `recipes`,
+   * sodass Anzeigename und Profilbild direkt in der Abfrage enthalten sind —
+   * kein separater RPC-Aufruf nötig.
    *
    * @param recipeId - Die ID des Rezepts
    * @param limit - Maximale Anzahl zu ladender Kommentare (Standard: 50)
@@ -178,9 +183,8 @@ export class RecipeCommentRepository extends BaseRepository<
     limit = 50,
     offset = 0,
   ): Promise<RecipeCommentDomain[]> {
-    // 1. Kommentare laden
     const {data, error} = await this.client
-      .from(this.tableName)
+      .from("recipe_comments_view")
       .select("*")
       .eq("recipe_id", recipeId)
       .order("created_at", {ascending: false})
@@ -189,50 +193,15 @@ export class RecipeCommentRepository extends BaseRepository<
     if (error) throw error;
     if (!data || data.length === 0) return [];
 
-    const rows = data as unknown as RecipeCommentRow[];
-
-    // 2. Eindeutige Autoren-UUIDs sammeln
-    const authorUids = [
-      ...new Set(
-        rows
-          .map((r) => r.created_by)
-          .filter((uid): uid is string => uid != null),
-      ),
-    ];
-
-    // 3. Öffentliche Profile laden via SECURITY DEFINER-Funktion.
-    //    Die reguläre RLS auf public.users (users_select_own) würde nur
-    //    die eigene Zeile zurückgeben — die Funktion umgeht das sicher.
-    const profileMap: Record<string, {displayName: string; pictureSrc: string}> =
-      {};
-    if (authorUids.length > 0) {
-      const {data: profiles} = await this.client.rpc(
-        "get_comment_author_profiles",
-        {uids: authorUids},
-      );
-
-      if (profiles) {
-        for (const p of profiles as CommentAuthorProfileRow[]) {
-          profileMap[p.id] = {
-            displayName: p.display_name ?? "",
-            pictureSrc: p.picture_src ?? "",
-          };
-        }
-      }
-    }
-
-    // 4. Domain-Objekte mit angereicherten Profildaten erzeugen
-    return rows.map((row) => {
-      const profile = profileMap[row.created_by ?? ""] ?? {
-        displayName: "",
-        pictureSrc: "",
-      };
-      return {
-        ...this.toDomain(row),
-        displayName: profile.displayName,
-        pictureSrc: profile.pictureSrc,
-      };
-    });
+    return (data as unknown as RecipeCommentViewRow[]).map((row) => ({
+      uid: row.id,
+      recipeId: row.recipe_id,
+      comment: row.comment,
+      createdAt: row.created_at ? new Date(row.created_at) : new Date(0),
+      createdBy: row.user_uid ?? "",
+      displayName: row.user_display_name ?? "",
+      pictureSrc: row.user_picture_src ?? "",
+    }));
   }
 
   /**

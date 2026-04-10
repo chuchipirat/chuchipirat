@@ -118,7 +118,7 @@ export const getMatchingHelpPage = ({
       page = "requests";
       break;
     case ROUTES.UNITS:
-      subdirectory = "masterdata";
+      subdirectory = "communityleader";
       page = "units";
       break;
     case ROUTES.UNITCONVERSION:

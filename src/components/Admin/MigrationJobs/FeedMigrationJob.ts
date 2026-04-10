@@ -20,9 +20,8 @@ import {collection, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {fetchAllRows, MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
 /* =====================================================================
 // Firebase-Datenstruktur
@@ -64,6 +63,11 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
   name = "Feeds";
   description = "Migriert Feed-Einträge aus der Firebase-Collection «feeds» nach Postgres.";
 
+  /** firebase_uid → Supabase Auth UUID für Benutzer */
+  private userAuthUidByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Feeds (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
+
   /* =====================================================================
   // Quelldaten aus Firebase lesen
   // ===================================================================== */
@@ -74,6 +78,9 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
    * @returns Array der Quelldatensätze
    */
   async fetchSourceRecords(firebase: Firebase): Promise<SourceRecord<FirebaseFeed>[]> {
+    // Lookup-Maps vorladen (Benutzer + bereits migrierte Feeds)
+    await this.buildLookupMaps();
+
     const feedsRef = collection(firebase.firestore, "feeds");
     const snapshot = await getDocs(feedsRef);
     const records: SourceRecord<FirebaseFeed>[] = [];
@@ -104,18 +111,11 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
    * @returns true, falls der Datensatz bereits migriert wurde
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseFeed>,
   ): Promise<boolean> {
-    const client: SupabaseClient = supabase;
-    const {data, error} = await client
-      .from("feeds")
-      .select("id")
-      .eq("firebase_uid", record.id)
-      .maybeSingle();
-
-    if (error) throw error;
-    return data !== null;
+    // In-Memory-Prüfung gegen vorab geladene Set (kein DB-Roundtrip)
+    return this.existingFirebaseUids?.has(record.id) ?? false;
   }
 
   /* =====================================================================
@@ -134,7 +134,7 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
     _authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     // Feed-Typ mappen
     let feedType = data.type;
@@ -152,22 +152,20 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
     // source_object_type bestimmen (in Firebase nicht immer gesetzt)
     const sourceObjectType = data.sourceObject.type || this.inferSourceObjectType(feedType);
 
-    // user_uid aufgelöst: Firebase-UID → auth.users.id (UUID)
-    let userUid: string | null = null;
-    if (data.user?.uid) {
-      userUid = await this.resolveAuthUid(client, data.user.uid);
-    }
+    // user_uid aufgelöst: Firebase-UID → auth.users.id (UUID) via vorgeladener Map
+    const userUid = data.user?.uid
+      ? this.userAuthUidByFirebaseUid.get(data.user.uid) ?? null
+      : null;
     if (!userUid) {
       // Ohne gültigen User kann kein Feed-Eintrag erstellt werden (NOT NULL + FK)
       if (import.meta.env.DEV) console.warn(`Feed ${record.id}: user.uid konnte nicht aufgelöst werden, übersprungen.`);
       return;
     }
 
-    // created_by aufgelöst: Firebase-UID → auth.users.id
-    let createdBy: string | null = null;
-    if (data.created?.fromUid) {
-      createdBy = await this.resolveAuthUid(client, data.created.fromUid);
-    }
+    // created_by aufgelöst: Firebase-UID → auth.users.id via vorgeladener Map
+    const createdBy = data.created?.fromUid
+      ? this.userAuthUidByFirebaseUid.get(data.created.fromUid) ?? null
+      : null;
 
     // Erstellungszeitpunkt
     const createdAt = this.toIsoString(data.created?.date);
@@ -249,19 +247,32 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
   }
 
   /**
-   * Löst eine Firebase-UID in die Supabase-UUID (users.id) auf.
-   * Nach der id-Vereinheitlichung (Phase 3) stehen die alten Firebase-UIDs
-   * in legacy_firebase_uid, die id ist die Supabase-UUID.
+   * Lädt alle Lookup-Maps vor: Benutzer (firebase_uid → Supabase UUID)
+   * und bereits migrierte Feeds (firebase_uid Set).
    */
-  private async resolveAuthUid(
-    client: SupabaseClient,
-    firebaseUid: string,
-  ): Promise<string | null> {
-    const {data} = await client
-      .from("users")
-      .select("id")
-      .eq("legacy_firebase_uid", firebaseUid)
-      .maybeSingle();
-    return data?.id ?? null;
+  private async buildLookupMaps(): Promise<void> {
+    const client = supabaseAdmin!;
+
+    // Benutzer: legacy_firebase_uid → id (UUID)
+    const userRows = await fetchAllRows(client, "users", "id, legacy_firebase_uid",
+      (query) => query.not("legacy_firebase_uid", "is", null));
+
+    for (const row of userRows) {
+      if (row.legacy_firebase_uid && row.id) {
+        this.userAuthUidByFirebaseUid.set(
+          row.legacy_firebase_uid as string,
+          row.id as string,
+        );
+      }
+    }
+
+    // Bereits migrierte Feeds laden (für In-Memory checkExists)
+    const existingRows = await fetchAllRows(
+      client, "feeds", "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid as string),
+    );
   }
 }

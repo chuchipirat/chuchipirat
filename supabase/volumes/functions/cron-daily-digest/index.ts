@@ -384,19 +384,20 @@ async function fetchRecipeComments(
   start: string,
   end: string
 ): Promise<NewRecipeComment[]> {
+  // Kommentare via View laden (enthält Rezeptname und Autorname)
   const {data, error} = await client
-    .from("recipe_comments")
-    .select("comment, created_at, recipes(name), users:created_by(display_name)")
+    .from("recipe_comments_view")
+    .select("comment, created_at, recipe_name, user_display_name")
     .gte("created_at", start)
     .lte("created_at", end)
     .order("created_at", {ascending: true});
 
   if (error) throw new Error(`Rezept-Kommentar-Abfrage fehlgeschlagen: ${error.message}`);
 
-  return (data ?? []).map((row) => ({
-    recipe_name: (row.recipes as {name: string} | null)?.name ?? "—",
-    comment: (row.comment as string) ?? "",
-    author_name: (row.users as {display_name: string} | null)?.display_name ?? "Unbekannt",
+  return (data ?? []).map((row: {recipe_name: string | null; comment: string; user_display_name: string | null}) => ({
+    recipe_name: row.recipe_name ?? "—",
+    comment: row.comment ?? "",
+    author_name: row.user_display_name ?? "Unbekannt",
   }));
 }
 

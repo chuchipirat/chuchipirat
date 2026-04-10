@@ -31,9 +31,9 @@ import {collection, doc, getDoc, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
 // Firebase-Datenstrukturen
@@ -149,6 +149,21 @@ const planModeToDb = (planMode: number): string => {
 };
 
 /**
+ * Gibt einen sicheren numerischen Wert zurück. Fängt leere Strings,
+ * NaN, Infinity und null/undefined ab.
+ *
+ * @param value - Wert aus Firebase (kann String, Zahl oder undefined sein)
+ * @param fallback - Rückgabewert bei ungültigem Input (Standard: 0)
+ * @returns Gültiger numerischer Wert
+ */
+const safeNumber = (value: unknown, fallback = 0): number => {
+  if (value === undefined || value === null || value === "") return fallback;
+  const num = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+
+/**
  * Konvertiert einen Firebase-Scope-Wert ("ALL", "FIX", oder UID) in den plan_scope_type-Enum.
  *
  * @param scope - Firebase-Scope-Wert
@@ -185,10 +200,14 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
   private productIdByFirebaseUid: Map<string, string> = new Map();
   /** firebase_uid → Postgres-ID für Materialien */
   private materialIdByFirebaseUid: Map<string, string> = new Map();
+  /** Gültige Unit-Keys aus der units-Tabelle */
+  private validUnits: Set<string> = new Set();
   /** firebase_uid → Postgres-ID für Diäten (event-übergreifend, nach Event aufgebaut) */
   private dietIdByEventAndFirebaseUid: Map<string, Map<string, string>> = new Map();
   /** firebase_uid → Postgres-ID für Unverträglichkeiten */
   private intoleranceIdByEventAndFirebaseUid: Map<string, Map<string, string>> = new Map();
+  /** Bereits migrierte Event-IDs (für schnelle checkExists-Prüfung ohne DB-Query) */
+  private existingEventIds: Set<string> | null = null;
 
   /* =====================================================================
   // Alle Menupläne aus Firebase lesen
@@ -206,6 +225,12 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
   ): Promise<SourceRecord<FirebaseMenuplanData>[]> {
     if (database) {
       await this.buildLookupMaps();
+
+      // Bereits migrierte Event-IDs vorladen (für schnelle In-Memory-Prüfung in checkExists)
+      const existingRows = await fetchAllRows(
+        supabaseAdmin!, "event_meal_types", "event_id");
+      this.existingEventIds = new Set(
+        existingRows.map((row) => row.event_id as string));
     }
 
     const eventsSnapshot = await getDocs(collection(firebase.firestore, "events"));
@@ -253,13 +278,19 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
    * @returns true, falls der Menuplan bereits migriert wurde
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseMenuplanData>,
   ): Promise<boolean> {
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);
     if (!eventId) return false;
 
-    const client: SupabaseClient = supabase;
+    // In-Memory-Prüfung gegen vorgeladene Event-IDs (kein DB-Roundtrip pro Record)
+    if (this.existingEventIds) {
+      return this.existingEventIds.has(eventId);
+    }
+
+    // Fallback: DB-Query, falls existingEventIds nicht vorgeladen wurde
+    const client = supabaseAdmin!;
     const {data, error} = await client
       .from("event_meal_types")
       .select("id")
@@ -305,7 +336,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       );
     }
 
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     const eventId = this.eventIdByFirebaseUid.get(data.eventFirebaseUid);
     if (!eventId) {
@@ -314,37 +345,44 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       );
     }
 
-    // Diät/Intolerance-Lookup für dieses Event laden (falls noch nicht vorhanden)
-    await this.ensureDietIntoleranceMapsForEvent(client, eventId, data.eventFirebaseUid);
+    // Diät/Intolerance aus vorgeladener Map (buildLookupMaps hat alle Events geladen)
     const dietMap = this.dietIdByEventAndFirebaseUid.get(eventId) ?? new Map<string, string>();
     const intoleranceMap = this.intoleranceIdByEventAndFirebaseUid.get(eventId) ?? new Map<string, string>();
 
-    // --- 1. Mahlzeitentypen ---
-    const mealTypeIdMap = new Map<string, string>(); // Firebase-UID → Postgres-ID
+    // Alle Plan-Zeilen sammeln und am Ende als Batch einfügen
+    const allPlanRows: Record<string, unknown>[] = [];
+
+    // --- 1. Mahlzeitentypen (Batch) ---
+    const mealTypeIdMap = new Map<string, string>();
     const mealTypeOrder: string[] = data.mealTypes.order ?? [];
+    const mealTypeRows: Record<string, unknown>[] = [];
+
     for (let index = 0; index < mealTypeOrder.length; index++) {
       const mealTypeFirebaseUid = mealTypeOrder[index];
       const mealType = data.mealTypes.entries[mealTypeFirebaseUid];
       if (!mealType) continue;
 
-      const {data: mealTypeRow, error: mealTypeError} = await client
-        .from("event_meal_types")
-        .insert({
-          event_id: eventId,
-          name: mealType.name ?? "",
-          sort_order: index * 10,
-          firebase_uid: mealTypeFirebaseUid,
-        })
-        .select("id")
-        .single();
-
-      if (mealTypeError) throw mealTypeError;
-      mealTypeIdMap.set(mealTypeFirebaseUid, (mealTypeRow as {id: string}).id);
+      const id = crypto.randomUUID();
+      mealTypeIdMap.set(mealTypeFirebaseUid, id);
+      mealTypeRows.push({
+        id,
+        event_id: eventId,
+        name: mealType.name ?? "",
+        sort_order: index * 10,
+        firebase_uid: mealTypeFirebaseUid,
+      });
     }
 
-    // --- 2. Mahlzeit-Slots ---
-    const mealIdMap = new Map<string, string>(); // Firebase-UID → Postgres-ID
+    if (mealTypeRows.length > 0) {
+      const {error} = await client.from("event_meal_types").insert(mealTypeRows);
+      if (error) throw error;
+    }
+
+    // --- 2. Mahlzeit-Slots (Batch) ---
+    const mealIdMap = new Map<string, string>();
     const meals = data.meals ?? {};
+    const mealRows: Record<string, unknown>[] = [];
+
     for (const mealFirebaseUid of Object.keys(meals)) {
       const meal = meals[mealFirebaseUid];
       if (!meal) continue;
@@ -352,48 +390,29 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       const mealTypeId = mealTypeIdMap.get(meal.mealType);
       if (!mealTypeId) continue;
 
-      // Mahlzeiten ohne gültiges Datum überspringen (Firebase-Inkonsistenz: date = "")
-      if (!meal.date) {
-        if (import.meta.env.DEV) console.warn(`MenuplanMigrationJob: Mahlzeit ${mealFirebaseUid} hat kein Datum, wird übersprungen.`);
-        continue;
-      }
+      if (!meal.date) continue;
 
-      const {data: mealRow, error: mealError} = await client
-        .from("event_meals")
-        .insert({
-          event_id: eventId,
-          meal_date: meal.date,
-          meal_type_id: mealTypeId,
-          firebase_uid: mealFirebaseUid,
-        })
-        .select("id")
-        .single();
-
-      if (mealError) {
-        // Duplikat (UNIQUE event+date+mealType) tolerieren
-        if (mealError.code !== "23505") throw mealError;
-        // Bestehende ID nachschlagen
-        const {data: existing} = await client
-          .from("event_meals")
-          .select("id")
-          .eq("event_id", eventId)
-          .eq("meal_date", meal.date)
-          .eq("meal_type_id", mealTypeId)
-          .single();
-        if (existing) mealIdMap.set(mealFirebaseUid, (existing as {id: string}).id);
-        continue;
-      }
-      mealIdMap.set(mealFirebaseUid, (mealRow as {id: string}).id);
+      const id = crypto.randomUUID();
+      mealIdMap.set(mealFirebaseUid, id);
+      mealRows.push({
+        id,
+        event_id: eventId,
+        meal_date: meal.date,
+        meal_type_id: mealTypeId,
+        firebase_uid: mealFirebaseUid,
+      });
     }
 
-    // --- 3. Menü-Container ---
-    const menueIdMap = new Map<string, string>(); // Firebase-UID → Postgres-ID
-    const menues = data.menues ?? {};
-    const _menuOrder = data.menuOrder ?? [];
+    if (mealRows.length > 0) {
+      const {error} = await client.from("event_meals").insert(mealRows);
+      if (error) throw error;
+    }
 
-    // Reihenfolge der Menüs innerhalb der Mahlzeiten bestimmen
-    // menuOrder ist eine flache Liste aller Mahlzeiten-UIDs in Reihenfolge
-    // Die Menü-Reihenfolge liegt in meal.menuOrder
+    // --- 3. Menü-Container (Batch) ---
+    const menueIdMap = new Map<string, string>();
+    const menues = data.menues ?? {};
+    const menueRows: Record<string, unknown>[] = [];
+
     for (const mealFirebaseUid of Object.keys(meals)) {
       const meal = meals[mealFirebaseUid];
       const mealId = mealIdMap.get(mealFirebaseUid);
@@ -405,87 +424,74 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
         const menue = menues[menueFirebaseUid];
         if (!menue) continue;
 
-        const {data: menueRow, error: menueError} = await client
-          .from("event_menues")
-          .insert({
-            event_id: eventId,
-            meal_id: mealId,
-            name: menue.name ?? "",
-            sort_order: index * 10,
-            firebase_uid: menueFirebaseUid,
-          })
-          .select("id")
-          .single();
-
-        if (menueError) throw menueError;
-        menueIdMap.set(menueFirebaseUid, (menueRow as {id: string}).id);
+        const id = crypto.randomUUID();
+        menueIdMap.set(menueFirebaseUid, id);
+        menueRows.push({
+          id,
+          event_id: eventId,
+          meal_id: mealId,
+          name: menue.name ?? "",
+          sort_order: index * 10,
+          firebase_uid: menueFirebaseUid,
+        });
       }
     }
 
-    // --- 4. Rezepte im Menü ---
-    const menueRecipeIdMap = new Map<string, string>(); // Firebase-UID → Postgres-ID
+    if (menueRows.length > 0) {
+      const {error} = await client.from("event_menues").insert(menueRows);
+      if (error) throw error;
+    }
+
+    // --- 4. Rezepte im Menü (Batch) ---
     const mealRecipes = data.mealRecipes ?? {};
 
-    // Reihenfolge der Rezepte aus menue.mealRecipeOrder ableiten
-    const recipeOrderInMenue = new Map<string, number>(); // Firebase-UID → sort_order
-    for (const menue of Object.values(menues)) {
-      const mealRecipeOrder = menue.mealRecipeOrder ?? [];
-      for (let index = 0; index < mealRecipeOrder.length; index++) {
-        recipeOrderInMenue.set(mealRecipeOrder[index], index * 10);
-      }
-    }
-
-    // Für jedes Rezept: zugehöriges Menü bestimmen
-    // Die Zuordnung Rezept → Menü ist implizit über menue.mealRecipeOrder
-    const recipeToMenueMap = new Map<string, string>(); // Recipe Firebase-UID → Menue Firebase-UID
+    const recipeOrderInMenue = new Map<string, number>();
+    const recipeToMenueMap = new Map<string, string>();
     for (const [menueFirebaseUid, menue] of Object.entries(menues)) {
-      for (const recipeFirebaseUid of (menue.mealRecipeOrder ?? [])) {
+      for (let index = 0; index < (menue.mealRecipeOrder ?? []).length; index++) {
+        const recipeFirebaseUid = menue.mealRecipeOrder[index];
         recipeToMenueMap.set(recipeFirebaseUid, menueFirebaseUid);
+        recipeOrderInMenue.set(recipeFirebaseUid, index * 10);
       }
     }
 
+    const menueRecipeRows: Record<string, unknown>[] = [];
     for (const recipeFirebaseUid of Object.keys(mealRecipes)) {
       const mealRecipe = mealRecipes[recipeFirebaseUid];
       if (!mealRecipe) continue;
 
       const menueFirebaseUid = recipeToMenueMap.get(recipeFirebaseUid);
       if (!menueFirebaseUid) continue;
-
       const menueId = menueIdMap.get(menueFirebaseUid);
       if (!menueId) continue;
 
-      // Rezept-ID aus Postgres auflösen
       const recipeId = this.recipeIdByFirebaseUid.get(mealRecipe.recipe.recipeUid) ?? null;
-      const isDeleted = recipeId === null;
-      const deletedRecipeName = isDeleted
+      const deletedRecipeName = recipeId === null
         ? `[DELETED] ${mealRecipe.recipe.name ?? "Unbekanntes Rezept"}`
         : null;
 
-      const {data: menueRecipeRow, error: menueRecipeError} = await client
-        .from("event_menue_recipes")
-        .insert({
-          event_id: eventId,
-          menue_id: menueId,
-          recipe_id: recipeId,
-          deleted_recipe_name: deletedRecipeName,
-          variant_name: mealRecipe.recipe.variantName ?? null,
-          total_portions: mealRecipe.totalPortions ?? 0,
-          sort_order: recipeOrderInMenue.get(recipeFirebaseUid) ?? 0,
-          firebase_uid: recipeFirebaseUid,
-        })
-        .select("id")
-        .single();
+      const menueRecipeId = crypto.randomUUID();
+      menueRecipeRows.push({
+        id: menueRecipeId,
+        event_id: eventId,
+        menue_id: menueId,
+        recipe_id: recipeId,
+        deleted_recipe_name: deletedRecipeName,
+        variant_name: mealRecipe.recipe.variantName ?? null,
+        total_portions: safeNumber(mealRecipe.totalPortions),
+        sort_order: recipeOrderInMenue.get(recipeFirebaseUid) ?? 0,
+        firebase_uid: recipeFirebaseUid,
+      });
 
-      if (menueRecipeError) throw menueRecipeError;
-      const menueRecipeId = (menueRecipeRow as {id: string}).id;
-      menueRecipeIdMap.set(recipeFirebaseUid, menueRecipeId);
-
-      // Plan-Zeilen für dieses Rezept einfügen
-      await this.insertPlanRows(client, eventId, menueRecipeId, "recipe", mealRecipe.plan, dietMap, intoleranceMap);
+      this.collectPlanRows(allPlanRows, eventId, menueRecipeId, "recipe", mealRecipe.plan, dietMap, intoleranceMap);
     }
 
-    // --- 5. Produkte im Menü ---
-    const menueProductIdMap = new Map<string, string>();
+    if (menueRecipeRows.length > 0) {
+      const {error} = await client.from("event_menue_recipes").insert(menueRecipeRows);
+      if (error) throw error;
+    }
+
+    // --- 5. Produkte im Menü (Batch) ---
     const products = data.products ?? {};
 
     const productToMenueMap = new Map<string, string>();
@@ -498,47 +504,42 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       }
     }
 
+    const menueProductRows: Record<string, unknown>[] = [];
     for (const productFirebaseUid of Object.keys(products)) {
       const product = products[productFirebaseUid];
       if (!product) continue;
 
       const menueFirebaseUid = productToMenueMap.get(productFirebaseUid);
       if (!menueFirebaseUid) continue;
-
       const menueId = menueIdMap.get(menueFirebaseUid);
       if (!menueId) continue;
 
       const productId = this.productIdByFirebaseUid.get(product.productUid);
-      if (!productId) {
-        if (import.meta.env.DEV) console.warn(`MenuplanMigrationJob: Produkt ${product.productUid} nicht gefunden, wird übersprungen.`);
-        continue;
-      }
+      if (!productId) continue;
 
-      const {data: menueProductRow, error: menueProductError} = await client
-        .from("event_menue_products")
-        .insert({
-          event_id: eventId,
-          menue_id: menueId,
-          product_id: productId,
-          quantity: product.quantity ?? 0,
-          unit: product.unit || null,
-          plan_mode: planModeToDb(product.planMode ?? 0),
-          total_quantity: product.totalQuantity ?? 0,
-          sort_order: productOrderInMenue.get(productFirebaseUid) ?? 0,
-          firebase_uid: productFirebaseUid,
-        })
-        .select("id")
-        .single();
+      const menueProductId = crypto.randomUUID();
+      menueProductRows.push({
+        id: menueProductId,
+        event_id: eventId,
+        menue_id: menueId,
+        product_id: productId,
+        quantity: safeNumber(product.quantity),
+        unit: product.unit && this.validUnits.has(product.unit) ? product.unit : null,
+        plan_mode: planModeToDb(safeNumber(product.planMode)),
+        total_quantity: safeNumber(product.totalQuantity),
+        sort_order: productOrderInMenue.get(productFirebaseUid) ?? 0,
+        firebase_uid: productFirebaseUid,
+      });
 
-      if (menueProductError) throw menueProductError;
-      const menueProductId = (menueProductRow as {id: string}).id;
-      menueProductIdMap.set(productFirebaseUid, menueProductId);
-
-      await this.insertPlanRows(client, eventId, menueProductId, "product", product.plan, dietMap, intoleranceMap);
+      this.collectPlanRows(allPlanRows, eventId, menueProductId, "product", product.plan, dietMap, intoleranceMap);
     }
 
-    // --- 6. Materialien im Menü ---
-    const menueMaterialIdMap = new Map<string, string>();
+    if (menueProductRows.length > 0) {
+      const {error} = await client.from("event_menue_products").insert(menueProductRows);
+      if (error) throw error;
+    }
+
+    // --- 6. Materialien im Menü (Batch) ---
     const materials = data.materials ?? {};
 
     const materialToMenueMap = new Map<string, string>();
@@ -551,47 +552,50 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       }
     }
 
+    const menueMaterialRows: Record<string, unknown>[] = [];
     for (const materialFirebaseUid of Object.keys(materials)) {
       const material = materials[materialFirebaseUid];
       if (!material) continue;
 
       const menueFirebaseUid = materialToMenueMap.get(materialFirebaseUid);
       if (!menueFirebaseUid) continue;
-
       const menueId = menueIdMap.get(menueFirebaseUid);
       if (!menueId) continue;
 
       const materialId = this.materialIdByFirebaseUid.get(material.materialUid);
-      if (!materialId) {
-        if (import.meta.env.DEV) console.warn(`MenuplanMigrationJob: Material ${material.materialUid} nicht gefunden, wird übersprungen.`);
-        continue;
-      }
+      if (!materialId) continue;
 
-      const {data: menueMaterialRow, error: menueMaterialError} = await client
-        .from("event_menue_materials")
-        .insert({
-          event_id: eventId,
-          menue_id: menueId,
-          material_id: materialId,
-          quantity: material.quantity ?? 0,
-          unit: material.unit || null,
-          plan_mode: planModeToDb(material.planMode ?? 0),
-          total_quantity: material.totalQuantity ?? 0,
-          sort_order: materialOrderInMenue.get(materialFirebaseUid) ?? 0,
-          firebase_uid: materialFirebaseUid,
-        })
-        .select("id")
-        .single();
+      const menueMaterialId = crypto.randomUUID();
+      menueMaterialRows.push({
+        id: menueMaterialId,
+        event_id: eventId,
+        menue_id: menueId,
+        material_id: materialId,
+        quantity: safeNumber(material.quantity),
+        unit: material.unit && this.validUnits.has(material.unit) ? material.unit : null,
+        plan_mode: planModeToDb(safeNumber(material.planMode)),
+        total_quantity: safeNumber(material.totalQuantity),
+        sort_order: materialOrderInMenue.get(materialFirebaseUid) ?? 0,
+        firebase_uid: materialFirebaseUid,
+      });
 
-      if (menueMaterialError) throw menueMaterialError;
-      const menueMaterialId = (menueMaterialRow as {id: string}).id;
-      menueMaterialIdMap.set(materialFirebaseUid, menueMaterialId);
-
-      await this.insertPlanRows(client, eventId, menueMaterialId, "material", material.plan, dietMap, intoleranceMap);
+      this.collectPlanRows(allPlanRows, eventId, menueMaterialId, "material", material.plan, dietMap, intoleranceMap);
     }
 
-    // --- 8. Notizen ---
+    if (menueMaterialRows.length > 0) {
+      const {error} = await client.from("event_menue_materials").insert(menueMaterialRows);
+      if (error) throw error;
+    }
+
+    // --- 7. Alle Plan-Zeilen als ein Batch einfügen ---
+    if (allPlanRows.length > 0) {
+      const {error} = await client.from("event_menuplan_item_plans").insert(allPlanRows);
+      if (error) throw error;
+    }
+
+    // --- 8. Notizen (Batch-Insert) ---
     const notes = data.notes ?? {};
+    const noteRows: Record<string, unknown>[] = [];
     for (const noteFirebaseUid of Object.keys(notes)) {
       const note = notes[noteFirebaseUid];
       if (!note) continue;
@@ -604,14 +608,17 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
 
       const menueId = menueIdMap.get(note.menueUid) ?? null;
 
-      const {error: noteError} = await client.from("event_notes").insert({
+      noteRows.push({
         event_id: eventId,
         menue_id: menueId,
         note_date: note.date,
         text: note.text ?? "",
         firebase_uid: noteFirebaseUid,
       });
+    }
 
+    if (noteRows.length > 0) {
+      const {error: noteError} = await client.from("event_notes").insert(noteRows);
       if (noteError) throw noteError;
     }
 
@@ -708,15 +715,27 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
    * @param dietMap - Lookup-Map Firebase-UID → Postgres-ID für Diäten
    * @param intoleranceMap - Lookup-Map Firebase-UID → Postgres-ID für Unverträglichkeiten
    */
-  private async insertPlanRows(
-    client: SupabaseClient,
+  /**
+   * Sammelt Plan-Zeilen synchron in ein Array (kein DB-Aufruf).
+   * Alle Zeilen werden am Ende von migrateRecord als ein Batch eingefügt.
+   *
+   * @param target - Ziel-Array, in das die Zeilen gepusht werden
+   * @param eventId - Postgres-ID des Events
+   * @param itemId - Client-generierte ID des Items (Rezept, Produkt oder Material)
+   * @param itemType - Typ des Items
+   * @param plans - Array der Firebase-Plan-Zeilen
+   * @param dietMap - Lookup-Map Firebase-UID → Postgres-ID für Diäten
+   * @param intoleranceMap - Lookup-Map Firebase-UID → Postgres-ID für Unverträglichkeiten
+   */
+  private collectPlanRows(
+    target: Record<string, unknown>[],
     eventId: string,
     itemId: string,
     itemType: "recipe" | "product" | "material",
     plans: FirebasePortionPlan[],
     dietMap: Map<string, string>,
     intoleranceMap: Map<string, string>,
-  ): Promise<void> {
+  ): void {
     if (!plans || plans.length === 0) return;
 
     for (const plan of plans) {
@@ -725,20 +744,8 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       const dietId = dietScope === "group" ? (dietMap.get(plan.diet) ?? null) : null;
       const intoleranceId = intoleranceScope === "group" ? (intoleranceMap.get(plan.intolerance) ?? null) : null;
 
-      // CHECK-Constraint: diet_scope='group' erfordert eine gültige diet_id.
-      // Fehlt der Eintrag in der Gruppenconfig → Plan-Zeile überspringen statt Fehler werfen.
-      if (dietScope === "group" && dietId === null) {
-        if (import.meta.env.DEV) console.warn(
-          `MenuplanMigrationJob: Plan-Zeile übersprungen — Diät "${plan.diet}" nicht in Gruppenconfig (item ${itemId}).`,
-        );
-        continue;
-      }
-      if (intoleranceScope === "group" && intoleranceId === null) {
-        if (import.meta.env.DEV) console.warn(
-          `MenuplanMigrationJob: Plan-Zeile übersprungen — Unverträglichkeit "${plan.intolerance}" nicht in Gruppenconfig (item ${itemId}).`,
-        );
-        continue;
-      }
+      if (dietScope === "group" && dietId === null) continue;
+      if (intoleranceScope === "group" && intoleranceId === null) continue;
 
       const row: Record<string, unknown> = {
         event_id: eventId,
@@ -746,16 +753,15 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
         diet_id: dietId,
         intolerance_scope: intoleranceScope,
         intolerance_id: intoleranceId,
-        factor: plan.factor ?? 1,
-        servings: plan.totalPortions ?? 0,
+        factor: safeNumber(plan.factor, 1),
+        servings: safeNumber(plan.totalPortions),
       };
 
       if (itemType === "recipe") row.menue_recipe_id = itemId;
       else if (itemType === "product") row.menue_product_id = itemId;
       else row.menue_material_id = itemId;
 
-      const {error} = await client.from("event_menuplan_item_plans").insert(row);
-      if (error) throw error;
+      target.push(row);
     }
   }
 
@@ -768,68 +774,56 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
    * @throws {PostgrestError} bei Datenbankfehler
    */
   private async buildLookupMaps(): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
-    const [eventRows, recipeRows, productRows, materialRows] = await Promise.all([
-      client.from("events").select("id, firebase_uid"),
-      client.from("recipes").select("id, firebase_uid"),
-      client.from("products").select("id, firebase_uid"),
-      client.from("materials").select("id, firebase_uid"),
+    const [eventRows, recipeRows, productRows, materialRows, unitRows] = await Promise.all([
+      fetchAllRows(client, "events", "id, firebase_uid"),
+      fetchAllRows(client, "recipes", "id, firebase_uid"),
+      fetchAllRows(client, "products", "id, firebase_uid"),
+      fetchAllRows(client, "materials", "id, firebase_uid"),
+      fetchAllRows(client, "units", "key"),
     ]);
 
-    if (eventRows.error) throw eventRows.error;
-    if (recipeRows.error) throw recipeRows.error;
-    if (productRows.error) throw productRows.error;
-    if (materialRows.error) throw materialRows.error;
-
-    for (const row of eventRows.data ?? []) {
+    for (const row of eventRows) {
       if (row.firebase_uid) this.eventIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of recipeRows.data ?? []) {
+    for (const row of recipeRows) {
       if (row.firebase_uid) this.recipeIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of productRows.data ?? []) {
+    for (const row of productRows) {
       if (row.firebase_uid) this.productIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of materialRows.data ?? []) {
+    for (const row of materialRows) {
       if (row.firebase_uid) this.materialIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-  }
+    for (const row of unitRows) {
+      if (row.key) this.validUnits.add(row.key as string);
+    }
 
-  /**
-   * Lädt Diät- und Unverträglichkeits-Lookup-Maps für ein bestimmtes Event.
-   * Wird nur einmal pro Event aufgerufen (lazy loading).
-   *
-   * @param client - Supabase-Client
-   * @param eventId - Postgres-ID des Events
-   * @param eventFirebaseUid - Firebase-UID des Events (für den Map-Key)
-   */
-  private async ensureDietIntoleranceMapsForEvent(
-    client: SupabaseClient,
-    eventId: string,
-    _eventFirebaseUid: string,
-  ): Promise<void> {
-    if (this.dietIdByEventAndFirebaseUid.has(eventId)) return;
-
-    const [dietsResult, intolerancesResult] = await Promise.all([
-      client.from("event_groupconfiguration_diets").select("id, firebase_uid").eq("event_id", eventId),
-      client.from("event_groupconfiguration_intolerances").select("id, firebase_uid").eq("event_id", eventId),
+    // Diäten und Unverträglichkeiten für ALLE Events vorladen
+    // (erspart 2 DB-Queries pro Menuplan in migrateRecord)
+    const [allDiets, allIntolerances] = await Promise.all([
+      fetchAllRows(client, "event_groupconfiguration_diets", "id, event_id, firebase_uid"),
+      fetchAllRows(client, "event_groupconfiguration_intolerances", "id, event_id, firebase_uid"),
     ]);
-
-    if (dietsResult.error) throw dietsResult.error;
-    if (intolerancesResult.error) throw intolerancesResult.error;
-
-    const dietMap = new Map<string, string>();
-    for (const row of dietsResult.data ?? []) {
-      if (row.firebase_uid) dietMap.set(row.firebase_uid as string, row.id as string);
+    for (const row of allDiets) {
+      const eventId = row.event_id as string;
+      if (!this.dietIdByEventAndFirebaseUid.has(eventId)) {
+        this.dietIdByEventAndFirebaseUid.set(eventId, new Map());
+      }
+      if (row.firebase_uid) {
+        this.dietIdByEventAndFirebaseUid.get(eventId)!.set(row.firebase_uid as string, row.id as string);
+      }
     }
-
-    const intoleranceMap = new Map<string, string>();
-    for (const row of intolerancesResult.data ?? []) {
-      if (row.firebase_uid) intoleranceMap.set(row.firebase_uid as string, row.id as string);
+    for (const row of allIntolerances) {
+      const eventId = row.event_id as string;
+      if (!this.intoleranceIdByEventAndFirebaseUid.has(eventId)) {
+        this.intoleranceIdByEventAndFirebaseUid.set(eventId, new Map());
+      }
+      if (row.firebase_uid) {
+        this.intoleranceIdByEventAndFirebaseUid.get(eventId)!.set(row.firebase_uid as string, row.id as string);
+      }
     }
-
-    this.dietIdByEventAndFirebaseUid.set(eventId, dietMap);
-    this.intoleranceIdByEventAndFirebaseUid.set(eventId, intoleranceMap);
   }
+
 }

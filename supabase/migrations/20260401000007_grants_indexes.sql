@@ -76,6 +76,12 @@ GRANT ALL ON public.cron_job_log TO authenticated;
 GRANT ALL ON public.mail_log TO authenticated;
 -- rpc_rate_limits: kein GRANT nötig — Zugriff nur via SECURITY DEFINER Funktion
 
+-- service_role: Vollzugriff auf alle Tabellen, Views und Sequenzen.
+-- Wird für Edge Functions (Cron-Jobs), die Datenmigration und
+-- administrative Operationen benötigt.
+GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+
 -- anon: selective SELECT only (3 tables/views)
 GRANT SELECT ON public.global_settings TO anon;
 GRANT SELECT ON public.system_messages TO anon;
@@ -92,6 +98,7 @@ GRANT SELECT ON public.event_shopping_list_items_view TO authenticated;
 GRANT SELECT ON public.event_material_list_items_view TO authenticated;
 GRANT SELECT ON public.requests_view TO authenticated;
 GRANT SELECT ON public.request_comments_view TO authenticated;
+GRANT SELECT ON public.recipe_comments_view TO authenticated;
 GRANT SELECT ON public.feeds_view TO authenticated;
 GRANT SELECT ON public.donations_view TO authenticated;
 
@@ -188,9 +195,8 @@ GRANT EXECUTE ON FUNCTION public.admin_get_users_overview() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.generate_donation_receipt_number() TO authenticated;
 GRANT EXECUTE ON FUNCTION public.get_donation_goal_stats() TO authenticated;
 
--- service_role only
+-- service_role: Funktionen, die nur vom service_role aufgerufen werden dürfen
 GRANT EXECUTE ON FUNCTION public.revoke_user_sessions(uuid[]) TO service_role;
-GRANT ALL ON public.cron_job_log TO service_role;
 
 -- ─────────────────────────────────────────────────────────────────────────────
 -- 5. Sequence Grants

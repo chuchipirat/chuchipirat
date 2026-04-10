@@ -31,9 +31,8 @@ import {getDocs, collectionGroup} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
 // Firebase-Datenstrukturen (spiegeln die Firestore-Dokumente)
@@ -133,6 +132,54 @@ interface FirebaseRecipeData {
 // ===================================================================== */
 
 /**
+ * Parst einen Zeitwert aus Firebase, der als Zahl oder String vorliegen kann.
+ *
+ * Unterstützte Formate:
+ * - Zahl: wird direkt übernommen (bereits in Minuten)
+ * - "25-30": nimmt den unteren Wert (25)
+ * - "15 min": entfernt die Einheit (15)
+ * - "2h", "2 Stunden": multipliziert mit 60 (120)
+ * - "30 kühlen": entfernt Zusatztext (30)
+ * - "": gibt 0 zurück
+ *
+ * @param value - Zeitwert aus Firebase (Zahl oder String)
+ * @returns Zeitwert in Minuten als Zahl
+ *
+ * @example
+ * parseTimeValue("25-30")     // 25
+ * parseTimeValue("15 min")    // 15
+ * parseTimeValue("2h")        // 120
+ * parseTimeValue("")          // 0
+ */
+function parseTimeValue(value: number | string | undefined | null): number {
+  if (value === undefined || value === null) return 0;
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+
+  const trimmed = value.trim();
+  if (trimmed === "") return 0;
+
+  // Stunden erkennen: "2h", "2 h", "1.5 Stunden", "2 stunden"
+  const hoursMatch = trimmed.match(/^(\d+(?:[.,]\d+)?)\s*(?:h|stunden?)\b/i);
+  if (hoursMatch) {
+    return Math.round(parseFloat(hoursMatch[1].replace(",", ".")) * 60);
+  }
+
+  // Bereich: "25-30" → unterer Wert
+  const rangeMatch = trimmed.match(/^(\d+)\s*-\s*\d+/);
+  if (rangeMatch) {
+    return parseInt(rangeMatch[1], 10);
+  }
+
+  // Führende Zahl extrahieren, Rest ignorieren ("15 min", "30 kühlen", etc.)
+  const numberMatch = trimmed.match(/^(\d+)/);
+  if (numberMatch) {
+    return parseInt(numberMatch[1], 10);
+  }
+
+  return 0;
+}
+
+/**
  * Ordnet den numerischen PositionType-Enum-Wert dem DB-Enum-String
  * für `recipe_ingredients` zu.
  *
@@ -178,6 +225,8 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
   private materialIdByFirebaseUid: Map<string, string> = new Map();
   /** firebase_uid → Supabase-Auth-UUID für Benutzer */
   private userAuthUidByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Rezepte (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
 
   /* =====================================================================
   // Alle Rezepte aus Firebase lesen
@@ -201,6 +250,15 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
     if (database) {
       await this.buildLookupMaps(database);
     }
+
+    // Bereits migrierte Rezepte laden (für schnelle checkExists-Prüfung)
+    const existingRows = await fetchAllRows(
+      supabaseAdmin!, "recipes", "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid as string),
+    );
 
     // Alle 'recipes'-Subcollections in Firestore laden (public + private + variants)
     const snapshot = await getDocs(
@@ -248,9 +306,9 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
           portions: value.portions ?? 0,
           source: value.source ?? "",
           times: {
-            preparation: value.times?.preparation ?? 0,
-            rest: value.times?.rest ?? 0,
-            cooking: value.times?.cooking ?? 0,
+            preparation: parseTimeValue(value.times?.preparation),
+            rest: parseTimeValue(value.times?.rest),
+            cooking: parseTimeValue(value.times?.cooking),
           },
           pictureSrc: value.pictureSrc ?? "",
           note: value.note ?? "",
@@ -292,14 +350,11 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
    * @returns true, falls das Rezept bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseRecipeData>,
   ): Promise<boolean> {
-    const recipes = database.recipes;
-    const existing = await recipes.findMany({
-      filters: [{field: "firebase_uid", operator: "eq", value: record.id}],
-    });
-    return existing.length > 0;
+    // In-Memory-Prüfung gegen vorab geladene Set (kein DB-Roundtrip)
+    return this.existingFirebaseUids?.has(record.id) ?? false;
   }
 
   /* =====================================================================
@@ -324,16 +379,14 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
     authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
+    const client = supabaseAdmin!;
     const recipes = database.recipes;
-    const ingredients = database.recipeIngredients;
-    const steps = database.recipePreparationSteps;
-    const materials = database.recipeMaterials;
 
     // 1. Supabase-Auth-UUID des Erstellers auflösen (für created_by / RLS)
     const createdBy =
       this.userAuthUidByFirebaseUid.get(data.firebaseCreatorUid) ?? null;
 
-    // 2. Rezept-Kopfdaten einfügen
+    // 2. Rezept-Kopfdaten einfügen (via Repository für Enum-Mapping)
     const {id: recipeId} = await recipes.insert({
       value: {
         uid: "",
@@ -358,127 +411,108 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       authUser,
     });
 
-    // firebase_uid und created_by (für RLS) nachträglich setzen
-    await recipes.patch({
-      id: recipeId,
-      fields: {
+    // firebase_uid und created_by nachträglich setzen
+    await client
+      .from("recipes")
+      .update({
         firebase_uid: record.id,
-        // created_by muss explizit gesetzt werden, damit RLS für private Rezepte greift
         ...(createdBy ? {created_by: createdBy} : {}),
-      },
-      authUser,
-    });
+      })
+      .eq("id", recipeId);
 
-    // 3. Zutaten und Abschnitt-Trennzeilen einfügen
+    // 3. Zutaten als Batch einfügen (1 INSERT statt 2×N Einzelabfragen)
     const ingredientOrder: string[] = data.ingredients?.order ?? [];
     const ingredientEntries = data.ingredients?.entries ?? {};
+    const ingredientRows: Record<string, unknown>[] = [];
     let sortOrder = 10;
 
     for (const entryUid of ingredientOrder) {
       const entry = ingredientEntries[entryUid];
-      if (!entry) {
-        continue;
-      }
+      if (!entry) continue;
 
-      // Produkt-FK auflösen
       const productId = entry.product?.uid
         ? (this.productIdByFirebaseUid.get(entry.product.uid) ?? null)
         : null;
 
-      const {id: ingredientId} = await ingredients.insert({
-        value: {
-          uid: "",
-          recipeId,
-          sortOrder,
-          posType: ingredientPosTypeToDb(entry.posType ?? 0),
-          productId,
-          // Number.isFinite verhindert, dass NaN/Infinity als JSON-null ankommen
-          quantity: Number.isFinite(entry.quantity) ? (entry.quantity as number) : 0,
-          // Leerer String ist kein gültiger units.key → als null speichern
-          unit: entry.unit || null,
-          detail: entry.detail ?? "",
-          scalingFactor: entry.scalingFactor ?? 1,
-          sectionName: entry.name ?? "",
-        },
-        authUser,
+      ingredientRows.push({
+        firebase_uid: entryUid,
+        recipe_id: recipeId,
+        sort_order: sortOrder,
+        pos_type: ingredientPosTypeToDb(entry.posType ?? 0),
+        product_id: productId,
+        quantity: Number.isFinite(entry.quantity) ? entry.quantity : 0,
+        unit: entry.unit || null,
+        detail: entry.detail ?? "",
+        scaling_factor: Number.isFinite(entry.scalingFactor) ? entry.scalingFactor : 1,
+        section_name: entry.name ?? "",
       });
-
-      // firebase_uid der Zutat setzen
-      await ingredients.patch({
-        id: ingredientId,
-        fields: {firebase_uid: entryUid},
-        authUser,
-      });
-
       sortOrder += 10;
     }
 
-    // 4. Zubereitungsschritte und Abschnitt-Trennzeilen einfügen
+    if (ingredientRows.length > 0) {
+      const {error: ingredientError} = await client
+        .from("recipe_ingredients")
+        .insert(ingredientRows);
+      if (ingredientError) throw ingredientError;
+    }
+
+    // 4. Zubereitungsschritte als Batch einfügen
     const stepOrder: string[] = data.preparationSteps?.order ?? [];
     const stepEntries = data.preparationSteps?.entries ?? {};
+    const stepRows: Record<string, unknown>[] = [];
     sortOrder = 10;
 
     for (const entryUid of stepOrder) {
       const entry = stepEntries[entryUid];
-      if (!entry) {
-        continue;
-      }
+      if (!entry) continue;
 
-      const {id: stepId} = await steps.insert({
-        value: {
-          uid: "",
-          recipeId,
-          sortOrder,
-          posType: stepPosTypeToDb(entry.posType ?? 1),
-          step: entry.step ?? "",
-          sectionName: entry.name ?? "",
-        },
-        authUser,
+      stepRows.push({
+        firebase_uid: entryUid,
+        recipe_id: recipeId,
+        sort_order: sortOrder,
+        pos_type: stepPosTypeToDb(entry.posType ?? 1),
+        step: entry.step ?? "",
+        section_name: entry.name ?? "",
       });
-
-      await steps.patch({
-        id: stepId,
-        fields: {firebase_uid: entryUid},
-        authUser,
-      });
-
       sortOrder += 10;
     }
 
-    // 5. Materialpositionen einfügen
+    if (stepRows.length > 0) {
+      const {error: stepError} = await client
+        .from("recipe_preparation_steps")
+        .insert(stepRows);
+      if (stepError) throw stepError;
+    }
+
+    // 5. Materialpositionen als Batch einfügen
     const materialOrder: string[] = data.materials?.order ?? [];
     const materialEntries = data.materials?.entries ?? {};
+    const materialRows: Record<string, unknown>[] = [];
     sortOrder = 10;
 
     for (const entryUid of materialOrder) {
       const entry = materialEntries[entryUid];
-      if (!entry) {
-        continue;
-      }
+      if (!entry) continue;
 
-      // Material-FK auflösen
       const materialId = entry.material?.uid
         ? (this.materialIdByFirebaseUid.get(entry.material.uid) ?? null)
         : null;
 
-      const {id: materialRowId} = await materials.insert({
-        value: {
-          uid: "",
-          recipeId,
-          sortOrder,
-          materialId,
-          quantity: Number.isFinite(entry.quantity) ? (entry.quantity as number) : 0,
-        },
-        authUser,
+      materialRows.push({
+        firebase_uid: entryUid,
+        recipe_id: recipeId,
+        sort_order: sortOrder,
+        material_id: materialId,
+        quantity: Number.isFinite(entry.quantity) ? entry.quantity : 0,
       });
-
-      await materials.patch({
-        id: materialRowId,
-        fields: {firebase_uid: entryUid},
-        authUser,
-      });
-
       sortOrder += 10;
+    }
+
+    if (materialRows.length > 0) {
+      const {error: materialError} = await client
+        .from("recipe_materials")
+        .insert(materialRows);
+      if (materialError) throw materialError;
     }
   }
 
@@ -499,45 +533,26 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
   private async buildLookupMaps(_database: DatabaseService): Promise<void> {
     // Für reine Lookup-Queries verwenden wir den Admin-Client direkt,
     // da die Domain-Objekte die firebase_uid-Spalte nicht enthalten.
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
-    // Produkte: firebase_uid → Postgres-id
-    const {data: productRows, error: productError} = await client
-      .from("products")
-      .select("id, firebase_uid");
+    const [productRows, materialRows, userRows] = await Promise.all([
+      fetchAllRows(client, "products", "id, firebase_uid"),
+      fetchAllRows(client, "materials", "id, firebase_uid"),
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
+    ]);
 
-    if (productError) throw productError;
-
-    for (const row of productRows ?? []) {
+    for (const row of productRows) {
       if (row.firebase_uid) {
         this.productIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
       }
     }
-
-    // Materialien: firebase_uid → Postgres-id
-    const {data: materialRows, error: materialError} = await client
-      .from("materials")
-      .select("id, firebase_uid");
-
-    if (materialError) throw materialError;
-
-    for (const row of materialRows ?? []) {
+    for (const row of materialRows) {
       if (row.firebase_uid) {
         this.materialIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
       }
     }
-
-    // Benutzer: legacy_firebase_uid → id (UUID, identisch mit auth.users.id)
-    // Nach der id-Vereinheitlichung (Phase 3) ist users.id die Supabase-UUID,
-    // die alten Firebase-UIDs stehen in legacy_firebase_uid.
-    const {data: userRows, error: userError} = await client
-      .from("users")
-      .select("id, legacy_firebase_uid")
-      .not("legacy_firebase_uid", "is", null);
-
-    if (userError) throw userError;
-
-    for (const row of userRows ?? []) {
+    for (const row of userRows) {
       if (row.legacy_firebase_uid && row.id) {
         this.userAuthUidByFirebaseUid.set(
           row.legacy_firebase_uid as string,

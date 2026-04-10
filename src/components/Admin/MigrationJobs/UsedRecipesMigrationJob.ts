@@ -21,9 +21,8 @@ import {collection, doc, getDoc, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
 // Firebase-Datenstrukturen
@@ -71,6 +70,8 @@ export class UsedRecipesMigrationJob
   private menueIdByFirebaseUid: Map<string, string> = new Map();
   /** firebase_uid → Postgres-ID für Meals (event-übergreifend) */
   private mealIdByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Event-IDs (Postgres) für schnelle Existenzprüfung */
+  private existingEventIds: Set<string> | null = null;
 
   /* =====================================================================
   // Alle UsedRecipes aus Firebase lesen
@@ -88,6 +89,10 @@ export class UsedRecipesMigrationJob
   ): Promise<SourceRecord<FirebaseUsedRecipesData>[]> {
     if (database) {
       await this.buildLookupMaps();
+
+      // Bereits migrierte Event-IDs vorladen für schnelle Existenzprüfung
+      const existingRows = await fetchAllRows(supabaseAdmin!, "event_used_recipe_lists", "event_id");
+      this.existingEventIds = new Set(existingRows.map((row) => row.event_id as string));
     }
 
     const eventsSnapshot = await getDocs(
@@ -135,29 +140,21 @@ export class UsedRecipesMigrationJob
   // ===================================================================== */
   /**
    * Prüft ob für das Event bereits UsedRecipe-Listen in Postgres vorhanden sind.
+   * Nutzt das vorab geladene Set für O(1)-Lookups statt einzelner DB-Abfragen.
    *
-   * @param database - DatabaseService-Instanz
+   * @param _database - DatabaseService-Instanz (nicht verwendet)
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls bereits migriert
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUsedRecipesData>,
   ): Promise<boolean> {
     const eventId = this.eventIdByFirebaseUid.get(
       record.data.eventFirebaseUid,
     );
     if (!eventId) return false;
-
-    const client: SupabaseClient = supabase;
-    const {data, error} = await client
-      .from("event_used_recipe_lists")
-      .select("id")
-      .eq("event_id", eventId)
-      .limit(1);
-
-    if (error) throw error;
-    return (data ?? []).length > 0;
+    return this.existingEventIds?.has(eventId) ?? false;
   }
 
   /* =====================================================================
@@ -180,7 +177,7 @@ export class UsedRecipesMigrationJob
     record: SourceRecord<FirebaseUsedRecipesData>,
     _authUser: AuthUser,
   ): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     const eventId = this.eventIdByFirebaseUid.get(
       record.data.eventFirebaseUid,
@@ -191,55 +188,35 @@ export class UsedRecipesMigrationJob
       );
     }
 
+    // Alle Listen sammeln und als Batch einfügen
+    const listRows: Record<string, unknown>[] = [];
+
     for (const [listKey, listEntry] of Object.entries(record.data.lists)) {
       const props = listEntry.properties;
-      if (!props) {
-        if (import.meta.env.DEV) console.warn(
-          `UsedRecipesMigrationJob: Liste ${listKey} hat keine properties, wird übersprungen.`,
-        );
-        continue;
-      }
+      if (!props) continue;
 
-      // Menü-IDs auflösen (Firebase-UID → Postgres-ID)
-      const menueIds: string[] = [];
-      for (const menueFirebaseUid of props.selectedMenues ?? []) {
-        const menueId = this.menueIdByFirebaseUid.get(menueFirebaseUid);
-        if (menueId) {
-          menueIds.push(menueId);
-        } else {
-          if (import.meta.env.DEV) console.warn(
-            `UsedRecipesMigrationJob: Menü ${menueFirebaseUid} nicht gefunden, ` +
-              `wird aus Liste "${props.name}" (Event ${record.data.eventFirebaseUid}) übersprungen.`,
-          );
-        }
-      }
+      const menueIds = (props.selectedMenues ?? [])
+        .map((uid) => this.menueIdByFirebaseUid.get(uid))
+        .filter((id): id is string => !!id);
 
-      // Meal-IDs auflösen (Firebase-UID → Postgres-ID)
-      const mealIds: string[] = [];
-      for (const mealFirebaseUid of props.selectedMeals ?? []) {
-        const mealId = this.mealIdByFirebaseUid.get(mealFirebaseUid);
-        if (mealId) {
-          mealIds.push(mealId);
-        } else {
-          if (import.meta.env.DEV) console.warn(
-            `UsedRecipesMigrationJob: Meal ${mealFirebaseUid} nicht gefunden, ` +
-              `wird aus Liste "${props.name}" (Event ${record.data.eventFirebaseUid}) übersprungen.`,
-          );
-        }
-      }
+      const mealIds = (props.selectedMeals ?? [])
+        .map((uid) => this.mealIdByFirebaseUid.get(uid))
+        .filter((id): id is string => !!id);
 
-      // Kopfzeile mit Arrays einfügen (ein einziger INSERT)
-      const {error: listError} = await client
+      listRows.push({
+        event_id: eventId,
+        name: props.name ?? "",
+        firebase_uid: props.uid ?? listKey,
+        selected_menue_ids: menueIds,
+        selected_meal_ids: mealIds,
+      });
+    }
+
+    if (listRows.length > 0) {
+      const {error} = await client
         .from("event_used_recipe_lists")
-        .insert({
-          event_id: eventId,
-          name: props.name ?? "",
-          firebase_uid: props.uid ?? listKey,
-          selected_menue_ids: menueIds,
-          selected_meal_ids: mealIds,
-        });
-
-      if (listError) throw listError;
+        .insert(listRows);
+      if (error) throw error;
     }
   }
 
@@ -252,33 +229,29 @@ export class UsedRecipesMigrationJob
    * @throws {PostgrestError} bei Datenbankfehler
    */
   private async buildLookupMaps(): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     const [eventRows, menueRows, mealRows] = await Promise.all([
-      client.from("events").select("id, firebase_uid"),
-      client.from("event_menues").select("id, firebase_uid"),
-      client.from("event_meals").select("id, firebase_uid"),
+      fetchAllRows(client, "events", "id, firebase_uid"),
+      fetchAllRows(client, "event_menues", "id, firebase_uid"),
+      fetchAllRows(client, "event_meals", "id, firebase_uid"),
     ]);
 
-    if (eventRows.error) throw eventRows.error;
-    if (menueRows.error) throw menueRows.error;
-    if (mealRows.error) throw mealRows.error;
-
-    for (const row of eventRows.data ?? []) {
+    for (const row of eventRows) {
       if (row.firebase_uid)
         this.eventIdByFirebaseUid.set(
           row.firebase_uid as string,
           row.id as string,
         );
     }
-    for (const row of menueRows.data ?? []) {
+    for (const row of menueRows) {
       if (row.firebase_uid)
         this.menueIdByFirebaseUid.set(
           row.firebase_uid as string,
           row.id as string,
         );
     }
-    for (const row of mealRows.data ?? []) {
+    for (const row of mealRows) {
       if (row.firebase_uid)
         this.mealIdByFirebaseUid.set(
           row.firebase_uid as string,

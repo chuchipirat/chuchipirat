@@ -16,6 +16,8 @@ import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {resizeImage} from "../../Shared/imageResize";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {UserStorageRepository} from "../../Database/Repository/UserStorageRepository";
 
 /**
  * Altes Firebase-Picture-Objekt (Firestore-Format).
@@ -190,8 +192,8 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
     const resizedBlob = await resizeImage(file);
 
     // Admin-Storage verwenden (umgeht RLS)
-    const storage = database.storage.users;
-    const result = await storage.upload(
+    const adminStorage = new UserStorageRepository(supabaseAdmin!);
+    const result = await adminStorage.upload(
       `${userId}.jpg`,
       resizedBlob,
       "image/jpeg"

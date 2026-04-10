@@ -23,9 +23,8 @@ import {collection, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {fetchAllRows, MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
 /* =====================================================================
 // Firebase-Datenstrukturen
@@ -113,6 +112,13 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
   description =
     "Migriert Anträge (aktiv + geschlossen) und deren Kommentare von Firebase nach Postgres.";
 
+  /** firebase_uid → Supabase Auth UUID für Benutzer */
+  private userAuthUidByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → recipes.id für Rezepte */
+  private recipeIdByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Anträge (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
+
   /**
    * Liest alle aktiven und geschlossenen Anträge aus Firebase.
    *
@@ -122,6 +128,9 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
   async fetchSourceRecords(
     firebase: Firebase,
   ): Promise<SourceRecord<FirebaseRequest>[]> {
+    // Lookup-Maps vorladen (Benutzer, Rezepte, bereits migrierte Anträge)
+    await this.buildLookupMaps();
+
     const records: SourceRecord<FirebaseRequest>[] = [];
 
     // Aktive Anträge lesen
@@ -172,15 +181,8 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
     _database: DatabaseService,
     record: SourceRecord<FirebaseRequest>,
   ): Promise<boolean> {
-    const client: SupabaseClient = supabase;
-
-    const {data} = await client
-      .from("requests")
-      .select("id")
-      .eq("firebase_uid", record.id)
-      .maybeSingle();
-
-    return data !== null;
+    // In-Memory-Prüfung gegen vorab geladene Set (kein DB-Roundtrip)
+    return this.existingFirebaseUids?.has(record.id) ?? false;
   }
 
   /**
@@ -198,24 +200,26 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
     record: SourceRecord<FirebaseRequest>,
     _authUser: AuthUser,
   ): Promise<void> {
-    const client: SupabaseClient = supabase;
     const fb = record.data;
-    const adminClient = client;
+    const adminClient = supabaseAdmin!;
 
-    // Autor-UID auflösen: Firebase-UID → auth.users.id
-    const authorAuthUid = await this.resolveAuthUid(adminClient, fb.author?.uid);
+    // Autor-UID auflösen via vorgeladener Map
+    const authorAuthUid = fb.author?.uid
+      ? this.userAuthUidByFirebaseUid.get(fb.author.uid) ?? null
+      : null;
     if (!authorAuthUid) {
       throw new Error(`Autor-UID nicht gefunden: ${fb.author?.uid}`);
     }
 
-    // Assignee-UID auflösen (optional)
-    let assigneeAuthUid: string | null = null;
-    if (fb.assignee?.uid) {
-      assigneeAuthUid = await this.resolveAuthUid(adminClient, fb.assignee.uid);
-    }
+    // Assignee-UID auflösen via vorgeladener Map (optional)
+    const assigneeAuthUid = fb.assignee?.uid
+      ? this.userAuthUidByFirebaseUid.get(fb.assignee.uid) ?? null
+      : null;
 
-    // Rezept-ID auflösen: Firebase-UID → recipes.id
-    const recipeId = await this.resolveRecipeId(adminClient, fb.requestObject?.uid);
+    // Rezept-ID auflösen via vorgeladener Map
+    const recipeId = fb.requestObject?.uid
+      ? this.recipeIdByFirebaseUid.get(fb.requestObject.uid) ?? null
+      : null;
     if (!recipeId) {
       throw new Error(`Rezept nicht gefunden: ${fb.requestObject?.uid}`);
     }
@@ -262,8 +266,10 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
         created_by: string | null;
       }[] = [];
       for (const c of fb.comments) {
-        // Kommentar-Autor-UID auflösen
-        const commentAuthorUid = await this.resolveAuthUid(adminClient, c.user?.uid);
+        // Kommentar-Autor-UID auflösen via vorgeladener Map
+        const commentAuthorUid = c.user?.uid
+          ? this.userAuthUidByFirebaseUid.get(c.user.uid) ?? null
+          : null;
 
         commentRows.push({
           request_id: insertedRequest.id,
@@ -290,48 +296,45 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
   }
 
   /**
-   * Löst eine Firebase-UID in die Supabase-UUID (users.id) auf.
-   * Nach der id-Vereinheitlichung (Phase 3) stehen die alten Firebase-UIDs
-   * in legacy_firebase_uid, die id ist die Supabase-UUID.
-   *
-   * @param client - Supabase-Client
-   * @param firebaseUid - Firebase-UID des Benutzers
-   * @returns users.id (UUID) oder null
+   * Lädt alle Lookup-Maps vor: Benutzer (firebase_uid → Supabase UUID),
+   * Rezepte (firebase_uid → recipes.id) und bereits migrierte Anträge.
    */
-  private async resolveAuthUid(
-    client: SupabaseClient,
-    firebaseUid: string | undefined,
-  ): Promise<string | null> {
-    if (!firebaseUid) return null;
+  private async buildLookupMaps(): Promise<void> {
+    const client = supabaseAdmin!;
 
-    const {data} = await client
-      .from("users")
-      .select("id")
-      .eq("legacy_firebase_uid", firebaseUid)
-      .maybeSingle();
+    // Benutzer: legacy_firebase_uid → id (UUID)
+    const userRows = await fetchAllRows(client, "users", "id, legacy_firebase_uid",
+      (query) => query.not("legacy_firebase_uid", "is", null));
 
-    return data?.id ?? null;
-  }
+    for (const row of userRows) {
+      if (row.legacy_firebase_uid && row.id) {
+        this.userAuthUidByFirebaseUid.set(
+          row.legacy_firebase_uid as string,
+          row.id as string,
+        );
+      }
+    }
 
-  /**
-   * Löst eine Firebase-Rezept-UID zu einer recipes.id auf.
-   *
-   * @param client - Supabase-Client
-   * @param firebaseRecipeUid - Firebase-UID des Rezepts
-   * @returns recipes.id oder null
-   */
-  private async resolveRecipeId(
-    client: SupabaseClient,
-    firebaseRecipeUid: string | undefined,
-  ): Promise<string | null> {
-    if (!firebaseRecipeUid) return null;
+    // Rezepte: firebase_uid → id
+    const recipeRows = await fetchAllRows(client, "recipes", "id, firebase_uid",
+      (query) => query.not("firebase_uid", "is", null));
 
-    const {data} = await client
-      .from("recipes")
-      .select("id")
-      .eq("firebase_uid", firebaseRecipeUid)
-      .maybeSingle();
+    for (const row of recipeRows) {
+      if (row.firebase_uid && row.id) {
+        this.recipeIdByFirebaseUid.set(
+          row.firebase_uid as string,
+          row.id as string,
+        );
+      }
+    }
 
-    return data?.id ?? null;
+    // Bereits migrierte Anträge laden (für In-Memory checkExists)
+    const existingRows = await fetchAllRows(
+      client, "requests", "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid as string),
+    );
   }
 }

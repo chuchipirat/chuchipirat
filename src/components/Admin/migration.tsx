@@ -1,4 +1,4 @@
-import React from "react";
+import React, {useEffect, useState} from "react";
 
 import {
   Container,
@@ -20,6 +20,7 @@ import {
   Box,
   TextField,
 } from "@mui/material";
+import TimerIcon from "@mui/icons-material/Timer";
 import {
   PlayArrow as PlayArrowIcon,
   Stop as StopIcon,
@@ -319,6 +320,12 @@ const MigrationPage = () => {
                     value={migration.stats.failedCount}
                     color="error.main"
                   />
+                  {migration.startTime > 0 && (
+                    <ElapsedTimer
+                      startTime={migration.startTime}
+                      running={isRunning}
+                    />
+                  )}
                 </Stack>
 
                 {/* Aktueller Datensatz */}
@@ -430,6 +437,60 @@ const LogEntry = ({result}: LogEntryProps) => {
         </Typography>
       )}
     </Stack>
+  );
+};
+
+/* ===================================================================
+// ========================= Timer-Anzeige =========================
+// =================================================================== */
+
+/**
+ * Zeigt die verstrichene Zeit seit Migrationsstart an.
+ * Aktualisiert sich jede Sekunde, solange die Migration läuft.
+ * Stoppt automatisch, wenn `running` auf false wechselt.
+ *
+ * @param startTime - Zeitstempel (ms) des Starts
+ * @param running - Ob der Timer aktiv ticken soll
+ */
+interface ElapsedTimerProps {
+  startTime: number;
+  running: boolean;
+}
+
+const ElapsedTimer = ({startTime, running}: ElapsedTimerProps) => {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    // Sofort aktualisieren
+    setElapsed(Math.floor((Date.now() - startTime) / 1000));
+
+    if (!running) return;
+
+    const interval = setInterval(() => {
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [startTime, running]);
+
+  const hours = Math.floor(elapsed / 3600);
+  const minutes = Math.floor((elapsed % 3600) / 60);
+  const seconds = elapsed % 60;
+  const formatted = hours > 0
+    ? `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`
+    : `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+  return (
+    <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
+      <TimerIcon fontSize="small" color="action" />
+      <Typography
+        variant="h5"
+        component="span"
+        sx={{fontFamily: "monospace", fontWeight: "bold"}}
+      >
+        {formatted}
+      </Typography>
+    </Box>
   );
 };
 

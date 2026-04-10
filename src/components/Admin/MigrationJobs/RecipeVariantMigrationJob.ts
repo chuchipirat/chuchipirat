@@ -29,9 +29,8 @@ import {getDocs, collection} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
 // Firebase-Datenstrukturen (spiegeln die Firestore-Dokumente)
@@ -177,6 +176,8 @@ export class RecipeVariantMigrationJob
   private materialIdByFirebaseUid: Map<string, string> = new Map();
   /** firebase_uid → Supabase-Auth-UUID für Benutzer */
   private userAuthUidByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Rezepte (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
 
   /* =====================================================================
   // Alle Varianten-Rezepte aus Firebase lesen
@@ -199,6 +200,15 @@ export class RecipeVariantMigrationJob
     if (database) {
       await this.buildLookupMaps(database);
     }
+
+    // Bereits migrierte Rezepte laden (für schnelle checkExists-Prüfung)
+    const existingRows = await fetchAllRows(
+      supabaseAdmin!, "recipes", "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid as string),
+    );
 
     const records: SourceRecord<FirebaseVariantRecipeData>[] = [];
 
@@ -287,14 +297,11 @@ export class RecipeVariantMigrationJob
    * @returns true, falls das Rezept bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseVariantRecipeData>,
   ): Promise<boolean> {
-    const recipes = database.recipes;
-    const existing = await recipes.findMany({
-      filters: [{field: "firebase_uid", operator: "eq", value: record.id}],
-    });
-    return existing.length > 0;
+    // In-Memory-Prüfung gegen vorab geladene Set (kein DB-Roundtrip)
+    return this.existingFirebaseUids?.has(record.id) ?? false;
   }
 
   /* =====================================================================
@@ -324,13 +331,8 @@ export class RecipeVariantMigrationJob
     authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
+    const client = supabaseAdmin!;
     const recipes = database.recipes;
-    const ingredients =
-      database.recipeIngredients;
-    const steps =
-      database.recipePreparationSteps;
-    const materials =
-      database.recipeMaterials;
 
     // 1. FK-Auflösung: Event
     const variantEventUid = this.eventIdByFirebaseUid.get(
@@ -342,15 +344,10 @@ export class RecipeVariantMigrationJob
       );
     }
 
-    // 2. FK-Auflösung: Original-Rezept
+    // 2. FK-Auflösung: Original-Rezept (kann null sein, wenn das Original gelöscht wurde)
     const variantOriginalRecipeUid = this.recipeIdByFirebaseUid.get(
       data.variantProperties.originalRecipeUid,
-    );
-    if (!variantOriginalRecipeUid) {
-      throw new Error(
-        `Original-Rezept mit Firebase-UID '${data.variantProperties.originalRecipeUid}' nicht gefunden — Rezept noch nicht migriert?`,
-      );
-    }
+    ) ?? null;
 
     // 3. FK-Auflösung: Ersteller des Originals und des Varianten-Rezepts
     const variantOriginalRecipeCreator =
@@ -360,7 +357,7 @@ export class RecipeVariantMigrationJob
     const createdBy =
       this.userAuthUidByFirebaseUid.get(data.firebaseCreatorUid) ?? null;
 
-    // 4. Rezept-Kopfdaten einfügen
+    // 4. Rezept-Kopfdaten einfügen (via Repository für Enum-Mapping)
     const {id: recipeId} = await recipes.insert({
       value: {
         uid: "",
@@ -382,7 +379,7 @@ export class RecipeVariantMigrationJob
           variantName: data.variantProperties.variantName,
           note: data.variantProperties.note,
           eventUid: variantEventUid,
-          originalRecipeUid: variantOriginalRecipeUid,
+          originalRecipeUid: variantOriginalRecipeUid ?? "",
           originalRecipeType: data.variantProperties.originalRecipeType || "public",
           originalRecipeCreatorUid: variantOriginalRecipeCreator ?? "",
         },
@@ -393,18 +390,18 @@ export class RecipeVariantMigrationJob
     });
 
     // firebase_uid und created_by nachträglich setzen
-    await recipes.patch({
-      id: recipeId,
-      fields: {
+    await client
+      .from("recipes")
+      .update({
         firebase_uid: record.id,
         ...(createdBy ? {created_by: createdBy} : {}),
-      },
-      authUser,
-    });
+      })
+      .eq("id", recipeId);
 
-    // 5. Zutaten und Abschnitt-Trennzeilen einfügen
+    // 5. Zutaten als Batch einfügen (1 INSERT statt 2×N Einzelabfragen)
     const ingredientOrder: string[] = data.ingredients?.order ?? [];
     const ingredientEntries = data.ingredients?.entries ?? {};
+    const ingredientRows: Record<string, unknown>[] = [];
     let sortOrder = 10;
 
     for (const entryUid of ingredientOrder) {
@@ -415,66 +412,60 @@ export class RecipeVariantMigrationJob
         ? (this.productIdByFirebaseUid.get(entry.product.uid) ?? null)
         : null;
 
-      const {id: ingredientId} = await ingredients.insert({
-        value: {
-          uid: "",
-          recipeId,
-          sortOrder,
-          posType: ingredientPosTypeToDb(entry.posType ?? 0),
-          productId,
-          quantity: Number.isFinite(entry.quantity)
-            ? (entry.quantity as number)
-            : 0,
-          unit: entry.unit || null,
-          detail: entry.detail ?? "",
-          scalingFactor: entry.scalingFactor ?? 1,
-          sectionName: entry.name ?? "",
-        },
-        authUser,
+      ingredientRows.push({
+        firebase_uid: entryUid,
+        recipe_id: recipeId,
+        sort_order: sortOrder,
+        pos_type: ingredientPosTypeToDb(entry.posType ?? 0),
+        product_id: productId,
+        quantity: Number.isFinite(entry.quantity) ? entry.quantity : 0,
+        unit: entry.unit || null,
+        detail: entry.detail ?? "",
+        scaling_factor: Number.isFinite(entry.scalingFactor) ? entry.scalingFactor : 1,
+        section_name: entry.name ?? "",
       });
-
-      await ingredients.patch({
-        id: ingredientId,
-        fields: {firebase_uid: entryUid},
-        authUser,
-      });
-
       sortOrder += 10;
     }
 
-    // 6. Zubereitungsschritte und Abschnitt-Trennzeilen einfügen
+    if (ingredientRows.length > 0) {
+      const {error: ingredientError} = await client
+        .from("recipe_ingredients")
+        .insert(ingredientRows);
+      if (ingredientError) throw ingredientError;
+    }
+
+    // 6. Zubereitungsschritte als Batch einfügen
     const stepOrder: string[] = data.preparationSteps?.order ?? [];
     const stepEntries = data.preparationSteps?.entries ?? {};
+    const stepRows: Record<string, unknown>[] = [];
     sortOrder = 10;
 
     for (const entryUid of stepOrder) {
       const entry = stepEntries[entryUid];
       if (!entry) continue;
 
-      const {id: stepId} = await steps.insert({
-        value: {
-          uid: "",
-          recipeId,
-          sortOrder,
-          posType: stepPosTypeToDb(entry.posType ?? 1),
-          step: entry.step ?? "",
-          sectionName: entry.name ?? "",
-        },
-        authUser,
+      stepRows.push({
+        firebase_uid: entryUid,
+        recipe_id: recipeId,
+        sort_order: sortOrder,
+        pos_type: stepPosTypeToDb(entry.posType ?? 1),
+        step: entry.step ?? "",
+        section_name: entry.name ?? "",
       });
-
-      await steps.patch({
-        id: stepId,
-        fields: {firebase_uid: entryUid},
-        authUser,
-      });
-
       sortOrder += 10;
     }
 
-    // 7. Materialpositionen einfügen
+    if (stepRows.length > 0) {
+      const {error: stepError} = await client
+        .from("recipe_preparation_steps")
+        .insert(stepRows);
+      if (stepError) throw stepError;
+    }
+
+    // 7. Materialpositionen als Batch einfügen
     const materialOrder: string[] = data.materials?.order ?? [];
     const materialEntries = data.materials?.entries ?? {};
+    const materialRows: Record<string, unknown>[] = [];
     sortOrder = 10;
 
     for (const entryUid of materialOrder) {
@@ -485,26 +476,21 @@ export class RecipeVariantMigrationJob
         ? (this.materialIdByFirebaseUid.get(entry.material.uid) ?? null)
         : null;
 
-      const {id: materialRowId} = await materials.insert({
-        value: {
-          uid: "",
-          recipeId,
-          sortOrder,
-          materialId,
-          quantity: Number.isFinite(entry.quantity)
-            ? (entry.quantity as number)
-            : 0,
-        },
-        authUser,
+      materialRows.push({
+        firebase_uid: entryUid,
+        recipe_id: recipeId,
+        sort_order: sortOrder,
+        material_id: materialId,
+        quantity: Number.isFinite(entry.quantity) ? entry.quantity : 0,
       });
-
-      await materials.patch({
-        id: materialRowId,
-        fields: {firebase_uid: entryUid},
-        authUser,
-      });
-
       sortOrder += 10;
+    }
+
+    if (materialRows.length > 0) {
+      const {error: materialError} = await client
+        .from("recipe_materials")
+        .insert(materialRows);
+      if (materialError) throw materialError;
     }
   }
 
@@ -521,78 +507,40 @@ export class RecipeVariantMigrationJob
    * @param _database - DatabaseService-Instanz (nicht verwendet, Admin-Client direkt)
    */
   private async buildLookupMaps(_database: DatabaseService): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
-    // Events: firebase_uid → Postgres-id
-    const {data: eventRows, error: eventError} = await client
-      .from("events")
-      .select("id, firebase_uid");
-    if (eventError) throw eventError;
-    for (const row of eventRows ?? []) {
+    const [eventRows, recipeRows, productRows, materialRows, userRows] = await Promise.all([
+      fetchAllRows(client, "events", "id, firebase_uid"),
+      fetchAllRows(client, "recipes", "id, firebase_uid"),
+      fetchAllRows(client, "products", "id, firebase_uid"),
+      fetchAllRows(client, "materials", "id, firebase_uid"),
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
+    ]);
+
+    for (const row of eventRows) {
       if (row.firebase_uid) {
-        this.eventIdByFirebaseUid.set(
-          row.firebase_uid as string,
-          row.id as string,
-        );
+        this.eventIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
       }
     }
-
-    // Rezepte: firebase_uid → Postgres-id
-    const {data: recipeRows, error: recipeError} = await client
-      .from("recipes")
-      .select("id, firebase_uid");
-    if (recipeError) throw recipeError;
-    for (const row of recipeRows ?? []) {
+    for (const row of recipeRows) {
       if (row.firebase_uid) {
-        this.recipeIdByFirebaseUid.set(
-          row.firebase_uid as string,
-          row.id as string,
-        );
+        this.recipeIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
       }
     }
-
-    // Produkte: firebase_uid → Postgres-id
-    const {data: productRows, error: productError} = await client
-      .from("products")
-      .select("id, firebase_uid");
-    if (productError) throw productError;
-    for (const row of productRows ?? []) {
+    for (const row of productRows) {
       if (row.firebase_uid) {
-        this.productIdByFirebaseUid.set(
-          row.firebase_uid as string,
-          row.id as string,
-        );
+        this.productIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
       }
     }
-
-    // Materialien: firebase_uid → Postgres-id
-    const {data: materialRows, error: materialError} = await client
-      .from("materials")
-      .select("id, firebase_uid");
-    if (materialError) throw materialError;
-    for (const row of materialRows ?? []) {
+    for (const row of materialRows) {
       if (row.firebase_uid) {
-        this.materialIdByFirebaseUid.set(
-          row.firebase_uid as string,
-          row.id as string,
-        );
+        this.materialIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
       }
     }
-
-    // Benutzer: legacy_firebase_uid → id (UUID, identisch mit auth.users.id)
-    // Nach der id-Vereinheitlichung (Phase 3) ist users.id die Supabase-UUID,
-    // die alten Firebase-UIDs stehen in legacy_firebase_uid.
-    const {data: userRows, error: userError} = await client
-      .from("users")
-      .select("id, legacy_firebase_uid")
-      .not("legacy_firebase_uid", "is", null);
-    if (userError) throw userError;
-    for (const row of userRows ?? []) {
+    for (const row of userRows) {
       if (row.legacy_firebase_uid && row.id) {
-        this.userAuthUidByFirebaseUid.set(
-          row.legacy_firebase_uid as string,
-          row.id as string,
-        );
+        this.userAuthUidByFirebaseUid.set(row.legacy_firebase_uid as string, row.id as string);
       }
     }
   }

@@ -18,9 +18,8 @@ import {collection, doc, getDoc, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
 // Firebase-Datenstrukturen
@@ -81,6 +80,9 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
   /** firebase_uid → Postgres-ID für Events */
   private eventIdByFirebaseUid: Map<string, string> = new Map();
 
+  /** Vorgeladene Event-IDs aus der Diät-Tabelle für schnelle Existenzprüfung */
+  private existingEventIds: Set<string> | null = null;
+
   /* =====================================================================
   // Alle Gruppenconfigs aus Firebase lesen
   // ===================================================================== */
@@ -99,6 +101,12 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
     if (database) {
       await this.buildLookupMaps();
     }
+
+    // Vorhandene Event-IDs aus der Diät-Tabelle vorladen für schnelle Existenzprüfung
+    const existingRows = await fetchAllRows(
+      supabaseAdmin!, "event_groupconfiguration_diets", "event_id");
+    this.existingEventIds = new Set(
+      existingRows.map((row) => row.event_id as string));
 
     const eventsSnapshot = await getDocs(collection(firebase.firestore, "events"));
     const records: SourceRecord<FirebaseGroupConfigData>[] = [];
@@ -140,21 +148,12 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
    * @returns true, falls bereits Diäten für das Event vorhanden sind
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseGroupConfigData>,
   ): Promise<boolean> {
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);
     if (!eventId) return false;
-
-    const client: SupabaseClient = supabase;
-    const {data, error} = await client
-      .from("event_groupconfiguration_diets")
-      .select("id")
-      .eq("event_id", eventId)
-      .limit(1);
-
-    if (error) throw error;
-    return (data ?? []).length > 0;
+    return this.existingEventIds?.has(eventId) ?? false;
   }
 
   /* =====================================================================
@@ -178,7 +177,7 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
     _authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     const eventId = this.eventIdByFirebaseUid.get(data.eventFirebaseUid);
     if (!eventId) {
@@ -238,32 +237,28 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
       );
     }
 
-    // 3. Portionenmatrix einfügen
+    // 3. Portionenmatrix als Batch einfügen
+    const portionRows: Record<string, unknown>[] = [];
     for (const dietFirebaseUid of Object.keys(data.portions)) {
       const dietId = dietIdByFirebaseUid.get(dietFirebaseUid);
       if (!dietId) continue;
-
       const intolerancePortions = data.portions[dietFirebaseUid];
       for (const intoleranceFirebaseUid of Object.keys(intolerancePortions)) {
         const intoleranceId = intoleranceIdByFirebaseUid.get(intoleranceFirebaseUid);
         if (!intoleranceId) continue;
-
-        const servings = intolerancePortions[intoleranceFirebaseUid] ?? 0;
-
-        const {error: portionError} = await client
-          .from("event_groupconfiguration_portions")
-          .insert({
-            event_id: eventId,
-            diet_id: dietId,
-            intolerance_id: intoleranceId,
-            servings,
-          });
-
-        if (portionError) {
-          // Duplikat tolerieren
-          if (portionError.code !== "23505") throw portionError;
-        }
+        portionRows.push({
+          event_id: eventId,
+          diet_id: dietId,
+          intolerance_id: intoleranceId,
+          servings: intolerancePortions[intoleranceFirebaseUid] ?? 0,
+        });
       }
+    }
+    if (portionRows.length > 0) {
+      const {error: portionError} = await client
+        .from("event_groupconfiguration_portions")
+        .upsert(portionRows, {onConflict: "event_id,diet_id,intolerance_id", ignoreDuplicates: true});
+      if (portionError) throw portionError;
     }
   }
 
@@ -277,15 +272,11 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
    * @throws {PostgrestError} bei Datenbankfehler
    */
   private async buildLookupMaps(): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
-    const {data: eventRows, error: eventError} = await client
-      .from("events")
-      .select("id, firebase_uid");
+    const eventRows = await fetchAllRows(client, "events", "id, firebase_uid");
 
-    if (eventError) throw eventError;
-
-    for (const row of eventRows ?? []) {
+    for (const row of eventRows) {
       if (row.firebase_uid) {
         this.eventIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
       }

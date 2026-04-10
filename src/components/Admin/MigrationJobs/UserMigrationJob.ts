@@ -4,7 +4,7 @@ import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {UserDomain} from "../../Database/Repository/UserRepository";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
-import {supabase} from "../../Database/supabaseClient";
+import {supabaseAdmin} from "../../Database/supabaseClient";
 
 /* =====================================================================
 // Typ der zusammengeführten Firebase-Daten (User + Public Profile)
@@ -202,19 +202,28 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
     // zu diesem Zeitpunkt noch nicht — findByEmail() würde fehlschlagen).
     // Auth-User-Liste einmalig laden und cachen
     if (!this.authUsersByEmail) {
-      const {data: listData, error: listError} =
-        await supabase.auth.admin.listUsers({perPage: 1000});
-
-      if (listError) throw listError;
-
       this.authUsersByEmail = new Map();
-      for (const supabaseUser of listData.users) {
-        if (supabaseUser.email) {
-          this.authUsersByEmail.set(
-            supabaseUser.email.toLocaleLowerCase().trim(),
-            supabaseUser.id
-          );
+
+      // Alle Seiten laden — listUsers gibt max. perPage Einträge zurück
+      let page = 1;
+      let hasMore = true;
+      while (hasMore) {
+        const {data: listData, error: listError} =
+          await supabaseAdmin!.auth.admin.listUsers({page, perPage: 1000});
+
+        if (listError) throw listError;
+
+        for (const supabaseUser of listData.users) {
+          if (supabaseUser.email) {
+            this.authUsersByEmail.set(
+              supabaseUser.email.toLocaleLowerCase().trim(),
+              supabaseUser.id
+            );
+          }
         }
+
+        hasMore = listData.users.length === 1000;
+        page++;
       }
     }
 

@@ -23,8 +23,9 @@ import {collection, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {fetchAllRows} from "./MigrationJob.interface";
+
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 
 /* =====================================================================
@@ -120,6 +121,8 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
 
   /** firebase_uid → Supabase Auth UUID für Benutzer */
   private userAuthUidByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Events (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
 
   /* =====================================================================
   // Alle Events aus Firebase lesen
@@ -139,6 +142,15 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
     if (database) {
       await this.buildLookupMaps();
     }
+
+    // Bereits migrierte Events laden (für In-Memory checkExists)
+    const existingRows = await fetchAllRows(
+      supabaseAdmin!, "events", "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid as string),
+    );
 
     const snapshot = await getDocs(collection(firebase.firestore, "events"));
     const records: SourceRecord<FirebaseEventData>[] = [];
@@ -184,15 +196,8 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
     _database: DatabaseService,
     record: SourceRecord<FirebaseEventData>,
   ): Promise<boolean> {
-    const client: SupabaseClient = supabase;
-    const {data, error} = await client
-      .from("events")
-      .select("id")
-      .eq("firebase_uid", record.id)
-      .limit(1);
-
-    if (error) throw error;
-    return (data ?? []).length > 0;
+    // In-Memory-Prüfung gegen vorab geladene Set (kein DB-Roundtrip)
+    return this.existingFirebaseUids?.has(record.id) ?? false;
   }
 
   /* =====================================================================
@@ -217,7 +222,7 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
     _authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     // 1. Event-Kopfdaten einfügen
     const {data: eventRow, error: eventError} = await client
@@ -235,29 +240,29 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
     if (eventError) throw eventError;
     const eventId = (eventRow as {id: string}).id;
 
-    // 2. Koch-Mitglieder einfügen
+    // 2. Koch-Mitglieder als Batch einfügen
+    const cookRows: Record<string, unknown>[] = [];
     for (const cook of data.cooks) {
       const authUid = this.userAuthUidByFirebaseUid.get(cook.uid);
-      if (!authUid) {
-        // Koch-Benutzer nicht in Postgres gefunden — überspringen
-        if (import.meta.env.DEV) console.warn(`EventMigrationJob: Cook ${cook.uid} nicht in users gefunden, wird übersprungen.`);
-        continue;
-      }
+      if (!authUid) continue;
 
-      const {error: cookError} = await client.from("event_cooks").insert({
+      cookRows.push({
         event_id: eventId,
         user_id: authUid,
         firebase_uid: cook.uid,
       });
-
-      if (cookError) {
-        // Duplikat (UNIQUE-Constraint) tolerieren — Cook bereits eingetragen
-        if (cookError.code !== "23505") throw cookError;
-      }
     }
 
-    // 3. Zeitscheiben einfügen (sortiert nach pos-Feld)
+    if (cookRows.length > 0) {
+      const {error: cookError} = await client
+        .from("event_cooks")
+        .upsert(cookRows, {onConflict: "event_id,user_id", ignoreDuplicates: true});
+      if (cookError) throw cookError;
+    }
+
+    // 3. Zeitscheiben als Batch einfügen
     const sortedDates = [...data.dates].sort((dateA, dateB) => (dateA.pos ?? 0) - (dateB.pos ?? 0));
+    const dateRows: Record<string, unknown>[] = [];
     for (let index = 0; index < sortedDates.length; index++) {
       const dateEntry = sortedDates[index];
       const dateFrom = toDate(dateEntry.from);
@@ -266,14 +271,19 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
       // Epoch-Daten (ungültig) überspringen
       if (dateFrom.getTime() === 0 && dateTo.getTime() === 0) continue;
 
-      const {error: dateError} = await client.from("event_dates").insert({
+      dateRows.push({
         event_id: eventId,
         sort_order: index * 10,
         date_from: toDateString(dateFrom),
         date_to: toDateString(dateTo),
         firebase_uid: dateEntry.uid,
       });
+    }
 
+    if (dateRows.length > 0) {
+      const {error: dateError} = await client
+        .from("event_dates")
+        .insert(dateRows);
       if (dateError) throw dateError;
     }
   }
@@ -288,19 +298,15 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
    * @throws {PostgrestError} bei Datenbankfehler
    */
   private async buildLookupMaps(): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
     // Benutzer: legacy_firebase_uid → id (UUID, identisch mit auth.users.id)
     // Nach der id-Vereinheitlichung (Phase 3) ist users.id die Supabase-UUID,
     // die alten Firebase-UIDs stehen in legacy_firebase_uid.
-    const {data: userRows, error: userError} = await client
-      .from("users")
-      .select("id, legacy_firebase_uid")
-      .not("legacy_firebase_uid", "is", null);
+    const userRows = await fetchAllRows(client, "users", "id, legacy_firebase_uid",
+      (query) => query.not("legacy_firebase_uid", "is", null));
 
-    if (userError) throw userError;
-
-    for (const row of userRows ?? []) {
+    for (const row of userRows) {
       if (row.legacy_firebase_uid && row.id) {
         this.userAuthUidByFirebaseUid.set(
           row.legacy_firebase_uid as string,

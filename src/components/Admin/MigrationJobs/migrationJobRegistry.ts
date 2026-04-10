@@ -19,6 +19,7 @@ import {MaterialListMigrationJob} from "./MaterialListMigrationJob";
 import {RequestMigrationJob} from "./RequestMigrationJob";
 import {FeedMigrationJob} from "./FeedMigrationJob";
 import {DonationMigrationJob} from "./DonationMigrationJob";
+import {RecipeRatingMigrationJob} from "./RecipeRatingMigrationJob";
 
 /* =====================================================================
 // Registry aller verfügbaren Migrations-Jobs
@@ -61,6 +62,7 @@ export const migrationJobRegistry: Record<string, MigrationJob> = {
   unitConversionBasic: new UnitConversionBasicMigrationJob(),
   unitConversionProducts: new UnitConversionProductMigrationJob(),
   recipes: new RecipeMigrationJob(),
+  recipeRatings: new RecipeRatingMigrationJob(),
   events: new EventMigrationJob(),
   groupConfig: new GroupConfigMigrationJob(),
   menuplan: new MenuplanMigrationJob(),

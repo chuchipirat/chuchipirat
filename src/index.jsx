@@ -37,6 +37,7 @@ Sentry.init({
       blockAllMedia: false,
       mask: ['input[type="password"]'],
     }),
+    Sentry.consoleLoggingIntegration({levels: ["log", "warn", "error"]}),
   ],
   tracesSampleRate: 1.0,
   tracePropagationTargets: [

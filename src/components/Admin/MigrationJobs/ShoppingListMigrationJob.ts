@@ -27,9 +27,8 @@ import {collection, doc, getDoc, getDocs} from "firebase/firestore";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {supabase} from "../../Database/supabaseClient";
-import {SupabaseClient} from "@supabase/supabase-js";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 import {ShoppingListEditSource} from "../../Database/Repository/ShoppingListRepository";
 
 /* =====================================================================
@@ -111,12 +110,16 @@ export class ShoppingListMigrationJob
   private materialIdByUid: Map<string, string> = new Map();
   /** Department UID (Firebase) → Postgres Department ID */
   private departmentIdByUid: Map<string, string> = new Map();
+  /** Gültige Unit-Keys aus der units-Tabelle */
+  private validUnits: Set<string> = new Set();
   /** Department pos (Firebase) → Postgres Department ID */
   private departmentIdByPos: Map<number, string> = new Map();
   /** Menü firebase_uid → Postgres ID */
   private menueIdByFirebaseUid: Map<string, string> = new Map();
   /** Meal firebase_uid → Postgres ID */
   private mealIdByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Event-IDs (Postgres) für schnelle Existenzprüfung */
+  private existingEventIds: Set<string> | null = null;
 
   /* =====================================================================
   // Quelldaten lesen
@@ -135,6 +138,10 @@ export class ShoppingListMigrationJob
   ): Promise<SourceRecord<FirebaseShoppingListData>[]> {
     if (database) {
       await this.buildLookupMaps();
+
+      // Bereits migrierte Event-IDs vorladen für schnelle Existenzprüfung
+      const existingRows = await fetchAllRows(supabaseAdmin!, "event_shopping_lists", "event_id");
+      this.existingEventIds = new Set(existingRows.map((row) => row.event_id as string));
     }
 
     const eventsSnapshot = await getDocs(
@@ -195,23 +202,15 @@ export class ShoppingListMigrationJob
 
   /**
    * Prüft ob für das Event bereits Einkaufslisten in Postgres vorhanden sind.
+   * Nutzt das vorab geladene Set für O(1)-Lookups statt einzelner DB-Abfragen.
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseShoppingListData>,
   ): Promise<boolean> {
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);
     if (!eventId) return false;
-
-    const client: SupabaseClient = supabase;
-    const {data, error} = await client
-      .from("event_shopping_lists")
-      .select("id")
-      .eq("event_id", eventId)
-      .limit(1);
-
-    if (error) throw error;
-    return (data ?? []).length > 0;
+    return this.existingEventIds?.has(eventId) ?? false;
   }
 
   /* =====================================================================
@@ -226,7 +225,7 @@ export class ShoppingListMigrationJob
     record: SourceRecord<FirebaseShoppingListData>,
     _authUser: AuthUser,
   ): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
     const eventId = this.eventIdByFirebaseUid.get(record.data.eventFirebaseUid);
     if (!eventId) {
       throw new Error(
@@ -234,12 +233,15 @@ export class ShoppingListMigrationJob
       );
     }
 
+    // Alle Header und Items sammeln, dann als 2 Batch-INSERTs einfügen
+    const headerRows: Record<string, unknown>[] = [];
+    const allItemRows: Record<string, unknown>[] = [];
+
     for (const [listKey, listEntry] of Object.entries(record.data.collectionDoc.lists)) {
       const props = listEntry.properties;
-      if (!props) {
-        if (import.meta.env.DEV) console.warn(`ShoppingListMigrationJob: Liste ${listKey} hat keine properties, übersprungen.`);
-        continue;
-      }
+      if (!props) continue;
+
+      const listId = crypto.randomUUID();
 
       // Menü-IDs auflösen
       const selectedMenues = (props.selectedMenues ?? [])
@@ -256,29 +258,20 @@ export class ShoppingListMigrationJob
         .map((uid) => this.departmentIdByUid.get(uid))
         .filter((id): id is string => !!id);
 
-      // Header einfügen
-      const {data: headerRow, error: headerError} = await client
-        .from("event_shopping_lists")
-        .insert({
-          event_id: eventId,
-          name: props.name ?? "",
-          selected_menues: selectedMenues,
-          selected_meals: selectedMeals,
-          selected_departments: selectedDepartments,
-          has_manually_added_items: props.hasManuallyAddedItems ?? false,
-          firebase_uid: props.uid ?? listKey,
-        })
-        .select("id")
-        .single();
+      headerRows.push({
+        id: listId,
+        event_id: eventId,
+        name: props.name ?? "",
+        selected_menues: selectedMenues,
+        selected_meals: selectedMeals,
+        selected_departments: selectedDepartments,
+        has_manually_added_items: props.hasManuallyAddedItems ?? false,
+        firebase_uid: props.uid ?? listKey,
+      });
 
-      if (headerError) throw headerError;
-      const listId = (headerRow as {id: string}).id;
-
-      // Items der Firebase-ShoppingList migrieren
+      // Items der Firebase-ShoppingList sammeln
       const firebaseList = record.data.shoppingLists[props.uid ?? listKey];
       if (!firebaseList?.list) continue;
-
-      const itemRows: Array<Record<string, unknown>> = [];
 
       for (const [departmentPosStr, department] of Object.entries(firebaseList.list)) {
         const departmentPos = Number(departmentPosStr);
@@ -287,51 +280,48 @@ export class ShoppingListMigrationJob
           ?? null;
 
         for (const [itemIdx, item] of department.items.entries()) {
-          // Typ bestimmen und FK auflösen
           let productId: string | null = null;
           let materialId: string | null = null;
           let freeTextName: string | null = null;
 
           if (item.type === 1) {
-            // Food → Produkt
             productId = this.productIdByUid.get(item.item.uid) ?? null;
             if (!productId) freeTextName = item.item.name || "Unbekanntes Produkt";
           } else if (item.type === 2) {
-            // Material
             materialId = this.materialIdByUid.get(item.item.uid) ?? null;
             if (!materialId) freeTextName = item.item.name || "Unbekanntes Material";
           } else {
-            // Custom oder none
             freeTextName = item.item.name || "Unbekannt";
           }
 
-          // edit_source bestimmen
           let editSource: ShoppingListEditSource = "generated";
           if (item.manualAdd) editSource = "manual_add";
           else if (item.manualEdit) editSource = "manual_edit";
 
-          itemRows.push({
+          allItemRows.push({
             list_id: listId,
             product_id: productId,
             material_id: materialId,
             department_id: departmentId,
             free_text_name: freeTextName,
             quantity: Number.isFinite(item.quantity) ? item.quantity : 0,
-            unit: item.unit || null,
+            unit: item.unit && this.validUnits.has(item.unit) ? item.unit : null,
             checked: item.checked ?? false,
             edit_source: editSource,
             sort_order: itemIdx,
           });
         }
       }
+    }
 
-      if (itemRows.length > 0) {
-        const {error: itemsError} = await client
-          .from("event_shopping_list_items")
-          .insert(itemRows);
+    if (headerRows.length > 0) {
+      const {error} = await client.from("event_shopping_lists").insert(headerRows);
+      if (error) throw error;
+    }
 
-        if (itemsError) throw itemsError;
-      }
+    if (allItemRows.length > 0) {
+      const {error} = await client.from("event_shopping_list_items").insert(allItemRows);
+      if (error) throw error;
     }
   }
 
@@ -343,42 +333,39 @@ export class ShoppingListMigrationJob
    * Lädt Stammdaten aus Postgres und befüllt die Lookup-Maps.
    */
   private async buildLookupMaps(): Promise<void> {
-    const client: SupabaseClient = supabase;
+    const client = supabaseAdmin!;
 
-    const [eventRows, productRows, materialRows, departmentRows, menueRows, mealRows] = await Promise.all([
-      client.from("events").select("id, firebase_uid"),
-      client.from("products").select("id, firebase_uid"),
-      client.from("materials").select("id, firebase_uid"),
-      client.from("departments").select("id, firebase_uid, pos"),
-      client.from("event_menues").select("id, firebase_uid"),
-      client.from("event_meals").select("id, firebase_uid"),
+    const [eventRows, productRows, materialRows, departmentRows, menueRows, mealRows, unitRows] = await Promise.all([
+      fetchAllRows(client, "events", "id, firebase_uid"),
+      fetchAllRows(client, "products", "id, firebase_uid"),
+      fetchAllRows(client, "materials", "id, firebase_uid"),
+      fetchAllRows(client, "departments", "id, firebase_uid, pos"),
+      fetchAllRows(client, "event_menues", "id, firebase_uid"),
+      fetchAllRows(client, "event_meals", "id, firebase_uid"),
+      fetchAllRows(client, "units", "key"),
     ]);
 
-    if (eventRows.error) throw eventRows.error;
-    if (productRows.error) throw productRows.error;
-    if (materialRows.error) throw materialRows.error;
-    if (departmentRows.error) throw departmentRows.error;
-    if (menueRows.error) throw menueRows.error;
-    if (mealRows.error) throw mealRows.error;
-
-    for (const row of eventRows.data ?? []) {
+    for (const row of eventRows) {
       if (row.firebase_uid) this.eventIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of productRows.data ?? []) {
+    for (const row of productRows) {
       if (row.firebase_uid) this.productIdByUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of materialRows.data ?? []) {
+    for (const row of materialRows) {
       if (row.firebase_uid) this.materialIdByUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of departmentRows.data ?? []) {
+    for (const row of departmentRows) {
       if (row.firebase_uid) this.departmentIdByUid.set(row.firebase_uid as string, row.id as string);
       if (row.pos != null) this.departmentIdByPos.set(row.pos as number, row.id as string);
     }
-    for (const row of menueRows.data ?? []) {
+    for (const row of menueRows) {
       if (row.firebase_uid) this.menueIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
-    for (const row of mealRows.data ?? []) {
+    for (const row of mealRows) {
       if (row.firebase_uid) this.mealIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
+    }
+    for (const row of unitRows) {
+      if (row.key) this.validUnits.add(row.key as string);
     }
   }
 }

@@ -1,5 +1,8 @@
 import {useState, useRef, useCallback} from "react";
 
+/** Anzahl Datensätze, die gesammelt werden, bevor der UI-State aktualisiert wird. */
+const BATCH_SIZE = 50;
+
 /**
  * Extrahiert eine lesbare Fehlermeldung aus einem beliebigen Error-Wert.
  * Behandelt sowohl native Error-Instanzen als auch Supabase PostgrestError-Objekte
@@ -53,6 +56,7 @@ const INITIAL_STATS: MigrationStats = {
  * @param currentRecord - Label des gerade verarbeiteten Datensatzes
  * @param dryRun - Ob der Dry-Run-Modus aktiv ist
  * @param setDryRun - Setter für den Dry-Run-Modus
+ * @param startTime - Zeitstempel (ms) des Migrationsstarts (0 wenn idle)
  * @param start - Startet die Migration
  * @param cancel - Bricht die laufende Migration ab
  */
@@ -63,6 +67,7 @@ export interface UseMigrationReturn {
   currentRecord: string;
   dryRun: boolean;
   setDryRun: (value: boolean) => void;
+  startTime: number;
   start: (
     job: MigrationJob,
     firebase: Firebase,
@@ -97,9 +102,24 @@ export const useMigration = (): UseMigrationReturn => {
   const [results, setResults] = useState<MigrationRecordResult[]>([]);
   const [currentRecord, setCurrentRecord] = useState<string>("");
   const [dryRun, setDryRun] = useState<boolean>(true);
+  const [startTime, setStartTime] = useState<number>(0);
 
-  // Ref für Cancel, damit der laufende Loop sofort reagiert
+  // Refs für Cancel und Batching — vermeiden O(n²)-Re-Renders
   const cancelRef = useRef(false);
+  const resultsRef = useRef<MigrationRecordResult[]>([]);
+  const pendingRef = useRef<MigrationRecordResult[]>([]);
+
+  /**
+   * Überträgt angesammelte Ergebnisse aus dem Pending-Buffer in den
+   * React-State. Wird alle BATCH_SIZE Datensätze und am Ende aufgerufen.
+   */
+  const flushResults = useCallback(() => {
+    if (pendingRef.current.length === 0) return;
+    const batch = pendingRef.current;
+    pendingRef.current = [];
+    resultsRef.current = [...resultsRef.current, ...batch];
+    setResults(resultsRef.current);
+  }, []);
 
   /* ------------------------------------------
   // Migration abbrechen
@@ -120,9 +140,12 @@ export const useMigration = (): UseMigrationReturn => {
     ) => {
       // Zustand zurücksetzen
       cancelRef.current = false;
+      resultsRef.current = [];
+      pendingRef.current = [];
       setResults([]);
       setStats(INITIAL_STATS);
       setCurrentRecord("");
+      setStartTime(Date.now());
 
       // Phase 1: Quelldaten laden
       setPhase("fetching");
@@ -154,10 +177,15 @@ export const useMigration = (): UseMigrationReturn => {
       let successCount = 0;
       let failedCount = 0;
       let skippedCount = 0;
+      let processedSinceFlush = 0;
 
-      for (const record of sourceRecords) {
+      for (let recordIndex = 0; recordIndex < sourceRecords.length; recordIndex++) {
+        const record = sourceRecords[recordIndex];
+
         // Abbruch prüfen
         if (cancelRef.current) {
+          flushResults();
+          setStats({totalSource, alreadyMigrated, successCount, failedCount, skippedCount});
           setPhase("cancelled");
           return;
         }
@@ -171,53 +199,53 @@ export const useMigration = (): UseMigrationReturn => {
           if (exists) {
             alreadyMigrated++;
             skippedCount++;
-            setResults((prev) => [
-              ...prev,
+            pendingRef.current.push(
               {id: record.id, label: record.label, status: "skipped"},
-            ]);
+            );
           } else if (dryRun) {
             // Dry Run: nur zählen, nicht schreiben
             skippedCount++;
-            setResults((prev) => [
-              ...prev,
+            pendingRef.current.push(
               {id: record.id, label: record.label, status: "skipped"},
-            ]);
+            );
           } else {
             // Tatsächlich migrieren
             await job.migrateRecord(database, record, authUser);
             successCount++;
-            setResults((prev) => [
-              ...prev,
+            pendingRef.current.push(
               {id: record.id, label: record.label, status: "success"},
-            ]);
+            );
           }
         } catch (error) {
           failedCount++;
-          setResults((prev) => [
-            ...prev,
-            {
-              id: record.id,
-              label: record.label,
-              status: "failed",
-              error: formatError(error),
-            },
-          ]);
+          pendingRef.current.push({
+            id: record.id,
+            label: record.label,
+            status: "failed",
+            error: formatError(error),
+          });
         }
 
-        // Stats laufend aktualisieren
-        setStats({
-          totalSource,
-          alreadyMigrated,
-          successCount,
-          failedCount,
-          skippedCount,
-        });
+        // Quelldaten freigeben — verhindert Speicheraufbau bei grossen Migrationen
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (sourceRecords as any)[recordIndex] = null;
+
+        // Alle BATCH_SIZE Datensätze den UI-State aktualisieren
+        processedSinceFlush++;
+        if (processedSinceFlush >= BATCH_SIZE) {
+          flushResults();
+          setStats({totalSource, alreadyMigrated, successCount, failedCount, skippedCount});
+          processedSinceFlush = 0;
+        }
       }
 
+      // Restliche Ergebnisse übertragen
+      flushResults();
+      setStats({totalSource, alreadyMigrated, successCount, failedCount, skippedCount});
       setCurrentRecord("");
       setPhase("completed");
     },
-    [dryRun]
+    [dryRun, flushResults]
   );
 
   return {
@@ -227,6 +255,7 @@ export const useMigration = (): UseMigrationReturn => {
     currentRecord,
     dryRun,
     setDryRun,
+    startTime,
     start,
     cancel,
   };
