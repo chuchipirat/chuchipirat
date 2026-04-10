@@ -37,6 +37,7 @@ export interface GlobalSettingsRow {
   allow_sign_up: boolean;
   maintenance_mode: boolean;
   email_lookup_rate_limit: number;
+  redirect_emails_to_mailpit: boolean;
   created_at: string;
   created_by: string | null;
   updated_at: string;
@@ -57,6 +58,8 @@ export interface GlobalSettingsDomain {
   maintenanceMode: boolean;
   /** Maximale Anzahl E-Mail-Suchen pro Benutzer pro Stunde. */
   emailLookupRateLimit: number;
+  /** Ob App-E-Mails an MailPit umgeleitet werden statt an echte Empfänger. */
+  redirectEmailsToMailpit: boolean;
 }
 
 /* =====================================================================
@@ -86,6 +89,7 @@ export class GlobalSettingsRepository extends BaseRepository<
       allow_sign_up: domain.allowSignUp,
       maintenance_mode: domain.maintenanceMode,
       email_lookup_rate_limit: domain.emailLookupRateLimit,
+      redirect_emails_to_mailpit: domain.redirectEmailsToMailpit,
     };
   }
 
@@ -103,6 +107,7 @@ export class GlobalSettingsRepository extends BaseRepository<
       allowSignUp: row.allow_sign_up,
       maintenanceMode: row.maintenance_mode,
       emailLookupRateLimit: row.email_lookup_rate_limit,
+      redirectEmailsToMailpit: row.redirect_emails_to_mailpit,
     };
   }
 

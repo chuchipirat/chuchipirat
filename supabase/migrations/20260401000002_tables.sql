@@ -47,6 +47,7 @@ CREATE TABLE public.global_settings (
     allow_sign_up boolean DEFAULT false NOT NULL,
     maintenance_mode boolean DEFAULT false NOT NULL,
     email_lookup_rate_limit integer DEFAULT 10 NOT NULL,
+    redirect_emails_to_mailpit boolean DEFAULT false NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL,
     created_by uuid DEFAULT auth.uid(),
     updated_at timestamptz DEFAULT now() NOT NULL,

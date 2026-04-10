@@ -11,6 +11,47 @@
  * await sendEmail(env, "user@example.com", "Betreff", htmlContent, textContent);
  */
 import {SMTPClient} from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
+
+/* =====================================================================
+// MailPit-Redirect Cache
+// ===================================================================== */
+
+/** Gecachter Wert für redirect_emails_to_mailpit (60s TTL). */
+let mailpitRedirectCache: {value: boolean; expiresAt: number} | null = null;
+
+/**
+ * Prüft ob E-Mails an MailPit umgeleitet werden sollen.
+ * Liest den Wert aus global_settings und cached ihn 60 Sekunden.
+ *
+ * @returns true wenn E-Mails an MailPit umgeleitet werden sollen
+ */
+async function shouldRedirectToMailpit(): Promise<boolean> {
+  // Cache prüfen
+  if (mailpitRedirectCache && Date.now() < mailpitRedirectCache.expiresAt) {
+    return mailpitRedirectCache.value;
+  }
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+
+  if (!supabaseUrl || !serviceRoleKey) return false;
+
+  try {
+    const client = createClient(supabaseUrl, serviceRoleKey);
+    const {data} = await client
+      .from("global_settings")
+      .select("redirect_emails_to_mailpit")
+      .eq("id", "default")
+      .single();
+
+    const redirect = data?.redirect_emails_to_mailpit === true;
+    mailpitRedirectCache = {value: redirect, expiresAt: Date.now() + 60_000};
+    return redirect;
+  } catch {
+    return false;
+  }
+}
 
 /* =====================================================================
 // Konstanten
@@ -108,12 +149,27 @@ export async function sendEmail(
   htmlContent: string,
   textContent: string,
 ): Promise<void> {
+  // Optionaler Betreff-Prefix (z.B. "[TEST] " für Nicht-Produktions-Umgebungen)
+  const subjectPrefix = Deno.env.get("EMAIL_SUBJECT_PREFIX") ?? "";
+  const finalSubject = subjectPrefix + subject;
+
+  // Prüfen ob E-Mails an MailPit umgeleitet werden sollen
+  const redirectToMailpit = await shouldRedirectToMailpit();
+
+  if (redirectToMailpit) {
+    const mailpitHost = Deno.env.get("MAILPIT_HOST") ?? "supabase-mail";
+    const mailpitPort = parseInt(Deno.env.get("MAILPIT_PORT") ?? "1025");
+    console.info(`[MailPit-Redirect] E-Mail an ${to} wird an MailPit umgeleitet (${mailpitHost}:${mailpitPort})`);
+    await sendViaSmtp(to, finalSubject, htmlContent, textContent, mailpitHost, mailpitPort, "", "", env.smtpFrom);
+    return;
+  }
+
   if (env.brevoApiKey) {
-    await sendViaBrevo(to, subject, htmlContent, textContent, env.brevoApiKey);
+    await sendViaBrevo(to, finalSubject, htmlContent, textContent, env.brevoApiKey);
   } else if (env.smtpHost) {
     await sendViaSmtp(
       to,
-      subject,
+      finalSubject,
       htmlContent,
       textContent,
       env.smtpHost,

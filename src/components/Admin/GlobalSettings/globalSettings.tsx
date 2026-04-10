@@ -86,7 +86,7 @@ type State = {
 };
 
 const inititialState: State = {
-  globalSettings: {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10},
+  globalSettings: {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10, redirectEmailsToMailpit: false},
   error: null,
   isError: false,
   isLoading: false,
@@ -195,7 +195,7 @@ const GlobalSettingsPage = () => {
       .then((result) => {
         dispatch({
           type: ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS,
-          payload: result ?? {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10},
+          payload: result ?? {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10, redirectEmailsToMailpit: false},
         });
       })
       .catch((error) => {
@@ -424,6 +424,23 @@ const PanelGlobalSettings = ({
             <ListItemText
               primary="E-Mail-Suche Rate-Limit"
               secondary="Maximale Anzahl E-Mail-Suchen pro Benutzer pro Stunde"
+            />
+          </ListItem>
+          <ListItem
+            secondaryAction={
+              <Switch
+                checked={globalSettings.redirectEmailsToMailpit}
+                onChange={onChange}
+                name={"redirectEmailsToMailpit"}
+                id={"redirectEmailsToMailpit"}
+                disabled={!editMode}
+                color="warning"
+              />
+            }
+          >
+            <ListItemText
+              primary="E-Mails an MailPit umleiten"
+              secondary="Alle App-E-Mails (Cron-Jobs, Benachrichtigungen) werden an MailPit gesendet statt an echte Empfänger."
             />
           </ListItem>
           <ListItem

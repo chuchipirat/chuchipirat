@@ -430,6 +430,9 @@ services:
       - "SMTP_ADMIN_EMAIL=${SMTP_ADMIN_EMAIL}"
       - "SMTP_SENDER_NAME=${SMTP_SENDER_NAME}"
       - "SITE_URL=${SITE_URL}"
+      - "MAILPIT_HOST=supabase-mail"
+      - "MAILPIT_PORT=1025"
+      - "EMAIL_SUBJECT_PREFIX=${EMAIL_SUBJECT_PREFIX:-}"
     volumes:
       - "./volumes/functions:/home/deno/functions"
       - type: bind
@@ -492,5 +495,14 @@ services:
     restart: unless-stopped
     volumes:
       - "/data/coolify/services/${COOLIFY_SERVICE_ID}/volumes/auth/templates:/usr/share/nginx/html:ro"
+    networks:
+      - ${COOLIFY_SERVICE_ID}
+  supabase-mail:
+    image: "axllent/mailpit:v1.22"
+    restart: unless-stopped
+    environment:
+      - "MP_UI_AUTH=${MAILPIT_UI_USER}:${MAILPIT_UI_PASSWORD}"
+    ports:
+      - "8025:8025"
     networks:
       - ${COOLIFY_SERVICE_ID}
