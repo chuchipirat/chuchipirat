@@ -88,6 +88,125 @@ import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 
 /* ===================================================================
+// ======================== Cache-Konstanten =========================
+// =================================================================== */
+
+/** SessionStorage-Schlüssel für den Rezeptlisten-Cache. */
+const RECIPE_LIST_CACHE_KEY = "recipeListCache";
+
+/** SessionStorage-Schlüssel für die gespeicherte Scroll-Position. */
+const RECIPE_LIST_SCROLL_Y_KEY = "recipeListScrollY";
+
+/** SessionStorage-Schlüssel zum Unterdrücken von ScrollToTop nach Navigation zurück. */
+const SKIP_SCROLL_TO_TOP_KEY = "skipScrollToTop";
+
+/** Cache-Gültigkeitsdauer in Millisekunden (5 Minuten). */
+const RECIPE_CACHE_TTL_MS = 300_000;
+
+/**
+ * Zwischengespeicherte Rezeptliste mit Zeitstempel.
+ *
+ * @param recipes Serialisierte Kurzrezepte (Datum als ISO-String).
+ * @param timestamp Zeitpunkt der Cache-Erstellung (Epoch-Millisekunden).
+ */
+type RecipeListCache = {
+  recipes: SerializedRecipeShort[];
+  timestamp: number;
+};
+
+/**
+ * RecipeShort mit serialisiertem Datum (ISO-String statt Date-Objekt),
+ * da sessionStorage nur JSON-kompatible Daten speichern kann.
+ */
+type SerializedRecipeShort = Omit<RecipeShort, "created"> & {
+  created: {
+    date: string;
+    fromUid: string;
+    fromDisplayName: string;
+  };
+};
+
+/**
+ * Serialisiert ein RecipeShort-Objekt für die Speicherung in sessionStorage.
+ * Wandelt das Date-Objekt in einen ISO-String um.
+ *
+ * @param recipe Das zu serialisierende Kurzrezept.
+ * @returns Serialisiertes Kurzrezept mit ISO-Datums-String.
+ */
+const serializeRecipeShort = (
+  recipe: RecipeShort,
+): SerializedRecipeShort => ({
+  ...recipe,
+  created: {
+    ...recipe.created,
+    date: recipe.created.date.toISOString(),
+  },
+});
+
+/**
+ * Deserialisiert ein aus sessionStorage geladenes RecipeShort-Objekt.
+ * Wandelt den ISO-Datums-String zurück in ein Date-Objekt.
+ *
+ * @param serialized Das serialisierte Kurzrezept.
+ * @returns RecipeShort mit korrektem Date-Objekt.
+ */
+const deserializeRecipeShort = (
+  serialized: SerializedRecipeShort,
+): RecipeShort => ({
+  ...serialized,
+  created: {
+    ...serialized.created,
+    date: new Date(serialized.created.date),
+  },
+});
+
+/**
+ * Speichert die Rezeptliste im sessionStorage-Cache.
+ *
+ * @param recipes Die zu cachenden Kurzrezepte.
+ */
+const saveRecipeCache = (recipes: RecipeShort[]): void => {
+  try {
+    const cache: RecipeListCache = {
+      recipes: recipes.map(serializeRecipeShort),
+      timestamp: Date.now(),
+    };
+    sessionStorage.setItem(RECIPE_LIST_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // sessionStorage voll oder nicht verfügbar – kein Fehler werfen
+  }
+};
+
+/**
+ * Lädt die Rezeptliste aus dem sessionStorage-Cache, falls vorhanden und nicht abgelaufen.
+ *
+ * @returns Gecachte Rezeptliste oder `null`, wenn kein gültiger Cache vorhanden ist.
+ */
+const loadRecipeCache = (): RecipeShort[] | null => {
+  try {
+    const raw = sessionStorage.getItem(RECIPE_LIST_CACHE_KEY);
+    if (!raw) return null;
+
+    const cache: RecipeListCache = JSON.parse(raw);
+    if (Date.now() - cache.timestamp > RECIPE_CACHE_TTL_MS) {
+      sessionStorage.removeItem(RECIPE_LIST_CACHE_KEY);
+      return null;
+    }
+    return cache.recipes.map(deserializeRecipeShort);
+  } catch {
+    sessionStorage.removeItem(RECIPE_LIST_CACHE_KEY);
+    return null;
+  }
+};
+
+/**
+ * Invalidiert den Rezeptlisten-Cache (z.B. nach Erstellen eines neuen Rezepts).
+ */
+const clearRecipeCache = (): void => {
+  sessionStorage.removeItem(RECIPE_LIST_CACHE_KEY);
+};
+
+/* ===================================================================
 // ============================ Dispatcher ===========================
 // =================================================================== */
 
@@ -294,6 +413,8 @@ export const RecipesPage = () => {
   // Snackbar aus dem location.state anzeigen (z.B. nach Rezept-Löschung)
   React.useEffect(() => {
     if (location.state?.snackbar && !state.snackbar.open) {
+      // Cache invalidieren, da sich die Rezeptliste geändert haben könnte
+      clearRecipeCache();
       dispatch({
         type: ReducerActions.SET_SNACKBAR,
         payload: location.state.snackbar!,
@@ -301,11 +422,34 @@ export const RecipesPage = () => {
     }
   }, [location.state]);
 
+  /** Ob die Rezepte aus dem Cache geladen wurden (für Scroll-Wiederherstellung). */
+  const loadedFromCacheRef = React.useRef(false);
+
+  // Wenn ein gespeicherter Scroll-Wert vorliegt und Cache vorhanden ist,
+  // ScrollToTop synchron unterdrücken (bevor dessen useEffect läuft)
+  if (
+    sessionStorage.getItem(RECIPE_LIST_SCROLL_Y_KEY) &&
+    sessionStorage.getItem(RECIPE_LIST_CACHE_KEY)
+  ) {
+    sessionStorage.setItem(SKIP_SCROLL_TO_TOP_KEY, "true");
+  }
+
   /* ------------------------------------------
-  // Daten aus der DB lesen
+  // Daten aus der DB lesen (mit Cache)
   // ------------------------------------------ */
   React.useEffect(() => {
     if (!authUser) {
+      return;
+    }
+
+    // Prüfen ob ein gültiger Cache vorhanden ist
+    const cached = loadRecipeCache();
+    if (cached) {
+      loadedFromCacheRef.current = true;
+      dispatch({
+        type: ReducerActions.RECIPES_FETCH_SUCCESS,
+        payload: cached,
+      });
       return;
     }
 
@@ -321,6 +465,10 @@ export const RecipesPage = () => {
         );
         // alphabetisch sortieren
         all.sort((a, b) => a.name.localeCompare(b.name));
+
+        // Rezepte im Cache speichern
+        saveRecipeCache(all);
+
         dispatch({
           type: ReducerActions.RECIPES_FETCH_SUCCESS,
           payload: all,
@@ -334,6 +482,26 @@ export const RecipesPage = () => {
       });
   }, [authUser]);
 
+  /* ------------------------------------------
+  // Scroll-Position wiederherstellen (nur bei Cache-Treffer)
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (!loadedFromCacheRef.current || state.recipes.length === 0) {
+      return;
+    }
+    const savedScrollY = sessionStorage.getItem(RECIPE_LIST_SCROLL_Y_KEY);
+    if (savedScrollY) {
+      // Doppeltes requestAnimationFrame damit das DOM fertig gerendert ist
+      // und die ScrollToTop-Komponente bereits gelaufen ist
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          window.scrollTo({top: parseInt(savedScrollY, 10)});
+          sessionStorage.removeItem(RECIPE_LIST_SCROLL_Y_KEY);
+        });
+      });
+    }
+  }, [state.recipes]);
+
   if (!authUser) {
     return null;
   }
@@ -342,6 +510,8 @@ export const RecipesPage = () => {
  // Neues Rezept anlegen
  // ------------------------------------------ */
   const onNewClick = () => {
+    // Cache invalidieren, damit die Liste beim Zurückkehren neu geladen wird
+    clearRecipeCache();
     navigate(ROUTE_RECIPE, {
       state: {action: Action.NEW},
     });
@@ -353,6 +523,8 @@ export const RecipesPage = () => {
     if (!recipe) {
       return;
     }
+    // Scroll-Position speichern, damit sie beim Zurückkehren wiederhergestellt wird
+    sessionStorage.setItem(RECIPE_LIST_SCROLL_Y_KEY, String(window.scrollY));
     navigate(`${ROUTE_RECIPE}/${recipe.uid}`, {
       state: {
         action: Action.VIEW,
