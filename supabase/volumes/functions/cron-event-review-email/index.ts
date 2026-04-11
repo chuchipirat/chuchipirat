@@ -132,11 +132,11 @@ serve(async (req: Request) => {
       });
     }
 
-    // 3. Event-Namen laden
-    const {data: events, error: eventError} = await supabaseAdmin
-      .from("events")
-      .select("id, name")
-      .in("id", endedEventIds);
+    // 3. Event-Namen laden + prüfen ob bereits gespendet
+    const [{data: events, error: eventError}, {data: donatedRows}] = await Promise.all([
+      supabaseAdmin.from("events").select("id, name").in("id", endedEventIds),
+      supabaseAdmin.from("donations").select("event_id").in("event_id", endedEventIds).gt("amount_in_cents", 0),
+    ]);
 
     if (eventError) {
       throw new Error(`Events-Abfrage fehlgeschlagen: ${eventError.message}`);
@@ -146,6 +146,11 @@ serve(async (req: Request) => {
     for (const event of events ?? []) {
       eventNameMap.set(event.id as string, event.name as string);
     }
+
+    // Events mit bestehender Spende — keine Spendenanfrage in der E-Mail
+    const donatedEventIds = new Set(
+      (donatedRows ?? []).map((row: {event_id: string}) => row.event_id),
+    );
 
     // 4. Köche der beendeten Events laden und E-Mails senden
     let totalEmailsSent = 0;
@@ -190,12 +195,20 @@ serve(async (req: Request) => {
         try {
           const cookName = userData.display_name || "Koch";
           const subject = `Wie war euer Anlass «${eventName}»?`;
+          const hasDonated = donatedEventIds.has(eventId);
 
           const htmlContent = renderEmailTemplate("event-review", {
             subject,
             cookName,
             eventName,
+            hasDonated,
+            appUrl,
           });
+
+          const donationText = hasDonated ? "" :
+            `---\n\n` +
+            `Falls ihr euren Anlass genossen habt und noch etwas Budget übrig ist: chuchipirat ist ein ehrenamtliches Projekt — jede Spende hilft uns, die App weiterzuentwickeln und für alle gratis zu halten.\n\n` +
+            `Jetzt spenden: ${appUrl}/donate\n\n`;
 
           const textContent =
             `Hallo ${cookName},\n\n` +
@@ -203,9 +216,7 @@ serve(async (req: Request) => {
             `Jetzt sind wir gespannt auf euer Feedback! Was hat euch gefallen, was könnten wir besser machen? Eure Rückmeldungen helfen uns, chuchipirat noch besser auf euch abzustimmen.\n\n` +
             `Feedback geben: https://forms.gle/6vkknRiVftbwaEe87\n` +
             `Dauert nur ein paar Minuten — versprochen!\n\n` +
-            `---\n\n` +
-            `Falls ihr euren Anlass genossen habt und noch etwas Budget übrig ist: chuchipirat ist ein ehrenamtliches Projekt — jede Spende hilft uns, die App weiterzuentwickeln und für alle gratis zu halten.\n\n` +
-            `Jetzt spenden: ${appUrl}/donate\n\n` +
+            donationText +
             `---\n\n` +
             `Danke, dass ihr dabei wart — und hoffentlich bis bald wieder im chuchipirat!\n\n` +
             `Bei Fragen: hallo@chuchipirat.ch`;

@@ -146,18 +146,8 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: docker-compose.yml
           target: /data/coolify/services/${{ vars.COOLIFY_SUPABASE_SERVICE_ID }}/
-
-      - name: Apply compose changes
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            cd /data/coolify/services/${{ vars.COOLIFY_SUPABASE_SERVICE_ID }}
-            docker compose up -d --remove-orphans
-            sleep 5
-            docker ps --format "table {{.Names}}\t{{.Status}}" | grep supabase
+      # Hinweis: Kein automatisches `docker compose up` — Coolify verwaltet die Container.
+      # Nach Compose-Änderungen manuell in Coolify redeployen.
 
   # ─── 5. Build React App ───────────────────────────────
   build:

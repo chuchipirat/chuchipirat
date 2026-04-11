@@ -10,6 +10,7 @@
  * const html = renderEmailTemplate("recipe-comment", { recipeName: "Pasta", commenterName: "Max" });
  */
 import {escapeHtml, LOGO_URL} from "./emailService.ts";
+import Handlebars from "https://esm.sh/handlebars@4.7.8";
 
 /* =====================================================================
 // Template-Dateien (als Strings eingebettet)
@@ -339,6 +340,7 @@ const BODY_TEMPLATES: Record<string, string> = {
                 Dauert nur ein paar Minuten — versprochen! 😊
               </p>
 
+              {{#unless hasDonated}}
               <!-- Trennlinie -->
               <hr style="margin: 32px 0; border: none; border-top: 1px solid #e0e0e0;" />
 
@@ -360,6 +362,7 @@ const BODY_TEMPLATES: Record<string, string> = {
                   </td>
                 </tr>
               </table>
+              {{/unless}}
 
               <!-- Trennlinie -->
               <hr style="margin: 32px 0; border: none; border-top: 1px solid #e0e0e0;" />
@@ -474,9 +477,24 @@ const BODY_TEMPLATES: Record<string, string> = {
  *   authorDisplayName: "Anna Koch",
  * });
  */
+/** Templates, die Handlebars-Syntax verwenden ({{#if}}, {{#unless}} etc.) */
+const HANDLEBARS_TEMPLATES = new Set(["event-review"]);
+
+/**
+ * Rendert ein E-Mail-Template mit Variablen-Ersetzung.
+ *
+ * Templates in HANDLEBARS_TEMPLATES werden mit Handlebars gerendert
+ * (unterstützt Conditionals wie {{#if}}, {{#unless}}). Alle anderen
+ * verwenden einfache {{variable}}-Ersetzung.
+ *
+ * @param templateName Name des Templates (Key in BODY_TEMPLATES)
+ * @param variables Variablen, die HTML-escaped werden
+ * @param rawVariables Variablen, die NICHT escaped werden (bereits sicher)
+ * @returns Vollständiges HTML-Dokument
+ */
 export function renderEmailTemplate(
   templateName: string,
-  variables: Record<string, string>,
+  variables: Record<string, unknown>,
   rawVariables: Record<string, string> = {},
 ): string {
   const bodyTemplate = BODY_TEMPLATES[templateName];
@@ -484,22 +502,34 @@ export function renderEmailTemplate(
     throw new Error(`E-Mail-Template "${templateName}" nicht gefunden`);
   }
 
-  // Alle Variablen HTML-escapen
-  const safeVars: Record<string, string> = {};
-  for (const [key, value] of Object.entries(variables)) {
-    safeVars[key] = escapeHtml(value);
-  }
-
-  // Rohe Variablen unverändert übernehmen (bereits escaped)
-  for (const [key, value] of Object.entries(rawVariables)) {
-    safeVars[key] = value;
-  }
-
-  // Header, Body und Footer zusammenbauen und Platzhalter ersetzen
   const fullTemplate = HEADER + bodyTemplate + FOOTER;
-  const rendered = fullTemplate.replace(/\{\{(\w+)\}\}/g, (match, key) => {
-    return safeVars[key] ?? match;
-  });
+
+  let rendered: string;
+
+  if (HANDLEBARS_TEMPLATES.has(templateName)) {
+    // Handlebars-Rendering (unterstützt Conditionals, Loops etc.)
+    const safeVars: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(variables)) {
+      safeVars[key] = typeof value === "string" ? escapeHtml(value) : value;
+    }
+    for (const [key, value] of Object.entries(rawVariables)) {
+      safeVars[key] = value;
+    }
+    const template = Handlebars.compile(fullTemplate);
+    rendered = template(safeVars);
+  } else {
+    // Einfache {{variable}}-Ersetzung (Legacy)
+    const safeVars: Record<string, string> = {};
+    for (const [key, value] of Object.entries(variables)) {
+      safeVars[key] = escapeHtml(String(value));
+    }
+    for (const [key, value] of Object.entries(rawVariables)) {
+      safeVars[key] = value;
+    }
+    rendered = fullTemplate.replace(/\{\{(\w+)\}\}/g, (match, key) => {
+      return safeVars[key] ?? match;
+    });
+  }
 
   // Trailing Whitespace pro Zeile entfernen, damit SMTP Quoted-Printable
   // keine `=20`-Artefakte erzeugt (z.B. wenn ein optionaler Block leer ist)
