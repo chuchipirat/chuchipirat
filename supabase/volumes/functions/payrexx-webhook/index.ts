@@ -79,13 +79,14 @@ function timingSafeEqual(a: string, b: string): boolean {
  * @param secret Der Payrexx API Secret.
  * @returns true wenn die Signatur gültig ist.
  */
+/**
+ * Prüft die Webhook-Signatur mit dem Secret als UTF-8-String.
+ */
 async function verifyWebhookSignature(
   rawBody: string,
   signature: string,
   secret: string,
 ): Promise<boolean> {
-  // Payrexx sendet die Signatur als Hex-String, createPayrexxSignature
-  // gibt Base64 zurück → direkt Hex berechnen für den Vergleich.
   const encoder = new TextEncoder();
   const key = await crypto.subtle.importKey(
     "raw",
@@ -94,6 +95,31 @@ async function verifyWebhookSignature(
     false,
     ["sign"],
   );
+  const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+  const expectedHex = Array.from(new Uint8Array(signed))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return timingSafeEqual(expectedHex, signature);
+}
+
+/**
+ * Prüft die Webhook-Signatur mit dem Secret als Base64-decodierter Key.
+ * Payrexx verwendet in PHP: hash_hmac('sha256', $data, base64_decode($secret))
+ */
+async function verifyWebhookSignatureB64(
+  rawBody: string,
+  signature: string,
+  secret: string,
+): Promise<boolean> {
+  const decodedSecret = Uint8Array.from(atob(secret), (char) => char.charCodeAt(0));
+  const key = await crypto.subtle.importKey(
+    "raw",
+    decodedSecret,
+    {name: "HMAC", hash: "SHA-256"},
+    false,
+    ["sign"],
+  );
+  const encoder = new TextEncoder();
   const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
   const expectedHex = Array.from(new Uint8Array(signed))
     .map((byte) => byte.toString(16).padStart(2, "0"))
@@ -187,13 +213,12 @@ serve(async (req: Request) => {
   if (receivedSignature) {
     const isValid = await verifyWebhookSignature(rawBody, receivedSignature, payrexxSecret);
     if (!isValid) {
-      // Debug: Signatur-Vergleich loggen (temporär, nach Behebung entfernen)
-      const encoder = new TextEncoder();
-      const key = await crypto.subtle.importKey("raw", encoder.encode(payrexxSecret), {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
-      const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-      const computedHex = Array.from(new Uint8Array(signed)).map((b) => b.toString(16).padStart(2, "0")).join("");
-      console.error(`payrexx-webhook: Signature mismatch — received: ${receivedSignature}, computed: ${computedHex}, bodyLength: ${rawBody.length}, secretLength: ${payrexxSecret.length}`);
-      return errorResponse("payrexx-webhook", "Invalid signature", 401);
+      // Payrexx verwendet base64_decode(secret) als HMAC-Key (PHP-Konvention)
+      const isValidB64 = await verifyWebhookSignatureB64(rawBody, receivedSignature, payrexxSecret);
+      if (!isValidB64) {
+        console.error("payrexx-webhook: Invalid webhook signature (both raw and base64-decoded secret tried)");
+        return errorResponse("payrexx-webhook", "Invalid signature", 401);
+      }
     }
   } else {
     // TODO(security): Signatur nach Payrexx-Webhook-Konfiguration als Pflicht setzen
