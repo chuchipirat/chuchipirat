@@ -61,6 +61,7 @@ const CRON_JOB_NAMES = [
   "cron-daily-digest",
   "cron-support-user-cleanup",
   "cron-event-review-email",
+  "cron-housekeeping",
 ] as const;
 
 /* ===================================================================
