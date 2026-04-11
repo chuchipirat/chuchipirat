@@ -65,6 +65,14 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
 
   /** firebase_uid → Supabase Auth UUID für Benutzer */
   private userAuthUidByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Postgres-ID für Rezepte */
+  private recipeIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Postgres-ID für Events */
+  private eventIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Postgres-ID für Produkte */
+  private productIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Postgres-ID für Materialien */
+  private materialIdByFirebaseUid: Map<string, string> = new Map();
   /** Bereits migrierte Feeds (firebase_uid) — für schnelle checkExists-Prüfung */
   private existingFirebaseUids: Set<string> | null = null;
 
@@ -170,13 +178,39 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
     // Erstellungszeitpunkt
     const createdAt = this.toIsoString(data.created?.date);
 
+    // source_object_uid auflösen: Firebase-UID → Supabase-ID
+    const firebaseSourceUid = data.sourceObject?.uid ?? "";
+    let resolvedSourceUid: string | null = null;
+    switch (sourceObjectType) {
+      case "recipe":
+        resolvedSourceUid = this.recipeIdByFirebaseUid.get(firebaseSourceUid) ?? null;
+        break;
+      case "event":
+        resolvedSourceUid = this.eventIdByFirebaseUid.get(firebaseSourceUid) ?? null;
+        break;
+      case "product":
+        resolvedSourceUid = this.productIdByFirebaseUid.get(firebaseSourceUid) ?? null;
+        break;
+      case "material":
+        resolvedSourceUid = this.materialIdByFirebaseUid.get(firebaseSourceUid) ?? null;
+        break;
+      case "user":
+        resolvedSourceUid = this.userAuthUidByFirebaseUid.get(firebaseSourceUid) ?? null;
+        break;
+    }
+
+    if (!resolvedSourceUid) {
+      // Quellobjekt nicht gefunden — Feed überspringen
+      return;
+    }
+
     await client.from("feeds").insert({
       firebase_uid: record.id,
       feed_type: feedType,
       visibility: visibility,
       user_uid: userUid,
       source_object_type: sourceObjectType,
-      source_object_uid: data.sourceObject?.uid ?? "",
+      source_object_uid: resolvedSourceUid,
       source_object_data: data.sourceObject?.additionalData
         ? data.sourceObject.additionalData
         : null,
@@ -253,24 +287,40 @@ export class FeedMigrationJob implements MigrationJob<FirebaseFeed> {
   private async buildLookupMaps(): Promise<void> {
     const client = supabaseAdmin!;
 
-    // Benutzer: legacy_firebase_uid → id (UUID)
-    const userRows = await fetchAllRows(client, "users", "id, legacy_firebase_uid",
-      (query) => query.not("legacy_firebase_uid", "is", null));
+    // Alle Lookup-Maps parallel laden
+    const [userRows, recipeRows, eventRows, productRows, materialRows, existingRows] = await Promise.all([
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
+      fetchAllRows(client, "recipes", "id, firebase_uid",
+        (query) => query.not("firebase_uid", "is", null)),
+      fetchAllRows(client, "events", "id, firebase_uid",
+        (query) => query.not("firebase_uid", "is", null)),
+      fetchAllRows(client, "products", "id, firebase_uid",
+        (query) => query.not("firebase_uid", "is", null)),
+      fetchAllRows(client, "materials", "id, firebase_uid",
+        (query) => query.not("firebase_uid", "is", null)),
+      fetchAllRows(client, "feeds", "firebase_uid",
+        (query) => query.not("firebase_uid", "is", null)),
+    ]);
 
     for (const row of userRows) {
       if (row.legacy_firebase_uid && row.id) {
-        this.userAuthUidByFirebaseUid.set(
-          row.legacy_firebase_uid as string,
-          row.id as string,
-        );
+        this.userAuthUidByFirebaseUid.set(row.legacy_firebase_uid as string, row.id as string);
       }
     }
+    for (const row of recipeRows) {
+      if (row.firebase_uid) this.recipeIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
+    }
+    for (const row of eventRows) {
+      if (row.firebase_uid) this.eventIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
+    }
+    for (const row of productRows) {
+      if (row.firebase_uid) this.productIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
+    }
+    for (const row of materialRows) {
+      if (row.firebase_uid) this.materialIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
+    }
 
-    // Bereits migrierte Feeds laden (für In-Memory checkExists)
-    const existingRows = await fetchAllRows(
-      client, "feeds", "firebase_uid",
-      (query) => query.not("firebase_uid", "is", null),
-    );
     this.existingFirebaseUids = new Set(
       existingRows.map((row) => row.firebase_uid as string),
     );
