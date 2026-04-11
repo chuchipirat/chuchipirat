@@ -102,30 +102,6 @@ async function verifyWebhookSignature(
   return timingSafeEqual(expectedHex, signature);
 }
 
-/**
- * Prüft die Webhook-Signatur mit dem Secret als Base64-decodierter Key.
- * Payrexx verwendet in PHP: hash_hmac('sha256', $data, base64_decode($secret))
- */
-async function verifyWebhookSignatureB64(
-  rawBody: string,
-  signature: string,
-  secret: string,
-): Promise<boolean> {
-  const decodedSecret = Uint8Array.from(atob(secret), (char) => char.charCodeAt(0));
-  const key = await crypto.subtle.importKey(
-    "raw",
-    decodedSecret,
-    {name: "HMAC", hash: "SHA-256"},
-    false,
-    ["sign"],
-  );
-  const encoder = new TextEncoder();
-  const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
-  const expectedHex = Array.from(new Uint8Array(signed))
-    .map((byte) => byte.toString(16).padStart(2, "0"))
-    .join("");
-  return timingSafeEqual(expectedHex, signature);
-}
 
 /**
  * Verifiziert eine Transaktion direkt via Payrexx API (GET).
@@ -196,6 +172,8 @@ serve(async (req: Request) => {
     return errorResponse("payrexx-webhook", "Missing Supabase config", 500);
   }
 
+  const payrexxWebhookSigningKey = Deno.env.get("PAYREXX_WEBHOOK_SIGNING_KEY");
+
   if (!payrexxInstance || !payrexxSecret) {
     return errorResponse("payrexx-webhook", "Missing Payrexx config", 500);
   }
@@ -211,17 +189,16 @@ serve(async (req: Request) => {
   // Webhook-Signatur prüfen (Payrexx sendet X-Webhook-Signature Header)
   const receivedSignature = req.headers.get("X-Webhook-Signature");
   if (receivedSignature) {
-    const isValid = await verifyWebhookSignature(rawBody, receivedSignature, payrexxSecret);
-    if (!isValid) {
-      const isValidB64 = await verifyWebhookSignatureB64(rawBody, receivedSignature, payrexxSecret);
-      if (!isValidB64) {
-        // TODO(security): Signaturprüfung ist deaktiviert bis das korrekte Signing-Verfahren geklärt ist.
-        // Payrexx verifiziert sich zusätzlich via API-Abfrage in verifyTransactionViaApi().
-        console.warn("payrexx-webhook: Signature mismatch — skipping (API verification as fallback)");
+    if (!payrexxWebhookSigningKey) {
+      console.warn("payrexx-webhook: PAYREXX_WEBHOOK_SIGNING_KEY not set — skipping signature verification");
+    } else {
+      const isValid = await verifyWebhookSignature(rawBody, receivedSignature, payrexxWebhookSigningKey);
+      if (!isValid) {
+        console.error("payrexx-webhook: Invalid webhook signature");
+        return errorResponse("payrexx-webhook", "Invalid signature", 401);
       }
     }
   } else {
-    // TODO(security): Signatur nach Payrexx-Webhook-Konfiguration als Pflicht setzen
     console.warn("payrexx-webhook: No X-Webhook-Signature header — skipping verification");
   }
 
