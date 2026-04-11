@@ -441,18 +441,25 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   ): Promise<Map<string, string>> {
     if (userIds.length === 0) return new Map();
 
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select("id, display_name")
-      .in("id", userIds);
+    // In Batches abfragen, um URL-Längenlimits zu vermeiden
+    // (jede UUID hat 36 Zeichen — bei >50 IDs wird die URL zu lang für CORS-Preflight)
+    const BATCH_SIZE = 50;
+    const result = new Map<string, string>();
 
-    if (error) throw error;
-    return new Map(
-      (data ?? []).map((row: {id: string; display_name: string}) => [
-        row.id,
-        row.display_name,
-      ]),
-    );
+    for (let offset = 0; offset < userIds.length; offset += BATCH_SIZE) {
+      const batch = userIds.slice(offset, offset + BATCH_SIZE);
+      const {data, error} = await this.client
+        .from(this.tableName)
+        .select("id, display_name")
+        .in("id", batch);
+
+      if (error) throw error;
+      for (const row of (data ?? []) as {id: string; display_name: string}[]) {
+        result.set(row.id, row.display_name);
+      }
+    }
+
+    return result;
   }
 
   /* =====================================================================
