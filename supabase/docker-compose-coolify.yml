@@ -508,3 +508,13 @@ services:
       - "8025:8025"
     networks:
       - ${COOLIFY_SERVICE_ID}
+networks:
+  ${COOLIFY_SERVICE_ID}:
+    external: true
+volumes:
+  supabase-db-data:
+    external: true
+    name: ${COOLIFY_SERVICE_ID}_supabase-db-data
+  supabase-db-config:
+    external: true
+    name: ${COOLIFY_SERVICE_ID}_supabase-db-config
