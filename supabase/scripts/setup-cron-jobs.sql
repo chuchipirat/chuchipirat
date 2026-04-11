@@ -6,14 +6,13 @@
 --
 -- Voraussetzungen:
 --   1. pg_cron und pg_net Extensions aktiviert
---   2. app.supabase_url in Postgres gesetzt:
+--   2. Postgres-Konfiguration gesetzt:
 --      ALTER SYSTEM SET app.supabase_url = 'http://kong:8000';
+--      ALTER SYSTEM SET app.service_role_key = '<SERVICE_ROLE_KEY>';
 --      SELECT pg_reload_conf();
---   3. Service Role Key bekannt (wird im Script als Platzhalter verwendet)
 --
 -- Anwendung:
 --   Im Supabase Studio SQL Editor ausführen.
---   SERVICE_ROLE_KEY durch den tatsächlichen Key ersetzen.
 -- =============================================================================
 
 -- Bestehende Jobs entfernen (idempotent)
@@ -35,7 +34,7 @@ SELECT cron.schedule(
   '15 2 * * *',
   $$SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-daily-digest',
-    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb,
+    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_role_key')),
     body := '{}'::jsonb
   )$$
 );
@@ -49,7 +48,7 @@ SELECT cron.schedule(
   '30 2 * * *',
   $$SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-support-user-cleanup',
-    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb,
+    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_role_key')),
     body := '{}'::jsonb
   )$$
 );
@@ -63,7 +62,7 @@ SELECT cron.schedule(
   '0 1 * * *',
   $$SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-event-review-email',
-    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb,
+    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_role_key')),
     body := '{}'::jsonb
   )$$
 );
@@ -77,7 +76,7 @@ SELECT cron.schedule(
   '0 3 * * 0',
   $$SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-housekeeping',
-    headers := '{"Authorization": "Bearer SERVICE_ROLE_KEY"}'::jsonb,
+    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_role_key')),
     body := '{}'::jsonb
   )$$
 );
