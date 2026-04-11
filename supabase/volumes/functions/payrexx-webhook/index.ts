@@ -187,7 +187,12 @@ serve(async (req: Request) => {
   if (receivedSignature) {
     const isValid = await verifyWebhookSignature(rawBody, receivedSignature, payrexxSecret);
     if (!isValid) {
-      console.error("payrexx-webhook: Invalid webhook signature");
+      // Debug: Signatur-Vergleich loggen (temporär, nach Behebung entfernen)
+      const encoder = new TextEncoder();
+      const key = await crypto.subtle.importKey("raw", encoder.encode(payrexxSecret), {name: "HMAC", hash: "SHA-256"}, false, ["sign"]);
+      const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+      const computedHex = Array.from(new Uint8Array(signed)).map((b) => b.toString(16).padStart(2, "0")).join("");
+      console.error(`payrexx-webhook: Signature mismatch — received: ${receivedSignature}, computed: ${computedHex}, bodyLength: ${rawBody.length}, secretLength: ${payrexxSecret.length}`);
       return errorResponse("payrexx-webhook", "Invalid signature", 401);
     }
   } else {
