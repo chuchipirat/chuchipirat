@@ -182,6 +182,12 @@ const OverviewDonationsPage = () => {
         width: 150,
         valueFormatter: (value: string | null) => value ?? "—",
       },
+      {
+        field: "donorMessage",
+        headerName: "Nachricht",
+        width: 250,
+        valueFormatter: (value: string | null) => value ?? "—",
+      },
     ],
     [],
   );

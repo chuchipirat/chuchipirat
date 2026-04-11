@@ -478,7 +478,7 @@ const BODY_TEMPLATES: Record<string, string> = {
  * });
  */
 /** Templates, die Handlebars-Syntax verwenden ({{#if}}, {{#unless}} etc.) */
-const HANDLEBARS_TEMPLATES = new Set(["event-review"]);
+const HANDLEBARS_TEMPLATES = new Set(["event-review", "daily-digest"]);
 
 /**
  * Rendert ein E-Mail-Template mit Variablen-Ersetzung.

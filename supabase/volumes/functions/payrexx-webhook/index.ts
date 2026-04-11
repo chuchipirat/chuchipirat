@@ -325,7 +325,7 @@ serve(async (req: Request) => {
           const {data: donor} = await adminClient
             .from("users")
             .select("display_name, email")
-            .eq("auth_uid", donation.donor_uid)
+            .eq("id", donation.donor_uid)
             .single();
 
           if (donor?.email) {

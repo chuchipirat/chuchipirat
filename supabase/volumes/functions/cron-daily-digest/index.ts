@@ -110,6 +110,14 @@ type NewRecipeComment = {
   author_name: string;
 };
 
+/** Bestätigte Spende für die Digest-Anzeige. */
+type ConfirmedDonation = {
+  donor_name: string;
+  amount: string;
+  event_name: string;
+  message: string;
+};
+
 /** Aggregierter Zähler pro aktionsbasiertem Feed-Typ. */
 type ActionCount = {feed_type: string; count: number};
 
@@ -438,6 +446,32 @@ async function fetchActionFeedCounts(
     .sort((sortA, sortB) => sortB.count - sortA.count);
 }
 
+/**
+ * Lädt alle gestern bestätigten Spenden aus der donations_view.
+ */
+async function fetchConfirmedDonations(
+  client: SupabaseClient,
+  start: string,
+  end: string
+): Promise<ConfirmedDonation[]> {
+  const {data, error} = await client
+    .from("donations_view")
+    .select("donor_display_name, amount_in_cents, event_name, donor_message")
+    .eq("status", "confirmed")
+    .gte("paid_at", start)
+    .lte("paid_at", end)
+    .order("paid_at", {ascending: true});
+
+  if (error) throw new Error(`Spenden-Abfrage fehlgeschlagen: ${error.message}`);
+
+  return (data ?? []).map((row: {donor_display_name: string | null; amount_in_cents: number; event_name: string | null; donor_message: string | null}) => ({
+    donor_name: row.donor_display_name ?? "Anonym",
+    amount: `CHF ${(row.amount_in_cents / 100).toFixed(2)}`,
+    event_name: row.event_name ?? "—",
+    message: row.donor_message ?? "",
+  }));
+}
+
 /* =====================================================================
 // Sektions-Builder
 // ===================================================================== */
@@ -629,6 +663,33 @@ function buildActionCountsSection(counts: ActionCount[]): string {
 }
 
 /**
+ * Baut den HTML-Block für bestätigte Spenden.
+ */
+function buildDonationsSection(donations: ConfirmedDonation[]): string {
+  if (donations.length === 0) return "";
+
+  const totalCents = donations.reduce((sum, donation) => {
+    const cents = Math.round(parseFloat(donation.amount.replace("CHF ", "")) * 100);
+    return sum + cents;
+  }, 0);
+  const totalFormatted = `CHF ${(totalCents / 100).toFixed(2)}`;
+
+  const rows = donations
+    .map((donation) => {
+      const messageCol = donation.message ? ` — «${donation.message}»` : "";
+      return `<tr>${td(donation.donor_name + messageCol)}${td(donation.amount, {align: "right", fontWeight: "600"})}${td(donation.event_name)}</tr>`;
+    })
+    .join("\n");
+
+  return (
+    sectionHeading(`Spenden (${donations.length}, Total: ${totalFormatted})`) +
+    tableOpen(["Spender*in", "Betrag", "Anlass"]) +
+    rows +
+    TABLE_CLOSE
+  );
+}
+
+/**
  * Baut den HTML-Block für offene Anträge.
  *
  * @param openRequests Array offener Anträge aus requests_view.
@@ -694,6 +755,7 @@ function buildPlaintext(
   products: NewProduct[],
   materials: NewMaterial[],
   actionCounts: ActionCount[],
+  donations: ConfirmedDonation[],
   openRequestCount: number
 ): string {
   const sections: string[] = [];
@@ -777,6 +839,20 @@ function buildPlaintext(
     );
   }
 
+  if (donations.length > 0) {
+    sections.push(
+      "Spenden:\n" +
+        donations
+          .map(
+            (donation) =>
+              `  • ${donation.donor_name}: ${donation.amount}` +
+              (donation.event_name !== "—" ? ` (${donation.event_name})` : "") +
+              (donation.message ? ` — «${donation.message}»` : "")
+          )
+          .join("\n")
+    );
+  }
+
   if (openRequestCount > 0) {
     sections.push(`Offene Anträge: ${openRequestCount}`);
   }
@@ -832,7 +908,7 @@ serve(async (req: Request) => {
       getYesterdayBoundaries();
 
     // 1. Alle Datenquellen parallel abfragen
-    const [newUsers, newEvents, newRecipes, recipeComments, newProducts, newMaterials, actionCounts, requestResult] =
+    const [newUsers, newEvents, newRecipes, recipeComments, newProducts, newMaterials, actionCounts, confirmedDonations, requestResult] =
       await Promise.all([
         fetchNewUsers(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchNewEvents(supabaseAdmin, yesterdayStart, yesterdayEnd),
@@ -841,6 +917,7 @@ serve(async (req: Request) => {
         fetchNewProducts(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchNewMaterials(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchActionFeedCounts(supabaseAdmin, yesterdayStart, yesterdayEnd),
+        fetchConfirmedDonations(supabaseAdmin, yesterdayStart, yesterdayEnd),
         supabaseAdmin
           .from("requests_view")
           .select("number, request_type, created_at, author_display_name")
@@ -871,7 +948,8 @@ serve(async (req: Request) => {
       newRecipes.length > 0 ||
       recipeComments.length > 0 ||
       newProducts.length > 0 ||
-      newMaterials.length > 0;
+      newMaterials.length > 0 ||
+      confirmedDonations.length > 0;
     const hasContent =
       hasCreationActivity || totalActionFeeds > 0 || openRequests.length > 0;
 
@@ -918,7 +996,8 @@ serve(async (req: Request) => {
       buildRecipeCommentsSection(recipeComments) +
       buildProductsSection(newProducts) +
       buildMaterialsSection(newMaterials) +
-      buildActionCountsSection(actionCounts);
+      buildActionCountsSection(actionCounts) +
+      buildDonationsSection(confirmedDonations);
 
     const openRequestsHtml = buildOpenRequestsHtml(openRequests);
 
@@ -949,6 +1028,7 @@ serve(async (req: Request) => {
           newProducts,
           newMaterials,
           actionCounts,
+          confirmedDonations,
           openRequests.length
         );
 
@@ -973,6 +1053,7 @@ serve(async (req: Request) => {
       recipeComments: recipeComments.length,
       newProducts: newProducts.length,
       newMaterials: newMaterials.length,
+      confirmedDonations: confirmedDonations.length,
       actionFeeds: totalActionFeeds,
       openRequests: openRequests.length,
     };
@@ -1007,6 +1088,7 @@ serve(async (req: Request) => {
         `(${newUsers.length} Benutzer, ${newEvents.length} Anlässe, ` +
         `${newRecipes.length} Rezepte, ${recipeComments.length} Kommentare, ` +
         `${newProducts.length} Produkte, ${newMaterials.length} Material, ` +
+        `${confirmedDonations.length} Spenden, ` +
         `${totalActionFeeds} Feeds, ${openRequests.length} offene Anträge)`
     );
 
