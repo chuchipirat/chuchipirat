@@ -63,7 +63,8 @@ CREATE TYPE public.shopping_list_edit_source AS ENUM (
 CREATE TYPE public.feed_type AS ENUM (
   'userCreated', 'recipePublished', 'recipeRated', 'recipeCommented',
   'eventCreated', 'eventCookAdded', 'shoppingListCreated',
-  'productCreated', 'materialCreated', 'profilePictureChanged'
+  'productCreated', 'materialCreated', 'profilePictureChanged',
+  'donationConfirmed'
 );
 
 -- Donations

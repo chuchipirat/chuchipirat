@@ -347,9 +347,7 @@ serve(async (req: Request) => {
               eventName = eventRow?.name ?? "";
             }
 
-            const donatePageUrl = donation.event_id
-              ? `${appUrl}/event/${donation.event_id}`
-              : `${appUrl}/donate`;
+            const donatePageUrl = `${appUrl}/donate`;
 
             const subject = "Danke für deine Spende — chuchipirat";
             const htmlContent = renderEmailTemplate("donation-confirmed", {
