@@ -33,6 +33,7 @@ export const AnalyticsEvent = {
   MENUPLAN_RECIPE_ADDED: "menuplan_recipe_added",
   MENUPLAN_RECIPE_MOVED: "menuplan_recipe_moved",
   MENUPLAN_CONSISTENCY_ERRORS: "menuplan_consistency_errors",
+  MENUPLAN_CONSISTENCY_OK: "menuplan_consistency_ok",
 
   // ── Listen ──
   USED_RECIPES_GENERATED: "used_recipes_generated",

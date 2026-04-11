@@ -1707,6 +1707,7 @@ const EventPage = () => {
           message: TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
         },
       });
+      trackEvent(AnalyticsEvent.MENUPLAN_CONSISTENCY_OK);
     }
     Sentry.addBreadcrumb({category: "event.consistency", message: "Konsistenzprüfung abgeschlossen"});
     ("Konsistenzprüfung abgeschlossen.");
