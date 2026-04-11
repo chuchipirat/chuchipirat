@@ -81,6 +81,7 @@ GRANT ALL ON public.mail_log TO authenticated;
 -- administrative Operationen benötigt.
 GRANT ALL ON ALL TABLES IN SCHEMA public TO service_role;
 GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO service_role;
+GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO service_role;
 
 -- anon: selective SELECT only (3 tables/views)
 GRANT SELECT ON public.global_settings TO anon;

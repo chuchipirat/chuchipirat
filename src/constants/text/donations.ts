@@ -25,7 +25,7 @@ export const DONATION_CUSTOM_AMOUNT = "Anderer Betrag";
 // ===================================================================== */
 export const DONATION_RESULT_SUCCESS_TITLE = "Vielen Dank für deine Spende!";
 export const DONATION_RESULT_SUCCESS_TEXT =
-  "Deine Zahlung wird verarbeitet. Du erhältst in Kürze eine Bestätigung per E-Mail.";
+  "Deine Zahlung wird verarbeitet. Du erhältst in Kürze eine Bestätigung per E-Mail. Die Spendenquittung kannst du jederzeit unter «Informationen zum Anlass» herunterladen.";
 export const DONATION_RESULT_FAILED_TITLE =
   "Zahlung konnte nicht verarbeitet werden";
 export const DONATION_RESULT_FAILED_TEXT =
