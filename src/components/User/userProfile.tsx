@@ -25,6 +25,7 @@ import {
   AssignmentInd as AssignmentIndIcon,
   PhotoCamera as PhotoCameraIcon,
   Delete as DeleteIcon,
+  FileDownload as FileDownloadIcon,
 } from "@mui/icons-material";
 
 import {PASSWORD_CHANGE as ROUTE_PASSWORD_CHANGE} from "../../constants/routes";
@@ -74,6 +75,20 @@ import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {FeedType} from "../Shared/feed.class";
 import {LocalStorageKey} from "../../constants/localStorage";
+import {DonationDomain} from "../Donate/donation.types";
+import {DonationReceiptPdf} from "../Donate/DonationReceiptPdf";
+import {generateAndDownloadPdf} from "../Shared/pdfUtils";
+
+import {
+  IconButton,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Tooltip,
+} from "@mui/material";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -262,6 +277,7 @@ const UserProfilePage = () => {
   const [state, dispatch] = React.useReducer(userProfileReducer, initialState);
 
   const [editMode, setEditMode] = React.useState(false);
+  const [donations, setDonations] = React.useState<DonationDomain[]>([]);
   /* ------------------------------------------
   // Daten aus DB lesen
   // ------------------------------------------ */
@@ -288,6 +304,16 @@ const UserProfilePage = () => {
           payload: error,
         });
       });
+  }, [authUser?.uid]);
+  /* ------------------------------------------
+  // Spenden laden
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (!authUser) return;
+    database.donations
+      .getMyDonations(authUser)
+      .then((result) => setDonations(result.filter((donation) => donation.status === "confirmed")))
+      .catch((error) => Sentry.captureException(error));
   }, [authUser?.uid]);
   /* ------------------------------------------
   // Änderungsmodus aktivieren
@@ -498,6 +524,9 @@ const UserProfilePage = () => {
                 onFieldChange={onChangeField}
               />
               <AchievedRewardsCard publicProfile={state.userProfile} />
+              {donations.length > 0 && (
+                <DonationsCard donations={donations} authUser={authUser!} />
+              )}
             </React.Fragment>
           )}
         </Stack>
@@ -819,5 +848,81 @@ const AchievedRewardsCard = React.memo(({publicProfile}: AchievedRewardsCardProp
   );
 });
 AchievedRewardsCard.displayName = "AchievedRewardsCard";
+
+/* ===================================================================
+// ========================= Meine Spenden ==========================
+// =================================================================== */
+interface DonationsCardProps {
+  donations: DonationDomain[];
+  authUser: AuthUser;
+}
+/**
+ * Karte mit der Spendenhistorie des Benutzers.
+ * Zeigt alle bestätigten Spenden mit Datum, Betrag, Anlass und
+ * Download-Button für die Spendenquittung.
+ *
+ * @param donations - Liste der bestätigten Spenden des Benutzers.
+ * @param authUser - Der angemeldete Benutzer (für PDF-Generierung).
+ */
+const DonationsCard = React.memo(({donations, authUser}: DonationsCardProps) => {
+  const classes = useCustomStyles();
+
+  const handleDownloadReceipt = async (donation: DonationDomain) => {
+    await generateAndDownloadPdf(
+      <DonationReceiptPdf donation={donation} authUser={authUser} />,
+      `Spendenquittung${donation.eventName ? ` ${donation.eventName}` : ""}.pdf`,
+    );
+  };
+
+  return (
+    <Card>
+      <CardContent sx={classes.cardContent}>
+        <Typography gutterBottom variant="h5" component="h2">
+          Meine Spenden
+        </Typography>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Datum</TableCell>
+                <TableCell align="right">Betrag</TableCell>
+                <TableCell>Anlass</TableCell>
+                <TableCell align="center">Quittung</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {donations.map((donation) => (
+                <TableRow key={donation.id}>
+                  <TableCell>
+                    {donation.paidAt?.toLocaleDateString("de-CH", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                    }) ?? "—"}
+                  </TableCell>
+                  <TableCell align="right">
+                    CHF {(donation.amountInCents / 100).toFixed(2)}
+                  </TableCell>
+                  <TableCell>{donation.eventName || "—"}</TableCell>
+                  <TableCell align="center">
+                    <Tooltip title="Quittung herunterladen">
+                      <IconButton
+                        size="small"
+                        onClick={() => handleDownloadReceipt(donation)}
+                      >
+                        <FileDownloadIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      </CardContent>
+    </Card>
+  );
+});
+DonationsCard.displayName = "DonationsCard";
 
 export {UserProfilePage};

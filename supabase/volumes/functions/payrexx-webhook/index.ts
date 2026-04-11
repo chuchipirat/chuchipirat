@@ -324,7 +324,7 @@ serve(async (req: Request) => {
               eventName = eventRow?.name ?? "";
             }
 
-            const donatePageUrl = `${appUrl}/donate`;
+            const donatePageUrl = `${appUrl}/profile`;
 
             const subject = "Danke für deine Spende — chuchipirat";
             const htmlContent = renderEmailTemplate("donation-confirmed", {
@@ -346,7 +346,7 @@ serve(async (req: Request) => {
               (eventName ? `Anlass: ${eventName}\n` : "") +
               `Quittungsnummer: ${receiptNumber || "—"}\n\n` +
               `Deine Spende hilft uns, den chuchipirat weiterzuentwickeln und weiterhin kostenlos anzubieten.\n\n` +
-              `Quittung herunterladen: ${donatePageUrl}\n\n` +
+              `Spendenquittung herunterladen: ${donatePageUrl} (unter «Meine Spenden»)\n\n` +
               `Merci 1000!\nVerein chuchipirat`;
 
             await sendEmail(emailEnv, donor.email, subject, htmlContent, textContent);

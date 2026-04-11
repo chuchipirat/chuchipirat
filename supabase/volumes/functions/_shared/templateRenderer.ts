@@ -423,7 +423,7 @@ const BODY_TEMPLATES: Record<string, string> = {
                     <a href="{{donatePageUrl}}"
                        target="_blank"
                        style="display: inline-block; background-color: #006064; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 36px; border-radius: 8px; letter-spacing: 0.3px;">
-                      Quittung herunterladen
+                      Spendenquittung herunterladen
                     </a>
                   </td>
                 </tr>
