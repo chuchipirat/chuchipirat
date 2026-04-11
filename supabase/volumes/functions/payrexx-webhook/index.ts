@@ -84,8 +84,21 @@ async function verifyWebhookSignature(
   signature: string,
   secret: string,
 ): Promise<boolean> {
-  const expected = await createPayrexxSignature(rawBody, secret);
-  return timingSafeEqual(expected, signature);
+  // Payrexx sendet die Signatur als Hex-String, createPayrexxSignature
+  // gibt Base64 zurück → direkt Hex berechnen für den Vergleich.
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw",
+    encoder.encode(secret),
+    {name: "HMAC", hash: "SHA-256"},
+    false,
+    ["sign"],
+  );
+  const signed = await crypto.subtle.sign("HMAC", key, encoder.encode(rawBody));
+  const expectedHex = Array.from(new Uint8Array(signed))
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return timingSafeEqual(expectedHex, signature);
 }
 
 /**
