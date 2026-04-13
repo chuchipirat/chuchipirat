@@ -301,9 +301,9 @@ const BODY_TEMPLATES: Record<string, string> = {
                 Hier ist die Aktivitäts-Zusammenfassung für den <strong>{{date}}</strong>:
               </p>
 
-              {{contentSections}}
+              {{{contentSections}}}
 
-              {{openRequestsBlock}}
+              {{{openRequestsBlock}}}
 
               <p style="margin: 24px 0 0; font-size: 14px; color: #757575; line-height: 1.5;">
                 Diese Zusammenfassung wird täglich automatisch an alle Community Leaders versandt.
