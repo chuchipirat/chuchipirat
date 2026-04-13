@@ -187,6 +187,11 @@ jobs:
           VITE_UMAMI_WEBSITE_ID: ${{ secrets.VITE_UMAMI_WEBSITE_ID }}
           VITE_SUPPORT_USER_ID: ${{ secrets.VITE_SUPPORT_USER_ID }}
 
+          # ── Sentry Build (Source Maps + Bundle Size) ─────
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+          SENTRY_ORG: ${{ vars.SENTRY_ORG }}
+          SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+
       - name: Copy build to server
         uses: appleboy/scp-action@v0.1.7
         with:
