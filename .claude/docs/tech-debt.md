@@ -41,6 +41,25 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 - **Recipe loading: 5 parallel queries** — `recipe.tsx` and `recipe.edit.tsx` load a recipe via 4–5 separate parallel Supabase queries, plus a full products list just for name resolution. Refactor to use PostgREST embedded resources (single query with joins). Add `RecipeFullRow` interface, `getRecipeFull(id)` to `RecipeRepository`, `Recipe.fromFullRow()` factory method. Remove `getAllProducts()` workaround. See `database-and-supabase.md` for PostgREST embedded resource syntax.
   **Priorität:** mittel · **Komplexität:** gross
 
+## Bundle Size
+
+Identifiziert via Sentry Bundle Size Analysis (Build vom 13.04.2026). Die grössten Chunks bieten das meiste Optimierungspotenzial.
+
+- **`index.js` — 3.3 MB (gzip: 1.2 MB)** — Haupt-Bundle enthält zu viele Abhängigkeiten. Firebase SDK, Supabase SDK, Material UI, Sentry und React landen alle im selben Chunk. Nach Firebase-Removal reduziert sich das deutlich. Danach: `manualChunks` in Vite konfigurieren, um MUI, Supabase und Sentry in separate Vendor-Chunks auszulagern.
+  **Priorität:** mittel · **Komplexität:** gross
+
+- **`pdfUtils.js` — 2.5 MB (gzip: 758 KB)** — `@react-pdf/renderer` ist sehr gross. Wird nur für Spendenquittung und Rezept-PDF benötigt. Bereits lazy-loaded (eigener Chunk), aber die Bibliothek selbst ist schwer. Alternative: Server-side PDF-Generierung via Edge Function (z.B. mit `jsPDF` oder Puppeteer). Oder: akzeptieren, da nur bei PDF-Download geladen.
+  **Priorität:** tief · **Komplexität:** gross
+
+- **`RichTextEditor.js` — 400 KB (gzip: 129 KB)** — TipTap/ProseMirror Editor. Nur auf der Rezept-Bearbeitungsseite benötigt. Bereits lazy-loaded. Optimierung: prüfen ob alle TipTap-Extensions nötig sind, unnötige entfernen.
+  **Priorität:** tief · **Komplexität:** mittel
+
+- **`deDE.js` — 345 KB (gzip: 104 KB)** — MUI DataGrid Deutsch-Lokalisierung. Wird für Admin-Übersichtsseiten verwendet. Bereits lazy-loaded. Kaum optimierbar (MUI-intern).
+  **Priorität:** tief · **Komplexität:** klein
+
+- **`event.js` — 227 KB (gzip: 62 KB)** — Event-Seite (Menuplan, Listen, Gruppenconfig) ist die grösste Einzelseite. Könnte in Sub-Tabs aufgeteilt werden (Tab-basiertes Code-Splitting).
+  **Priorität:** mittel · **Komplexität:** gross
+
 ## Naming
 
 - **`src/components/Shared/enviroment.class.ts`** — Firebase-abhängig, Dateiname-Tippfehler (enviroment → environment), `console.error`. Vollständige Migration nach Supabase erforderlich.
