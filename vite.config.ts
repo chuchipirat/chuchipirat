@@ -34,6 +34,9 @@ export default defineConfig({
       authToken: process.env.SENTRY_AUTH_TOKEN,
       release: {
         name: process.env.npm_package_version,
+        setCommits: {
+          auto: true,
+        },
       },
       sourcemaps: {
         filesToDeleteAfterUpload: ["./build/**/*.map"],
