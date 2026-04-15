@@ -850,10 +850,18 @@ export function getEventDateList({event}: GetEventDateListParams): Date[] {
 
   const dateRanges = Event.deleteEmptyDates(event.dates);
   dateRanges.forEach((daterange) => {
+    // Beide Daten auf lokale Mitternacht normalisieren, damit der Vergleich
+    // unabhängig von Zeitzonen funktioniert. Supabase liefert date-Spalten als
+    // ISO-String (z.B. "2026-03-30"), die als UTC-Mitternacht geparst werden —
+    // in CET/CEST verschiebt sich das auf den Vortag (22:00/23:00).
     const currentDate = new Date(daterange.from);
-    while (currentDate <= daterange.to) {
-      dateList.push(new Date(currentDate.setHours(0, 0, 0, 0)));
+    currentDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(daterange.to);
+    endDate.setHours(23, 59, 59, 999);
+    while (currentDate <= endDate) {
+      dateList.push(new Date(currentDate));
       currentDate.setDate(currentDate.getDate() + 1);
+      currentDate.setHours(0, 0, 0, 0);
     }
   });
   return dateList;
