@@ -322,18 +322,18 @@ const SystemPage = () => {
               routeDestination={ROUTE_OVERVIEW_FEEDS}
             />
           </Grid>
+          <Grid size={{xs: 12, sm: 6, md: 4}}>
+            <AdminTile
+              id="overviewDonations"
+              text={TEXT_DONATIONS_OVERVIEW}
+              description={TEXT_DONATIONS_OVERVIEW_DESCRIPTION}
+              icon={<VolunteerActivismIcon />}
+              action={goToDestination}
+              routeDestination={ROUTE_SYSTEM_OVERVIEW_DONATIONS}
+            />
+          </Grid>
           {isAdmin && (
             <>
-              <Grid size={{xs: 12, sm: 6, md: 4}}>
-                <AdminTile
-                  id="overviewDonations"
-                  text={TEXT_DONATIONS_OVERVIEW}
-                  description={TEXT_DONATIONS_OVERVIEW_DESCRIPTION}
-                  icon={<VolunteerActivismIcon />}
-                  action={goToDestination}
-                  routeDestination={ROUTE_SYSTEM_OVERVIEW_DONATIONS}
-                />
-              </Grid>
               <Grid size={{xs: 12, sm: 6, md: 4}}>
                 <AdminTile
                   id="overviewUsers"
