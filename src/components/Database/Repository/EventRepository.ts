@@ -259,8 +259,11 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     return {
       uid: row.id,
       sortOrder: row.sort_order,
-      dateFrom: new Date(row.date_from),
-      dateTo: new Date(row.date_to),
+      // Supabase date-Spalten kommen als "YYYY-MM-DD". new Date("YYYY-MM-DD")
+      // parst als UTC-Mitternacht, was in CET/CEST den Vortag ergibt.
+      // "T00:00:00" anhängen erzwingt lokale Mitternacht.
+      dateFrom: new Date(row.date_from + "T00:00:00"),
+      dateTo: new Date(row.date_to + "T00:00:00"),
     };
   }
 
