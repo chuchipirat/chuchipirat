@@ -23,6 +23,7 @@ export const AnalyticsEvent = {
 
   // ── Events (Lager/Kurse) ──
   EVENT_CREATED: "event_created",
+  EVENT_COPIED: "event_copied",
   EVENT_DELETED: "event_deleted",
   EVENT_COOK_ADDED: "event_cook_added",
   EVENT_COOK_REMOVED: "event_cook_removed",

@@ -502,6 +502,51 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
   }
 
   /* =====================================================================
+  // Event kopieren (via RPC)
+  // ===================================================================== */
+  /**
+   * Kopiert ein Event atomar via die serverseitige RPC-Funktion `copy_event`.
+   *
+   * Erstellt eine vollständige Kopie inkl. Menüplan, Gruppenconfig und
+   * optional Kochcrew und Rezeptvarianten.
+   *
+   * @param sourceEventId ID des Quell-Events.
+   * @param newEvent Kopfdaten und Zeitscheiben für das neue Event.
+   * @param options Optionen (Kochcrew übernehmen, Varianten kopieren).
+   * @returns Die ID des neu erstellten Events.
+   * @throws PostgrestError bei Datenbankfehlern oder fehlender Berechtigung.
+   *
+   * @example
+   * const newId = await repo.copyEvent("abc-123", {
+   *   name: "Kopie von Sommerlager",
+   *   motto: "",
+   *   location: "",
+   *   dates: [{ date_from: "2026-08-01", date_to: "2026-08-05" }],
+   * }, { copy_cooks: false, copy_variants: false });
+   */
+  async copyEvent(
+    sourceEventId: string,
+    newEvent: {
+      name: string;
+      motto: string;
+      location: string;
+      dates: {date_from: string; date_to: string}[];
+    },
+    options: {
+      copy_cooks: boolean;
+      copy_variants: boolean;
+    },
+  ): Promise<string> {
+    const {data, error} = await this.client.rpc("copy_event", {
+      p_source_event_id: sourceEventId,
+      p_new_event: newEvent,
+      p_options: options,
+    });
+    if (error) throw error;
+    return data as string;
+  }
+
+  /* =====================================================================
   // Echtzeit-Abonnement für ein Event
   // ===================================================================== */
   /**
