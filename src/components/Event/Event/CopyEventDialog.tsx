@@ -170,6 +170,10 @@ const CopyEventDialog = ({
     buildInitialSlices(sourceEvent.dates),
   );
 
+  // Foto
+  const [selectedPhoto, setSelectedPhoto] = React.useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = React.useState<string | null>(null);
+
   // Optionen
   const [copyVariants, setCopyVariants] = React.useState(false);
   const [copyCooks, setCopyCooks] = React.useState(false);
@@ -184,6 +188,8 @@ const CopyEventDialog = ({
       setEventName(`Kopie von ${sourceEvent.name}`);
       setMotto("");
       setLocation("");
+      setSelectedPhoto(null);
+      setPhotoPreview(null);
       setSlices(buildInitialSlices(sourceEvent.dates));
       setCopyVariants(false);
       setCopyCooks(false);
@@ -235,6 +241,17 @@ const CopyEventDialog = ({
     });
   };
 
+  /** Foto-Auswahl verarbeiten. */
+  const handlePhotoChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedPhoto(file);
+    if (file) {
+      setPhotoPreview(URL.createObjectURL(file));
+    } else {
+      setPhotoPreview(null);
+    }
+  };
+
   /**
    * Sendet die Kopier-Anfrage an die Datenbank.
    */
@@ -264,6 +281,30 @@ const CopyEventDialog = ({
           copy_variants: copyVariants,
         },
       );
+
+      // Foto hochladen (falls ausgewählt)
+      if (selectedPhoto && newEventId) {
+        try {
+          const {resizeImage} = await import("../../Shared/imageResize");
+          const resizedBlob = await resizeImage(selectedPhoto);
+          const result = await database.storage.events.upload(
+            `${newEventId}.jpg`,
+            resizedBlob,
+            "image/jpeg",
+          );
+          // picture_src im neuen Event aktualisieren
+          await database.events.patch({
+            id: newEventId,
+            fields: {picture_src: result.publicUrl},
+            authUser: {uid: ""} as never,
+          });
+        } catch (photoError) {
+          // Foto-Upload-Fehler ist nicht kritisch — Event wurde erfolgreich kopiert
+          Sentry.captureException(photoError, {
+            extra: {context: "Foto-Upload nach Event-Kopie"},
+          });
+        }
+      }
 
       trackEvent(AnalyticsEvent.EVENT_COPIED);
       onSuccess(newEventId, eventName.trim());
@@ -316,6 +357,32 @@ const CopyEventDialog = ({
               size="small"
               placeholder="Optional"
             />
+
+            {/* Foto */}
+            <Stack direction="row" spacing={2} alignItems="center">
+              <Button variant="outlined" component="label" size="small">
+                Foto wählen
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  hidden
+                  onChange={handlePhotoChange}
+                />
+              </Button>
+              {photoPreview && (
+                <Box
+                  component="img"
+                  src={photoPreview}
+                  alt="Vorschau"
+                  sx={{width: 60, height: 40, objectFit: "cover", borderRadius: 1}}
+                />
+              )}
+              {!photoPreview && (
+                <Typography variant="caption" color="text.secondary">
+                  Kein Foto ausgewählt
+                </Typography>
+              )}
+            </Stack>
           </Stack>
 
           <Divider />
@@ -329,19 +396,11 @@ const CopyEventDialog = ({
                 slice.durationDays,
               );
               return (
-                <Box
-                  key={sliceIndex}
-                  sx={{
-                    border: 1,
-                    borderColor: "divider",
-                    borderRadius: 1,
-                    p: 2,
-                  }}
-                >
+                <Stack key={sliceIndex} spacing={1}>
                   <Typography variant="caption" color="text.secondary">
                     {`Zeitscheibe ${sliceIndex + 1}: ${formatDate(slice.originalFrom)} – ${formatDate(slice.originalTo)} (${slice.durationDays} ${slice.durationDays === 1 ? "Tag" : "Tage"})`}
                   </Typography>
-                  <Stack direction="row" spacing={2} sx={{mt: 1}}>
+                  <Stack direction="row" spacing={2}>
                     <DatePicker
                       label="Neuer Start"
                       format="DD.MM.YYYY"
@@ -358,10 +417,10 @@ const CopyEventDialog = ({
                       value={formatDate(newEndDate)}
                       size="small"
                       fullWidth
-                      slotProps={{input: {readOnly: true}}}
+                      disabled
                     />
                   </Stack>
-                </Box>
+                </Stack>
               );
             })}
           </Stack>
@@ -399,6 +458,9 @@ const CopyEventDialog = ({
                 label="Kochcrew übernehmen"
               />
             </FormGroup>
+            <Typography variant="caption" color="text.secondary">
+              Einkaufs- und Materiallisten werden nicht kopiert und können nach dem Kopieren neu generiert werden.
+            </Typography>
           </Stack>
 
           {/* ── Fehlermeldung ── */}
