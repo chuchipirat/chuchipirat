@@ -98,9 +98,9 @@ BEGIN
 
     -- Offset berechnen: Differenz zwischen altem und neuem Startdatum
     v_date_offsets := v_date_offsets || jsonb_build_object(
-      'old_from', (v_old_dates->v_rec.idx->>'date_from'),
-      'old_to', (v_old_dates->v_rec.idx->>'date_to'),
-      'offset_days', (v_rec.new_from - (v_old_dates->v_rec.idx->>'date_from')::DATE)
+      'old_from', (v_old_dates->v_rec.idx::INT->>'date_from'),
+      'old_to', (v_old_dates->v_rec.idx::INT->>'date_to'),
+      'offset_days', (v_rec.new_from - (v_old_dates->v_rec.idx::INT->>'date_from')::DATE)
     );
   END LOOP;
 

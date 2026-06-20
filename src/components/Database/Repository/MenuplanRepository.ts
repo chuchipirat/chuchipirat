@@ -22,6 +22,7 @@ import {
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";
 import type {MenuplanData} from "../../Event/Menuplan/menuplan.types";
 import {
   PlanedDiet,
@@ -791,7 +792,7 @@ export class MenuplanRepository extends BaseRepository<
     const mealRows = allDates.flatMap((date) =>
       mealTypeIds.map((mealTypeId) => ({
         event_id: eventId,
-        meal_date: date.toISOString().split("T")[0],
+        meal_date: formatLocalDate(date),
         meal_type_id: mealTypeId,
       })),
     );
@@ -1544,7 +1545,7 @@ export class MenuplanRepository extends BaseRepository<
     }
     menuplan.dates = Array.from(uniqueDateStrings)
       .sort()
-      .map((dateStr) => new Date(new Date(dateStr).setUTCHours(0, 0, 0, 0)));
+      .map((dateStr) => parseLocalDate(dateStr));
 
     return menuplan;
   }

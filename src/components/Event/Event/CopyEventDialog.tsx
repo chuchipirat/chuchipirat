@@ -36,6 +36,29 @@ import {
   computeEndDate,
   suggestNextSliceStart,
 } from "./copyEventUtils";
+import {
+  COPY_EVENT as TEXT_COPY_EVENT,
+  COPY_EVENT_DEFAULT_NAME as TEXT_COPY_EVENT_DEFAULT_NAME,
+  COPY_EVENT_TIMESLICE_LABEL as TEXT_COPY_EVENT_TIMESLICE_LABEL,
+  COPY_EVENT_NEW_START as TEXT_COPY_EVENT_NEW_START,
+  COPY_EVENT_NEW_END as TEXT_COPY_EVENT_NEW_END,
+  COPY_EVENT_TIMESLICES as TEXT_COPY_EVENT_TIMESLICES,
+  COPY_EVENT_OPTIONS as TEXT_COPY_EVENT_OPTIONS,
+  COPY_EVENT_MENUPLAN as TEXT_COPY_EVENT_MENUPLAN,
+  COPY_EVENT_GROUPCONFIG as TEXT_COPY_EVENT_GROUPCONFIG,
+  COPY_EVENT_VARIANTS as TEXT_COPY_EVENT_VARIANTS,
+  COPY_EVENT_COOKS as TEXT_COPY_EVENT_COOKS,
+  COPY_EVENT_LISTS_INFO as TEXT_COPY_EVENT_LISTS_INFO,
+  COPY_EVENT_NO_PHOTO as TEXT_COPY_EVENT_NO_PHOTO,
+  COPY_EVENT_CHOOSE_PHOTO as TEXT_COPY_EVENT_CHOOSE_PHOTO,
+  COPY_EVENT_SUBMIT as TEXT_COPY_EVENT_SUBMIT,
+  COPY_EVENT_SUBMITTING as TEXT_COPY_EVENT_SUBMITTING,
+  COPY_EVENT_ERROR as TEXT_COPY_EVENT_ERROR,
+  EVENT_NAME as TEXT_EVENT_NAME,
+  MOTTO as TEXT_MOTTO,
+  LOCATION as TEXT_LOCATION,
+  CANCEL as TEXT_CANCEL,
+} from "../../../constants/text";
 
 /* =====================================================================
 // Typen
@@ -160,7 +183,7 @@ const CopyEventDialog = ({
 
   // Formularfelder
   const [eventName, setEventName] = React.useState(
-    `Kopie von ${sourceEvent.name}`,
+    TEXT_COPY_EVENT_DEFAULT_NAME(sourceEvent.name),
   );
   const [motto, setMotto] = React.useState("");
   const [location, setLocation] = React.useState("");
@@ -185,7 +208,7 @@ const CopyEventDialog = ({
   // Bei Wechsel des Source-Events den State zurücksetzen
   React.useEffect(() => {
     if (open) {
-      setEventName(`Kopie von ${sourceEvent.name}`);
+      setEventName(TEXT_COPY_EVENT_DEFAULT_NAME(sourceEvent.name));
       setMotto("");
       setLocation("");
       setSelectedPhoto(null);
@@ -315,7 +338,7 @@ const CopyEventDialog = ({
       setErrorMessage(
         error instanceof Error
           ? error.message
-          : "Beim Kopieren ist ein Fehler aufgetreten.",
+          : TEXT_COPY_EVENT_ERROR,
       );
       setIsSubmitting(false);
     }
@@ -328,13 +351,13 @@ const CopyEventDialog = ({
       maxWidth="sm"
       fullWidth
     >
-      <DialogTitle>Anlass kopieren</DialogTitle>
+      <DialogTitle>{TEXT_COPY_EVENT}</DialogTitle>
       <DialogContent>
         <Stack spacing={3} sx={{mt: 1}}>
           {/* ── Sektion 1: Event-Infos ── */}
           <Stack spacing={2}>
             <TextField
-              label="Name"
+              label={TEXT_EVENT_NAME}
               value={eventName}
               onChange={(event) => setEventName(event.target.value)}
               fullWidth
@@ -342,7 +365,7 @@ const CopyEventDialog = ({
               autoFocus
             />
             <TextField
-              label="Motto"
+              label={TEXT_MOTTO}
               value={motto}
               onChange={(event) => setMotto(event.target.value)}
               fullWidth
@@ -350,7 +373,7 @@ const CopyEventDialog = ({
               placeholder="Optional"
             />
             <TextField
-              label="Ort"
+              label={TEXT_LOCATION}
               value={location}
               onChange={(event) => setLocation(event.target.value)}
               fullWidth
@@ -361,7 +384,7 @@ const CopyEventDialog = ({
             {/* Foto */}
             <Stack direction="row" spacing={2} alignItems="center">
               <Button variant="outlined" component="label" size="small">
-                Foto wählen
+                {TEXT_COPY_EVENT_CHOOSE_PHOTO}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -379,7 +402,7 @@ const CopyEventDialog = ({
               )}
               {!photoPreview && (
                 <Typography variant="caption" color="text.secondary">
-                  Kein Foto ausgewählt
+                  {TEXT_COPY_EVENT_NO_PHOTO}
                 </Typography>
               )}
             </Stack>
@@ -389,7 +412,7 @@ const CopyEventDialog = ({
 
           {/* ── Sektion 2: Zeitscheiben ── */}
           <Stack spacing={2}>
-            <Typography variant="subtitle2">Zeitscheiben</Typography>
+            <Typography variant="subtitle2">{TEXT_COPY_EVENT_TIMESLICES}</Typography>
             {slices.map((slice, sliceIndex) => {
               const newEndDate = computeEndDate(
                 slice.newFrom,
@@ -398,11 +421,11 @@ const CopyEventDialog = ({
               return (
                 <Stack key={sliceIndex} spacing={1}>
                   <Typography variant="caption" color="text.secondary">
-                    {`Zeitscheibe ${sliceIndex + 1}: ${formatDate(slice.originalFrom)} – ${formatDate(slice.originalTo)} (${slice.durationDays} ${slice.durationDays === 1 ? "Tag" : "Tage"})`}
+                    {TEXT_COPY_EVENT_TIMESLICE_LABEL(sliceIndex + 1, formatDate(slice.originalFrom), formatDate(slice.originalTo), slice.durationDays)}
                   </Typography>
                   <Stack direction="row" spacing={2}>
                     <DatePicker
-                      label="Neuer Start"
+                      label={TEXT_COPY_EVENT_NEW_START}
                       format="DD.MM.YYYY"
                       value={dayjs(slice.newFrom)}
                       onChange={(date) =>
@@ -413,7 +436,7 @@ const CopyEventDialog = ({
                       }}
                     />
                     <TextField
-                      label="Neues Ende"
+                      label={TEXT_COPY_EVENT_NEW_END}
                       value={formatDate(newEndDate)}
                       size="small"
                       fullWidth
@@ -429,15 +452,15 @@ const CopyEventDialog = ({
 
           {/* ── Sektion 3: Optionen ── */}
           <Stack spacing={1}>
-            <Typography variant="subtitle2">Optionen</Typography>
+            <Typography variant="subtitle2">{TEXT_COPY_EVENT_OPTIONS}</Typography>
             <FormGroup>
               <FormControlLabel
                 control={<Checkbox checked disabled />}
-                label="Menüplan"
+                label={TEXT_COPY_EVENT_MENUPLAN}
               />
               <FormControlLabel
                 control={<Checkbox checked disabled />}
-                label="Gruppenconfig"
+                label={TEXT_COPY_EVENT_GROUPCONFIG}
               />
               <FormControlLabel
                 control={
@@ -446,7 +469,7 @@ const CopyEventDialog = ({
                     onChange={(event) => setCopyVariants(event.target.checked)}
                   />
                 }
-                label="Rezeptvarianten kopieren"
+                label={TEXT_COPY_EVENT_VARIANTS}
               />
               <FormControlLabel
                 control={
@@ -455,11 +478,11 @@ const CopyEventDialog = ({
                     onChange={(event) => setCopyCooks(event.target.checked)}
                   />
                 }
-                label="Kochcrew übernehmen"
+                label={TEXT_COPY_EVENT_COOKS}
               />
             </FormGroup>
             <Typography variant="caption" color="text.secondary">
-              Einkaufs- und Materiallisten werden nicht kopiert und können nach dem Kopieren neu generiert werden.
+              {TEXT_COPY_EVENT_LISTS_INFO}
             </Typography>
           </Stack>
 
@@ -470,7 +493,7 @@ const CopyEventDialog = ({
 
       <DialogActions>
         <Button onClick={onClose} disabled={isSubmitting}>
-          Abbrechen
+          {TEXT_CANCEL}
         </Button>
         <Button
           onClick={handleSubmit}
@@ -478,7 +501,7 @@ const CopyEventDialog = ({
           disabled={isSubmitting || !eventName.trim()}
           startIcon={isSubmitting ? <CircularProgress size={16} /> : undefined}
         >
-          {isSubmitting ? "Kopiere…" : "Kopieren"}
+          {isSubmitting ? TEXT_COPY_EVENT_SUBMITTING : TEXT_COPY_EVENT_SUBMIT}
         </Button>
       </DialogActions>
     </Dialog>

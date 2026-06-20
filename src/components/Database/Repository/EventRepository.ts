@@ -16,6 +16,7 @@ import {
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 import {Event,Cook, EventDate} from "../../Event/Event/event.class";
+import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";
 
 /* =====================================================================
 // DB-Zeilenstrukturen (snake_case, entspricht den Postgres-Spalten)
@@ -259,11 +260,8 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     return {
       uid: row.id,
       sortOrder: row.sort_order,
-      // Supabase date-Spalten kommen als "YYYY-MM-DD". new Date("YYYY-MM-DD")
-      // parst als UTC-Mitternacht, was in CET/CEST den Vortag ergibt.
-      // "T00:00:00" anhängen erzwingt lokale Mitternacht.
-      dateFrom: new Date(row.date_from + "T00:00:00"),
-      dateTo: new Date(row.date_to + "T00:00:00"),
+      dateFrom: parseLocalDate(row.date_from),
+      dateTo: parseLocalDate(row.date_to),
     };
   }
 
@@ -496,8 +494,8 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     const rows = dates.map((dateEntry, index) => ({
       event_id: eventId,
       sort_order: index * 10,
-      date_from: dateEntry.dateFrom.toISOString().split("T")[0],
-      date_to: dateEntry.dateTo.toISOString().split("T")[0],
+      date_from: formatLocalDate(dateEntry.dateFrom),
+      date_to: formatLocalDate(dateEntry.dateTo),
     }));
 
     const {error: insertError} = await this.client.from("event_dates").insert(rows);

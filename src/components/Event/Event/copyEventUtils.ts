@@ -5,37 +5,39 @@
  */
 
 /**
- * Berechnet die Dauer einer Zeitscheibe in Tagen.
+ * Berechnet die Dauer einer Zeitscheibe in Tagen (inklusiv).
  *
- * Die Dauer wird als Differenz in ganzen Tagen berechnet:
- * Wenn dateFrom = 1. Juli und dateTo = 3. Juli, ergibt das 2 Tage.
+ * Start- und Enddatum zählen beide als volle Tage:
+ * 15.04 – 17.04 = 3 Tage (15., 16., 17.)
  *
  * @param dateFrom Startdatum der Zeitscheibe.
  * @param dateTo Enddatum der Zeitscheibe.
- * @returns Dauer in Tagen (mindestens 0).
+ * @returns Dauer in Tagen (mindestens 1).
  *
  * @example
- * computeSliceDuration(new Date("2026-07-01"), new Date("2026-07-03")) // 2
+ * computeSliceDuration(new Date("2026-07-01"), new Date("2026-07-03")) // 3
  */
 export function computeSliceDuration(dateFrom: Date, dateTo: Date): number {
   const msPerDay = 86_400_000;
   const diffMs = dateTo.getTime() - dateFrom.getTime();
-  return Math.max(0, Math.round(diffMs / msPerDay));
+  return Math.max(1, Math.round(diffMs / msPerDay) + 1);
 }
 
 /**
- * Berechnet das Enddatum basierend auf Startdatum und Dauer.
+ * Berechnet das Enddatum basierend auf Startdatum und Dauer (inklusiv).
+ *
+ * Der Starttag zählt als Tag 1: Dauer 3 ab 15.04 → Enddatum 17.04.
  *
  * @param startDate Startdatum.
- * @param durationDays Dauer in Tagen (wie von computeSliceDuration berechnet).
- * @returns Enddatum (startDate + durationDays Tage).
+ * @param durationDays Dauer in Tagen (inklusiv, wie von computeSliceDuration).
+ * @returns Enddatum.
  *
  * @example
- * computeEndDate(new Date("2026-08-05"), 2) // 2026-08-07
+ * computeEndDate(new Date("2026-08-05"), 3) // 2026-08-07
  */
 export function computeEndDate(startDate: Date, durationDays: number): Date {
   const result = new Date(startDate);
-  result.setDate(result.getDate() + durationDays);
+  result.setDate(result.getDate() + durationDays - 1);
   return result;
 }
 

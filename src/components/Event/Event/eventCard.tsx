@@ -58,12 +58,10 @@ interface EventCardProps {
   onCopyClick?: (event: EventCardData) => void;
 }
 
-
 const formatDay = (d: Date) =>
   `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.`;
 
-const formatFull = (d: Date) =>
-  `${formatDay(d)}${d.getFullYear()}`;
+const formatFull = (d: Date) => `${formatDay(d)}${d.getFullYear()}`;
 
 /**
  * Formatiert eine einzelne Zeitscheibe als lesbaren Datumsstring.
@@ -162,7 +160,7 @@ const EventCard = ({event, onCardClick, onCopyClick}: EventCardProps) => {
             top: 4,
             right: 4,
             zIndex: 1,
-            backgroundColor: "rgba(255,255,255,0.7)",
+            // backgroundColor: "rgba(255,255,255,0.7)",
             "&:hover": {backgroundColor: "rgba(255,255,255,0.9)"},
           }}
         >
@@ -217,7 +215,12 @@ const EventCard = ({event, onCardClick, onCopyClick}: EventCardProps) => {
                   {event.motto}
                 </Typography>
                 {dateLines.map((line, i) => (
-                  <Typography variant="caption" color="textSecondary" key={i} display="block">
+                  <Typography
+                    variant="caption"
+                    color="textSecondary"
+                    key={i}
+                    display="block"
+                  >
                     {line}
                   </Typography>
                 ))}

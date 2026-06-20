@@ -78,6 +78,35 @@ export const WHY_DONATE =
 export const NEED_A_RECEIPT =
   "Du erhältst nach der Spende automatisch eine Quittung per E-Mail.";
 export const THANK_YOU_1000 = "Merci 1000";
+/* =====================================================================
+// Anlass kopieren
+// ===================================================================== */
+export const COPY_EVENT = "Anlass kopieren";
+export const COPY_EVENT_DEFAULT_NAME = (eventName: string) =>
+  `Kopie von ${eventName}`;
+export const COPY_EVENT_TIMESLICE_LABEL = (
+  index: number,
+  dateFrom: string,
+  dateTo: string,
+  days: number,
+) => `Zeitscheibe ${index}: ${dateFrom} – ${dateTo} (${days} ${days === 1 ? "Tag" : "Tage"})`;
+export const COPY_EVENT_NEW_START = "Neuer Start";
+export const COPY_EVENT_NEW_END = "Neues Ende";
+export const COPY_EVENT_TIMESLICES = "Zeitscheiben";
+export const COPY_EVENT_OPTIONS = "Optionen";
+export const COPY_EVENT_MENUPLAN = "Menüplan";
+export const COPY_EVENT_GROUPCONFIG = "Gruppenconfig";
+export const COPY_EVENT_VARIANTS = "Rezeptvarianten kopieren";
+export const COPY_EVENT_COOKS = "Kochcrew übernehmen";
+export const COPY_EVENT_LISTS_INFO =
+  "Einkaufs- und Materiallisten werden nicht kopiert und können nach dem Kopieren neu generiert werden.";
+export const COPY_EVENT_NO_PHOTO = "Kein Foto ausgewählt";
+export const COPY_EVENT_CHOOSE_PHOTO = "Foto wählen";
+export const COPY_EVENT_SUBMIT = "Kopieren";
+export const COPY_EVENT_SUBMITTING = "Kopiere…";
+export const COPY_EVENT_ERROR =
+  "Beim Kopieren ist ein Fehler aufgetreten.";
+
 export const DELETE_EVENT = "Anlass löschen";
 export const ATTENTION_ABOUT_TO_DELETE_PLANED_DAYS =
   "Achtung – Geplante Tage werden gelöscht!";

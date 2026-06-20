@@ -149,6 +149,43 @@ const planModeToDb = (planMode: number): string => {
 };
 
 /**
+ * Normalisiert einen Datumswert aus Firebase zu einem lokalen YYYY-MM-DD String.
+ *
+ * Firebase kann Daten als String ("YYYY-MM-DD", "Thu May 16 2024 ...") oder als
+ * Objekt ({seconds, nanoseconds}) liefern. new Date("YYYY-MM-DD") parst als UTC,
+ * was in CET/CEST zum Vortag werden kann. Diese Funktion stellt sicher, dass das
+ * Datum als lokales Datum interpretiert wird.
+ *
+ * @param value - Datumswert aus Firebase
+ * @returns YYYY-MM-DD String im lokalen Zeitraum, oder null bei ungültigem Input
+ */
+const normalizeDateToLocalYmd = (value: unknown): string | null => {
+  if (!value) return null;
+
+  let date: Date;
+  if (typeof value === "string") {
+    // Wenn bereits YYYY-MM-DD: als lokales Datum parsen
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+      date = new Date(value + "T00:00:00");
+    } else {
+      date = new Date(value);
+    }
+  } else if (typeof value === "object" && "seconds" in (value as Record<string, unknown>)) {
+    // Firestore Timestamp
+    date = new Date((value as {seconds: number}).seconds * 1000);
+  } else {
+    return null;
+  }
+
+  if (isNaN(date.getTime())) return null;
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+/**
  * Gibt einen sicheren numerischen Wert zurück. Fängt leere Strings,
  * NaN, Infinity und null/undefined ab.
  *
@@ -392,12 +429,18 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
 
       if (!meal.date) continue;
 
+      // Datum normalisieren: Firebase kann verschiedene Formate liefern.
+      // Sicherstellen, dass das Datum als lokales YYYY-MM-DD gespeichert wird.
+      const mealDate = normalizeDateToLocalYmd(meal.date);
+      console.log(`[MenuplanMigration] Meal date: raw="${meal.date}" type=${typeof meal.date} normalized="${mealDate}"`);
+      if (!mealDate) continue;
+
       const id = crypto.randomUUID();
       mealIdMap.set(mealFirebaseUid, id);
       mealRows.push({
         id,
         event_id: eventId,
-        meal_date: meal.date,
+        meal_date: mealDate,
         meal_type_id: mealTypeId,
         firebase_uid: mealFirebaseUid,
       });
@@ -611,7 +654,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       noteRows.push({
         event_id: eventId,
         menue_id: menueId,
-        note_date: note.date,
+        note_date: normalizeDateToLocalYmd(note.date) ?? note.date,
         text: note.text ?? "",
         firebase_uid: noteFirebaseUid,
       });
