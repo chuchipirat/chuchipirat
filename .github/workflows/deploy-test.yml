@@ -34,7 +34,7 @@ jobs:
             set -e
             # Internal Schema und Tracking-Tabelle erstellen (idempotent)
             docker exec -i supabase-db-test \
-              psql -U postgres -d postgres -c "
+              psql -U supabase_admin -d postgres -c "
                 CREATE SCHEMA IF NOT EXISTS internal;
                 CREATE TABLE IF NOT EXISTS internal.schema_migrations (
                   filename TEXT PRIMARY KEY,
@@ -44,7 +44,7 @@ jobs:
               fname=$(basename "$f")
               # Migration überspringen wenn bereits angewendet
               already=$(docker exec -i supabase-db-test \
-                psql -U postgres -d postgres -t -A -c \
+                psql -U supabase_admin -d postgres -t -A -c \
                 "SELECT 1 FROM internal.schema_migrations WHERE filename = '$fname';")
               if [ "$already" = "1" ]; then
                 echo "Skipping (already applied): $fname"
@@ -52,12 +52,12 @@ jobs:
               fi
               echo "Running migration: $fname"
               docker exec -i supabase-db-test \
-                psql -U postgres -d postgres \
+                psql -U supabase_admin -d postgres \
                 -v ON_ERROR_STOP=1 \
                 < "$f"
               # Migration als angewendet markieren
               docker exec -i supabase-db-test \
-                psql -U postgres -d postgres -c \
+                psql -U supabase_admin -d postgres -c \
                 "INSERT INTO internal.schema_migrations (filename) VALUES ('$fname');"
               echo "Applied: $fname"
             done
