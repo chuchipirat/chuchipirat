@@ -1,16 +1,16 @@
-name: Deploy TEST
+name: Deploy PROD
 
 on:
   push:
     branches:
-      - develop
+      - main
 
 jobs:
   # ─── 1. DB Migrations ─────────────────────────────────
   migrations:
     name: DB Migrations
     runs-on: ubuntu-latest
-    environment: test
+    environment: prod
     steps:
       - uses: actions/checkout@v4
 
@@ -21,7 +21,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "supabase/migrations/*.sql"
-          target: "/tmp/chuchipirat-migrations/"
+          target: "/tmp/chuchipirat-migrations-prod/"
           strip_components: 2
 
       - name: Run Migrations
@@ -33,17 +33,17 @@ jobs:
           script: |
             set -e
             # Internal Schema und Tracking-Tabelle erstellen (idempotent)
-            docker exec -i supabase-db-test \
+            docker exec -i supabase-db-prod \
               psql -U postgres -d postgres -c "
                 CREATE SCHEMA IF NOT EXISTS internal;
                 CREATE TABLE IF NOT EXISTS internal.schema_migrations (
                   filename TEXT PRIMARY KEY,
                   applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 );"
-            for f in $(ls /tmp/chuchipirat-migrations/*.sql | sort); do
+            for f in $(ls /tmp/chuchipirat-migrations-prod/*.sql | sort); do
               fname=$(basename "$f")
               # Migration überspringen wenn bereits angewendet
-              already=$(docker exec -i supabase-db-test \
+              already=$(docker exec -i supabase-db-prod \
                 psql -U postgres -d postgres -t -A -c \
                 "SELECT 1 FROM internal.schema_migrations WHERE filename = '$fname';")
               if [ "$already" = "1" ]; then
@@ -51,24 +51,24 @@ jobs:
                 continue
               fi
               echo "Running migration: $fname"
-              docker exec -i supabase-db-test \
+              docker exec -i supabase-db-prod \
                 psql -U postgres -d postgres \
                 -v ON_ERROR_STOP=1 \
                 < "$f"
               # Migration als angewendet markieren
-              docker exec -i supabase-db-test \
+              docker exec -i supabase-db-prod \
                 psql -U postgres -d postgres -c \
                 "INSERT INTO internal.schema_migrations (filename) VALUES ('$fname');"
               echo "Applied: $fname"
             done
-            rm -rf /tmp/chuchipirat-migrations/
+            rm -rf /tmp/chuchipirat-migrations-prod/
 
   # ─── 2. Edge Functions ────────────────────────────────
   edge-functions:
     name: Deploy Edge Functions
     runs-on: ubuntu-latest
     needs: migrations
-    environment: test
+    environment: prod
     steps:
       - uses: actions/checkout@v4
 
@@ -79,7 +79,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "supabase/volumes/functions/"
-          target: "/opt/chuchipirat/test/supabase/volumes/functions/"
+          target: "/opt/chuchipirat/prod/supabase/volumes/functions/"
           strip_components: 3
 
       - name: Restart Edge Functions
@@ -89,15 +89,15 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker restart supabase-edge-functions-test
+            docker restart supabase-edge-functions-prod
             sleep 5
-            docker ps | grep edge-functions
+            docker ps | grep edge-functions-prod
 
   # ─── 3. Auth Email Templates ──────────────────────────
   auth-templates:
     name: Deploy Auth Email Templates
     runs-on: ubuntu-latest
-    environment: test
+    environment: prod
     needs: migrations
     steps:
       - uses: actions/checkout@v4
@@ -109,7 +109,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "supabase/volumes/auth/templates/"
-          target: "/opt/chuchipirat/test/supabase/volumes/auth/templates/"
+          target: "/opt/chuchipirat/prod/supabase/volumes/auth/templates/"
           strip_components: 4
 
       - name: Verify Templates Deployed
@@ -119,14 +119,14 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            ls -la /opt/chuchipirat/test/supabase/volumes/auth/templates/
+            ls -la /opt/chuchipirat/prod/supabase/volumes/auth/templates/
 
   # ─── 4. Build React App ───────────────────────────────
   build:
     name: Build React App
     runs-on: ubuntu-latest
     needs: [edge-functions, auth-templates]
-    environment: test
+    environment: prod
     steps:
       - uses: actions/checkout@v4
 
@@ -146,12 +146,6 @@ jobs:
           VITE_UMAMI_HOST: ${{ vars.VITE_UMAMI_HOST }}
 
           # ── Environment Secrets ───────────────────────
-          VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
-          VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
-          VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
-          VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
-          VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
-          VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_CONFIRMATION_EMAIL_REDIRECT: ${{ secrets.VITE_CONFIRMATION_EMAIL_REDIRECT }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
@@ -171,5 +165,5 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "build/"
-          target: "/opt/chuchipirat/test/app/html/"
+          target: "/opt/chuchipirat/prod/app/html/"
           strip_components: 1

@@ -2,13 +2,18 @@
 name: Create Release on Version Change
 
 on:
-  push:
+  workflow_run:
+    workflows: ["Deploy PROD"]
+    types:
+      - completed
     branches:
       - main
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Nur wenn Deploy PROD erfolgreich war
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     steps:
       - uses: actions/checkout@v4
         with:
