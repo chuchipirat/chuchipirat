@@ -13,9 +13,9 @@ name: supabase
 services:
 
   studio:
-    container_name: supabase-studio-test
+    container_name: supabase-studio-prod
     ports:
-      - "3003:3000"
+      - "3013:3000"
     image: supabase/studio:2026.06.03-sha-0bca601
     restart: unless-stopped
     healthcheck:
@@ -68,7 +68,7 @@ services:
       - ./volumes/functions:/app/edge-functions:ro,z
 
   kong:
-    container_name: supabase-kong-test
+    container_name: supabase-kong-prod
     image: kong/kong:3.9.1
     restart: unless-stopped
     networks:
@@ -114,7 +114,7 @@ services:
     entrypoint: ["/bin/sh", "/home/kong/kong-entrypoint.sh"]
 
   auth:
-    container_name: supabase-auth-test
+    container_name: supabase-auth-prod
     image: supabase/gotrue:v2.189.0
     restart: unless-stopped
     healthcheck:
@@ -252,7 +252,7 @@ services:
       # GOTRUE_HOOK_SEND_EMAIL_SECRETS: "v1,whsec_VGhpcyBpcyBhbiBleGFtcGxlIG9mIGEgc2hvcnRlciBCYXNlNjQgc3RyaW5n"
 
   rest:
-    container_name: supabase-rest-test
+    container_name: supabase-rest-prod
     image: postgrest/postgrest:v14.12
     restart: unless-stopped
     depends_on:
@@ -289,7 +289,7 @@ services:
 
   realtime:
     # This container name looks inconsistent but is correct because realtime constructs tenant id by parsing the subdomain
-    container_name: realtime-dev.supabase-realtime-test
+    container_name: realtime-dev.supabase-realtime-prod
     image: supabase/realtime:v2.102.3
     restart: unless-stopped
     depends_on:
@@ -335,7 +335,7 @@ services:
 
   # To use S3 backed storage: docker compose -f docker-compose.yml -f docker-compose.s3.yml up
   storage:
-    container_name: supabase-storage-test
+    container_name: supabase-storage-prod
     image: supabase/storage-api:v1.60.4
     restart: unless-stopped
     depends_on:
@@ -398,7 +398,7 @@ services:
       - ./volumes/storage:/var/lib/storage:z
 
   imgproxy:
-    container_name: supabase-imgproxy-test
+    container_name: supabase-imgproxy-prod
     image: darthsim/imgproxy:v3.30.1
     restart: unless-stopped
     volumes:
@@ -421,7 +421,7 @@ services:
       IMGPROXY_MAX_SRC_RESOLUTION: 16.8
 
   meta:
-    container_name: supabase-meta-test
+    container_name: supabase-meta-prod
     image: supabase/postgres-meta:v0.96.6
     restart: unless-stopped
     depends_on:
@@ -438,7 +438,7 @@ services:
       CRYPTO_KEY: ${PG_META_CRYPTO_KEY}
 
   functions:
-    container_name: supabase-edge-functions-test
+    container_name: supabase-edge-functions-prod
     image: supabase/edge-runtime:v1.74.0
     restart: unless-stopped
     volumes:
@@ -475,7 +475,7 @@ services:
 
   # Comment out everything below this point if you are using an external Postgres database
   db:
-    container_name: supabase-db-test
+    container_name: supabase-db-prod
     # To upgrade an existing Postgres 15 database in place, see utils/upgrade-pg17.sh.
     image: supabase/postgres:17.6.1.136
     restart: unless-stopped
@@ -531,7 +531,7 @@ services:
 
   # Update the DATABASE_URL if you are using an external Postgres database
   supavisor:
-    container_name: supabase-pooler-test
+    container_name: supabase-pooler-prod
     image: supabase/supavisor:2.9.5
     restart: unless-stopped
     ports:
@@ -589,5 +589,5 @@ volumes:
 
 networks:
   default:
-  chuchipirat-test:
+  chuchipirat-prod:
     external: true

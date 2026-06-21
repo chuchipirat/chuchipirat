@@ -1,0 +1,15 @@
+services:
+  app:
+    image: nginx:alpine
+    container_name: chuchipirat-app-test
+    restart: unless-stopped
+    ports:
+      - "3001:80"
+    volumes:
+      - ./html:/usr/share/nginx/html:ro
+    networks:
+      - chuchipirat-test
+
+networks:
+  chuchipirat-test:
+    external: true
