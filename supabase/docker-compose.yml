@@ -178,6 +178,9 @@ services:
       GOTRUE_MAILER_URLPATHS_INVITE: ${MAILER_URLPATHS_INVITE}
       GOTRUE_MAILER_URLPATHS_CONFIRMATION: ${MAILER_URLPATHS_CONFIRMATION}
       GOTRUE_MAILER_URLPATHS_RECOVERY: ${MAILER_URLPATHS_RECOVERY}
+      GOTRUE_MAILER_TEMPLATES_CONFIRMATION: http://supabase-mail-templates-test/confirmation.html
+      GOTRUE_MAILER_TEMPLATES_RECOVERY: http://supabase-mail-templates-test/recovery.html
+      GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://supabase-mail-templates-test/email_change.html
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
@@ -582,6 +585,14 @@ services:
         "-c",
         "/app/bin/migrate && /app/bin/supavisor eval \"$$(cat /etc/pooler/pooler.exs)\" && /app/bin/server"
       ]
+
+
+  mail-templates:
+    container_name: supabase-mail-templates-test
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./volumes/auth/templates:/usr/share/nginx/html:ro
 
 volumes:
   db-config:
