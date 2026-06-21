@@ -6,7 +6,16 @@
 -- =============================================================================
 
 -- ─────────────────────────────────────────────────────────────────────────────
--- 1. Default Privileges – prevent future anon grants
+-- 1. Schema Usage – Voraussetzung für jeden Zugriff auf public.*
+-- ─────────────────────────────────────────────────────────────────────────────
+
+-- Alle Rollen müssen USAGE auf das public-Schema haben, sonst können sie
+-- keine Objekte (Tabellen, Funktionen etc.) darin auflösen.
+-- Kann nach `supabase db reset` fehlen, da Supabase es nicht immer setzt.
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 2. Default Privileges – prevent future anon grants
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Default privileges for postgres role
