@@ -338,39 +338,61 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('media', 'media', true)
 ON CONFLICT (id) DO NOTHING;
 
--- Public read access
+-- Events: nur Event-Köche dürfen Event-Dateien via SDK lesen/auflisten.
+-- Verhindert Enumeration aller Event-Bilder durch Dritte (auch mit Anon-Key).
+-- Hinweis: direkte öffentliche URLs (/storage/v1/object/public/...) umgehen
+-- RLS-Policies – das ist durch den public=true Bucket gewollt.
 DROP POLICY IF EXISTS "media_select_public" ON storage.objects;
-CREATE POLICY "media_select_public" ON storage.objects FOR SELECT
-  USING (bucket_id = 'media');
+DROP POLICY IF EXISTS "media_events_select" ON storage.objects;
+CREATE POLICY "media_events_select" ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'media'
+    AND (storage.foldername(name))[1] = 'events'
+    AND is_event_cook((storage.foldername(name))[2])
+  );
 
--- Events: cooks can manage event images
+-- Users: alle authentifizierten User dürfen Profilbilder via SDK lesen.
+DROP POLICY IF EXISTS "media_users_select" ON storage.objects;
+CREATE POLICY "media_users_select" ON storage.objects FOR SELECT TO authenticated
+  USING (
+    bucket_id = 'media'
+    AND (storage.foldername(name))[1] = 'users'
+  );
+
+-- Events: Köche dürfen Dateien unter events/<event-uid>/ verwalten.
+-- Neue Struktur: events/<event-uid>/cover.jpg (statt events/<event-uid>.jpg).
 DROP POLICY IF EXISTS "media_events_insert" ON storage.objects;
-CREATE POLICY "media_events_insert" ON storage.objects FOR INSERT
+CREATE POLICY "media_events_insert" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'media'
     AND (storage.foldername(name))[1] = 'events'
-    AND is_event_cook((regexp_match(storage.filename(name), '^([0-9a-f-]+).jpg$'))[1])
+    AND storage.filename(name) = 'cover.jpg'
+    AND is_event_cook((storage.foldername(name))[2])
   );
 
 DROP POLICY IF EXISTS "media_events_update" ON storage.objects;
-CREATE POLICY "media_events_update" ON storage.objects FOR UPDATE
+CREATE POLICY "media_events_update" ON storage.objects FOR UPDATE TO authenticated
   USING (
     bucket_id = 'media'
     AND (storage.foldername(name))[1] = 'events'
-    AND is_event_cook((regexp_match(storage.filename(name), '^([0-9a-f-]+).jpg$'))[1])
+    AND storage.filename(name) = 'cover.jpg'
+    AND is_event_cook((storage.foldername(name))[2])
   );
 
+-- DELETE erlaubt alle Dateien unter events/<event-uid>/ (nicht nur cover.jpg),
+-- damit zukünftige Dateitypen (z.B. Quittungen) ebenfalls gelöscht werden können.
 DROP POLICY IF EXISTS "media_events_delete" ON storage.objects;
-CREATE POLICY "media_events_delete" ON storage.objects FOR DELETE
+CREATE POLICY "media_events_delete" ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'media'
     AND (storage.foldername(name))[1] = 'events'
-    AND is_event_cook((regexp_match(storage.filename(name), '^([0-9a-f-]+).jpg$'))[1])
+    AND (storage.foldername(name))[2] IS NOT NULL
+    AND is_event_cook((storage.foldername(name))[2])
   );
 
--- Users: can manage own profile picture
+-- Users: kann nur das eigene Profilbild verwalten.
 DROP POLICY IF EXISTS "media_users_insert_own" ON storage.objects;
-CREATE POLICY "media_users_insert_own" ON storage.objects FOR INSERT
+CREATE POLICY "media_users_insert_own" ON storage.objects FOR INSERT TO authenticated
   WITH CHECK (
     bucket_id = 'media'
     AND (storage.foldername(name))[1] = 'users'
@@ -378,7 +400,7 @@ CREATE POLICY "media_users_insert_own" ON storage.objects FOR INSERT
   );
 
 DROP POLICY IF EXISTS "media_users_update_own" ON storage.objects;
-CREATE POLICY "media_users_update_own" ON storage.objects FOR UPDATE
+CREATE POLICY "media_users_update_own" ON storage.objects FOR UPDATE TO authenticated
   USING (
     bucket_id = 'media'
     AND (storage.foldername(name))[1] = 'users'
@@ -386,7 +408,7 @@ CREATE POLICY "media_users_update_own" ON storage.objects FOR UPDATE
   );
 
 DROP POLICY IF EXISTS "media_users_delete_own" ON storage.objects;
-CREATE POLICY "media_users_delete_own" ON storage.objects FOR DELETE
+CREATE POLICY "media_users_delete_own" ON storage.objects FOR DELETE TO authenticated
   USING (
     bucket_id = 'media'
     AND (storage.foldername(name))[1] = 'users'

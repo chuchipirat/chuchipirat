@@ -312,7 +312,7 @@ const EventInfoPage = ({
 
       try {
         // Bild aus Supabase Storage löschen
-        await database.storage.events.remove(event.uid + ".jpg").catch(() => {
+        await database.storage.events.remove(event.uid + "/cover.jpg").catch(() => {
           // Ignorieren falls kein Bild vorhanden
         });
         // Event-Dokument aktualisieren (Bild-URL leeren)

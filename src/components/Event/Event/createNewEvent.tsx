@@ -393,7 +393,7 @@ const CreateEventPage = () => {
     if (state.localPicture) {
       const resizedBlob = await resizeImage(state.localPicture);
       const result = await database.storage.events.upload(
-        `${eventDomain.uid}.jpg`,
+        `${eventDomain.uid}/cover.jpg`,
         resizedBlob,
         "image/jpeg",
       );

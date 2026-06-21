@@ -1,8 +1,8 @@
 /**
  * Storage-Repository für Event-Bilder.
  *
- * Speichert Event-Bilder im `media`-Bucket unter dem Ordner `events/`.
- * Dateiname ist `{eventId}.jpg`.
+ * Speichert Event-Bilder im `media`-Bucket.
+ * Pfad ist `events/{eventId}/cover.jpg`.
  *
  * @example
  * const repo = new EventStorageRepository();

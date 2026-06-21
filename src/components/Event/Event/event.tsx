@@ -1529,7 +1529,7 @@ const EventPage = () => {
       if (eventDraft.localPicture) {
         const resized = await resizeImage(eventDraft.localPicture);
         const uploadResult = await database.storage.events.upload(
-          event.uid + ".jpg",
+          event.uid + "/cover.jpg",
           resized,
           "image/jpeg",
         );
@@ -1655,7 +1655,7 @@ const EventPage = () => {
     try {
       // Bild löschen (Fehler ignorieren, falls kein Bild vorhanden)
       await database.storage.events
-        .remove(state.event.uid + ".jpg")
+        .remove(state.event.uid + "/cover.jpg")
         .catch(() => {});
 
       // Event löschen — CASCADE entfernt alle Supabase-Kinder

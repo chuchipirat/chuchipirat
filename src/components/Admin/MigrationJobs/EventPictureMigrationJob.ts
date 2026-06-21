@@ -150,7 +150,7 @@ export class EventPictureMigrationJob implements MigrationJob<EventPictureData> 
     const contentType = response.headers.get("content-type") ?? "image/jpeg";
     const arrayBuffer = await response.arrayBuffer();
     const fileExtension = contentType.includes("png") ? "png" : "jpg";
-    const storagePath = `events/${eventId}.${fileExtension}`;
+    const storagePath = `events/${eventId}/cover.${fileExtension}`;
 
     // 2. In Supabase Storage hochladen
     const {error: uploadError} = await client.storage
