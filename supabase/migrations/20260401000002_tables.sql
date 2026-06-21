@@ -9,7 +9,7 @@
 -- 1. Auth & Users
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.users (
+CREATE TABLE IF NOT EXISTS public.users (
     id uuid NOT NULL,
     email text NOT NULL,
     first_name text DEFAULT ''::text NOT NULL CONSTRAINT chk_first_name_length CHECK (char_length(first_name) <= 100),
@@ -42,7 +42,7 @@ ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 -- 2. Global Config
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.global_settings (
+CREATE TABLE IF NOT EXISTS public.global_settings (
     id text DEFAULT 'default'::text NOT NULL,
     allow_sign_up boolean DEFAULT false NOT NULL,
     maintenance_mode boolean DEFAULT false NOT NULL,
@@ -63,7 +63,7 @@ ALTER TABLE public.global_settings ENABLE ROW LEVEL SECURITY;
 -- Singleton-Zeile einfügen (wird von der App per UPDATE aktualisiert)
 INSERT INTO public.global_settings (id) VALUES ('default') ON CONFLICT DO NOTHING;
 
-CREATE TABLE public.system_messages (
+CREATE TABLE IF NOT EXISTS public.system_messages (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     title text DEFAULT ''::text NOT NULL,
     text text DEFAULT ''::text NOT NULL,
@@ -85,7 +85,7 @@ ALTER TABLE public.system_messages ENABLE ROW LEVEL SECURITY;
 -- 3. Masterdata
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.departments (
+CREATE TABLE IF NOT EXISTS public.departments (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     name text DEFAULT ''::text NOT NULL,
@@ -102,7 +102,7 @@ CREATE TABLE public.departments (
 
 ALTER TABLE public.departments ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.units (
+CREATE TABLE IF NOT EXISTS public.units (
     key text NOT NULL,
     firebase_uid text,
     name text DEFAULT ''::text NOT NULL,
@@ -123,7 +123,7 @@ ALTER TABLE public.units ENABLE ROW LEVEL SECURITY;
 -- 4. Products & Materials
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.products (
+CREATE TABLE IF NOT EXISTS public.products (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     name text DEFAULT ''::text NOT NULL,
@@ -149,7 +149,7 @@ CREATE TABLE public.products (
 COMMENT ON TABLE public.products IS 'Stammdaten-Tabelle für Produkte';
 ALTER TABLE public.products ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.materials (
+CREATE TABLE IF NOT EXISTS public.materials (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     name text DEFAULT ''::text NOT NULL,
@@ -168,7 +168,7 @@ CREATE TABLE public.materials (
 
 ALTER TABLE public.materials ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.unit_conversion_basic (
+CREATE TABLE IF NOT EXISTS public.unit_conversion_basic (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     from_unit text NOT NULL,
@@ -188,7 +188,7 @@ CREATE TABLE public.unit_conversion_basic (
 
 ALTER TABLE public.unit_conversion_basic ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.unit_conversion_products (
+CREATE TABLE IF NOT EXISTS public.unit_conversion_products (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     from_unit text NOT NULL,
@@ -210,7 +210,7 @@ CREATE TABLE public.unit_conversion_products (
 
 ALTER TABLE public.unit_conversion_products ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.product_synonyms (
+CREATE TABLE IF NOT EXISTS public.product_synonyms (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     name_a text NOT NULL,
     name_b text NOT NULL,
@@ -226,7 +226,7 @@ CREATE TABLE public.product_synonyms (
 
 ALTER TABLE public.product_synonyms ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.product_duplicate_dismissals (
+CREATE TABLE IF NOT EXISTS public.product_duplicate_dismissals (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     product_a_id text NOT NULL,
     product_b_id text NOT NULL,
@@ -249,7 +249,7 @@ ALTER TABLE public.product_duplicate_dismissals ENABLE ROW LEVEL SECURITY;
 -- 5. Recipes
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.recipes (
+CREATE TABLE IF NOT EXISTS public.recipes (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     name text DEFAULT ''::text NOT NULL CONSTRAINT chk_recipe_name_length CHECK (char_length(name) <= 200),
@@ -289,7 +289,7 @@ CREATE TABLE public.recipes (
 
 ALTER TABLE public.recipes ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.recipe_ingredients (
+CREATE TABLE IF NOT EXISTS public.recipe_ingredients (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     recipe_id text NOT NULL,
@@ -315,7 +315,7 @@ CREATE TABLE public.recipe_ingredients (
 
 ALTER TABLE public.recipe_ingredients ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.recipe_preparation_steps (
+CREATE TABLE IF NOT EXISTS public.recipe_preparation_steps (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     recipe_id text NOT NULL,
@@ -335,7 +335,7 @@ CREATE TABLE public.recipe_preparation_steps (
 
 ALTER TABLE public.recipe_preparation_steps ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.recipe_materials (
+CREATE TABLE IF NOT EXISTS public.recipe_materials (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     recipe_id text NOT NULL,
@@ -355,7 +355,7 @@ CREATE TABLE public.recipe_materials (
 
 ALTER TABLE public.recipe_materials ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.recipe_ratings (
+CREATE TABLE IF NOT EXISTS public.recipe_ratings (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     recipe_id text NOT NULL,
     user_id uuid NOT NULL,
@@ -375,7 +375,7 @@ CREATE TABLE public.recipe_ratings (
 
 ALTER TABLE public.recipe_ratings ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.recipe_comments (
+CREATE TABLE IF NOT EXISTS public.recipe_comments (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     recipe_id text NOT NULL,
@@ -396,7 +396,7 @@ ALTER TABLE public.recipe_comments ENABLE ROW LEVEL SECURITY;
 -- 6. Events (core)
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.events (
+CREATE TABLE IF NOT EXISTS public.events (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     name text DEFAULT ''::text NOT NULL CONSTRAINT chk_event_name_length CHECK (char_length(name) <= 200),
@@ -421,7 +421,7 @@ ALTER TABLE public.recipes
 ALTER TABLE public.recipes
   ADD CONSTRAINT fk_recipes_original_recipe FOREIGN KEY (original_recipe_uid) REFERENCES public.recipes(id) ON DELETE SET NULL;
 
-CREATE TABLE public.event_cooks (
+CREATE TABLE IF NOT EXISTS public.event_cooks (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -441,7 +441,7 @@ CREATE TABLE public.event_cooks (
 ALTER TABLE public.event_cooks REPLICA IDENTITY FULL;
 ALTER TABLE public.event_cooks ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_dates (
+CREATE TABLE IF NOT EXISTS public.event_dates (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -462,7 +462,7 @@ CREATE TABLE public.event_dates (
 ALTER TABLE public.event_dates REPLICA IDENTITY FULL;
 ALTER TABLE public.event_dates ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_groupconfiguration_diets (
+CREATE TABLE IF NOT EXISTS public.event_groupconfiguration_diets (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -481,7 +481,7 @@ CREATE TABLE public.event_groupconfiguration_diets (
 ALTER TABLE public.event_groupconfiguration_diets REPLICA IDENTITY FULL;
 ALTER TABLE public.event_groupconfiguration_diets ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_groupconfiguration_intolerances (
+CREATE TABLE IF NOT EXISTS public.event_groupconfiguration_intolerances (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -500,7 +500,7 @@ CREATE TABLE public.event_groupconfiguration_intolerances (
 ALTER TABLE public.event_groupconfiguration_intolerances REPLICA IDENTITY FULL;
 ALTER TABLE public.event_groupconfiguration_intolerances ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_groupconfiguration_portions (
+CREATE TABLE IF NOT EXISTS public.event_groupconfiguration_portions (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -523,7 +523,7 @@ CREATE TABLE public.event_groupconfiguration_portions (
 ALTER TABLE public.event_groupconfiguration_portions REPLICA IDENTITY FULL;
 ALTER TABLE public.event_groupconfiguration_portions ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_meal_types (
+CREATE TABLE IF NOT EXISTS public.event_meal_types (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -536,7 +536,7 @@ CREATE TABLE public.event_meal_types (
 ALTER TABLE public.event_meal_types REPLICA IDENTITY FULL;
 ALTER TABLE public.event_meal_types ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_meals (
+CREATE TABLE IF NOT EXISTS public.event_meals (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -551,7 +551,7 @@ CREATE TABLE public.event_meals (
 ALTER TABLE public.event_meals REPLICA IDENTITY FULL;
 ALTER TABLE public.event_meals ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_menues (
+CREATE TABLE IF NOT EXISTS public.event_menues (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -566,7 +566,7 @@ CREATE TABLE public.event_menues (
 ALTER TABLE public.event_menues REPLICA IDENTITY FULL;
 ALTER TABLE public.event_menues ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_menue_recipes (
+CREATE TABLE IF NOT EXISTS public.event_menue_recipes (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -586,7 +586,7 @@ CREATE TABLE public.event_menue_recipes (
 ALTER TABLE public.event_menue_recipes REPLICA IDENTITY FULL;
 ALTER TABLE public.event_menue_recipes ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_menue_products (
+CREATE TABLE IF NOT EXISTS public.event_menue_products (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -608,7 +608,7 @@ CREATE TABLE public.event_menue_products (
 ALTER TABLE public.event_menue_products REPLICA IDENTITY FULL;
 ALTER TABLE public.event_menue_products ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_menue_materials (
+CREATE TABLE IF NOT EXISTS public.event_menue_materials (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -630,7 +630,7 @@ CREATE TABLE public.event_menue_materials (
 ALTER TABLE public.event_menue_materials REPLICA IDENTITY FULL;
 ALTER TABLE public.event_menue_materials ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_notes (
+CREATE TABLE IF NOT EXISTS public.event_notes (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     event_id text NOT NULL,
@@ -645,7 +645,7 @@ CREATE TABLE public.event_notes (
 ALTER TABLE public.event_notes REPLICA IDENTITY FULL;
 ALTER TABLE public.event_notes ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_menuplan_item_plans (
+CREATE TABLE IF NOT EXISTS public.event_menuplan_item_plans (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     event_id text NOT NULL,
     menue_recipe_id text,
@@ -674,7 +674,7 @@ CREATE TABLE public.event_menuplan_item_plans (
 ALTER TABLE public.event_menuplan_item_plans REPLICA IDENTITY FULL;
 ALTER TABLE public.event_menuplan_item_plans ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_menuplan_tracking (
+CREATE TABLE IF NOT EXISTS public.event_menuplan_tracking (
     event_id text NOT NULL,
     created_at timestamptz DEFAULT now() NOT NULL,
     created_by uuid DEFAULT auth.uid(),
@@ -693,7 +693,7 @@ ALTER TABLE public.event_menuplan_tracking ENABLE ROW LEVEL SECURITY;
 -- 7. Used Recipe Lists
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.event_used_recipe_lists (
+CREATE TABLE IF NOT EXISTS public.event_used_recipe_lists (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     event_id text NOT NULL,
     name text NOT NULL,
@@ -716,7 +716,7 @@ ALTER TABLE public.event_used_recipe_lists ENABLE ROW LEVEL SECURITY;
 -- 8. Shopping Lists
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.event_shopping_lists (
+CREATE TABLE IF NOT EXISTS public.event_shopping_lists (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     event_id text NOT NULL,
     name text NOT NULL,
@@ -738,7 +738,7 @@ CREATE TABLE public.event_shopping_lists (
 ALTER TABLE public.event_shopping_lists REPLICA IDENTITY FULL;
 ALTER TABLE public.event_shopping_lists ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_shopping_list_items (
+CREATE TABLE IF NOT EXISTS public.event_shopping_list_items (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     list_id text NOT NULL,
     product_id text,
@@ -776,7 +776,7 @@ ALTER TABLE public.event_shopping_list_items ENABLE ROW LEVEL SECURITY;
 -- 9. Material Lists
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.event_material_lists (
+CREATE TABLE IF NOT EXISTS public.event_material_lists (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     event_id text NOT NULL,
     name text NOT NULL,
@@ -797,7 +797,7 @@ CREATE TABLE public.event_material_lists (
 ALTER TABLE public.event_material_lists REPLICA IDENTITY FULL;
 ALTER TABLE public.event_material_lists ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.event_material_list_items (
+CREATE TABLE IF NOT EXISTS public.event_material_list_items (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     list_id text NOT NULL,
     material_id text,
@@ -831,7 +831,7 @@ ALTER TABLE public.event_material_list_items ENABLE ROW LEVEL SECURITY;
 -- 10. Requests
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.requests (
+CREATE TABLE IF NOT EXISTS public.requests (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     number integer DEFAULT nextval('public.request_number_seq'::regclass) NOT NULL,
@@ -861,7 +861,7 @@ COMMENT ON COLUMN public.requests.change_log IS 'Statusänderungs-Protokoll als 
 
 ALTER TABLE public.requests ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.request_comments (
+CREATE TABLE IF NOT EXISTS public.request_comments (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     request_id text NOT NULL,
     comment text NOT NULL CONSTRAINT chk_comment_length CHECK (char_length(comment) <= 1000),
@@ -882,7 +882,7 @@ ALTER TABLE public.request_comments ENABLE ROW LEVEL SECURITY;
 -- 11. Feeds
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.feeds (
+CREATE TABLE IF NOT EXISTS public.feeds (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     firebase_uid text,
     feed_type public.feed_type NOT NULL,
@@ -908,7 +908,7 @@ ALTER TABLE public.feeds ENABLE ROW LEVEL SECURITY;
 -- 12. Donations
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.donations (
+CREATE TABLE IF NOT EXISTS public.donations (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     event_id text,
     payrexx_gateway_id text,
@@ -939,7 +939,7 @@ CREATE TABLE public.donations (
 
 ALTER TABLE public.donations ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.donation_goal_sections (
+CREATE TABLE IF NOT EXISTS public.donation_goal_sections (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     label text NOT NULL,
     target_cents integer NOT NULL,
@@ -962,7 +962,7 @@ ALTER TABLE public.donation_goal_sections ENABLE ROW LEVEL SECURITY;
 -- 13. Admin / Monitoring
 -- ─────────────────────────────────────────────────────────────────────────────
 
-CREATE TABLE public.cron_job_log (
+CREATE TABLE IF NOT EXISTS public.cron_job_log (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     job_name text NOT NULL,
     started_at timestamptz DEFAULT now() NOT NULL,
@@ -977,7 +977,7 @@ CREATE TABLE public.cron_job_log (
 
 ALTER TABLE public.cron_job_log ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE public.mail_log (
+CREATE TABLE IF NOT EXISTS public.mail_log (
     id text DEFAULT (gen_random_uuid())::text NOT NULL,
     recipients jsonb DEFAULT '[]'::jsonb NOT NULL,
     recipient_type text DEFAULT 'email'::text NOT NULL,
@@ -995,7 +995,7 @@ CREATE TABLE public.mail_log (
 
 ALTER TABLE public.mail_log ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS internal.rpc_rate_limits (
+CREATE TABLE IF NOT EXISTS IF NOT EXISTS internal.rpc_rate_limits (
     user_id       UUID NOT NULL,
     function_name TEXT NOT NULL,
     called_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
