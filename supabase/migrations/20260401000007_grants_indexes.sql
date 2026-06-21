@@ -212,122 +212,122 @@ GRANT USAGE ON SEQUENCE public.users_member_id_seq TO authenticated;
 -- ─────────────────────────────────────────────────────────────────────────────
 
 -- Users
-CREATE INDEX idx_users_email ON public.users USING btree (email);
-CREATE INDEX idx_users_roles ON public.users USING gin (roles);
-CREATE INDEX idx_users_search ON public.users USING gin (search_vector);
+CREATE INDEX IF NOT EXISTS idx_users_email ON public.users USING btree (email);
+CREATE INDEX IF NOT EXISTS idx_users_roles ON public.users USING gin (roles);
+CREATE INDEX IF NOT EXISTS idx_users_search ON public.users USING gin (search_vector);
 
 -- Products
-CREATE INDEX idx_products_department_id ON public.products USING btree (department_id);
-CREATE INDEX idx_products_shopping_unit ON public.products USING btree (shopping_unit);
-CREATE INDEX idx_products_name_trgm ON public.products USING gin (name extensions.gin_trgm_ops);
-CREATE INDEX idx_products_qa_checked ON public.products USING btree (qa_checked);
-CREATE INDEX idx_materials_qa_checked ON public.materials USING btree (qa_checked);
+CREATE INDEX IF NOT EXISTS idx_products_department_id ON public.products USING btree (department_id);
+CREATE INDEX IF NOT EXISTS idx_products_shopping_unit ON public.products USING btree (shopping_unit);
+CREATE INDEX IF NOT EXISTS idx_products_name_trgm ON public.products USING gin (name extensions.gin_trgm_ops);
+CREATE INDEX IF NOT EXISTS idx_products_qa_checked ON public.products USING btree (qa_checked);
+CREATE INDEX IF NOT EXISTS idx_materials_qa_checked ON public.materials USING btree (qa_checked);
 
 -- Unit Conversions
-CREATE INDEX idx_unit_conv_basic_from ON public.unit_conversion_basic USING btree (from_unit);
-CREATE INDEX idx_unit_conv_basic_to ON public.unit_conversion_basic USING btree (to_unit);
-CREATE INDEX idx_unit_conv_products_from ON public.unit_conversion_products USING btree (from_unit);
-CREATE INDEX idx_unit_conv_products_to ON public.unit_conversion_products USING btree (to_unit);
-CREATE INDEX idx_unit_conv_products_product ON public.unit_conversion_products USING btree (product_id);
+CREATE INDEX IF NOT EXISTS idx_unit_conv_basic_from ON public.unit_conversion_basic USING btree (from_unit);
+CREATE INDEX IF NOT EXISTS idx_unit_conv_basic_to ON public.unit_conversion_basic USING btree (to_unit);
+CREATE INDEX IF NOT EXISTS idx_unit_conv_products_from ON public.unit_conversion_products USING btree (from_unit);
+CREATE INDEX IF NOT EXISTS idx_unit_conv_products_to ON public.unit_conversion_products USING btree (to_unit);
+CREATE INDEX IF NOT EXISTS idx_unit_conv_products_product ON public.unit_conversion_products USING btree (product_id);
 
 -- Recipes
-CREATE INDEX idx_recipes_created_by ON public.recipes USING btree (created_by);
-CREATE INDEX idx_recipes_recipe_type ON public.recipes USING btree (recipe_type);
-CREATE INDEX idx_recipes_tags ON public.recipes USING gin (tags);
-CREATE INDEX idx_recipes_menu_types ON public.recipes USING gin (menu_types);
-CREATE INDEX idx_recipes_allergens ON public.recipes USING gin (allergens);
-CREATE INDEX idx_recipe_ingredients_recipe_id ON public.recipe_ingredients USING btree (recipe_id, sort_order);
-CREATE INDEX idx_recipe_ingredients_product_id ON public.recipe_ingredients USING btree (product_id);
-CREATE INDEX idx_recipe_ingredients_unit ON public.recipe_ingredients USING btree (unit);
-CREATE INDEX idx_recipe_preparation_steps_recipe_id ON public.recipe_preparation_steps USING btree (recipe_id, sort_order);
-CREATE INDEX idx_recipe_materials_recipe_id ON public.recipe_materials USING btree (recipe_id, sort_order);
-CREATE INDEX idx_recipe_materials_material_id ON public.recipe_materials USING btree (material_id);
-CREATE INDEX idx_recipe_ratings_recipe_id ON public.recipe_ratings USING btree (recipe_id);
-CREATE INDEX idx_recipe_ratings_user_id ON public.recipe_ratings USING btree (user_id);
-CREATE INDEX idx_recipe_comments_recipe_id ON public.recipe_comments USING btree (recipe_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_recipes_created_by ON public.recipes USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_recipes_recipe_type ON public.recipes USING btree (recipe_type);
+CREATE INDEX IF NOT EXISTS idx_recipes_tags ON public.recipes USING gin (tags);
+CREATE INDEX IF NOT EXISTS idx_recipes_menu_types ON public.recipes USING gin (menu_types);
+CREATE INDEX IF NOT EXISTS idx_recipes_allergens ON public.recipes USING gin (allergens);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_recipe_id ON public.recipe_ingredients USING btree (recipe_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_product_id ON public.recipe_ingredients USING btree (product_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_ingredients_unit ON public.recipe_ingredients USING btree (unit);
+CREATE INDEX IF NOT EXISTS idx_recipe_preparation_steps_recipe_id ON public.recipe_preparation_steps USING btree (recipe_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_recipe_materials_recipe_id ON public.recipe_materials USING btree (recipe_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_recipe_materials_material_id ON public.recipe_materials USING btree (material_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_ratings_recipe_id ON public.recipe_ratings USING btree (recipe_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_ratings_user_id ON public.recipe_ratings USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_recipe_comments_recipe_id ON public.recipe_comments USING btree (recipe_id, created_at DESC);
 
 -- Events
-CREATE INDEX idx_events_created_by ON public.events USING btree (created_by);
-CREATE INDEX idx_events_firebase_uid ON public.events USING btree (firebase_uid);
-CREATE INDEX idx_event_cooks_event_id ON public.event_cooks USING btree (event_id);
-CREATE INDEX idx_event_cooks_user_id ON public.event_cooks USING btree (user_id);
-CREATE INDEX idx_event_dates_event_id ON public.event_dates USING btree (event_id, sort_order);
-CREATE INDEX idx_event_gc_diets_event_id ON public.event_groupconfiguration_diets USING btree (event_id, sort_order);
-CREATE INDEX idx_event_gc_intolerances_event_id ON public.event_groupconfiguration_intolerances USING btree (event_id, sort_order);
-CREATE INDEX idx_event_gc_portions_event_id ON public.event_groupconfiguration_portions USING btree (event_id);
-CREATE INDEX idx_event_gc_portions_diet_id ON public.event_groupconfiguration_portions USING btree (diet_id);
-CREATE INDEX idx_event_gc_portions_intol_id ON public.event_groupconfiguration_portions USING btree (intolerance_id);
-CREATE INDEX idx_event_meal_types_event_id ON public.event_meal_types USING btree (event_id, sort_order);
-CREATE INDEX idx_event_meals_event_id ON public.event_meals USING btree (event_id);
-CREATE INDEX idx_event_meals_meal_date ON public.event_meals USING btree (event_id, meal_date);
-CREATE INDEX idx_event_meals_meal_type_id ON public.event_meals USING btree (meal_type_id);
-CREATE INDEX idx_event_menues_event_id ON public.event_menues USING btree (event_id);
-CREATE INDEX idx_event_menues_meal_id ON public.event_menues USING btree (meal_id, sort_order);
-CREATE INDEX idx_event_menue_recipes_event_id ON public.event_menue_recipes USING btree (event_id);
-CREATE INDEX idx_event_menue_recipes_menue_id ON public.event_menue_recipes USING btree (menue_id, sort_order);
-CREATE INDEX idx_event_menue_recipes_recipe_id ON public.event_menue_recipes USING btree (recipe_id);
-CREATE INDEX idx_event_menue_products_event_id ON public.event_menue_products USING btree (event_id);
-CREATE INDEX idx_event_menue_products_menue_id ON public.event_menue_products USING btree (menue_id, sort_order);
-CREATE INDEX idx_event_menue_products_product_id ON public.event_menue_products USING btree (product_id);
-CREATE INDEX idx_event_menue_materials_event_id ON public.event_menue_materials USING btree (event_id);
-CREATE INDEX idx_event_menue_materials_menue_id ON public.event_menue_materials USING btree (menue_id, sort_order);
-CREATE INDEX idx_event_menue_materials_material_id ON public.event_menue_materials USING btree (material_id);
-CREATE INDEX idx_event_notes_event_id ON public.event_notes USING btree (event_id);
-CREATE INDEX idx_event_notes_menue_id ON public.event_notes USING btree (menue_id);
-CREATE INDEX idx_event_notes_note_date ON public.event_notes USING btree (event_id, note_date);
-CREATE INDEX idx_event_menuplan_plans_event_id ON public.event_menuplan_item_plans USING btree (event_id);
-CREATE INDEX idx_event_menuplan_plans_recipe_id ON public.event_menuplan_item_plans USING btree (menue_recipe_id);
-CREATE INDEX idx_event_menuplan_plans_product_id ON public.event_menuplan_item_plans USING btree (menue_product_id);
-CREATE INDEX idx_event_menuplan_plans_material_id ON public.event_menuplan_item_plans USING btree (menue_material_id);
-CREATE INDEX idx_event_menuplan_plans_diet_id ON public.event_menuplan_item_plans USING btree (diet_id);
-CREATE INDEX idx_event_menuplan_plans_intolerance_id ON public.event_menuplan_item_plans USING btree (intolerance_id);
+CREATE INDEX IF NOT EXISTS idx_events_created_by ON public.events USING btree (created_by);
+CREATE INDEX IF NOT EXISTS idx_events_firebase_uid ON public.events USING btree (firebase_uid);
+CREATE INDEX IF NOT EXISTS idx_event_cooks_event_id ON public.event_cooks USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_cooks_user_id ON public.event_cooks USING btree (user_id);
+CREATE INDEX IF NOT EXISTS idx_event_dates_event_id ON public.event_dates USING btree (event_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_gc_diets_event_id ON public.event_groupconfiguration_diets USING btree (event_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_gc_intolerances_event_id ON public.event_groupconfiguration_intolerances USING btree (event_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_gc_portions_event_id ON public.event_groupconfiguration_portions USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_gc_portions_diet_id ON public.event_groupconfiguration_portions USING btree (diet_id);
+CREATE INDEX IF NOT EXISTS idx_event_gc_portions_intol_id ON public.event_groupconfiguration_portions USING btree (intolerance_id);
+CREATE INDEX IF NOT EXISTS idx_event_meal_types_event_id ON public.event_meal_types USING btree (event_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_meals_event_id ON public.event_meals USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_meals_meal_date ON public.event_meals USING btree (event_id, meal_date);
+CREATE INDEX IF NOT EXISTS idx_event_meals_meal_type_id ON public.event_meals USING btree (meal_type_id);
+CREATE INDEX IF NOT EXISTS idx_event_menues_event_id ON public.event_menues USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_menues_meal_id ON public.event_menues USING btree (meal_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_menue_recipes_event_id ON public.event_menue_recipes USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_menue_recipes_menue_id ON public.event_menue_recipes USING btree (menue_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_menue_recipes_recipe_id ON public.event_menue_recipes USING btree (recipe_id);
+CREATE INDEX IF NOT EXISTS idx_event_menue_products_event_id ON public.event_menue_products USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_menue_products_menue_id ON public.event_menue_products USING btree (menue_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_menue_products_product_id ON public.event_menue_products USING btree (product_id);
+CREATE INDEX IF NOT EXISTS idx_event_menue_materials_event_id ON public.event_menue_materials USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_menue_materials_menue_id ON public.event_menue_materials USING btree (menue_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_event_menue_materials_material_id ON public.event_menue_materials USING btree (material_id);
+CREATE INDEX IF NOT EXISTS idx_event_notes_event_id ON public.event_notes USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_notes_menue_id ON public.event_notes USING btree (menue_id);
+CREATE INDEX IF NOT EXISTS idx_event_notes_note_date ON public.event_notes USING btree (event_id, note_date);
+CREATE INDEX IF NOT EXISTS idx_event_menuplan_plans_event_id ON public.event_menuplan_item_plans USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_event_menuplan_plans_recipe_id ON public.event_menuplan_item_plans USING btree (menue_recipe_id);
+CREATE INDEX IF NOT EXISTS idx_event_menuplan_plans_product_id ON public.event_menuplan_item_plans USING btree (menue_product_id);
+CREATE INDEX IF NOT EXISTS idx_event_menuplan_plans_material_id ON public.event_menuplan_item_plans USING btree (menue_material_id);
+CREATE INDEX IF NOT EXISTS idx_event_menuplan_plans_diet_id ON public.event_menuplan_item_plans USING btree (diet_id);
+CREATE INDEX IF NOT EXISTS idx_event_menuplan_plans_intolerance_id ON public.event_menuplan_item_plans USING btree (intolerance_id);
 
 -- Used Recipe Lists
-CREATE INDEX idx_used_recipe_lists_event ON public.event_used_recipe_lists USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_used_recipe_lists_event ON public.event_used_recipe_lists USING btree (event_id);
 
 -- Shopping Lists
-CREATE INDEX idx_shopping_lists_event ON public.event_shopping_lists USING btree (event_id);
-CREATE INDEX idx_shopping_list_items_list ON public.event_shopping_list_items USING btree (list_id);
-CREATE INDEX idx_shopping_list_items_product_id ON public.event_shopping_list_items USING btree (product_id);
-CREATE INDEX idx_shopping_list_items_material_id ON public.event_shopping_list_items USING btree (material_id);
-CREATE INDEX idx_shopping_list_items_department_id ON public.event_shopping_list_items USING btree (department_id);
-CREATE INDEX idx_shopping_list_items_unit ON public.event_shopping_list_items USING btree (unit);
+CREATE INDEX IF NOT EXISTS idx_shopping_lists_event ON public.event_shopping_lists USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_shopping_list_items_list ON public.event_shopping_list_items USING btree (list_id);
+CREATE INDEX IF NOT EXISTS idx_shopping_list_items_product_id ON public.event_shopping_list_items USING btree (product_id);
+CREATE INDEX IF NOT EXISTS idx_shopping_list_items_material_id ON public.event_shopping_list_items USING btree (material_id);
+CREATE INDEX IF NOT EXISTS idx_shopping_list_items_department_id ON public.event_shopping_list_items USING btree (department_id);
+CREATE INDEX IF NOT EXISTS idx_shopping_list_items_unit ON public.event_shopping_list_items USING btree (unit);
 
 -- Material Lists
-CREATE INDEX idx_material_lists_event ON public.event_material_lists USING btree (event_id);
-CREATE INDEX idx_material_list_items_list ON public.event_material_list_items USING btree (list_id);
-CREATE INDEX idx_material_list_items_material_id ON public.event_material_list_items USING btree (material_id);
-CREATE INDEX idx_material_list_items_assigned_cook ON public.event_material_list_items USING btree (assigned_cook_id);
+CREATE INDEX IF NOT EXISTS idx_material_lists_event ON public.event_material_lists USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_material_list_items_list ON public.event_material_list_items USING btree (list_id);
+CREATE INDEX IF NOT EXISTS idx_material_list_items_material_id ON public.event_material_list_items USING btree (material_id);
+CREATE INDEX IF NOT EXISTS idx_material_list_items_assigned_cook ON public.event_material_list_items USING btree (assigned_cook_id);
 
 -- Requests
-CREATE INDEX idx_requests_author ON public.requests USING btree (author_uid);
-CREATE INDEX idx_requests_assignee ON public.requests USING btree (assignee_uid);
-CREATE INDEX idx_requests_status ON public.requests USING btree (status);
-CREATE INDEX idx_requests_number ON public.requests USING btree (number);
-CREATE INDEX idx_requests_firebase ON public.requests USING btree (firebase_uid);
-CREATE INDEX idx_request_comments_request ON public.request_comments USING btree (request_id);
+CREATE INDEX IF NOT EXISTS idx_requests_author ON public.requests USING btree (author_uid);
+CREATE INDEX IF NOT EXISTS idx_requests_assignee ON public.requests USING btree (assignee_uid);
+CREATE INDEX IF NOT EXISTS idx_requests_status ON public.requests USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_requests_number ON public.requests USING btree (number);
+CREATE INDEX IF NOT EXISTS idx_requests_firebase ON public.requests USING btree (firebase_uid);
+CREATE INDEX IF NOT EXISTS idx_request_comments_request ON public.request_comments USING btree (request_id);
 
 -- Feeds
-CREATE INDEX idx_feeds_created_at ON public.feeds USING btree (created_at DESC);
-CREATE INDEX idx_feeds_feed_type ON public.feeds USING btree (feed_type);
-CREATE INDEX idx_feeds_user_uid ON public.feeds USING btree (user_uid);
-CREATE INDEX idx_feeds_visibility ON public.feeds USING btree (visibility);
-CREATE INDEX idx_feeds_firebase_uid ON public.feeds USING btree (firebase_uid) WHERE (firebase_uid IS NOT NULL);
+CREATE INDEX IF NOT EXISTS idx_feeds_created_at ON public.feeds USING btree (created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_feeds_feed_type ON public.feeds USING btree (feed_type);
+CREATE INDEX IF NOT EXISTS idx_feeds_user_uid ON public.feeds USING btree (user_uid);
+CREATE INDEX IF NOT EXISTS idx_feeds_visibility ON public.feeds USING btree (visibility);
+CREATE INDEX IF NOT EXISTS idx_feeds_firebase_uid ON public.feeds USING btree (firebase_uid) WHERE (firebase_uid IS NOT NULL);
 
 -- Donations
-CREATE INDEX idx_donations_donor_uid ON public.donations USING btree (donor_uid);
-CREATE INDEX idx_donations_event_id ON public.donations USING btree (event_id);
-CREATE INDEX idx_donations_status ON public.donations USING btree (status);
-CREATE INDEX idx_donations_payrexx_ref ON public.donations USING btree (payrexx_reference_id);
+CREATE INDEX IF NOT EXISTS idx_donations_donor_uid ON public.donations USING btree (donor_uid);
+CREATE INDEX IF NOT EXISTS idx_donations_event_id ON public.donations USING btree (event_id);
+CREATE INDEX IF NOT EXISTS idx_donations_status ON public.donations USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_donations_payrexx_ref ON public.donations USING btree (payrexx_reference_id);
 
 -- Admin/Monitoring
-CREATE INDEX idx_cron_job_log_job_name ON public.cron_job_log USING btree (job_name, started_at DESC);
-CREATE INDEX idx_cron_job_log_status ON public.cron_job_log USING btree (status);
-CREATE INDEX idx_mail_log_sent_at ON public.mail_log USING btree (sent_at DESC);
-CREATE INDEX idx_mail_log_delivery_status ON public.mail_log USING btree (delivery_status);
+CREATE INDEX IF NOT EXISTS idx_cron_job_log_job_name ON public.cron_job_log USING btree (job_name, started_at DESC);
+CREATE INDEX IF NOT EXISTS idx_cron_job_log_status ON public.cron_job_log USING btree (status);
+CREATE INDEX IF NOT EXISTS idx_mail_log_sent_at ON public.mail_log USING btree (sent_at DESC);
+CREATE INDEX IF NOT EXISTS idx_mail_log_delivery_status ON public.mail_log USING btree (delivery_status);
 
 -- Rate-Limiting
-CREATE INDEX idx_rpc_rate_limits_lookup
+CREATE INDEX IF NOT EXISTS idx_rpc_rate_limits_lookup
     ON internal.rpc_rate_limits (user_id, function_name, called_at);
 
 -- ─────────────────────────────────────────────────────────────────────────────
