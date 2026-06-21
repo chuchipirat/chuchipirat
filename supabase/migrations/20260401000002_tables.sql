@@ -995,7 +995,7 @@ CREATE TABLE IF NOT EXISTS public.mail_log (
 
 ALTER TABLE public.mail_log ENABLE ROW LEVEL SECURITY;
 
-CREATE TABLE IF NOT EXISTS IF NOT EXISTS internal.rpc_rate_limits (
+CREATE TABLE IF NOT EXISTS internal.rpc_rate_limits (
     user_id       UUID NOT NULL,
     function_name TEXT NOT NULL,
     called_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
