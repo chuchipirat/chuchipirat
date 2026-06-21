@@ -29,6 +29,8 @@ import {AlertMessage} from "../../Shared/AlertMessage";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {EventDomain, getMaxDate} from "../../Database/Repository/EventRepository";
 import {EventCard,EventCardLoading, EventCardData} from "./eventCard";
+import {CopyEventDialog} from "./CopyEventDialog";
+import {EventCompletionDonation} from "../../Donate/EventCompletionDonation";
 import {Action} from "../../../constants/actions";
 import {
   EVENT as ROUTES_EVENT,
@@ -82,6 +84,12 @@ const EventsPage = () => {
   const [state, dispatch] = React.useReducer(eventsReducer, initialState);
   const today = new Date(new Date().setHours(23, 59, 59, 999));
 
+  // Copy-Dialog Zustand
+  const [copyDialogOpen, setCopyDialogOpen] = React.useState(false);
+  const [eventToCopy, setEventToCopy] = React.useState<EventDomain | null>(null);
+  // Nach erfolgreichem Kopieren: Spendenansicht
+  const [copiedEvent, setCopiedEvent] = React.useState<{id: string; name: string} | null>(null);
+
   /* ------------------------------------------
   // Daten holen
   // ------------------------------------------ */
@@ -123,6 +131,35 @@ const EventsPage = () => {
     navigate(`${ROUTES_CREATE_NEW_EVENT}`);
   };
 
+  /* ------------------------------------------
+  // Event kopieren
+  // ------------------------------------------ */
+  const onCopyClick = (eventCard: EventCardData) => {
+    // Das vollständige EventDomain aus dem State holen (enthält dates)
+    const fullEvent = state.events.find(
+      (eventDomain) => eventDomain.uid === eventCard.uid,
+    );
+    if (!fullEvent) return;
+    setEventToCopy(fullEvent);
+    setCopyDialogOpen(true);
+  };
+
+  const onCopyDialogClose = () => {
+    setCopyDialogOpen(false);
+    setEventToCopy(null);
+  };
+
+  const onCopySuccess = (newEventId: string, eventName: string) => {
+    setCopyDialogOpen(false);
+    setEventToCopy(null);
+    setCopiedEvent({id: newEventId, name: eventName});
+  };
+
+  const onNavigateToCopiedEvent = () => {
+    if (!copiedEvent) return;
+    navigate(`${ROUTES_EVENT}/${copiedEvent.id}`);
+  };
+
   // Events aufteilen und sortieren
   const futureEvents = state.events
     .filter((event) => getMaxDate(event) > today)
@@ -131,6 +168,23 @@ const EventsPage = () => {
   const pastEvents = state.events
     .filter((event) => getMaxDate(event) <= today)
     .sort((a, b) => getMaxDate(b).getTime() - getMaxDate(a).getTime());
+
+  // Nach erfolgreichem Kopieren: Spendenansicht statt Event-Liste anzeigen
+  if (copiedEvent) {
+    return (
+      <React.Fragment>
+        <PageTitle title={TEXT_EVENTS} />
+        <Container sx={classes.container} component="main" maxWidth="sm">
+          <EventCompletionDonation
+            eventName={copiedEvent.name}
+            returnPath={`/event/${copiedEvent.id}`}
+            onSkip={onNavigateToCopiedEvent}
+            eventId={copiedEvent.id}
+          />
+        </Container>
+      </React.Fragment>
+    );
+  }
 
   return (
     <React.Fragment>
@@ -160,6 +214,7 @@ const EventsPage = () => {
           events={futureEvents}
           isLoading={state.isLoading}
           onCardClick={onEventOpen}
+          onCopyClick={onCopyClick}
           onCreateNewEvent={onEventCreate}
           showCreateNewCard={true}
           emptyMessage={TEXT_EVENT_NO_FUTURE_EVENTS}
@@ -177,11 +232,32 @@ const EventsPage = () => {
           events={pastEvents}
           isLoading={state.isLoading}
           onCardClick={onEventOpen}
+          onCopyClick={onCopyClick}
           onCreateNewEvent={onEventCreate}
           showCreateNewCard={false}
           emptyMessage={TEXT_EVENT_NO_PAST_EVENTS}
         />
       </Container>
+
+      {/* Copy-Event Dialog */}
+      {eventToCopy && (
+        <CopyEventDialog
+          open={copyDialogOpen}
+          onClose={onCopyDialogClose}
+          onSuccess={onCopySuccess}
+          sourceEvent={{
+            uid: eventToCopy.uid,
+            name: eventToCopy.name,
+            motto: eventToCopy.motto,
+            location: eventToCopy.location,
+            dates: eventToCopy.dates.map((dateDomain) => ({
+              dateFrom: dateDomain.dateFrom,
+              dateTo: dateDomain.dateTo,
+              sortOrder: dateDomain.sortOrder,
+            })),
+          }}
+        />
+      )}
     </React.Fragment>
   );
 };
@@ -190,6 +266,7 @@ interface EventGridProps {
   events: EventCardData[];
   isLoading: boolean;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  onCopyClick?: (event: EventCardData) => void;
   onCreateNewEvent: (event: React.MouseEvent<HTMLButtonElement>) => void;
   showCreateNewCard: boolean;
   emptyMessage?: string;
@@ -199,6 +276,7 @@ const EventsGrid = ({
   events,
   isLoading,
   onCardClick,
+  onCopyClick,
   onCreateNewEvent,
   showCreateNewCard = false,
   emptyMessage,
@@ -237,6 +315,7 @@ const EventsGrid = ({
           <EventCard
             event={event}
             onCardClick={onCardClick}
+            onCopyClick={onCopyClick}
             key={"eventCard_" + event.uid}
           />
         </Grid>

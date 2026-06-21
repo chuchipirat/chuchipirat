@@ -8,7 +8,16 @@ import {
   CardActionArea,
   Box,
   Skeleton,
+  IconButton,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from "@mui/material";
+import {
+  MoreVert as MoreVertIcon,
+  ContentCopy as ContentCopyIcon,
+} from "@mui/icons-material";
 
 import {ImageRepository} from "../../../constants/imageRepository";
 import {useCustomStyles} from "../../../constants/styles";
@@ -45,14 +54,14 @@ export interface EventCardData {
 interface EventCardProps {
   event: EventCardData;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
+  /** Optionaler Callback zum Kopieren des Events. Zeigt das Kontextmenü nur wenn gesetzt. */
+  onCopyClick?: (event: EventCardData) => void;
 }
-
 
 const formatDay = (d: Date) =>
   `${d.getDate().toString().padStart(2, "0")}.${(d.getMonth() + 1).toString().padStart(2, "0")}.`;
 
-const formatFull = (d: Date) =>
-  `${formatDay(d)}${d.getFullYear()}`;
+const formatFull = (d: Date) => `${formatDay(d)}${d.getFullYear()}`;
 
 /**
  * Formatiert eine einzelne Zeitscheibe als lesbaren Datumsstring.
@@ -99,9 +108,10 @@ function formatDateRanges(dates?: CardDateEntry[]): string[] {
  * @param onCardClick - Callback beim Klick auf die Karte
  * @returns JSX-Element
  */
-const EventCard = ({event, onCardClick}: EventCardProps) => {
+const EventCard = ({event, onCardClick, onCopyClick}: EventCardProps) => {
   const classes = useCustomStyles();
   const [hover, setHover] = React.useState(false);
+  const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
 
   /* ------------------------------------------
   // Hover
@@ -113,6 +123,24 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
     setHover(false);
   };
 
+  /** Kontextmenü öffnen — stopPropagation verhindert Navigation. */
+  const handleMenuOpen = (clickEvent: React.MouseEvent<HTMLButtonElement>) => {
+    clickEvent.stopPropagation();
+    clickEvent.preventDefault();
+    setMenuAnchor(clickEvent.currentTarget);
+  };
+
+  /** Kontextmenü schliessen. */
+  const handleMenuClose = () => {
+    setMenuAnchor(null);
+  };
+
+  /** «Anlass kopieren» im Kontextmenü. */
+  const handleCopyClick = () => {
+    handleMenuClose();
+    onCopyClick?.(event);
+  };
+
   const dateLines = formatDateRanges(event.dates);
 
   return (
@@ -122,6 +150,38 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
       onMouseOut={handleMouseOut}
       key={"eventcard_" + event.uid}
     >
+      {/* Kontextmenü-Button — nur sichtbar wenn onCopyClick übergeben */}
+      {onCopyClick && (
+        <IconButton
+          size="small"
+          onClick={handleMenuOpen}
+          sx={{
+            position: "absolute",
+            top: 4,
+            right: 4,
+            zIndex: 1,
+            // backgroundColor: "rgba(255,255,255,0.7)",
+            "&:hover": {backgroundColor: "rgba(255,255,255,0.9)"},
+          }}
+        >
+          <MoreVertIcon fontSize="small" />
+        </IconButton>
+      )}
+      {onCopyClick && (
+        <Menu
+          anchorEl={menuAnchor}
+          open={Boolean(menuAnchor)}
+          onClose={handleMenuClose}
+          onClick={(clickEvent) => clickEvent.stopPropagation()}
+        >
+          <MenuItem onClick={handleCopyClick}>
+            <ListItemIcon>
+              <ContentCopyIcon fontSize="small" />
+            </ListItemIcon>
+            <ListItemText>Anlass kopieren</ListItemText>
+          </MenuItem>
+        </Menu>
+      )}
       <CardActionArea
         data-event-uid={event.uid}
         onClick={onCardClick}
@@ -155,7 +215,12 @@ const EventCard = ({event, onCardClick}: EventCardProps) => {
                   {event.motto}
                 </Typography>
                 {dateLines.map((line, i) => (
-                  <Typography variant="caption" color="textSecondary" key={i} display="block">
+                  <Typography
+                    variant="caption"
+                    color="textSecondary"
+                    key={i}
+                    display="block"
+                  >
                     {line}
                   </Typography>
                 ))}

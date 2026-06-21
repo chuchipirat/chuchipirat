@@ -16,6 +16,7 @@ import {
 } from "../../Firebase/Db/sessionStorageHandler.class";
 import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 import {Event,Cook, EventDate} from "../../Event/Event/event.class";
+import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";
 
 /* =====================================================================
 // DB-Zeilenstrukturen (snake_case, entspricht den Postgres-Spalten)
@@ -259,8 +260,8 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     return {
       uid: row.id,
       sortOrder: row.sort_order,
-      dateFrom: new Date(row.date_from),
-      dateTo: new Date(row.date_to),
+      dateFrom: parseLocalDate(row.date_from),
+      dateTo: parseLocalDate(row.date_to),
     };
   }
 
@@ -493,12 +494,57 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     const rows = dates.map((dateEntry, index) => ({
       event_id: eventId,
       sort_order: index * 10,
-      date_from: dateEntry.dateFrom.toISOString().split("T")[0],
-      date_to: dateEntry.dateTo.toISOString().split("T")[0],
+      date_from: formatLocalDate(dateEntry.dateFrom),
+      date_to: formatLocalDate(dateEntry.dateTo),
     }));
 
     const {error: insertError} = await this.client.from("event_dates").insert(rows);
     if (insertError) throw insertError;
+  }
+
+  /* =====================================================================
+  // Event kopieren (via RPC)
+  // ===================================================================== */
+  /**
+   * Kopiert ein Event atomar via die serverseitige RPC-Funktion `copy_event`.
+   *
+   * Erstellt eine vollständige Kopie inkl. Menüplan, Gruppenconfig und
+   * optional Kochcrew und Rezeptvarianten.
+   *
+   * @param sourceEventId ID des Quell-Events.
+   * @param newEvent Kopfdaten und Zeitscheiben für das neue Event.
+   * @param options Optionen (Kochcrew übernehmen, Varianten kopieren).
+   * @returns Die ID des neu erstellten Events.
+   * @throws PostgrestError bei Datenbankfehlern oder fehlender Berechtigung.
+   *
+   * @example
+   * const newId = await repo.copyEvent("abc-123", {
+   *   name: "Kopie von Sommerlager",
+   *   motto: "",
+   *   location: "",
+   *   dates: [{ date_from: "2026-08-01", date_to: "2026-08-05" }],
+   * }, { copy_cooks: false, copy_variants: false });
+   */
+  async copyEvent(
+    sourceEventId: string,
+    newEvent: {
+      name: string;
+      motto: string;
+      location: string;
+      dates: {date_from: string; date_to: string}[];
+    },
+    options: {
+      copy_cooks: boolean;
+      copy_variants: boolean;
+    },
+  ): Promise<string> {
+    const {data, error} = await this.client.rpc("copy_event", {
+      p_source_event_id: sourceEventId,
+      p_new_event: newEvent,
+      p_options: options,
+    });
+    if (error) throw error;
+    return data as string;
   }
 
   /* =====================================================================

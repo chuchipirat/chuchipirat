@@ -65,6 +65,8 @@ Three environments: **DEV / TEST / PROD** (Coolify on Hetzner).
 - Do NOT use single-letter variable names. Use Clean Code naming conventions. Name things properly and descriptively.
 - Do NOT introduce UI libraries other than Material UI
 - Do NOT run any operation against the PROD environment
+- Do NOT use `new Date("YYYY-MM-DD")` for Postgres `date` columns — it parses as UTC midnight, which in CET/CEST becomes the previous day. Use `parseLocalDate()` from `src/utils/dateUtils.ts` instead.
+- Do NOT use `.toISOString().split("T")[0]` to format dates for Postgres — it converts to UTC, shifting the day in CET/CEST. Use `formatLocalDate()` from `src/utils/dateUtils.ts` instead.
 
 ## Git
 
