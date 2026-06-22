@@ -587,12 +587,25 @@ services:
       ]
 
 
+  mailpit:
+    container_name: supabase-mail-test
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
   mail-templates:
     container_name: supabase-mail-templates-test
     image: nginx:alpine
     restart: unless-stopped
     volumes:
       - ./volumes/auth/templates:/usr/share/nginx/html:ro
+
 
 volumes:
   db-config:
