@@ -697,21 +697,35 @@ function buildDonationsSection(donations: ConfirmedDonation[]): string {
  */
 function buildOpenRequestsHtml(
   openRequests: {
+    id: string;
     number: number;
-    request_type: string;
+    recipe_name: string | null;
     created_at: string;
     author_display_name: string | null;
   }[]
 ): string {
   if (openRequests.length === 0) return "";
 
+  const siteUrl = (Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch").replace(/\/$/, "");
+
   const rows = openRequests
     .map((request) => {
-      const date = new Date(request.created_at).toLocaleDateString("de-CH");
+      const requestUrl = `${siteUrl}/requestoverview/${request.id}`;
+      const recipeName = request.recipe_name ?? "–";
       const author = request.author_display_name ?? "Unbekannt";
+      // Explizite Formatierung mit führenden Nullen (de-CH ohne Optionen = kein Nullpadding)
+      const date = new Date(request.created_at).toLocaleDateString("de-CH", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+      });
+      // Verlinktes Nummernfeld — td() nicht verwendbar da escapeHtml() Anchor-Tags entfernt
+      const numberCell =
+        `<td style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0; font-size: 14px;">` +
+        `<a href="${requestUrl}" style="color: #1565c0; text-decoration: none; font-weight: 500;">#${request.number}</a></td>`;
       return `<tr>
-        ${td(`#${request.number}`)}
-        ${td(request.request_type)}
+        ${numberCell}
+        ${td(recipeName)}
         ${td(author)}
         <td style="padding: 8px 12px; border-bottom: 1px solid #e0e0e0; font-size: 14px; color: #757575;">${date}</td>
       </tr>`;
@@ -720,7 +734,7 @@ function buildOpenRequestsHtml(
 
   return (
     sectionHeading("Offene Anträge (nicht zugewiesen)") +
-    tableOpen(["Nr.", "Typ", "Autor", "Erstellt"]) +
+    tableOpen(["Nr.", "Rezept", "Autor", "Erstellt"]) +
     rows +
     TABLE_CLOSE
   );
@@ -920,7 +934,7 @@ serve(async (req: Request) => {
         fetchConfirmedDonations(supabaseAdmin, yesterdayStart, yesterdayEnd),
         supabaseAdmin
           .from("requests_view")
-          .select("number, request_type, created_at, author_display_name")
+          .select("id, number, recipe_name, created_at, author_display_name")
           .in("status", ["created", "inReview"])
           .is("assignee_uid", null)
           .order("created_at", {ascending: false}),
@@ -931,8 +945,9 @@ serve(async (req: Request) => {
       throw new Error(`Antrags-Abfrage fehlgeschlagen: ${requestResult.error.message}`);
     }
     const openRequests = (requestResult.data ?? []) as {
+      id: string;
       number: number;
-      request_type: string;
+      recipe_name: string | null;
       created_at: string;
       author_display_name: string | null;
     }[];
