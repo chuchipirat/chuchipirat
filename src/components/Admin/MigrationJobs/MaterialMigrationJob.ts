@@ -15,7 +15,8 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {fetchAllRows, MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
 
 /* =====================================================================
 // Typ der Firebase-Quelldaten für ein Material
@@ -57,6 +58,29 @@ export class MaterialMigrationJob
   description =
     "Migriert alle Materialien von Firebase nach Postgres.";
 
+  /** Bereits migrierte Materialien (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
+
+  /* =====================================================================
+  // Lookup-Maps einmalig aufbauen
+  // ===================================================================== */
+  /**
+   * Lädt bereits migrierte Materialien einmalig aus Postgres.
+   * Eliminiert N+1-Queries: jede checkExists-Prüfung wird danach
+   * als O(1)-Set-Lookup ausgeführt.
+   */
+  private async buildLookupMaps(): Promise<void> {
+    const existingRows = await fetchAllRows<{firebase_uid: string}>(
+      supabaseAdmin!,
+      "materials",
+      "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid),
+    );
+  }
+
   /* =====================================================================
   // Alle Materialien aus Firebase lesen
   // ===================================================================== */
@@ -64,12 +88,19 @@ export class MaterialMigrationJob
    * Liest alle Materialien aus dem Firestore-Dokument `masterData/materials`.
    * Die Daten liegen als flache Map {[uid]: {name, type, usable}} vor.
    *
+   * Baut ausserdem die Existenz-Menge für schnelle checkExists-Prüfung auf.
+   *
    * @param firebase - Firebase-Instanz
+   * @param database - DatabaseService-Instanz (optional, für Existenz-Menge)
    * @returns Array aller Material-Quelldatensätze
    */
   async fetchSourceRecords(
-    firebase: Firebase
+    firebase: Firebase,
+    database?: DatabaseService,
   ): Promise<SourceRecord<FirebaseMaterialData>[]> {
+    if (database) {
+      await this.buildLookupMaps();
+    }
     const result =
       await firebase.masterdata.materials.read<ValueObject>({uids: []});
 
@@ -96,6 +127,7 @@ export class MaterialMigrationJob
   // ===================================================================== */
   /**
    * Prüft anhand der `firebase_uid`, ob das Material bereits migriert wurde.
+   * Verwendet die vorgeladene Menge für O(1)-Lookup, falls verfügbar.
    *
    * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
@@ -103,13 +135,14 @@ export class MaterialMigrationJob
    */
   async checkExists(
     database: DatabaseService,
-    record: SourceRecord<FirebaseMaterialData>
+    record: SourceRecord<FirebaseMaterialData>,
   ): Promise<boolean> {
-    const materials = database.materials;
-    const existing = await materials.findMany({
-      filters: [
-        {field: "firebase_uid", operator: "eq", value: record.id},
-      ],
+    if (this.existingFirebaseUids !== null) {
+      return this.existingFirebaseUids.has(record.id);
+    }
+    // Fallback falls buildLookupMaps nicht aufgerufen wurde
+    const existing = await database.materials.findMany({
+      filters: [{field: "firebase_uid", operator: "eq", value: record.id}],
     });
     return existing.length > 0;
   }
@@ -128,7 +161,7 @@ export class MaterialMigrationJob
   async migrateRecord(
     database: DatabaseService,
     record: SourceRecord<FirebaseMaterialData>,
-    authUser: AuthUser
+    authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
     const materials = database.materials;

@@ -411,16 +411,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       authUser,
     });
 
-    // firebase_uid und created_by nachträglich setzen
-    await client
-      .from("recipes")
-      .update({
-        firebase_uid: record.id,
-        ...(createdBy ? {created_by: createdBy} : {}),
-      })
-      .eq("id", recipeId);
-
-    // 3. Zutaten als Batch einfügen (1 INSERT statt 2×N Einzelabfragen)
+    // 3. Zutaten-Rows aufbauen
     const ingredientOrder: string[] = data.ingredients?.order ?? [];
     const ingredientEntries = data.ingredients?.entries ?? {};
     const ingredientRows: Record<string, unknown>[] = [];
@@ -449,14 +440,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       sortOrder += 10;
     }
 
-    if (ingredientRows.length > 0) {
-      const {error: ingredientError} = await client
-        .from("recipe_ingredients")
-        .insert(ingredientRows);
-      if (ingredientError) throw ingredientError;
-    }
-
-    // 4. Zubereitungsschritte als Batch einfügen
+    // 4. Zubereitungsschritt-Rows aufbauen
     const stepOrder: string[] = data.preparationSteps?.order ?? [];
     const stepEntries = data.preparationSteps?.entries ?? {};
     const stepRows: Record<string, unknown>[] = [];
@@ -477,14 +461,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       sortOrder += 10;
     }
 
-    if (stepRows.length > 0) {
-      const {error: stepError} = await client
-        .from("recipe_preparation_steps")
-        .insert(stepRows);
-      if (stepError) throw stepError;
-    }
-
-    // 5. Materialpositionen als Batch einfügen
+    // 5. Material-Rows aufbauen
     const materialOrder: string[] = data.materials?.order ?? [];
     const materialEntries = data.materials?.entries ?? {};
     const materialRows: Record<string, unknown>[] = [];
@@ -508,12 +485,29 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       sortOrder += 10;
     }
 
-    if (materialRows.length > 0) {
-      const {error: materialError} = await client
-        .from("recipe_materials")
-        .insert(materialRows);
-      if (materialError) throw materialError;
-    }
+    // 6. firebase_uid-Update + alle Kindtabellen parallel ausführen —
+    //    diese Operationen sind voneinander unabhängig, sobald recipeId bekannt ist.
+    const updateFields: Record<string, unknown> = {firebase_uid: record.id};
+    if (createdBy) updateFields.created_by = createdBy;
+
+    const [updateResult, ingredientResult, stepResult, materialResult] =
+      await Promise.all([
+        client.from("recipes").update(updateFields).eq("id", recipeId),
+        ingredientRows.length > 0
+          ? client.from("recipe_ingredients").insert(ingredientRows)
+          : Promise.resolve({error: null}),
+        stepRows.length > 0
+          ? client.from("recipe_preparation_steps").insert(stepRows)
+          : Promise.resolve({error: null}),
+        materialRows.length > 0
+          ? client.from("recipe_materials").insert(materialRows)
+          : Promise.resolve({error: null}),
+      ]);
+
+    if (updateResult.error) throw updateResult.error;
+    if (ingredientResult.error) throw ingredientResult.error;
+    if (stepResult.error) throw stepResult.error;
+    if (materialResult.error) throw materialResult.error;
   }
 
   /* =====================================================================
