@@ -174,8 +174,8 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "./"
-          target: "/tmp/chuchipirat-deploy/"
+          source: "infra/app/nginx.prod.conf"
+          target: "/tmp/chuchipirat-deploy/nginx.prod.conf"
           strip_components: 0
 
       - name: Move nginx config to app directory
@@ -185,7 +185,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            cp /tmp/chuchipirat-deploy/nginx.conf /opt/chuchipirat/prod/app/nginx.conf
+            cp /tmp/chuchipirat-deploy/nginx.prod.conf /opt/chuchipirat/prod/app/nginx.conf
             rm -rf /tmp/chuchipirat-deploy/
             docker restart chuchipirat-app-prod
             sleep 3
