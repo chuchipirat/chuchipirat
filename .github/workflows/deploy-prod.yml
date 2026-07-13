@@ -176,7 +176,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "infra/app/nginx.prod.conf"
           target: "/tmp/chuchipirat-deploy/"
-          strip_components: 0
+          strip_components: 2
 
       - name: Move nginx config to app directory
         uses: appleboy/ssh-action@v1
