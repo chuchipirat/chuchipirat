@@ -181,7 +181,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           source: "infra/app/nginx.conf"
-          target: "/tmp/chuchipirat-deploy/nginx.conf"
+          target: "/tmp/chuchipirat-deploy/"
           strip_components: 0
 
       - name: Move nginx config to app directory
