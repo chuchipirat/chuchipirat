@@ -180,8 +180,22 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "nginx.conf"
-          target: "/opt/chuchipirat/test/app/nginx.conf"
+          source: "./"
+          target: "/tmp/chuchipirat-deploy/"
+          strip_components: 0
+
+      - name: Move nginx config to app directory
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cp /tmp/chuchipirat-deploy/nginx.conf /opt/chuchipirat/test/app/nginx.conf
+            rm -rf /tmp/chuchipirat-deploy/
+            docker restart chuchipirat-app-test
+            sleep 3
+            docker ps | grep chuchipirat-app-test
 
       - name: Restart App Container
         uses: appleboy/ssh-action@v1
