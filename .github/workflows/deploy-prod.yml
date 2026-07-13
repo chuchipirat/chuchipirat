@@ -158,12 +158,23 @@ jobs:
           SENTRY_ORG: ${{ vars.SENTRY_ORG }}
           SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
 
-      - name: Copy build to server
+      - name: Copy build and nginx config to server
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "build/"
-          target: "/opt/chuchipirat/prod/app/html/"
+          source: "build/,nginx.conf"
+          target: "/opt/chuchipirat/prod/app/"
           strip_components: 1
+
+      - name: Restart App Container
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            docker restart chuchipirat-app-prod
+            sleep 3
+            docker ps | grep chuchipirat-app-prod
