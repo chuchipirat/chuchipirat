@@ -162,7 +162,7 @@ export const DATA_INTEGRITY = "Datenintegrität";
 export const DATA_INTEGRITY_DESCRIPTION = "Prüfung der Datenkonsistenz";
 export const SENTRY_DASHBOARD = "Sentry Dashboard";
 export const SUPABASE_DASHBOARD = "Supabase Dashboard";
-export const PAYMENT_DASHBOARD = "Zahls.ch Dashboard";
+export const PAYMENT_PROVIDER_DASHBOARD = "Zahls.ch Dashboard";
 export const ARE_YOU_SURE_YOU_WANT_TO_CHANGE =
   "Bist du sicher, dass du dieses Objekt ändern willst?";
 export const EDIT_AUTHORIZATION = "Berechtigung bearbeiten";
