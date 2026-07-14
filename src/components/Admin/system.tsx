@@ -43,6 +43,7 @@ import {
   Storage as StorageIcon,
   VolunteerActivism as VolunteerActivismIcon,
   EmojiEvents as EmojiEventsIcon,
+  Payment as PaymentIcon,
 } from "@mui/icons-material";
 
 import {
@@ -85,6 +86,7 @@ import {
   DONATION_GOALS_ADMIN_DESCRIPTION as TEXT_DONATION_GOALS_ADMIN_DESCRIPTION,
   SENTRY_DASHBOARD as TEXT_SENTRY_DASHBOARD,
   SUPABASE_DASHBOARD as TEXT_SUPABASE_DASHBOARD,
+  PAYMENT_PROVIDER_DASHBOARD as TEXT_PAYMENT_PROVIDER_DASHBOARD,
   USERS as TEXT_USERS,
 } from "../../constants/text";
 import {Role} from "../../constants/roles";
@@ -134,6 +136,8 @@ export const SYSTEM_BREADCRUMB = {
 
 const SENTRY_DASHBOARD_URL = "https://chuchipirat.sentry.io";
 const SUPABASE_DASHBOARD_URL = "https://supabase.com/dashboard";
+const PAYMENT_PROVIDER_DASHBOARD_URL =
+  "https://chuchipirat.zahls.ch/cadmin/index.php?cmd=checkout";
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -387,6 +391,14 @@ const SystemPage = () => {
                   text={TEXT_SUPABASE_DASHBOARD}
                   icon={<StorageIcon />}
                   url={SUPABASE_DASHBOARD_URL}
+                />
+              </Grid>
+              <Grid size={{xs: 12, sm: 6, md: 4}}>
+                <ExternalLinkTile
+                  id="Zahls.ch"
+                  text={TEXT_PAYMENT_PROVIDER_DASHBOARD}
+                  icon={<PaymentIcon />}
+                  url={PAYMENT_PROVIDER_DASHBOARD_URL}
                 />
               </Grid>
             </Grid>
