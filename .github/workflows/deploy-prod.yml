@@ -72,6 +72,27 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Copy Docker Compose Files to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "supabase/docker-compose.prod.yml,supabase/docker-compose.s3.prod.yml"
+          target: "/tmp/chuchipirat-compose-prod/"
+          strip_components: 1
+
+      - name: Install Docker Compose Files
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cp /tmp/chuchipirat-compose-prod/docker-compose.prod.yml /opt/chuchipirat/prod/supabase/docker-compose.yml
+            cp /tmp/chuchipirat-compose-prod/docker-compose.s3.prod.yml /opt/chuchipirat/prod/supabase/docker-compose.s3.yml
+            rm -rf /tmp/chuchipirat-compose-prod/
+
       - name: Copy Edge Functions to Server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -89,7 +110,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker restart supabase-edge-functions-prod
+            cd /opt/chuchipirat/prod/supabase && docker compose up -d --force-recreate functions
             sleep 5
             docker ps | grep edge-functions-prod
 

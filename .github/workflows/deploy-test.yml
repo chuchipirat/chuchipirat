@@ -72,6 +72,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Copy Docker Compose Files to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "supabase/docker-compose.yml,supabase/docker-compose.s3.yml"
+          target: "/opt/chuchipirat/test/supabase/"
+          strip_components: 1
+
       - name: Copy Edge Functions to Server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -89,7 +99,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker restart supabase-edge-functions-test
+            cd /opt/chuchipirat/test/supabase && docker compose up -d --force-recreate functions
             sleep 5
             docker ps | grep edge-functions
 
