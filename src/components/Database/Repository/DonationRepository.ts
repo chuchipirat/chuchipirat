@@ -46,8 +46,8 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
    * Nur `getAllDonations()` (Admin-only) verwendet `.select("*")` mit donor_email.
    */
   private static readonly PUBLIC_VIEW_COLUMNS = [
-    "id", "event_id", "payrexx_gateway_id", "payrexx_reference_id",
-    "payrexx_transaction_id", "amount_in_cents", "currency", "status",
+    "id", "event_id", "payment_gateway_id", "payment_reference_id",
+    "payment_transaction_id", "amount_in_cents", "currency", "status",
     "payment_method", "paid_at", "donor_uid", "donor_message",
     "receipt_number", "receipt_sent_at", "created_at",
     "updated_at", "donor_display_name", "event_name",
@@ -76,9 +76,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
   toRow(domain: DonationDomain): Partial<DonationRow> {
     return {
       event_id: domain.eventId,
-      payrexx_gateway_id: domain.payrexxGatewayId,
-      payrexx_reference_id: domain.payrexxReferenceId,
-      payrexx_transaction_id: domain.payrexxTransactionId,
+      payment_gateway_id: domain.paymentGatewayId,
+      payment_reference_id: domain.paymentReferenceId,
+      payment_transaction_id: domain.paymentTransactionId,
       amount_in_cents: domain.amountInCents,
       currency: domain.currency,
       status: domain.status,
@@ -104,9 +104,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
     return {
       id: row.id,
       eventId: row.event_id,
-      payrexxGatewayId: row.payrexx_gateway_id,
-      payrexxReferenceId: row.payrexx_reference_id,
-      payrexxTransactionId: row.payrexx_transaction_id,
+      paymentGatewayId: row.payment_gateway_id,
+      paymentReferenceId: row.payment_reference_id,
+      paymentTransactionId: row.payment_transaction_id,
       amountInCents: row.amount_in_cents,
       currency: row.currency,
       status: row.status as DonationStatus,
