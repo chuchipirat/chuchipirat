@@ -115,6 +115,7 @@ import {useCustomStyles} from "../../constants/styles";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {useAuthUser} from "../Session/authUserContext";
+import {Utils, Environment} from "../Shared/utils.class";
 
 /* ===================================================================
 // ====================== Breadcrumb-Konstante =======================
@@ -135,9 +136,26 @@ export const SYSTEM_BREADCRUMB = {
 // =================================================================== */
 
 const SENTRY_DASHBOARD_URL = "https://chuchipirat.sentry.io";
-const SUPABASE_DASHBOARD_URL = "https://supabase.com/dashboard";
 const PAYMENT_PROVIDER_DASHBOARD_URL =
   "https://chuchipirat.zahls.ch/cadmin/index.php?cmd=checkout";
+
+/**
+ * Gibt die URL des selbst gehosteten Supabase Studio für die aktuelle
+ * Umgebung zurück (DEV/TEST/PROD haben je eine eigene Studio-Instanz).
+ *
+ * @returns Studio-URL passend zu `Utils.getEnvironment()`.
+ */
+const getSupabaseDashboardUrl = (): string => {
+  switch (Utils.getEnvironment()) {
+    case Environment.production:
+      return "http://chuchipirat:3013";
+    case Environment.test:
+      return "http://chuchipirat:3003/";
+    case Environment.development:
+    default:
+      return "http://localhost:8000/";
+  }
+};
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -390,7 +408,7 @@ const SystemPage = () => {
                   id="supabase"
                   text={TEXT_SUPABASE_DASHBOARD}
                   icon={<StorageIcon />}
-                  url={SUPABASE_DASHBOARD_URL}
+                  url={getSupabaseDashboardUrl()}
                 />
               </Grid>
               <Grid size={{xs: 12, sm: 6, md: 4}}>
