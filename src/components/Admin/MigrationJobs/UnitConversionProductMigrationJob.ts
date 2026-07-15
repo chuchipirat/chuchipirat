@@ -24,6 +24,9 @@ import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {UnitConversionProductRepository} from "../../Database/Repository/UnitConversionProductRepository";
+import {ProductRepository} from "../../Database/Repository/ProductRepository";
 
 /* =====================================================================
 // Typ der Firebase-Quelldaten für eine produktspezifische Umrechnung
@@ -74,6 +77,15 @@ export class UnitConversionProductMigrationJob
     "Migriert alle produktspezifischen Einheitenumrechnungen von Firebase nach Postgres. " +
     "Setzt voraus, dass Produkte und Einheiten bereits migriert sind.";
 
+  /**
+   * Repositories mit Service-Role-Client. RLS würde Lese-/Schreibzugriff
+   * sonst auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminConversions = new UnitConversionProductRepository(
+    supabaseAdmin!,
+  );
+  private readonly adminProducts = new ProductRepository(supabaseAdmin!);
+
   /* =====================================================================
   // Alle produktspezifischen Umrechnungen aus Firebase lesen
   // ===================================================================== */
@@ -120,17 +132,14 @@ export class UnitConversionProductMigrationJob
   /**
    * Prüft anhand der `firebase_uid`, ob die Umrechnung bereits migriert wurde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls die Umrechnung bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUnitConversionProductData>
   ): Promise<boolean> {
-    const conversions =
-      database.unitConversionProducts;
-    const existing = await conversions.findMany({
+    const existing = await this.adminConversions.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
       ],
@@ -148,25 +157,21 @@ export class UnitConversionProductMigrationJob
    * Löst die Produkt-FK über die `firebase_uid`-Spalte
    * der products-Tabelle auf.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    * @throws {Error} Wenn das referenzierte Produkt nicht in Postgres gefunden wird
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUnitConversionProductData>,
     authUser: AuthUser
   ): Promise<void> {
     const data = record.data;
-    const conversions =
-      database.unitConversionProducts;
-    const products = database.products;
 
     // Produkt-FK auflösen: Firebase-UID → Postgres-ID
     let productId = "";
     if (data.productUid) {
-      const productMatches = await products.findMany({
+      const productMatches = await this.adminProducts.findMany({
         filters: [
           {field: "firebase_uid", operator: "eq", value: data.productUid},
         ],
@@ -184,7 +189,7 @@ export class UnitConversionProductMigrationJob
     }
 
     // Umrechnung einfügen — fromUnit/toUnit sind direkt die Unit-Keys
-    const {id} = await conversions.insert({
+    const {id} = await this.adminConversions.insert({
       value: {
         uid: "",
         fromUnit: data.fromUnit,
@@ -198,7 +203,7 @@ export class UnitConversionProductMigrationJob
     });
 
     // firebase_uid nachträglich setzen
-    await conversions.patch({
+    await this.adminConversions.patch({
       id,
       fields: {firebase_uid: record.id},
       authUser,

@@ -1,7 +1,7 @@
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
-import {UserDomain} from "../../Database/Repository/UserRepository";
+import {UserDomain, UserRepository} from "../../Database/Repository/UserRepository";
 import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 import {supabaseAdmin} from "../../Database/supabaseClient";
@@ -62,6 +62,15 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
 
   /** Cache: E-Mail → auth.users UUID (wird einmalig beim ersten migrateRecord geladen). */
   private authUsersByEmail: Map<string, string> | null = null;
+
+  /**
+   * UserRepository mit Service-Role-Client. Für find_user_id_by_email() reicht
+   * die Berechtigung des eingeloggten Admin-Users nicht zwingend aus (RLS/Rate-
+   * Limit-Prüfung läuft ins Leere, solange public.users während der Migration
+   * noch leer ist). Die Migration läuft ausschliesslich lokal, wo der
+   * Service-Role-Key verfügbar ist.
+   */
+  private readonly adminUsers = new UserRepository(supabaseAdmin!);
 
   /* =====================================================================
   // Alle User-Dokumente aus Firebase lesen
@@ -158,16 +167,18 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
    * Da die id-Spalte jetzt UUID ist (= auth.users.id), kann nicht mehr
    * mit der Firebase-UID gesucht werden. Stattdessen wird per E-Mail geprüft.
    *
-   * @param database - DatabaseService-Instanz
+   * Nutzt den Service-Role-Client (adminUsers), da public.users während der
+   * Migration noch leer ist und find_user_id_by_email() für den regulären
+   * Client sonst in die Rate-Limit-/Event-Koch-Prüfung laufen würde.
+   *
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls der Benutzer bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUserData>
   ): Promise<boolean> {
-    const users = database.users;
-    const existingId = await users.findByEmail(record.data.email);
+    const existingId = await this.adminUsers.findByEmail(record.data.email);
     return existingId !== null;
   }
 
@@ -186,13 +197,12 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
    * - pictureSrc als String vs. Picture-Objekt
    * - Firestore Timestamp vs. Date bei lastLogin/memberSince
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    * @throws Error falls kein auth.users-Eintrag für die E-Mail existiert
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUserData>,
     authUser: AuthUser
   ): Promise<void> {
@@ -254,8 +264,9 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
       legacyFirebaseUid: record.id,
     };
 
-    const users = database.users;
-    await users.upsert({
+    // Service-Role-Client: Schreibt Zeilen für beliebige Benutzer, RLS würde
+    // den eingeloggten Admin-User sonst auf seine eigene Zeile beschränken.
+    await this.adminUsers.upsert({
       id: supabaseUserId,
       value: userDomain,
       authUser: authUser,

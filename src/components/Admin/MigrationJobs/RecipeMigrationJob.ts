@@ -32,6 +32,7 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {supabaseAdmin} from "../../Database/supabaseClient";
+import {RecipeRepository} from "../../Database/Repository/RecipeRepository";
 import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
@@ -227,6 +228,11 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
   private userAuthUidByFirebaseUid: Map<string, string> = new Map();
   /** Bereits migrierte Rezepte (firebase_uid) — für schnelle checkExists-Prüfung */
   private existingFirebaseUids: Set<string> | null = null;
+  /**
+   * RecipeRepository mit Service-Role-Client. RLS würde Schreibzugriff sonst
+   * auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminRecipes = new RecipeRepository(supabaseAdmin!);
 
   /* =====================================================================
   // Alle Rezepte aus Firebase lesen
@@ -345,7 +351,6 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
   /**
    * Prüft anhand der `firebase_uid`, ob das Rezept bereits migriert wurde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls das Rezept bereits vorhanden ist
    */
@@ -369,18 +374,17 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
    * 3. Zubereitungsschritte / Abschnitt-Trennzeilen (recipe_preparation_steps)
    * 4. Materialpositionen (recipe_materials)
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseRecipeData>,
     authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
     const client = supabaseAdmin!;
-    const recipes = database.recipes;
+    const recipes = this.adminRecipes;
 
     // 1. Supabase-Auth-UUID des Erstellers auflösen (für created_by / RLS)
     const createdBy =
