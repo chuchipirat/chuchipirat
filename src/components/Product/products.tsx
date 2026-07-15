@@ -443,7 +443,9 @@ const ProductsButtonRow = ({
   showLoadNewestProducts,
   authUser,
 }: ProductsButtonRowProps) => {
-  const isAdmin = authUser.roles.includes(Roles.admin);
+  const isAdminOrCommunityLeader =
+    authUser.roles.includes(Roles.admin) ||
+    authUser.roles.includes(Roles.communityLeader);
   return (
     <ButtonRow
       key="action_buttons"
@@ -451,9 +453,7 @@ const ProductsButtonRow = ({
         {
           id: "edit",
           hero: true,
-          visible:
-            !editMode &&
-            (authUser.roles.includes(Roles.communityLeader) || isAdmin),
+          visible: !editMode && isAdminOrCommunityLeader,
           label: TEXT_EDIT,
           variant: "contained",
           color: "primary",
@@ -462,7 +462,7 @@ const ProductsButtonRow = ({
         {
           id: "findDuplicates",
           hero: true,
-          visible: isAdmin && !editMode,
+          visible: isAdminOrCommunityLeader && !editMode,
           label: TEXT_FIND_DUPLICATES,
           variant: "outlined",
           color: "primary",
@@ -471,7 +471,7 @@ const ProductsButtonRow = ({
         {
           id: "manageSynonyms",
           hero: true,
-          visible: isAdmin && !editMode,
+          visible: isAdminOrCommunityLeader && !editMode,
           label: TEXT_MANAGE_SYNONYMS,
           variant: "outlined",
           color: "primary",
