@@ -190,21 +190,23 @@ const EventCard = ({event, onCardClick, onCopyClick}: EventCardProps) => {
         <Box component="div" sx={classes.card}>
           <div style={{overflow: "hidden"}}>
             <CardMedia
-              sx={classes.cardMedia}
+              component="img"
+              loading="lazy"
+              sx={{
+                aspectRatio: "16 / 9",
+                objectFit: "contain",
+                objectPosition: "center",
+                transform: hover ? "scale(1.05)" : "scale(1)",
+                transition: "0.5s ease",
+              }}
               image={
                 event.pictureSrc
                   ? event.pictureSrc
                   : ImageRepository.getEnvironmentRelatedPicture()
                       .CARD_PLACEHOLDER_MEDIA
               }
+              alt={event.name}
               title={event.name}
-              style={{
-                transform: hover ? "scale(1.05)" : "scale(1)",
-                transition: "0.5s ease",
-                backgroundPosition: "center",
-                backgroundRepeat: "no-repeat",
-                backgroundSize: "contain",
-              }}
             />
           </div>
           <CardHeader

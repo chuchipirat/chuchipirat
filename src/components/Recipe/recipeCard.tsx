@@ -154,8 +154,10 @@ export const RecipeCard = ({
               />
             )}
             <CardMedia
+              component="img"
+              loading="lazy"
               sx={{
-                ...classes.cardMedia,
+                aspectRatio: "16 / 9",
                 transform: hover ? "scale(1.05)" : "scale(1)",
                 transition: "0.5s ease",
               }}
@@ -165,6 +167,7 @@ export const RecipeCard = ({
                   : ImageRepository.getEnvironmentRelatedPicture()
                       .CARD_PLACEHOLDER_MEDIA
               }
+              alt={recipe.name}
               title={recipe.name}
             />
           </div>
