@@ -101,19 +101,19 @@ const DonationReceiptPdf = ({
         <Text style={styles.title}>{TEXT_RECEIPT_TITLE}</Text>
 
         {/* Quittungsnummer (optional) */}
-        {donation.receiptNumber && (
+        {donation.receiptNumber ? (
           <Text style={styles.subtitle}>{donation.receiptNumber}</Text>
-        )}
+        ) : null}
 
         {/* Info-Box */}
         <View style={styles.infoBox}>
           {/* Anlass (nur wenn vorhanden) */}
-          {donation.eventName && (
+          {donation.eventName ? (
             <View style={styles.infoRow}>
               <Text style={styles.infoKey}>{TEXT_EVENT}</Text>
               <Text style={styles.infoValue}>{donation.eventName}</Text>
             </View>
-          )}
+          ) : null}
           {/* Datum */}
           <View style={styles.infoRow}>
             <Text style={styles.infoKey}>{TEXT_DATE}</Text>
