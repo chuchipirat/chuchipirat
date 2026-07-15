@@ -33,6 +33,7 @@ export const createQueryMock = () => {
   chainable("in");
   chainable("order");
   chainable("limit");
+  chainable("range");
 
   // single() / maybeSingle() beenden die Kette und geben das Ergebnis zurück
   mock.single = jest.fn().mockResolvedValue({data: null, error: null});

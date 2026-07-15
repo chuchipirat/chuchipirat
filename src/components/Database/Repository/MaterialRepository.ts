@@ -148,21 +148,63 @@ export class MaterialRepository extends BaseRepository<
   /* =====================================================================
   // Convenience-Methoden
   // ===================================================================== */
+
+  /**
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden aller Materialien.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
+   */
+  private static readonly PAGE_SIZE = 1000;
+
+  /**
+   * Lädt eine einzelne Seite von Materialien via Range-Pagination.
+   *
+   * @param onlyUsable - Nur aktive Materialien laden
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @returns Zeilen dieser Seite
+   */
+  private async fetchMaterialsPage(
+    onlyUsable: boolean,
+    from: number,
+  ): Promise<MaterialRow[]> {
+    let query = this.client.from(this.tableName).select("*");
+
+    if (onlyUsable) {
+      query = query.eq("usable", true);
+    }
+
+    query = query
+      .order("name", {ascending: true})
+      .range(from, from + MaterialRepository.PAGE_SIZE - 1);
+
+    const {data, error} = await query;
+    if (error) throw error;
+
+    return data as unknown as MaterialRow[];
+  }
+
   /**
    * Lädt alle Materialien, optional nur die aktiven.
    *
+   * Lädt seitenweise via `.range()`, da PostgREST pro Request maximal
+   * `db-max-rows` Zeilen zurückgibt (aktuell 1000) — ohne Pagination würden
+   * Materialien oberhalb dieser Grenze stillschweigend fehlen.
+   *
    * @param onlyUsable - Wenn true, werden nur aktive Materialien geladen
-   * @returns Array der Materialien, sortiert nach Name aufsteigend
+   * @returns Array aller Materialien, sortiert nach Name aufsteigend
    */
   async getAllMaterials(onlyUsable = false): Promise<MaterialDomain[]> {
-    const filters = onlyUsable
-      ? [{field: "usable", operator: "eq" as const, value: true}]
-      : [];
+    const rows: MaterialRow[] = [];
+    let from = 0;
+    let page: MaterialRow[];
 
-    return this.findMany({
-      filters,
-      orderBy: {field: "name", direction: "asc"},
-    });
+    do {
+      page = await this.fetchMaterialsPage(onlyUsable, from);
+      rows.push(...page);
+      from += MaterialRepository.PAGE_SIZE;
+    } while (page.length === MaterialRepository.PAGE_SIZE);
+
+    return rows.map((row) => this.toDomain(row));
   }
 
   /**
