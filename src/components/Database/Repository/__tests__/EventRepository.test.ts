@@ -11,6 +11,7 @@ import {
   getMaxDate,
 } from "../EventRepository";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
+import {parseLocalDate} from "../../../../utils/dateUtils";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
 jest.mock("../../../Firebase/Db/sessionStorageHandler.class", () => {
@@ -139,8 +140,8 @@ describe("EventRepository.getAllEventsForUser", () => {
     expect(events).toHaveLength(1);
     expect(events[0].dates).toHaveLength(2);
     expect(events[0].dates[0].uid).toBe("d1");
-    expect(events[0].dates[0].dateFrom).toEqual(new Date("2026-03-10"));
-    expect(events[0].dates[0].dateTo).toEqual(new Date("2026-03-12"));
+    expect(events[0].dates[0].dateFrom).toEqual(parseLocalDate("2026-03-10"));
+    expect(events[0].dates[0].dateTo).toEqual(parseLocalDate("2026-03-12"));
     expect(events[0].dates[1].uid).toBe("d2");
     expect(events[0].dates[1].sortOrder).toBe(10);
   });

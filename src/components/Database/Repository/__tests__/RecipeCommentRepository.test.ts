@@ -5,8 +5,8 @@
  * getCommentsForRecipe(), insertComment(), updateComment() und deleteComment().
  *
  * Anzeigename und Profilbild werden NICHT in recipe_comments gespeichert.
- * getCommentsForRecipe() lädt sie separat aus der user_profiles-View
- * (zweiter Query, kein PostgREST-Join).
+ * getCommentsForRecipe() liest stattdessen aus recipe_comments_view,
+ * die Kommentare bereits mit user_profiles und recipes verknüpft (SQL-View).
  */
 import {
   RecipeCommentRepository,
@@ -60,6 +60,19 @@ const authUser = {
   uid: "auth-uuid-123",
   publicProfile: {displayName: "Müller, Anna", pictureSrc: "https://example.com/avatar.jpg", motto: ""},
 } as unknown as AuthUser;
+
+/** Zeile aus recipe_comments_view (bereits mit user_profiles verknüpft). */
+const testViewRow = {
+  id: "comment-uuid-001",
+  recipe_id: "recipe-uuid-001",
+  comment: "Wunderbares Rezept! Habe es gestern ausprobiert.",
+  created_at: "2026-01-15T10:30:00Z",
+  updated_at: "2026-01-15T10:30:00Z",
+  recipe_name: "Spaghetti Bolognese",
+  user_uid: "45e3ab65-7c56-4f0d-8a39-6db543c43dd7",
+  user_display_name: "Müller, Anna",
+  user_picture_src: "https://example.com/avatar.jpg",
+};
 
 /* =====================================================================
 // Tests
@@ -123,44 +136,25 @@ describe("RecipeCommentRepository", () => {
   // getCommentsForRecipe()
   // ------------------------------------------ */
   describe("getCommentsForRecipe()", () => {
-    beforeEach(() => {
-      // RPC-Mock zurücksetzen
-      supabaseMock.client.rpc = jest.fn().mockResolvedValue({data: null, error: null});
-    });
-
-    test("Lädt Kommentare und reichert sie mit Profildaten via RPC an", async () => {
+    test("Lädt Kommentare aus recipe_comments_view mit angereicherten Profildaten", async () => {
       supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
-        data: [testRow],
-        error: null,
-      });
-      supabaseMock.client.rpc = jest.fn().mockResolvedValue({
-        data: [
-          {
-            id: testRow.created_by,
-            display_name: "Müller, Anna",
-            picture_src: "https://example.com/avatar.jpg",
-          },
-        ],
+        data: [testViewRow],
         error: null,
       });
 
       const result = await repo.getCommentsForRecipe("recipe-uuid-001");
 
-      expect(supabaseMock.client.from).toHaveBeenCalledWith("recipe_comments");
+      expect(supabaseMock.client.from).toHaveBeenCalledWith("recipe_comments_view");
       expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith("recipe_id", "recipe-uuid-001");
       expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("*");
-      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
-        "get_comment_author_profiles",
-        {uids: [testRow.created_by]},
-      );
       expect(result).toHaveLength(1);
       expect(result[0].uid).toBe("comment-uuid-001");
-      // Profilfelder via SECURITY DEFINER RPC angereichert
+      // Profilfelder kommen direkt aus der View (kein separater RPC-Call mehr nötig)
       expect(result[0].displayName).toBe("Müller, Anna");
       expect(result[0].pictureSrc).toBe("https://example.com/avatar.jpg");
     });
 
-    test("Gibt leeres Array zurück und ruft RPC nicht auf wenn keine Kommentare vorhanden", async () => {
+    test("Gibt leeres Array zurück wenn keine Kommentare vorhanden", async () => {
       supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
         data: [],
         error: null,
@@ -168,7 +162,6 @@ describe("RecipeCommentRepository", () => {
 
       const result = await repo.getCommentsForRecipe("recipe-uuid-001");
       expect(result).toHaveLength(0);
-      expect(supabaseMock.client.rpc).not.toHaveBeenCalled();
     });
 
     test("Respektiert limit und offset Parameter", async () => {
@@ -183,12 +176,11 @@ describe("RecipeCommentRepository", () => {
       expect(supabaseMock.queryMock.range).toHaveBeenCalledWith(20, 29);
     });
 
-    test("Befüllt displayName/pictureSrc leer wenn RPC keinen Eintrag liefert", async () => {
+    test("Befüllt displayName/pictureSrc leer wenn die View keine Profildaten liefert", async () => {
       supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
-        data: [testRow],
+        data: [{...testViewRow, user_display_name: null, user_picture_src: null}],
         error: null,
       });
-      supabaseMock.client.rpc = jest.fn().mockResolvedValue({data: [], error: null});
 
       const result = await repo.getCommentsForRecipe("recipe-uuid-001");
       expect(result[0].displayName).toBe("");

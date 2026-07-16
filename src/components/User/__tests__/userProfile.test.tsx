@@ -87,6 +87,25 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   },
 }));
 
+/** Mock: @react-pdf/renderer — wird transitiv über DonationReceiptPdf importiert */
+jest.mock("@react-pdf/renderer", () => ({
+  StyleSheet: {create: jest.fn((styles: unknown) => styles)},
+  Document: "Document",
+  Page: "Page",
+  View: "View",
+  Text: "Text",
+  Image: "Image",
+  Svg: "Svg",
+  Path: "Path",
+  Font: {register: jest.fn()},
+  pdf: jest.fn(),
+}));
+
+/** Mock: file-saver */
+jest.mock("file-saver", () => ({
+  saveAs: jest.fn(),
+}));
+
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
@@ -108,7 +127,10 @@ const mockCheckUserProfileData = User.checkUserProfileData as jest.Mock;
 const mockFirebase = {} as any;
 
 /** Mock-DatabaseService */
-const mockDatabase = {} as any;
+const mockGetMyDonations = jest.fn().mockResolvedValue([]);
+const mockDatabase = {
+  donations: {getMyDonations: mockGetMyDonations},
+} as any;
 
 /* ===================================================================
 // ======================== Testdaten ==================================
