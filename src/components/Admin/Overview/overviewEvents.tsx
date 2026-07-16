@@ -3,7 +3,7 @@
  *
  * Zeigt alle Anlässe als Karten (Standard) oder in einem DataGrid (Listenansicht).
  * Beim Klick auf eine Karte öffnet sich ein Detail-Dialog mit Metadaten und
- * Aktionsbuttons (Quittung erstellen, Anlass öffnen).
+ * der Möglichkeit, den Anlass zu öffnen.
  *
  * Daten werden beim Seitenaufruf via Supabase (EventRepository.getAllEventsShort)
  * geladen. Ersteller-Namen werden über das UserRepository aufgelöst.
@@ -15,7 +15,6 @@
  * const OverviewEvents = lazy(() => import("../Admin/Overview/overviewEvents"));
  */
 import React from "react";
-import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 import {useNavigate} from "react-router";
 
 import {
@@ -58,22 +57,13 @@ import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 import {useCustomStyles} from "../../../constants/styles";
 
-import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 
 import type {EventDomain} from "../../Database/Repository/EventRepository";
 import {getMaxDate} from "../../Database/Repository/EventRepository";
-import {EventReceiptPdf} from "../../Event/Event/eventRecipePdf";
-import {Receipt} from "../../Event/Event/receipt.class";
-import {User} from "../../User/user.class";
 import {Action} from "../../../constants/actions";
 import {EVENT as ROUTE_EVENT} from "../../../constants/routes";
-
-import DialogCreateReceipt, {
-  DialogCreateReceiptState,
-  DIALOG_CREATE_RECEIPT_INITIAL_STATE,
-} from "./dialogCreateReceipt";
 
 import {
   EVENTS as TEXT_EVENTS,
@@ -90,8 +80,6 @@ import {
   END_DATE as TEXT_END_DATE,
   CREATED_AT as TEXT_CREATED_AT,
   CREATED_FROM as TEXT_CREATED_FROM,
-  CREATE_RECEIPT as TEXT_CREATE_RECEIPT,
-  SUFFIX_PDF as TEXT_SUFFIX_PDF,
   FROM as TEXT_FROM,
   EVENT as TEXT_EVENT,
   OPEN as TEXT_OPEN,
@@ -352,14 +340,12 @@ const EventCardAdmin = ({event, onClick}: EventCardAdminProps) => {
  * @param event - Flaches Event-Objekt (null wenn kein Anlass ausgewählt).
  * @param onClose - Callback zum Schliessen.
  * @param onOpenEvent - Callback: Anlass auf der Event-Seite öffnen.
- * @param onCreateReceipt - Callback: Quittung erstellen.
  */
 interface DialogEventAdminDetailProps {
   open: boolean;
   event: EventOverviewItem | null;
   onClose: () => void;
   onOpenEvent: (event: EventOverviewItem) => void;
-  onCreateReceipt: (eventUid: string) => void;
 }
 
 /**
@@ -374,7 +360,6 @@ const DialogEventAdminDetail = ({
   event,
   onClose,
   onOpenEvent,
-  onCreateReceipt,
 }: DialogEventAdminDetailProps) => {
   const classes = useCustomStyles();
 
@@ -480,9 +465,6 @@ const DialogEventAdminDetail = ({
       </DialogContent>
 
       <DialogActions>
-        <Button color="primary" onClick={() => onCreateReceipt(event.uid)}>
-          {TEXT_CREATE_RECEIPT}
-        </Button>
         <Button onClick={onClose} color="inherit">
           {TEXT_CLOSE}
         </Button>
@@ -588,11 +570,10 @@ const buildDataGridColumns = (
  * Lädt alle Events beim Seitenaufruf via Supabase (EventRepository.getAllEventsShort).
  * Ersteller-Namen werden über UserRepository.findDisplayNamesByIds aufgelöst.
  * Zeigt Ergebnisse wahlweise als Karten oder im DataGrid an.
- * Beim Klick öffnet sich ein Detail-Dialog; von dort aus kann eine Quittung
- * erstellt oder der Anlass geöffnet werden.
+ * Beim Klick öffnet sich ein Detail-Dialog; von dort aus kann der Anlass
+ * geöffnet werden.
  */
 const OverviewEventsPage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
@@ -604,9 +585,6 @@ const OverviewEventsPage = () => {
   const [selectedEvent, setSelectedEvent] =
     React.useState<EventOverviewItem | null>(null);
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  const [dialogCreateReceipt, setDialogCreateReceipt] = React.useState(
-    DIALOG_CREATE_RECEIPT_INITIAL_STATE,
-  );
   const [viewMode, setViewMode] = React.useState<"card" | "list">("card");
   const [searchString, setSearchString] = React.useState("");
 
@@ -687,86 +665,6 @@ const OverviewEventsPage = () => {
   const onOpenEvent = (event: EventOverviewItem) => {
     navigate(`${ROUTE_EVENT}/${event.uid}`, {
       state: {action: Action.VIEW},
-    });
-  };
-
-  /* ------------------------------------------
-  // Quittung erstellen
-  // ------------------------------------------ */
-  const onCreateReceipt = async (eventUid: string) => {
-    const event = state.events.find((e) => e.uid === eventUid);
-    if (!event) return;
-
-    // Detail-Dialog schliessen, damit der Quittungs-Dialog sichtbar wird
-    setDialogOpen(false);
-
-    try {
-      const profile = await User.getFullProfile({
-        firebase,
-        database,
-        uid: event.createdByUid,
-      });
-
-      setDialogCreateReceipt({
-        dialogOpen: true,
-        amount: 0,
-        eventUid,
-        eventName: event.name,
-        payDate: event.createdAt,
-        donorEmail: profile.email,
-        donorName: profile.firstName
-          ? `${profile.firstName} ${profile.lastName}`
-          : profile.displayName,
-      });
-    } catch (error) {
-      dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: error instanceof Error ? error : new Error(String(error)),
-      });
-    }
-  };
-
-  const onCreateReceiptClose = () => {
-    setDialogCreateReceipt(DIALOG_CREATE_RECEIPT_INITIAL_STATE);
-  };
-
-  /** PDF generieren, herunterladen und Quittung in Firebase speichern. */
-  const generateReceipt = async (dialogValues: DialogCreateReceiptState) => {
-    setDialogCreateReceipt(DIALOG_CREATE_RECEIPT_INITIAL_STATE);
-
-    const receiptData = new Receipt();
-    receiptData.eventUid = dialogValues.eventUid;
-    receiptData.eventName = dialogValues.eventName;
-    receiptData.payDate = dialogValues.payDate;
-    receiptData.amount = dialogValues.amount;
-    receiptData.donorName = dialogValues.donorName;
-    receiptData.donorEmail = dialogValues.donorEmail;
-
-    receiptData.created = {
-      fromDisplayName: authUser.publicProfile.displayName,
-      date: new Date(),
-      fromUid: authUser.uid,
-    };
-
-    try {
-      await generateAndDownloadPdf(
-        <EventReceiptPdf receiptData={receiptData} authUser={authUser} />,
-        dialogValues.eventName + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
-        (error) =>
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
-        {eventUid: dialogValues.eventUid},
-      );
-    } catch (error) {
-      Sentry.captureException(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
-    }
-
-    Receipt.save({firebase, receipt: receiptData, authUser}).catch((error) => {
-      Sentry.captureException(error);
-      dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: error instanceof Error ? error : new Error(String(error)),
-      });
     });
   };
 
@@ -878,14 +776,6 @@ const OverviewEventsPage = () => {
         event={selectedEvent}
         onClose={onCloseDialog}
         onOpenEvent={onOpenEvent}
-        onCreateReceipt={onCreateReceipt}
-      />
-
-      {/* Quittungs-Dialog */}
-      <DialogCreateReceipt
-        dialogData={dialogCreateReceipt}
-        handleClose={onCreateReceiptClose}
-        handleOk={generateReceipt}
       />
     </React.Fragment>
   );

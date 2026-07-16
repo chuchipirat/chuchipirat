@@ -197,7 +197,6 @@ export const DELETE_FEEDS_OLDER_THAN =
 export const FEED_ENTRIES = "Feed-Einträge";
 export const RECEIPT = "Quittung";
 export const CREATE_RECEIPT = "Quittung erstellen";
-export const PAY_DATE = "Bezahlt am";
 export const DONOR = "Spender*in";
 export const AMOUNT = "Betrag";
 export const RECEIPT_THANK_YOU =
