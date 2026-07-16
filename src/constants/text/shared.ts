@@ -77,6 +77,8 @@ export const SIGN_OUT = "Abmelden";
 export const NAVIGATION_USER_PROFILE = "Profil";
 export const NAVIGATION_REQUEST_OVERVIEW = "Anträge";
 export const NAVIGATION_SYSTEM = "System";
+export const NAVIGATION_USE_ORIGINAL_COLOR_SCHEME =
+  "Original-Farbschema verwenden";
 
 /* =====================================================================
 // Statistik

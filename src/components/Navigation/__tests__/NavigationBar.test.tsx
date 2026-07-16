@@ -183,4 +183,71 @@ describe("NavigationBar", () => {
     const menuButton = screen.getByRole("button", {name: "Menü"});
     expect(menuButton).toBeDisabled();
   });
+
+  describe("Original-Farbschema-Umschalter", () => {
+    test("wird für Community Leader in der Testumgebung angezeigt", async () => {
+      mockIsTestEnvironment = true;
+      const communityLeader = createAuthUser({roles: ["basic", "communityLeader"]});
+      renderComponent(communityLeader);
+
+      const accountButton = screen.getByRole("button", {name: "Benutzerkonto"});
+      await userEvent.click(accountButton);
+
+      expect(screen.getByText("Original-Farbschema verwenden")).toBeInTheDocument();
+    });
+
+    test("wird für Admin in der Testumgebung angezeigt", async () => {
+      mockIsTestEnvironment = true;
+      const admin = createAuthUser({roles: ["basic", "admin"]});
+      renderComponent(admin);
+
+      const accountButton = screen.getByRole("button", {name: "Benutzerkonto"});
+      await userEvent.click(accountButton);
+
+      expect(screen.getByText("Original-Farbschema verwenden")).toBeInTheDocument();
+    });
+
+    test("wird für Basic-User nicht angezeigt, auch in der Testumgebung", async () => {
+      mockIsTestEnvironment = true;
+      renderComponent();
+
+      const accountButton = screen.getByRole("button", {name: "Benutzerkonto"});
+      await userEvent.click(accountButton);
+
+      expect(
+        screen.queryByText("Original-Farbschema verwenden")
+      ).not.toBeInTheDocument();
+    });
+
+    test("wird ausserhalb der Testumgebung nicht angezeigt, auch für Admin", async () => {
+      mockIsTestEnvironment = false;
+      const admin = createAuthUser({roles: ["basic", "admin"]});
+      renderComponent(admin);
+
+      const accountButton = screen.getByRole("button", {name: "Benutzerkonto"});
+      await userEvent.click(accountButton);
+
+      expect(
+        screen.queryByText("Original-Farbschema verwenden")
+      ).not.toBeInTheDocument();
+    });
+
+    test("schreibt die Präferenz in den LocalStorage und lädt die Seite neu", async () => {
+      mockIsTestEnvironment = true;
+      // Hinweis: window.location.reload() wird hier bewusst nicht gemockt/geprüft —
+      // in dieser jsdom-Version ist `reload` weder überschreibbar noch spionierbar
+      // (nicht konfigurierbar). Der unveränderte jsdom-Aufruf ist ein No-Op und
+      // wirft nicht, daher bleibt nur der LocalStorage-Seiteneffekt testbar.
+      localStorage.removeItem("useOriginalColorScheme");
+
+      const admin = createAuthUser({roles: ["basic", "admin"]});
+      renderComponent(admin);
+
+      const accountButton = screen.getByRole("button", {name: "Benutzerkonto"});
+      await userEvent.click(accountButton);
+      await userEvent.click(screen.getByText("Original-Farbschema verwenden"));
+
+      expect(localStorage.getItem("useOriginalColorScheme")).toBe("true");
+    });
+  });
 });
