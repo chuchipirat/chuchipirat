@@ -116,6 +116,7 @@ import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
  * @param customDialog - Dialog-Funktion aus dem customDialogContext.
  * @param dialogs - Alle Dialog-Zustände und Setter aus useMenuplanDialogs.
  * @param userDidChangeDnD - Ref, ob der User DnD manuell umgeschaltet hat.
+ * @param onError - Callback bei Fehlern (z.B. fehlgeschlagener PDF-Export).
  */
 export interface UseMenuplanHandlersParams {
   menuplan: MenuplanData;
@@ -143,6 +144,7 @@ export interface UseMenuplanHandlersParams {
   }) => Promise<unknown>;
   dialogs: UseMenuplanDialogsReturn;
   userDidChangeDnD: React.MutableRefObject<boolean>;
+  onError?: (error: Error) => void;
 }
 
 
@@ -267,6 +269,7 @@ export function useMenuplanHandlers({
   customDialog,
   dialogs,
   userDidChangeDnD,
+  onError,
 }: UseMenuplanHandlersParams): UseMenuplanHandlersReturn {
   const {
     recipeSearchDrawerData,
@@ -481,13 +484,14 @@ export function useMenuplanHandlers({
           pdfOptions={options}
         />,
         "Menueplan " + event.name + TEXT_SUFFIX_PDF,
-        undefined,
+        (error) => onError?.(error),
         {eventUid: event.uid},
       );
     } catch (error) {
       Sentry.captureException(error);
+      onError?.(error as Error);
     }
-  }, []);
+  }, [onError]);
 
   const onPrintCancel = useCallback(() => {
     setDialogPdfOptionsData({open: false});

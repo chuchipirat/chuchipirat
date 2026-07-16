@@ -28,7 +28,9 @@ import type {MenuplanPageProps} from "./menuplan.page.types";
 import {
   DIALOG_CHOOSE_MENUES_TITLE as TEXT_DIALOG_CHOOSE_MENUES_TITLE,
   DIALOG_CHOOSE_MEALS_TITLE as TEXT_DIALOG_CHOOSE_MEALS_TITLE,
+  ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
 } from "../../../constants/text";
+import {AlertMessage} from "../../Shared/AlertMessage";
 
 // Barrel re-exports für Abwärtskompatibilität externer Consumer
 export {MenuplanDragDropTypes, blockBoardPanningAttr, generatePlanedPortionsText} from "./menuplan.constants";
@@ -67,6 +69,7 @@ const MenuplanPage = ({
     showDetails: false,
     enableDragAndDrop: false,
   });
+  const [error, setError] = useState<Error | null>(null);
 
   const dialogs = useMenuplanDialogs();
   const {
@@ -199,6 +202,7 @@ const MenuplanPage = ({
     customDialog,
     dialogs,
     userDidChangeDnD,
+    onError: setError,
   });
 
   if (
@@ -211,6 +215,12 @@ const MenuplanPage = ({
   }
   return (
     <React.Fragment key={"test"}>
+      {error && (
+        <AlertMessage
+          error={error}
+          messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+        />
+      )}
       {/* Sticky header — scrolls horizontally via JS sync */}
       <Box
         ref={headerScrollRef}
