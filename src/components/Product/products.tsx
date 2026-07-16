@@ -72,6 +72,7 @@ import {
   FindReplace as FindReplaceIcon,
   CheckCircleOutline as CheckCircleOutlineIcon,
   Delete as DeleteIcon,
+  ZoomOutMap as ZoomOutMapIcon,
 } from "@mui/icons-material";
 
 import {CustomSnackbar} from "../Shared/customSnackbar";
@@ -90,7 +91,6 @@ import {
 } from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {WhereUsedEntry} from "../Database/Repository/AdminOperationsRepository";
 import {
   DataGrid,
   GridColDef,
@@ -103,8 +103,11 @@ import {ProductsQaFilterBar} from "./productsQaFilterBar";
 import {ProductsQaBulkActions} from "./productsQaBulkActions";
 import {DialogMergeProducts} from "./dialogMergeProducts";
 import {DialogSynonymPairs} from "./dialogSynonymPairs";
+import {DialogWhereUsedProduct} from "./dialogWhereUsedProduct";
 import {detectProductIssues} from "./productQaUtils";
 import {ReducerActions} from "./useProductsQa";
+import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
+import {CHECK_WHERE_USED as TEXT_CHECK_WHERE_USED} from "../../constants/text/productQa";
 
 const PRODUCT_POPUP_VALUES = {
   productName: "",
@@ -142,6 +145,12 @@ const ProductsPage = () => {
 
   // Synonym-Dialog State
   const [synonymDialogOpen, setSynonymDialogOpen] = React.useState(false);
+
+  // Verwendungsnachweis-Dialog State
+  const [whereUsedProduct, setWhereUsedProduct] = React.useState<{
+    uid: string;
+    name: string;
+  } | null>(null);
 
   // Issue-Detection: Flags bei Produktänderungen neu berechnen
   React.useEffect(() => {
@@ -202,30 +211,8 @@ const ProductsPage = () => {
         "product",
       );
 
-      // Dialog-Text zusammenbauen
-      let dialogText: string | JSX.Element;
-      if (references.length > 0) {
-        // Referenzen nach Tabelle gruppieren
-        const grouped = new Map<string, WhereUsedEntry[]>();
-        for (const entry of references) {
-          const existing = grouped.get(entry.table_name) ?? [];
-          existing.push(entry);
-          grouped.set(entry.table_name, existing);
-        }
-
-        // Menschenlesbare Labels für die Tabellennamen
-        const tableLabels: Record<string, string> = {
-          recipe_ingredients: "Rezepte (Zutaten)",
-          recipe_materials: "Rezepte (Material)",
-          event_shopping_list_items: "Einkaufslisten",
-          event_material_list_items: "Materiallisten",
-          event_menue_products: "Menüpläne (Produkte)",
-          event_menue_materials: "Menüpläne (Material)",
-          event_menue_recipes: "Menüpläne (Rezepte)",
-          unit_conversion_products: "Einheitenumrechnung",
-        };
-
-        dialogText = (
+      const dialogText =
+        references.length > 0 ? (
           <React.Fragment>
             <Typography
               variant="body2"
@@ -235,40 +222,13 @@ const ProductsPage = () => {
             >
               {TEXT_PRODUCT_IN_USE_WARNING}
             </Typography>
-            {Array.from(grouped.entries()).map(
-              ([tableName, tableEntries]) => (
-                <Box key={tableName} sx={{marginBottom: 1}}>
-                  <Typography variant="subtitle2">
-                    {tableLabels[tableName] ?? tableName} (
-                    {tableEntries.length})
-                  </Typography>
-                  <Box
-                    component="ul"
-                    sx={{paddingLeft: 2, margin: 0, marginTop: 0.5}}
-                  >
-                    {tableEntries.map((entry, index) => (
-                      <Typography
-                        component="li"
-                        variant="body2"
-                        color="text.secondary"
-                        key={`${tableName}-${entry.record_id}-${index}`}
-                      >
-                        {entry.context}
-                      </Typography>
-                    ))}
-                  </Box>
-                </Box>
-              ),
-            )}
+            <WhereUsedResultPanel entries={references} />
           </React.Fragment>
-        );
-      } else {
-        dialogText = (
+        ) : (
           <Typography variant="body2" color="text.secondary">
             {TEXT_PRODUCT_NOT_IN_USE}
           </Typography>
         );
-      }
 
       const confirmed = await customDialog({
         dialogType: DialogType.Confirm,
@@ -289,6 +249,13 @@ const ProductsPage = () => {
         payload: error as Error,
       });
     }
+  };
+
+  /* ------------------------------------------
+  // Verwendungsnachweis-Dialog öffnen
+  // ------------------------------------------ */
+  const onCheckWhereUsed = (product: Product) => {
+    setWhereUsedProduct({uid: product.uid, name: product.name});
   };
 
   /* ------------------------------------------
@@ -368,6 +335,7 @@ const ProductsPage = () => {
           onQaToggle={hook.onQaToggle}
           onConvertProductToMaterial={handleConvertProductToMaterial}
           onDeleteProduct={handleDeleteProduct}
+          onCheckWhereUsed={onCheckWhereUsed}
           onSelectionChange={hook.onSelectionChange}
           selectedProductUids={state.selectedProductUids}
           authUser={authUser}
@@ -403,6 +371,16 @@ const ProductsPage = () => {
           onClose={() => setSynonymDialogOpen(false)}
           synonymPairs={state.synonymPairs}
           onReload={hook.onLoadSynonyms}
+        />
+      )}
+
+      {/* Verwendungsnachweis-Dialog */}
+      {whereUsedProduct && (
+        <DialogWhereUsedProduct
+          open={!!whereUsedProduct}
+          onClose={() => setWhereUsedProduct(null)}
+          productUid={whereUsedProduct.uid}
+          productName={whereUsedProduct.name}
         />
       )}
     </React.Fragment>
@@ -536,6 +514,7 @@ interface ProductsTableProps {
   onQaToggle: (uid: string, checked: boolean) => void;
   onConvertProductToMaterial: (product: Product) => void;
   onDeleteProduct: (product: Product) => void;
+  onCheckWhereUsed: (product: Product) => void;
   onSelectionChange: (uids: string[]) => void;
   selectedProductUids: string[];
   authUser: AuthUser;
@@ -586,6 +565,7 @@ const ProductsTable = ({
   onQaToggle,
   onConvertProductToMaterial: onConvertProductToMaterialSuper,
   onDeleteProduct: onDeleteProductSuper,
+  onCheckWhereUsed: onCheckWhereUsedSuper,
   onSelectionChange,
   selectedProductUids,
   authUser,
@@ -1084,6 +1064,14 @@ const ProductsTable = ({
     closeContextMenu();
     onDeleteProductSuper(product);
   };
+  const onCheckWhereUsed = () => {
+    const product = products.find(
+      (candidate) => candidate.uid === contextMenuProductUid,
+    );
+    if (!product) return;
+    closeContextMenu();
+    onCheckWhereUsedSuper(product);
+  };
 
   /* ------------------------------------------
   // PopUp
@@ -1208,6 +1196,14 @@ const ProductsTable = ({
           </ListItemIcon>
           <Typography variant="inherit" noWrap>
             {TEXT_DELETE_PRODUCT}
+          </Typography>
+        </MenuItem>
+        <MenuItem onClick={onCheckWhereUsed}>
+          <ListItemIcon>
+            <ZoomOutMapIcon />
+          </ListItemIcon>
+          <Typography variant="inherit" noWrap>
+            {TEXT_CHECK_WHERE_USED}
           </Typography>
         </MenuItem>
       </Menu>

@@ -53,6 +53,7 @@ import {
   MATERIAL_NOT_IN_USE as TEXT_MATERIAL_NOT_IN_USE,
   CONVERT_TO_PRODUCT as TEXT_CONVERT_TO_PRODUCT,
   MATERIAL_CONVERTED_TO_PRODUCT as TEXT_MATERIAL_CONVERTED_TO_PRODUCT,
+  CHECK_WHERE_USED as TEXT_CHECK_WHERE_USED,
 } from "../../constants/text/materialQa";
 import {Role as Roles} from "../../constants/roles";
 
@@ -75,6 +76,7 @@ import {
   Warning as WarningIcon,
   Delete as DeleteIcon,
   Cached as CachedIcon,
+  ZoomOutMap as ZoomOutMapIcon,
 } from "@mui/icons-material";
 
 import {CustomSnackbar,
@@ -88,12 +90,11 @@ import {
   QaFilterStatus,
   MaterialTypeFilter,
 } from "./materialsQaFilterBar";
-import {
-  WhereUsedEntry,
-  MergeMaterialsResult,
-} from "../Database/Repository/AdminOperationsRepository";
+import {MergeMaterialsResult} from "../Database/Repository/AdminOperationsRepository";
 import {DialogMergeMaterials} from "./dialogMergeMaterials";
 import {DialogConvertMaterialToProduct} from "./dialogConvertMaterialToProduct";
+import {DialogWhereUsedMaterial} from "./dialogWhereUsedMaterial";
+import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {Material, MaterialType} from "./material.types";
@@ -320,13 +321,6 @@ const MATERIAL_POPUP_VALUES = {
   popUpOpen: false,
 };
 
-/** Menschenlesbare Labels für Where-Used-Tabellennamen. */
-const WHERE_USED_TABLE_LABELS: Record<string, string> = {
-  recipe_materials: "Rezepte (Material)",
-  event_material_list_items: "Materiallisten",
-  event_menue_materials: "Menüpläne (Material)",
-};
-
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
@@ -357,6 +351,12 @@ const MaterialPage = () => {
   // Convert-Dialog State
   const [convertDialogOpen, setConvertDialogOpen] = React.useState(false);
   const [convertMaterial, setConvertMaterial] = React.useState<Material | null>(null);
+
+  // Verwendungsnachweis-Dialog State
+  const [whereUsedMaterial, setWhereUsedMaterial] = React.useState<{
+    uid: string;
+    name: string;
+  } | null>(null);
 
   /** Snapshot der Materialien beim Wechsel in den Bearbeitungsmodus. */
   const materialsSnapshot = React.useRef<Material[]>([]);
@@ -487,18 +487,8 @@ const MaterialPage = () => {
         "material",
       );
 
-      // Dialog-Text zusammenbauen
-      let dialogText: string | JSX.Element;
-      if (references.length > 0) {
-        // Referenzen nach Tabelle gruppieren
-        const grouped = new Map<string, WhereUsedEntry[]>();
-        for (const entry of references) {
-          const existing = grouped.get(entry.table_name) ?? [];
-          existing.push(entry);
-          grouped.set(entry.table_name, existing);
-        }
-
-        dialogText = (
+      const dialogText =
+        references.length > 0 ? (
           <React.Fragment>
             <Typography
               variant="body2"
@@ -508,40 +498,13 @@ const MaterialPage = () => {
             >
               {TEXT_MATERIAL_IN_USE_WARNING}
             </Typography>
-            {Array.from(grouped.entries()).map(
-              ([tableName, tableEntries]) => (
-                <Box key={tableName} sx={{marginBottom: 1}}>
-                  <Typography variant="subtitle2">
-                    {WHERE_USED_TABLE_LABELS[tableName] ?? tableName} (
-                    {tableEntries.length})
-                  </Typography>
-                  <Box
-                    component="ul"
-                    sx={{paddingLeft: 2, margin: 0, marginTop: 0.5}}
-                  >
-                    {tableEntries.map((entry, index) => (
-                      <Typography
-                        component="li"
-                        variant="body2"
-                        color="text.secondary"
-                        key={`${tableName}-${entry.record_id}-${index}`}
-                      >
-                        {entry.context}
-                      </Typography>
-                    ))}
-                  </Box>
-                </Box>
-              ),
-            )}
+            <WhereUsedResultPanel entries={references} />
           </React.Fragment>
-        );
-      } else {
-        dialogText = (
+        ) : (
           <Typography variant="body2" color="text.secondary">
             {TEXT_MATERIAL_NOT_IN_USE}
           </Typography>
         );
-      }
 
       const confirmed = await customDialog({
         dialogType: DialogType.Confirm,
@@ -603,6 +566,13 @@ const MaterialPage = () => {
     setMergeSourceUid(sourceUid);
     setMergeTargetUid(targetUid);
     setMergeDialogOpen(true);
+  };
+
+  /* ------------------------------------------
+  // Verwendungsnachweis-Dialog öffnen
+  // ------------------------------------------ */
+  const onCheckWhereUsed = (material: Material) => {
+    setWhereUsedMaterial({uid: material.uid, name: material.name});
   };
 
   /* ------------------------------------------
@@ -696,6 +666,7 @@ const MaterialPage = () => {
           onSelectionChange={onSelectionChange}
           onDeleteMaterial={handleDeleteMaterial}
           onConvertMaterialToProduct={handleOpenConvertDialog}
+          onCheckWhereUsed={onCheckWhereUsed}
           onOpenMergeDialog={openMergeDialog}
           authUser={authUser}
         />
@@ -726,6 +697,16 @@ const MaterialPage = () => {
           material={convertMaterial}
           onClose={() => setConvertDialogOpen(false)}
           onConvert={handleConvertMaterialToProduct}
+        />
+      )}
+
+      {/* Verwendungsnachweis-Dialog */}
+      {whereUsedMaterial && (
+        <DialogWhereUsedMaterial
+          open={!!whereUsedMaterial}
+          onClose={() => setWhereUsedMaterial(null)}
+          materialUid={whereUsedMaterial.uid}
+          materialName={whereUsedMaterial.name}
         />
       )}
     </React.Fragment>
@@ -819,6 +800,7 @@ const MaterialsButtonRow = ({
  * @property onSelectionChange - Callback für DataGrid-Selektion
  * @property onDeleteMaterial - Callback zum Löschen eines Materials
  * @property onConvertMaterialToProduct - Callback zum Konvertieren in ein Produkt
+ * @property onCheckWhereUsed - Callback zum Prüfen der Verwendung eines Materials
  * @property onOpenMergeDialog - Callback zum Öffnen des Merge-Dialogs
  * @property authUser - Der angemeldete Benutzer
  */
@@ -832,6 +814,7 @@ interface MaterialsTableProps {
   onSelectionChange: (uids: string[]) => void;
   onDeleteMaterial: (material: Material) => void;
   onConvertMaterialToProduct: (material: Material) => void;
+  onCheckWhereUsed: (material: Material) => void;
   onOpenMergeDialog: (sourceUid: string, targetUid: string) => void;
   authUser: AuthUser;
 }
@@ -862,6 +845,7 @@ const MaterialsTable = ({
   onSelectionChange,
   onDeleteMaterial: onDeleteMaterialSuper,
   onConvertMaterialToProduct: onConvertMaterialToProductSuper,
+  onCheckWhereUsed: onCheckWhereUsedSuper,
   onOpenMergeDialog: _onOpenMergeDialog,
   authUser,
 }: MaterialsTableProps) => {
@@ -933,6 +917,14 @@ const MaterialsTable = ({
     if (!material) return;
     closeContextMenu();
     onConvertMaterialToProductSuper(material);
+  };
+  const onCheckWhereUsed = () => {
+    const material = materials.find(
+      (candidate) => candidate.uid === contextMenuMaterialUid,
+    );
+    if (!material) return;
+    closeContextMenu();
+    onCheckWhereUsedSuper(material);
   };
 
   /* ------------------------------------------
@@ -1241,6 +1233,14 @@ const MaterialsTable = ({
           </ListItemIcon>
           <Typography variant="inherit" noWrap>
             {TEXT_DELETE_MATERIAL}
+          </Typography>
+        </MenuItem>
+        <MenuItem onClick={onCheckWhereUsed}>
+          <ListItemIcon>
+            <ZoomOutMapIcon />
+          </ListItemIcon>
+          <Typography variant="inherit" noWrap>
+            {TEXT_CHECK_WHERE_USED}
           </Typography>
         </MenuItem>
       </Menu>
