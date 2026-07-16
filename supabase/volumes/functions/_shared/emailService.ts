@@ -70,8 +70,7 @@ export const CORS_HEADERS = {
 };
 
 /** URL des chuchipirat-Logos für E-Mail-Header. */
-export const LOGO_URL =
-  "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/mailTemplates%2FMail%20Header%20weiss.png?alt=media&token=61c6aa52-d611-4921-ad8c-3c9ecb26f85d";
+export const LOGO_URL = "https://chuchipirat.ch/images/email/mail-header-white.png";
 
 /** Absender-Adresse für alle ausgehenden Benachrichtigungen. */
 export const SENDER_EMAIL = "hallo@chuchipirat.ch";

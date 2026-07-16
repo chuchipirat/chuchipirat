@@ -30,7 +30,7 @@ Templates live in `supabase/volumes/auth/templates/`.
 - **Primary color**: `#006064` (teal) for header background, buttons, and accent links
 - **Header image**: Always include the Chuchipirat logo:
   ```
-  https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/mailTemplates%2FMail%20Header%20weiss.png?alt=media&token=61c6aa52-d611-4921-ad8c-3c9ecb26f85d
+  https://chuchipirat.ch/images/email/mail-header-white.png
   ```
   Use `width="220"` and `max-width: 220px`
 - **Language**: All email text in German

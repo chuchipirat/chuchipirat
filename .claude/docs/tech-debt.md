@@ -236,8 +236,8 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Constants Folder
 
-- **`imageRepository.ts` — Firebase-Storage-URLs** — Alle Umgebungsbilder verwenden Firebase-Storage-URLs. Bei Migration zu Supabase Storage müssen diese URLs aktualisiert werden.
-  **Priorität:** mittel · **Komplexität:** klein
+- **`ImageRepository.getEnvironmentRelatedPicture()` — Namensrelikt** — Methode gibt seit der Migration auf `public/`-Assets keine umgebungsabhängigen Bilder mehr zurück; Name ist irreführend. Bei Gelegenheit zu einer einfachen exportierten Konstante (`IMAGE_PATHS`) umbauen und alle ~30 Aufrufstellen anpassen.
+  **Priorität:** tief · **Komplexität:** mittel
 
 - **`firebaseEvent.ts` — Firebase-Analytics-Abhängigkeit** — Enum wird für Firebase-Analytics-Logging verwendet. Wenn Firebase vollständig entfernt wird, muss diese Datei gelöscht oder durch Supabase/PostHog-Analytics ersetzt werden.
   **Priorität:** tief · **Komplexität:** mittel
