@@ -7,6 +7,7 @@
  */
 import React from "react";
 import * as Sentry from "@sentry/react";
+import DOMPurify from "dompurify";
 
 import {
   MAILBOX as TEXT_MAILBOX,
@@ -28,6 +29,7 @@ import {
   OPEN as TEXT_OPEN,
   MAIL_PROTOCOLS_DELETED as TEXT_MAIL_PROTOCOLS_DELETED,
   SUBJECT as TEXT_SUBJECT,
+  MAIL_BODY as TEXT_MAIL_BODY,
 } from "../../constants/text";
 
 import {OpenInNew as OpenInNewIcon} from "@mui/icons-material";
@@ -601,6 +603,24 @@ const DialogMailProtocol = ({
         <Typography variant="body2" style={{marginBottom: theme.spacing(2)}}>
           {mailLogEntry.subject}
         </Typography>
+
+        {mailLogEntry.body && (
+          <React.Fragment>
+            <Typography>{TEXT_MAIL_BODY}</Typography>
+            <Box
+              sx={{
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: 1,
+                p: 2,
+                mb: theme.spacing(2),
+              }}
+              dangerouslySetInnerHTML={{
+                __html: DOMPurify.sanitize(mailLogEntry.body),
+              }}
+            />
+          </React.Fragment>
+        )}
 
         <Typography>{TEXT_RECIPIENTS}</Typography>
         <List dense style={{marginBottom: theme.spacing(2)}}>

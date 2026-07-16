@@ -183,6 +183,7 @@ export const OVERVIEW = "Übersicht";
 export const RECIPIENT_TO = "An";
 export const RECIPIENT_BCC = "BCC";
 export const MAIL_DATA = "E-Mail-Inhalt";
+export const MAIL_BODY = "Nachrichtentext";
 export const DELETE_MAIL_PROTOCOLS = "Mailprotokolle löschen";
 export const DELETE_MAIL_PROTOCOLS_OLDER_THAN =
   "Mailprotokolle löschen, die älter als X Tage sind";
