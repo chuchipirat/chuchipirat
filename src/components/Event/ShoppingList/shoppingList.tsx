@@ -118,7 +118,7 @@ import {useShoppingListHandlers,
   OnDialogAddItemOk,
   ItemChange,
 } from "./useShoppingListHandlers";
-// import * as Sentry from "@sentry/react";
+import * as Sentry from "@sentry/react";
 
 enum ReducerActions {
   SHOW_LOADING,
@@ -356,23 +356,28 @@ const EventShoppingListPage = ({
   /* ------------------------------------------
   // PDF generieren (wrapper that creates JSX)
   // ------------------------------------------ */
-  const handleGeneratePrintVersion = React.useCallback(() => {
+  const handleGeneratePrintVersion = React.useCallback(async () => {
     const pdfData = onGeneratePrintVersion();
     if (!pdfData) return;
 
-    generateAndDownloadPdf(
-      <ShoppingListPdf
-        shoppingList={shoppingList!}
-        shoppingListName={pdfData.shoppingListName}
-        shoppingListSelectedTimeSlice={pdfData.shoppingListSelectedTimeSlice}
-        eventName={event.name}
-        authUser={authUser}
-      />,
-      event.name + " " + TEXT_SHOPPING_LIST + TEXT_SUFFIX_PDF,
-      (error) =>
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
-      {eventUid: event.uid},
-    );
+    try {
+      await generateAndDownloadPdf(
+        <ShoppingListPdf
+          shoppingList={shoppingList!}
+          shoppingListName={pdfData.shoppingListName}
+          shoppingListSelectedTimeSlice={pdfData.shoppingListSelectedTimeSlice}
+          eventName={event.name}
+          authUser={authUser}
+        />,
+        event.name + " " + TEXT_SHOPPING_LIST + TEXT_SUFFIX_PDF,
+        (error) =>
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+        {eventUid: event.uid},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   }, [onGeneratePrintVersion, shoppingList, event.name, authUser]);
 
   /* ------------------------------------------

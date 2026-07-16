@@ -14,6 +14,7 @@
  * <EventListCard onCreateList={handlers.onCreateList} ... />
  */
 import React, {useCallback} from "react";
+import * as Sentry from "@sentry/react";
 
 import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
@@ -622,7 +623,7 @@ export const useUsedRecipesHandlers = ({
   // PDF erzeugen
   // ------------------------------------------ */
 
-  const onGeneratePrintVersion = useCallback(() => {
+  const onGeneratePrintVersion = useCallback(async () => {
     if (Object.keys(state.loadedRecipes).length === 0) {
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
@@ -631,26 +632,31 @@ export const useUsedRecipesHandlers = ({
       return;
     }
 
-    generateAndDownloadPdf(
-      <UsedRecipesPdf
-        list={{
-          properties: usedRecipes.lists[state.selectedListItem!].properties,
-          recipes: state.loadedRecipes,
-        }}
-        sortedMenueList={state.sortedMenueList}
-        menueplan={menuplan}
-        eventName={event.name}
-        products={products}
-        units={units}
-        unitConversionBasic={unitConversionBasic}
-        unitConversionProducts={unitConversionProducts}
-        authUser={authUser}
-      />,
-      event.name + " " + TEXT_QUANTITY_CALCULATION + TEXT_SUFFIX_PDF,
-      (error) =>
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
-      {eventUid: event.uid},
-    );
+    try {
+      await generateAndDownloadPdf(
+        <UsedRecipesPdf
+          list={{
+            properties: usedRecipes.lists[state.selectedListItem!].properties,
+            recipes: state.loadedRecipes,
+          }}
+          sortedMenueList={state.sortedMenueList}
+          menueplan={menuplan}
+          eventName={event.name}
+          products={products}
+          units={units}
+          unitConversionBasic={unitConversionBasic}
+          unitConversionProducts={unitConversionProducts}
+          authUser={authUser}
+        />,
+        event.name + " " + TEXT_QUANTITY_CALCULATION + TEXT_SUFFIX_PDF,
+        (error) =>
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+        {eventUid: event.uid},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   }, [
     state.loadedRecipes,
     state.selectedListItem,

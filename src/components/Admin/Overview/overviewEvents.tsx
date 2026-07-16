@@ -748,12 +748,18 @@ const OverviewEventsPage = () => {
       fromUid: authUser.uid,
     };
 
-    generateAndDownloadPdf(
-      <EventReceiptPdf receiptData={receiptData} authUser={authUser} />,
-      dialogValues.eventName + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
-      (error) =>
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
-    );
+    try {
+      await generateAndDownloadPdf(
+        <EventReceiptPdf receiptData={receiptData} authUser={authUser} />,
+        dialogValues.eventName + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
+        (error) =>
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+        {eventUid: dialogValues.eventUid},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
 
     Receipt.save({firebase, receipt: receiptData, authUser}).catch((error) => {
       Sentry.captureException(error);

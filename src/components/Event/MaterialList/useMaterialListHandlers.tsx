@@ -891,7 +891,7 @@ export function useMaterialListHandlers({
   /* ------------------------------------------
   // PDF erzeugen
   // ------------------------------------------ */
-  const onGeneratePrintVersion = React.useCallback(() => {
+  const onGeneratePrintVersion = React.useCallback(async () => {
     if (!selectedListItem) return;
 
     const items = materialList.lists[selectedListItem]?.items;
@@ -900,21 +900,26 @@ export function useMaterialListHandlers({
       return;
     }
 
-    generateAndDownloadPdf(
-      <MaterialListPdf
-        materialList={materialList.lists[selectedListItem]}
-        materialListSelectedTimeSlice={decodeSelectedMeals({
-          selectedMeals:
-            materialList.lists[selectedListItem].properties.selectedMenues,
-          menuplan: menuplan,
-        })}
-        eventName={event.name}
-        authUser={authUser}
-      />,
-      event.name + " " + TEXT_MATERIAL_LIST + TEXT_SUFFIX_PDF,
-      (error) => onDispatchError(error),
-      {eventUid: event.uid},
-    );
+    try {
+      await generateAndDownloadPdf(
+        <MaterialListPdf
+          materialList={materialList.lists[selectedListItem]}
+          materialListSelectedTimeSlice={decodeSelectedMeals({
+            selectedMeals:
+              materialList.lists[selectedListItem].properties.selectedMenues,
+            menuplan: menuplan,
+          })}
+          eventName={event.name}
+          authUser={authUser}
+        />,
+        event.name + " " + TEXT_MATERIAL_LIST + TEXT_SUFFIX_PDF,
+        (error) => onDispatchError(error),
+        {eventUid: event.uid},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      onDispatchError(error as Error);
+    }
   }, [materialList, selectedListItem, menuplan, event.name, authUser, onDispatchError]);
 
   /* ------------------------------------------

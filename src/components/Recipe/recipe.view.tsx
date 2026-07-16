@@ -677,18 +677,24 @@ export const RecipeView = ({
       recipe.ingredients,
     );
     pdfRecipeData.materials = Recipe.deleteEmptyMaterials(recipe.materials);
-    generateAndDownloadPdf(
-      <RecipePdf
-        recipe={pdfRecipeData}
-        scaledPortions={scalingInformation.portions}
-        scaledIngredients={scalingInformation.ingredients}
-        scaledMaterials={scalingInformation.materials}
-        authUser={authUser}
-      />,
-      recipe.name + TEXT_SUFFIX_PDF,
-      (error) =>
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
-    );
+    try {
+      await generateAndDownloadPdf(
+        <RecipePdf
+          recipe={pdfRecipeData}
+          scaledPortions={scalingInformation.portions}
+          scaledIngredients={scalingInformation.ingredients}
+          scaledMaterials={scalingInformation.materials}
+          authUser={authUser}
+        />,
+        recipe.name + TEXT_SUFFIX_PDF,
+        (error) =>
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+        {recipeUid: recipe.uid},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+    }
   };
   /* ------------------------------------------
   // Veröffentlichungsrequest

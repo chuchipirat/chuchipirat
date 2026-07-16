@@ -478,6 +478,10 @@ const UserProfilePage = () => {
     },
     [],
   );
+
+  const handleDonationReceiptError = React.useCallback((error: Error) => {
+    dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+  }, []);
   /* ------------------------------------------
   // ================= AUSGABE ================
   // ------------------------------------------ */
@@ -525,7 +529,11 @@ const UserProfilePage = () => {
               />
               <AchievedRewardsCard publicProfile={state.userProfile} />
               {donations.length > 0 && (
-                <DonationsCard donations={donations} authUser={authUser!} />
+                <DonationsCard
+                  donations={donations}
+                  authUser={authUser!}
+                  onError={handleDonationReceiptError}
+                />
               )}
             </React.Fragment>
           )}
@@ -855,6 +863,7 @@ AchievedRewardsCard.displayName = "AchievedRewardsCard";
 interface DonationsCardProps {
   donations: DonationDomain[];
   authUser: AuthUser;
+  onError: (error: Error) => void;
 }
 /**
  * Karte mit der Spendenhistorie des Benutzers.
@@ -863,15 +872,23 @@ interface DonationsCardProps {
  *
  * @param donations - Liste der bestätigten Spenden des Benutzers.
  * @param authUser - Der angemeldete Benutzer (für PDF-Generierung).
+ * @param onError - Callback bei Fehlern während der PDF-Generierung.
  */
-const DonationsCard = React.memo(({donations, authUser}: DonationsCardProps) => {
+const DonationsCard = React.memo(({donations, authUser, onError}: DonationsCardProps) => {
   const classes = useCustomStyles();
 
   const handleDownloadReceipt = async (donation: DonationDomain) => {
-    await generateAndDownloadPdf(
-      <DonationReceiptPdf donation={donation} authUser={authUser} />,
-      `Spendenquittung${donation.eventName ? ` ${donation.eventName}` : ""}.pdf`,
-    );
+    try {
+      await generateAndDownloadPdf(
+        <DonationReceiptPdf donation={donation} authUser={authUser} />,
+        `Spendenquittung${donation.eventName ? ` ${donation.eventName}` : ""}.pdf`,
+        (error) => onError?.(error),
+        {donationId: donation.id},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      onError?.(error as Error);
+    }
   };
 
   return (
