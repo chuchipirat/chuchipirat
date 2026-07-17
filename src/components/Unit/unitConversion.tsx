@@ -196,6 +196,11 @@ const TAB_QUERY_PARAM_MAP: Record<string, number> = {
   product: TAB_PRODUCT,
 };
 
+/** Umkehrung von TAB_QUERY_PARAM_MAP — Tab-Index → Query-Parameter-String. */
+const TAB_TO_QUERY_PARAM: Record<number, string> = Object.fromEntries(
+  Object.entries(TAB_QUERY_PARAM_MAP).map(([param, tab]) => [tab, param]),
+);
+
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
@@ -211,7 +216,7 @@ const UnitConversionPage = () => {
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const [state, dispatch] = React.useReducer(
     unitConversionReducer,
@@ -350,6 +355,8 @@ const UnitConversionPage = () => {
   // ------------------------------------------ */
   const onTabChange = (_event: React.SyntheticEvent, value: number) => {
     setTabValue(value);
+    // Tab in der URL persistieren, damit ein Refresh auf demselben Tab landet.
+    setSearchParams({tab: TAB_TO_QUERY_PARAM[value]}, {replace: true});
   };
 
   /* ------------------------------------------

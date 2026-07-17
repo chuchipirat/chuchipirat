@@ -842,14 +842,22 @@ const INTITIAL_STATE_EVENT_DRAF: EventDraftState = {
 
 /**
  * Zuordnung von URL-Query-Parameter `?tab=` auf den passenden EventTabs-Wert.
- * Ermöglicht Deep-Links auf bestimmte Tabs (z.B. aus dem Verwendungsnachweis).
+ * Ermöglicht Deep-Links auf bestimmte Tabs (z.B. aus dem Verwendungsnachweis)
+ * sowie das Wiederherstellen des aktiven Tabs nach einem Seiten-Refresh.
  */
 const TAB_QUERY_PARAM_MAP: Record<string, EventTabs> = {
   menuplan: EventTabs.menuplan,
+  quantitycalculation: EventTabs.quantityCalculation,
+  usedrecipes: EventTabs.usedRecipes,
   shoppinglist: EventTabs.shoppingList,
   materiallist: EventTabs.materialList,
   eventinfo: EventTabs.eventInfo,
 };
+
+/** Umkehrung von TAB_QUERY_PARAM_MAP — EventTabs-Wert → Query-Parameter-String. */
+const TAB_TO_QUERY_PARAM: Record<EventTabs, string> = Object.fromEntries(
+  Object.entries(TAB_QUERY_PARAM_MAP).map(([param, tab]) => [tab, param]),
+) as Record<EventTabs, string>;
 
 const EventPage = () => {
   const firebase = useFirebase();
@@ -857,7 +865,7 @@ const EventPage = () => {
   const authUser = useAuthUser();
   const theme = useTheme();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {customDialog} = useCustomDialog();
   const navigate = useNavigate();
 
@@ -1421,6 +1429,13 @@ const EventPage = () => {
   // ------------------------------------------ */
   const onTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+    // Tab in der URL persistieren, damit ein Refresh auf demselben Tab landet.
+    // {replace: true} verhindert, dass jeder Tab-Klick einen eigenen
+    // History-Eintrag erzeugt (Zurück-Button würde sonst Tab für Tab abspulen).
+    setSearchParams(
+      {tab: TAB_TO_QUERY_PARAM[newValue as EventTabs]},
+      {replace: true},
+    );
   };
   /* ------------------------------------------
   // Change-Handling
