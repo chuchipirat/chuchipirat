@@ -186,6 +186,13 @@ services:
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
 
+      # Brute-Force-Schutz Login: max. Sign-in/Sign-up-Versuche pro 5 Minuten pro Client
+      # (identifiziert über X-Forwarded-For, da Kong als Reverse-Proxy davor sitzt —
+      # ohne GOTRUE_RATE_LIMIT_HEADER würde GoTrue sonst die interne Kong-IP zählen,
+      # wodurch alle Clients denselben Rate-Limit-Zähler teilen würden).
+      GOTRUE_RATE_LIMIT_HEADER: X-Forwarded-For
+      GOTRUE_RATE_LIMIT_SIGN_IN_SIGN_UPS: "5"
+
       # Uncomment to enable OAuth / social login providers.
       # GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED}
       # GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
