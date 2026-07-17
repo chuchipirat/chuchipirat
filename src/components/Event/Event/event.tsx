@@ -2149,7 +2149,7 @@ const EventPage = () => {
       >
         <Backdrop
           sx={classes.backdrop}
-          open={state.isLoading || state.isSaving}
+          open={(state.isLoading || state.isSaving) && !state.error}
         >
           <Stack spacing={2} sx={classes.centerCenter}>
             <CircularProgress color="inherit" />
