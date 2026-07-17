@@ -147,7 +147,9 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
               {TEXT.APP_NAME}
             </Link>
           </Typography>
-          {Utils.isTestEnvironment() ? <TestTenantRibbon /> : null}
+          {Utils.isTestEnvironment() && !useOriginalColorScheme ? (
+            <TestTenantRibbon />
+          ) : null}
           <div>
             <IconButton
               aria-label="Hilfe-Seite aufrufen"
