@@ -51,6 +51,7 @@ import {
   CONSISTENCY_CHECK as TEXT_CONSISTENCY_CHECK,
   MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED as TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
   MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES as TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
+  EVENT_NOT_FOUND_OR_NO_ACCESS as TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS,
 } from "../../../constants/text";
 
 import {HOME as ROUTE_HOME} from "../../../constants/routes";
@@ -964,6 +965,14 @@ const EventPage = () => {
               location: event.location,
               numberOfDays: event.numberOfDays,
               cooksCount: event.cooks?.length ?? 0,
+            });
+          } else {
+            // Event existiert nicht oder RLS verweigert den Zugriff (getEvent
+            // gibt in beiden Fällen null zurück) — ohne diesen Zweig bliebe
+            // die Seite unendlich im Ladezustand hängen.
+            dispatch({
+              type: ReducerActions.GENERIC_ERROR,
+              payload: new Error(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
             });
           }
         })

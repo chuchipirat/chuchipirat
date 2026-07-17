@@ -16,6 +16,8 @@ export const EVENT_FUTURE_EVENTS = "Deine bevorstehende Anlässe";
 export const EVENT_NO_FUTURE_EVENTS =
   "Keine bevorstehenden Anlässe. Erstelle einen neuen Anlass!";
 export const EVENT_NO_PAST_EVENTS = "Keine vergangenen Anlässe vorhanden.";
+export const EVENT_NOT_FOUND_OR_NO_ACCESS =
+  "Dieser Anlass existiert nicht oder du hast keine Berechtigung dafür.";
 export const CREATE_EVENT = "Anlass erstellen";
 export const EVENT_INFO = "Informationen zum Anlass";
 export const DEFINE_BASIC_EVENT_DATA =
