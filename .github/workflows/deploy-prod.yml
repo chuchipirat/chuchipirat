@@ -103,7 +103,17 @@ jobs:
           target: "/opt/chuchipirat/prod/supabase/volumes/functions/"
           strip_components: 3
 
-      - name: Restart Edge Functions & Auth
+      - name: Copy Kong Config to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "supabase/volumes/api/kong.yml"
+          target: "/opt/chuchipirat/prod/supabase/volumes/api/"
+          strip_components: 3
+
+      - name: Restart Edge Functions & Auth & Kong
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -113,10 +123,12 @@ jobs:
             # auth wird mit-recreated, da docker-compose.prod.yml (Schritt oben) auch
             # dessen Konfiguration (z.B. GOTRUE_*-Env-Vars) ändern kann — ein reiner
             # "up -d" ohne --force-recreate übernimmt Env-Var-Änderungen an bereits
-            # laufenden Containern sonst nicht zuverlässig.
-            cd /opt/chuchipirat/prod/supabase && docker compose up -d --force-recreate functions auth
+            # laufenden Containern sonst nicht zuverlässig. kong lädt sein
+            # deklaratives Config-File (kong.yml) nur beim Start, daher ebenfalls
+            # --force-recreate.
+            cd /opt/chuchipirat/prod/supabase && docker compose up -d --force-recreate functions auth kong
             sleep 5
-            docker ps | grep -E "edge-functions-prod|supabase-auth-prod"
+            docker ps | grep -E "edge-functions-prod|supabase-auth-prod|supabase-kong-prod"
 
   # ─── 3. Auth Email Templates ──────────────────────────
   auth-templates:
