@@ -152,7 +152,7 @@ Renaming or removing values requires more work (create new type, migrate data, d
 
 ## Supabase Environments
 
-- Three environments: **DEV / TEST / PROD** (hosted via Coolify on Hetzner)
+- Three environments: **DEV / TEST / PROD**
 - **NEVER work against PROD** — all development and testing in DEV or TEST only
 - Migrations via Supabase CLI: `supabase migration new <n>`
 - Always test RLS policies with both authenticated and anon roles

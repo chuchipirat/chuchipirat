@@ -2,15 +2,15 @@
 
 ## Branch-Strategie
 
-| Branch      | Deploy-Ziel              | Direkter Commit?           |
-| ----------- | ------------------------ | -------------------------- |
-| `main`      | Coolify → **Production** | ❌ Nie                     |
-| `develop`   | Coolify → **Test**       | ✅ Nur triviale Änderungen |
-| `feature/*` | –                        | ✅                         |
-| `fix/*`     | –                        | ✅                         |
-| `hotfix/*`  | –                        | ✅                         |
-| `chore/*`   | –                        | ✅                         |
-| `docs/*`    | –                        | ✅                         |
+| Branch      | Deploy-Ziel    | Direkter Commit?           |
+| ----------- | -------------- | -------------------------- |
+| `main`      | **Production** | ❌ Nie                     |
+| `develop`   | **Test**       | ✅ Nur triviale Änderungen |
+| `feature/*` | –              | ✅                         |
+| `fix/*`     | –              | ✅                         |
+| `hotfix/*`  | –              | ✅                         |
+| `chore/*`   | –              | ✅                         |
+| `docs/*`    | –              | ✅                         |
 
 **Regel:** `main` ist heilig. Kein direkter Commit – ausnahmslos. Triviale Änderungen (Tippfehler, Config, Dependencies) dürfen direkt auf `develop`.
 
@@ -42,13 +42,13 @@ develop → feature/* oder fix/* → Commits → PR → develop
 ### Release
 
 ```
-develop → PR → main → GitHub Release Tag → Coolify Deploy PROD
+develop → PR → main → GitHub Release Tag → Deploy PROD
 ```
 
 1. PR von `develop` nach `main` (Titel: `Release v1.x.0`)
 2. Changelog im PR-Body
 3. Nach Merge: GitHub Release mit Tag `v1.x.0` erstellen
-4. Coolify Webhook triggert automatisch PROD-Deploy
+4. Webhook triggert automatisch PROD-Deploy
 
 ### Hotfix (kritischer Bug in Production)
 

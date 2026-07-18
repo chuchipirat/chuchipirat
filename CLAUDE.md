@@ -29,7 +29,7 @@ The app is used on **desktop/tablet** during camp preparation and on **mobile** 
 
 ## Environments
 
-Three environments: **DEV / TEST / PROD** (Coolify on Hetzner).
+Three environments: **DEV / TEST / PROD**.
 
 **NEVER work directly against the PROD environment.** No migrations, no queries, no data changes in production. All work happens in DEV or TEST first.
 
