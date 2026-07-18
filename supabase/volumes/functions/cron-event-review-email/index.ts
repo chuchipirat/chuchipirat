@@ -202,13 +202,14 @@ serve(async (req: Request) => {
             cookName,
             eventName,
             hasDonated,
+            eventId,
             appUrl,
           });
 
           const donationText = hasDonated ? "" :
             `---\n\n` +
             `Falls ihr euren Anlass genossen habt und noch etwas Budget übrig ist: chuchipirat ist ein ehrenamtliches Projekt — jede Spende hilft uns, die App weiterzuentwickeln und für alle gratis zu halten.\n\n` +
-            `Jetzt spenden: ${appUrl}/donate\n\n`;
+            `Jetzt spenden: ${appUrl}/donate?eventId=${eventId}&source=event_review_email\n\n`;
 
           const textContent =
             `Hallo ${cookName},\n\n` +

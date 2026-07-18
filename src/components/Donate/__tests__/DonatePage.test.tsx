@@ -44,6 +44,15 @@ jest.mock("../../Session/authUserContext", () => ({
   useAuthUser: () => authUserValue,
 }));
 
+/** Mock: useDatabase — nur events.getEvent wird von DonatePage verwendet. */
+jest.mock("../../Database/DatabaseContext", () => ({
+  useDatabase: () => ({
+    events: {
+      getEvent: jest.fn().mockResolvedValue(null),
+    },
+  }),
+}));
+
 /** Mock: PageTitle — Stub-Komponente. */
 jest.mock("../../Shared/pageTitle", () => ({
   PageTitle: ({title, subTitle}: {title: string; subTitle: string}) => (

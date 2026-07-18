@@ -354,7 +354,7 @@ const BODY_TEMPLATES: Record<string, string> = {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td align="center" style="padding: 8px 0 0;">
-                    <a href="{{appUrl}}/donate"
+                    <a href="{{appUrl}}/donate?eventId={{eventId}}&amp;source=event_review_email"
                        target="_blank"
                        style="display: inline-block; background-color: #ffffff; color: #006064; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 32px; border-radius: 8px; border: 2px solid #006064; letter-spacing: 0.3px;">
                       Jetzt spenden

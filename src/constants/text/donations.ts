@@ -19,6 +19,8 @@ export const DONATION_MESSAGE_PLACEHOLDER = "Deine Nachricht an uns...";
 export const DONATION_SUBMIT = "Jetzt spenden";
 export const DONATION_MIN_AMOUNT = "Mindestbetrag: CHF 5.00";
 export const DONATION_CUSTOM_AMOUNT = "Anderer Betrag";
+export const DONATION_LINKED_TO_EVENT = (eventName: string) =>
+  `Diese Spende wird dem Anlass «${eventName}» zugeordnet.`;
 
 /* =====================================================================
 // Spendenergebnis

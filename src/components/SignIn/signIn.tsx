@@ -47,7 +47,7 @@ import {ImageRepository} from "../../constants/imageRepository";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {LocalStorageKey} from "../../constants/localStorage";
-import {useNavigate} from "react-router";
+import {useNavigate, useLocation} from "react-router";
 import {Utils} from "../Shared/utils.class";
 import {useCustomStyles} from "../../constants/styles";
 
@@ -181,6 +181,7 @@ const SignInPage = () => {
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [state, dispatch] = React.useReducer(signInReducer, initialState);
 
@@ -189,9 +190,12 @@ const SignInPage = () => {
   const [signInSucceeded, setSignInSucceeded] = React.useState(false);
   React.useEffect(() => {
     if (signInSucceeded && authUser) {
-      navigate(ROUTE_HOME);
+      // Falls AuthorizationGuard hierher umgeleitet hat, zur ursprünglich
+      // angeforderten Seite zurücknavigieren statt immer zur Startseite.
+      const from = (location.state as {from?: string} | null)?.from;
+      navigate(from ?? ROUTE_HOME);
     }
-  }, [signInSucceeded, authUser, navigate]);
+  }, [signInSucceeded, authUser, navigate, location]);
 
   /* ------------------------------------------
   // Einstellungen holen
