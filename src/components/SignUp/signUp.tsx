@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogActions,
   Stack,
+  FormHelperText,
 } from "@mui/material";
 import {
   Visibility as VisibilityIcon,
@@ -66,6 +67,7 @@ import {
   SIGN_UP_TERM_OF_USE_SUFFIX as TEXT_SIGN_UP_TERM_OF_USE_SUFFIX,
   SIGN_UP_PRIVACY_POLICY_SUFFIX as TEXT_SIGN_UP_PRIVACY_POLICY_SUFFIX,
   PRIVACY_POLICY_DIALOG_TITLE as TEXT_PRIVACY_POLICY_DIALOG_TITLE,
+  PASSWORD_REQUIREMENTS_HINT as TEXT_PASSWORD_REQUIREMENTS_HINT,
 } from "../../constants/text";
 
 import {PrivacyPolicyText} from "../App/privacyPolicy";
@@ -306,9 +308,7 @@ const SignUpPage = () => {
    *
    * @param event - Click-Event des Link-Elements
    */
-  const onSmallPrintDialogOpen = (
-    event: React.MouseEvent<HTMLElement>,
-  ) => {
+  const onSmallPrintDialogOpen = (event: React.MouseEvent<HTMLElement>) => {
     setSmallPrintDialogs({
       ...smallPrintDialogs,
       [event.currentTarget.id]: true,
@@ -566,6 +566,9 @@ const SignUpForm = ({
               },
             }}
           />
+          {signUpData.password && signUpData.password.length < 6 && (
+            <FormHelperText>{TEXT_PASSWORD_REQUIREMENTS_HINT}</FormHelperText>
+          )}
           {/* Staerke Passwort */}
           <PasswordStrengthMeter password={signUpData.password} />
           <Typography sx={{marginTop: "1rem"}}>
