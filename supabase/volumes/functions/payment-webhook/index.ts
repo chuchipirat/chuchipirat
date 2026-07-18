@@ -23,6 +23,7 @@ import {
 } from "../_shared/emailService.ts";
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
+import {matchTransactionToDonation} from "../_shared/paymentVerification.ts";
 
 /* =====================================================================
 // Zahlungsanbieter API Hilfsfunktionen
@@ -186,20 +187,25 @@ serve(async (req: Request) => {
   // Webhook-Payload als Rohtext lesen (für Signaturprüfung)
   const rawBody = await req.text();
 
-  // Webhook-Signatur prüfen (Zahlungsanbieter sendet X-Webhook-Signature Header)
+  // Webhook-Signatur prüfen (Zahlungsanbieter sendet X-Webhook-Signature Header).
+  // Ohne gültige Signatur wird die Anfrage abgelehnt — ein fehlender Header
+  // darf NICHT als "Verifizierung überspringen" behandelt werden, sonst kann
+  // jeder unsignierte POSTs an diesen Endpoint senden.
+  if (!paymentWebhookSigningKey) {
+    console.error("payment-webhook: PAYMENT_WEBHOOK_SIGNING_KEY not configured");
+    return errorResponse("payment-webhook", "Server misconfiguration", 500);
+  }
+
   const receivedSignature = req.headers.get("X-Webhook-Signature");
-  if (receivedSignature) {
-    if (!paymentWebhookSigningKey) {
-      console.warn("payment-webhook: PAYMENT_WEBHOOK_SIGNING_KEY not set — skipping signature verification");
-    } else {
-      const isValid = await verifyWebhookSignature(rawBody, receivedSignature, paymentWebhookSigningKey);
-      if (!isValid) {
-        console.error("payment-webhook: Invalid webhook signature");
-        return errorResponse("payment-webhook", "Invalid signature", 401);
-      }
-    }
-  } else {
-    console.warn("payment-webhook: No X-Webhook-Signature header — skipping verification");
+  if (!receivedSignature) {
+    console.error("payment-webhook: Missing X-Webhook-Signature header");
+    return errorResponse("payment-webhook", "Missing signature", 401);
+  }
+
+  const isValid = await verifyWebhookSignature(rawBody, receivedSignature, paymentWebhookSigningKey);
+  if (!isValid) {
+    console.error("payment-webhook: Invalid webhook signature");
+    return errorResponse("payment-webhook", "Invalid signature", 401);
   }
 
   // Payload parsen (JSON oder URL-encoded)
@@ -250,6 +256,21 @@ serve(async (req: Request) => {
     if (!verifiedTx) {
       console.error(`payment-webhook: Failed to verify transaction ${transactionId}`);
       return errorResponse("payment-webhook", "Transaction verification failed", 502);
+    }
+
+    // Cross-Check: Die bei Zahlungsanbieter hinterlegte referenceId/amount der
+    // Transaktion muss zur angefragten Spende passen. Ohne diese Prüfung könnte
+    // jemand eine eigene, echte (aber unabhängige) Transaktions-ID zusammen mit
+    // einer fremden referenceId einreichen und so eine beliebige Spende als
+    // bezahlt markieren, obwohl die Transaktion nie dafür bestimmt war.
+    const matchResult = matchTransactionToDonation(
+      verifiedTx,
+      referenceId,
+      donation.amount_in_cents,
+    );
+    if (!matchResult.matches) {
+      console.error(`payment-webhook: Transaction ${transactionId} ${matchResult.reason}`);
+      return errorResponse("payment-webhook", "Transaction/donation mismatch", 409);
     }
 
     const providerStatus = String(verifiedTx.status ?? "");
