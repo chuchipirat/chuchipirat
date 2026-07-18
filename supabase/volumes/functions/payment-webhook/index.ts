@@ -245,8 +245,13 @@ serve(async (req: Request) => {
       return successResponse({ignored: true, reason: "donation_not_found"});
     }
 
-    // Idempotenz: Nur pending-Spenden verarbeiten
-    if (donation.status !== "pending") {
+    // Idempotenz: Nur bereits abschliessend verarbeitete Spenden überspringen.
+    // "failed"/"cancelled" sind NICHT terminal — ein einzelnes Gateway (siehe
+    // create-donation) erlaubt mehrere Zahlungsversuche mit derselben
+    // referenceId (z.B. Karte abgelehnt, danach erfolgreich bezahlt). Nur
+    // "confirmed"/"refunded"/"migrated" dürfen nicht erneut verarbeitet werden.
+    const terminalStatuses = ["confirmed", "refunded", "migrated"];
+    if (terminalStatuses.includes(donation.status)) {
       console.log(`payment-webhook: Donation ${referenceId} already processed (status=${donation.status})`);
       return successResponse({ignored: true, reason: "already_processed"});
     }
