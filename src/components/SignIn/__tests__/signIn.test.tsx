@@ -11,7 +11,12 @@ import {MemoryRouter, useLocation} from "react-router";
 import {SignInPage, AlertMaintenanceMode} from "../signIn";
 import {SignUpLink} from "../../SignUp/signUp";
 import {DatabaseContext} from "../../Database/DatabaseContext";
-import {SIGN_UP as ROUTE_SIGN_UP} from "../../../constants/routes";
+import {AuthUserContext} from "../../Session/authUserContext";
+import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {
+  SIGN_UP as ROUTE_SIGN_UP,
+  HOME as ROUTE_HOME,
+} from "../../../constants/routes";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================
@@ -23,7 +28,15 @@ const mockResendConfirmationEmail = jest.fn();
 
 /** Mock für UserRepository */
 const mockFindById = jest.fn();
+const mockFindOwnProfile = jest.fn();
 const mockRegisterSignIn = jest.fn();
+const mockSignOut = jest.fn();
+
+/** Mock: globalSettings.getSettings — pro Test überschreibbar für maintenanceMode */
+const mockGetSettings = jest.fn().mockResolvedValue({
+  allowSignUp: true,
+  maintenanceMode: false,
+});
 
 /** Mock-DatabaseService mit typisierten Mocks */
 const mockDatabase = {
@@ -31,7 +44,7 @@ const mockDatabase = {
     signInWithPassword: mockSignInWithPassword,
     resendConfirmationEmail: mockResendConfirmationEmail,
     signUp: jest.fn(),
-    signOut: jest.fn(),
+    signOut: mockSignOut,
     resetPassword: jest.fn(),
     updatePassword: jest.fn(),
     onAuthStateChange: jest.fn(),
@@ -40,13 +53,11 @@ const mockDatabase = {
   },
   users: {
     findById: mockFindById,
+    findOwnProfile: mockFindOwnProfile,
     registerSignIn: mockRegisterSignIn,
   },
   globalSettings: {
-    getSettings: jest.fn().mockResolvedValue({
-      allowSignUp: true,
-      maintenanceMode: false,
-    }),
+    getSettings: mockGetSettings,
   },
 } as unknown as import("../../Database/DatabaseService").default;
 
@@ -235,7 +246,7 @@ describe("SignInPage", () => {
       mockSignInWithPassword.mockResolvedValueOnce({
         user: {id: "supabase-uuid"},
       });
-      mockFindById.mockResolvedValueOnce({uid: "user-123"});
+      mockFindOwnProfile.mockResolvedValueOnce({uid: "user-123", roles: ["basic"]});
       renderSignInPage();
 
       await userEvent.type(
@@ -258,7 +269,7 @@ describe("SignInPage", () => {
       mockSignInWithPassword.mockResolvedValueOnce({
         user: {id: "supabase-uuid"},
       });
-      mockFindById.mockResolvedValueOnce({uid: "user-123"});
+      mockFindOwnProfile.mockResolvedValueOnce({uid: "user-123", roles: ["basic"]});
       renderSignInPage();
 
       await userEvent.type(
@@ -296,6 +307,93 @@ describe("SignInPage", () => {
       await waitFor(() => {
         expect(screen.getByRole("alert")).toBeInTheDocument();
       });
+    });
+  });
+
+  describe("Wartungsmodus — Zugriff nur für Admins", () => {
+    test("Nicht-Admin wird nach Login wieder ausgeloggt und bleibt auf der Sign-In-Seite", async () => {
+      mockGetSettings.mockResolvedValueOnce({
+        allowSignUp: true,
+        maintenanceMode: true,
+      });
+      mockSignInWithPassword.mockResolvedValueOnce({
+        user: {id: "supabase-uuid"},
+      });
+      mockFindOwnProfile.mockResolvedValueOnce({
+        uid: "user-123",
+        roles: ["basic"],
+      });
+      renderSignInPage();
+
+      // Wartungswarnung ist sichtbar, Formular bleibt trotzdem bedienbar
+      await waitFor(() => {
+        expect(screen.getByText(/Wartungsmodus/i)).toBeInTheDocument();
+      });
+
+      await userEvent.type(
+        screen.getByLabelText(/e-mail/i),
+        "basic@example.com",
+      );
+      await userEvent.type(getPasswordField(), "geheim123");
+
+      const button = screen.getByRole("button", {name: /anmelden/i});
+      expect(button).toBeEnabled();
+      await userEvent.click(button);
+
+      await waitFor(() => {
+        expect(mockSignOut).toHaveBeenCalled();
+      });
+
+      // Keine Navigation weg von der Sign-In-Seite
+      expect(testLocation.pathname).toBe("/signin");
+    });
+
+    test("Admin wird trotz Wartungsmodus angemeldet und navigiert weiter", async () => {
+      mockGetSettings.mockResolvedValueOnce({
+        allowSignUp: true,
+        maintenanceMode: true,
+      });
+      mockSignInWithPassword.mockResolvedValueOnce({
+        user: {id: "supabase-uuid"},
+      });
+      mockFindOwnProfile.mockResolvedValueOnce({
+        uid: "admin-123",
+        roles: ["admin"],
+      });
+
+      // AuthUserContext simuliert, dass der AuthUserProvider bereits einen
+      // (Admin-)User bereitstellt — Voraussetzung dafür, dass die
+      // Navigations-useEffect in SignInPage überhaupt auslöst.
+      const fakeAdmin = new AuthUser();
+      fakeAdmin.uid = "admin-123";
+      fakeAdmin.roles = ["admin"] as AuthUser["roles"];
+
+      render(
+        <MemoryRouter initialEntries={["/signin"]}>
+          <DatabaseContext.Provider value={mockDatabase}>
+            <AuthUserContext.Provider value={fakeAdmin}>
+              <SignInPage />
+            </AuthUserContext.Provider>
+            <LocationDisplay />
+          </DatabaseContext.Provider>
+        </MemoryRouter>,
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/Wartungsmodus/i)).toBeInTheDocument();
+      });
+
+      await userEvent.type(
+        screen.getByLabelText(/e-mail/i),
+        "admin@example.com",
+      );
+      await userEvent.type(getPasswordField(), "geheim123");
+      await userEvent.click(screen.getByRole("button", {name: /anmelden/i}));
+
+      await waitFor(() => {
+        expect(testLocation.pathname).toBe(ROUTE_HOME);
+      });
+      expect(mockSignOut).not.toHaveBeenCalled();
     });
   });
 });
