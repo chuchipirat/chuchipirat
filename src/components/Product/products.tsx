@@ -78,7 +78,12 @@ import {
 import {CustomSnackbar} from "../Shared/customSnackbar";
 import {useCustomStyles} from "../../constants/styles";
 
-import {Product, Allergen, Diet, createEmptyDietProperty} from "./product.types";
+import {
+  Product,
+  Allergen,
+  Diet,
+  createEmptyDietProperty,
+} from "./product.types";
 import {Unit, UnitDimension} from "../Unit/unit.class";
 import Department from "../Department/department.class";
 
@@ -91,11 +96,7 @@ import {
 } from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {
-  DataGrid,
-  GridColDef,
-  GridRowSelectionModel,
-} from "@mui/x-data-grid";
+import {DataGrid, GridColDef, GridRowSelectionModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 
 import {useProductsQa, QaFilterStatus, ProductIssue} from "./useProductsQa";
@@ -108,6 +109,8 @@ import {detectProductIssues} from "./productQaUtils";
 import {ReducerActions} from "./useProductsQa";
 import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
 import {CHECK_WHERE_USED as TEXT_CHECK_WHERE_USED} from "../../constants/text/productQa";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 const PRODUCT_POPUP_VALUES = {
   productName: "",
@@ -238,6 +241,12 @@ const ProductsPage = () => {
 
       if (confirmed) {
         await database.products.deleteProduct(product.uid);
+        trackEvent(AnalyticsEvent.PRODUCT_DELETED, {
+          productUid: product.uid,
+          productName: product.name,
+          deletedBy: authUser.uid,
+          source: "ProductsPage",
+        });
         hook.onDeleteProduct(product);
       }
     } catch (error) {
@@ -582,8 +591,7 @@ const ProductsTable = ({
     React.useState(PRODUCT_POPUP_VALUES);
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     React.useState<HTMLElement | null>(null);
-  const [contextMenuProductUid, setContextMenuProductUid] =
-    React.useState("");
+  const [contextMenuProductUid, setContextMenuProductUid] = React.useState("");
   const [paginationModel, setPaginationModel] = React.useState({
     page: 0,
     pageSize: 100,
@@ -763,7 +771,8 @@ const ProductsTable = ({
               value={
                 departments.find(
                   (department) =>
-                    department.uid === (params.row as ProductLineUi).departmentUid,
+                    department.uid ===
+                    (params.row as ProductLineUi).departmentUid,
                 ) ?? undefined
               }
               onChange={(_event, newValue) => {
@@ -809,9 +818,9 @@ const ProductsTable = ({
                 option.name ? `${option.name} (${option.key})` : ""
               }
               value={
-                units.find(
-                  (unit) => unit.key === (params.value as string),
-                ) ?? units.find((unit) => unit.key === "") ?? null
+                units.find((unit) => unit.key === (params.value as string)) ??
+                units.find((unit) => unit.key === "") ??
+                null
               }
               onChange={(_event, newValue) => {
                 const product = products.find(
@@ -900,11 +909,15 @@ const ProductsTable = ({
               }}
               disableUnderline
             >
-              <MenuItem value={Diet.Meat}>{TEXT_DIET_TYPES[Diet.Meat]}</MenuItem>
+              <MenuItem value={Diet.Meat}>
+                {TEXT_DIET_TYPES[Diet.Meat]}
+              </MenuItem>
               <MenuItem value={Diet.Vegetarian}>
                 {TEXT_DIET_TYPES[Diet.Vegetarian]}
               </MenuItem>
-              <MenuItem value={Diet.Vegan}>{TEXT_DIET_TYPES[Diet.Vegan]}</MenuItem>
+              <MenuItem value={Diet.Vegan}>
+                {TEXT_DIET_TYPES[Diet.Vegan]}
+              </MenuItem>
             </Select>
           );
         },
@@ -948,10 +961,7 @@ const ProductsTable = ({
           const count = params.value as number;
           if (count === 0) return null;
           return (
-            <Tooltip
-              title={(params.row as ProductLineUi).issueTexts}
-              arrow
-            >
+            <Tooltip title={(params.row as ProductLineUi).issueTexts} arrow>
               <Box
                 sx={{
                   display: "flex",
@@ -1003,13 +1013,9 @@ const ProductsTable = ({
   /* ------------------------------------------
   // Checkboxen-Edit (immutabel)
   // ------------------------------------------ */
-  const handleCheckboxChange = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const parts = event.target.name.split("_");
-    const product = products.find(
-      (candidate) => candidate.uid === parts[2],
-    );
+    const product = products.find((candidate) => candidate.uid === parts[2]);
     if (!product) return;
 
     if (parts[1] === "usable") {
@@ -1275,9 +1281,7 @@ const DuplicatesPanel = ({
           }}
         >
           <Typography variant="h6">
-            <FindReplaceIcon
-              sx={{verticalAlign: "middle", marginRight: 1}}
-            />
+            <FindReplaceIcon sx={{verticalAlign: "middle", marginRight: 1}} />
             {similarProducts.length} ähnliche Paare gefunden
           </Typography>
           <IconButton onClick={onClearDuplicates} size="small">

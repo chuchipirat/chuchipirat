@@ -407,7 +407,14 @@ export const RecipeView = ({
           },
           authUser,
         )
-        .catch((err) => Sentry.captureException(err, {extra: {context: "RecipeView.onSetRating – Feed-Eintrag konnte nicht erstellt werden"}}));
+        .catch((err) =>
+          Sentry.captureException(err, {
+            extra: {
+              context:
+                "RecipeView.onSetRating – Feed-Eintrag konnte nicht erstellt werden",
+            },
+          }),
+        );
 
       // DB-Trigger hat avg_rating + no_ratings in recipes aktualisiert → nachladen.
       // Cache umgehen, damit die vom Trigger aktualisierten Werte gelesen werden.
@@ -428,7 +435,12 @@ export const RecipeView = ({
         },
       });
     } catch (err) {
-      Sentry.captureException(err, {extra: {context: "RecipeView.onSetRating – Bewertung speichern fehlgeschlagen"}});
+      Sentry.captureException(err, {
+        extra: {
+          context:
+            "RecipeView.onSetRating – Bewertung speichern fehlgeschlagen",
+        },
+      });
       onError && onError(err as Error);
     }
   };
@@ -454,7 +466,9 @@ export const RecipeView = ({
       });
       onUpdateRecipe({recipe: {...recipe, tags}});
     } catch (err) {
-      Sentry.captureException(err, {extra: {context: "RecipeView.onTagDelete – Tag löschen fehlgeschlagen"}});
+      Sentry.captureException(err, {
+        extra: {context: "RecipeView.onTagDelete – Tag löschen fehlgeschlagen"},
+      });
       onError && onError(err as Error);
     }
   };
@@ -468,7 +482,12 @@ export const RecipeView = ({
       });
       onUpdateRecipe({recipe: {...recipe, tags: listOfTags}});
     } catch (err) {
-      Sentry.captureException(err, {extra: {context: "RecipeView.handleTagAddDialogAdd – Tags hinzufügen fehlgeschlagen"}});
+      Sentry.captureException(err, {
+        extra: {
+          context:
+            "RecipeView.handleTagAddDialogAdd – Tags hinzufügen fehlgeschlagen",
+        },
+      });
       onError && onError(err as Error);
     }
     setTagAddDialogOpen(false);
@@ -543,7 +562,12 @@ export const RecipeView = ({
             products = result as unknown as Product[];
           })
           .catch((error) => {
-            Sentry.captureException(error, {extra: {context: "RecipeView.onRecipeScale – Produkte laden fehlgeschlagen"}});
+            Sentry.captureException(error, {
+              extra: {
+                context:
+                  "RecipeView.onRecipeScale – Produkte laden fehlgeschlagen",
+              },
+            });
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -557,7 +581,12 @@ export const RecipeView = ({
             units = result as unknown as Unit[];
           })
           .catch((error) => {
-            Sentry.captureException(error, {extra: {context: "RecipeView.onRecipeScale – Einheiten laden fehlgeschlagen"}});
+            Sentry.captureException(error, {
+              extra: {
+                context:
+                  "RecipeView.onRecipeScale – Einheiten laden fehlgeschlagen",
+              },
+            });
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -753,7 +782,12 @@ export const RecipeView = ({
         },
       });
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "RecipeView.onCreateRecipePublishRequest – Veröffentlichungsantrag erstellen fehlgeschlagen"}});
+      Sentry.captureException(error, {
+        extra: {
+          context:
+            "RecipeView.onCreateRecipePublishRequest – Veröffentlichungsantrag erstellen fehlgeschlagen",
+        },
+      });
       onError && onError(error as Error);
     }
     setPublishRecipeDialogOpen(false);
@@ -819,7 +853,12 @@ export const RecipeView = ({
         },
       });
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "RecipeView.onReportErrorRequest – Fehlermeldung erstellen fehlgeschlagen"}});
+      Sentry.captureException(error, {
+        extra: {
+          context:
+            "RecipeView.onReportErrorRequest – Fehlermeldung erstellen fehlgeschlagen",
+        },
+      });
       onError && onError(error as Error);
     }
     setReportErrorDialogOpen(false);
@@ -851,6 +890,11 @@ export const RecipeView = ({
     try {
       // ON DELETE CASCADE in der DB entfernt alle Kind-Datensätze automatisch
       await database.recipes.deleteRecipe(recipe.uid);
+      trackEvent(AnalyticsEvent.RECIPE_DELETED, {
+        recipeUid: recipe.uid,
+        recipeName: recipe.name,
+        deletedBy: authUser.uid,
+      });
       if (recipe.type !== RecipeType.variant) {
         navigate(ROUTES.RECIPES, {
           state: {
@@ -1225,8 +1269,7 @@ const RecipeButtonRow = ({
         (recipe.created.fromUid === authUser.uid ||
           // Falls das Rezept im Freigabeprozess ist, soll es von
           // der*m Community-Leader*in angepasst werden können
-          (isInReview &&
-            authUser.roles.includes(Role.communityLeader)))) ||
+          (isInReview && authUser.roles.includes(Role.communityLeader)))) ||
       // Bei der Rezeptvariante, sollen alle anpassen können
       // Die DB-Regel fängt das ab, dass das Rezept nur angezeigt wird
       // wenn man auch Teil des Teams ist.
@@ -1927,9 +1970,7 @@ export const RecipeIngredients = ({
                     sx={{marginTop: "0.5em", paddingLeft: "1em"}}
                   >
                     {counter > 0 && (
-                      <Divider
-                        sx={{marginTop: "2em", marginBottom: "1em"}}
-                      />
+                      <Divider sx={{marginTop: "2em", marginBottom: "1em"}} />
                     )}
                     <Typography
                       variant="subtitle1"
@@ -2390,7 +2431,14 @@ const RecipeComments = ({
         setHasMore(loadedComments.length === COMMENTS_PAGE_SIZE);
         setOffset(loadedComments.length);
       })
-      .catch((error) => Sentry.captureException(error, {extra: {context: "RecipeComments – Kommentare laden fehlgeschlagen", recipeId}}))
+      .catch((error) =>
+        Sentry.captureException(error, {
+          extra: {
+            context: "RecipeComments – Kommentare laden fehlgeschlagen",
+            recipeId,
+          },
+        }),
+      )
       .finally(() => setLoading(false));
   }, [recipeId]);
 
@@ -2405,7 +2453,15 @@ const RecipeComments = ({
         setHasMore(olderComments.length === COMMENTS_PAGE_SIZE);
         setOffset((previous) => previous + olderComments.length);
       })
-      .catch((error) => Sentry.captureException(error, {extra: {context: "RecipeComments.onLoadMore – Ältere Kommentare laden fehlgeschlagen", recipeId}}));
+      .catch((error) =>
+        Sentry.captureException(error, {
+          extra: {
+            context:
+              "RecipeComments.onLoadMore – Ältere Kommentare laden fehlgeschlagen",
+            recipeId,
+          },
+        }),
+      );
   };
 
   /* ------------------------------------------
@@ -2447,9 +2503,22 @@ const RecipeComments = ({
           },
           authUser,
         )
-        .catch((err) => Sentry.captureException(err, {extra: {context: "RecipeComments.onAddComment – Feed-Eintrag konnte nicht erstellt werden"}}));
+        .catch((err) =>
+          Sentry.captureException(err, {
+            extra: {
+              context:
+                "RecipeComments.onAddComment – Feed-Eintrag konnte nicht erstellt werden",
+            },
+          }),
+        );
     } catch (err) {
-      Sentry.captureException(err, {extra: {context: "RecipeComments.onAddComment – Kommentar speichern fehlgeschlagen", recipeId}});
+      Sentry.captureException(err, {
+        extra: {
+          context:
+            "RecipeComments.onAddComment – Kommentar speichern fehlgeschlagen",
+          recipeId,
+        },
+      });
     } finally {
       setSaving(false);
     }
@@ -2490,7 +2559,13 @@ const RecipeComments = ({
       );
       setEditingId(null);
     } catch (err) {
-      Sentry.captureException(err, {extra: {context: "RecipeComments.onSaveEdit – Kommentar bearbeiten fehlgeschlagen", editingId}});
+      Sentry.captureException(err, {
+        extra: {
+          context:
+            "RecipeComments.onSaveEdit – Kommentar bearbeiten fehlgeschlagen",
+          editingId,
+        },
+      });
     }
   };
 
@@ -2514,7 +2589,13 @@ const RecipeComments = ({
         previous.filter((comment) => comment.uid !== commentToDelete.uid),
       );
     } catch (err) {
-      Sentry.captureException(err, {extra: {context: "RecipeComments.onDeleteComment – Kommentar löschen fehlgeschlagen", commentUid: commentToDelete.uid}});
+      Sentry.captureException(err, {
+        extra: {
+          context:
+            "RecipeComments.onDeleteComment – Kommentar löschen fehlgeschlagen",
+          commentUid: commentToDelete.uid,
+        },
+      });
     }
   };
 
@@ -2529,7 +2610,9 @@ const RecipeComments = ({
 
       {/* Eingabeformular — nur wenn interaktiv und eingeloggt */}
       {!disableFunctionality && authUser && (
-        <Box sx={{display: "flex", gap: 1, mt: 1, mb: 2, alignItems: "flex-start"}}>
+        <Box
+          sx={{display: "flex", gap: 1, mt: 1, mb: 2, alignItems: "flex-start"}}
+        >
           <TextField
             fullWidth
             multiline
@@ -2557,7 +2640,12 @@ const RecipeComments = ({
       )}
 
       {/* Ladeanzeige */}
-      {loading && <CircularProgress size={24} sx={{display: "block", mx: "auto", my: 2}} />}
+      {loading && (
+        <CircularProgress
+          size={24}
+          sx={{display: "block", mx: "auto", my: 2}}
+        />
+      )}
 
       {/* Kommentarliste */}
       <List disablePadding>
@@ -2601,7 +2689,11 @@ const RecipeComments = ({
                 >
                   {/* Name + Datum vertikal gestapelt */}
                   <Box>
-                    <Typography variant="subtitle2" fontWeight="bold" lineHeight={1.3}>
+                    <Typography
+                      variant="subtitle2"
+                      fontWeight="bold"
+                      lineHeight={1.3}
+                    >
                       {comment.displayName || "–"}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
@@ -2615,14 +2707,27 @@ const RecipeComments = ({
                     </Typography>
                   </Box>
                   {/* Aktionsschaltflächen rechts oben */}
-                  <Box sx={{display: "flex", alignItems: "center", flexShrink: 0, ml: 1}}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      alignItems: "center",
+                      flexShrink: 0,
+                      ml: 1,
+                    }}
+                  >
                     {canEdit(comment) && editingId !== comment.uid && (
-                      <IconButton size="small" onClick={() => onStartEdit(comment)}>
+                      <IconButton
+                        size="small"
+                        onClick={() => onStartEdit(comment)}
+                      >
                         <EditIcon fontSize="small" />
                       </IconButton>
                     )}
                     {canDelete(comment) && (
-                      <IconButton size="small" onClick={() => onDeleteComment(comment)}>
+                      <IconButton
+                        size="small"
+                        onClick={() => onDeleteComment(comment)}
+                      >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     )}
@@ -2642,7 +2747,11 @@ const RecipeComments = ({
                       helperText={`${editingText.length} / ${MAX_COMMENT_LENGTH}`}
                     />
                     <Box sx={{display: "flex", gap: 1, mt: 0.5}}>
-                      <IconButton size="small" color="primary" onClick={onSaveEdit}>
+                      <IconButton
+                        size="small"
+                        color="primary"
+                        onClick={onSaveEdit}
+                      >
                         <SaveIcon fontSize="small" />
                       </IconButton>
                       <IconButton size="small" onClick={onCancelEdit}>
@@ -2651,7 +2760,10 @@ const RecipeComments = ({
                     </Box>
                   </Box>
                 ) : (
-                  <Typography variant="body2" sx={{mt: 0.5, whiteSpace: "pre-wrap"}}>
+                  <Typography
+                    variant="body2"
+                    sx={{mt: 0.5, whiteSpace: "pre-wrap"}}
+                  >
                     {comment.comment}
                   </Typography>
                 )
@@ -2670,4 +2782,3 @@ const RecipeComments = ({
     </React.Fragment>
   );
 };
-

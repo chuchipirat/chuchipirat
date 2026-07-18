@@ -54,6 +54,8 @@ import {useDatabase} from "../../Database/DatabaseContext";
 import {supabase} from "../../Database/supabaseClient";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useCustomStyles} from "../../../constants/styles";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -70,8 +72,14 @@ enum ReducerActions {
 /** Diskriminierte Union für typsichere Reducer-Aktionen. */
 type DispatchAction =
   | {type: ReducerActions.GLOBAL_SETTINGS_FETCH_INIT}
-  | {type: ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS; payload: GlobalSettingsDomain}
-  | {type: ReducerActions.GLOBAL_SETTINGS_ON_CHANGE; payload: Partial<GlobalSettingsDomain>}
+  | {
+      type: ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS;
+      payload: GlobalSettingsDomain;
+    }
+  | {
+      type: ReducerActions.GLOBAL_SETTINGS_ON_CHANGE;
+      payload: Partial<GlobalSettingsDomain>;
+    }
   | {type: ReducerActions.GLOBAL_SETTINGS_SAVE_SUCCESS}
   | {type: ReducerActions.SIGN_OUT_ALL_USERS; payload: {count: number}}
   | {type: ReducerActions.CLOSE_SNACKBAR}
@@ -86,7 +94,12 @@ type State = {
 };
 
 const inititialState: State = {
-  globalSettings: {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10, redirectEmailsToMailpit: false},
+  globalSettings: {
+    allowSignUp: false,
+    maintenanceMode: false,
+    emailLookupRateLimit: 10,
+    redirectEmailsToMailpit: false,
+  },
   error: null,
   isError: false,
   isLoading: false,
@@ -195,7 +208,12 @@ const GlobalSettingsPage = () => {
       .then((result) => {
         dispatch({
           type: ReducerActions.GLOBAL_SETTINGS_FETCH_SUCCESS,
-          payload: result ?? {allowSignUp: false, maintenanceMode: false, emailLookupRateLimit: 10, redirectEmailsToMailpit: false},
+          payload: result ?? {
+            allowSignUp: false,
+            maintenanceMode: false,
+            emailLookupRateLimit: 10,
+            redirectEmailsToMailpit: false,
+          },
         });
       })
       .catch((error) => {
@@ -219,9 +237,8 @@ const GlobalSettingsPage = () => {
     const {name, type, checked, value} = event.target;
 
     // Numerische Felder als Zahl, Switches als Boolean verarbeiten
-    const newValue = type === "number"
-      ? Math.max(1, parseInt(value, 10) || 1)
-      : checked;
+    const newValue =
+      type === "number" ? Math.max(1, parseInt(value, 10) || 1) : checked;
 
     dispatch({
       type: ReducerActions.GLOBAL_SETTINGS_ON_CHANGE,
@@ -248,6 +265,12 @@ const GlobalSettingsPage = () => {
     supabase.functions
       .invoke("sign-out-all-users")
       .then(({data, error}) => {
+        if (authUser?.uid) {
+          trackEvent(AnalyticsEvent.SYSTEM_LOG_OUT_ALL_USERS, {
+            executedBy: authUser.uid,
+          });
+        }
+
         if (error) throw error;
         dispatch({
           type: ReducerActions.SIGN_OUT_ALL_USERS,
@@ -295,7 +318,10 @@ const GlobalSettingsPage = () => {
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}
-      <PageTitle title={TEXT_GLOBAL_SETTINGS} breadcrumbs={[SYSTEM_BREADCRUMB]} />
+      <PageTitle
+        title={TEXT_GLOBAL_SETTINGS}
+        breadcrumbs={[SYSTEM_BREADCRUMB]}
+      />
 
       <ButtonRow
         key="buttons_edit"

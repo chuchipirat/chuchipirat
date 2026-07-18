@@ -12,6 +12,7 @@ export const AnalyticsEvent = {
 
   // ── Rezepte ──
   RECIPE_CREATED: "recipe_created",
+  RECIPE_DELETED: "recipe_deleted",
   RECIPE_VARIANT_CREATED: "recipe_variant_created",
   RECIPE_SCALED: "recipe_scaled",
   RECIPE_SEARCH: "recipe_search",
@@ -49,7 +50,10 @@ export const AnalyticsEvent = {
 
   // ── Masterdata ──
   PRODUCT_CREATED: "product_created",
+  PRODUCT_DELETED: "product_deleted",
   MATERIAL_CREATED: "material_created",
+  MATERIAL_DELETED: "material_deleted",
+  UNIT_DELETED: "unit_deleted",
 
   // ── Medien ──
   PICTURE_UPLOADED: "picture_uploaded",
@@ -69,6 +73,9 @@ export const AnalyticsEvent = {
 
   // ── Fehler / UX ──
   SEARCH_NO_RESULTS: "search_no_results",
+
+  // ── System ──
+  SYSTEM_LOG_OUT_ALL_USERS: "system_log_out_all_users",
 } as const;
 
 /** Typ für einen gültigen Analytics-Event-Namen. */

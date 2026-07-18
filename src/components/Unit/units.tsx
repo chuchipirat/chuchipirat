@@ -50,13 +50,15 @@ import {Role} from "../../constants/roles";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {ButtonRow} from "../Shared/buttonRow";
-import {EnhancedTable,
+import {
+  EnhancedTable,
   Column,
   ColumnTextAlign,
   TableColumnTypes,
 } from "../Shared/enhancedTable";
 import {DialogCreateUnit} from "./dialogCreateUnit";
-import {CustomSnackbar,
+import {
+  CustomSnackbar,
   SNACKBAR_INITIAL_STATE_VALUES,
   SnackbarState,
 } from "../Shared/customSnackbar";
@@ -68,10 +70,9 @@ import {Unit, UnitDimension} from "./unit.class";
 import * as Sentry from "@sentry/react";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {
-  DialogType,
-  useCustomDialog,
-} from "../Shared/customDialogContext";
+import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -177,7 +178,7 @@ const unitsReducer = (state: State, action: ReducerAction): State => {
         snackbar: {
           severity: "success",
           message: TEXT_UNIT_CREATED(
-            action.payload.key + " - " + action.payload.name
+            action.payload.key + " - " + action.payload.name,
           ),
           open: true,
         },
@@ -248,7 +249,7 @@ const unitsReducer = (state: State, action: ReducerAction): State => {
       // neuer ReducerActions-Wert nicht behandelt wird.
       const _exhaustiveCheck: never = action;
       throw new Error(
-        `Unbekannter ActionType: ${JSON.stringify(_exhaustiveCheck)}`
+        `Unbekannter ActionType: ${JSON.stringify(_exhaustiveCheck)}`,
       );
     }
   }
@@ -337,20 +338,21 @@ const UnitsPage = () => {
   /* ------------------------------------------
   // onChangeField
   // ------------------------------------------ */
-  const onChangeField = React.useCallback((
-    event: React.ChangeEvent<HTMLInputElement> | SelectChangeEvent
-  ) => {
-    const unitField = event.target.name.split("_");
+  const onChangeField = React.useCallback(
+    (event: React.ChangeEvent<HTMLInputElement> | SelectChangeEvent) => {
+      const unitField = event.target.name.split("_");
 
-    dispatch({
-      type: ReducerActions.UNITS_ON_CHANGE,
-      payload: {
-        key: unitField[1],
-        field: unitField[0],
-        value: event.target.value,
-      },
-    });
-  }, []);
+      dispatch({
+        type: ReducerActions.UNITS_ON_CHANGE,
+        payload: {
+          key: unitField[1],
+          field: unitField[0],
+          value: event.target.value,
+        },
+      });
+    },
+    [],
+  );
 
   /* ------------------------------------------
   // Speichern (nur geänderte Einheiten)
@@ -361,7 +363,7 @@ const UnitsPage = () => {
    */
   const onSaveClick = async () => {
     const changedUnits = state.units.filter((unit) =>
-      state.changedKeys.has(unit.key)
+      state.changedKeys.has(unit.key),
     );
     if (changedUnits.length === 0) {
       return;
@@ -440,35 +442,43 @@ const UnitsPage = () => {
    *
    * @param unit - Die zu löschende Einheit
    */
-  const onDeleteUnit = React.useCallback(async (unit: Unit) => {
-    const isConfirmed = await customDialog({
-      dialogType: DialogType.ConfirmSecure,
-      deletionDialogProperties: {confirmationString: unit.key},
-      title: TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
-      subtitle: TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
-      text: TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
-      buttonTextCancel: TEXT_CANCEL,
-      buttonTextConfirm: TEXT_DELETE,
-    });
-    if (!isConfirmed) {
-      return;
-    }
-    database.units
-      .deleteUnit(unit.key, authUser)
-      .then(() => {
-        dispatch({type: ReducerActions.UNIT_DELETED, payload: unit.key});
-      })
-      .catch((error) => {
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+  const onDeleteUnit = React.useCallback(
+    async (unit: Unit) => {
+      const isConfirmed = await customDialog({
+        dialogType: DialogType.ConfirmSecure,
+        deletionDialogProperties: {confirmationString: unit.key},
+        title: TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
+        subtitle: TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
+        text: TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
+        buttonTextCancel: TEXT_CANCEL,
+        buttonTextConfirm: TEXT_DELETE,
       });
-  }, [customDialog, database.units, authUser]);
+      if (!isConfirmed) {
+        return;
+      }
+      database.units
+        .deleteUnit(unit.key, authUser)
+        .then(() => {
+          trackEvent(AnalyticsEvent.UNIT_DELETED, {
+            unit: unit.key,
+            deletedBy: authUser.uid,
+          });
+
+          dispatch({type: ReducerActions.UNIT_DELETED, payload: unit.key});
+        })
+        .catch((error) => {
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        });
+    },
+    [customDialog, database.units, authUser],
+  );
 
   /* ------------------------------------------
   // Snackbar schliessen
   // ------------------------------------------ */
   const handleSnackbarClose = (
     _event: Event | SyntheticEvent<Element, Event>,
-    reason: SnackbarCloseReason
+    reason: SnackbarCloseReason,
   ) => {
     if (reason === "clickaway") {
       return;
@@ -581,106 +591,108 @@ interface TablePanelProps {
   onDeleteUnit: (unit: Unit) => void;
   editMode: boolean;
 }
-const TablePanel = React.memo(({
-  units,
-  onChangeField,
-  onChangeSelect,
-  onDeleteUnit,
-  editMode,
-}: TablePanelProps) => {
-  const classes = useCustomStyles();
+const TablePanel = React.memo(
+  ({
+    units,
+    onChangeField,
+    onChangeSelect,
+    onDeleteUnit,
+    editMode,
+  }: TablePanelProps) => {
+    const classes = useCustomStyles();
 
-  return (
-    <React.Fragment>
-      <Card sx={classes.card} key={"cardUnits"}>
-        <CardContent sx={classes.cardContent} key={"cardContentUnits"}>
-          {editMode ? (
-            <Grid container spacing={2}>
-              {/* Spaltenköpfe — Breiten 3/4/4/1 passend zur Datenzeile */}
-              <Grid size={3}>
-                <Typography variant="subtitle1">{TEXT_UNIT}</Typography>
-              </Grid>
-              <Grid size={4}>
-                <Typography variant="subtitle1">{TEXT_NAME}</Typography>
-              </Grid>
-              <Grid size={4}>
-                <Typography variant="subtitle1">{TEXT_DIMENSION}</Typography>
-              </Grid>
-              {/* Platzhalter für die Löschen-Spalte */}
-              <Grid size={1} />
-              {/* Trennlinie korrekt in einer Grid-Zelle, damit die erste
+    return (
+      <React.Fragment>
+        <Card sx={classes.card} key={"cardUnits"}>
+          <CardContent sx={classes.cardContent} key={"cardContentUnits"}>
+            {editMode ? (
+              <Grid container spacing={2}>
+                {/* Spaltenköpfe — Breiten 3/4/4/1 passend zur Datenzeile */}
+                <Grid size={3}>
+                  <Typography variant="subtitle1">{TEXT_UNIT}</Typography>
+                </Grid>
+                <Grid size={4}>
+                  <Typography variant="subtitle1">{TEXT_NAME}</Typography>
+                </Grid>
+                <Grid size={4}>
+                  <Typography variant="subtitle1">{TEXT_DIMENSION}</Typography>
+                </Grid>
+                {/* Platzhalter für die Löschen-Spalte */}
+                <Grid size={1} />
+                {/* Trennlinie korrekt in einer Grid-Zelle, damit die erste
                   Datenzeile korrekt ausgerichtet wird */}
-              <Grid size={12}>
-                <Divider />
+                <Grid size={12}>
+                  <Divider />
+                </Grid>
+                {units.map((unit) => (
+                  <React.Fragment key={"unitFragment_" + unit.key}>
+                    <Grid size={3} key={"gridItemKey_" + unit.key}>
+                      <TextField
+                        id={"key_" + unit.key}
+                        key={"key_" + unit.key}
+                        name={"key_" + unit.key}
+                        disabled
+                        value={unit.key}
+                        fullWidth
+                      />
+                    </Grid>
+                    <Grid size={4} key={"gridItemName_" + unit.key}>
+                      <TextField
+                        id={"name_" + unit.key}
+                        key={"name_" + unit.key}
+                        name={"name_" + unit.key}
+                        value={unit.name}
+                        onChange={onChangeField}
+                        fullWidth
+                      />
+                    </Grid>
+                    <Grid size={4} key={"gridItemDim_" + unit.key}>
+                      <Select
+                        labelId="unit-dimension"
+                        id={"dimension_" + unit.key}
+                        name={"dimension_" + unit.key}
+                        value={unit.dimension}
+                        onChange={onChangeSelect}
+                        fullWidth
+                      >
+                        <MenuItem value={UnitDimension.volume}>
+                          {TEXT_UNIT_DIMENSION[UnitDimension.volume]}
+                        </MenuItem>
+                        <MenuItem value={UnitDimension.mass}>
+                          {TEXT_UNIT_DIMENSION[UnitDimension.mass]}
+                        </MenuItem>
+                        <MenuItem value={UnitDimension.dimensionless}>
+                          {TEXT_UNIT_DIMENSION[UnitDimension.dimensionless]}
+                        </MenuItem>
+                      </Select>
+                    </Grid>
+                    <Grid size={1} key={"gridItemDelete_" + unit.key}>
+                      <IconButton
+                        aria-label={`${TEXT_UNIT} ${TEXT_DELETE.toLowerCase()}`}
+                        color="error"
+                        onClick={() => onDeleteUnit(unit)}
+                      >
+                        <DeleteIcon />
+                      </IconButton>
+                    </Grid>
+                    <Grid size={12} key={"gridItemDivider_" + unit.key}>
+                      <Divider />
+                    </Grid>
+                  </React.Fragment>
+                ))}
               </Grid>
-              {units.map((unit) => (
-                <React.Fragment key={"unitFragment_" + unit.key}>
-                  <Grid size={3} key={"gridItemKey_" + unit.key}>
-                    <TextField
-                      id={"key_" + unit.key}
-                      key={"key_" + unit.key}
-                      name={"key_" + unit.key}
-                      disabled
-                      value={unit.key}
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid size={4} key={"gridItemName_" + unit.key}>
-                    <TextField
-                      id={"name_" + unit.key}
-                      key={"name_" + unit.key}
-                      name={"name_" + unit.key}
-                      value={unit.name}
-                      onChange={onChangeField}
-                      fullWidth
-                    />
-                  </Grid>
-                  <Grid size={4} key={"gridItemDim_" + unit.key}>
-                    <Select
-                      labelId="unit-dimension"
-                      id={"dimension_" + unit.key}
-                      name={"dimension_" + unit.key}
-                      value={unit.dimension}
-                      onChange={onChangeSelect}
-                      fullWidth
-                    >
-                      <MenuItem value={UnitDimension.volume}>
-                        {TEXT_UNIT_DIMENSION[UnitDimension.volume]}
-                      </MenuItem>
-                      <MenuItem value={UnitDimension.mass}>
-                        {TEXT_UNIT_DIMENSION[UnitDimension.mass]}
-                      </MenuItem>
-                      <MenuItem value={UnitDimension.dimensionless}>
-                        {TEXT_UNIT_DIMENSION[UnitDimension.dimensionless]}
-                      </MenuItem>
-                    </Select>
-                  </Grid>
-                  <Grid size={1} key={"gridItemDelete_" + unit.key}>
-                    <IconButton
-                      aria-label={`${TEXT_UNIT} ${TEXT_DELETE.toLowerCase()}`}
-                      color="error"
-                      onClick={() => onDeleteUnit(unit)}
-                    >
-                      <DeleteIcon />
-                    </IconButton>
-                  </Grid>
-                  <Grid size={12} key={"gridItemDivider_" + unit.key}>
-                    <Divider />
-                  </Grid>
-                </React.Fragment>
-              ))}
-            </Grid>
-          ) : (
-            <EnhancedTable
-              tableData={units}
-              tableColumns={TABLE_COLUMNS}
-              keyColum={"key"}
-            />
-          )}
-        </CardContent>
-      </Card>
-    </React.Fragment>
-  );
-});
+            ) : (
+              <EnhancedTable
+                tableData={units}
+                tableColumns={TABLE_COLUMNS}
+                keyColum={"key"}
+              />
+            )}
+          </CardContent>
+        </Card>
+      </React.Fragment>
+    );
+  },
+);
 
 export {UnitsPage};
