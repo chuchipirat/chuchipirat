@@ -186,14 +186,19 @@ services:
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
 
-      # Brute-Force-Schutz Login: max. Sign-in/Sign-up-Versuche pro 5 Minuten pro Client.
-      # Identifikation über CF-Connecting-IP, nicht X-Forwarded-For: die Domain läuft
-      # hinter Cloudflare (Client -> Cloudflare -> Kong -> auth). X-Forwarded-For wird
-      # von jedem Hop ergänzt und kann sich je nach Cloudflare-Edge-Knoten pro Request
-      # unterscheiden, wodurch derselbe Client nie denselben Zähler-Key träfe.
-      # CF-Connecting-IP enthält garantiert nur die eine echte Client-IP.
+      # Header zur Client-Identifikation für GoTrues eingebaute Rate-Limits
+      # (z.B. RATE_LIMIT_EMAIL_SENT, RATE_LIMIT_OTP — siehe GoTrue-Dokumentation).
+      # CF-Connecting-IP statt X-Forwarded-For: die Domain läuft hinter Cloudflare
+      # (Client -> Cloudflare -> Kong -> auth). X-Forwarded-For wird von jedem Hop
+      # ergänzt und kann sich je nach Cloudflare-Edge-Knoten pro Request unterscheiden,
+      # wodurch derselbe Client nie denselben Zähler-Key träfe. CF-Connecting-IP
+      # enthält garantiert nur die eine echte Client-IP.
+      #
+      # Brute-Force-Schutz für Login (/auth/v1/token) läuft NICHT über GoTrue-Config —
+      # GoTrue hat dafür keinen dokumentierten, konfigurierbaren Rate-Limiter (siehe
+      # https://github.com/supabase/auth/issues/2333). Stattdessen: Cloudflare Rate
+      # Limiting Rule auf /auth/v1/token (siehe SC-015 Testfall).
       GOTRUE_RATE_LIMIT_HEADER: CF-Connecting-IP
-      GOTRUE_RATE_LIMIT_SIGN_IN_SIGN_UPS: "5"
 
       # Uncomment to enable OAuth / social login providers.
       # GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED}
