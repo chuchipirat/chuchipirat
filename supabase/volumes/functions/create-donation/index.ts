@@ -31,12 +31,16 @@ import {sentryCaptureError} from "../_shared/sentryHelper.ts";
  * @param eventId Optionale Event-ID für Event-gebundene Spenden.
  * @param message Optionale Nachricht des Spenders (max. 200 Zeichen).
  * @param returnPath Optionaler Rückweg-Pfad nach der Zahlung.
+ * @param previousDonationId Optionale ID einer abgebrochenen/fehlgeschlagenen
+ *   Spende desselben Users — bei einem Retry wird deren `donor_message`
+ *   übernommen, damit die Nachricht nicht erneut eingegeben werden muss.
  */
 type CreateDonationPayload = {
   amountInCents: number;
   eventId?: string;
   message?: string;
   returnPath?: string;
+  previousDonationId?: string;
 };
 
 /* =====================================================================
@@ -162,7 +166,7 @@ serve(async (req: Request) => {
     return errorResponse("create-donation", "Invalid JSON body", 400);
   }
 
-  const {amountInCents, eventId, message, returnPath} = payload;
+  const {amountInCents, eventId, message, returnPath, previousDonationId} = payload;
 
   // Validierung
   if (!amountInCents || typeof amountInCents !== "number" || amountInCents < 500) {
@@ -194,6 +198,21 @@ serve(async (req: Request) => {
     }
   }
 
+  // Retry: Nachricht der abgebrochenen/fehlgeschlagenen Vorgänger-Spende
+  // übernehmen, falls keine neue Nachricht mitgeschickt wurde. RLS beschränkt
+  // die Abfrage bereits auf eigene Spenden (donations_select-Policy).
+  let messageToStore = message ?? null;
+  if (!messageToStore && previousDonationId) {
+    const {data: previousDonation} = await userClient
+      .from("donations")
+      .select("donor_message")
+      .eq("id", previousDonationId)
+      .eq("donor_uid", user.id)
+      .maybeSingle();
+
+    messageToStore = previousDonation?.donor_message ?? null;
+  }
+
   try {
     // Spende in DB einfügen (status='pending')
     const {data: donation, error: insertError} = await userClient
@@ -204,7 +223,7 @@ serve(async (req: Request) => {
         currency: "CHF",
         status: "pending",
         event_id: eventId ?? null,
-        donor_message: message ?? null,
+        donor_message: messageToStore,
       })
       .select("id")
       .single();

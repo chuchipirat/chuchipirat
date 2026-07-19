@@ -120,7 +120,9 @@ const DonationResultPage = () => {
   /**
    * Erstellt eine neue Spende mit denselben Parametern (Betrag, Event)
    * und leitet erneut zur Payrexx-Zahlungsseite weiter.
-   * Die fehlgeschlagene Spende bleibt als Audit-Trail in der DB.
+   * Die abgebrochene/fehlgeschlagene Spende bleibt als Audit-Trail in der DB —
+   * `previousDonationId` lässt `create-donation` nur deren Nachricht
+   * übernehmen, ohne den Datensatz selbst wiederzuverwenden.
    */
   const handleRetry = useCallback(async () => {
     if (!amountInCents) return;
@@ -136,6 +138,7 @@ const DonationResultPage = () => {
             amountInCents,
             eventId,
             returnPath,
+            previousDonationId: donationId ?? undefined,
           },
         },
       );
@@ -154,7 +157,7 @@ const DonationResultPage = () => {
       setRetryError(err instanceof Error ? err.message : TEXT_ERROR_GENERIC);
       setIsRetrying(false);
     }
-  }, [amountInCents, eventId, returnPath]);
+  }, [amountInCents, eventId, returnPath, donationId]);
 
   /** Retry-Button nur anzeigen, wenn Betrag bekannt ist. */
   const showRetry =
