@@ -418,6 +418,7 @@ export function useMenuplanHandlers({
             products: products,
             materials: materials,
           });
+          trackEvent(AnalyticsEvent.MENUPLAN_MEAL_TYPE_DELETED);
 
           break;
         case Action.ADD:
@@ -434,10 +435,12 @@ export function useMenuplanHandlers({
             meals: meals,
             menues: menues,
           });
+          trackEvent(AnalyticsEvent.MENUPLAN_MEAL_TYPE_ADDED);
           break;
         case Action.EDIT:
           tempMealTypes.entries[mealType.uid] = {...mealType};
           onMenuplanUpdateSuper({...menuplan, mealTypes: tempMealTypes});
+          trackEvent(AnalyticsEvent.MENUPLAN_MEAL_TYPE_EDITED);
           break;
       }
     },
@@ -474,6 +477,8 @@ export function useMenuplanHandlers({
   const onPrintConfirm = useCallback(async (options: MenuplanPdfOptions) => {
     setDialogPdfOptionsData({open: false});
     const {event, menuplan, authUser} = ctx.current;
+
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "menuplan"});
 
     try {
       await generateAndDownloadPdf(
@@ -719,6 +724,7 @@ export function useMenuplanHandlers({
     delete updatedMealRecipes[recipeDrawerData.mealPlan[0].mealPlanRecipe];
 
     onMenuplanUpdate({mealRecipes: updatedMealRecipes});
+    trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_REMOVED);
 
     setRecipeDrawerData(RECIPE_DRAWER_DATA_INITIAL_VALUES);
   }, []);
@@ -832,6 +838,11 @@ export function useMenuplanHandlers({
             menues: newMenues,
             materials: newMaterials,
           });
+          trackEvent(
+            dialogGoodsData.material
+              ? AnalyticsEvent.MENUPLAN_MATERIAL_PLAN_EDITED
+              : AnalyticsEvent.MENUPLAN_MATERIAL_ADDED,
+          );
         } else if (
           dialogGoodsData.goodsType === GoodsType.PRODUCT &&
           newProduct !== null
@@ -852,6 +863,11 @@ export function useMenuplanHandlers({
             menues: newMenues,
             products: newProducts,
           });
+          trackEvent(
+            dialogGoodsData.product
+              ? AnalyticsEvent.MENUPLAN_PRODUCT_PLAN_EDITED
+              : AnalyticsEvent.MENUPLAN_PRODUCT_ADDED,
+          );
         }
       } else if (planMode === GoodsPlanMode.PER_PORTION) {
         let portionPlan: PortionPlan[] = [];
@@ -935,6 +951,7 @@ export function useMenuplanHandlers({
             updatedMenues[menue?.uid].mealRecipeOrder = updatedMenues[
               menue?.uid
             ].mealRecipeOrder.filter((mealRecipe) => mealRecipe !== uid);
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_REMOVED);
           }
           break;
         case MenueEditTypes.PRODUCT:
@@ -947,6 +964,7 @@ export function useMenuplanHandlers({
             updatedMenues[menue?.uid].productOrder = updatedMenues[
               menue?.uid
             ].productOrder.filter((productUid) => productUid !== uid);
+            trackEvent(AnalyticsEvent.MENUPLAN_PRODUCT_REMOVED);
           }
           break;
         case MenueEditTypes.MATERIAL:
@@ -959,6 +977,7 @@ export function useMenuplanHandlers({
             updatedMenues[menue?.uid].materialOrder = updatedMenues[
               menue?.uid
             ].materialOrder.filter((materialUid) => materialUid !== uid);
+            trackEvent(AnalyticsEvent.MENUPLAN_MATERIAL_REMOVED);
           }
           break;
       }
@@ -1231,11 +1250,16 @@ export function useMenuplanHandlers({
               0,
             );
           });
+          trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_PORTIONS_EDITED);
         }
       } else if (
         dialogPlanPortionsData.planedObject == PlanedObject.GOOD &&
         dialogPlanPortionsData.planedProduct !== null
       ) {
+        // Neu vs. bereits geplant: ein neu erstelltes Produkt hat noch
+        // keinen Eintrag in menuplan.products (siehe onDialogGoodsOk)
+        const isNewProduct =
+          !menuplan.products[dialogPlanPortionsData.planedProduct.uid];
         // Plan umbiegen
         Object.keys(plan).forEach((menueUid) => {
           const newProduct = addPlanToGood<MenuplanProduct>({
@@ -1252,10 +1276,18 @@ export function useMenuplanHandlers({
             updatedMenues[menueUid].productOrder.push(newProduct.uid);
           }
         });
+        trackEvent(
+          isNewProduct
+            ? AnalyticsEvent.MENUPLAN_PRODUCT_ADDED
+            : AnalyticsEvent.MENUPLAN_PRODUCT_PLAN_EDITED,
+        );
       } else if (
         dialogPlanPortionsData.planedObject == PlanedObject.GOOD &&
         dialogPlanPortionsData.planedMaterial !== null
       ) {
+        // Neu vs. bereits geplant: siehe Kommentar im Produkt-Zweig oben
+        const isNewMaterial =
+          !menuplan.materials[dialogPlanPortionsData.planedMaterial.uid];
         // Plan umbiegen
         Object.keys(plan).forEach((menueUid) => {
           const newMaterial = addPlanToGood<MenuplanMaterial>({
@@ -1272,6 +1304,11 @@ export function useMenuplanHandlers({
             updatedMenues[menueUid].materialOrder.push(newMaterial.uid);
           }
         });
+        trackEvent(
+          isNewMaterial
+            ? AnalyticsEvent.MENUPLAN_MATERIAL_ADDED
+            : AnalyticsEvent.MENUPLAN_MATERIAL_PLAN_EDITED,
+        );
       }
 
       onMenuplanUpdate({

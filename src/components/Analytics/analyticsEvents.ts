@@ -33,7 +33,18 @@ export const AnalyticsEvent = {
   // ── Menuplan ──
   MENUPLAN_CREATED: "menuplan_created",
   MENUPLAN_RECIPE_ADDED: "menuplan_recipe_added",
+  MENUPLAN_RECIPE_PORTIONS_EDITED: "menuplan_recipe_portions_edited",
+  MENUPLAN_RECIPE_REMOVED: "menuplan_recipe_removed",
   MENUPLAN_RECIPE_MOVED: "menuplan_recipe_moved",
+  MENUPLAN_PRODUCT_ADDED: "menuplan_product_added",
+  MENUPLAN_PRODUCT_PLAN_EDITED: "menuplan_product_plan_edited",
+  MENUPLAN_PRODUCT_REMOVED: "menuplan_product_removed",
+  MENUPLAN_MATERIAL_ADDED: "menuplan_material_added",
+  MENUPLAN_MATERIAL_PLAN_EDITED: "menuplan_material_plan_edited",
+  MENUPLAN_MATERIAL_REMOVED: "menuplan_material_removed",
+  MENUPLAN_MEAL_TYPE_ADDED: "menuplan_meal_type_added",
+  MENUPLAN_MEAL_TYPE_EDITED: "menuplan_meal_type_edited",
+  MENUPLAN_MEAL_TYPE_DELETED: "menuplan_meal_type_deleted",
   MENUPLAN_CONSISTENCY_ERRORS: "menuplan_consistency_errors",
   MENUPLAN_CONSISTENCY_OK: "menuplan_consistency_ok",
 

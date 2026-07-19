@@ -24,6 +24,7 @@ import {
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 import {matchTransactionToDonation} from "../_shared/paymentVerification.ts";
+import {trackServerEvent} from "../_shared/umamiHelper.ts";
 
 /* =====================================================================
 // Zahlungsanbieter API Hilfsfunktionen
@@ -309,6 +310,16 @@ serve(async (req: Request) => {
           receipt_number: receiptNumber,
         })
         .eq("id", referenceId);
+
+      // Umsatz-Tracking (Umami Revenue) — der Webhook ist die einzige
+      // zuverlässige Quelle für eine bestätigte Spende (siehe
+      // AnalyticsEvent.DONATION_COMPLETED in src/components/Analytics/analyticsEvents.ts).
+      // Der obige terminalStatuses-Check garantiert, dass dies pro Spende
+      // nur einmal ausgeführt wird.
+      await trackServerEvent("donation_completed", {
+        revenue: donation.amount_in_cents / 100,
+        currency: "CHF",
+      });
 
       // Feed-Eintrag erstellen
       await adminClient.from("feeds").insert({

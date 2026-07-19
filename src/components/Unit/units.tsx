@@ -71,7 +71,7 @@ import * as Sentry from "@sentry/react";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
-import {trackEvent} from "../Analytics/analyticsService";
+import {trackEvent, getAnalyticsRole} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 /* ===================================================================
@@ -462,6 +462,7 @@ const UnitsPage = () => {
           trackEvent(AnalyticsEvent.UNIT_DELETED, {
             unit: unit.key,
             deletedBy: authUser.uid,
+            role: getAnalyticsRole(authUser),
           });
 
           dispatch({type: ReducerActions.UNIT_DELETED, payload: unit.key});

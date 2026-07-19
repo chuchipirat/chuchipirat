@@ -287,9 +287,6 @@ const EventGroupConfigurationPage = ({
     if (!deferSave) {
       const gcDomain = database.eventGroupConfig.groupConfigUiToDomain(state.groupConfig, event.uid);
       await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
-      trackEvent(AnalyticsEvent.GROUP_CONFIG_CHANGED, {
-        numberOfGroups: state.groupConfig.diets.order.length,
-      });
     }
     onConfirm?.onClick && onConfirm.onClick(mouseEvent, state.groupConfig);
   };
@@ -328,6 +325,10 @@ const EventGroupConfigurationPage = ({
 
       // Neue Mengen hochgeben, damit der Menüplan neu berechnet wird
       onGroupConfigurationUpdate(state.groupConfig);
+
+      trackEvent(AnalyticsEvent.GROUP_CONFIG_CHANGED, {
+        numberOfGroups: state.groupConfig.diets.order.length,
+      });
 
       dispatch({
         type: ReducerActions.SNACKBAR_SHOW,

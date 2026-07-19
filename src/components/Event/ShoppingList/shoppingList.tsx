@@ -1,6 +1,8 @@
 import React, {SyntheticEvent} from "react";
 
 import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 import {
   Stack,
@@ -359,6 +361,8 @@ const EventShoppingListPage = ({
   const handleGeneratePrintVersion = React.useCallback(async () => {
     const pdfData = onGeneratePrintVersion();
     if (!pdfData) return;
+
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "shoppingList"});
 
     try {
       await generateAndDownloadPdf(

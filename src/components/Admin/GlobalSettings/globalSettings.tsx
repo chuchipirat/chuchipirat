@@ -54,7 +54,7 @@ import {useDatabase} from "../../Database/DatabaseContext";
 import {supabase} from "../../Database/supabaseClient";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useCustomStyles} from "../../../constants/styles";
-import {trackEvent} from "../../Analytics/analyticsService";
+import {trackEvent, getAnalyticsRole} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 /* ===================================================================
@@ -268,6 +268,7 @@ const GlobalSettingsPage = () => {
         if (authUser?.uid) {
           trackEvent(AnalyticsEvent.SYSTEM_LOG_OUT_ALL_USERS, {
             executedBy: authUser.uid,
+            role: getAnalyticsRole(authUser),
           });
         }
 

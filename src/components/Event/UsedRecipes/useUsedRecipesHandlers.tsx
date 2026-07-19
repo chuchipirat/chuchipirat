@@ -632,6 +632,8 @@ export const useUsedRecipesHandlers = ({
       return;
     }
 
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "usedRecipes"});
+
     try {
       await generateAndDownloadPdf(
         <UsedRecipesPdf

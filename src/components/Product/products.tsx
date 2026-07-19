@@ -109,8 +109,12 @@ import {detectProductIssues} from "./productQaUtils";
 import {ReducerActions} from "./useProductsQa";
 import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
 import {CHECK_WHERE_USED as TEXT_CHECK_WHERE_USED} from "../../constants/text/productQa";
-import {trackEvent} from "../Analytics/analyticsService";
+import {trackEvent, getAnalyticsRole} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
+import {useDebouncedValue} from "../../hooks/useDebouncedValue";
+
+/** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
+const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
 
 const PRODUCT_POPUP_VALUES = {
   productName: "",
@@ -246,6 +250,7 @@ const ProductsPage = () => {
           productName: product.name,
           deletedBy: authUser.uid,
           source: "ProductsPage",
+          role: getAnalyticsRole(authUser),
         });
         hook.onDeleteProduct(product);
       }
@@ -695,6 +700,23 @@ const ProductsTable = ({
     () => prepareProductsListForUi(filteredProducts),
     [filteredProducts, editMode, issueFlagMap],
   );
+
+  /* ------------------------------------------
+  // Analytics: Erfolglose Suchen tracken
+  // ------------------------------------------ */
+  const debouncedSearchString = useDebouncedValue(
+    searchString,
+    SEARCH_ANALYTICS_DEBOUNCE_MS,
+  );
+
+  React.useEffect(() => {
+    if (!debouncedSearchString.trim() || filteredProducts.length > 0) return;
+
+    trackEvent(AnalyticsEvent.SEARCH_NO_RESULTS, {
+      source: "product",
+      searchTerm: debouncedSearchString,
+    });
+  }, [debouncedSearchString, filteredProducts.length]);
 
   /* ------------------------------------------
   // DataGrid Spalten

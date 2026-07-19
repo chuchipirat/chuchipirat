@@ -900,6 +900,8 @@ export function useMaterialListHandlers({
       return;
     }
 
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "materialList"});
+
     try {
       await generateAndDownloadPdf(
         <MaterialListPdf

@@ -1327,7 +1327,7 @@ const RecipeEdit = ({
         const eventName = result.type === RecipeType.variant
           ? AnalyticsEvent.RECIPE_VARIANT_CREATED
           : AnalyticsEvent.RECIPE_CREATED;
-        trackEvent(eventName);
+        trackEvent(eventName, {recipeType: result.type});
       }
       if (isNew && result.type !== RecipeType.variant && !isEmbedded) {
         // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,

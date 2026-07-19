@@ -3,6 +3,7 @@ import React, {SyntheticEvent} from "react";
 import {useNavigate, useLocation} from "react-router";
 import {trackEvent} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
+import {useDebouncedValue} from "../../hooks/useDebouncedValue";
 
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
@@ -102,6 +103,9 @@ const SKIP_SCROLL_TO_TOP_KEY = "skipScrollToTop";
 
 /** Cache-Gültigkeitsdauer in Millisekunden (5 Minuten). */
 const RECIPE_CACHE_TTL_MS = 300_000;
+
+/** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
+const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
 
 /**
  * Zwischengespeicherte Rezeptliste mit Zeitstempel.
@@ -778,6 +782,25 @@ export const RecipeSearch = ({
     setSearchSettings(settings);
     setFilteredData(filterRecipes({searchSettings: settings, recipes}));
   }, [recipes]); // eslint-disable-line
+
+  /* ------------------------------------------
+  // Analytics: Erfolglose Suchen tracken
+  // ------------------------------------------ */
+  const debouncedSearchString = useDebouncedValue(
+    searchSettings.searchString,
+    SEARCH_ANALYTICS_DEBOUNCE_MS,
+  );
+
+  React.useEffect(() => {
+    if (!debouncedSearchString.trim() || filteredData.length > 0) return;
+
+    trackEvent(
+      embeddedMode
+        ? AnalyticsEvent.RECIPE_DRAWER_SEARCH
+        : AnalyticsEvent.RECIPE_SEARCH,
+      {searchTerm: debouncedSearchString},
+    );
+  }, [debouncedSearchString, filteredData.length, embeddedMode]);
 
   /* ------------------------------------------
   // Hilfsfunktion: Sucheinstellungen anwenden und filtern

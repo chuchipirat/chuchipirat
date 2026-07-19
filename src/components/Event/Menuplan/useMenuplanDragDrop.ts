@@ -228,7 +228,9 @@ export const useMenuplanDragDrop = ({
                   },
                 },
               });
-              trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
+              trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED, {
+                itemType: dragging.itemType,
+              });
               return;
             }
             // In welcher Liste befindet sich das Objekt?
@@ -282,7 +284,9 @@ export const useMenuplanDragDrop = ({
                 },
               },
             });
-            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED, {
+              itemType: dragging.itemType,
+            });
             return;
           }
 
@@ -313,7 +317,9 @@ export const useMenuplanDragDrop = ({
                   },
                 },
               });
-              trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
+              trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED, {
+                itemType: dragging.itemType,
+              });
               return;
             }
 
@@ -343,7 +349,9 @@ export const useMenuplanDragDrop = ({
                 },
               },
             });
-            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED, {
+              itemType: dragging.itemType,
+            });
             return;
           }
           // Drop auf leere Liste
@@ -374,7 +382,9 @@ export const useMenuplanDragDrop = ({
                 },
               },
             });
-            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED);
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_MOVED, {
+              itemType: dragging.itemType,
+            });
             return;
           }
         },

@@ -101,6 +101,9 @@ import {Material, MaterialType} from "./material.types";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {detectMaterialIssues, MaterialIssue} from "./materialQaUtils";
+import {trackEvent} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
+import {useDebouncedValue} from "../../hooks/useDebouncedValue";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -311,6 +314,9 @@ const materialsReducer = (state: State, action: ReducerAction): State => {
     }
   }
 };
+
+/** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
+const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
 
 /** Anfangswerte für den Material-Bearbeitungs-Popup. */
 const MATERIAL_POPUP_VALUES = {
@@ -978,6 +984,23 @@ const MaterialsTable = ({
       }),
     [filteredMaterials, issueFlagMap],
   );
+
+  /* ------------------------------------------
+  // Analytics: Erfolglose Suchen tracken
+  // ------------------------------------------ */
+  const debouncedSearchString = useDebouncedValue(
+    searchString,
+    SEARCH_ANALYTICS_DEBOUNCE_MS,
+  );
+
+  React.useEffect(() => {
+    if (!debouncedSearchString.trim() || filteredMaterials.length > 0) return;
+
+    trackEvent(AnalyticsEvent.SEARCH_NO_RESULTS, {
+      source: "material",
+      searchTerm: debouncedSearchString,
+    });
+  }, [debouncedSearchString, filteredMaterials.length]);
 
   /* ------------------------------------------
   // DataGrid Spalten

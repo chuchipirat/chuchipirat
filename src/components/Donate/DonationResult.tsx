@@ -82,16 +82,11 @@ const DonationResultPage = () => {
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 
-  // Umsatz-Tracking bei erfolgreicher Spende (Umami Revenue)
-  useEffect(() => {
-    if (status === "success") {
-      trackEvent(AnalyticsEvent.DONATION_COMPLETED, {
-        ...(amountInCents > 0
-          ? {revenue: amountInCents / 100, currency: "CHF"}
-          : {}),
-      });
-    }
-  }, [status, amountInCents]);
+  // Hinweis: Das Umsatz-Tracking bei erfolgreicher Spende (DONATION_COMPLETED)
+  // erfolgt serverseitig im payment-webhook, da dieser die einzige
+  // zuverlässige Quelle für eine bestätigte Zahlung ist — diese Seite
+  // verlässt sich nur auf den URL-Parameter `status` und würde doppelt
+  // zählen bzw. verpasst werden, wenn der Browser nie zurückgeleitet wird.
 
   // Entgangener Umsatz bei Abbruch (Umami Revenue) — separates Event, damit
   // sich abgebrochene von tatsächlicher Spenden-Revenue getrennt auswerten lässt.
