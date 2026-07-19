@@ -63,6 +63,12 @@ jobs:
             done
             rm -rf /tmp/chuchipirat-migrations/
 
+            # PostgREST cacht sein Schema beim Start und merkt neue/geänderte
+            # Funktionen/Tabellen/Views sonst nicht — ohne Reload liefert die
+            # API für neue RPCs/Tabellen 404, obwohl sie in Postgres existieren.
+            docker exec -i supabase-db-test \
+              psql -U supabase_admin -d postgres -c "NOTIFY pgrst, 'reload schema';"
+
   # ─── 2. Edge Functions ────────────────────────────────
   edge-functions:
     name: Deploy Edge Functions
