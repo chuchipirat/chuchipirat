@@ -55,6 +55,16 @@ jest.mock("../../Analytics/analyticsService", () => ({
   trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
 }));
 
+/** Mock: supabase.functions.invoke (Retry ruft create-donation direkt auf) */
+const mockInvoke = jest.fn();
+jest.mock("../../Database/supabaseClient", () => ({
+  supabase: {
+    functions: {
+      invoke: (...args: unknown[]) => mockInvoke(...args),
+    },
+  },
+}));
+
 import {DonationResultPage} from "../DonationResult";
 
 /* ===================================================================
@@ -104,6 +114,8 @@ describe("DonationResultPage", () => {
     mockNavigate.mockClear();
     mockCancelOwnPendingDonation.mockClear();
     mockTrackEvent.mockClear();
+    mockInvoke.mockClear();
+    mockInvoke.mockResolvedValue({data: {paymentUrl: "https://payment.example/gw"}});
   });
 
   /* ----- Status: success ----- */
@@ -204,6 +216,30 @@ describe("DonationResultPage", () => {
         amount: 15,
         currency: "CHF",
         userId: "test-user-uid",
+      });
+    });
+  });
+
+  /* ----- Erneut versuchen (Retry) ----- */
+
+  describe("Erneut versuchen", () => {
+    test("gibt die abgebrochene donationId als previousDonationId mit, damit die Nachricht übernommen wird", async () => {
+      renderResult(
+        "?status=cancel&amount=1500&eventId=event-123&donationId=old-donation-id",
+      );
+
+      const retryButton = screen.getByRole("button", {name: "Erneut versuchen"});
+      await userEvent.click(retryButton);
+
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith("create-donation", {
+          body: {
+            amountInCents: 1500,
+            eventId: "event-123",
+            returnPath: "/home",
+            previousDonationId: "old-donation-id",
+          },
+        });
       });
     });
   });
