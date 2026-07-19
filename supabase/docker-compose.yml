@@ -309,6 +309,14 @@ services:
     container_name: realtime-dev.supabase-realtime-test
     image: supabase/realtime:v2.102.3
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          # Realtime parses the tenant id from the Host header's first label
+          # (seeded tenant is "realtime-dev", see healthcheck below). Kong
+          # connects via this alias so the Host header it forwards matches —
+          # "realtime" alone would resolve fine but send the wrong tenant id.
+          - realtime-dev
     depends_on:
       db:
         # Disable this if you are using an external Postgres database

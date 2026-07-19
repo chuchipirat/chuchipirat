@@ -126,9 +126,9 @@ jobs:
             # laufenden Containern sonst nicht zuverlässig. kong lädt sein
             # deklaratives Config-File (kong.yml) nur beim Start, daher ebenfalls
             # --force-recreate.
-            cd /opt/chuchipirat/prod/supabase && docker compose up -d --force-recreate functions auth kong
+            cd /opt/chuchipirat/prod/supabase && docker compose up -d --force-recreate functions auth kong realtime
             sleep 5
-            docker ps | grep -E "edge-functions-prod|supabase-auth-prod|supabase-kong-prod"
+            docker ps | grep -E "edge-functions-prod|supabase-auth-prod|supabase-kong-prod|supabase-realtime-prod"
 
   # ─── 3. Auth Email Templates ──────────────────────────
   auth-templates:
