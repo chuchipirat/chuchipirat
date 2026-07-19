@@ -231,6 +231,34 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
   }
 
   /* =====================================================================
+  // Spende abbrechen (RPC)
+  // ===================================================================== */
+
+  /**
+   * Markiert die eigene, noch offene Spende als abgebrochen.
+   *
+   * Notwendig, da der Zahlungsanbieter bei einem Checkout-Abbruch (vor
+   * Versuch einer Zahlungsmethode) keinen Webhook sendet — ohne diesen
+   * expliziten Aufruf bliebe die Spende dauerhaft auf `pending` stehen.
+   * Serverseitig abgesichert (nur eigene, noch `pending` Spenden werden
+   * geändert, siehe `cancel_own_pending_donation`-RPC).
+   *
+   * @param donationId - ID der abzubrechenden Spende.
+   */
+  async cancelOwnPendingDonation(donationId: string): Promise<void> {
+    try {
+      const {error} = await this.client.rpc("cancel_own_pending_donation", {
+        p_donation_id: donationId,
+      });
+
+      if (error) throw error;
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  }
+
+  /* =====================================================================
   // Spendenziel-Abschnitte
   // ===================================================================== */
 

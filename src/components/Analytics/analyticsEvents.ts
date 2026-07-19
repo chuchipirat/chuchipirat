@@ -69,6 +69,7 @@ export const AnalyticsEvent = {
   DONATION_AMOUNT_CHANGED: "donation_amount_changed",
   DONATION_MESSAGE_ADDED: "donation_message_added",
   DONATION_COMPLETED: "donation_completed",
+  DONATION_CANCELLED: "donation_cancelled",
   DONATION_RECEIPT_DOWNLOADED: "donation_receipt_downloaded",
 
   // ── Fehler / UX ──
