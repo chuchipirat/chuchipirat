@@ -146,6 +146,14 @@ services:
       - name: key-auth
         config:
           hide_credentials: false
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "x-api-key:$LUA_RT_WS_EXPR"
+          replace:
+            querystring:
+              - "apikey:$LUA_RT_WS_EXPR"
       - name: acl
         config:
           hide_groups_header: true
@@ -153,7 +161,7 @@ services:
             - admin
             - anon
   - name: realtime-v1-rest
-    _comment: 'Realtime: /realtime/v1/* -> ws://realtime:4000/socket/*'
+    _comment: 'Realtime: /realtime/v1/api/* -> http://realtime:4000/api/*'
     url: http://realtime:4000/api
     protocol: http
     routes:
@@ -166,6 +174,14 @@ services:
       - name: key-auth
         config:
           hide_credentials: false
+      - name: request-transformer
+        config:
+          add:
+            headers:
+              - "Authorization: $LUA_AUTH_EXPR"
+          replace:
+            headers:
+              - "Authorization: $LUA_AUTH_EXPR"
       - name: acl
         config:
           hide_groups_header: true

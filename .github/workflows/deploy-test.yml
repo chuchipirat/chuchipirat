@@ -98,7 +98,7 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "supabase/volumes/api/kong.yml"
+          source: "supabase/volumes/api/kong.yml,supabase/volumes/api/kong-entrypoint.sh"
           target: "/opt/chuchipirat/test/supabase/volumes/api/"
           strip_components: 3
 

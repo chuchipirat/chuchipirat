@@ -65,6 +65,7 @@ supabase/volumes/auth/templates/*
 !supabase/volumes/api
 supabase/volumes/api/*
 !supabase/volumes/api/kong.yml
+!supabase/volumes/api/kong-entrypoint.sh
 supabase/dev/
 supabase/.env
 supabase/.env.test
