@@ -16,9 +16,16 @@ describe("trackServerEvent", () => {
     jest.restoreAllMocks();
   });
 
-  test("sendet ein Event mit korrektem Payload an Umami", async () => {
-    setDenoEnv({UMAMI_HOST: "https://umami.example.com", UMAMI_WEBSITE_ID: "site-123"});
-    const fetchMock = jest.fn().mockResolvedValue({ok: true});
+  test("sendet ein Event mit korrektem Payload und Browser-User-Agent an Umami", async () => {
+    setDenoEnv({
+      UMAMI_HOST: "https://umami.example.com",
+      UMAMI_WEBSITE_ID: "site-123",
+      APP_URL: "https://chuchipirat.ch",
+    });
+    const fetchMock = jest.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve('{"cache":"..."}'),
+    });
     global.fetch = fetchMock as unknown as typeof fetch;
 
     await trackServerEvent("donation_completed", {revenue: 20, currency: "CHF"});
@@ -29,7 +36,9 @@ describe("trackServerEvent", () => {
         method: "POST",
         headers: expect.objectContaining({
           "Content-Type": "application/json",
-          "User-Agent": expect.any(String),
+          // Muss wie ein echter Browser aussehen, sonst verwirft Umamis
+          // Bot-Erkennung (isbot) das Event still (siehe Test unten)
+          "User-Agent": expect.stringContaining("Mozilla"),
         }),
       }),
     );
@@ -40,10 +49,51 @@ describe("trackServerEvent", () => {
       type: "event",
       payload: {
         website: "site-123",
+        hostname: "chuchipirat.ch",
+        url: "/server-events",
         name: "donation_completed",
         data: {revenue: 20, currency: "CHF"},
       },
     });
+  });
+
+  test("loggt eine Warnung, wenn Umami das Event als Bot verwirft (beep-boop-Decoy)", async () => {
+    setDenoEnv({
+      UMAMI_HOST: "https://umami.example.com",
+      UMAMI_WEBSITE_ID: "site-123",
+      APP_URL: "https://chuchipirat.ch",
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      text: () => Promise.resolve('{"beep":"boop"}'),
+    }) as unknown as typeof fetch;
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await trackServerEvent("donation_completed");
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("verworfen"),
+    );
+  });
+
+  test("loggt eine Warnung, wenn Umami einen Fehlerstatus zurückgibt", async () => {
+    setDenoEnv({
+      UMAMI_HOST: "https://umami.example.com",
+      UMAMI_WEBSITE_ID: "site-123",
+      APP_URL: "https://chuchipirat.ch",
+    });
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      text: () => Promise.resolve("Invalid payload"),
+    }) as unknown as typeof fetch;
+    const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
+    await trackServerEvent("donation_completed");
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("HTTP 400"),
+    );
   });
 
   test("sendet nichts, wenn UMAMI_HOST fehlt", async () => {

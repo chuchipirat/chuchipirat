@@ -30,23 +30,62 @@ export async function trackServerEvent(
   const websiteId = Deno.env.get("UMAMI_WEBSITE_ID");
   if (!host || !websiteId) return;
 
+  // Hostname der App (nicht der Umami-Instanz) — falls die Website in Umami
+  // eine Domain-Einschränkung hat, muss dieser Wert zur App-Domain passen.
+  const appHostname = (() => {
+    try {
+      return new URL(Deno.env.get("APP_URL") ?? "").hostname;
+    } catch {
+      return "chuchipirat.ch";
+    }
+  })();
+
   try {
-    await fetch(`${host}/api/send`, {
+    const response = await fetch(`${host}/api/send`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        // Umami verwirft Anfragen ohne User-Agent-Header stillschweigend
-        "User-Agent": "chuchipirat-edge-function",
+        // Umami verwirft Anfragen ohne User-Agent-Header stillschweigend.
+        // Ein generischer/erkennbarer Wert (z.B. "chuchipirat-edge-function")
+        // wird von Umamis Bot-Erkennung (isbot) als Bot eingestuft und
+        // ebenfalls verworfen — ein realistischer Browser-User-Agent ist
+        // hier absichtlich nötig, nicht nur "irgendein" Wert.
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
       },
       body: JSON.stringify({
         type: "event",
         payload: {
           website: websiteId,
+          hostname: appHostname,
+          url: "/server-events",
           name: eventName,
           data: eventData,
         },
       }),
     });
+
+    // fetch() wirft nur bei Netzwerkfehlern — ein HTTP-Fehlerstatus
+    // (z.B. abgelehntes Payload) muss explizit geprüft werden, sonst
+    // schlägt das Tracking still fehl, ohne dass es je auffällt.
+    if (!response.ok) {
+      const body = await response.text().catch(() => "");
+      console.error(
+        `Umami trackServerEvent: HTTP ${response.status} — ${body}`,
+      );
+      return;
+    }
+
+    // Umami antwortet bei intern verworfenen Events (z.B. Bot-Erkennung)
+    // absichtlich mit HTTP 200 und einer Fake-Payload ({"beep":"boop"}),
+    // damit Ad-Blocker eine Blockierung nicht erkennen können. Ohne diese
+    // Prüfung würde das Tracking hier still fehlschlagen.
+    const body = await response.text().catch(() => "");
+    if (body.includes("beep")) {
+      console.error(
+        `Umami trackServerEvent: Event von Umami verworfen (Bot-Erkennung?) — Antwort: ${body}`,
+      );
+    }
   } catch (sendError) {
     console.error("Umami trackServerEvent fehlgeschlagen:", sendError);
   }
