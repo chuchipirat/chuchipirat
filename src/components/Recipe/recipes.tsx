@@ -669,9 +669,15 @@ export const RecipeSearch = ({
 }: RecipeSearchProps) => {
   const classes = useCustomStyles();
   const [searchSettings, setSearchSettings] = React.useState<SearchSettings>(
-    INITIAL_SEARCH_SETTINGS,
+    () => {
+      if (embeddedMode) return INITIAL_SEARCH_SETTINGS;
+      const stored = SessionStorageHandler.getDocument({
+        storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
+        documentUid: "searchSettings",
+      });
+      return (stored as SearchSettings | null) ?? INITIAL_SEARCH_SETTINGS;
+    },
   );
-  const [filteredData, setFilteredData] = React.useState<RecipeShort[]>([]);
 
   /* ------------------------------------------
   // Rezepte filtern
@@ -762,26 +768,15 @@ export const RecipeSearch = ({
   };
 
   /* ------------------------------------------
-  // Sucheinstellungen aus Session Storage wiederherstellen
+  // Gefilterte Rezepte — synchron aus recipes + searchSettings abgeleitet,
+  // damit beim ersten Laden kein Frame mit leerem Zwischenstand entsteht
+  // (vorher: useEffect-State, das erst einen Tick nach Eintreffen der
+  // recipes ein "keine Rezepte gefunden" aufblitzen liess).
   // ------------------------------------------ */
-  React.useEffect(() => {
-    if (recipes.length === 0 || filteredData.length > 0) return;
-
-    let restoredSettings: SearchSettings | null = null;
-    if (!embeddedMode) {
-      const stored = SessionStorageHandler.getDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
-        documentUid: "searchSettings",
-      });
-      if (stored) {
-        restoredSettings = stored as SearchSettings;
-      }
-    }
-
-    const settings = restoredSettings ?? INITIAL_SEARCH_SETTINGS;
-    setSearchSettings(settings);
-    setFilteredData(filterRecipes({searchSettings: settings, recipes}));
-  }, [recipes]); // eslint-disable-line
+  const filteredData = React.useMemo(
+    () => filterRecipes({searchSettings, recipes}),
+    [searchSettings, recipes],
+  );
 
   /* ------------------------------------------
   // Analytics: Erfolglose Suchen tracken
@@ -812,9 +807,7 @@ export const RecipeSearch = ({
    * @param update Teilweise Sucheinstellungen zum Zusammenführen.
    */
   const applySearchSettings = (update: Partial<SearchSettings>) => {
-    const newSettings = {...searchSettings, ...update};
-    setSearchSettings(newSettings);
-    setFilteredData(filterRecipes({searchSettings: newSettings, recipes}));
+    setSearchSettings({...searchSettings, ...update});
   };
 
   /* ------------------------------------------
@@ -829,7 +822,6 @@ export const RecipeSearch = ({
         showAdvancedSearch: false,
       };
       setSearchSettings(newSettings);
-      setFilteredData(filterRecipes({searchSettings: newSettings, recipes}));
 
       SessionStorageHandler.deleteDocument({
         storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
@@ -851,7 +843,6 @@ export const RecipeSearch = ({
       showAdvancedSearch: true,
     };
     setSearchSettings(newSettings);
-    setFilteredData(filterRecipes({searchSettings: newSettings, recipes}));
 
     SessionStorageHandler.deleteDocument({
       storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
