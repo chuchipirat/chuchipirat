@@ -507,11 +507,10 @@ export function renderEmailTemplate(
   let rendered: string;
 
   if (HANDLEBARS_TEMPLATES.has(templateName)) {
-    // Handlebars-Rendering (unterstützt Conditionals, Loops etc.)
-    const safeVars: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(variables)) {
-      safeVars[key] = typeof value === "string" ? escapeHtml(value) : value;
-    }
+    // Handlebars-Rendering (unterstützt Conditionals, Loops etc.).
+    // {{variable}} escaped bereits automatisch — kein zusätzliches escapeHtml()
+    // hier, sonst wird z.B. ' zu &#039; und dann nochmals zu &amp;#039;.
+    const safeVars: Record<string, unknown> = {...variables};
     for (const [key, value] of Object.entries(rawVariables)) {
       safeVars[key] = value;
     }
