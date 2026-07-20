@@ -163,6 +163,20 @@ async function handleNewRequest(
       `\nÖffne den Antrag:\n${requestUrl}\n\n` +
       `Bei Fragen: hallo@chuchipirat.ch`;
 
+    // TEMP-DEBUG (siehe Testfall FD-001, "1.6"->"16" line-height Bug):
+    // Prüft rendertes HTML auf das bekannte Korruptionsmuster, bevor es an
+    // sendEmail() geht, um den Auslöser beim nächsten Auftreten mit vollem
+    // Kontext (Empfänger, Position in der Leaders-Liste, exakter HTML-Inhalt)
+    // zu erfassen. Entfernen, sobald die Ursache gefunden/gefixt ist.
+    const corruptedLineHeight = htmlContent.match(/line-height: \d+;/g);
+    if (corruptedLineHeight) {
+      console.error(
+        `${FUNCTION_NAME}: [diag] KORRUPTES HTML für ${leader.email} (leader #${
+          (leaders as UserData[]).indexOf(leader)
+        }/${leaders.length}), Muster: ${JSON.stringify(corruptedLineHeight)}\n---HTML START---\n${htmlContent}\n---HTML END---`,
+      );
+    }
+
     try {
       await sendEmail(emailEnv, leader.email, subject, htmlContent, textContent);
       console.log(`${FUNCTION_NAME}: E-Mail gesendet an ${leader.email} (${subject})`);
