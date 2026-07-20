@@ -206,6 +206,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Other
 
+- **Duplikate Produkte in `products`-Tabelle** — Mind. 7 Produkte existieren als zwei separate DB-Zeilen mit identischem Namen, aber unterschiedlicher `uid` (bestätigt: Äpfel, Birnen, Diverse Früchte, Frühstücksflocken, Mascarpone vegan, Rotkabis, Weisswein alkoholfrei — siehe [[RC-001 Rezept erstellen]]). Hat einen React-Key-Kollisions-Bug im Produkt-Autocomplete verursacht (behoben via `getOptionKey`), macht Produktauswahl in Zutaten-/Einkaufslisten aber weiterhin für Nutzer verwirrend (zwei identisch benannte, evtl. unterschiedlich klassifizierte Einträge zur Auswahl). Bereinigung (Duplikate zusammenführen oder eindeutig benennen) erfordert Prüfung, ob beide Zeilen bereits in Rezepten/Einkaufslisten referenziert werden.
+  **Priorität:** mittel · **Komplexität:** mittel
+
 ## Unit Folder
 
 - **`unit.class.ts` — Klasse statt Type** — `Unit` ist eine Klasse mit Constructor, sollte aber gemäss Konvention ein `type` + standalone `getDimensionOfUnit`-Funktion sein. Betrifft 28 Import-Stellen + 3 `new Unit()`-Aufrufe ausserhalb des Unit-Ordners. Eigener kleiner PR.
