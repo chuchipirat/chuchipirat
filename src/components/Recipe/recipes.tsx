@@ -268,6 +268,38 @@ interface FilterRecipesProps {
 }
 
 /**
+ * Prüft, ob ein Rezept anhand von Name, Tags oder Variantenname zum
+ * Freitext-Suchbegriff passt. Bei leerem Suchbegriff gilt jedes Rezept als
+ * Treffer. Losgelöst von den übrigen Filtern (Diät, Allergene etc.), damit
+ * sich ein Suchtreffer unabhängig von zusätzlich aktiven Filtern feststellen
+ * lässt.
+ *
+ * @param recipe Zu prüfendes Rezept.
+ * @param searchString Freitext-Suchbegriff.
+ * @returns true, wenn das Rezept zum Suchbegriff passt.
+ */
+function recipeMatchesSearchText(
+  recipe: RecipeShort,
+  searchString: string,
+): boolean {
+  if (!searchString) return true;
+
+  if (recipe.name.toLowerCase().includes(searchString.toLowerCase())) {
+    return true;
+  }
+
+  return (
+    recipe.tags.filter(
+      (tag) =>
+        tag.toLowerCase().includes(searchString.toLocaleLowerCase()) ||
+        recipe.variantName
+          ?.toLowerCase()
+          .includes(searchString.toLocaleLowerCase()),
+    ).length > 0
+  );
+}
+
+/**
  * Reducer für die Rezeptseite. Verwaltet Lade-, Fehler- und Snackbar-Zustände.
  *
  * @param state Aktueller Zustand.
@@ -693,21 +725,7 @@ export const RecipeSearch = ({
   const filterRecipes = ({searchSettings, recipes}: FilterRecipesProps) => {
     return recipes.filter((recipe) => {
       // Zuerst prüfen ob Text stimmt
-      if (
-        searchSettings.searchString &&
-        !recipe.name
-          .toLowerCase()
-          .includes(searchSettings.searchString.toLowerCase()) &&
-        recipe.tags.filter(
-          (tag) =>
-            tag
-              .toLowerCase()
-              .includes(searchSettings.searchString.toLocaleLowerCase()) ||
-            recipe.variantName
-              ?.toLowerCase()
-              .includes(searchSettings.searchString.toLocaleLowerCase()),
-        ).length === 0
-      ) {
+      if (!recipeMatchesSearchText(recipe, searchSettings.searchString)) {
         return false;
       }
 
@@ -786,16 +804,32 @@ export const RecipeSearch = ({
     SEARCH_ANALYTICS_DEBOUNCE_MS,
   );
 
-  React.useEffect(() => {
-    if (!debouncedSearchString.trim() || filteredData.length > 0) return;
-
-    trackEvent(
-      embeddedMode
-        ? AnalyticsEvent.RECIPE_DRAWER_SEARCH
-        : AnalyticsEvent.RECIPE_SEARCH,
-      {searchTerm: debouncedSearchString},
+  /**
+   * Ob der aktuelle Freitext-Suchbegriff mindestens ein Rezept trifft —
+   * unabhängig von den übrigen Filtern. Verhindert, dass ein Treffer, der
+   * nur durch einen anderen aktiven Filter (z.B. "nur eigene Rezepte")
+   * ausgeblendet wird, fälschlicherweise als erfolglose Suche gemeldet wird.
+   */
+  const hasSearchTextMatches = React.useMemo(() => {
+    if (!searchSettings.searchString) return true;
+    return recipes.some((recipe) =>
+      recipeMatchesSearchText(recipe, searchSettings.searchString),
     );
-  }, [debouncedSearchString, filteredData.length, embeddedMode]);
+  }, [recipes, searchSettings.searchString]);
+
+  React.useEffect(() => {
+    // isLoading verhindert eine Falschmeldung, solange recipes noch nicht
+    // geladen ist (z.B. ein aus dem Session Storage wiederhergestellter
+    // Suchbegriff, bevor die asynchrone Rezeptliste eingetroffen ist).
+    if (isLoading || !debouncedSearchString.trim() || hasSearchTextMatches) {
+      return;
+    }
+
+    trackEvent(AnalyticsEvent.SEARCH_NO_RESULTS, {
+      source: embeddedMode ? "recipe_drawer" : "recipe",
+      searchTerm: debouncedSearchString,
+    });
+  }, [debouncedSearchString, hasSearchTextMatches, embeddedMode, isLoading]);
 
   /* ------------------------------------------
   // Hilfsfunktion: Sucheinstellungen anwenden und filtern

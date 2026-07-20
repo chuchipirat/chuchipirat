@@ -15,8 +15,6 @@ export const AnalyticsEvent = {
   RECIPE_DELETED: "recipe_deleted",
   RECIPE_VARIANT_CREATED: "recipe_variant_created",
   RECIPE_SCALED: "recipe_scaled",
-  RECIPE_SEARCH: "recipe_search",
-  RECIPE_DRAWER_SEARCH: "recipe_drawer_search",
   RECIPE_FILTER_APPLIED: "recipe_filter_applied",
   RECIPE_COMMENT_CREATED: "recipe_comment_created",
   RECIPE_RATING_SET: "recipe_rating_set",
