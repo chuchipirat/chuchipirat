@@ -7,7 +7,7 @@
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- *   PAYMENT_API_BASE_URL, PAYMENT_INSTANCE, PAYMENT_API_SECRET, APP_URL
+ *   PAYMENT_API_BASE_URL, PAYMENT_INSTANCE, PAYMENT_API_SECRET, SITE_URL
  *   PAYMENT_WEBHOOK_SIGNING_KEY
  *   BREVO_API_KEY oder SMTP_HOST (für Bestätigungs-E-Mail)
  */
@@ -168,7 +168,7 @@ serve(async (req: Request) => {
   const paymentInstance = Deno.env.get("PAYMENT_INSTANCE");
   const paymentApiSecret = Deno.env.get("PAYMENT_API_SECRET");
   const paymentApiBaseUrl = (Deno.env.get("PAYMENT_API_BASE_URL") ?? "").replace(/\/$/, "");
-  const appUrl = Deno.env.get("APP_URL") ?? "https://chuchipirat.ch";
+  const appUrl = Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch";
 
   if (!supabaseUrl || !serviceRoleKey) {
     return errorResponse("payment-webhook", "Missing Supabase config", 500);

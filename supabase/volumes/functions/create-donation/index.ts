@@ -9,7 +9,7 @@
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
- *   PAYMENT_API_BASE_URL, PAYMENT_INSTANCE, PAYMENT_API_SECRET, APP_URL
+ *   PAYMENT_API_BASE_URL, PAYMENT_INSTANCE, PAYMENT_API_SECRET, SITE_URL
  */
 import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
@@ -117,7 +117,7 @@ serve(async (req: Request) => {
   const paymentInstance = Deno.env.get("PAYMENT_INSTANCE");
   const paymentApiSecret = Deno.env.get("PAYMENT_API_SECRET");
   const paymentApiBaseUrl = (Deno.env.get("PAYMENT_API_BASE_URL") ?? "").replace(/\/$/, "");
-  const appUrl = Deno.env.get("APP_URL") ?? "https://chuchipirat.ch";
+  const appUrl = Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch";
 
   if (!supabaseUrl || !serviceRoleKey || !anonKey) {
     return errorResponse(

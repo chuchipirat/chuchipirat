@@ -57,9 +57,9 @@ async function shouldRedirectToMailpit(): Promise<boolean> {
 // Konstanten
 // ===================================================================== */
 
-/** Erlaubter Origin für CORS (aus APP_URL oder Fallback auf Produktion). */
+/** Erlaubter Origin für CORS (aus SITE_URL oder Fallback auf Produktion). */
 const ALLOWED_ORIGIN =
-  Deno.env.get("APP_URL") || "https://chuchipirat.ch";
+  Deno.env.get("SITE_URL") || "https://chuchipirat.ch";
 
 /** CORS-Header für alle Antworten. */
 export const CORS_HEADERS = {

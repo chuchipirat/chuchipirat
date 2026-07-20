@@ -34,7 +34,7 @@ export async function trackServerEvent(
   // eine Domain-Einschränkung hat, muss dieser Wert zur App-Domain passen.
   const appHostname = (() => {
     try {
-      return new URL(Deno.env.get("APP_URL") ?? "").hostname;
+      return new URL(Deno.env.get("SITE_URL") ?? "").hostname;
     } catch {
       return "chuchipirat.ch";
     }

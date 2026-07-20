@@ -11,7 +11,7 @@
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- *   APP_URL (z.B. "https://chuchipirat.ch")
+ *   SITE_URL (z.B. "https://chuchipirat.ch")
  *   BREVO_API_KEY (Produktion) oder SMTP_HOST/SMTP_PORT (lokal)
  */
 import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
@@ -59,7 +59,7 @@ serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const appUrl = Deno.env.get("APP_URL") ?? "https://chuchipirat.ch";
+  const appUrl = Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch";
   const emailEnv = readEmailEnv();
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {

@@ -21,7 +21,7 @@ import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 /** CORS-Header für alle Antworten */
 const corsHeaders = {
   "Access-Control-Allow-Origin":
-    Deno.env.get("APP_URL") || "https://chuchipirat.ch",
+    Deno.env.get("SITE_URL") || "https://chuchipirat.ch",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
   "Access-Control-Allow-Headers":
     "Content-Type, Authorization, x-client-info, apikey",

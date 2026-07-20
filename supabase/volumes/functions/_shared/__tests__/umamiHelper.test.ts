@@ -20,7 +20,7 @@ describe("trackServerEvent", () => {
     setDenoEnv({
       UMAMI_HOST: "https://umami.example.com",
       UMAMI_WEBSITE_ID: "site-123",
-      APP_URL: "https://chuchipirat.ch",
+      SITE_URL: "https://chuchipirat.ch",
     });
     const fetchMock = jest.fn().mockResolvedValue({
       ok: true,
@@ -61,7 +61,7 @@ describe("trackServerEvent", () => {
     setDenoEnv({
       UMAMI_HOST: "https://umami.example.com",
       UMAMI_WEBSITE_ID: "site-123",
-      APP_URL: "https://chuchipirat.ch",
+      SITE_URL: "https://chuchipirat.ch",
     });
     global.fetch = jest.fn().mockResolvedValue({
       ok: true,
@@ -80,7 +80,7 @@ describe("trackServerEvent", () => {
     setDenoEnv({
       UMAMI_HOST: "https://umami.example.com",
       UMAMI_WEBSITE_ID: "site-123",
-      APP_URL: "https://chuchipirat.ch",
+      SITE_URL: "https://chuchipirat.ch",
     });
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

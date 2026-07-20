@@ -128,7 +128,7 @@ function buildMessage(firstName: string, memberId: number): number[][] {
 }
 
 serve(async (req: Request) => {
-  const allowedOrigin = Deno.env.get("APP_URL") || "https://chuchipirat.ch";
+  const allowedOrigin = Deno.env.get("SITE_URL") || "https://chuchipirat.ch";
 
   // CORS-Preflight
   if (req.method === "OPTIONS") {

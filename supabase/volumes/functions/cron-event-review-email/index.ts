@@ -8,7 +8,7 @@
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- *   APP_URL (z.B. "https://chuchipirat.ch")
+ *   SITE_URL (z.B. "https://chuchipirat.ch")
  *   SENTRY_DSN (optional, für Sentry Crons Monitoring)
  *   BREVO_API_KEY (Produktion) oder SMTP_HOST/SMTP_PORT (lokal)
  */
@@ -54,7 +54,7 @@ serve(async (req: Request) => {
   // Umgebungsvariablen
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const appUrl = Deno.env.get("APP_URL") ?? "https://chuchipirat.ch";
+  const appUrl = Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch";
   const emailEnv = readEmailEnv();
 
   if (!supabaseUrl || !serviceRoleKey) {
