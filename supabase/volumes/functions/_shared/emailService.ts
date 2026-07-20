@@ -10,7 +10,7 @@
  * import { sendEmail, escapeHtml, errorResponse, CORS_HEADERS } from "../_shared/emailService.ts";
  * await sendEmail(env, "user@example.com", "Betreff", htmlContent, textContent);
  */
-import {SMTPClient} from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import {quotedPrintableEncode, SMTPClient} from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 
 /* =====================================================================
@@ -292,6 +292,31 @@ export function safeSmtpSubject(subject: string, maxEncodedLength = 70): string 
   return `${truncated}…`;
 }
 
+/**
+ * Führt SMTP-"Dot-Stuffing" durch (RFC 5321 §4.5.2): verdoppelt einen
+ * führenden "." auf jeder Content-Zeile, da eine Zeile, die nur aus "."
+ * besteht, laut SMTP-Protokoll das Ende der DATA-Übertragung markiert.
+ * Jeder korrekte SMTP-Empfänger entfernt umgekehrt einen einzelnen
+ * führenden Punkt wieder ("Transparency").
+ *
+ * denomailer führt dieses Dot-Stuffing selbst NICHT durch: Der interne
+ * Quoted-Printable-Zeilenumbruch (alle 74 Zeichen) kann zufällig genau vor
+ * einem "." in normalem Text landen (z.B. in "line-height: 1.6") und so eine
+ * neue Zeile erzeugen, die mit "." beginnt. Ohne Stuffing entfernt der
+ * SMTP-Empfänger dieses eine Zeichen beim Empfang wieder – der Inhalt wird
+ * dadurch je nach Position des Umbruchs (abhängig von der Länge davor
+ * eingefügter Variablen wie z.B. des Empfängernamens) still korrumpiert.
+ *
+ * @param quotedPrintableContent Bereits quoted-printable-kodierter Inhalt.
+ * @returns Inhalt mit dot-stuffing, sicher für den SMTP-DATA-Befehl.
+ */
+function dotStuffLines(quotedPrintableContent: string): string {
+  return quotedPrintableContent
+    .split("\r\n")
+    .map((line) => (line.startsWith(".") ? `.${line}` : line))
+    .join("\r\n");
+}
+
 async function sendViaSmtp(
   to: string,
   subject: string,
@@ -320,12 +345,25 @@ async function sendViaSmtp(
       : undefined,
   });
 
+  // Body-Encoding selbst übernehmen (statt html/content an denomailer zu
+  // übergeben), damit das fehlende Dot-Stuffing von denomailer korrigiert
+  // werden kann, bevor der Inhalt auf die Leitung geht (siehe dotStuffLines).
   await smtpClient.send({
     from: `${SENDER_NAME} <${fromEmail}>`,
     to,
     subject: safeSmtpSubject(subject),
-    html: htmlContent,
-    content: textContent,
+    mimeContent: [
+      {
+        mimeType: 'text/plain; charset="utf-8"',
+        content: dotStuffLines(quotedPrintableEncode(textContent)),
+        transferEncoding: "quoted-printable",
+      },
+      {
+        mimeType: 'text/html; charset="utf-8"',
+        content: dotStuffLines(quotedPrintableEncode(htmlContent)),
+        transferEncoding: "quoted-printable",
+      },
+    ],
   });
 
   await smtpClient.close();
