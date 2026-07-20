@@ -234,6 +234,64 @@ async function sendViaBrevo(
  * @param smtpPass - SMTP-Passwort
  * @param fromEmail - Absender-E-Mail-Adresse
  */
+/**
+ * Berechnet die Quoted-Printable-kodierte Länge eines Strings, wie sie
+ * denomailer für die Betreffzeile erzeugen würde (RFC 2047 Encoded-Word).
+ *
+ * @param text Zu prüfender Text.
+ * @returns Kodierte Länge in Zeichen.
+ */
+function quotedPrintableLength(text: string): number {
+  const byteEncoder = new TextEncoder();
+  let length = 0;
+  for (const char of text) {
+    const bytes = byteEncoder.encode(char);
+    if (bytes.length === 1) {
+      const code = bytes[0];
+      const isSafeAscii = code >= 32 && code <= 126 && code !== 61;
+      if (isSafeAscii || code === 9 || code === 10 || code === 13) {
+        length += 1;
+        continue;
+      }
+    }
+    length += bytes.length * 3;
+  }
+  return length;
+}
+
+/**
+ * Kürzt eine Betreffzeile so, dass ihre Quoted-Printable-Kodierung (RFC 2047,
+ * von denomailer für nicht-ASCII-Betreffs via `=?utf-8?Q?...?=` verwendet)
+ * niemals das Limit für ein einzelnes Encoded-Word überschreitet.
+ *
+ * denomailer fügt bei längeren Betreffen fehlerhafte `=\r\n`-Zeilenumbrüche
+ * MITTEN in dieses eine Encoded-Word ein (Body-Zeilenumbruch-Logik,
+ * fälschlich auch für Header verwendet — die Bibliothek foldet nicht in
+ * mehrere gültige Encoded-Words auf). Strikte SMTP-Server (z.B. MailPit)
+ * lehnen den dadurch ungültigen Header komplett ab (451 4.3.5). Betrifft nur
+ * den SMTP-Versandweg (denomailer) — Brevos HTTP-API kennt dieses Problem
+ * nicht, da dort kein RFC-2047-Header-Encoding stattfindet.
+ *
+ * @param subject Ursprüngliche Betreffzeile.
+ * @param maxEncodedLength Sicherer Grenzwert unter dem 74-Zeichen-Limit von denomailer.
+ * @returns Betreffzeile, bei Bedarf mit "…" gekürzt.
+ * @example
+ * safeSmtpSubject("Dein Rezept «Nüdeli mit Chäs» wurde veröffentlicht")
+ * // "Dein Rezept «Nüdeli mit Chäs» wurde verö…" (gekürzt, falls nötig)
+ */
+export function safeSmtpSubject(subject: string, maxEncodedLength = 70): string {
+  if (quotedPrintableLength(subject) <= maxEncodedLength) return subject;
+
+  let truncated = subject;
+  while (
+    truncated.length > 0 &&
+    quotedPrintableLength(`${truncated}…`) > maxEncodedLength
+  ) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${truncated}…`;
+}
+
 async function sendViaSmtp(
   to: string,
   subject: string,
@@ -265,7 +323,7 @@ async function sendViaSmtp(
   await smtpClient.send({
     from: `${SENDER_NAME} <${fromEmail}>`,
     to,
-    subject,
+    subject: safeSmtpSubject(subject),
     html: htmlContent,
     content: textContent,
   });
