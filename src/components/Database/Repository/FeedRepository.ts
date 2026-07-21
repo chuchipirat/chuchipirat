@@ -345,19 +345,51 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
   }
 
   /**
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden aller Feed-Einträge.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
+   */
+  private static readonly PAGE_SIZE = 1000;
+
+  /**
+   * Lädt eine einzelne Seite von Feed-Einträgen via Range-Pagination.
+   *
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @returns Zeilen dieser Seite
+   */
+  private async fetchFeedsPage(from: number): Promise<FeedRow[]> {
+    const {data, error} = await this.client
+      .from(this.viewName)
+      .select("*")
+      .order("created_at", {ascending: false})
+      .range(from, from + FeedRepository.PAGE_SIZE - 1);
+
+    if (error) throw error;
+    return (data ?? []) as unknown as FeedRow[];
+  }
+
+  /**
    * Lädt alle Feed-Einträge (für Admin-Übersicht).
+   *
+   * Lädt seitenweise via `.range()`, da PostgREST pro Request maximal
+   * `db-max-rows` Zeilen zurückgibt (aktuell 1000) — ohne Pagination würden
+   * Feed-Einträge oberhalb dieser Grenze stillschweigend fehlen.
    *
    * @returns Array aller Feeds, sortiert nach Erstellungsdatum (neueste zuerst)
    */
   async getAllFeeds(): Promise<FeedDomain[]> {
     try {
-      const {data, error} = await this.client
-        .from(this.viewName)
-        .select("*")
-        .order("created_at", {ascending: false});
+      const rows: FeedRow[] = [];
+      let from = 0;
+      let page: FeedRow[];
 
-      if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as FeedRow));
+      do {
+        page = await this.fetchFeedsPage(from);
+        rows.push(...page);
+        from += FeedRepository.PAGE_SIZE;
+      } while (page.length === FeedRepository.PAGE_SIZE);
+
+      return rows.map((row) => this.toDomain(row));
     } catch (error) {
       Sentry.captureException(error);
       throw error;

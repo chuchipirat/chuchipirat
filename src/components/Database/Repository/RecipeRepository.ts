@@ -549,6 +549,68 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   }
 
   /**
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden von Kurz-Rezepten.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
+   */
+  private static readonly SHORT_PAGE_SIZE = 1000;
+
+  /**
+   * Lädt eine einzelne Seite von Kurz-Rezepten via Range-Pagination.
+   *
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @param filters - Optionale Filter (Rezepttyp und/oder Ersteller)
+   * @returns Zeilen dieser Seite
+   */
+  private async fetchRecipeShortsPage(
+    from: number,
+    filters?: {recipeType?: "public" | "private"; createdBy?: string},
+  ): Promise<Record<string, unknown>[]> {
+    let query = this.client.from(this.tableName).select(RECIPE_SHORT_COLUMNS);
+
+    if (filters?.recipeType) {
+      query = query.eq("recipe_type", filters.recipeType);
+    }
+    if (filters?.createdBy) {
+      query = query.eq("created_by", filters.createdBy);
+    }
+
+    query = query
+      .order("name", {ascending: true})
+      .range(from, from + RecipeRepository.SHORT_PAGE_SIZE - 1);
+
+    const {data, error} = await query;
+    if (error) throw error;
+    return (data ?? []) as Record<string, unknown>[];
+  }
+
+  /**
+   * Lädt alle Kurz-Rezepte zu den gegebenen Filtern seitenweise via `.range()`,
+   * da PostgREST pro Request maximal `db-max-rows` Zeilen zurückgibt (aktuell
+   * 1000) — ohne Pagination würden Rezepte oberhalb dieser Grenze
+   * stillschweigend fehlen.
+   *
+   * @param filters - Optionale Filter (Rezepttyp und/oder Ersteller)
+   * @returns Alle passenden Zeilen, über alle Seiten akkumuliert
+   */
+  private async fetchAllRecipeShortRows(filters?: {
+    recipeType?: "public" | "private";
+    createdBy?: string;
+  }): Promise<Record<string, unknown>[]> {
+    const rows: Record<string, unknown>[] = [];
+    let from = 0;
+    let page: Record<string, unknown>[];
+
+    do {
+      page = await this.fetchRecipeShortsPage(from, filters);
+      rows.push(...page);
+      from += RecipeRepository.SHORT_PAGE_SIZE;
+    } while (page.length === RecipeRepository.SHORT_PAGE_SIZE);
+
+    return rows;
+  }
+
+  /**
    * Lädt alle Rezepte in Kurzform (öffentlich, privat, Varianten).
    * Für Admin-Funktionen wie den Verwendungsnachweis, wo alle Rezepte
    * durchsuchbar sein müssen.
@@ -556,13 +618,8 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
    * @returns Array aller Kurz-Rezepte, sortiert nach Name
    */
   async getAllRecipeShorts(): Promise<RecipeShortDomain[]> {
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select(RECIPE_SHORT_COLUMNS)
-      .order("name", {ascending: true});
-
-    if (error) throw error;
-    return (data ?? []).map((row) => this.rowToShortDomain(row as unknown as Record<string, unknown>));
+    const rows = await this.fetchAllRecipeShortRows();
+    return rows.map((row) => this.rowToShortDomain(row));
   }
 
   /**
@@ -572,14 +629,8 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
    * @returns Array der öffentlichen Kurz-Rezepte, sortiert nach Name
    */
   async getAllPublicRecipeShorts(): Promise<RecipeShortDomain[]> {
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select(RECIPE_SHORT_COLUMNS)
-      .eq("recipe_type", "public")
-      .order("name", {ascending: true});
-
-    if (error) throw error;
-    return (data ?? []).map((row) => this.rowToShortDomain(row as unknown as Record<string, unknown>));
+    const rows = await this.fetchAllRecipeShortRows({recipeType: "public"});
+    return rows.map((row) => this.rowToShortDomain(row));
   }
 
   /**
@@ -592,15 +643,11 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   async getPrivateRecipeShortsForUser(
     creatorUid: string,
   ): Promise<RecipeShortDomain[]> {
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select(RECIPE_SHORT_COLUMNS)
-      .eq("recipe_type", "private")
-      .eq("created_by", creatorUid)
-      .order("name", {ascending: true});
-
-    if (error) throw error;
-    return (data ?? []).map((row) => this.rowToShortDomain(row as unknown as Record<string, unknown>));
+    const rows = await this.fetchAllRecipeShortRows({
+      recipeType: "private",
+      createdBy: creatorUid,
+    });
+    return rows.map((row) => this.rowToShortDomain(row));
   }
 
   /**

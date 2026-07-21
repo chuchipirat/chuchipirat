@@ -304,20 +304,51 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
   // Alle Events laden (Admin-Übersicht)
   // ===================================================================== */
   /**
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden der Event-Übersicht.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
+   */
+  private static readonly SHORT_PAGE_SIZE = 1000;
+
+  /**
+   * Lädt eine einzelne Seite der Event-Übersicht via Range-Pagination.
+   *
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @returns Zeilen dieser Seite (inkl. event_cooks/event_dates-JOINs)
+   */
+  private async fetchEventsShortPage(from: number) {
+    const {data, error} = await this.client
+      .from("events")
+      .select("*, event_cooks(user_id), event_dates(id, sort_order, date_from, date_to)")
+      .order("created_at", {ascending: false})
+      .range(from, from + EventRepository.SHORT_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  /**
    * Lädt alle Events mit Köche-Anzahl und Zeitscheiben (für die Admin-Übersicht).
    * RLS-geschützt: nur Admins sehen alle Events (via is_admin() Policy).
+   *
+   * Lädt seitenweise via `.range()`, da PostgREST pro Request maximal
+   * `db-max-rows` Zeilen zurückgibt (aktuell 1000) — ohne Pagination würden
+   * Events oberhalb dieser Grenze stillschweigend fehlen.
    *
    * @returns Array aller Events inkl. Köche-Anzahl und Zeitscheiben
    */
   async getAllEventsShort(): Promise<EventDomain[]> {
-    const {data, error} = await this.client
-      .from("events")
-      .select("*, event_cooks(user_id), event_dates(id, sort_order, date_from, date_to)")
-      .order("created_at", {ascending: false});
+    const rows: Awaited<ReturnType<typeof this.fetchEventsShortPage>> = [];
+    let from = 0;
+    let page: typeof rows;
 
-    if (error) throw error;
+    do {
+      page = await this.fetchEventsShortPage(from);
+      rows.push(...page);
+      from += EventRepository.SHORT_PAGE_SIZE;
+    } while (page.length === EventRepository.SHORT_PAGE_SIZE);
 
-    return (data ?? []).map((row) => {
+    return rows.map((row) => {
       const event = this.toDomain(row as EventRow);
       // Köche: nur Anzahl relevant, userId wird für die Zählung gebraucht
       const cookRows = (row as any).event_cooks as EventCookRow[] | undefined;
