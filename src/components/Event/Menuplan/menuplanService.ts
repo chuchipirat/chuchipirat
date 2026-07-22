@@ -39,6 +39,7 @@ import {
   MenueCoordinates,
   ConsistencyReport,
   FixMenuplanResult,
+  PlanedMealsRecipe,
 } from "./menuplan.types";
 
 interface CreateMealTypeParams {
@@ -434,6 +435,59 @@ export function findMenueOfMealRecipe({
   return Object.values(menues).find((menue) =>
     menue.mealRecipeOrder.includes(mealRecipeUid),
   );
+}
+
+/**
+ * Baut die Liste aller Einplanungen eines Rezepts über den gesamten
+ * Menüplan hinweg (chronologisch nach Datum, dann nach Mahlzeit-Reihenfolge
+ * sortiert). Wird sowohl vom Menüplan-Drawer als auch von der Rezeptseite
+ * (bei skalierter Anzeige, z.B. vom Home-"Läuft gerade"-Widget) verwendet.
+ *
+ * @param menuplan - Der vollständige Menüplan.
+ * @param recipeUid - UID des Rezepts, dessen Einplanungen gesucht werden.
+ * @returns Alle Einplanungen dieses Rezepts, chronologisch sortiert.
+ */
+export function buildMealPlanForRecipe(
+  menuplan: MenuplanData,
+  recipeUid: string,
+): PlanedMealsRecipe[] {
+  const mealPlan: PlanedMealsRecipe[] = [];
+
+  Object.values(menuplan.mealRecipes).forEach((mealRecipe) => {
+    if (mealRecipe.recipe.recipeUid !== recipeUid) return;
+
+    const menue = Object.values(menuplan.menues).find((menue) =>
+      menue.mealRecipeOrder.includes(mealRecipe.uid),
+    );
+    if (menue === undefined) return;
+
+    const meal = Object.values(menuplan.meals).find((meal) =>
+      meal.menuOrder.includes(menue.uid),
+    );
+    if (meal === undefined) return;
+
+    mealPlan.push({
+      mealPlanRecipe: mealRecipe.uid,
+      menue: {...menue},
+      meal: {
+        ...meal,
+        mealType: menuplan.mealTypes.entries[meal.mealType].uid,
+        mealTypeName: menuplan.mealTypes.entries[meal.mealType].name,
+      },
+      mealPlan: mealRecipe.plan,
+    });
+  });
+
+  mealPlan.sort((a, b) => {
+    if (a.meal.date < b.meal.date) return -1;
+    if (a.meal.date > b.meal.date) return 1;
+    return (
+      menuplan.mealTypes.order.indexOf(a.meal.mealType) -
+      menuplan.mealTypes.order.indexOf(b.meal.mealType)
+    );
+  });
+
+  return mealPlan;
 }
 
 /**

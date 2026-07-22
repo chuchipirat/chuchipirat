@@ -84,6 +84,8 @@ import {
   DONATIONS_OVERVIEW_DESCRIPTION as TEXT_DONATIONS_OVERVIEW_DESCRIPTION,
   DONATION_GOALS_ADMIN as TEXT_DONATION_GOALS_ADMIN,
   DONATION_GOALS_ADMIN_DESCRIPTION as TEXT_DONATION_GOALS_ADMIN_DESCRIPTION,
+  MEAL_TYPE_CUTOFF_TIMES_ADMIN as TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN,
+  MEAL_TYPE_CUTOFF_TIMES_ADMIN_DESCRIPTION as TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN_DESCRIPTION,
   SENTRY_DASHBOARD as TEXT_SENTRY_DASHBOARD,
   SUPABASE_DASHBOARD as TEXT_SUPABASE_DASHBOARD,
   PAYMENT_PROVIDER_DASHBOARD as TEXT_PAYMENT_PROVIDER_DASHBOARD,
@@ -109,6 +111,7 @@ import {
   SYSTEM_DATA_INTEGRITY as ROUTE_SYSTEM_DATA_INTEGRITY,
   SYSTEM_OVERVIEW_DONATIONS as ROUTE_SYSTEM_OVERVIEW_DONATIONS,
   SYSTEM_DONATION_GOALS as ROUTE_SYSTEM_DONATION_GOALS,
+  SYSTEM_MEAL_TYPE_CUTOFF_TIMES as ROUTE_SYSTEM_MEAL_TYPE_CUTOFF_TIMES,
 } from "../../constants/routes";
 
 import {useCustomStyles} from "../../constants/styles";
@@ -226,6 +229,16 @@ const SystemPage = () => {
                   icon={<EmojiEventsIcon />}
                   action={goToDestination}
                   routeDestination={ROUTE_SYSTEM_DONATION_GOALS}
+                />
+              </Grid>
+              <Grid size={{xs: 12, sm: 6, md: 4}}>
+                <AdminTile
+                  id="mealTypeCutoffTimes"
+                  text={TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN}
+                  description={TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN_DESCRIPTION}
+                  icon={<ScheduleIcon />}
+                  action={goToDestination}
+                  routeDestination={ROUTE_SYSTEM_MEAL_TYPE_CUTOFF_TIMES}
                 />
               </Grid>
             </Grid>

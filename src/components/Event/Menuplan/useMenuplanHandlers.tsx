@@ -21,7 +21,6 @@ import {
   Note,
   Meal,
   PortionPlan,
-  PlanedMealsRecipe,
   MealRecipe,
   GoodsType,
   GoodsPlanMode,
@@ -40,6 +39,7 @@ import {
   findMenueOfMealRecipe,
   findMenueOfMealProduct,
   findMenueOfMealMaterial,
+  buildMealPlanForRecipe,
 } from "./menuplanService";
 import {OnRecipeCardClickProps} from "../../Recipe/recipes";
 import {
@@ -1361,55 +1361,12 @@ export function useMenuplanHandlers({
     }
 
     let loadingData = false;
-    const mealPlan: Array<PlanedMealsRecipe> = [];
 
     let recipe = new Recipe();
     recipe.uid = menuplan.mealRecipes[mealRecipeUid].recipe.recipeUid;
     recipe.name = menuplan.mealRecipes[mealRecipeUid].recipe.name;
 
-    Object.values(menuplan.mealRecipes).forEach((mealRecipe) => {
-      let meal: Meal | undefined;
-      let menue: Menue | undefined;
-      if (mealRecipe.recipe.recipeUid == recipe.uid) {
-        // Menü suchen, in dem das Rezept eingefügt wurde
-        menue = Object.values(menuplan.menues).find((menue) =>
-          menue.mealRecipeOrder.includes(mealRecipe.uid),
-        );
-        if (menue != undefined) {
-          // Die Mahlzeit suchen, in der das Menü ist
-          meal = Object.values(menuplan.meals).find((meal) =>
-            meal.menuOrder.includes(menue!.uid!),
-          );
-        }
-        if (meal != undefined && menue != undefined) {
-          mealPlan.push({
-            mealPlanRecipe: mealRecipe.uid,
-            menue: {...menue},
-            meal: {
-              ...meal,
-              mealType: menuplan.mealTypes.entries[meal.mealType].uid,
-              mealTypeName: menuplan.mealTypes.entries[meal.mealType].name,
-            },
-            mealPlan: mealRecipe.plan,
-          });
-        }
-      }
-    });
-
-    // Sortiere das Array nach dem Datum (aufsteigend) und dann nach der Zahl (absteigend)
-    mealPlan.sort((a, b) => {
-      if (a.meal.date < b.meal.date) {
-        return -1;
-      } else if (a.meal.date > b.meal.date) {
-        return 1;
-      } else {
-        // Anhand des Index der Mahlzeit bestimmen
-        return (
-          menuplan.mealTypes.order.indexOf(a.meal.mealType) -
-          menuplan.mealTypes.order.indexOf(b.meal.mealType)
-        );
-      }
-    });
+    const mealPlan = buildMealPlanForRecipe(menuplan, recipe.uid);
 
     if (Object.prototype.hasOwnProperty.call(recipes, recipe.uid)) {
       recipe = recipes[recipe.uid] as Recipe;

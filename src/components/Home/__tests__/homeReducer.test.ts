@@ -34,6 +34,7 @@ describe("homeReducer", () => {
       expect(initialState.events).toEqual([]);
       expect(initialState.passedEvents).toEqual([]);
       expect(initialState.showPassedEvents).toBe(false);
+      expect(initialState.showFeedExpanded).toBe(false);
       expect(initialState.recipes).toEqual([]);
       expect(initialState.feed).toEqual([]);
       expect(initialState.stats).toEqual([]);
@@ -224,6 +225,32 @@ describe("homeReducer", () => {
     });
   });
 
+  describe("TOGGLE_FEED_EXPANDED", () => {
+    test("toggelt showFeedExpanded von false auf true", () => {
+      const result = homeReducer(initialState, {
+        type: ReducerActions.TOGGLE_FEED_EXPANDED,
+      });
+      expect(result.showFeedExpanded).toBe(true);
+    });
+
+    test("toggelt showFeedExpanded von true auf false", () => {
+      const state = stateWith({showFeedExpanded: true});
+      const result = homeReducer(state, {
+        type: ReducerActions.TOGGLE_FEED_EXPANDED,
+      });
+      expect(result.showFeedExpanded).toBe(false);
+    });
+
+    test("laesst andere State-Felder unveraendert", () => {
+      const state = stateWith({feed: [{uid: "f1"} as any]});
+      const result = homeReducer(state, {
+        type: ReducerActions.TOGGLE_FEED_EXPANDED,
+      });
+      expect(result.feed).toBe(state.feed);
+      expect(result.showPassedEvents).toBe(state.showPassedEvents);
+    });
+  });
+
   describe("SYSTEM_MESSAGE_FETCH_SUCCESS", () => {
     test("setzt Systemmeldungen", () => {
       const messages = [{uid: "m1", text: "Test"} as any];
@@ -274,6 +301,7 @@ describe("homeReducer", () => {
       expect(ReducerActions.EVENTS_FETCH_INIT).toBe("EVENTS_FETCH_INIT");
       expect(ReducerActions.SNACKBAR_CLOSE).toBe("SNACKBAR_CLOSE");
       expect(ReducerActions.TOGGLE_PASSED_EVENTS).toBe("TOGGLE_PASSED_EVENTS");
+      expect(ReducerActions.TOGGLE_FEED_EXPANDED).toBe("TOGGLE_FEED_EXPANDED");
     });
   });
 });

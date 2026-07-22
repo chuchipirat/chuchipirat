@@ -80,6 +80,8 @@ export interface MenuplanPageProps {
   fetchMissingData: ({type, recipeShort}: FetchMissingDataProps) => void;
   onMasterdataCreate: ({type, value}: OnMasterdataCreateProps) => void;
   onRecipeUpdate: (recipe: Recipe) => void;
+  /** MealRecipe-UID, für die der Rezept-Drawer beim Laden automatisch geöffnet werden soll (Deep-Link, z.B. von der Startseite). */
+  initialOpenRecipeMealId?: string;
 }
 
 

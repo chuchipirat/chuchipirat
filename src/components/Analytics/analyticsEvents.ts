@@ -84,6 +84,9 @@ export const AnalyticsEvent = {
   // ── Fehler / UX ──
   SEARCH_NO_RESULTS: "search_no_results",
 
+  // ── Home ──
+  HOME_FEED_SHOW_MORE: "home_feed_show_more",
+
   // ── System ──
   SYSTEM_LOG_OUT_ALL_USERS: "system_log_out_all_users",
 } as const;

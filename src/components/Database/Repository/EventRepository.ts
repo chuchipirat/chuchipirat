@@ -767,3 +767,115 @@ export function getMaxDate(event: EventDomain): Date {
     event.dates[0].dateTo,
   );
 }
+
+/**
+ * Ermittelt die früheste noch bevorstehende Zeitscheibe eines Events.
+ *
+ * Ein Event kann mehrere Zeitscheiben haben (z.B. zwei Lagerwochenenden mit
+ * einer Pause dazwischen). Bereits vollständig abgelaufene Zeitscheiben
+ * (dateTo < referenceDate) werden zuerst herausgefiltert, bevor die früheste
+ * verbleibende Zeitscheibe bestimmt wird — so wird eine bereits
+ * vorbeigegangene erste Zeitscheibe nicht fälschlich zurückgegeben, wenn
+ * eine spätere Zeitscheibe noch bevorsteht.
+ *
+ * @example
+ * // Zeitscheibe A: 01.–03.03. (bereits vorbei), Zeitscheibe B: 15.–17.03. (bevorstehend)
+ * // referenceDate = 10.03. → gibt Zeitscheibe B zurück, nicht A.
+ *
+ * @param event - Das Event mit Zeitscheiben
+ * @param referenceDate - Referenzdatum für "bevorstehend" (Default: jetzt)
+ * @returns Die früheste noch bevorstehende Zeitscheibe, oder null falls keine Zeitscheiben vorhanden
+ */
+export function getNearestUpcomingDateSlice(
+  event: EventDomain,
+  referenceDate: Date = new Date(),
+): EventDateDomain | null {
+  // Auf Tagesbeginn normalisieren: dateFrom/dateTo sind als Mitternacht
+  // geparst — ein Vergleich mit der vollen aktuellen Uhrzeit würde eine
+  // heute endende Zeitscheibe bereits kurz nach Mitternacht als "vorbei"
+  // einstufen.
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
+
+  const upcoming = event.dates.filter((d) => d.dateTo >= today);
+  const source = upcoming.length > 0 ? upcoming : event.dates;
+  if (source.length === 0) return null;
+  return source.reduce(
+    (min, d) => (d.dateFrom < min.dateFrom ? d : min),
+    source[0],
+  );
+}
+
+/**
+ * Ermittelt das früheste noch bevorstehende Startdatum (dateFrom) eines Events.
+ * Dünner Wrapper um {@link getNearestUpcomingDateSlice}.
+ *
+ * @param event - Das Event mit Zeitscheiben
+ * @param referenceDate - Referenzdatum für "bevorstehend" (Default: jetzt)
+ * @returns Das früheste noch bevorstehende dateFrom, oder null falls keine Zeitscheiben vorhanden
+ */
+export function getNearestUpcomingStartDate(
+  event: EventDomain,
+  referenceDate: Date = new Date(),
+): Date | null {
+  return getNearestUpcomingDateSlice(event, referenceDate)?.dateFrom ?? null;
+}
+
+/**
+ * Lebenszyklus-Status eines Events relativ zu "heute".
+ *
+ * - "upcoming": heute liegt vor oder zwischen den Zeitscheiben des Events.
+ * - "ongoing": heute liegt innerhalb einer Zeitscheibe des Events.
+ */
+export type EventLifecycleStatus = "upcoming" | "ongoing";
+
+/**
+ * Ermittelt, ob "heute" innerhalb einer der Zeitscheiben eines Events liegt.
+ *
+ * Ein Event mit mehreren Zeitscheiben (z.B. zwei Lagerwochenenden mit Pause
+ * dazwischen) gilt nur als "ongoing", wenn heute in EINER der Scheiben liegt
+ * — in der Pause dazwischen gilt es weiterhin als "upcoming" (Countdown zur
+ * nächsten Scheibe), nicht als "ongoing".
+ *
+ * @param event - Das Event mit Zeitscheiben.
+ * @param today - Referenzdatum (Default: jetzt).
+ * @returns "ongoing" wenn heute in einer Zeitscheibe liegt, sonst "upcoming".
+ * @example
+ * getEventLifecycleStatus(event) // "ongoing" wenn das Lager heute läuft
+ */
+export function getEventLifecycleStatus(
+  event: EventDomain,
+  today: Date = new Date(),
+): EventLifecycleStatus {
+  // Auf Tagesbeginn normalisieren — siehe getNearestUpcomingDateSlice().
+  const referenceDay = new Date(today);
+  referenceDay.setHours(0, 0, 0, 0);
+
+  const isOngoing = event.dates.some(
+    (d) => d.dateFrom <= referenceDay && referenceDay <= d.dateTo,
+  );
+  return isOngoing ? "ongoing" : "upcoming";
+}
+
+/**
+ * Liefert die aktuell laufende Zeitscheibe eines Events, falls "heute"
+ * innerhalb einer Zeitscheibe liegt.
+ *
+ * @param event - Das Event mit Zeitscheiben.
+ * @param today - Referenzdatum (Default: jetzt).
+ * @returns Die laufende Zeitscheibe, oder null falls keine Zeitscheibe heute läuft.
+ */
+export function getActiveDateSlice(
+  event: EventDomain,
+  today: Date = new Date(),
+): EventDateDomain | null {
+  // Auf Tagesbeginn normalisieren — siehe getNearestUpcomingDateSlice().
+  const referenceDay = new Date(today);
+  referenceDay.setHours(0, 0, 0, 0);
+
+  return (
+    event.dates.find(
+      (d) => d.dateFrom <= referenceDay && referenceDay <= d.dateTo,
+    ) ?? null
+  );
+}

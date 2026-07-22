@@ -57,6 +57,7 @@ const MenuplanPage = ({
   onRecipeUpdate: onRecipeUpdateSuper,
   fetchMissingData,
   onMasterdataCreate,
+  initialOpenRecipeMealId,
 }: MenuplanPageProps) => {
   const theme = useTheme();
   const {customDialog} = useCustomDialog();
@@ -204,6 +205,18 @@ const MenuplanPage = ({
     userDidChangeDnD,
     onError: setError,
   });
+
+  /* ------------------------------------------
+  // Deep-Link: Rezept-Drawer automatisch öffnen (z.B. von der Startseite)
+  // ------------------------------------------ */
+  const hasAutoOpenedRecipeFromUrl = useRef(false);
+  useEffect(() => {
+    if (hasAutoOpenedRecipeFromUrl.current) return;
+    if (!initialOpenRecipeMealId || !menuplan.uid) return;
+
+    hasAutoOpenedRecipeFromUrl.current = true;
+    handlers.onMealRecipeOpen(initialOpenRecipeMealId);
+  }, [initialOpenRecipeMealId, menuplan.uid, handlers.onMealRecipeOpen]);
 
   if (
     new Set(menuplan.mealTypes.order).size !== menuplan.mealTypes.order.length

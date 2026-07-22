@@ -202,3 +202,18 @@ export const DONOR = "Spender*in";
 export const AMOUNT = "Betrag";
 export const RECEIPT_THANK_YOU =
   "Danke für deine Spende. Deine Spende ermöglicht es, den chuchipirat weiterzuentwickeln und weiterhin kostenlos anzubieten.";
+
+export const MEAL_TYPE_CUTOFF_TIMES_ADMIN = "Mahlzeit-Cutoff-Zeiten verwalten";
+export const MEAL_TYPE_CUTOFF_TIMES_ADMIN_DESCRIPTION =
+  "Legt fest, ab welcher Uhrzeit eine Mahlzeit (z.B. «Zmorge») im «Läuft gerade»-Widget der Startseite nicht mehr angezeigt wird.";
+export const MEAL_TYPE_CUTOFF_NAME = "Mahlzeit-Typ-Name";
+export const MEAL_TYPE_CUTOFF_TIME = "Cutoff-Zeit (HH:MM)";
+export const MEAL_TYPE_CUTOFF_SORT_ORDER = "Reihenfolge";
+export const MEAL_TYPE_CUTOFF_ADD = "Cutoff-Zeit hinzufügen";
+export const MEAL_TYPE_CUTOFF_DELETE_CONFIRM =
+  "Diese Cutoff-Zeit wirklich löschen?";
+export const MEAL_TYPE_CUTOFF_SAVED = "Cutoff-Zeit gespeichert.";
+export const MEAL_TYPE_CUTOFF_DELETED = "Cutoff-Zeit gelöscht.";
+export const MEAL_TYPE_CUTOFF_EMPTY = "Keine Cutoff-Zeiten vorhanden.";
+export const MEAL_TYPE_CUTOFF_INVALID_TIME_FORMAT =
+  "Bitte eine gültige Uhrzeit im Format HH:MM eingeben (z.B. 10:00).";

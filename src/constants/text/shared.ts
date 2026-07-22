@@ -99,6 +99,8 @@ export const HOME_EMPTY_FEED =
 // ===================================================================== */
 export const FEED = "Feed";
 export const SHOULD_FEED_ENTRY_BE_DELETED = "Feed-Eintrag löschen?";
+export const FEED_SHOW_MORE = (count: number) =>
+  `Zeige weitere Einträge (${count})`;
 
 /* =====================================================================
 // Bilder

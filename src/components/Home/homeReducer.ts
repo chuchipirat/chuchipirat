@@ -30,6 +30,7 @@ export enum ReducerActions {
   STATS_FETCH_ERROR = "STATS_FETCH_ERROR",
   SYSTEM_MESSAGE_FETCH_SUCCESS = "SYSTEM_MESSAGE_FETCH_SUCCESS",
   TOGGLE_PASSED_EVENTS = "TOGGLE_PASSED_EVENTS",
+  TOGGLE_FEED_EXPANDED = "TOGGLE_FEED_EXPANDED",
   SNACKBAR_SET = "SNACKBAR_SET",
   SNACKBAR_CLOSE = "SNACKBAR_CLOSE",
 }
@@ -52,6 +53,7 @@ export type DispatchAction =
   | {type: ReducerActions.STATS_FETCH_SUCCESS; payload: Kpi[]}
   | {type: ReducerActions.STATS_FETCH_ERROR; payload: Error}
   | {type: ReducerActions.TOGGLE_PASSED_EVENTS}
+  | {type: ReducerActions.TOGGLE_FEED_EXPANDED}
   | {type: ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS; payload: SystemMessageDomain[]}
   | {type: ReducerActions.SNACKBAR_SET; payload: SnackbarState}
   | {type: ReducerActions.SNACKBAR_CLOSE};
@@ -62,6 +64,7 @@ export type DispatchAction =
  * @param events - Aktuelle (zukünftige) Anlässe des Benutzers
  * @param passedEvents - Vergangene Anlässe (aus demselben Fetch, clientseitig gefiltert)
  * @param showPassedEvents - Ob vergangene Anlässe angezeigt werden sollen
+ * @param showFeedExpanded - Ob alle Feed-Einträge angezeigt werden sollen
  * @param recipes - Neueste publizierte Rezepte
  * @param feed - Feed-Einträge (Aktivitäten)
  * @param stats - Plattform-KPIs
@@ -80,6 +83,7 @@ export type State = {
   events: EventDomain[];
   passedEvents: EventDomain[];
   showPassedEvents: boolean;
+  showFeedExpanded: boolean;
   recipes: FeedDomain[];
   feed: FeedDomain[];
   stats: Kpi[];
@@ -99,6 +103,7 @@ export const initialState: State = {
   events: [],
   passedEvents: [],
   showPassedEvents: false,
+  showFeedExpanded: false,
   recipes: [],
   feed: [],
   stats: [],
@@ -155,6 +160,8 @@ export const homeReducer = (state: State, action: DispatchAction): State => {
       return {...state, isLoadingStats: false, statsError: action.payload};
     case ReducerActions.TOGGLE_PASSED_EVENTS:
       return {...state, showPassedEvents: !state.showPassedEvents};
+    case ReducerActions.TOGGLE_FEED_EXPANDED:
+      return {...state, showFeedExpanded: !state.showFeedExpanded};
     case ReducerActions.SYSTEM_MESSAGE_FETCH_SUCCESS:
       return {...state, systemMessages: action.payload};
     case ReducerActions.SNACKBAR_SET:

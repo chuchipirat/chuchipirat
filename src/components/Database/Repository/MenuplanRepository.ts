@@ -359,6 +359,35 @@ export interface MenuplanDomain {
 }
 
 /* =====================================================================
+// Mahlzeit-Typ-Cutoff-Zeiten (admin-konfigurierbar, event_meal_types.name
+// -> Uhrzeit, ab der eine Mahlzeit dieses Namens nicht mehr relevant ist)
+// ===================================================================== */
+
+/** Datenbank-Zeilentyp für meal_type_cutoff_times. */
+export interface MealTypeCutoffRow {
+  id: string;
+  names: string[];
+  cutoff_time: string;
+  sort_order: number;
+}
+
+/**
+ * Admin-konfigurierte Cutoff-Zeit für eine Gruppe von Mahlzeit-Typ-Namen
+ * (Synonyme, z.B. "Zmorge"/"Zmorgen"/"Frühstück" für dieselbe Cutoff-Zeit).
+ *
+ * @param id - Eindeutige ID.
+ * @param names - Mahlzeit-Typ-Namen (Synonyme), gegen die abgeglichen wird (case-insensitiv).
+ * @param cutoffTime - Uhrzeit im Format "HH:MM" (24h), ab der die Mahlzeit nicht mehr relevant ist.
+ * @param sortOrder - Sortierreihenfolge in der Admin-Übersicht.
+ */
+export interface MealTypeCutoffDomain {
+  id: string;
+  names: string[];
+  cutoffTime: string;
+  sortOrder: number;
+}
+
+/* =====================================================================
 // Dummy-Row-Typ (MenuplanRepository verwaltet 8 Tabellen)
 // ===================================================================== */
 
@@ -1701,5 +1730,142 @@ export class MenuplanRepository extends BaseRepository<
       notes,
       lastSavedAt: menuplan.lastChange.date,
     };
+  }
+
+  /* =====================================================================
+  // Mahlzeiten-IDs innerhalb eines Datumsbereichs (für Home-Bereitschafts-Check)
+  // ===================================================================== */
+  /**
+   * Lädt die IDs aller `event_meals`-Zeilen eines Events innerhalb eines
+   * Datumsbereichs (z.B. einer Lager-Zeitscheibe). Wird verwendet, um zu
+   * prüfen, ob eine Rezept-/Einkaufs-/Materialliste mindestens eine Mahlzeit
+   * innerhalb dieser Zeitscheibe abdeckt (Listen sind nur auf Event-Ebene
+   * gespeichert, nicht pro Zeitscheibe).
+   *
+   * @param eventId - Die Event-ID.
+   * @param dateFrom - Erstes Datum des Bereichs (inklusive).
+   * @param dateTo - Letztes Datum des Bereichs (inklusive).
+   * @returns Set der `event_meals.id`-Werte innerhalb des Bereichs.
+   */
+  async getMealIdsForEventInRange(
+    eventId: string,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<Set<string>> {
+    const {data, error} = await this.client
+      .from("event_meals")
+      .select("id")
+      .eq("event_id", eventId)
+      .gte("meal_date", formatLocalDate(dateFrom))
+      .lte("meal_date", formatLocalDate(dateTo));
+
+    if (error) throw error;
+    return new Set((data ?? []).map((row) => row.id as string));
+  }
+
+  /* =====================================================================
+  // Mahlzeit-Typ-Cutoff-Zeiten (Admin-Konfiguration)
+  // ===================================================================== */
+  /**
+   * Lädt alle admin-konfigurierten Mahlzeit-Typ-Cutoff-Zeiten.
+   *
+   * @returns Sortierte Liste der Cutoff-Zeiten.
+   */
+  async getCutoffTimes(): Promise<MealTypeCutoffDomain[]> {
+    try {
+      const {data, error} = await this.client
+        .from("meal_type_cutoff_times")
+        .select("*")
+        .order("sort_order", {ascending: true});
+
+      if (error) throw error;
+
+      return (data ?? []).map((row: MealTypeCutoffRow) => ({
+        id: row.id,
+        names: row.names,
+        cutoffTime: row.cutoff_time,
+        sortOrder: row.sort_order,
+      }));
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Erstellt eine neue Mahlzeit-Typ-Cutoff-Zeit.
+   *
+   * @param cutoff - Die neue Cutoff-Zeit (ohne ID).
+   * @returns Die erstellte Cutoff-Zeit mit generierter ID.
+   */
+  async createCutoffTime(
+    cutoff: Omit<MealTypeCutoffDomain, "id">,
+  ): Promise<MealTypeCutoffDomain> {
+    try {
+      const {data, error} = await this.client
+        .from("meal_type_cutoff_times")
+        .insert({
+          names: cutoff.names,
+          cutoff_time: cutoff.cutoffTime,
+          sort_order: cutoff.sortOrder,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      const row = data as MealTypeCutoffRow;
+      return {
+        id: row.id,
+        names: row.names,
+        cutoffTime: row.cutoff_time,
+        sortOrder: row.sort_order,
+      };
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Aktualisiert eine bestehende Mahlzeit-Typ-Cutoff-Zeit.
+   *
+   * @param cutoff - Die aktualisierte Cutoff-Zeit (mit ID).
+   */
+  async updateCutoffTime(cutoff: MealTypeCutoffDomain): Promise<void> {
+    try {
+      const {error} = await this.client
+        .from("meal_type_cutoff_times")
+        .update({
+          names: cutoff.names,
+          cutoff_time: cutoff.cutoffTime,
+          sort_order: cutoff.sortOrder,
+        })
+        .eq("id", cutoff.id);
+
+      if (error) throw error;
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  }
+
+  /**
+   * Löscht eine Mahlzeit-Typ-Cutoff-Zeit.
+   *
+   * @param cutoffId - Die ID der zu löschenden Cutoff-Zeit.
+   */
+  async deleteCutoffTime(cutoffId: string): Promise<void> {
+    try {
+      const {error} = await this.client
+        .from("meal_type_cutoff_times")
+        .delete()
+        .eq("id", cutoffId);
+
+      if (error) throw error;
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
   }
 }

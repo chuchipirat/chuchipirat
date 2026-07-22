@@ -13,6 +13,10 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Chip,
+  List,
+  ListItemButton,
+  Checkbox,
 } from "@mui/material";
 import {
   MoreVert as MoreVertIcon,
@@ -21,6 +25,8 @@ import {
 
 import {ImageRepository} from "../../../constants/imageRepository";
 import {useCustomStyles} from "../../../constants/styles";
+import {parseLocalDate} from "../../../utils/dateUtils";
+import {EVENT_READINESS_CHECKLIST_TITLE as TEXT_READINESS_CHECKLIST_TITLE} from "../../../constants/text";
 
 /**
  * Minimale Datumsangabe fuer die EventCard-Anzeige.
@@ -51,11 +57,54 @@ export interface EventCardData {
   dates?: CardDateEntry[];
 }
 
+/**
+ * Countdown-Badge für die EventCard des nächsten bevorstehenden Anlasses.
+ *
+ * @param label - Countdown-/Status-Text (z.B. "Heute", "Morgen", "In 5 Tagen", "Tag 2 von 5").
+ */
+interface EventCardCountdown {
+  label: string;
+}
+
+/**
+ * Wettervorhersage für einen einzelnen Tag, zur Anzeige im Subheader der Karte.
+ *
+ * @param date - Datum dieses Vorhersagetages ("YYYY-MM-DD", lokal).
+ * @param iconLabel - Emoji-Symbol für den Wetterzustand.
+ * @param tempMax - Maximaltemperatur in Grad Celsius.
+ * @param tempMin - Minimaltemperatur in Grad Celsius.
+ */
+export interface EventCardWeatherDay {
+  date: string;
+  iconLabel: string;
+  tempMax: number;
+  tempMin: number;
+}
+
+/**
+ * Ein Eintrag der Bereitschafts-Checkliste (Menuplan/Einkaufsliste/Materialliste).
+ *
+ * @param label - Anzeigetext des Eintrags.
+ * @param ready - Ob die Liste für die aktuelle Zeitscheibe bereits existiert.
+ * @param onNavigate - Callback beim Klick — navigiert zum passenden Tab des Anlasses.
+ */
+export interface EventCardReadinessItem {
+  label: string;
+  ready: boolean;
+  onNavigate: () => void;
+}
+
 interface EventCardProps {
   event: EventCardData;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   /** Optionaler Callback zum Kopieren des Events. Zeigt das Kontextmenü nur wenn gesetzt. */
   onCopyClick?: (event: EventCardData) => void;
+  /** Optionaler Countdown-Badge, nur für den nächsten bevorstehenden bzw. laufenden Anlass. */
+  countdown?: EventCardCountdown;
+  /** Optionale Mehrtages-Wettervorhersage, angezeigt im Subheader unterhalb des Datumsbereichs. */
+  weatherDays?: EventCardWeatherDay[];
+  /** Optionale Bereitschafts-Checkliste, angezeigt im Subheader (nur bevorstehende Anlässe, nahe am Start). */
+  readiness?: EventCardReadinessItem[];
 }
 
 const formatDay = (d: Date) =>
@@ -100,15 +149,38 @@ function formatDateRanges(dates?: CardDateEntry[]): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Formatiert ein "YYYY-MM-DD"-Datum als kurzes Wochentagskürzel (z.B. "Mo").
+ *
+ * @param dateStr - Datum als "YYYY-MM-DD" String.
+ * @returns Kurzes deutsches Wochentagskürzel.
+ */
+function formatWeekdayShort(dateStr: string): string {
+  return new Intl.DateTimeFormat("de-CH", {weekday: "short"}).format(
+    parseLocalDate(dateStr),
+  );
+}
+
 // ===================================================================== */
 /**
  * Event-Karte mit Bild, Name, Motto und optionalem Datumsbereich.
  *
  * @param event - Die Event-Daten
  * @param onCardClick - Callback beim Klick auf die Karte
+ * @param onCopyClick - Optionaler Callback zum Kopieren des Events
+ * @param countdown - Optionaler Countdown-Badge für den nächsten bevorstehenden bzw. laufenden Anlass
+ * @param weatherDays - Optionale Mehrtages-Wettervorhersage
+ * @param readiness - Optionale Bereitschafts-Checkliste
  * @returns JSX-Element
  */
-const EventCard = ({event, onCardClick, onCopyClick}: EventCardProps) => {
+const EventCard = ({
+  event,
+  onCardClick,
+  onCopyClick,
+  countdown,
+  weatherDays,
+  readiness,
+}: EventCardProps) => {
   const classes = useCustomStyles();
   const [hover, setHover] = React.useState(false);
   const [menuAnchor, setMenuAnchor] = React.useState<null | HTMLElement>(null);
@@ -182,6 +254,15 @@ const EventCard = ({event, onCardClick, onCopyClick}: EventCardProps) => {
           </MenuItem>
         </Menu>
       )}
+      {/* Countdown-/Status-Badge — nur für den nächsten bevorstehenden bzw. laufenden Anlass */}
+      {countdown && (
+        <Chip
+          size="small"
+          color="primary"
+          label={countdown.label}
+          sx={{position: "absolute", top: 8, left: 8, zIndex: 1}}
+        />
+      )}
       <CardActionArea
         data-event-uid={event.uid}
         onClick={onCardClick}
@@ -226,11 +307,65 @@ const EventCard = ({event, onCardClick, onCopyClick}: EventCardProps) => {
                     {line}
                   </Typography>
                 ))}
+                {weatherDays && weatherDays.length > 0 && (
+                  <Typography
+                    variant="caption"
+                    color="textSecondary"
+                    display="block"
+                    sx={{mt: 0.75}}
+                  >
+                    {weatherDays
+                      .map(
+                        (day) =>
+                          `${formatWeekdayShort(day.date)} ${day.iconLabel} ${Math.round(day.tempMax)}°/${Math.round(day.tempMin)}°`,
+                      )
+                      .join("   ")}
+                  </Typography>
+                )}
               </React.Fragment>
             }
           />
         </Box>
       </CardActionArea>
+      {/* Bereitschafts-Checkliste — ausserhalb der CardActionArea, da ein
+          MUI Checkbox selbst ein interaktives Element ist und nicht
+          innerhalb eines anderen Buttons verschachtelt werden darf. */}
+      {readiness && readiness.length > 0 && (
+        <Box sx={{px: 2, pt: 1, pb: 0.5}}>
+          <Typography variant="caption" color="text.secondary">
+            {TEXT_READINESS_CHECKLIST_TITLE}
+          </Typography>
+          <List dense disablePadding>
+            {readiness.map((item, i) => (
+              <ListItemButton
+                key={i}
+                onClick={item.onNavigate}
+                dense
+                disableGutters
+                sx={{py: 0, minHeight: 28}}
+              >
+                <Checkbox
+                  checked={item.ready}
+                  disabled
+                  edge="start"
+                  size="small"
+                  sx={{p: 0.5}}
+                />
+                <ListItemText
+                  primary={item.label}
+                  slotProps={{
+                    primary: {
+                      variant: "body2",
+                      color: item.ready ? "text.secondary" : "text.primary",
+                    },
+                  }}
+                  sx={{my: 0}}
+                />
+              </ListItemButton>
+            ))}
+          </List>
+        </Box>
+      )}
     </Card>
   );
 };

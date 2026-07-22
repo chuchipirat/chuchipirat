@@ -40,6 +40,7 @@ export const SYSTEM_OVERVIEW_MAILBOX = "/system/overview/mailbox";
 export const SYSTEM_OVERVIEW_FEEDS = "/system/overview/feeds";
 export const SYSTEM_OVERVIEW_DONATIONS = "/system/overview/donations";
 export const SYSTEM_DONATION_GOALS = "/system/donationgoals";
+export const SYSTEM_MEAL_TYPE_CUTOFF_TIMES = "/system/mealtypecutofftimes";
 
 export const SYSTEM_MAIL_CONSOLE = "/system/mailconsole";
 export const SYSTEM_MIGRATION = "/system/migration";

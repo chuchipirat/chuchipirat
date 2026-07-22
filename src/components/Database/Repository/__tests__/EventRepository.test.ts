@@ -9,6 +9,10 @@ import {
   EventDomain,
   EventDateDomain,
   getMaxDate,
+  getNearestUpcomingStartDate,
+  getNearestUpcomingDateSlice,
+  getEventLifecycleStatus,
+  getActiveDateSlice,
 } from "../EventRepository";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {parseLocalDate} from "../../../../utils/dateUtils";
@@ -93,6 +97,187 @@ describe("getMaxDate", () => {
       createDate("2026-03-01", "2026-03-10", 1),
     ]);
     expect(getMaxDate(event)).toEqual(new Date("2026-06-30"));
+  });
+});
+
+/* =====================================================================
+// getNearestUpcomingStartDate() Tests
+// ===================================================================== */
+describe("getNearestUpcomingStartDate", () => {
+  test("gibt null zurueck bei leerem dates-Array", () => {
+    const event = createEvent([]);
+    expect(getNearestUpcomingStartDate(event)).toBeNull();
+  });
+
+  test("gibt dateFrom zurueck bei einzelnem bevorstehendem Eintrag", () => {
+    const event = createEvent([createDate("2026-03-10", "2026-03-12")]);
+    const referenceDate = new Date("2026-03-01");
+    expect(getNearestUpcomingStartDate(event, referenceDate)).toEqual(
+      new Date("2026-03-10"),
+    );
+  });
+
+  test("ignoriert eine bereits abgelaufene erste Zeitscheibe und gibt die naechste bevorstehende zurueck", () => {
+    // Zeitscheibe A: 01.-03.03. (bereits vorbei), Zeitscheibe B: 15.-17.03. (bevorstehend)
+    const event = createEvent([
+      createDate("2026-03-01", "2026-03-03", 0),
+      createDate("2026-03-15", "2026-03-17", 1),
+    ]);
+    const referenceDate = new Date("2026-03-10");
+
+    expect(getNearestUpcomingStartDate(event, referenceDate)).toEqual(
+      new Date("2026-03-15"),
+    );
+  });
+
+  test("gibt das frueheste bevorstehende dateFrom zurueck, wenn mehrere Zeitscheiben noch bevorstehen", () => {
+    const event = createEvent([
+      createDate("2026-05-01", "2026-05-03", 0),
+      createDate("2026-03-15", "2026-03-17", 1),
+      createDate("2026-04-01", "2026-04-03", 2),
+    ]);
+    const referenceDate = new Date("2026-03-01");
+
+    expect(getNearestUpcomingStartDate(event, referenceDate)).toEqual(
+      new Date("2026-03-15"),
+    );
+  });
+
+  test("faellt auf die frueheste Zeitscheibe insgesamt zurueck, wenn alle bereits abgelaufen sind", () => {
+    const event = createEvent([
+      createDate("2026-01-10", "2026-01-12", 0),
+      createDate("2026-02-01", "2026-02-03", 1),
+    ]);
+    const referenceDate = new Date("2026-03-01");
+
+    expect(getNearestUpcomingStartDate(event, referenceDate)).toEqual(
+      new Date("2026-01-10"),
+    );
+  });
+
+  test("nutzt new Date() als Default fuer referenceDate", () => {
+    const futureDate = new Date();
+    futureDate.setDate(futureDate.getDate() + 5);
+    const event = createEvent([
+      createDate(futureDate.toISOString(), futureDate.toISOString()),
+    ]);
+
+    expect(getNearestUpcomingStartDate(event)).toEqual(
+      new Date(futureDate.toISOString()),
+    );
+  });
+});
+
+/* =====================================================================
+// getEventLifecycleStatus() Tests
+// ===================================================================== */
+describe("getEventLifecycleStatus", () => {
+  test("gibt 'upcoming' zurueck, wenn heute vor der einzigen Zeitscheibe liegt", () => {
+    const event = createEvent([createDate("2026-08-01", "2026-08-03")]);
+    expect(getEventLifecycleStatus(event, new Date("2026-07-20"))).toBe(
+      "upcoming",
+    );
+  });
+
+  test("gibt 'ongoing' zurueck, wenn heute innerhalb der einzigen Zeitscheibe liegt", () => {
+    const event = createEvent([createDate("2026-08-01", "2026-08-03")]);
+    expect(getEventLifecycleStatus(event, new Date("2026-08-02"))).toBe(
+      "ongoing",
+    );
+  });
+
+  test("gibt 'upcoming' zurueck, wenn heute in der Pause zwischen zwei Zeitscheiben liegt", () => {
+    // Zeitscheibe A: 01.-03.08. (bereits vorbei), Zeitscheibe B: 15.-17.08. (bevorstehend)
+    const event = createEvent([
+      createDate("2026-08-01", "2026-08-03", 0),
+      createDate("2026-08-15", "2026-08-17", 1),
+    ]);
+    expect(getEventLifecycleStatus(event, new Date("2026-08-10"))).toBe(
+      "upcoming",
+    );
+  });
+
+  test("gibt 'ongoing' zurueck, wenn heute innerhalb der zweiten von zwei Zeitscheiben liegt", () => {
+    const event = createEvent([
+      createDate("2026-08-01", "2026-08-03", 0),
+      createDate("2026-08-15", "2026-08-17", 1),
+    ]);
+    expect(getEventLifecycleStatus(event, new Date("2026-08-16"))).toBe(
+      "ongoing",
+    );
+  });
+
+  test("gibt 'upcoming' zurueck bei leerem dates-Array", () => {
+    const event = createEvent([]);
+    expect(getEventLifecycleStatus(event, new Date("2026-08-16"))).toBe(
+      "upcoming",
+    );
+  });
+
+  test("gibt 'ongoing' zurueck am letzten Tag der Zeitscheibe, auch spaeter am Tag (nicht nur um Mitternacht)", () => {
+    // Regression: dateTo wird als Mitternacht geparst. Ein Vergleich mit der
+    // vollen aktuellen Uhrzeit (statt auf Tagesbeginn normalisiert) wuerde
+    // ein Event bereits kurz nach Mitternacht am letzten Tag als "upcoming"
+    // statt "ongoing" einstufen.
+    const event = createEvent([createDate("2026-08-01", "2026-08-03")]);
+    expect(
+      getEventLifecycleStatus(event, new Date("2026-08-03T14:32:00")),
+    ).toBe("ongoing");
+    expect(
+      getEventLifecycleStatus(event, new Date("2026-08-03T23:59:59")),
+    ).toBe("ongoing");
+  });
+});
+
+/* =====================================================================
+// getActiveDateSlice() Tests
+// ===================================================================== */
+describe("getActiveDateSlice", () => {
+  test("gibt null zurueck, wenn heute vor jeder Zeitscheibe liegt", () => {
+    const event = createEvent([createDate("2026-08-01", "2026-08-03")]);
+    expect(getActiveDateSlice(event, new Date("2026-07-20"))).toBeNull();
+  });
+
+  test("gibt die laufende Zeitscheibe zurueck", () => {
+    const slice = createDate("2026-08-01", "2026-08-03");
+    const event = createEvent([slice]);
+    expect(getActiveDateSlice(event, new Date("2026-08-02"))).toEqual(slice);
+  });
+
+  test("gibt null zurueck, wenn heute in der Pause zwischen zwei Zeitscheiben liegt", () => {
+    const event = createEvent([
+      createDate("2026-08-01", "2026-08-03", 0),
+      createDate("2026-08-15", "2026-08-17", 1),
+    ]);
+    expect(getActiveDateSlice(event, new Date("2026-08-10"))).toBeNull();
+  });
+
+  test("gibt die Zeitscheibe am letzten Tag zurueck, auch spaeter am Tag (nicht nur um Mitternacht)", () => {
+    const slice = createDate("2026-08-01", "2026-08-03");
+    const event = createEvent([slice]);
+    expect(
+      getActiveDateSlice(event, new Date("2026-08-03T14:32:00")),
+    ).toEqual(slice);
+  });
+});
+
+/* =====================================================================
+// getNearestUpcomingDateSlice() Tests
+// ===================================================================== */
+describe("getNearestUpcomingDateSlice", () => {
+  test("gibt die frueheste bevorstehende Zeitscheibe zurueck, nicht eine bereits abgelaufene", () => {
+    const pastSlice = createDate("2026-08-01", "2026-08-03", 0);
+    const upcomingSlice = createDate("2026-08-15", "2026-08-17", 1);
+    const event = createEvent([pastSlice, upcomingSlice]);
+
+    expect(
+      getNearestUpcomingDateSlice(event, new Date("2026-08-10")),
+    ).toEqual(upcomingSlice);
+  });
+
+  test("gibt null zurueck bei leerem dates-Array", () => {
+    const event = createEvent([]);
+    expect(getNearestUpcomingDateSlice(event)).toBeNull();
   });
 });
 

@@ -115,6 +115,11 @@ const CronJobs = lazy(() => import("../Admin/CronJobs/cronJobs"));
 const DonationGoals = lazy(() =>
   import("../Admin/DonationGoals/donationGoals").then((module) => ({default: module.DonationGoalsPage}))
 );
+const MealTypeCutoffTimes = lazy(() =>
+  import("../Admin/MealTypeCutoffTimes/mealTypeCutoffTimes").then((module) => ({
+    default: module.MealTypeCutoffTimesPage,
+  }))
+);
 
 /* ===================================================================
 // ====================== Autorisierungsbedingungen ==================
@@ -483,6 +488,12 @@ const routeConfig: RouteDefinition[] = [
   {
     path: ROUTES.SYSTEM_DONATION_GOALS,
     component: DonationGoals,
+    guard: isAdmin,
+    layout: {showGoBackFab: true, showFooter: true},
+  },
+  {
+    path: ROUTES.SYSTEM_MEAL_TYPE_CUTOFF_TIMES,
+    component: MealTypeCutoffTimes,
     guard: isAdmin,
     layout: {showGoBackFab: true, showFooter: true},
   },

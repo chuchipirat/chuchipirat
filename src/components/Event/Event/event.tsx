@@ -2288,6 +2288,7 @@ const EventPage = () => {
                 fetchMissingData={fetchMissingData}
                 onMasterdataCreate={onMasterdataCreate}
                 onRecipeUpdate={onRecipeUpdate}
+                initialOpenRecipeMealId={searchParams.get("openRecipe") ?? undefined}
               />
             </HighlightedMenueContext.Provider>
           ) : activeTab == EventTabs.quantityCalculation ? (
