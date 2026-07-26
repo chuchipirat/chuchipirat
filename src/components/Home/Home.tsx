@@ -7,9 +7,6 @@ import {trackEvent} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
   Card,
   CardHeader,
   CardActionArea,
@@ -32,10 +29,7 @@ import {
 } from "@mui/material";
 
 import Grid from "@mui/material/Grid";
-import {
-  Add as AddIcon,
-  ExpandMore as ExpandMoreIcon,
-} from "@mui/icons-material";
+import {Add as AddIcon} from "@mui/icons-material";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {AlertMessage} from "../Shared/AlertMessage";
@@ -182,8 +176,7 @@ export const HomePage = () => {
           .filter((event) => getMaxDate(event) >= today)
           .sort(
             (a, b) =>
-              (getNearestUpcomingStartDate(a, today)?.getTime() ??
-                Infinity) -
+              (getNearestUpcomingStartDate(a, today)?.getTime() ?? Infinity) -
               (getNearestUpcomingStartDate(b, today)?.getTime() ?? Infinity),
           );
         const passed = result.filter((event) => getMaxDate(event) < today);
@@ -436,28 +429,24 @@ export const HomePage = () => {
           <Grid size={12}>
             <Divider sx={{mb: "2rem"}} />
           </Grid>
-          <Grid size={{xs: 12, md: 8}}>
-            <Grid container spacing={2}>
-              <Grid size={{xs: 12, lg: 6}}>
-                <HomeNewestRecipes
-                  recipes={state.recipes}
-                  isLoadingRecipes={state.isLoadingNewestRecipes}
-                  error={state.recipesError}
-                  onCardClick={onRecipeClick}
-                />
-              </Grid>
-              <Grid size={{xs: 12, lg: 6}}>
-                <HomeFeed
-                  feed={state.feed}
-                  isLoadingFeed={state.isLoadingFeed}
-                  onListEntryClick={onFeedEntryClick}
-                  showFeedExpanded={state.showFeedExpanded}
-                  onToggleFeedExpanded={onToggleFeedExpanded}
-                />
-              </Grid>
-            </Grid>
+          <Grid size={{xs: 12, sm: 4}}>
+            <HomeNewestRecipes
+              recipes={state.recipes}
+              isLoadingRecipes={state.isLoadingNewestRecipes}
+              error={state.recipesError}
+              onCardClick={onRecipeClick}
+            />
           </Grid>
-          <Grid size={{xs: 12, md: 4}}>
+          <Grid size={{xs: 12, sm: 4}}>
+            <HomeFeed
+              feed={state.feed}
+              isLoadingFeed={state.isLoadingFeed}
+              onListEntryClick={onFeedEntryClick}
+              showFeedExpanded={state.showFeedExpanded}
+              onToggleFeedExpanded={onToggleFeedExpanded}
+            />
+          </Grid>
+          <Grid size={{xs: 12, sm: 4}}>
             <HomeStats
               stats={state.stats}
               isLoadingStats={state.isLoadingStats}
@@ -945,9 +934,8 @@ const EventCardWithLifecycle = React.memo(
     const [weatherDays, setWeatherDays] = React.useState<WeatherForecastDay[]>(
       [],
     );
-    const [readiness, setReadiness] = React.useState<EventReadinessState | null>(
-      null,
-    );
+    const [readiness, setReadiness] =
+      React.useState<EventReadinessState | null>(null);
 
     const lifecycleStatus = getEventLifecycleStatus(event);
     const activeSlice = getActiveDateSlice(event);
@@ -964,7 +952,8 @@ const EventCardWithLifecycle = React.memo(
 
     const countdownLabel = (() => {
       if (lifecycleStatus === "ongoing" && activeSlice) {
-        const totalDays = daysBetween(activeSlice.dateFrom, activeSlice.dateTo) + 1;
+        const totalDays =
+          daysBetween(activeSlice.dateFrom, activeSlice.dateTo) + 1;
         const dayNumber = daysBetween(activeSlice.dateFrom, new Date()) + 1;
         return TEXT_EVENT_DAY_OF_TOTAL(dayNumber, totalDays);
       }
@@ -995,7 +984,13 @@ const EventCardWithLifecycle = React.memo(
         cancelled = true;
       };
       // Nur bei Wechsel der relevanten Zeitscheibe neu laden
-    }, [event.uid, event.location, lifecycleStatus, activeSlice?.uid, nearestSlice?.uid]);
+    }, [
+      event.uid,
+      event.location,
+      lifecycleStatus,
+      activeSlice?.uid,
+      nearestSlice?.uid,
+    ]);
 
     /* ------------------------------------------
     // Bereitschafts-Checkliste — Rezeptliste/Einkaufsliste/Materialliste,
@@ -1018,20 +1013,22 @@ const EventCardWithLifecycle = React.memo(
         database.shoppingLists.getListsForEvent(event.uid),
         database.materialLists.getListsForEvent(event.uid),
       ])
-        .then(([mealIdsInRange, usedRecipeLists, shoppingLists, materialLists]) => {
-          if (cancelled) return;
+        .then(
+          ([mealIdsInRange, usedRecipeLists, shoppingLists, materialLists]) => {
+            if (cancelled) return;
 
-          const touchesRange = (lists: {selectedMeals: string[]}[]) =>
-            lists.some((list) =>
-              list.selectedMeals.some((mealId) => mealIdsInRange.has(mealId)),
-            );
+            const touchesRange = (lists: {selectedMeals: string[]}[]) =>
+              lists.some((list) =>
+                list.selectedMeals.some((mealId) => mealIdsInRange.has(mealId)),
+              );
 
-          setReadiness({
-            usedRecipes: touchesRange(usedRecipeLists),
-            shoppingList: touchesRange(shoppingLists),
-            materialList: touchesRange(materialLists),
-          });
-        })
+            setReadiness({
+              usedRecipes: touchesRange(usedRecipeLists),
+              shoppingList: touchesRange(shoppingLists),
+              materialList: touchesRange(materialLists),
+            });
+          },
+        )
         .catch((fetchError) => {
           Sentry.captureException(fetchError);
           if (!cancelled) {
@@ -1311,10 +1308,7 @@ const HomeNewestRecipes = React.memo(
         )}
         {isLoadingRecipes &&
           [...Array(DEFAULT_RECIPE_DISPLAY).keys()].map((index) => (
-            <Grid
-              size={{xs: 6, lg: 12}}
-              key={"emptyRecipeGrid_" + index}
-            >
+            <Grid size={{xs: 6, lg: 12}} key={"emptyRecipeGrid_" + index}>
               <RecipeCardLoading key={"emptyRecipeCard_" + index} />
             </Grid>
           ))}
@@ -1326,7 +1320,7 @@ const HomeNewestRecipes = React.memo(
           </Grid>
         )}
         {recipes.map((recipe) => (
-          <Grid size={{xs: 6, lg: 12}} key={"recipeGrid_" + recipe.uid}>
+          <Grid size={{xs: 12, md: 6}} key={"recipeGrid_" + recipe.uid}>
             <Card sx={classes.card} key={"recipeCard_" + recipe.uid}>
               <CardActionArea
                 data-recipe-uid={recipe.sourceObject.uid}
@@ -1521,8 +1515,6 @@ interface HomeStatsProps {
 }
 const HomeStats = React.memo(({stats, isLoadingStats}: HomeStatsProps) => {
   const classes = useCustomStyles();
-  const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const kpiGroups: KpiGroup[] = React.useMemo(
     () => StatsRepository.groupKpis(stats),
@@ -1569,29 +1561,19 @@ const HomeStats = React.memo(({stats, isLoadingStats}: HomeStatsProps) => {
 
   return (
     <Grid container spacing={2} justifyContent="center">
-      {!isMobile && (
-        <Grid size={12}>
-          <Typography
-            align="center"
-            gutterBottom={true}
-            variant="h5"
-            component="h2"
-          >
-            {TEXT_STATS}
-          </Typography>
-        </Grid>
-      )}
+      {/* {!isMobile && ( */}
       <Grid size={12}>
-        {isMobile ? (
-          <Accordion defaultExpanded={false} sx={classes.card}>
-            <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-              <Typography>{TEXT_STATS}</Typography>
-            </AccordionSummary>
-            <AccordionDetails sx={{p: 0}}>{statsContent}</AccordionDetails>
-          </Accordion>
-        ) : (
-          <Card sx={classes.card}>{statsContent}</Card>
-        )}
+        <Typography
+          align="center"
+          gutterBottom={true}
+          variant="h5"
+          component="h2"
+        >
+          {TEXT_STATS}
+        </Typography>
+      </Grid>
+      <Grid size={12}>
+        <Card sx={classes.card}>{statsContent}</Card>
       </Grid>
     </Grid>
   );

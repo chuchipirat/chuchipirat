@@ -7,7 +7,13 @@
  * eine Mahlzeit dieses Namens im "Läuft gerade"-Widget der Startseite nicht
  * mehr als anstehend angezeigt wird.
  */
-import React, {useCallback, useEffect, useReducer, SyntheticEvent} from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useReducer,
+  useState,
+  SyntheticEvent,
+} from "react";
 
 import {
   Autocomplete,
@@ -183,6 +189,12 @@ const MealTypeCutoffTimesPage = () => {
   const {customDialog} = useCustomDialog();
 
   const [state, dispatch] = useReducer(reducer, initialState);
+  // Nicht committierter Freitext je Zeile — Enter committet bereits nativ
+  // (MUI freeSolo), aber Leertaste und Verlassen des Feldes tun das nicht
+  // von Haus aus. Wird lokal gehalten, da es reiner UI-Zwischenzustand ist.
+  const [pendingNameInputs, setPendingNameInputs] = useState<
+    Record<number, string>
+  >({});
 
   /** Daten laden. */
   const loadCutoffs = useCallback(async () => {
@@ -251,6 +263,9 @@ const MealTypeCutoffTimesPage = () => {
       // Neue, noch nicht gespeicherte Zeile — einfach entfernen
       if (!cutoff.id) {
         dispatch({type: ActionType.REMOVE_CUTOFF, payload: index});
+        // Nachfolgende Zeilen-Indizes verschieben sich — noch nicht
+        // committierten Freitext verwerfen statt fehlerhaft neu zuzuordnen.
+        setPendingNameInputs({});
         return;
       }
 
@@ -265,6 +280,7 @@ const MealTypeCutoffTimesPage = () => {
       try {
         await database.menuplan.deleteCutoffTime(cutoff.id);
         dispatch({type: ActionType.DELETE_SUCCESS, payload: {index}});
+        setPendingNameInputs({});
       } catch (error) {
         const deleteError =
           error instanceof Error ? error : new Error(String(error));
@@ -285,6 +301,26 @@ const MealTypeCutoffTimesPage = () => {
       dispatch({type: ActionType.UPDATE_CUTOFF, payload: {index, field, value}});
     },
     [],
+  );
+
+  /**
+   * Übernimmt den noch nicht committierten Freitext einer Zeile als neuen
+   * Namen (Chip). Wird bei Leertaste und beim Verlassen des Feldes
+   * aufgerufen — Enter committet bereits nativ über die Autocomplete
+   * (freeSolo).
+   */
+  const commitPendingName = useCallback(
+    (index: number) => {
+      const pending = (pendingNameInputs[index] ?? "").trim();
+      setPendingNameInputs((previous) => ({...previous, [index]: ""}));
+      if (!pending) return;
+
+      const cutoff = state.cutoffs[index];
+      if (cutoff.names.includes(pending)) return;
+
+      handleFieldChange(index, "names", [...cutoff.names, pending]);
+    },
+    [pendingNameInputs, state.cutoffs, handleFieldChange],
   );
 
   /** Snackbar schliessen. */
@@ -339,11 +375,29 @@ const MealTypeCutoffTimesPage = () => {
                           freeSolo
                           options={[]}
                           value={cutoff.names}
+                          inputValue={pendingNameInputs[index] ?? ""}
                           onChange={(_event, newValue) =>
                             handleFieldChange(index, "names", newValue)
                           }
+                          onInputChange={(_event, newInputValue) =>
+                            setPendingNameInputs((previous) => ({
+                              ...previous,
+                              [index]: newInputValue,
+                            }))
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === " ") {
+                              event.preventDefault();
+                              commitPendingName(index);
+                            }
+                          }}
                           renderInput={(params) => (
-                            <TextField {...params} label={TEXT_NAME} size="small" />
+                            <TextField
+                              {...params}
+                              label={TEXT_NAME}
+                              size="small"
+                              onBlur={() => commitPendingName(index)}
+                            />
                           )}
                           size="small"
                         />
