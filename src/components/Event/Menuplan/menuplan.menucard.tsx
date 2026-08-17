@@ -747,8 +747,10 @@ const MenueCard = ({
     setContextMenuAnchorElement(null);
   };
   const onDeleteMenue = () => {
-    if (contextMenuAnchorElement?.id) {
-      onDeleteMenueSuper(contextMenuAnchorElement.id.split("_")[1]);
+    const targetId = contextMenuAnchorElement?.id;
+    setContextMenuAnchorElement(null);
+    if (targetId) {
+      onDeleteMenueSuper(targetId.split("_")[1]);
     }
   };
   const onAddProduct = () => {
@@ -764,6 +766,9 @@ const MenueCard = ({
     setContextMenuAnchorElement(null);
   };
   const onEditNote = async () => {
+    // Kontextmenü sofort schliessen — unabhängig vom Dialog-Roundtrip.
+    setContextMenuAnchorElement(null);
+
     let userInput = {valid: false, input: ""} as SingleTextInputResult;
 
     const existingNote = Object.values(notes).find(
@@ -795,7 +800,6 @@ const MenueCard = ({
         note: note,
       });
     }
-    setContextMenuAnchorElement(null);
   };
   const onMoveElement = (direction: DragAndDropDirections) => {
     if (contextMenuAnchorElement?.id && onMoveDragAndDropElement != undefined) {
@@ -978,9 +982,10 @@ const MenueCard = ({
               </MenuItem>
               {note && (
                 <MenuItem
-                  onClick={() =>
-                    onNoteUpdate({action: Action.DELETE, note: note})
-                  }
+                  onClick={() => {
+                    closeContextMenu();
+                    onNoteUpdate({action: Action.DELETE, note: note});
+                  }}
                 >
                   <ListItemIcon>
                     <DeleteSweepIcon />
