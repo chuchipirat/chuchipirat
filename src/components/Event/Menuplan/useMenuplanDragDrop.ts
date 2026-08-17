@@ -698,7 +698,7 @@ export const useMenuplanDragDrop = ({
               } as DialogSelectMenuesForRecipeDialogValues,
               selectedRecipe: {} as RecipeShort,
               singleSelection: true,
-              caller: onMoveDragAndDropElement.name,
+              caller: "onMoveDragAndDropElement",
               dragAndDropHandler: {
                 listElementUid: itemUid,
                 menuUid: menueUid,
