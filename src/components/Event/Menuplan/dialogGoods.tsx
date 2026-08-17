@@ -63,7 +63,7 @@ import {
   EXPLANATION_DIALOG_GOODS_TYPE_MATERIAL as TEXT_EXPLANATION_DIALOG_GOODS_TYPE_MATERIAL,
   EXPLANATION_DIALOG_GOODS_OPTION_TOTAL as TEXT_EXPLANATION_DIALOG_GOODS_OPTION_TOTAL,
   EXPLANATION_DIALOG_GOODS_OPTION_PER_PORTION as TEXT_EXPLANATION_DIALOG_GOODS_OPTION_PER_PORTION,
-  QUANTITY_MUST_BE_POSITIVE as TEXT_QUANTITY_MUST_BE_POSITIVE,
+  QUANTITY_MUST_NOT_BE_NEGATIVE as TEXT_QUANTITY_MUST_NOT_BE_NEGATIVE,
   QUANTITY_TOO_LARGE as TEXT_QUANTITY_TOO_LARGE,
 } from "../../../constants/text";
 
@@ -372,7 +372,9 @@ export const DialogGoods = ({
    */
   const getQuantityError = (): string => {
     const q = dialogValues.quantity;
-    if (isNaN(q) || q <= 0) return TEXT_QUANTITY_MUST_BE_POSITIVE;
+    // Leere Menge ist gültig (keine Menge angeben ist erlaubt) — nur eine
+    // negative oder ungültige (nicht-numerische) Menge wird blockiert.
+    if (isNaN(q) || q < 0) return TEXT_QUANTITY_MUST_NOT_BE_NEGATIVE;
     if (q > 99999) return TEXT_QUANTITY_TOO_LARGE;
     return "";
   };
@@ -382,9 +384,18 @@ export const DialogGoods = ({
     // Eingabevalidierung: ungültige Mengen abfangen
     if (quantityError) return;
 
+    // dialogValues.quantity kann zur Laufzeit den rohen (leeren) String
+    // des Inputfelds enthalten statt einer Zahl (z.B. nach Löschen der
+    // Eingabe) — vor der Übergabe in eine echte Zahl umwandeln, damit nie
+    // ein leerer String beim Speichern in der numeric-Spalte landet.
+    const parsedQuantity = parseFloat(`${dialogValues.quantity}`);
+    const sanitizedQuantity = Number.isNaN(parsedQuantity)
+      ? 0
+      : parsedQuantity;
+
     onOkSuper({
       planMode: dialogValues.planMode,
-      quantity: dialogValues.quantity,
+      quantity: sanitizedQuantity,
       unit: dialogValues.unit,
       product: dialogValues.product,
       material: dialogValues.material,
@@ -504,12 +515,8 @@ export const DialogGoods = ({
                 type="number"
                 inputProps={{min: 0}}
                 onChange={onChangeField}
-                error={
-                  dialogValues.quantity !== 0 && quantityError !== ""
-                }
-                helperText={
-                  dialogValues.quantity !== 0 ? quantityError : ""
-                }
+                error={quantityError !== ""}
+                helperText={quantityError}
                 fullWidth
               />
             </Grid>
