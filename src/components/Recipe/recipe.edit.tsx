@@ -108,7 +108,10 @@ import * as ROUTES from "../../constants/routes";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
-import type {RecipeDomain, RecipeShortDomain} from "../Database/Repository/RecipeRepository";
+import type {
+  RecipeDomain,
+  RecipeShortDomain,
+} from "../Database/Repository/RecipeRepository";
 import {DialogTagAdd} from "./recipe.view";
 import {Material} from "../Material/material.types";
 import {DialogMaterial} from "../Material/dialogMaterial";
@@ -239,7 +242,10 @@ type DispatchAction =
   | {type: ReducerActions.MATERIALS_FETCH_INIT}
   | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
   | {type: ReducerActions.PUBLIC_RECIPES_FETCH_INIT}
-  | {type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS; payload: RecipeShortDomain[]}
+  | {
+      type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS;
+      payload: RecipeShortDomain[];
+    }
   | {
       type: ReducerActions.SNACKBAR_SHOW;
       payload: {severity: AlertColor; message: string};
@@ -879,7 +885,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Einheiten laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Einheiten laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -900,7 +908,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Produkte laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Produkte laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -921,7 +931,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Abteilungen laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Abteilungen laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -942,7 +954,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Materialien laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Materialien laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -962,7 +976,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Öffentliche Rezepte laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Öffentliche Rezepte laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -1262,7 +1278,9 @@ const RecipeEdit = ({
     try {
       Recipe.checkRecipeData(state.recipe);
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezeptdaten validieren"}});
+      Sentry.captureException(error, {
+        extra: {context: "RecipeEdit – Rezeptdaten validieren"},
+      });
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error as Error,
@@ -1324,9 +1342,10 @@ const RecipeEdit = ({
         savedMaterials,
       );
       if (isNew) {
-        const eventName = result.type === RecipeType.variant
-          ? AnalyticsEvent.RECIPE_VARIANT_CREATED
-          : AnalyticsEvent.RECIPE_CREATED;
+        const eventName =
+          result.type === RecipeType.variant
+            ? AnalyticsEvent.RECIPE_VARIANT_CREATED
+            : AnalyticsEvent.RECIPE_CREATED;
         trackEvent(eventName, {recipeType: result.type});
       }
       if (isNew && result.type !== RecipeType.variant && !isEmbedded) {
@@ -1359,7 +1378,9 @@ const RecipeEdit = ({
         });
       }
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezept speichern"}});
+      Sentry.captureException(error, {
+        extra: {context: "RecipeEdit – Rezept speichern"},
+      });
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
@@ -1532,7 +1553,10 @@ const RecipeEdit = ({
 
         break;
       default:
-        Sentry.captureMessage(`Aktion unbekannt: ${pressedButton[1]}`, {level: "error", extra: {context: "RecipeEdit – onPositionMoreClick"}});
+        Sentry.captureMessage(`Aktion unbekannt: ${pressedButton[1]}`, {
+          level: "error",
+          extra: {context: "RecipeEdit – onPositionMoreClick"},
+        });
     }
 
     dispatch({
@@ -1988,15 +2012,6 @@ const RecipeButtonRow = ({onSave, onCancel}: RecipeButtonRowProps) => {
         key="action_buttons"
         buttons={[
           {
-            id: "save",
-            hero: true,
-            visible: true,
-            label: TEXT.BUTTON_SAVE,
-            variant: "contained",
-            color: "primary",
-            onClick: onSave,
-          },
-          {
             id: "cancel",
             hero: true,
             visible: true,
@@ -2004,6 +2019,15 @@ const RecipeButtonRow = ({onSave, onCancel}: RecipeButtonRowProps) => {
             variant: "outlined",
             color: "primary",
             onClick: onCancel,
+          },
+          {
+            id: "save",
+            hero: true,
+            visible: true,
+            label: TEXT.BUTTON_SAVE,
+            variant: "contained",
+            color: "primary",
+            onClick: onSave,
           },
         ]}
       />
