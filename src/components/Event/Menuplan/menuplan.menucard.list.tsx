@@ -204,6 +204,17 @@ type onListElementClick = (itemUid: string) => void;
 const STYLE_LIST_MIN_HEIGHT: React.CSSProperties = {minHeight: "3em"};
 const STYLE_LIST_ITEM_TEXT: React.CSSProperties = {margin: 0, flex: 1};
 
+/**
+ * Zustand des Platzhalters für eine leere Liste — zeigt beim Drüberziehen
+ * eines kompatiblen Elements einen Schatten an, da eine leere Liste keine
+ * eigenen Listeneinträge (und damit keine eigene Drop-Zone mit Schatten)
+ * besitzt.
+ */
+type TEmptyListDragState =
+  | {type: "idle"}
+  | {type: "is-over"; dragging: DOMRect};
+const emptyListDragStateIdle = {type: "idle"} satisfies TEmptyListDragState;
+
 interface MenucardListProps {
   menue: Menue;
   mealRecipes?: MealRecipes;
@@ -237,6 +248,8 @@ export const MenueCardList = memo(function MenueCardList({
 
   const theme = useTheme();
   const listRef = useRef<HTMLDivElement | null>(null);
+  const [emptyListDragState, setEmptyListDragState] =
+    useState<TEmptyListDragState>(emptyListDragStateIdle);
   // Ref für stabile Zugriffe in Drag-&-Drop-Callbacks
   const menueRef = useRef(menue);
   menueRef.current = menue;
@@ -410,6 +423,45 @@ export const MenueCardList = memo(function MenueCardList({
           listType: listType,
           isEmpty: menueRef.current[memberName].length === 0,
         }),
+      // Platzhalter nur anzeigen, wenn die Liste tatsächlich leer ist —
+      // dieser Container ist ein Vorfahre jedes einzelnen Listeneintrags
+      // und erhält daher onDragEnter/onDrag auch beim Hover über einen
+      // vorhandenen Eintrag. Ohne diese Prüfung würde bei einer nicht
+      // leeren Liste zusätzlich zum Eintrags-Schatten ein zweiter,
+      // falscher Platzhalter erscheinen.
+      onDragEnter({source}) {
+        if (!isCardListData(source.data)) return;
+        if (menueRef.current[memberName].length !== 0) return;
+        setEmptyListDragState({type: "is-over", dragging: source.data.rect});
+      },
+      onDrag({source}) {
+        if (!isCardListData(source.data)) return;
+        if (menueRef.current[memberName].length !== 0) {
+          setEmptyListDragState((current) =>
+            current.type === "idle" ? current : emptyListDragStateIdle
+          );
+          return;
+        }
+        setEmptyListDragState((current) => {
+          const proposed: TEmptyListDragState = {
+            type: "is-over",
+            dragging: source.data.rect as DOMRect,
+          };
+          if (
+            current.type === "is-over" &&
+            isShallowEqual(proposed, current)
+          ) {
+            return current;
+          }
+          return proposed;
+        });
+      },
+      onDragLeave() {
+        setEmptyListDragState(emptyListDragStateIdle);
+      },
+      onDrop() {
+        setEmptyListDragState(emptyListDragStateIdle);
+      },
     });
   }, [listType, memberName, menuplanSettings.enableDragAndDrop]);
 
@@ -421,6 +473,10 @@ export const MenueCardList = memo(function MenueCardList({
           key={"menuplanlist_" + listType + "_" + menue.uid}
           style={STYLE_LIST_MIN_HEIGHT}
         >
+          {menue[memberName].length === 0 &&
+          emptyListDragState.type === "is-over" ? (
+            <ListEntryShadow dragging={emptyListDragState.dragging} />
+          ) : null}
           {menue[memberName].map((uid: string, index) => {
             // Kein Rendering, solange Daten noch nicht verfügbar
             if (
@@ -801,7 +857,7 @@ const MenuCardListItem = memo(function MenuCardListItem({
  * ausgeführt wird.
  * @returns JSX
  */
-const ListEntryShadow = ({dragging}: {dragging: DOMRect}) => {
+export const ListEntryShadow = ({dragging}: {dragging: DOMRect}) => {
   const classes = useCustomStyles();
   return (
     <ListItem
