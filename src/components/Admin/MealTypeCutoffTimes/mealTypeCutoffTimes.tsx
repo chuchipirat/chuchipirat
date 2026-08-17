@@ -44,6 +44,7 @@ import {useCustomStyles} from "../../../constants/styles";
 import {useAuthUser} from "../../Session/authUserContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {MealTypeCutoffDomain} from "../../Database/Repository/MenuplanRepository";
+import {POSTGRES_INT4_MAX} from "../../../constants/defaultValues";
 
 import {
   MEAL_TYPE_CUTOFF_TIMES_ADMIN as TEXT_TITLE,
@@ -62,6 +63,21 @@ import {
 
 /** Prüft, ob eine Zeitangabe dem Format "HH:MM" (24h) entspricht. */
 const CUTOFF_TIME_PATTERN = /^([01][0-9]|2[0-3]):[0-5][0-9]$/;
+
+/**
+ * Parst die Reihenfolge-Eingabe und kappt sie auf einen gültigen Bereich.
+ * Negative Zahlen und nicht parsebare Eingaben werden zu 0, zu grosse
+ * Zahlen auf den Postgres-integer-Maximalwert gekappt (die Spalte
+ * `meal_type_cutoff_times.sort_order` ist vom Typ `integer`).
+ *
+ * @param rawValue - Roher Eingabewert aus dem Zahlenfeld.
+ * @returns Gültige, gekappte Sortierreihenfolge.
+ */
+function clampSortOrder(rawValue: string): number {
+  const parsed = parseInt(rawValue, 10);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.min(POSTGRES_INT4_MAX, Math.max(0, parsed));
+}
 
 /* ===================================================================
 // Reducer
@@ -431,7 +447,7 @@ const MealTypeCutoffTimesPage = () => {
                             handleFieldChange(
                               index,
                               "sortOrder",
-                              parseInt(event.target.value || "0", 10),
+                              clampSortOrder(event.target.value),
                             )
                           }
                           type="number"

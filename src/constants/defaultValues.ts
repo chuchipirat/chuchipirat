@@ -15,6 +15,21 @@ export const RECIPE_DISPLAY = 6;
 export const COMMENT_DISPLAY = 3;
 export const RECIPES_SEARCH = 12;
 
+/**
+ * Grösster Wert, der in einer Postgres-`integer`-Spalte (int4) gespeichert
+ * werden kann. Eingaben für solche Spalten müssen clientseitig auf diesen
+ * Wert gekappt werden, da grössere Werte sonst zu einem DB-Fehler
+ * ("out of range for type integer") führen.
+ */
+export const POSTGRES_INT4_MAX = 2147483647;
+
+/**
+ * Grösster Wert, der in einer Postgres-`numeric(12,4)`-Spalte gespeichert
+ * werden kann (z.B. `recipe_ingredients.quantity`, `recipe_materials.quantity`).
+ * 12 Gesamtstellen, 4 davon nach dem Komma → max. 8 Stellen vor dem Komma.
+ */
+export const POSTGRES_NUMERIC_12_4_MAX = 99999999.9999;
+
 export const MENUPLAN_MEALS = [
   {name: "Zmorgen", uid: ""},
   {name: "Zmittag", uid: ""},

@@ -222,7 +222,7 @@ export const FIREBASE_MESSAGES = {
 // Supabase-Fehlermeldungen (englische Originalmeldungen → Deutsch)
 // ===================================================================== */
 /**
- * Übersetzungstabelle für Supabase Auth-Fehlermeldungen.
+ * Übersetzungstabelle für Supabase-Fehlermeldungen (Auth und Postgres/PostgREST).
  * Schlüssel ist die originale englische Meldung (error.message),
  * Wert die deutsche Übersetzung.
  */
@@ -237,6 +237,9 @@ export const SUPABASE_MESSAGES: Record<string, string> = {
   // "For security purposes, you can only request this after X seconds."
   // → Wird pattern-basiert in SupabaseMessageHandler übersetzt (variable Sekundenanzahl)
   "Email not confirmed": "E-Mail-Adresse noch nicht bestätigt.",
+  // Postgres-Fehler bei Überlauf einer numeric(p,s)-Spalte
+  "numeric field overflow":
+    "Die eingegebene Zahl ist zu gross für dieses Feld. Bitte gib einen kleineren Wert ein.",
 };
 
 /* =====================================================================

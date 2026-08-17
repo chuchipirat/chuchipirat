@@ -52,6 +52,58 @@ import {
   SAVE as TEXT_SAVE,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
 } from "../../../constants/text";
+import {POSTGRES_INT4_MAX} from "../../../constants/defaultValues";
+
+/** Sinnvoller Jahresbereich für Spendenziel-Abschnitte. */
+const DONATION_GOAL_YEAR_MIN = 2000;
+const DONATION_GOAL_YEAR_MAX = 2100;
+
+/**
+ * Parst und kappt eine Betrags-Eingabe (CHF) auf einen gültigen Bereich in
+ * Rappen. Negative Beträge werden zu 0, zu grosse Beträge auf den
+ * Postgres-integer-Maximalwert gekappt (die Spalte
+ * `donation_goal_sections.target_cents` ist vom Typ `integer`).
+ *
+ * @param rawValue - Roher CHF-Eingabewert aus dem Zahlenfeld.
+ * @returns Gültiger, gekappter Betrag in Rappen.
+ */
+function clampTargetCents(rawValue: string): number {
+  const parsed = Math.round(parseFloat(rawValue || "0") * 100);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.min(POSTGRES_INT4_MAX, Math.max(0, parsed));
+}
+
+/**
+ * Parst und kappt eine Reihenfolge-Eingabe auf einen gültigen Bereich.
+ * Negative und nicht parsebare Eingaben werden zu 0, zu grosse Zahlen auf
+ * den Postgres-integer-Maximalwert gekappt.
+ *
+ * @param rawValue - Roher Eingabewert aus dem Zahlenfeld.
+ * @returns Gültige, gekappte Sortierreihenfolge.
+ */
+function clampSortOrder(rawValue: string): number {
+  const parsed = parseInt(rawValue, 10);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.min(POSTGRES_INT4_MAX, Math.max(0, parsed));
+}
+
+/**
+ * Parst und kappt eine Jahres-Eingabe auf einen plausiblen Bereich
+ * (2000–2100). Verhindert sowohl fachlich sinnlose Jahre als auch einen
+ * Postgres-integer-Überlauf.
+ *
+ * @param rawValue - Roher Eingabewert aus dem Zahlenfeld.
+ * @param fallback - Rückfallwert bei nicht parsebarer Eingabe.
+ * @returns Gültiges, gekapptes Jahr.
+ */
+function clampYear(rawValue: string, fallback: number): number {
+  const parsed = parseInt(rawValue, 10);
+  if (Number.isNaN(parsed)) return fallback;
+  return Math.min(
+    DONATION_GOAL_YEAR_MAX,
+    Math.max(DONATION_GOAL_YEAR_MIN, parsed),
+  );
+}
 
 /* ===================================================================
 // Reducer
@@ -328,10 +380,11 @@ const DonationGoalsPage = () => {
                         label={TEXT_TARGET}
                         value={(section.targetCents / 100).toFixed(2)}
                         onChange={(event) => {
-                          const cents = Math.round(
-                            parseFloat(event.target.value || "0") * 100,
+                          handleFieldChange(
+                            index,
+                            "targetCents",
+                            clampTargetCents(event.target.value),
                           );
-                          handleFieldChange(index, "targetCents", cents);
                         }}
                         type="number"
                         slotProps={{htmlInput: {min: 0.01, step: 0.01}}}
@@ -347,7 +400,7 @@ const DonationGoalsPage = () => {
                           handleFieldChange(
                             index,
                             "sortOrder",
-                            parseInt(event.target.value || "0", 10),
+                            clampSortOrder(event.target.value),
                           )
                         }
                         type="number"
@@ -364,10 +417,16 @@ const DonationGoalsPage = () => {
                           handleFieldChange(
                             index,
                             "year",
-                            parseInt(event.target.value || "2026", 10),
+                            clampYear(event.target.value, section.year),
                           )
                         }
                         type="number"
+                        slotProps={{
+                          htmlInput: {
+                            min: DONATION_GOAL_YEAR_MIN,
+                            max: DONATION_GOAL_YEAR_MAX,
+                          },
+                        }}
                         fullWidth
                         size="small"
                       />

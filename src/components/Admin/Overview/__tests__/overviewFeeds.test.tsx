@@ -10,7 +10,7 @@
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
-import {render, screen, waitFor, within} from "@testing-library/react";
+import {render, screen, waitFor, within, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
@@ -363,6 +363,36 @@ test("13 – Massenlöschung ruft deleteFeedsByAge auf", async () => {
   await waitFor(() => {
     expect(mockDeleteFeedsByAge).toHaveBeenCalledWith(180);
   });
+});
+
+test("13b – kappt eine negativ eingegebene Tagesanzahl auf den Mindestwert (100)", async () => {
+  renderPage();
+  await screen.findByText("Anna Koch");
+
+  const deleteTab = screen.getByRole("tab", {name: /löschen/i});
+  await userEvent.click(deleteTab);
+
+  const daysInput = screen.getByLabelText(
+    /feeds löschen, die älter sind als/i,
+  ) as HTMLInputElement;
+  fireEvent.change(daysInput, {target: {value: "-5"}});
+
+  expect(daysInput.value).toBe("100");
+});
+
+test("13c – kappt eine absurd grosse Tagesanzahl auf den Maximalwert (3650)", async () => {
+  renderPage();
+  await screen.findByText("Anna Koch");
+
+  const deleteTab = screen.getByRole("tab", {name: /löschen/i});
+  await userEvent.click(deleteTab);
+
+  const daysInput = screen.getByLabelText(
+    /feeds löschen, die älter sind als/i,
+  ) as HTMLInputElement;
+  fireEvent.change(daysInput, {target: {value: "99999999999"}});
+
+  expect(daysInput.value).toBe("3650");
 });
 
 /* ------------------------------------------

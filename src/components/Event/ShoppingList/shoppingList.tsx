@@ -106,7 +106,10 @@ import {
   ListMode,
 } from "../Event/eventSharedComponents";
 import {Material} from "../../Material/material.types";
-import {TextFieldSize} from "../../../constants/defaultValues";
+import {
+  TextFieldSize,
+  POSTGRES_NUMERIC_12_4_MAX,
+} from "../../../constants/defaultValues";
 import {DialogSelectDepartments} from "./dialogSelectDepartments";
 
 import {useEventMasterData} from "../Event/eventMasterDataContext";
@@ -662,7 +665,9 @@ const QuantityField = React.memo(
         label={TEXT_FIELD_QUANTITY}
         type="number"
         inputProps={{min: 0, inputMode: "decimal"}}
-        onChange={(event) => setLocalValue(event.target.value)}
+        onChange={(event) =>
+          setLocalValue(sanitizeQuantityInput(event.target.value))
+        }
         onBlur={handleBlur}
         fullWidth
         size="small"
@@ -1049,6 +1054,24 @@ interface DialogValues {
   unit: Unit["key"];
   item: ProductItem | MaterialItem | null;
 }
+/**
+ * Bereinigt eine Mengen-Eingabe: entfernt ein führendes Minuszeichen
+ * (negative Mengen sind nicht zulässig) und kappt den Wert nach oben,
+ * sobald er vollständig parsebar ist. Zwischenzustände beim Tippen von
+ * Dezimalzahlen (z.B. "2.") bleiben dabei unangetastet.
+ *
+ * @param rawValue - Roher Eingabewert aus dem Zahlenfeld.
+ * @returns Bereinigter Eingabewert als String.
+ */
+function sanitizeQuantityInput(rawValue: string): string {
+  const withoutMinus = rawValue.startsWith("-") ? rawValue.slice(1) : rawValue;
+  const parsed = parseFloat(withoutMinus);
+  if (!Number.isNaN(parsed) && parsed > POSTGRES_NUMERIC_12_4_MAX) {
+    return String(POSTGRES_NUMERIC_12_4_MAX);
+  }
+  return withoutMinus;
+}
+
 const DIALOG_VALUES_INITIAL_STATE: DialogValues = {
   quantity: "",
   unit: "",
@@ -1145,7 +1168,7 @@ const DialogHandleItem = ({
   const onQuantityChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setDialogValues({
       ...dialogValues,
-      quantity: event.target.value,
+      quantity: sanitizeQuantityInput(event.target.value),
     });
   };
   const onUnitChange = (
@@ -1169,9 +1192,10 @@ const DialogHandleItem = ({
       });
       return;
     }
+    const parsedQuantity = parseFloat(dialogValues.quantity);
     handleOkSuper({
       item: dialogValues.item,
-      quantity: parseFloat(dialogValues.quantity),
+      quantity: Number.isNaN(parsedQuantity) ? 0 : parsedQuantity,
       unit: dialogValues.unit,
     });
     setDialogValues(DIALOG_VALUES_INITIAL_STATE);
@@ -1307,4 +1331,4 @@ const DialogHandleItem = ({
   );
 };
 
-export {EventShoppingListPage};
+export {EventShoppingListPage, sanitizeQuantityInput};

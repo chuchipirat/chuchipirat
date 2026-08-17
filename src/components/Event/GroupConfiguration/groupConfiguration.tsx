@@ -76,6 +76,7 @@ import {
 } from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
 import {useDatabase} from "../../Database/DatabaseContext";
+import {POSTGRES_INT4_MAX} from "../../../constants/defaultValues";
 // Bridge-Import eliminiert — Konvertierung erfolgt direkt im Repository
 /** Alle verfügbaren Aktionstypen für den Gruppen-Konfiguration-Reducer. */
 enum ReducerActions {
@@ -348,11 +349,15 @@ const EventGroupConfigurationPage = ({
     const changedDiet = changedField[1];
     const changedIntolerance = changedField[2];
 
-    updatedGroupConfig.portions[changedDiet][changedIntolerance] = Number.isNaN(
-      parseInt(event.target.value)
-    )
-      ? 0
-      : parseInt(event.target.value);
+    const parsedValue = parseInt(event.target.value);
+    // Negative Portionenzahlen sind fachlich nicht zulässig — auf 0 kappen.
+    // Nach oben auf den Postgres-integer-Maximalwert kappen, da die Spalte
+    // `event_groupconfiguration_portions.servings` vom Typ `integer` ist —
+    // grössere Werte würden sonst zu einem DB-Fehler führen.
+    updatedGroupConfig.portions[changedDiet][changedIntolerance] =
+      Number.isNaN(parsedValue)
+        ? 0
+        : Math.min(POSTGRES_INT4_MAX, Math.max(0, parsedValue));
 
     updatedGroupConfig = EventGroupConfiguration.calculateTotals({
       groupConfig: updatedGroupConfig,
@@ -870,6 +875,7 @@ const EventGroupConfigDietColumn = ({
                   id={"portions_" + dietUid + "_" + intoleranceUid}
                   label={TEXT_PORTIONS}
                   variant="outlined"
+                  type="number"
                   size="small"
                   fullWidth
                   InputProps={{

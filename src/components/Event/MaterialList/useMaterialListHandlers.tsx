@@ -636,7 +636,10 @@ export function useMaterialListHandlers({
 
       switch (change.source) {
         case "textfield": {
-          item.quantity = parseFloat(change.value);
+          const parsedQuantity = parseFloat(change.value);
+          item.quantity = Number.isNaN(parsedQuantity)
+            ? 0
+            : Math.max(0, parsedQuantity);
           if (isNewItem) {
             items.push(item);
           } else {

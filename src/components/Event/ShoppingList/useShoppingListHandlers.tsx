@@ -1495,12 +1495,16 @@ const useShoppingListHandlers = ({
       }
 
       switch (change.source) {
-        case "textfield":
-          item.quantity = parseFloat(change.value);
+        case "textfield": {
+          const parsedQuantity = parseFloat(change.value);
+          item.quantity = Number.isNaN(parsedQuantity)
+            ? 0
+            : Math.max(0, parsedQuantity);
           if (newItem) {
             shoppingList.list[parseInt(field[1])].items.push(item);
           }
           break;
+        }
 
         case "autocompleteItem":
           if (change.reason === "clear") {

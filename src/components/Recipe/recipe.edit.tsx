@@ -154,7 +154,10 @@ import {
   NavigationValuesContext,
   NavigationObject,
 } from "../Navigation/navigationContext";
-import {HELPCENTER_URL} from "../../constants/defaultValues";
+import {
+  HELPCENTER_URL,
+  POSTGRES_NUMERIC_12_4_MAX,
+} from "../../constants/defaultValues";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -707,6 +710,20 @@ function isItemData<T>(
 ): data is ItemData<T> {
   return data[itemKey] === true;
 }
+/**
+ * Parst und kappt eine Mengen-Eingabe (Zutat/Material) auf einen gültigen
+ * Bereich. Negative und nicht parsebare Eingaben werden zu 0, zu grosse
+ * Werte auf den Maximalwert einer Postgres-`numeric(12,4)`-Spalte gekappt
+ * (`recipe_ingredients.quantity` bzw. `recipe_materials.quantity`).
+ *
+ * @param rawValue - Roher Eingabewert aus dem Zahlenfeld.
+ * @returns Gültige, gekappte Menge.
+ */
+function clampQuantity(rawValue: string): number {
+  const parsed = parseFloat(rawValue);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.min(POSTGRES_NUMERIC_12_4_MAX, Math.max(0, parsed));
+}
 function getItemRegistry() {
   const registry = new Map<string, HTMLElement>();
 
@@ -1089,7 +1106,7 @@ const RecipeEdit = ({
     const fieldName = ingredientPos[0];
     const ingredientUid = ingredientPos[1];
 
-    let value: string | IngredientProduct;
+    let value: string | number | IngredientProduct;
     if (
       (action === "selectOption" || action === "blur") &&
       objectId?.startsWith("product_") &&
@@ -1134,6 +1151,8 @@ const RecipeEdit = ({
       } else {
         value = {uid: product.uid, name: product.name};
       }
+    } else if (fieldName === "quantity") {
+      value = clampQuantity(event?.target.value ?? "");
     } else {
       value = event?.target.value as string;
     }
@@ -1178,7 +1197,7 @@ const RecipeEdit = ({
 
     const fieldName = materialPos[0];
     const materialUid = materialPos[1];
-    let value: string | RecipeProduct;
+    let value: string | number | RecipeProduct;
 
     if (
       (action === "selectOption" || action === "blur") &&
@@ -1216,6 +1235,8 @@ const RecipeEdit = ({
       } else {
         value = {uid: material.uid, name: material.name};
       }
+    } else if (fieldName === "quantity") {
+      value = clampQuantity(event?.target.value ?? "");
     } else {
       value = event?.target.value as string;
     }
@@ -3647,4 +3668,4 @@ const RecipeVariantNote = ({recipe, onChange}: RecipeVariantNoteProps) => {
     </React.Fragment>
   );
 };
-export {RecipeEdit};
+export {RecipeEdit, clampQuantity};

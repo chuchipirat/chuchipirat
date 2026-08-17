@@ -760,6 +760,15 @@ interface DeleteFeedsPanelProps {
  * @param props.feedCount Gesamtanzahl der Feed-Einträge.
  * @param props.onDelete Callback mit der Anzahl Tage als Parameter.
  */
+/**
+ * Zulässiger Bereich (Tage) für die Lösch-Grenze. Ein zu kleiner Wert
+ * (insbesondere ein negativer) würde sonst versehentlich sämtliche
+ * Feed-Einträge löschen; ein absurd grosser Wert könnte zu einem
+ * ungültigen Datum in der Löschabfrage führen.
+ */
+const DAYS_OFFSET_MIN = 100;
+const DAYS_OFFSET_MAX = 3650;
+
 const DeleteFeedsPanel = ({
   isDeleting,
   feedCount,
@@ -771,15 +780,19 @@ const DeleteFeedsPanel = ({
   const [daysOffset, setDaysOffset] = React.useState(180);
 
   /**
-   * Aktualisiert den Tages-Offset. Ignoriert ungültige (NaN) Eingaben.
+   * Aktualisiert den Tages-Offset. Ungültige (NaN) Eingaben werden auf den
+   * Mindestwert, ausserhalb des gültigen Bereichs liegende Eingaben auf den
+   * jeweiligen Grenzwert gekappt.
    *
    * @param event Änderungs-Event des Eingabefeldes.
    */
   const onChangeDayOffset = (event: React.ChangeEvent<HTMLInputElement>) => {
     const parsed = parseInt(event.target.value, 10);
-    if (!isNaN(parsed)) {
-      setDaysOffset(parsed);
-    }
+    setDaysOffset(
+      Number.isNaN(parsed)
+        ? DAYS_OFFSET_MIN
+        : Math.min(DAYS_OFFSET_MAX, Math.max(DAYS_OFFSET_MIN, parsed)),
+    );
   };
 
   return (
@@ -797,7 +810,9 @@ const DeleteFeedsPanel = ({
           id={"daysOffset"}
           key={"daysOffset"}
           type="number"
-          InputProps={{inputProps: {min: 100}}}
+          InputProps={{
+            inputProps: {min: DAYS_OFFSET_MIN, max: DAYS_OFFSET_MAX},
+          }}
           label={TEXT_DELETE_FEEDS_OLDER_THAN}
           name={"daysOffset"}
           required

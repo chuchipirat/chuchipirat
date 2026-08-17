@@ -10,7 +10,7 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen, waitFor} from "@testing-library/react";
+import {render, screen, waitFor, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
@@ -147,6 +147,38 @@ describe("MealTypeCutoffTimesPage", () => {
           names: ["Zmittag", "Mittagessen", "Frühstück"],
         }),
       );
+    });
+  });
+
+  describe("Reihenfolge-Feld — Kappung ungültiger Werte", () => {
+    test("kappt eine negativ eingegebene Reihenfolge auf 0", async () => {
+      renderPage();
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("1")).toBeInTheDocument();
+      });
+
+      const sortOrderInput = screen.getByLabelText(
+        "Reihenfolge",
+      ) as HTMLInputElement;
+      fireEvent.change(sortOrderInput, {target: {value: "-3"}});
+
+      expect(sortOrderInput.value).toBe("0");
+    });
+
+    test("kappt eine zu grosse Reihenfolge auf den Postgres-integer-Maximalwert", async () => {
+      renderPage();
+
+      await waitFor(() => {
+        expect(screen.getByDisplayValue("1")).toBeInTheDocument();
+      });
+
+      const sortOrderInput = screen.getByLabelText(
+        "Reihenfolge",
+      ) as HTMLInputElement;
+      fireEvent.change(sortOrderInput, {target: {value: "99999999999"}});
+
+      expect(sortOrderInput.value).toBe("2147483647");
     });
   });
 });

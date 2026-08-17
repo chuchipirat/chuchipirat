@@ -678,6 +678,15 @@ interface DeleteMailsPanelProps {
  * @param isDeleting Ob gerade ein Löschvorgang läuft.
  * @param onDelete Callback mit der Anzahl Tage als Offset.
  */
+/**
+ * Zulässiger Bereich (Tage) für die Lösch-Grenze. Ein zu kleiner Wert
+ * (insbesondere ein negativer) würde sonst versehentlich sämtliche
+ * Protokolle löschen; ein absurd grosser Wert könnte zu einem ungültigen
+ * Datum in der Löschabfrage führen.
+ */
+const DAYS_OFFSET_MIN = 100;
+const DAYS_OFFSET_MAX = 3650;
+
 const DeleteMailsPanel = ({isDeleting, onDelete}: DeleteMailsPanelProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
@@ -685,7 +694,12 @@ const DeleteMailsPanel = ({isDeleting, onDelete}: DeleteMailsPanelProps) => {
   const [daysOffset, setDaysOffset] = React.useState(180);
 
   const onChangeDayOffset = (event: React.ChangeEvent<HTMLInputElement>) => {
-    setDaysOffset(parseInt(event.target.value));
+    const parsed = parseInt(event.target.value, 10);
+    setDaysOffset(
+      Number.isNaN(parsed)
+        ? DAYS_OFFSET_MIN
+        : Math.min(DAYS_OFFSET_MAX, Math.max(DAYS_OFFSET_MIN, parsed)),
+    );
   };
 
   return (
@@ -699,7 +713,9 @@ const DeleteMailsPanel = ({isDeleting, onDelete}: DeleteMailsPanelProps) => {
           id={"daysOffset"}
           key={"daysOffset"}
           type="number"
-          InputProps={{inputProps: {min: 100}}}
+          InputProps={{
+            inputProps: {min: DAYS_OFFSET_MIN, max: DAYS_OFFSET_MAX},
+          }}
           label={TEXT_DELETE_MAIL_PROTOCOLS_OLDER_THAN}
           name={"daysOffset"}
           required
