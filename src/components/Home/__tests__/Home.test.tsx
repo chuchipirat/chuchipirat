@@ -73,7 +73,7 @@ jest.mock("../../../constants/imageRepository", () => ({
 }));
 
 /** Mock: NavigationValuesContext */
-jest.mock("../../Navigation/NavigationContext", () => ({
+jest.mock("../../Navigation/navigationContext", () => ({
   NavigationValuesContext: React.createContext({
     setNavigationValues: jest.fn(),
   }),
