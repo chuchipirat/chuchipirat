@@ -206,6 +206,16 @@ jobs:
           target: "/opt/chuchipirat/test/app/html/"
           strip_components: 1
 
+      - name: Copy Docker Compose file for App to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "infra/app/docker-compose.yml"
+          target: "/tmp/chuchipirat-deploy/"
+          strip_components: 2
+
       - name: Copy nginx config to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -216,26 +226,23 @@ jobs:
           target: "/tmp/chuchipirat-deploy/"
           strip_components: 2
 
-      - name: Move nginx config to app directory
+      - name: Deploy App Container
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
+            cp /tmp/chuchipirat-deploy/docker-compose.yml /opt/chuchipirat/test/app/docker-compose.yml
             cp /tmp/chuchipirat-deploy/nginx.conf /opt/chuchipirat/test/app/nginx.conf
             rm -rf /tmp/chuchipirat-deploy/
-            docker restart chuchipirat-app-test
-            sleep 3
-            docker ps | grep chuchipirat-app-test
-
-      - name: Restart App Container
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
+            # "docker compose up" erstellt den App-Container, falls er (z.B. beim
+            # allerersten Deploy oder nach manuellem Entfernen) noch nicht
+            # existiert - bei einem bereits laufenden, unveränderten Container
+            # ist es ein No-Op. Der anschliessende restart sorgt dafür, dass
+            # nginx die neu kopierten Bind-Mount-Dateien (html/, nginx.conf)
+            # einliest.
+            cd /opt/chuchipirat/test/app && docker compose up -d
             docker restart chuchipirat-app-test
             sleep 3
             docker ps | grep chuchipirat-app-test
