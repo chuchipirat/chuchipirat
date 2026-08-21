@@ -186,6 +186,20 @@ services:
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}
 
+      # Header zur Client-Identifikation für GoTrues eingebaute Rate-Limits
+      # (z.B. RATE_LIMIT_EMAIL_SENT, RATE_LIMIT_OTP — siehe GoTrue-Dokumentation).
+      # CF-Connecting-IP statt X-Forwarded-For: die Domain läuft hinter Cloudflare
+      # (Client -> Cloudflare -> Kong -> auth). X-Forwarded-For wird von jedem Hop
+      # ergänzt und kann sich je nach Cloudflare-Edge-Knoten pro Request unterscheiden,
+      # wodurch derselbe Client nie denselben Zähler-Key träfe. CF-Connecting-IP
+      # enthält garantiert nur die eine echte Client-IP.
+      #
+      # Brute-Force-Schutz für Login (/auth/v1/token) läuft NICHT über GoTrue-Config —
+      # GoTrue hat dafür keinen dokumentierten, konfigurierbaren Rate-Limiter (siehe
+      # https://github.com/supabase/auth/issues/2333). Stattdessen: Cloudflare Rate
+      # Limiting Rule auf /auth/v1/token (siehe SC-015 Testfall).
+      GOTRUE_RATE_LIMIT_HEADER: CF-Connecting-IP
+
       # Uncomment to enable OAuth / social login providers.
       # GOTRUE_EXTERNAL_GOOGLE_ENABLED: ${GOOGLE_ENABLED}
       # GOTRUE_EXTERNAL_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
@@ -295,6 +309,14 @@ services:
     container_name: realtime-dev.supabase-realtime-test
     image: supabase/realtime:v2.102.3
     restart: unless-stopped
+    networks:
+      default:
+        aliases:
+          # Realtime parses the tenant id from the Host header's first label
+          # (seeded tenant is "realtime-dev", see healthcheck below). Kong
+          # connects via this alias so the Host header it forwards matches —
+          # "realtime" alone would resolve fine but send the wrong tenant id.
+          - realtime-dev
     depends_on:
       db:
         # Disable this if you are using an external Postgres database
@@ -469,6 +491,25 @@ services:
       SUPABASE_DB_URL: postgresql://postgres:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/${POSTGRES_DB}
       # TODO: Allow configuring VERIFY_JWT per function.
       VERIFY_JWT: "${FUNCTIONS_VERIFY_JWT}"
+      BREVO_API_KEY: ${BREVO_API_KEY}
+      MAILPIT_HOST: ${MAILPIT_HOST}
+      MAILPIT_PORT: ${MAILPIT_PORT}
+      SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
+      EMAIL_SUBJECT_PREFIX: ${EMAIL_SUBJECT_PREFIX}
+      SITE_URL: ${SITE_URL}
+      SMTP_HOST: ${FUNCTIONS_SMTP_HOST}
+      SMTP_PORT: ${FUNCTIONS_SMTP_PORT}
+      SMTP_USER: ${FUNCTIONS_SMTP_USER}
+      SMTP_PASS: ${FUNCTIONS_SMTP_PASS}
+      SUPPORT_USER_ID: ${SUPPORT_USER_ID}
+      SENTRY_DSN: ${SENTRY_DSN}
+      PAYMENT_API_BASE_URL: ${PAYMENT_API_BASE_URL}
+      PAYMENT_INSTANCE: ${PAYMENT_INSTANCE}
+      PAYMENT_API_SECRET: ${PAYMENT_API_SECRET}
+      PAYMENT_WEBHOOK_SIGNING_KEY: ${PAYMENT_WEBHOOK_SIGNING_KEY}
+      VESTABOARD_READ_WRITE_KEY: ${VESTABOARD_READ_WRITE_KEY}
+      UMAMI_HOST: ${UMAMI_HOST}
+      UMAMI_WEBSITE_ID: ${UMAMI_WEBSITE_ID}
     command:
       [
         "start",
@@ -587,12 +628,25 @@ services:
       ]
 
 
+  mailpit:
+    container_name: supabase-mail-test
+    image: axllent/mailpit:latest
+    restart: unless-stopped
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+    environment:
+      MP_MAX_MESSAGES: 5000
+      MP_SMTP_AUTH_ACCEPT_ANY: 1
+      MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
   mail-templates:
     container_name: supabase-mail-templates-test
     image: nginx:alpine
     restart: unless-stopped
     volumes:
       - ./volumes/auth/templates:/usr/share/nginx/html:ro
+
 
 volumes:
   db-config:

@@ -12,10 +12,9 @@ export const AnalyticsEvent = {
 
   // ── Rezepte ──
   RECIPE_CREATED: "recipe_created",
+  RECIPE_DELETED: "recipe_deleted",
   RECIPE_VARIANT_CREATED: "recipe_variant_created",
   RECIPE_SCALED: "recipe_scaled",
-  RECIPE_SEARCH: "recipe_search",
-  RECIPE_DRAWER_SEARCH: "recipe_drawer_search",
   RECIPE_FILTER_APPLIED: "recipe_filter_applied",
   RECIPE_COMMENT_CREATED: "recipe_comment_created",
   RECIPE_RATING_SET: "recipe_rating_set",
@@ -32,7 +31,18 @@ export const AnalyticsEvent = {
   // ── Menuplan ──
   MENUPLAN_CREATED: "menuplan_created",
   MENUPLAN_RECIPE_ADDED: "menuplan_recipe_added",
+  MENUPLAN_RECIPE_PORTIONS_EDITED: "menuplan_recipe_portions_edited",
+  MENUPLAN_RECIPE_REMOVED: "menuplan_recipe_removed",
   MENUPLAN_RECIPE_MOVED: "menuplan_recipe_moved",
+  MENUPLAN_PRODUCT_ADDED: "menuplan_product_added",
+  MENUPLAN_PRODUCT_PLAN_EDITED: "menuplan_product_plan_edited",
+  MENUPLAN_PRODUCT_REMOVED: "menuplan_product_removed",
+  MENUPLAN_MATERIAL_ADDED: "menuplan_material_added",
+  MENUPLAN_MATERIAL_PLAN_EDITED: "menuplan_material_plan_edited",
+  MENUPLAN_MATERIAL_REMOVED: "menuplan_material_removed",
+  MENUPLAN_MEAL_TYPE_ADDED: "menuplan_meal_type_added",
+  MENUPLAN_MEAL_TYPE_EDITED: "menuplan_meal_type_edited",
+  MENUPLAN_MEAL_TYPE_DELETED: "menuplan_meal_type_deleted",
   MENUPLAN_CONSISTENCY_ERRORS: "menuplan_consistency_errors",
   MENUPLAN_CONSISTENCY_OK: "menuplan_consistency_ok",
 
@@ -49,7 +59,10 @@ export const AnalyticsEvent = {
 
   // ── Masterdata ──
   PRODUCT_CREATED: "product_created",
+  PRODUCT_DELETED: "product_deleted",
   MATERIAL_CREATED: "material_created",
+  MATERIAL_DELETED: "material_deleted",
+  UNIT_DELETED: "unit_deleted",
 
   // ── Medien ──
   PICTURE_UPLOADED: "picture_uploaded",
@@ -65,10 +78,17 @@ export const AnalyticsEvent = {
   DONATION_AMOUNT_CHANGED: "donation_amount_changed",
   DONATION_MESSAGE_ADDED: "donation_message_added",
   DONATION_COMPLETED: "donation_completed",
+  DONATION_CANCELLED: "donation_cancelled",
   DONATION_RECEIPT_DOWNLOADED: "donation_receipt_downloaded",
 
   // ── Fehler / UX ──
   SEARCH_NO_RESULTS: "search_no_results",
+
+  // ── Home ──
+  HOME_FEED_SHOW_MORE: "home_feed_show_more",
+
+  // ── System ──
+  SYSTEM_LOG_OUT_ALL_USERS: "system_log_out_all_users",
 } as const;
 
 /** Typ für einen gültigen Analytics-Event-Namen. */

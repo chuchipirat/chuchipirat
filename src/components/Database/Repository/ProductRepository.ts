@@ -218,33 +218,72 @@ export class ProductRepository extends BaseRepository<
   /* =====================================================================
   // Convenience-Methoden
   // ===================================================================== */
+
   /**
-   * Lädt alle Produkte mit optionalem Filter und JOIN.
-   * Verwendet eine Custom-Query mit departments-JOIN statt findMany(),
-   * da der Abteilungsname nur per JOIN verfügbar ist.
-   *
-   * @param options - Optionen für Filterung und JOIN
-   * @returns Array der Produkte, sortiert nach Name aufsteigend
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden aller Produkte.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
    */
-  async getAllProducts(
-    options: GetAllProductsOptions = {},
-  ): Promise<ProductDomain[]> {
-    const {onlyUsable = false, withDepartmentName = false} = options;
+  private static readonly PAGE_SIZE = 1000;
 
-    const selectClause = withDepartmentName ? "*, departments(name)" : "*";
-
+  /**
+   * Lädt eine einzelne Seite von Produkten via Range-Pagination.
+   *
+   * @param selectClause - Select-Ausdruck (mit oder ohne departments-JOIN)
+   * @param onlyUsable - Nur aktive Produkte laden
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @returns Zeilen dieser Seite
+   */
+  private async fetchProductsPage(
+    selectClause: string,
+    onlyUsable: boolean,
+    from: number,
+  ): Promise<ProductRow[]> {
     let query = this.client.from(this.tableName).select(selectClause);
 
     if (onlyUsable) {
       query = query.eq("usable", true);
     }
 
-    query = query.order("name", {ascending: true});
+    query = query
+      .order("name", {ascending: true})
+      .range(from, from + ProductRepository.PAGE_SIZE - 1);
 
     const {data, error} = await query;
     if (error) throw error;
 
-    return (data as unknown as ProductRow[]).map((row) => this.toDomain(row));
+    return data as unknown as ProductRow[];
+  }
+
+  /**
+   * Lädt alle Produkte mit optionalem Filter und JOIN.
+   * Verwendet eine Custom-Query mit departments-JOIN statt findMany(),
+   * da der Abteilungsname nur per JOIN verfügbar ist.
+   *
+   * Lädt seitenweise via `.range()`, da PostgREST pro Request maximal
+   * `db-max-rows` Zeilen zurückgibt (aktuell 1000) — ohne Pagination würden
+   * Produkte oberhalb dieser Grenze stillschweigend fehlen.
+   *
+   * @param options - Optionen für Filterung und JOIN
+   * @returns Array aller Produkte, sortiert nach Name aufsteigend
+   */
+  async getAllProducts(
+    options: GetAllProductsOptions = {},
+  ): Promise<ProductDomain[]> {
+    const {onlyUsable = false, withDepartmentName = false} = options;
+    const selectClause = withDepartmentName ? "*, departments(name)" : "*";
+
+    const rows: ProductRow[] = [];
+    let from = 0;
+    let page: ProductRow[];
+
+    do {
+      page = await this.fetchProductsPage(selectClause, onlyUsable, from);
+      rows.push(...page);
+      from += ProductRepository.PAGE_SIZE;
+    } while (page.length === ProductRepository.PAGE_SIZE);
+
+    return rows.map((row) => this.toDomain(row));
   }
 
   /**

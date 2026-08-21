@@ -179,17 +179,20 @@ const MenuplanHeaderRow = memo(function MenuplanHeaderRow({
     setContextMenuAnchorElement(null);
   };
   const onModifyNote = async () => {
+    // Benötigte Werte sichern, bevor das Schliessen des Kontextmenüs
+    // contextMenuState zurücksetzt — der Dialog-Roundtrip darf das
+    // Schliessen des Menüs nicht blockieren.
+    const targetDate = contextMenuState.date;
+    const existingNote = contextMenuState.note;
+    closeContextMenu();
+
     // Input holen
     const userInput = (await customDialog({
       dialogType: DialogType.SingleTextInput,
-      title: `${TEXT_NOTE} ${
-        contextMenuState.note?.text ? TEXT_EDIT : TEXT_ADD
-      }`,
+      title: `${TEXT_NOTE} ${existingNote?.text ? TEXT_EDIT : TEXT_ADD}`,
       text: "",
       singleTextInputProperties: {
-        initialValue: contextMenuState.note?.text
-          ? contextMenuState.note.text
-          : "",
+        initialValue: existingNote?.text ? existingNote.text : "",
         textInputLabel: TEXT_NOTE,
       },
     })) as SingleTextInputResult;
@@ -197,21 +200,19 @@ const MenuplanHeaderRow = memo(function MenuplanHeaderRow({
     if (userInput?.valid && userInput.input != "") {
       // Notiz anlegen resp. ändern
       let note: Note;
-      if (!contextMenuState.note?.uid) {
+      if (!existingNote?.uid) {
         note = createEmptyNote();
-        note.date = contextMenuState.date as string;
+        note.date = targetDate as string;
       } else {
-        note = contextMenuState.note;
+        note = existingNote;
       }
       note.text = userInput.input;
 
       onNoteUpdate({
-        action: contextMenuState.note?.uid ? Action.EDIT : Action.ADD,
+        action: existingNote?.uid ? Action.EDIT : Action.ADD,
         note: note,
       });
     }
-    setContextMenuState(CONTEXT_MENU_INITIAL_STATE);
-    setContextMenuAnchorElement(null);
   };
   return (
     <Box

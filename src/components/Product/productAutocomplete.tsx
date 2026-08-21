@@ -136,6 +136,15 @@ const ProductAutocomplete = ({
       clearOnBlur
       handleHomeEndKeys
       options={products}
+      // Eindeutiger Key statt Standard-Fallback auf getOptionLabel (=Name):
+      // Mehrere Produkte koennen denselben Namen haben (z.B. Datenqualitaets-
+      // Duplikate), was sonst zu doppelten React-Keys in der Optionsliste
+      // fuehrt. Das bricht Reacts Reconciliation beim Filtern durch Tippen —
+      // veraltete DOM-Eintraege der gleichnamigen Produkte bleiben stehen,
+      // unabhaengig vom eingegebenen Suchbegriff.
+      getOptionKey={(option) =>
+        typeof option === "string" ? option : option.uid
+      }
       getOptionLabel={(option) => {
         if (typeof option === "string") {
           return option;

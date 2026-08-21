@@ -178,8 +178,12 @@ describe("AuthorizationGuard", () => {
 
     renderGuard(null, conditionRequiresUser);
 
+    // Aktuelle URL wird als "from" mitgegeben, damit SignInPage nach
+    // erfolgreichem Login dorthin zurücknavigieren kann.
     await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith("/signin");
+      expect(mockNavigate).toHaveBeenCalledWith("/signin", {
+        state: {from: "/"},
+      });
     });
   });
 

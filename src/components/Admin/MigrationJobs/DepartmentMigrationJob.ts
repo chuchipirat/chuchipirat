@@ -18,6 +18,8 @@ import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {DepartmentRepository} from "../../Database/Repository/DepartmentRepository";
 
 /* =====================================================================
 // Typ der Firebase-Quelldaten für eine Abteilung
@@ -59,6 +61,12 @@ export class DepartmentMigrationJob
   description =
     "Migriert alle Abteilungen (Departments) von Firebase nach Postgres.";
 
+  /**
+   * DepartmentRepository mit Service-Role-Client. RLS würde Lese-/Schreibzugriff
+   * sonst auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminDepartments = new DepartmentRepository(supabaseAdmin!);
+
   /* =====================================================================
   // Alle Abteilungen aus Firebase lesen
   // ===================================================================== */
@@ -99,16 +107,14 @@ export class DepartmentMigrationJob
   /**
    * Prüft anhand der `firebase_uid`, ob die Abteilung bereits migriert wurde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls die Abteilung bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseDepartmentData>
   ): Promise<boolean> {
-    const departments = database.departments;
-    const existing = await departments.findMany({
+    const existing = await this.adminDepartments.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
       ],
@@ -123,20 +129,18 @@ export class DepartmentMigrationJob
    * Fügt eine Abteilung in die Postgres-Tabelle ein und setzt
    * anschliessend die `firebase_uid` per Patch.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseDepartmentData>,
     authUser: AuthUser
   ): Promise<void> {
     const data = record.data;
-    const departments = database.departments;
 
     // Abteilung einfügen
-    const {id} = await departments.insert({
+    const {id} = await this.adminDepartments.insert({
       value: {
         uid: "",
         name: data.name,
@@ -147,7 +151,7 @@ export class DepartmentMigrationJob
     });
 
     // firebase_uid nachträglich setzen (für spätere FK-Auflösung)
-    await departments.patch({
+    await this.adminDepartments.patch({
       id,
       fields: {firebase_uid: record.id},
       authUser,

@@ -34,7 +34,7 @@ export const FACTOR_TOOLTIP =
 export const YOUR_SELECTION_MAKES_X_SERVINGS = "Deine Auswahl ergibt:";
 export const BACK = "zurück";
 export const PLEASE_PROVIDE_VALID_FACTOR = "Faktor ungültig";
-export const QUANTITY_MUST_BE_POSITIVE = "Die Menge muss grösser als 0 sein.";
+export const QUANTITY_MUST_NOT_BE_NEGATIVE = "Die Menge darf nicht negativ sein.";
 export const QUANTITY_TOO_LARGE =
   "Die Menge darf höchstens 99\u2009999 betragen.";
 export const FACTOR_TOO_LARGE = "Der Faktor darf höchstens 100 betragen.";

@@ -1,5 +1,5 @@
 import React from "react";
-import {trackEvent} from "../Analytics/analyticsService";
+import {trackEvent, getAnalyticsRole} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import {
@@ -238,7 +238,9 @@ const DialogMaterial = ({
               authUser
             )
             .then((domain) => {
-              trackEvent(AnalyticsEvent.MATERIAL_CREATED);
+              trackEvent(AnalyticsEvent.MATERIAL_CREATED, {
+                role: getAnalyticsRole(authUser),
+              });
               handleOk({
                 uid: domain.uid,
                 name: domain.name,

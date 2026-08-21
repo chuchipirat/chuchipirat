@@ -1,7 +1,7 @@
 /**
  * Edge Function: create-donation
  *
- * Erstellt eine Spende in der DB, initiiert eine Payrexx-Gateway-Session
+ * Erstellt eine Spende in der DB, initiiert eine Zahlungsanbieter-Gateway-Session
  * und gibt die Zahlungs-URL zurück.
  *
  * Erwartet einen POST-Body (JWT-authentifiziert):
@@ -9,7 +9,7 @@
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, SUPABASE_ANON_KEY
- *   PAYREXX_INSTANCE, PAYREXX_API_SECRET, APP_URL
+ *   PAYMENT_API_BASE_URL, PAYMENT_INSTANCE, PAYMENT_API_SECRET, SITE_URL
  */
 import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
@@ -31,23 +31,27 @@ import {sentryCaptureError} from "../_shared/sentryHelper.ts";
  * @param eventId Optionale Event-ID für Event-gebundene Spenden.
  * @param message Optionale Nachricht des Spenders (max. 200 Zeichen).
  * @param returnPath Optionaler Rückweg-Pfad nach der Zahlung.
+ * @param previousDonationId Optionale ID einer abgebrochenen/fehlgeschlagenen
+ *   Spende desselben Users — bei einem Retry wird deren `donor_message`
+ *   übernommen, damit die Nachricht nicht erneut eingegeben werden muss.
  */
 type CreateDonationPayload = {
   amountInCents: number;
   eventId?: string;
   message?: string;
   returnPath?: string;
+  previousDonationId?: string;
 };
 
 /* =====================================================================
-// Payrexx API Hilfsfunktionen
+// Zahlungsanbieter API Hilfsfunktionen
 // ===================================================================== */
 
 /**
- * Erzeugt eine HMAC-SHA256-Signatur für die Payrexx-API.
+ * Erzeugt eine HMAC-SHA256-Signatur für die Zahlungsanbieter-API.
  *
  * @param data Die zu signierende Query-String-Daten.
- * @param secret Der Payrexx API Secret.
+ * @param secret Der API Secret des Zahlungsanbieters.
  * @returns Base64-kodierte Signatur.
  */
 async function createPayrexxSignature(
@@ -110,9 +114,10 @@ serve(async (req: Request) => {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const payrexxInstance = Deno.env.get("PAYREXX_INSTANCE");
-  const payrexxSecret = Deno.env.get("PAYREXX_API_SECRET");
-  const appUrl = Deno.env.get("APP_URL") ?? "https://chuchipirat.ch";
+  const paymentInstance = Deno.env.get("PAYMENT_INSTANCE");
+  const paymentApiSecret = Deno.env.get("PAYMENT_API_SECRET");
+  const paymentApiBaseUrl = (Deno.env.get("PAYMENT_API_BASE_URL") ?? "").replace(/\/$/, "");
+  const appUrl = Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch";
 
   if (!supabaseUrl || !serviceRoleKey || !anonKey) {
     return errorResponse(
@@ -122,10 +127,10 @@ serve(async (req: Request) => {
     );
   }
 
-  if (!payrexxInstance || !payrexxSecret) {
+  if (!paymentInstance || !paymentApiSecret || !paymentApiBaseUrl) {
     return errorResponse(
       "create-donation",
-      "Server configuration error: missing Payrexx config",
+      "Server configuration error: missing payment provider config",
       500,
     );
   }
@@ -161,7 +166,7 @@ serve(async (req: Request) => {
     return errorResponse("create-donation", "Invalid JSON body", 400);
   }
 
-  const {amountInCents, eventId, message, returnPath} = payload;
+  const {amountInCents, eventId, message, returnPath, previousDonationId} = payload;
 
   // Validierung
   if (!amountInCents || typeof amountInCents !== "number" || amountInCents < 500) {
@@ -193,6 +198,21 @@ serve(async (req: Request) => {
     }
   }
 
+  // Retry: Nachricht der abgebrochenen/fehlgeschlagenen Vorgänger-Spende
+  // übernehmen, falls keine neue Nachricht mitgeschickt wurde. RLS beschränkt
+  // die Abfrage bereits auf eigene Spenden (donations_select-Policy).
+  let messageToStore = message ?? null;
+  if (!messageToStore && previousDonationId) {
+    const {data: previousDonation} = await userClient
+      .from("donations")
+      .select("donor_message")
+      .eq("id", previousDonationId)
+      .eq("donor_uid", user.id)
+      .maybeSingle();
+
+    messageToStore = previousDonation?.donor_message ?? null;
+  }
+
   try {
     // Spende in DB einfügen (status='pending')
     const {data: donation, error: insertError} = await userClient
@@ -203,7 +223,7 @@ serve(async (req: Request) => {
         currency: "CHF",
         status: "pending",
         event_id: eventId ?? null,
-        donor_message: message ?? null,
+        donor_message: messageToStore,
       })
       .select("id")
       .single();
@@ -234,8 +254,8 @@ serve(async (req: Request) => {
     const donorEmail = userProfile?.email ?? user.email ?? "";
     const donorName = userProfile?.display_name ?? "";
 
-    // Payrexx Gateway erstellen
-    const amountInSmallestUnit = amountInCents; // Payrexx erwartet Rappen für CHF
+    // Zahlungsanbieter Gateway erstellen
+    const amountInSmallestUnit = amountInCents; // Zahlungsanbieter erwartet Rappen für CHF
     const gatewayParams: Record<string, string> = {
       amount: String(amountInSmallestUnit),
       currency: "CHF",
@@ -251,12 +271,12 @@ serve(async (req: Request) => {
       preAuthorization: "0",
     };
 
-    // Zuerst Payrexx-Credentials prüfen via SignatureCheck
-    const checkSignature = await createPayrexxSignature("", payrexxSecret);
-    const checkUrl = `https://api.payrexx.com/v1.0/SignatureCheck/?instance=${encodeURIComponent(payrexxInstance)}`;
+    // Zuerst Zahlungsanbieter-Credentials prüfen via SignatureCheck
+    const checkSignature = await createPayrexxSignature("", paymentApiSecret);
+    const checkUrl = `${paymentApiBaseUrl}/SignatureCheck/?instance=${encodeURIComponent(paymentInstance)}`;
     const checkBody = `ApiSignature=${encodeURIComponent(checkSignature)}`;
 
-    console.log("create-donation: Verifying Payrexx credentials...");
+    console.log("create-donation: Verifying payment provider credentials...");
     const checkResponse = await fetch(checkUrl, {
       method: "POST",
       headers: {"Content-Type": "application/x-www-form-urlencoded"},
@@ -266,31 +286,31 @@ serve(async (req: Request) => {
     console.log("create-donation: SignatureCheck response:", checkResponse.status, checkResult);
 
     if (!checkResponse.ok) {
-      console.error("create-donation: Payrexx credentials invalid");
+      console.error("create-donation: Payment provider credentials invalid");
       // Spende auf 'failed' setzen
       await adminClient
         .from("donations")
         .update({status: "failed"})
         .eq("id", donationId);
-      return errorResponse("create-donation", "Payrexx credential verification failed", 502);
+      return errorResponse("create-donation", "Payment provider credential verification failed", 502);
     }
 
     // Signatur über PHP-style Query-String (+ für Leerzeichen)
     const phpQueryString = buildPhpQueryString(gatewayParams);
-    const signature = await createPayrexxSignature(phpQueryString, payrexxSecret);
+    const signature = await createPayrexxSignature(phpQueryString, paymentApiSecret);
 
-    // HTTP-Body: Standard-URL-kodiert (%20 für Leerzeichen — Payrexx dekodiert beides)
-    const payrexxUrl = `https://api.payrexx.com/v1.0/Gateway/?instance=${encodeURIComponent(payrexxInstance)}`;
+    // HTTP-Body: Standard-URL-kodiert (%20 für Leerzeichen — Zahlungsanbieter dekodiert beides)
+    const gatewayApiUrl = `${paymentApiBaseUrl}/Gateway/?instance=${encodeURIComponent(paymentInstance)}`;
     const bodyParams = Object.entries(gatewayParams)
       .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
       .join("&");
     const bodyWithSig = bodyParams + `&ApiSignature=${encodeURIComponent(signature)}`;
 
-    console.log("create-donation: Creating Payrexx Gateway...");
+    console.log("create-donation: Creating payment gateway...");
     console.log("create-donation: PHP query (first 120):", phpQueryString.substring(0, 120));
     console.log("create-donation: Signature:", signature);
 
-    const gatewayResponse = await fetch(payrexxUrl, {
+    const gatewayResponse = await fetch(gatewayApiUrl, {
       method: "POST",
       headers: {"Content-Type": "application/x-www-form-urlencoded"},
       body: bodyWithSig,
@@ -298,7 +318,7 @@ serve(async (req: Request) => {
 
     if (!gatewayResponse.ok) {
       const errorBody = await gatewayResponse.text();
-      console.error("Payrexx Gateway creation failed:", errorBody);
+      console.error("Payment gateway creation failed:", errorBody);
 
       // Spende auf 'failed' setzen
       await adminClient
@@ -318,16 +338,16 @@ serve(async (req: Request) => {
     const paymentLink = gatewayData.data?.[0]?.link ?? gatewayData.data?.link ?? "";
 
     if (!paymentLink) {
-      console.error("Payrexx response missing link:", JSON.stringify(gatewayData));
+      console.error("Payment provider response missing link:", JSON.stringify(gatewayData));
       return errorResponse("create-donation", "No payment link received", 502);
     }
 
-    // Payrexx-Gateway-ID in DB speichern (via Admin-Client, RLS umgehen)
+    // Gateway-ID in DB speichern (via Admin-Client, RLS umgehen)
     await adminClient
       .from("donations")
       .update({
-        payrexx_gateway_id: gatewayId,
-        payrexx_reference_id: donationId,
+        payment_gateway_id: gatewayId,
+        payment_reference_id: donationId,
       })
       .eq("id", donationId);
 

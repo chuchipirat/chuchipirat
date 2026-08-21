@@ -108,7 +108,10 @@ import * as ROUTES from "../../constants/routes";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
-import type {RecipeDomain, RecipeShortDomain} from "../Database/Repository/RecipeRepository";
+import type {
+  RecipeDomain,
+  RecipeShortDomain,
+} from "../Database/Repository/RecipeRepository";
 import {DialogTagAdd} from "./recipe.view";
 import {Material} from "../Material/material.types";
 import {DialogMaterial} from "../Material/dialogMaterial";
@@ -151,7 +154,10 @@ import {
   NavigationValuesContext,
   NavigationObject,
 } from "../Navigation/navigationContext";
-import {HELPCENTER_URL} from "../../constants/defaultValues";
+import {
+  HELPCENTER_URL,
+  POSTGRES_NUMERIC_12_4_MAX,
+} from "../../constants/defaultValues";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -239,7 +245,10 @@ type DispatchAction =
   | {type: ReducerActions.MATERIALS_FETCH_INIT}
   | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
   | {type: ReducerActions.PUBLIC_RECIPES_FETCH_INIT}
-  | {type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS; payload: RecipeShortDomain[]}
+  | {
+      type: ReducerActions.PUBLIC_RECIPES_FETCH_SUCCESS;
+      payload: RecipeShortDomain[];
+    }
   | {
       type: ReducerActions.SNACKBAR_SHOW;
       payload: {severity: AlertColor; message: string};
@@ -701,6 +710,20 @@ function isItemData<T>(
 ): data is ItemData<T> {
   return data[itemKey] === true;
 }
+/**
+ * Parst und kappt eine Mengen-Eingabe (Zutat/Material) auf einen gültigen
+ * Bereich. Negative und nicht parsebare Eingaben werden zu 0, zu grosse
+ * Werte auf den Maximalwert einer Postgres-`numeric(12,4)`-Spalte gekappt
+ * (`recipe_ingredients.quantity` bzw. `recipe_materials.quantity`).
+ *
+ * @param rawValue - Roher Eingabewert aus dem Zahlenfeld.
+ * @returns Gültige, gekappte Menge.
+ */
+function clampQuantity(rawValue: string): number {
+  const parsed = parseFloat(rawValue);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.min(POSTGRES_NUMERIC_12_4_MAX, Math.max(0, parsed));
+}
 function getItemRegistry() {
   const registry = new Map<string, HTMLElement>();
 
@@ -879,7 +902,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Einheiten laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Einheiten laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -900,7 +925,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Produkte laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Produkte laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -921,7 +948,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Abteilungen laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Abteilungen laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -942,7 +971,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Materialien laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Materialien laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -962,7 +993,9 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "RecipeEdit – Öffentliche Rezepte laden"}});
+          Sentry.captureException(error, {
+            extra: {context: "RecipeEdit – Öffentliche Rezepte laden"},
+          });
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
             payload: error,
@@ -1073,7 +1106,7 @@ const RecipeEdit = ({
     const fieldName = ingredientPos[0];
     const ingredientUid = ingredientPos[1];
 
-    let value: string | IngredientProduct;
+    let value: string | number | IngredientProduct;
     if (
       (action === "selectOption" || action === "blur") &&
       objectId?.startsWith("product_") &&
@@ -1118,6 +1151,8 @@ const RecipeEdit = ({
       } else {
         value = {uid: product.uid, name: product.name};
       }
+    } else if (fieldName === "quantity") {
+      value = clampQuantity(event?.target.value ?? "");
     } else {
       value = event?.target.value as string;
     }
@@ -1162,7 +1197,7 @@ const RecipeEdit = ({
 
     const fieldName = materialPos[0];
     const materialUid = materialPos[1];
-    let value: string | RecipeProduct;
+    let value: string | number | RecipeProduct;
 
     if (
       (action === "selectOption" || action === "blur") &&
@@ -1200,6 +1235,8 @@ const RecipeEdit = ({
       } else {
         value = {uid: material.uid, name: material.name};
       }
+    } else if (fieldName === "quantity") {
+      value = clampQuantity(event?.target.value ?? "");
     } else {
       value = event?.target.value as string;
     }
@@ -1262,7 +1299,9 @@ const RecipeEdit = ({
     try {
       Recipe.checkRecipeData(state.recipe);
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezeptdaten validieren"}});
+      Sentry.captureException(error, {
+        extra: {context: "RecipeEdit – Rezeptdaten validieren"},
+      });
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error as Error,
@@ -1324,10 +1363,11 @@ const RecipeEdit = ({
         savedMaterials,
       );
       if (isNew) {
-        const eventName = result.type === RecipeType.variant
-          ? AnalyticsEvent.RECIPE_VARIANT_CREATED
-          : AnalyticsEvent.RECIPE_CREATED;
-        trackEvent(eventName);
+        const eventName =
+          result.type === RecipeType.variant
+            ? AnalyticsEvent.RECIPE_VARIANT_CREATED
+            : AnalyticsEvent.RECIPE_CREATED;
+        trackEvent(eventName, {recipeType: result.type});
       }
       if (isNew && result.type !== RecipeType.variant && !isEmbedded) {
         // ignoreState: true umgeht die Abbruch-Logik in switchEditMode,
@@ -1359,7 +1399,9 @@ const RecipeEdit = ({
         });
       }
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "RecipeEdit – Rezept speichern"}});
+      Sentry.captureException(error, {
+        extra: {context: "RecipeEdit – Rezept speichern"},
+      });
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
@@ -1532,7 +1574,10 @@ const RecipeEdit = ({
 
         break;
       default:
-        Sentry.captureMessage(`Aktion unbekannt: ${pressedButton[1]}`, {level: "error", extra: {context: "RecipeEdit – onPositionMoreClick"}});
+        Sentry.captureMessage(`Aktion unbekannt: ${pressedButton[1]}`, {
+          level: "error",
+          extra: {context: "RecipeEdit – onPositionMoreClick"},
+        });
     }
 
     dispatch({
@@ -1988,15 +2033,6 @@ const RecipeButtonRow = ({onSave, onCancel}: RecipeButtonRowProps) => {
         key="action_buttons"
         buttons={[
           {
-            id: "save",
-            hero: true,
-            visible: true,
-            label: TEXT.BUTTON_SAVE,
-            variant: "contained",
-            color: "primary",
-            onClick: onSave,
-          },
-          {
             id: "cancel",
             hero: true,
             visible: true,
@@ -2004,6 +2040,15 @@ const RecipeButtonRow = ({onSave, onCancel}: RecipeButtonRowProps) => {
             variant: "outlined",
             color: "primary",
             onClick: onCancel,
+          },
+          {
+            id: "save",
+            hero: true,
+            visible: true,
+            label: TEXT.BUTTON_SAVE,
+            variant: "contained",
+            color: "primary",
+            onClick: onSave,
           },
         ]}
       />
@@ -3623,4 +3668,4 @@ const RecipeVariantNote = ({recipe, onChange}: RecipeVariantNoteProps) => {
     </React.Fragment>
   );
 };
-export {RecipeEdit};
+export {RecipeEdit, clampQuantity};

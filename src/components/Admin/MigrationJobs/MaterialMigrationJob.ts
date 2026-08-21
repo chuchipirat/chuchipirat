@@ -15,7 +15,9 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {fetchAllRows, MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {MaterialRepository} from "../../Database/Repository/MaterialRepository";
 
 /* =====================================================================
 // Typ der Firebase-Quelldaten für ein Material
@@ -57,6 +59,35 @@ export class MaterialMigrationJob
   description =
     "Migriert alle Materialien von Firebase nach Postgres.";
 
+  /** Bereits migrierte Materialien (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
+
+  /**
+   * MaterialRepository mit Service-Role-Client. RLS würde Lese-/Schreibzugriff
+   * sonst auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminMaterials = new MaterialRepository(supabaseAdmin!);
+
+  /* =====================================================================
+  // Lookup-Maps einmalig aufbauen
+  // ===================================================================== */
+  /**
+   * Lädt bereits migrierte Materialien einmalig aus Postgres.
+   * Eliminiert N+1-Queries: jede checkExists-Prüfung wird danach
+   * als O(1)-Set-Lookup ausgeführt.
+   */
+  private async buildLookupMaps(): Promise<void> {
+    const existingRows = await fetchAllRows<{firebase_uid: string}>(
+      supabaseAdmin!,
+      "materials",
+      "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid),
+    );
+  }
+
   /* =====================================================================
   // Alle Materialien aus Firebase lesen
   // ===================================================================== */
@@ -64,12 +95,19 @@ export class MaterialMigrationJob
    * Liest alle Materialien aus dem Firestore-Dokument `masterData/materials`.
    * Die Daten liegen als flache Map {[uid]: {name, type, usable}} vor.
    *
+   * Baut ausserdem die Existenz-Menge für schnelle checkExists-Prüfung auf.
+   *
    * @param firebase - Firebase-Instanz
+   * @param database - DatabaseService-Instanz (optional, für Existenz-Menge)
    * @returns Array aller Material-Quelldatensätze
    */
   async fetchSourceRecords(
-    firebase: Firebase
+    firebase: Firebase,
+    database?: DatabaseService,
   ): Promise<SourceRecord<FirebaseMaterialData>[]> {
+    if (database) {
+      await this.buildLookupMaps();
+    }
     const result =
       await firebase.masterdata.materials.read<ValueObject>({uids: []});
 
@@ -96,20 +134,21 @@ export class MaterialMigrationJob
   // ===================================================================== */
   /**
    * Prüft anhand der `firebase_uid`, ob das Material bereits migriert wurde.
+   * Verwendet die vorgeladene Menge für O(1)-Lookup, falls verfügbar.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls das Material bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
-    record: SourceRecord<FirebaseMaterialData>
+    _database: DatabaseService,
+    record: SourceRecord<FirebaseMaterialData>,
   ): Promise<boolean> {
-    const materials = database.materials;
-    const existing = await materials.findMany({
-      filters: [
-        {field: "firebase_uid", operator: "eq", value: record.id},
-      ],
+    if (this.existingFirebaseUids !== null) {
+      return this.existingFirebaseUids.has(record.id);
+    }
+    // Fallback falls buildLookupMaps nicht aufgerufen wurde
+    const existing = await this.adminMaterials.findMany({
+      filters: [{field: "firebase_uid", operator: "eq", value: record.id}],
     });
     return existing.length > 0;
   }
@@ -121,20 +160,18 @@ export class MaterialMigrationJob
    * Fügt ein Material in die Postgres-Tabelle ein und setzt
    * anschliessend die `firebase_uid` per Patch.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseMaterialData>,
-    authUser: AuthUser
+    authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const materials = database.materials;
 
     // Material einfügen
-    const {id} = await materials.insert({
+    const {id} = await this.adminMaterials.insert({
       value: {
         uid: "",
         name: data.name,
@@ -147,7 +184,7 @@ export class MaterialMigrationJob
     });
 
     // firebase_uid nachträglich setzen
-    await materials.patch({
+    await this.adminMaterials.patch({
       id,
       fields: {firebase_uid: record.id},
       authUser,

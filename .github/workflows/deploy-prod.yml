@@ -63,6 +63,12 @@ jobs:
             done
             rm -rf /tmp/chuchipirat-migrations-prod/
 
+            # PostgREST cacht sein Schema beim Start und merkt neue/geänderte
+            # Funktionen/Tabellen/Views sonst nicht — ohne Reload liefert die
+            # API für neue RPCs/Tabellen 404, obwohl sie in Postgres existieren.
+            docker exec -i supabase-db-prod \
+              psql -U supabase_admin -d postgres -c "NOTIFY pgrst, 'reload schema';"
+
   # ─── 2. Edge Functions ────────────────────────────────
   edge-functions:
     name: Deploy Edge Functions
@@ -71,6 +77,27 @@ jobs:
     environment: prod
     steps:
       - uses: actions/checkout@v4
+
+      - name: Copy Docker Compose Files to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "supabase/docker-compose.prod.yml,supabase/docker-compose.s3.prod.yml"
+          target: "/tmp/chuchipirat-compose-prod/"
+          strip_components: 1
+
+      - name: Install Docker Compose Files
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cp /tmp/chuchipirat-compose-prod/docker-compose.prod.yml /opt/chuchipirat/prod/supabase/docker-compose.yml
+            cp /tmp/chuchipirat-compose-prod/docker-compose.s3.prod.yml /opt/chuchipirat/prod/supabase/docker-compose.s3.yml
+            rm -rf /tmp/chuchipirat-compose-prod/
 
       - name: Copy Edge Functions to Server
         uses: appleboy/scp-action@v0.1.7
@@ -82,16 +109,32 @@ jobs:
           target: "/opt/chuchipirat/prod/supabase/volumes/functions/"
           strip_components: 3
 
-      - name: Restart Edge Functions
+      - name: Copy Kong Config to Server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "supabase/volumes/api/kong.yml,supabase/volumes/api/kong-entrypoint.sh"
+          target: "/opt/chuchipirat/prod/supabase/volumes/api/"
+          strip_components: 3
+
+      - name: Restart Edge Functions & Auth & Kong
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
-            docker restart supabase-edge-functions-prod
+            # auth wird mit-recreated, da docker-compose.prod.yml (Schritt oben) auch
+            # dessen Konfiguration (z.B. GOTRUE_*-Env-Vars) ändern kann — ein reiner
+            # "up -d" ohne --force-recreate übernimmt Env-Var-Änderungen an bereits
+            # laufenden Containern sonst nicht zuverlässig. kong lädt sein
+            # deklaratives Config-File (kong.yml) nur beim Start, daher ebenfalls
+            # --force-recreate.
+            cd /opt/chuchipirat/prod/supabase && docker compose up -d --force-recreate functions auth kong realtime
             sleep 5
-            docker ps | grep edge-functions-prod
+            docker ps | grep -E "edge-functions-prod|supabase-auth-prod|supabase-kong-prod|supabase-realtime-prod"
 
   # ─── 3. Auth Email Templates ──────────────────────────
   auth-templates:
@@ -167,3 +210,37 @@ jobs:
           source: "build/"
           target: "/opt/chuchipirat/prod/app/html/"
           strip_components: 1
+
+      - name: Copy nginx config to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "infra/app/nginx.prod.conf"
+          target: "/tmp/chuchipirat-deploy/"
+          strip_components: 2
+
+      - name: Move nginx config to app directory
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            cp /tmp/chuchipirat-deploy/nginx.prod.conf /opt/chuchipirat/prod/app/nginx.conf
+            rm -rf /tmp/chuchipirat-deploy/
+            docker restart chuchipirat-app-prod
+            sleep 3
+            docker ps | grep chuchipirat-app-prod
+
+      - name: Restart App Container
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            docker restart chuchipirat-app-prod
+            sleep 3
+            docker ps | grep chuchipirat-app-prod

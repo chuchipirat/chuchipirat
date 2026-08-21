@@ -227,6 +227,15 @@ const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
         }
         return option.name === value?.name;
       }}
+      // Eindeutiger Key statt Standard-Fallback auf getOptionLabel (=Name):
+      // Diese Liste kombiniert Produkte UND Material — schon ein Produkt und
+      // ein Material mit demselben Namen wuerden sonst denselben React-Key
+      // erhalten (zusaetzlich zu Datenqualitaets-Duplikaten innerhalb einer
+      // Kategorie). Das bricht Reacts Reconciliation beim Filtern durch
+      // Tippen (veraltete DOM-Eintraege bleiben stehen). Siehe productAutocomplete.tsx.
+      getOptionKey={(option) =>
+        typeof option === "string" ? option : option.uid
+      }
       getOptionLabel={(option) => {
         if (typeof option === "string") return option;
 

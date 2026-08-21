@@ -183,15 +183,20 @@ serve(async (req: Request) => {
       {body, titleBlock, subtitleBlock, buttonBlock},
     );
 
-    // UID-basierte Empfänger: E-Mail-Adressen aus auth.users laden
+    // UID-basierte Empfänger: E-Mail-Adressen aus public.users laden
+    // (nicht via auth.admin.listUsers() — das ist auf 50 Einträge pro Seite
+    // paginiert und würde UIDs ausserhalb der ersten Seite stillschweigend
+    // verwerfen. public.users.email wird per Trigger mit auth.users
+    // synchron gehalten, siehe sync_auth_email()/handle_new_user().)
     let resolvedRecipients = recipients;
     if (recipientType === "uid") {
-      const {data: users, error} = await supabaseAdmin.auth.admin.listUsers();
+      const {data: users, error} = await supabaseAdmin
+        .from("users")
+        .select("email")
+        .in("id", recipients)
+        .not("email", "is", null);
       if (error) throw new Error(`Benutzer konnten nicht geladen werden: ${error.message}`);
-      const uidSet = new Set(recipients);
-      resolvedRecipients = users.users
-        .filter((user) => uidSet.has(user.id) && user.email)
-        .map((user) => user.email!);
+      resolvedRecipients = (users ?? []).map((user: {email: string}) => user.email);
     }
 
     // Rollen-basierte Empfänger: E-Mail-Adressen aus public.users laden

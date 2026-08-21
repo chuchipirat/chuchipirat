@@ -12,10 +12,19 @@ export const EVENT_SAVE_SUCCESS = (eventName: string) =>
 export const EVENT_SHOW_PAST_EVENTS = (count: number) =>
   `Zeige vergangene Anlässe (${count})`;
 export const EVENT_PAST_EVENTS = "Deine vergangenen Anlässe";
+export const EVENT_COUNTDOWN_TODAY = "Heute";
+export const EVENT_COUNTDOWN_TOMORROW = "Morgen";
+export const EVENT_COUNTDOWN_IN_DAYS = (days: number) => `In ${days} Tagen`;
+export const EVENT_DAY_OF_TOTAL = (day: number, total: number) =>
+  `Tag ${day} von ${total}`;
+export const EVENT_ONGOING_TITLE = "Läuft gerade";
+export const EVENT_READINESS_CHECKLIST_TITLE = "Checkliste";
 export const EVENT_FUTURE_EVENTS = "Deine bevorstehende Anlässe";
 export const EVENT_NO_FUTURE_EVENTS =
   "Keine bevorstehenden Anlässe. Erstelle einen neuen Anlass!";
 export const EVENT_NO_PAST_EVENTS = "Keine vergangenen Anlässe vorhanden.";
+export const EVENT_NOT_FOUND_OR_NO_ACCESS =
+  "Dieser Anlass existiert nicht oder du hast keine Berechtigung dafür.";
 export const CREATE_EVENT = "Anlass erstellen";
 export const EVENT_INFO = "Informationen zum Anlass";
 export const DEFINE_BASIC_EVENT_DATA =
@@ -89,7 +98,8 @@ export const COPY_EVENT_TIMESLICE_LABEL = (
   dateFrom: string,
   dateTo: string,
   days: number,
-) => `Zeitscheibe ${index}: ${dateFrom} – ${dateTo} (${days} ${days === 1 ? "Tag" : "Tage"})`;
+) =>
+  `Zeitscheibe ${index}: ${dateFrom} – ${dateTo} (${days} ${days === 1 ? "Tag" : "Tage"})`;
 export const COPY_EVENT_NEW_START = "Neuer Start";
 export const COPY_EVENT_NEW_END = "Neues Ende";
 export const COPY_EVENT_TIMESLICES = "Zeitscheiben";
@@ -104,8 +114,7 @@ export const COPY_EVENT_NO_PHOTO = "Kein Foto ausgewählt";
 export const COPY_EVENT_CHOOSE_PHOTO = "Foto wählen";
 export const COPY_EVENT_SUBMIT = "Kopieren";
 export const COPY_EVENT_SUBMITTING = "Kopiere…";
-export const COPY_EVENT_ERROR =
-  "Beim Kopieren ist ein Fehler aufgetreten.";
+export const COPY_EVENT_ERROR = "Beim Kopieren ist ein Fehler aufgetreten.";
 
 export const DELETE_EVENT = "Anlass löschen";
 export const ATTENTION_ABOUT_TO_DELETE_PLANED_DAYS =

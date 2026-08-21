@@ -1,13 +1,14 @@
 /**
- * Edge Function: payrexx-webhook
+ * Edge Function: payment-webhook
  *
- * Empfängt Payrexx-Webhook-Benachrichtigungen (Transaction-Events),
- * verifiziert die Transaktion via Payrexx-API, aktualisiert den
+ * Empfängt Webhook-Benachrichtigungen des Zahlungsanbieters (Transaction-Events),
+ * verifiziert die Transaktion via Zahlungsanbieter-API, aktualisiert den
  * Spenden-Status und erstellt einen Feed-Eintrag bei Bestätigung.
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- *   PAYREXX_INSTANCE, PAYREXX_API_SECRET, APP_URL
+ *   PAYMENT_API_BASE_URL, PAYMENT_INSTANCE, PAYMENT_API_SECRET, SITE_URL
+ *   PAYMENT_WEBHOOK_SIGNING_KEY
  *   BREVO_API_KEY oder SMTP_HOST (für Bestätigungs-E-Mail)
  */
 import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
@@ -22,16 +23,18 @@ import {
 } from "../_shared/emailService.ts";
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
+import {matchTransactionToDonation} from "../_shared/paymentVerification.ts";
+import {trackServerEvent} from "../_shared/umamiHelper.ts";
 
 /* =====================================================================
-// Payrexx API Hilfsfunktionen
+// Zahlungsanbieter API Hilfsfunktionen
 // ===================================================================== */
 
 /**
- * Erzeugt eine HMAC-SHA256-Signatur für die Payrexx-API.
+ * Erzeugt eine HMAC-SHA256-Signatur für die Zahlungsanbieter-API.
  *
  * @param data Die zu signierende Query-String-Daten.
- * @param secret Der Payrexx API Secret.
+ * @param secret Der API Secret des Zahlungsanbieters.
  * @returns Base64-kodierte Signatur.
  */
 async function createPayrexxSignature(
@@ -70,17 +73,13 @@ function timingSafeEqual(a: string, b: string): boolean {
 }
 
 /**
- * Prüft die Webhook-Signatur von Payrexx (HMAC-SHA256).
- * Nutzt die bestehende createPayrexxSignature-Funktion und vergleicht
- * das Ergebnis timing-safe mit der empfangenen Signatur.
+ * Prüft die Webhook-Signatur des Zahlungsanbieters (HMAC-SHA256).
+ * Vergleicht das Ergebnis timing-safe mit der empfangenen Signatur.
  *
  * @param rawBody Der rohe Request-Body als String.
  * @param signature Die empfangene Signatur aus dem Header.
- * @param secret Der Payrexx API Secret.
+ * @param secret Der Webhook-Signing-Key des Zahlungsanbieters.
  * @returns true wenn die Signatur gültig ist.
- */
-/**
- * Prüft die Webhook-Signatur mit dem Secret als UTF-8-String.
  */
 async function verifyWebhookSignature(
   rawBody: string,
@@ -104,20 +103,22 @@ async function verifyWebhookSignature(
 
 
 /**
- * Verifiziert eine Transaktion direkt via Payrexx API (GET).
+ * Verifiziert eine Transaktion direkt via Zahlungsanbieter-API (GET).
  *
- * @param transactionId Die Payrexx-Transaktions-ID.
- * @param instance Die Payrexx-Instanz.
- * @param secret Der Payrexx API Secret.
+ * @param transactionId Die Transaktions-ID.
+ * @param instance Die Instanz des Zahlungsanbieters.
+ * @param secret Der API Secret des Zahlungsanbieters.
+ * @param apiBaseUrl Die Basis-URL der Zahlungsanbieter-API.
  * @returns Transaktionsdaten oder null bei Fehler.
  */
 async function verifyTransaction(
   transactionId: string,
   instance: string,
   secret: string,
+  apiBaseUrl: string,
 ): Promise<Record<string, unknown> | null> {
   const signature = await createPayrexxSignature("", secret);
-  const url = `https://api.payrexx.com/v1.0/Transaction/${transactionId}/?instance=${instance}&ApiSignature=${encodeURIComponent(signature)}`;
+  const url = `${apiBaseUrl}/Transaction/${transactionId}/?instance=${instance}&ApiSignature=${encodeURIComponent(signature)}`;
 
   const response = await fetch(url);
   if (!response.ok) return null;
@@ -127,15 +128,15 @@ async function verifyTransaction(
 }
 
 /**
- * Mappt Payrexx-Status auf den internen Spenden-Status.
+ * Mappt den Zahlungsanbieter-Status auf den internen Spenden-Status.
  *
- * @param payrexxStatus Der Status von Payrexx.
+ * @param providerStatus Der Status des Zahlungsanbieters.
  * @returns Interner Spenden-Status oder null falls unbekannt.
  */
 function mapPayrexxStatus(
-  payrexxStatus: string,
+  providerStatus: string,
 ): "confirmed" | "failed" | "cancelled" | null {
-  switch (payrexxStatus) {
+  switch (providerStatus) {
     case "confirmed":
       return "confirmed";
     case "declined":
@@ -158,24 +159,25 @@ serve(async (req: Request) => {
   }
 
   if (req.method !== "POST") {
-    return errorResponse("payrexx-webhook", "Method not allowed", 405);
+    return errorResponse("payment-webhook", "Method not allowed", 405);
   }
 
   // Umgebungsvariablen
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const payrexxInstance = Deno.env.get("PAYREXX_INSTANCE");
-  const payrexxSecret = Deno.env.get("PAYREXX_API_SECRET");
-  const appUrl = Deno.env.get("APP_URL") ?? "https://chuchipirat.ch";
+  const paymentInstance = Deno.env.get("PAYMENT_INSTANCE");
+  const paymentApiSecret = Deno.env.get("PAYMENT_API_SECRET");
+  const paymentApiBaseUrl = (Deno.env.get("PAYMENT_API_BASE_URL") ?? "").replace(/\/$/, "");
+  const appUrl = Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch";
 
   if (!supabaseUrl || !serviceRoleKey) {
-    return errorResponse("payrexx-webhook", "Missing Supabase config", 500);
+    return errorResponse("payment-webhook", "Missing Supabase config", 500);
   }
 
-  const payrexxWebhookSigningKey = Deno.env.get("PAYREXX_WEBHOOK_SIGNING_KEY");
+  const paymentWebhookSigningKey = Deno.env.get("PAYMENT_WEBHOOK_SIGNING_KEY");
 
-  if (!payrexxInstance || !payrexxSecret) {
-    return errorResponse("payrexx-webhook", "Missing Payrexx config", 500);
+  if (!paymentInstance || !paymentApiSecret || !paymentApiBaseUrl) {
+    return errorResponse("payment-webhook", "Missing payment provider config", 500);
   }
 
   // Admin-Client (Webhook hat kein User-JWT)
@@ -186,20 +188,25 @@ serve(async (req: Request) => {
   // Webhook-Payload als Rohtext lesen (für Signaturprüfung)
   const rawBody = await req.text();
 
-  // Webhook-Signatur prüfen (Payrexx sendet X-Webhook-Signature Header)
+  // Webhook-Signatur prüfen (Zahlungsanbieter sendet X-Webhook-Signature Header).
+  // Ohne gültige Signatur wird die Anfrage abgelehnt — ein fehlender Header
+  // darf NICHT als "Verifizierung überspringen" behandelt werden, sonst kann
+  // jeder unsignierte POSTs an diesen Endpoint senden.
+  if (!paymentWebhookSigningKey) {
+    console.error("payment-webhook: PAYMENT_WEBHOOK_SIGNING_KEY not configured");
+    return errorResponse("payment-webhook", "Server misconfiguration", 500);
+  }
+
   const receivedSignature = req.headers.get("X-Webhook-Signature");
-  if (receivedSignature) {
-    if (!payrexxWebhookSigningKey) {
-      console.warn("payrexx-webhook: PAYREXX_WEBHOOK_SIGNING_KEY not set — skipping signature verification");
-    } else {
-      const isValid = await verifyWebhookSignature(rawBody, receivedSignature, payrexxWebhookSigningKey);
-      if (!isValid) {
-        console.error("payrexx-webhook: Invalid webhook signature");
-        return errorResponse("payrexx-webhook", "Invalid signature", 401);
-      }
-    }
-  } else {
-    console.warn("payrexx-webhook: No X-Webhook-Signature header — skipping verification");
+  if (!receivedSignature) {
+    console.error("payment-webhook: Missing X-Webhook-Signature header");
+    return errorResponse("payment-webhook", "Missing signature", 401);
+  }
+
+  const isValid = await verifyWebhookSignature(rawBody, receivedSignature, paymentWebhookSigningKey);
+  if (!isValid) {
+    console.error("payment-webhook: Invalid webhook signature");
+    return errorResponse("payment-webhook", "Invalid signature", 401);
   }
 
   // Payload parsen (JSON oder URL-encoded)
@@ -211,7 +218,7 @@ serve(async (req: Request) => {
       const params = new URLSearchParams(rawBody);
       webhookData = Object.fromEntries(params.entries());
     } catch {
-      return errorResponse("payrexx-webhook", "Invalid payload", 400);
+      return errorResponse("payment-webhook", "Invalid payload", 400);
     }
   }
 
@@ -222,7 +229,7 @@ serve(async (req: Request) => {
 
   if (!transactionId || !referenceId) {
     // Kein relevanter Event — OK zurückgeben
-    console.log("payrexx-webhook: No transactionId or referenceId, ignoring");
+    console.log("payment-webhook: No transactionId or referenceId, ignoring");
     return successResponse({ignored: true});
   }
 
@@ -235,28 +242,48 @@ serve(async (req: Request) => {
       .single();
 
     if (donationError || !donation) {
-      console.error(`payrexx-webhook: Donation not found for referenceId=${referenceId}`);
+      console.error(`payment-webhook: Donation not found for referenceId=${referenceId}`);
       return successResponse({ignored: true, reason: "donation_not_found"});
     }
 
-    // Idempotenz: Nur pending-Spenden verarbeiten
-    if (donation.status !== "pending") {
-      console.log(`payrexx-webhook: Donation ${referenceId} already processed (status=${donation.status})`);
+    // Idempotenz: Nur bereits abschliessend verarbeitete Spenden überspringen.
+    // "failed"/"cancelled" sind NICHT terminal — ein einzelnes Gateway (siehe
+    // create-donation) erlaubt mehrere Zahlungsversuche mit derselben
+    // referenceId (z.B. Karte abgelehnt, danach erfolgreich bezahlt). Nur
+    // "confirmed"/"refunded"/"migrated" dürfen nicht erneut verarbeitet werden.
+    const terminalStatuses = ["confirmed", "refunded", "migrated"];
+    if (terminalStatuses.includes(donation.status)) {
+      console.log(`payment-webhook: Donation ${referenceId} already processed (status=${donation.status})`);
       return successResponse({ignored: true, reason: "already_processed"});
     }
 
-    // Transaktion via Payrexx API verifizieren
-    const verifiedTx = await verifyTransaction(transactionId, payrexxInstance, payrexxSecret);
+    // Transaktion via Zahlungsanbieter-API verifizieren
+    const verifiedTx = await verifyTransaction(transactionId, paymentInstance, paymentApiSecret, paymentApiBaseUrl);
     if (!verifiedTx) {
-      console.error(`payrexx-webhook: Failed to verify transaction ${transactionId}`);
-      return errorResponse("payrexx-webhook", "Transaction verification failed", 502);
+      console.error(`payment-webhook: Failed to verify transaction ${transactionId}`);
+      return errorResponse("payment-webhook", "Transaction verification failed", 502);
     }
 
-    const payrexxStatus = String(verifiedTx.status ?? "");
-    const mappedStatus = mapPayrexxStatus(payrexxStatus);
+    // Cross-Check: Die bei Zahlungsanbieter hinterlegte referenceId/amount der
+    // Transaktion muss zur angefragten Spende passen. Ohne diese Prüfung könnte
+    // jemand eine eigene, echte (aber unabhängige) Transaktions-ID zusammen mit
+    // einer fremden referenceId einreichen und so eine beliebige Spende als
+    // bezahlt markieren, obwohl die Transaktion nie dafür bestimmt war.
+    const matchResult = matchTransactionToDonation(
+      verifiedTx,
+      referenceId,
+      donation.amount_in_cents,
+    );
+    if (!matchResult.matches) {
+      console.error(`payment-webhook: Transaction ${transactionId} ${matchResult.reason}`);
+      return errorResponse("payment-webhook", "Transaction/donation mismatch", 409);
+    }
+
+    const providerStatus = String(verifiedTx.status ?? "");
+    const mappedStatus = mapPayrexxStatus(providerStatus);
 
     if (!mappedStatus) {
-      console.log(`payrexx-webhook: Unknown Payrexx status '${payrexxStatus}', ignoring`);
+      console.log(`payment-webhook: Unknown provider status '${providerStatus}', ignoring`);
       return successResponse({ignored: true, reason: "unknown_status"});
     }
 
@@ -279,10 +306,20 @@ serve(async (req: Request) => {
           status: "confirmed",
           paid_at: new Date().toISOString(),
           payment_method: paymentMethod,
-          payrexx_transaction_id: transactionId,
+          payment_transaction_id: transactionId,
           receipt_number: receiptNumber,
         })
         .eq("id", referenceId);
+
+      // Umsatz-Tracking (Umami Revenue) — der Webhook ist die einzige
+      // zuverlässige Quelle für eine bestätigte Spende (siehe
+      // AnalyticsEvent.DONATION_COMPLETED in src/components/Analytics/analyticsEvents.ts).
+      // Der obige terminalStatuses-Check garantiert, dass dies pro Spende
+      // nur einmal ausgeführt wird.
+      await trackServerEvent("donation_completed", {
+        revenue: donation.amount_in_cents / 100,
+        currency: "CHF",
+      });
 
       // Feed-Eintrag erstellen
       await adminClient.from("feeds").insert({
@@ -370,7 +407,7 @@ serve(async (req: Request) => {
           }
         } catch (emailErr) {
           // E-Mail-Fehler sind nicht kritisch — Spende ist bestätigt
-          console.error("payrexx-webhook: Email sending failed:", emailErr);
+          console.error("payment-webhook: Email sending failed:", emailErr);
         }
       }
     } else {
@@ -379,16 +416,16 @@ serve(async (req: Request) => {
         .from("donations")
         .update({
           status: mappedStatus,
-          payrexx_transaction_id: transactionId,
+          payment_transaction_id: transactionId,
         })
         .eq("id", referenceId);
     }
 
-    console.log(`payrexx-webhook: Donation ${referenceId} updated to '${mappedStatus}'`);
+    console.log(`payment-webhook: Donation ${referenceId} updated to '${mappedStatus}'`);
     return successResponse({donationId: referenceId, status: mappedStatus});
   } catch (err) {
-    console.error("payrexx-webhook error:", err);
-    await sentryCaptureError(err, "payrexx-webhook");
-    return errorResponse("payrexx-webhook", String(err), 500);
+    console.error("payment-webhook error:", err);
+    await sentryCaptureError(err, "payment-webhook");
+    return errorResponse("payment-webhook", String(err), 500);
   }
 });

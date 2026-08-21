@@ -50,7 +50,18 @@ export default defineConfig({
       disable: !process.env.SENTRY_AUTH_TOKEN,
     }),
   ],
-  server: {port: 3000},
+  server: {
+    port: 3000,
+    proxy: {
+      // Umgeht CORS beim Herunterladen von Firebase Storage Bildern während der Migration.
+      // Der Vite Dev Server macht die Anfrage serverseitig (Node.js) — kein CORS-Problem.
+      "/firebase-storage-proxy": {
+        target: "https://firebasestorage.googleapis.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/firebase-storage-proxy/, ""),
+      },
+    },
+  },
   build: {
     outDir: "build",
     sourcemap: true,

@@ -6,9 +6,10 @@
  *
  * @param props.eventId - Optionale Event-ID für Event-gebundene Spenden.
  * @param props.returnPath - Optionaler Rückweg-Pfad nach der Zahlung.
+ * @param props.source - Herkunft des Spendenversuchs für Analytics (Standard: "donate_page").
  *
  * @example
- * <DonationForm eventId="abc123" returnPath="/event/abc123" />
+ * <DonationForm eventId="abc123" returnPath="/event/abc123" source="event_review_email" />
  */
 import React, {useState, useCallback} from "react";
 import {trackEvent} from "../Analytics/analyticsService";
@@ -60,10 +61,12 @@ const CUSTOM_VALUE = -1;
  *
  * @param eventId - Optionale Event-ID für Event-gebundene Spenden.
  * @param returnPath - Optionaler Rückweg-Pfad nach Zahlung.
+ * @param source - Herkunft des Spendenversuchs für Analytics (Standard: "donate_page").
  */
 type DonationFormProps = {
   eventId?: string;
   returnPath?: string;
+  source?: string;
 };
 
 /* ===================================================================
@@ -74,7 +77,11 @@ type DonationFormProps = {
  * Spendenformular mit Betragsauswahl, optionaler Nachricht und
  * Weiterleitung zu Payrexx.
  */
-const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
+const DonationForm = ({
+  eventId,
+  returnPath,
+  source = "donate_page",
+}: DonationFormProps) => {
   const authUser = useAuthUser();
 
   const [selectedPreset, setSelectedPreset] = useState<number | null>(10);
@@ -164,7 +171,7 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
 
       // Zur Payrexx-Zahlungsseite weiterleiten
       trackEvent(AnalyticsEvent.DONATION_STARTED, {
-        source: "donate_page",
+        source,
         amount: amountInCents,
       });
       window.location.href = paymentUrl;
@@ -174,7 +181,7 @@ const DonationForm = ({eventId, returnPath}: DonationFormProps) => {
       );
       setIsLoading(false);
     }
-  }, [isValid, amountInCents, eventId, message, returnPath]);
+  }, [isValid, amountInCents, eventId, message, returnPath, source]);
 
   if (!authUser) return null;
 

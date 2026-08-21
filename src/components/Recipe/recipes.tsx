@@ -3,6 +3,7 @@ import React, {SyntheticEvent} from "react";
 import {useNavigate, useLocation} from "react-router";
 import {trackEvent} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
+import {useDebouncedValue} from "../../hooks/useDebouncedValue";
 
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
@@ -102,6 +103,9 @@ const SKIP_SCROLL_TO_TOP_KEY = "skipScrollToTop";
 
 /** Cache-Gültigkeitsdauer in Millisekunden (5 Minuten). */
 const RECIPE_CACHE_TTL_MS = 300_000;
+
+/** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
+const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
 
 /**
  * Zwischengespeicherte Rezeptliste mit Zeitstempel.
@@ -261,6 +265,38 @@ const initialState: State = {
 interface FilterRecipesProps {
   searchSettings: SearchSettings;
   recipes: RecipeShort[];
+}
+
+/**
+ * Prüft, ob ein Rezept anhand von Name, Tags oder Variantenname zum
+ * Freitext-Suchbegriff passt. Bei leerem Suchbegriff gilt jedes Rezept als
+ * Treffer. Losgelöst von den übrigen Filtern (Diät, Allergene etc.), damit
+ * sich ein Suchtreffer unabhängig von zusätzlich aktiven Filtern feststellen
+ * lässt.
+ *
+ * @param recipe Zu prüfendes Rezept.
+ * @param searchString Freitext-Suchbegriff.
+ * @returns true, wenn das Rezept zum Suchbegriff passt.
+ */
+function recipeMatchesSearchText(
+  recipe: RecipeShort,
+  searchString: string,
+): boolean {
+  if (!searchString) return true;
+
+  if (recipe.name.toLowerCase().includes(searchString.toLowerCase())) {
+    return true;
+  }
+
+  return (
+    recipe.tags.filter(
+      (tag) =>
+        tag.toLowerCase().includes(searchString.toLocaleLowerCase()) ||
+        recipe.variantName
+          ?.toLowerCase()
+          .includes(searchString.toLocaleLowerCase()),
+    ).length > 0
+  );
 }
 
 /**
@@ -665,9 +701,15 @@ export const RecipeSearch = ({
 }: RecipeSearchProps) => {
   const classes = useCustomStyles();
   const [searchSettings, setSearchSettings] = React.useState<SearchSettings>(
-    INITIAL_SEARCH_SETTINGS,
+    () => {
+      if (embeddedMode) return INITIAL_SEARCH_SETTINGS;
+      const stored = SessionStorageHandler.getDocument({
+        storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
+        documentUid: "searchSettings",
+      });
+      return (stored as SearchSettings | null) ?? INITIAL_SEARCH_SETTINGS;
+    },
   );
-  const [filteredData, setFilteredData] = React.useState<RecipeShort[]>([]);
 
   /* ------------------------------------------
   // Rezepte filtern
@@ -683,21 +725,7 @@ export const RecipeSearch = ({
   const filterRecipes = ({searchSettings, recipes}: FilterRecipesProps) => {
     return recipes.filter((recipe) => {
       // Zuerst prüfen ob Text stimmt
-      if (
-        searchSettings.searchString &&
-        !recipe.name
-          .toLowerCase()
-          .includes(searchSettings.searchString.toLowerCase()) &&
-        recipe.tags.filter(
-          (tag) =>
-            tag
-              .toLowerCase()
-              .includes(searchSettings.searchString.toLocaleLowerCase()) ||
-            recipe.variantName
-              ?.toLowerCase()
-              .includes(searchSettings.searchString.toLocaleLowerCase()),
-        ).length === 0
-      ) {
+      if (!recipeMatchesSearchText(recipe, searchSettings.searchString)) {
         return false;
       }
 
@@ -758,26 +786,50 @@ export const RecipeSearch = ({
   };
 
   /* ------------------------------------------
-  // Sucheinstellungen aus Session Storage wiederherstellen
+  // Gefilterte Rezepte — synchron aus recipes + searchSettings abgeleitet,
+  // damit beim ersten Laden kein Frame mit leerem Zwischenstand entsteht
+  // (vorher: useEffect-State, das erst einen Tick nach Eintreffen der
+  // recipes ein "keine Rezepte gefunden" aufblitzen liess).
   // ------------------------------------------ */
-  React.useEffect(() => {
-    if (recipes.length === 0 || filteredData.length > 0) return;
+  const filteredData = React.useMemo(
+    () => filterRecipes({searchSettings, recipes}),
+    [searchSettings, recipes],
+  );
 
-    let restoredSettings: SearchSettings | null = null;
-    if (!embeddedMode) {
-      const stored = SessionStorageHandler.getDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
-        documentUid: "searchSettings",
-      });
-      if (stored) {
-        restoredSettings = stored as SearchSettings;
-      }
+  /* ------------------------------------------
+  // Analytics: Erfolglose Suchen tracken
+  // ------------------------------------------ */
+  const debouncedSearchString = useDebouncedValue(
+    searchSettings.searchString,
+    SEARCH_ANALYTICS_DEBOUNCE_MS,
+  );
+
+  /**
+   * Ob der aktuelle Freitext-Suchbegriff mindestens ein Rezept trifft —
+   * unabhängig von den übrigen Filtern. Verhindert, dass ein Treffer, der
+   * nur durch einen anderen aktiven Filter (z.B. "nur eigene Rezepte")
+   * ausgeblendet wird, fälschlicherweise als erfolglose Suche gemeldet wird.
+   */
+  const hasSearchTextMatches = React.useMemo(() => {
+    if (!searchSettings.searchString) return true;
+    return recipes.some((recipe) =>
+      recipeMatchesSearchText(recipe, searchSettings.searchString),
+    );
+  }, [recipes, searchSettings.searchString]);
+
+  React.useEffect(() => {
+    // isLoading verhindert eine Falschmeldung, solange recipes noch nicht
+    // geladen ist (z.B. ein aus dem Session Storage wiederhergestellter
+    // Suchbegriff, bevor die asynchrone Rezeptliste eingetroffen ist).
+    if (isLoading || !debouncedSearchString.trim() || hasSearchTextMatches) {
+      return;
     }
 
-    const settings = restoredSettings ?? INITIAL_SEARCH_SETTINGS;
-    setSearchSettings(settings);
-    setFilteredData(filterRecipes({searchSettings: settings, recipes}));
-  }, [recipes]); // eslint-disable-line
+    trackEvent(AnalyticsEvent.SEARCH_NO_RESULTS, {
+      source: embeddedMode ? "recipe_drawer" : "recipe",
+      searchTerm: debouncedSearchString,
+    });
+  }, [debouncedSearchString, hasSearchTextMatches, embeddedMode, isLoading]);
 
   /* ------------------------------------------
   // Hilfsfunktion: Sucheinstellungen anwenden und filtern
@@ -789,9 +841,7 @@ export const RecipeSearch = ({
    * @param update Teilweise Sucheinstellungen zum Zusammenführen.
    */
   const applySearchSettings = (update: Partial<SearchSettings>) => {
-    const newSettings = {...searchSettings, ...update};
-    setSearchSettings(newSettings);
-    setFilteredData(filterRecipes({searchSettings: newSettings, recipes}));
+    setSearchSettings({...searchSettings, ...update});
   };
 
   /* ------------------------------------------
@@ -806,7 +856,6 @@ export const RecipeSearch = ({
         showAdvancedSearch: false,
       };
       setSearchSettings(newSettings);
-      setFilteredData(filterRecipes({searchSettings: newSettings, recipes}));
 
       SessionStorageHandler.deleteDocument({
         storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
@@ -828,7 +877,6 @@ export const RecipeSearch = ({
       showAdvancedSearch: true,
     };
     setSearchSettings(newSettings);
-    setFilteredData(filterRecipes({searchSettings: newSettings, recipes}));
 
     SessionStorageHandler.deleteDocument({
       storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,

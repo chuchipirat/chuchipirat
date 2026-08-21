@@ -6,6 +6,21 @@
  * Service ist zustandslos und kann überall importiert werden.
  */
 import {AnalyticsEventName} from "./analyticsEvents";
+import AuthUser from "../Firebase/Authentication/authUser.class";
+import {Role} from "../../constants/roles";
+
+/** UUID-Segment in einem Pfad, z.B. `/event/3fa85f64-5717-4562-b3fc-2c963f66afa6`. */
+const UUID_SEGMENT_PATTERN =
+  /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+
+/** Name der globalen Funktion, die Umami vor dem Senden aufruft (siehe `data-before-send`). */
+const BEFORE_SEND_FUNCTION_NAME = "chuchipiratUmamiBeforeSend";
+
+/** Payload-Form, die Umami an die `data-before-send`-Funktion übergibt. */
+type UmamiBeforeSendPayload = {
+  url?: string;
+  [key: string]: unknown;
+};
 
 /** Umami stellt `window.umami` zur Verfügung, sobald das Script geladen ist. */
 declare global {
@@ -16,7 +31,30 @@ declare global {
         eventData?: Record<string, string | number | boolean>,
       ) => void;
     };
+    chuchipiratUmamiBeforeSend?: (
+      type: string,
+      payload: UmamiBeforeSendPayload,
+    ) => UmamiBeforeSendPayload | false;
   }
+}
+
+/**
+ * Ersetzt UUID-Segmente in einer URL durch `:id`.
+ *
+ * Die Routen der App sind UID-basiert (z.B. `/event/:id`,
+ * `/recipe/:id`). Ohne Normalisierung würde Umami jedes Event, jedes
+ * Rezept usw. als eigene „Seite" zählen, was den Pages-Report
+ * unbrauchbar macht. Wird als eigenständige, reine Funktion
+ * exportiert, damit sie ohne Mocking des Umami-Scripts testbar ist.
+ *
+ * @param url Die rohe URL, wie sie Umami tracken würde.
+ * @returns Die URL mit UUID-Segmenten ersetzt durch `:id`.
+ * @example
+ * normalizeAnalyticsUrl("/event/3fa85f64-5717-4562-b3fc-2c963f66afa6/menuplan")
+ * // "/event/:id/menuplan"
+ */
+export function normalizeAnalyticsUrl(url: string): string {
+  return url.replace(UUID_SEGMENT_PATTERN, ":id");
 }
 
 /**
@@ -39,6 +77,14 @@ export function initAnalytics(): void {
     return;
   }
 
+  // Normalisiert UUID-Segmente in getrackten URLs, bevor sie an Umami gesendet werden
+  window[BEFORE_SEND_FUNCTION_NAME] = (type, payload) => {
+    if (payload?.url) {
+      payload.url = normalizeAnalyticsUrl(payload.url);
+    }
+    return payload;
+  };
+
   const script = document.createElement("script");
   script.defer = true;
   script.src = `${host}/script.js`;
@@ -47,6 +93,12 @@ export function initAnalytics(): void {
   // Core Web Vitals (LCP, INP, CLS, FCP, TTFB) automatisch erfassen
   script.setAttribute("data-performance", "true");
 
+  // UUID-Segmente in getrackten URLs normalisieren (siehe normalizeAnalyticsUrl)
+  script.setAttribute("data-before-send", BEFORE_SEND_FUNCTION_NAME);
+
+  // Query-Strings nicht mittracken — reduziert URL-Kardinalität im Pages-Report
+  script.setAttribute("data-exclude-search", "true");
+
   // In Produktion nur auf der echten Domain tracken
   const environment = import.meta.env.VITE_ENVIRONMENT;
   if (environment === "PRD") {
@@ -54,6 +106,27 @@ export function initAnalytics(): void {
   }
 
   document.head.appendChild(script);
+}
+
+/**
+ * Ermittelt die höchstrangige Rolle eines Benutzers für Analytics-Zwecke.
+ *
+ * Dient dazu, Admin-/Community-Leader-getriebene Stammdatenpflege von
+ * organischer Nutzung durch Lager-Köch*innen zu unterscheiden, ohne an
+ * jeder Aufrufstelle `authUser.roles.includes(...)` zu wiederholen.
+ *
+ * @param authUser Der angemeldete Benutzer (oder `null`/`undefined`).
+ * @returns `"admin"`, `"communityLeader"` oder `"basic"` (`"anonymous"` falls kein Benutzer).
+ * @example
+ * trackEvent(AnalyticsEvent.PRODUCT_CREATED, {role: getAnalyticsRole(authUser)});
+ */
+export function getAnalyticsRole(
+  authUser: AuthUser | null | undefined,
+): string {
+  if (!authUser) return "anonymous";
+  if (authUser.roles.includes(Role.admin)) return "admin";
+  if (authUser.roles.includes(Role.communityLeader)) return "communityLeader";
+  return "basic";
 }
 
 /**

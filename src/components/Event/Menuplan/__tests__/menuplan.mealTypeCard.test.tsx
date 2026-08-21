@@ -111,4 +111,27 @@ describe("MealTypeCard", () => {
       })
     );
   });
+
+  it("sollte das Kontextmenü synchron beim Klick auf 'Umbenennen' schliessen, bevor der Dialog aufgelöst ist", () => {
+    let resolveDialog: (value: unknown) => void = () => {};
+    mockCustomDialog.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveDialog = resolve;
+      }),
+    );
+
+    render(<MealTypeCard {...defaultProps} />);
+
+    const menuButton = screen.getByRole("button", {name: "settings"});
+    fireEvent.click(menuButton);
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByText(TEXT_RENAME));
+
+    // Menü muss sofort geschlossen sein — der Dialog wurde absichtlich
+    // noch nicht aufgelöst (resolveDialog noch nicht aufgerufen).
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+    resolveDialog({valid: false, input: ""});
+  });
 });

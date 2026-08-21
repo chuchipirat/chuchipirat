@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useRef} from "react";
-import {useNavigate} from "react-router";
+import {useNavigate, useLocation} from "react-router";
 import * as Sentry from "@sentry/react";
 
 import AuthUser from "../Firebase/Authentication/authUser.class";
@@ -225,6 +225,7 @@ export const AuthorizationGuard: React.FC<AuthorizationGuardProps> = ({
   const authUser = useAuthUser();
   const database = useDatabase();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     if (authUser === null) {
@@ -232,14 +233,18 @@ export const AuthorizationGuard: React.FC<AuthorizationGuardProps> = ({
       // Einmalige Session-Prüfung, um die beiden Fälle zu unterscheiden.
       database.auth.getSession().then((session) => {
         if (!session) {
-          navigate(ROUTE_SIGN_IN);
+          // Ursprünglich angeforderte URL mitgeben, damit SignInPage nach
+          // erfolgreichem Login dorthin zurücknavigieren kann (statt immer /home).
+          navigate(ROUTE_SIGN_IN, {
+            state: {from: `${location.pathname}${location.search}`},
+          });
         }
         // Wenn Session vorhanden, warten bis AuthUserProvider den authUser setzt.
       });
     } else if (!condition(authUser)) {
       navigate(ROUTE_NO_AUTH);
     }
-  }, [authUser, condition, navigate]);
+  }, [authUser, condition, navigate, location]);
 
   // Während authUser null ist (Laden), nichts rendern; bei fehlender Berechtigung ebenfalls.
   return condition(authUser) ? <>{children}</> : null;

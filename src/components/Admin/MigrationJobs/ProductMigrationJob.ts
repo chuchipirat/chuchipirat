@@ -21,7 +21,9 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {fetchAllRows, MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {ProductRepository} from "../../Database/Repository/ProductRepository";
 
 /* =====================================================================
 // Typ der Firebase-Quelldaten für ein Produkt
@@ -70,6 +72,49 @@ export class ProductMigrationJob
     "Migriert alle Produkte/Zutaten von Firebase nach Postgres. " +
     "Setzt voraus, dass Abteilungen und Einheiten bereits migriert sind.";
 
+  /** firebase_uid → Postgres-ID für Abteilungen */
+  private departmentIdByFirebaseUid: Map<string, string> = new Map();
+  /** Bereits migrierte Produkte (firebase_uid) — für schnelle checkExists-Prüfung */
+  private existingFirebaseUids: Set<string> | null = null;
+
+  /**
+   * ProductRepository mit Service-Role-Client. RLS würde Lese-/Schreibzugriff
+   * sonst auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminProducts = new ProductRepository(supabaseAdmin!);
+
+  /* =====================================================================
+  // Lookup-Maps einmalig aufbauen
+  // ===================================================================== */
+  /**
+   * Lädt Abteilungen und bereits migrierte Produkte einmalig aus Postgres.
+   * Eliminiert N+1-Queries: jede FK-Auflösung und jede checkExists-Prüfung
+   * wird danach als O(1)-Map/Set-Lookup ausgeführt.
+   */
+  private async buildLookupMaps(): Promise<void> {
+    // Alle Abteilungen einmalig laden → Map firebase_uid → Postgres-ID
+    const deptRows = await fetchAllRows<{id: string; firebase_uid: string}>(
+      supabaseAdmin!,
+      "departments",
+      "id, firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.departmentIdByFirebaseUid = new Map(
+      deptRows.map((row) => [row.firebase_uid, row.id]),
+    );
+
+    // Bereits migrierte Produkte laden → Set firebase_uid
+    const existingRows = await fetchAllRows<{firebase_uid: string}>(
+      supabaseAdmin!,
+      "products",
+      "firebase_uid",
+      (query) => query.not("firebase_uid", "is", null),
+    );
+    this.existingFirebaseUids = new Set(
+      existingRows.map((row) => row.firebase_uid),
+    );
+  }
+
   /* =====================================================================
   // Alle Produkte aus Firebase lesen
   // ===================================================================== */
@@ -77,12 +122,21 @@ export class ProductMigrationJob
    * Liest alle Produkte aus dem Firestore-Dokument `masterData/products`.
    * Die Daten liegen als flache Map vor.
    *
+   * Baut ausserdem Lookup-Maps für FK-Auflösungen auf (Abteilungen)
+   * und lädt bereits migrierte Produkte für schnelle checkExists-Prüfung.
+   *
    * @param firebase - Firebase-Instanz
+   * @param database - DatabaseService-Instanz (optional, für FK-Maps)
    * @returns Array aller Produkt-Quelldatensätze
    */
   async fetchSourceRecords(
-    firebase: Firebase
+    firebase: Firebase,
+    database?: DatabaseService,
   ): Promise<SourceRecord<FirebaseProductData>[]> {
+    if (database) {
+      await this.buildLookupMaps();
+    }
+
     const result =
       await firebase.masterdata.products.read<ValueObject>({uids: []});
 
@@ -111,20 +165,21 @@ export class ProductMigrationJob
   // ===================================================================== */
   /**
    * Prüft anhand der `firebase_uid`, ob das Produkt bereits migriert wurde.
+   * Verwendet die vorgeladene Menge für O(1)-Lookup, falls verfügbar.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls das Produkt bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
-    record: SourceRecord<FirebaseProductData>
+    _database: DatabaseService,
+    record: SourceRecord<FirebaseProductData>,
   ): Promise<boolean> {
-    const products = database.products;
-    const existing = await products.findMany({
-      filters: [
-        {field: "firebase_uid", operator: "eq", value: record.id},
-      ],
+    if (this.existingFirebaseUids !== null) {
+      return this.existingFirebaseUids.has(record.id);
+    }
+    // Fallback falls buildLookupMaps nicht aufgerufen wurde
+    const existing = await this.adminProducts.findMany({
+      filters: [{field: "firebase_uid", operator: "eq", value: record.id}],
     });
     return existing.length > 0;
   }
@@ -136,38 +191,24 @@ export class ProductMigrationJob
    * Fügt ein Produkt in die Postgres-Tabelle ein und setzt
    * anschliessend die `firebase_uid` per Patch.
    *
-   * Löst die Abteilungs-FK über die `firebase_uid`-Spalte
-   * der departments-Tabelle auf.
+   * Löst die Abteilungs-FK über die vorgeladene Lookup-Map auf (O(1)).
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
-   * @throws {Error} Wenn die referenzierte Abteilung nicht in Postgres gefunden wird
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseProductData>,
-    authUser: AuthUser
+    authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
-    const products = database.products;
-    const departments = database.departments;
 
-    // Abteilungs-FK auflösen: Firebase-UID → Postgres-ID
-    let departmentId = "";
-    if (data.departmentUid) {
-      const deptMatches = await departments.findMany({
-        filters: [
-          {field: "firebase_uid", operator: "eq", value: data.departmentUid},
-        ],
-      });
-      if (deptMatches.length > 0) {
-        departmentId = deptMatches[0].uid;
-      }
-    }
+    // Abteilungs-FK auflösen: O(1)-Lookup via vorgeladener Map
+    const departmentId =
+      this.departmentIdByFirebaseUid.get(data.departmentUid) ?? "";
 
     // Produkt einfügen
-    const {id} = await products.insert({
+    const {id} = await this.adminProducts.insert({
       value: {
         uid: "",
         name: data.name,
@@ -183,7 +224,7 @@ export class ProductMigrationJob
     });
 
     // firebase_uid nachträglich setzen
-    await products.patch({
+    await this.adminProducts.patch({
       id,
       fields: {firebase_uid: record.id},
       authUser,

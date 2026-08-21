@@ -1,7 +1,7 @@
 import {SUPABASE_MESSAGES as TEXT_SUPABASE_MESSAGES} from "../../constants/text";
 
 /**
- * Übersetzt Fehlermeldungen von Supabase Auth ins Deutsche.
+ * Übersetzt Fehlermeldungen von Supabase (Auth und Postgres/PostgREST) ins Deutsche.
  *
  * Supabase-Fehler werden anhand des `error.message` übersetzt,
  * da Supabase keine einheitlichen, stabilen Fehlercodes verwendet.
@@ -21,6 +21,14 @@ const SUPABASE_MESSAGE_PATTERNS: {
       /^For security purposes, you can only request this after (\d+) seconds?\.$/,
     translate: (match) =>
       `Aus Sicherheitsgründen kannst du dies erst nach ${match[1]} Sekunden erneut anfordern.`,
+  },
+  // Postgres-Fehler bei Überlauf einer integer/smallint/bigint-Spalte, z.B.
+  // 'value "99999999999" is out of range for type integer'. Tritt auf, wenn
+  // clientseitige Validierung fehlt oder umgangen wird.
+  {
+    pattern: /^value "(-?\d+)" is out of range for type (integer|smallint|bigint)\.?$/,
+    translate: () =>
+      "Die eingegebene Zahl ist zu gross oder zu klein für dieses Feld. Bitte gib einen anderen Wert ein.",
   },
 ];
 

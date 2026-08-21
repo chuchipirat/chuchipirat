@@ -19,6 +19,8 @@ import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {UnitConversionBasicRepository} from "../../Database/Repository/UnitConversionBasicRepository";
 
 /* =====================================================================
 // Typ der Firebase-Quelldaten für eine Standard-Einheitenumrechnung
@@ -64,6 +66,15 @@ export class UnitConversionBasicMigrationJob
     "Migriert alle Standard-Einheitenumrechnungen von Firebase nach Postgres. " +
     "Setzt voraus, dass Einheiten bereits migriert sind.";
 
+  /**
+   * UnitConversionBasicRepository mit Service-Role-Client. RLS würde
+   * Lese-/Schreibzugriff sonst auf die Berechtigungen des eingeloggten
+   * Admin-Users beschränken.
+   */
+  private readonly adminConversions = new UnitConversionBasicRepository(
+    supabaseAdmin!,
+  );
+
   /* =====================================================================
   // Alle Standard-Umrechnungen aus Firebase lesen
   // ===================================================================== */
@@ -108,17 +119,14 @@ export class UnitConversionBasicMigrationJob
   /**
    * Prüft anhand der `firebase_uid`, ob die Umrechnung bereits migriert wurde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls die Umrechnung bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUnitConversionBasicData>
   ): Promise<boolean> {
-    const conversions =
-      database.unitConversionBasic;
-    const existing = await conversions.findMany({
+    const existing = await this.adminConversions.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
       ],
@@ -133,21 +141,18 @@ export class UnitConversionBasicMigrationJob
    * Fügt eine Standard-Umrechnung in die Postgres-Tabelle ein und setzt
    * anschliessend die `firebase_uid` per Patch.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUnitConversionBasicData>,
     authUser: AuthUser
   ): Promise<void> {
     const data = record.data;
-    const conversions =
-      database.unitConversionBasic;
 
     // Umrechnung einfügen — fromUnit/toUnit sind direkt die Unit-Keys
-    const {id} = await conversions.insert({
+    const {id} = await this.adminConversions.insert({
       value: {
         uid: "",
         fromUnit: data.fromUnit,
@@ -159,7 +164,7 @@ export class UnitConversionBasicMigrationJob
     });
 
     // firebase_uid nachträglich setzen
-    await conversions.patch({
+    await this.adminConversions.patch({
       id,
       fields: {firebase_uid: record.id},
       authUser,

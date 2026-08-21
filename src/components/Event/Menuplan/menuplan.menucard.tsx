@@ -7,6 +7,7 @@ import {
   CardHeader,
   IconButton,
   TextField,
+  List,
   Menu,
   MenuItem,
   Button,
@@ -88,7 +89,9 @@ import {
 } from "../../Shared/customDialogContext";
 import {
   MenueCardList,
+  ListEntryShadow,
   isDraggingACardListItem,
+  isCardListData,
   getListContainerDropTargetData,
 } from "./menuplan.menucard.list";
 import {Action} from "../../../constants/actions";
@@ -235,6 +238,23 @@ export function isShallowEqual(
   return keys1.every((key1) => Object.is(obj1[key1], obj2[key1]));
 }
 
+/**
+ * Zustand des Platzhalters für eine leere Produkt-/Materialliste — diese
+ * Listen werden bei 0 Einträgen gar nicht erst gemountet, daher übernimmt
+ * das Fallback-Drop-Target auf der Menü-Karte selbst die Anzeige eines
+ * Platzhalters während des Drüberziehens.
+ */
+type TEmptyGoodsDragState =
+  | {type: "idle"}
+  | {
+      type: "is-over";
+      dragging: DOMRect;
+      itemType: MenuplanDragDropTypes.PRODUCT | MenuplanDragDropTypes.MATERIAL;
+    };
+const emptyGoodsDragStateIdle = {
+  type: "idle",
+} satisfies TEmptyGoodsDragState;
+
 interface MenueListOfMealProps {
   meal: Meal;
   menues: MenuplanData["menues"];
@@ -375,7 +395,7 @@ export const MenueListOfMeal = memo(function MenueListOfMeal({
 });
 interface DraggableMenueCardProps extends Omit<
   MenueCardProps,
-  "menue" | "outerRef" | "innerRef" | "state"
+  "menue" | "outerRef" | "innerRef" | "state" | "emptyGoodsDragState"
 > {
   // listItemKey: string;
   listType: MenuplanDragDropTypes;
@@ -416,6 +436,8 @@ const DraggableMenueCard = memo(function DraggableMenueCard({
   const outerRef = useRef<HTMLDivElement | null>(null);
   const innerRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<TMenueCardState>(menueCardStateIdle);
+  const [emptyGoodsDragState, setEmptyGoodsDragState] =
+    useState<TEmptyGoodsDragState>(emptyGoodsDragStateIdle);
   const theme = useTheme();
   // Refs für stabile Zugriffe in Drag-&-Drop-Callbacks
   const listItemRef = useRef(listItem);
@@ -570,6 +592,43 @@ const DraggableMenueCard = memo(function DraggableMenueCard({
             listType: source.data.itemType as MenuplanDragDropTypes,
             isEmpty: true,
           }),
+        onDragEnter({source}) {
+          if (!isCardListData(source.data)) return;
+          const data = source.data;
+          setEmptyGoodsDragState({
+            type: "is-over",
+            dragging: data.rect,
+            itemType: data.itemType as
+              | MenuplanDragDropTypes.PRODUCT
+              | MenuplanDragDropTypes.MATERIAL,
+          });
+        },
+        onDrag({source}) {
+          if (!isCardListData(source.data)) return;
+          const data = source.data;
+          setEmptyGoodsDragState((current) => {
+            const proposed: TEmptyGoodsDragState = {
+              type: "is-over",
+              dragging: data.rect,
+              itemType: data.itemType as
+                | MenuplanDragDropTypes.PRODUCT
+                | MenuplanDragDropTypes.MATERIAL,
+            };
+            if (
+              current.type === "is-over" &&
+              isShallowEqual(proposed, current)
+            ) {
+              return current;
+            }
+            return proposed;
+          });
+        },
+        onDragLeave() {
+          setEmptyGoodsDragState(emptyGoodsDragStateIdle);
+        },
+        onDrop() {
+          setEmptyGoodsDragState(emptyGoodsDragStateIdle);
+        },
       }),
     );
   }, [menuplanSettings.enableDragAndDrop]);
@@ -580,6 +639,7 @@ const DraggableMenueCard = memo(function DraggableMenueCard({
         outerRef={outerRef}
         innerRef={innerRef}
         state={state}
+        emptyGoodsDragState={emptyGoodsDragState}
         menue={listItem.menue}
         index={index}
         isLastElement={isLastElement}
@@ -606,6 +666,7 @@ const DraggableMenueCard = memo(function DraggableMenueCard({
         ? createPortal(
             <MenueCard
               state={state}
+              emptyGoodsDragState={emptyGoodsDragStateIdle}
               menue={listItem.menue}
               index={index}
               isLastElement={isLastElement}
@@ -648,6 +709,7 @@ interface MenueCardProps {
   menuplanSettings: MenuplanSettings;
   groupConfiguration: EventGroupConfiguration;
   state: TMenueCardState;
+  emptyGoodsDragState: TEmptyGoodsDragState;
   outerRef?: React.MutableRefObject<HTMLDivElement | null>;
   innerRef?: React.MutableRefObject<HTMLDivElement | null>;
   onUpdateMenue: (menue: Menue) => void;
@@ -680,6 +742,7 @@ const MenueCard = ({
   menuplanSettings,
   groupConfiguration,
   state,
+  emptyGoodsDragState,
   outerRef,
   innerRef,
   onUpdateMenue,
@@ -747,8 +810,10 @@ const MenueCard = ({
     setContextMenuAnchorElement(null);
   };
   const onDeleteMenue = () => {
-    if (contextMenuAnchorElement?.id) {
-      onDeleteMenueSuper(contextMenuAnchorElement.id.split("_")[1]);
+    const targetId = contextMenuAnchorElement?.id;
+    setContextMenuAnchorElement(null);
+    if (targetId) {
+      onDeleteMenueSuper(targetId.split("_")[1]);
     }
   };
   const onAddProduct = () => {
@@ -764,6 +829,9 @@ const MenueCard = ({
     setContextMenuAnchorElement(null);
   };
   const onEditNote = async () => {
+    // Kontextmenü sofort schliessen — unabhängig vom Dialog-Roundtrip.
+    setContextMenuAnchorElement(null);
+
     let userInput = {valid: false, input: ""} as SingleTextInputResult;
 
     const existingNote = Object.values(notes).find(
@@ -795,7 +863,6 @@ const MenueCard = ({
         note: note,
       });
     }
-    setContextMenuAnchorElement(null);
   };
   const onMoveElement = (direction: DragAndDropDirections) => {
     if (contextMenuAnchorElement?.id && onMoveDragAndDropElement != undefined) {
@@ -905,8 +972,9 @@ const MenueCard = ({
                   {TEXT_ADD_RECIPE}
                 </Button>
               </Box>
-              {/* Produkte – nur anzeigen, wenn vorhanden */}
-              {menue.productOrder.length > 0 && (
+              {/* Produkte – anzeigen wenn vorhanden, sonst Platzhalter
+                  während ein Produkt darüber gezogen wird */}
+              {menue.productOrder.length > 0 ? (
                 <MenueCardList
                   menue={menue}
                   products={products}
@@ -916,9 +984,16 @@ const MenueCard = ({
                   onListElementClick={onMealProductOpen}
                   onMoveDragAndDropElement={onMoveDragAndDropElement!}
                 />
-              )}
-              {/* Material – nur anzeigen, wenn vorhanden */}
-              {menue.materialOrder.length > 0 && (
+              ) : emptyGoodsDragState.type === "is-over" &&
+                emptyGoodsDragState.itemType ===
+                  MenuplanDragDropTypes.PRODUCT ? (
+                <List dense>
+                  <ListEntryShadow dragging={emptyGoodsDragState.dragging} />
+                </List>
+              ) : null}
+              {/* Material – anzeigen wenn vorhanden, sonst Platzhalter
+                  während ein Material darüber gezogen wird */}
+              {menue.materialOrder.length > 0 ? (
                 <MenueCardList
                   menue={menue}
                   materials={materials}
@@ -928,7 +1003,13 @@ const MenueCard = ({
                   onListElementClick={onMealMaterialOpen}
                   onMoveDragAndDropElement={onMoveDragAndDropElement!}
                 />
-              )}
+              ) : emptyGoodsDragState.type === "is-over" &&
+                emptyGoodsDragState.itemType ===
+                  MenuplanDragDropTypes.MATERIAL ? (
+                <List dense>
+                  <ListEntryShadow dragging={emptyGoodsDragState.dragging} />
+                </List>
+              ) : null}
             </CardContent>
             <Menu
               open={Boolean(contextMenuAnchorElement)}
@@ -978,9 +1059,10 @@ const MenueCard = ({
               </MenuItem>
               {note && (
                 <MenuItem
-                  onClick={() =>
-                    onNoteUpdate({action: Action.DELETE, note: note})
-                  }
+                  onClick={() => {
+                    closeContextMenu();
+                    onNoteUpdate({action: Action.DELETE, note: note});
+                  }}
                 >
                   <ListItemIcon>
                     <DeleteSweepIcon />

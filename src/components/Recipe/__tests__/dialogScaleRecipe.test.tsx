@@ -9,7 +9,7 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render, screen, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 
@@ -93,5 +93,43 @@ describe("DialogScaleRecipe", () => {
     await userEvent.click(cancelButton);
 
     expect(handleClose).toHaveBeenCalledTimes(1);
+  });
+
+  /* ------------------------------------------
+  // 5. Kappt ungültige Portionen-Eingaben
+  // ------------------------------------------ */
+  describe("Kappung ungültiger Portionen-Eingaben", () => {
+    test("kappt eine negativ eingegebene Portionenzahl auf 0", () => {
+      render(<DialogScaleRecipe {...baseProps} />);
+
+      const portionsInput = screen.getByLabelText(
+        "zu skalierende Portionen",
+      ) as HTMLInputElement;
+      fireEvent.change(portionsInput, {target: {value: "-10"}});
+
+      expect(portionsInput.value).toBe("0");
+    });
+
+    test("kappt eine absurd grosse Portionenzahl auf den Maximalwert", () => {
+      render(<DialogScaleRecipe {...baseProps} />);
+
+      const portionsInput = screen.getByLabelText(
+        "zu skalierende Portionen",
+      ) as HTMLInputElement;
+      fireEvent.change(portionsInput, {target: {value: "99999999999"}});
+
+      expect(portionsInput.value).toBe("1000000");
+    });
+
+    test("behandelt nicht parsebare Eingabe als 0", () => {
+      render(<DialogScaleRecipe {...baseProps} />);
+
+      const portionsInput = screen.getByLabelText(
+        "zu skalierende Portionen",
+      ) as HTMLInputElement;
+      fireEvent.change(portionsInput, {target: {value: ""}});
+
+      expect(portionsInput.value).toBe("0");
+    });
   });
 });

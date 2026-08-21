@@ -43,6 +43,7 @@ import {
   Storage as StorageIcon,
   VolunteerActivism as VolunteerActivismIcon,
   EmojiEvents as EmojiEventsIcon,
+  Payment as PaymentIcon,
 } from "@mui/icons-material";
 
 import {
@@ -83,8 +84,11 @@ import {
   DONATIONS_OVERVIEW_DESCRIPTION as TEXT_DONATIONS_OVERVIEW_DESCRIPTION,
   DONATION_GOALS_ADMIN as TEXT_DONATION_GOALS_ADMIN,
   DONATION_GOALS_ADMIN_DESCRIPTION as TEXT_DONATION_GOALS_ADMIN_DESCRIPTION,
+  MEAL_TYPE_CUTOFF_TIMES_ADMIN as TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN,
+  MEAL_TYPE_CUTOFF_TIMES_ADMIN_DESCRIPTION as TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN_DESCRIPTION,
   SENTRY_DASHBOARD as TEXT_SENTRY_DASHBOARD,
   SUPABASE_DASHBOARD as TEXT_SUPABASE_DASHBOARD,
+  PAYMENT_PROVIDER_DASHBOARD as TEXT_PAYMENT_PROVIDER_DASHBOARD,
   USERS as TEXT_USERS,
 } from "../../constants/text";
 import {Role} from "../../constants/roles";
@@ -107,12 +111,14 @@ import {
   SYSTEM_DATA_INTEGRITY as ROUTE_SYSTEM_DATA_INTEGRITY,
   SYSTEM_OVERVIEW_DONATIONS as ROUTE_SYSTEM_OVERVIEW_DONATIONS,
   SYSTEM_DONATION_GOALS as ROUTE_SYSTEM_DONATION_GOALS,
+  SYSTEM_MEAL_TYPE_CUTOFF_TIMES as ROUTE_SYSTEM_MEAL_TYPE_CUTOFF_TIMES,
 } from "../../constants/routes";
 
 import {useCustomStyles} from "../../constants/styles";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {useAuthUser} from "../Session/authUserContext";
+import {Utils, Environment} from "../Shared/utils.class";
 
 /* ===================================================================
 // ====================== Breadcrumb-Konstante =======================
@@ -133,7 +139,26 @@ export const SYSTEM_BREADCRUMB = {
 // =================================================================== */
 
 const SENTRY_DASHBOARD_URL = "https://chuchipirat.sentry.io";
-const SUPABASE_DASHBOARD_URL = "https://supabase.com/dashboard";
+const PAYMENT_PROVIDER_DASHBOARD_URL =
+  "https://chuchipirat.zahls.ch/cadmin/index.php?cmd=checkout";
+
+/**
+ * Gibt die URL des selbst gehosteten Supabase Studio für die aktuelle
+ * Umgebung zurück (DEV/TEST/PROD haben je eine eigene Studio-Instanz).
+ *
+ * @returns Studio-URL passend zu `Utils.getEnvironment()`.
+ */
+const getSupabaseDashboardUrl = (): string => {
+  switch (Utils.getEnvironment()) {
+    case Environment.production:
+      return "http://chuchipirat:3013";
+    case Environment.test:
+      return "http://chuchipirat:3003/";
+    case Environment.development:
+    default:
+      return "http://localhost:8000/";
+  }
+};
 
 /* ===================================================================
 // =============================== Page ==============================
@@ -204,6 +229,16 @@ const SystemPage = () => {
                   icon={<EmojiEventsIcon />}
                   action={goToDestination}
                   routeDestination={ROUTE_SYSTEM_DONATION_GOALS}
+                />
+              </Grid>
+              <Grid size={{xs: 12, sm: 6, md: 4}}>
+                <AdminTile
+                  id="mealTypeCutoffTimes"
+                  text={TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN}
+                  description={TEXT_MEAL_TYPE_CUTOFF_TIMES_ADMIN_DESCRIPTION}
+                  icon={<ScheduleIcon />}
+                  action={goToDestination}
+                  routeDestination={ROUTE_SYSTEM_MEAL_TYPE_CUTOFF_TIMES}
                 />
               </Grid>
             </Grid>
@@ -386,7 +421,15 @@ const SystemPage = () => {
                   id="supabase"
                   text={TEXT_SUPABASE_DASHBOARD}
                   icon={<StorageIcon />}
-                  url={SUPABASE_DASHBOARD_URL}
+                  url={getSupabaseDashboardUrl()}
+                />
+              </Grid>
+              <Grid size={{xs: 12, sm: 6, md: 4}}>
+                <ExternalLinkTile
+                  id="Zahls.ch"
+                  text={TEXT_PAYMENT_PROVIDER_DASHBOARD}
+                  icon={<PaymentIcon />}
+                  url={PAYMENT_PROVIDER_DASHBOARD_URL}
                 />
               </Grid>
             </Grid>

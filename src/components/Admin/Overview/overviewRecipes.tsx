@@ -71,7 +71,7 @@ import {
   SNACKBAR_INITIAL_STATE_VALUES,
   SnackbarState,
 } from "../../Shared/customSnackbar";
-import {trackEvent} from "../../Analytics/analyticsService";
+import {trackEvent, getAnalyticsRole} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 
 import * as Sentry from "@sentry/react";
@@ -667,6 +667,7 @@ const OverviewRecipePage = () => {
       trackEvent(AnalyticsEvent.RECIPE_TYPE_CHANGED, {
         recipeUid: recipe.uid,
         newType: RecipeType.private,
+        role: getAnalyticsRole(authUser),
       });
     } catch (error) {
       Sentry.captureException(error);

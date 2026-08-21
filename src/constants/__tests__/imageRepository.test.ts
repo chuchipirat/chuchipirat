@@ -6,7 +6,6 @@ describe("ImageRepository", () => {
     const expectedKeys = [
       "LANDING_LOGO",
       "SIGN_IN_HEADER",
-      "PDF_FOOTER_IMAGE",
       "CARD_PLACEHOLDER_MEDIA",
       "VECTOR_LOGO_GREY",
       "RECEIPT_IMAGE",
@@ -16,17 +15,23 @@ describe("ImageRepository", () => {
     });
   });
 
-  it("alle URLs sind nicht-leere Strings", () => {
+  it("enthält kein PDF_FOOTER_IMAGE mehr (ungenutzt, entfernt)", () => {
     const pictures = ImageRepository.getEnvironmentRelatedPicture();
-    Object.values(pictures).forEach((url) => {
-      expect(typeof url).toBe("string");
-      expect((url as string).length).toBeGreaterThan(0);
+    expect(pictures).not.toHaveProperty("PDF_FOOTER_IMAGE");
+  });
+
+  it("alle Pfade sind nicht-leere Strings, die mit /images/ beginnen", () => {
+    const pictures = ImageRepository.getEnvironmentRelatedPicture();
+    Object.values(pictures).forEach((path) => {
+      expect(typeof path).toBe("string");
+      expect((path as string).length).toBeGreaterThan(0);
+      expect(path as string).toMatch(/^\/images\//);
     });
   });
 
-  it("gibt DEV-Bilder zurück in der Testumgebung", () => {
-    // Jest-Konfiguration setzt VITE_ENVIRONMENT auf "DEV"
-    const pictures = ImageRepository.getEnvironmentRelatedPicture();
-    expect(pictures.LANDING_LOGO).toContain("chuchipirat-dev");
+  it("ist umgebungsunabhängig — liefert bei jedem Aufruf dasselbe Ergebnis", () => {
+    const first = ImageRepository.getEnvironmentRelatedPicture();
+    const second = ImageRepository.getEnvironmentRelatedPicture();
+    expect(second).toEqual(first);
   });
 });

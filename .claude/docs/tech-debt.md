@@ -41,6 +41,9 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 - **Recipe loading: 5 parallel queries** — `recipe.tsx` and `recipe.edit.tsx` load a recipe via 4–5 separate parallel Supabase queries, plus a full products list just for name resolution. Refactor to use PostgREST embedded resources (single query with joins). Add `RecipeFullRow` interface, `getRecipeFull(id)` to `RecipeRepository`, `Recipe.fromFullRow()` factory method. Remove `getAllProducts()` workaround. See `database-and-supabase.md` for PostgREST embedded resource syntax.
   **Priorität:** mittel · **Komplexität:** gross
 
+- **`BaseRepository.findMany()` — keine Pagination über PostgREST `db-max-rows` hinaus** — PostgREST begrenzt jede unpaginierte Anfrage serverseitig auf `db-max-rows` (aktuell 1000, siehe `supabase/config.toml` bzw. `PGRST_DB_MAX_ROWS` in den Docker-Compose-Dateien). `findMany()` reicht diese Begrenzung unverändert durch und schneidet Ergebnisse oberhalb der Grenze **stillschweigend** ab — kein Fehler, einfach fehlende Zeilen. Bereits behoben (eigene `fetchXPage()`-Helper mit `.range()`-Pagination statt unpaginiertem `.select()`): `ProductRepository.getAllProducts()`, `MaterialRepository.getAllMaterials()`, `FeedRepository.getAllFeeds()`, `UserRepository.findOverview()`, `EventRepository.getAllEventsShort()`, `DonationRepository.getAllDonations()` (2026-07-21, live in Feed-Übersicht aufgefallen — siehe [[FD-004]]), sowie `RecipeRepository.getAllRecipeShorts()`, `getAllPublicRecipeShorts()` und `getPrivateRecipeShortsForUser()` (2026-07-21, gemeinsamer `fetchAllRecipeShortRows()`-Helper — `getAllRecipeShorts()` war das riskanteste, da völlig ungefiltert über alle Rezepte aller User). Vollständiger Audit aller DataGrid-Seiten am 2026-07-21 durchgeführt: `overviewMailbox.tsx` (`MailLogRepository.getAll(limit)`) und `cronJobs.tsx` (`CronJobLogRepository.getAll/getByJobName(limit)`) sind sicher (expliziter `.limit()` unter 1000). `systemMessageOverview.tsx` (`SystemMessageRepository.getMessages()` via generisches `findMany()`) ist unpaginiert, aber unkritisch (Ankündigungstabelle, real nie über wenige Dutzend Zeilen). Noch nicht gefixt, da deutlich geringeres Risiko (durch Suchbegriff/Ersteller/Event bereits eingeschränkt, in der Praxis kleine Ergebnismengen): `RecipeRepository.searchByName()`, `searchByRecipeId()`, `searchByCreatorId()`, `searchByCreatorIds()`, `getVariantShortsForEvent()`. Eine generische Lösung direkt in `findMany()` wäre möglich, wurde aber bewusst vermieden, um den Blast-Radius klein zu halten (betrifft 15+ Repositories, die `findMany()` nutzen) — bei neuen Overview-/Listen-Seiten für potenziell grosse Tabellen weiterhin auf dieses Pattern prüfen.
+  **Priorität:** mittel · **Komplexität:** mittel (pro betroffenem Repository klein, aber Audit über alle `findMany()`-Aufrufer nötig)
+
 ## Bundle Size
 
 Identifiziert via Sentry Bundle Size Analysis (Build vom 13.04.2026). Die grössten Chunks bieten das meiste Optimierungspotenzial.
@@ -203,6 +206,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Other
 
+- **Duplikate Produkte in `products`-Tabelle** — Mind. 7 Produkte existieren als zwei separate DB-Zeilen mit identischem Namen, aber unterschiedlicher `uid` (bestätigt: Äpfel, Birnen, Diverse Früchte, Frühstücksflocken, Mascarpone vegan, Rotkabis, Weisswein alkoholfrei — siehe [[RC-001 Rezept erstellen]]). Hat einen React-Key-Kollisions-Bug im Produkt-Autocomplete verursacht (behoben via `getOptionKey`), macht Produktauswahl in Zutaten-/Einkaufslisten aber weiterhin für Nutzer verwirrend (zwei identisch benannte, evtl. unterschiedlich klassifizierte Einträge zur Auswahl). Bereinigung (Duplikate zusammenführen oder eindeutig benennen) erfordert Prüfung, ob beide Zeilen bereits in Rezepten/Einkaufslisten referenziert werden.
+  **Priorität:** mittel · **Komplexität:** mittel
+
 ## Unit Folder
 
 - **`unit.class.ts` — Klasse statt Type** — `Unit` ist eine Klasse mit Constructor, sollte aber gemäss Konvention ein `type` + standalone `getDimensionOfUnit`-Funktion sein. Betrifft 28 Import-Stellen + 3 `new Unit()`-Aufrufe ausserhalb des Unit-Ordners. Eigener kleiner PR.
@@ -233,8 +239,8 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Constants Folder
 
-- **`imageRepository.ts` — Firebase-Storage-URLs** — Alle Umgebungsbilder verwenden Firebase-Storage-URLs. Bei Migration zu Supabase Storage müssen diese URLs aktualisiert werden.
-  **Priorität:** mittel · **Komplexität:** klein
+- **`ImageRepository.getEnvironmentRelatedPicture()` — Namensrelikt** — Methode gibt seit der Migration auf `public/`-Assets keine umgebungsabhängigen Bilder mehr zurück; Name ist irreführend. Bei Gelegenheit zu einer einfachen exportierten Konstante (`IMAGE_PATHS`) umbauen und alle ~30 Aufrufstellen anpassen.
+  **Priorität:** tief · **Komplexität:** mittel
 
 - **`firebaseEvent.ts` — Firebase-Analytics-Abhängigkeit** — Enum wird für Firebase-Analytics-Logging verwendet. Wenn Firebase vollständig entfernt wird, muss diese Datei gelöscht oder durch Supabase/PostHog-Analytics ersetzt werden.
   **Priorität:** tief · **Komplexität:** mittel

@@ -30,6 +30,7 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {supabaseAdmin} from "../../Database/supabaseClient";
+import {RecipeRepository} from "../../Database/Repository/RecipeRepository";
 import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
@@ -178,6 +179,11 @@ export class RecipeVariantMigrationJob
   private userAuthUidByFirebaseUid: Map<string, string> = new Map();
   /** Bereits migrierte Rezepte (firebase_uid) — für schnelle checkExists-Prüfung */
   private existingFirebaseUids: Set<string> | null = null;
+  /**
+   * RecipeRepository mit Service-Role-Client. RLS würde Schreibzugriff sonst
+   * auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminRecipes = new RecipeRepository(supabaseAdmin!);
 
   /* =====================================================================
   // Alle Varianten-Rezepte aus Firebase lesen
@@ -292,7 +298,6 @@ export class RecipeVariantMigrationJob
   /**
    * Prüft anhand der `firebase_uid`, ob das Varianten-Rezept bereits migriert wurde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls das Rezept bereits vorhanden ist
    */
@@ -320,19 +325,18 @@ export class RecipeVariantMigrationJob
    * 4. Zubereitungsschritte / Abschnitt-Trennzeilen (recipe_preparation_steps)
    * 5. Materialpositionen (recipe_materials)
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    * @throws {Error} Wenn Event oder Original-Rezept nicht aufgelöst werden können
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseVariantRecipeData>,
     authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
     const client = supabaseAdmin!;
-    const recipes = database.recipes;
+    const recipes = this.adminRecipes;
 
     // 1. FK-Auflösung: Event
     const variantEventUid = this.eventIdByFirebaseUid.get(

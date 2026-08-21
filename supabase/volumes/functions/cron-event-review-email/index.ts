@@ -8,7 +8,7 @@
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
- *   APP_URL (z.B. "https://chuchipirat.ch")
+ *   SITE_URL (z.B. "https://chuchipirat.ch")
  *   SENTRY_DSN (optional, für Sentry Crons Monitoring)
  *   BREVO_API_KEY (Produktion) oder SMTP_HOST/SMTP_PORT (lokal)
  */
@@ -54,7 +54,7 @@ serve(async (req: Request) => {
   // Umgebungsvariablen
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  const appUrl = Deno.env.get("APP_URL") ?? "https://chuchipirat.ch";
+  const appUrl = Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch";
   const emailEnv = readEmailEnv();
 
   if (!supabaseUrl || !serviceRoleKey) {
@@ -202,13 +202,14 @@ serve(async (req: Request) => {
             cookName,
             eventName,
             hasDonated,
+            eventId,
             appUrl,
           });
 
           const donationText = hasDonated ? "" :
             `---\n\n` +
             `Falls ihr euren Anlass genossen habt und noch etwas Budget übrig ist: chuchipirat ist ein ehrenamtliches Projekt — jede Spende hilft uns, die App weiterzuentwickeln und für alle gratis zu halten.\n\n` +
-            `Jetzt spenden: ${appUrl}/donate\n\n`;
+            `Jetzt spenden: ${appUrl}/donate?eventId=${eventId}&source=event_review_email\n\n`;
 
           const textContent =
             `Hallo ${cookName},\n\n` +

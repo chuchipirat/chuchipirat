@@ -13,6 +13,7 @@
  * <MenuplanHeaderRow onPrint={handlers.onPrint} ... />
  */
 import React, {useCallback, useRef} from "react";
+import * as Sentry from "@sentry/react";
 import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 
 import {
@@ -20,7 +21,6 @@ import {
   Note,
   Meal,
   PortionPlan,
-  PlanedMealsRecipe,
   MealRecipe,
   GoodsType,
   GoodsPlanMode,
@@ -39,6 +39,7 @@ import {
   findMenueOfMealRecipe,
   findMenueOfMealProduct,
   findMenueOfMealMaterial,
+  buildMealPlanForRecipe,
 } from "./menuplanService";
 import {OnRecipeCardClickProps} from "../../Recipe/recipes";
 import {
@@ -115,6 +116,7 @@ import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
  * @param customDialog - Dialog-Funktion aus dem customDialogContext.
  * @param dialogs - Alle Dialog-Zustände und Setter aus useMenuplanDialogs.
  * @param userDidChangeDnD - Ref, ob der User DnD manuell umgeschaltet hat.
+ * @param onError - Callback bei Fehlern (z.B. fehlgeschlagener PDF-Export).
  */
 export interface UseMenuplanHandlersParams {
   menuplan: MenuplanData;
@@ -142,6 +144,7 @@ export interface UseMenuplanHandlersParams {
   }) => Promise<unknown>;
   dialogs: UseMenuplanDialogsReturn;
   userDidChangeDnD: React.MutableRefObject<boolean>;
+  onError?: (error: Error) => void;
 }
 
 
@@ -266,6 +269,7 @@ export function useMenuplanHandlers({
   customDialog,
   dialogs,
   userDidChangeDnD,
+  onError,
 }: UseMenuplanHandlersParams): UseMenuplanHandlersReturn {
   const {
     recipeSearchDrawerData,
@@ -414,6 +418,7 @@ export function useMenuplanHandlers({
             products: products,
             materials: materials,
           });
+          trackEvent(AnalyticsEvent.MENUPLAN_MEAL_TYPE_DELETED);
 
           break;
         case Action.ADD:
@@ -430,10 +435,12 @@ export function useMenuplanHandlers({
             meals: meals,
             menues: menues,
           });
+          trackEvent(AnalyticsEvent.MENUPLAN_MEAL_TYPE_ADDED);
           break;
         case Action.EDIT:
           tempMealTypes.entries[mealType.uid] = {...mealType};
           onMenuplanUpdateSuper({...menuplan, mealTypes: tempMealTypes});
+          trackEvent(AnalyticsEvent.MENUPLAN_MEAL_TYPE_EDITED);
           break;
       }
     },
@@ -467,22 +474,29 @@ export function useMenuplanHandlers({
     setDialogPdfOptionsData({open: true});
   }, []);
 
-  const onPrintConfirm = useCallback((options: MenuplanPdfOptions) => {
+  const onPrintConfirm = useCallback(async (options: MenuplanPdfOptions) => {
     setDialogPdfOptionsData({open: false});
     const {event, menuplan, authUser} = ctx.current;
 
-    generateAndDownloadPdf(
-      <MenuplanPdf
-        event={event}
-        menuplan={menuplan}
-        authUser={authUser}
-        pdfOptions={options}
-      />,
-      "Menueplan " + event.name + TEXT_SUFFIX_PDF,
-      undefined,
-      {eventUid: event.uid},
-    );
-  }, []);
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "menuplan"});
+
+    try {
+      await generateAndDownloadPdf(
+        <MenuplanPdf
+          event={event}
+          menuplan={menuplan}
+          authUser={authUser}
+          pdfOptions={options}
+        />,
+        "Menueplan " + event.name + TEXT_SUFFIX_PDF,
+        (error) => onError?.(error),
+        {eventUid: event.uid},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      onError?.(error as Error);
+    }
+  }, [onError]);
 
   const onPrintCancel = useCallback(() => {
     setDialogPdfOptionsData({open: false});
@@ -710,6 +724,7 @@ export function useMenuplanHandlers({
     delete updatedMealRecipes[recipeDrawerData.mealPlan[0].mealPlanRecipe];
 
     onMenuplanUpdate({mealRecipes: updatedMealRecipes});
+    trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_REMOVED);
 
     setRecipeDrawerData(RECIPE_DRAWER_DATA_INITIAL_VALUES);
   }, []);
@@ -823,6 +838,11 @@ export function useMenuplanHandlers({
             menues: newMenues,
             materials: newMaterials,
           });
+          trackEvent(
+            dialogGoodsData.material
+              ? AnalyticsEvent.MENUPLAN_MATERIAL_PLAN_EDITED
+              : AnalyticsEvent.MENUPLAN_MATERIAL_ADDED,
+          );
         } else if (
           dialogGoodsData.goodsType === GoodsType.PRODUCT &&
           newProduct !== null
@@ -843,6 +863,11 @@ export function useMenuplanHandlers({
             menues: newMenues,
             products: newProducts,
           });
+          trackEvent(
+            dialogGoodsData.product
+              ? AnalyticsEvent.MENUPLAN_PRODUCT_PLAN_EDITED
+              : AnalyticsEvent.MENUPLAN_PRODUCT_ADDED,
+          );
         }
       } else if (planMode === GoodsPlanMode.PER_PORTION) {
         let portionPlan: PortionPlan[] = [];
@@ -926,6 +951,7 @@ export function useMenuplanHandlers({
             updatedMenues[menue?.uid].mealRecipeOrder = updatedMenues[
               menue?.uid
             ].mealRecipeOrder.filter((mealRecipe) => mealRecipe !== uid);
+            trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_REMOVED);
           }
           break;
         case MenueEditTypes.PRODUCT:
@@ -938,6 +964,7 @@ export function useMenuplanHandlers({
             updatedMenues[menue?.uid].productOrder = updatedMenues[
               menue?.uid
             ].productOrder.filter((productUid) => productUid !== uid);
+            trackEvent(AnalyticsEvent.MENUPLAN_PRODUCT_REMOVED);
           }
           break;
         case MenueEditTypes.MATERIAL:
@@ -950,6 +977,7 @@ export function useMenuplanHandlers({
             updatedMenues[menue?.uid].materialOrder = updatedMenues[
               menue?.uid
             ].materialOrder.filter((materialUid) => materialUid !== uid);
+            trackEvent(AnalyticsEvent.MENUPLAN_MATERIAL_REMOVED);
           }
           break;
       }
@@ -1222,11 +1250,16 @@ export function useMenuplanHandlers({
               0,
             );
           });
+          trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_PORTIONS_EDITED);
         }
       } else if (
         dialogPlanPortionsData.planedObject == PlanedObject.GOOD &&
         dialogPlanPortionsData.planedProduct !== null
       ) {
+        // Neu vs. bereits geplant: ein neu erstelltes Produkt hat noch
+        // keinen Eintrag in menuplan.products (siehe onDialogGoodsOk)
+        const isNewProduct =
+          !menuplan.products[dialogPlanPortionsData.planedProduct.uid];
         // Plan umbiegen
         Object.keys(plan).forEach((menueUid) => {
           const newProduct = addPlanToGood<MenuplanProduct>({
@@ -1243,10 +1276,18 @@ export function useMenuplanHandlers({
             updatedMenues[menueUid].productOrder.push(newProduct.uid);
           }
         });
+        trackEvent(
+          isNewProduct
+            ? AnalyticsEvent.MENUPLAN_PRODUCT_ADDED
+            : AnalyticsEvent.MENUPLAN_PRODUCT_PLAN_EDITED,
+        );
       } else if (
         dialogPlanPortionsData.planedObject == PlanedObject.GOOD &&
         dialogPlanPortionsData.planedMaterial !== null
       ) {
+        // Neu vs. bereits geplant: siehe Kommentar im Produkt-Zweig oben
+        const isNewMaterial =
+          !menuplan.materials[dialogPlanPortionsData.planedMaterial.uid];
         // Plan umbiegen
         Object.keys(plan).forEach((menueUid) => {
           const newMaterial = addPlanToGood<MenuplanMaterial>({
@@ -1263,6 +1304,11 @@ export function useMenuplanHandlers({
             updatedMenues[menueUid].materialOrder.push(newMaterial.uid);
           }
         });
+        trackEvent(
+          isNewMaterial
+            ? AnalyticsEvent.MENUPLAN_MATERIAL_ADDED
+            : AnalyticsEvent.MENUPLAN_MATERIAL_PLAN_EDITED,
+        );
       }
 
       onMenuplanUpdate({
@@ -1315,55 +1361,12 @@ export function useMenuplanHandlers({
     }
 
     let loadingData = false;
-    const mealPlan: Array<PlanedMealsRecipe> = [];
 
     let recipe = new Recipe();
     recipe.uid = menuplan.mealRecipes[mealRecipeUid].recipe.recipeUid;
     recipe.name = menuplan.mealRecipes[mealRecipeUid].recipe.name;
 
-    Object.values(menuplan.mealRecipes).forEach((mealRecipe) => {
-      let meal: Meal | undefined;
-      let menue: Menue | undefined;
-      if (mealRecipe.recipe.recipeUid == recipe.uid) {
-        // Menü suchen, in dem das Rezept eingefügt wurde
-        menue = Object.values(menuplan.menues).find((menue) =>
-          menue.mealRecipeOrder.includes(mealRecipe.uid),
-        );
-        if (menue != undefined) {
-          // Die Mahlzeit suchen, in der das Menü ist
-          meal = Object.values(menuplan.meals).find((meal) =>
-            meal.menuOrder.includes(menue!.uid!),
-          );
-        }
-        if (meal != undefined && menue != undefined) {
-          mealPlan.push({
-            mealPlanRecipe: mealRecipe.uid,
-            menue: {...menue},
-            meal: {
-              ...meal,
-              mealType: menuplan.mealTypes.entries[meal.mealType].uid,
-              mealTypeName: menuplan.mealTypes.entries[meal.mealType].name,
-            },
-            mealPlan: mealRecipe.plan,
-          });
-        }
-      }
-    });
-
-    // Sortiere das Array nach dem Datum (aufsteigend) und dann nach der Zahl (absteigend)
-    mealPlan.sort((a, b) => {
-      if (a.meal.date < b.meal.date) {
-        return -1;
-      } else if (a.meal.date > b.meal.date) {
-        return 1;
-      } else {
-        // Anhand des Index der Mahlzeit bestimmen
-        return (
-          menuplan.mealTypes.order.indexOf(a.meal.mealType) -
-          menuplan.mealTypes.order.indexOf(b.meal.mealType)
-        );
-      }
-    });
+    const mealPlan = buildMealPlanForRecipe(menuplan, recipe.uid);
 
     if (Object.prototype.hasOwnProperty.call(recipes, recipe.uid)) {
       recipe = recipes[recipe.uid] as Recipe;

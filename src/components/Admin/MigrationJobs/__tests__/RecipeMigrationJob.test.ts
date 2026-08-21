@@ -1,22 +1,50 @@
 /**
  * Unit-Tests für RecipeMigrationJob.
  *
- * Testet die Migrationsmethoden checkExists() und migrateRecord()
- * mit gemockten Firebase- und Database-Abhängigkeiten.
- * fetchSourceRecords() wird nicht getestet, da er direkt Firestore aufruft.
+ * Testet die Migrationsmethoden checkExists() und migrateRecord().
+ *
+ * checkExists() prüft rein in-memory gegen ein vorab geladenes Set
+ * (existingFirebaseUids) — dieses Set wird normalerweise durch
+ * fetchSourceRecords() befüllt, hier aber direkt gesetzt, da
+ * fetchSourceRecords() selbst nicht getestet wird (ruft direkt Firestore auf).
+ *
+ * migrateRecord() verwendet einen fest verdrahteten Service-Role-Client
+ * (supabaseAdmin) statt des injizierten DatabaseService — RecipeRepository.insert()
+ * (für die Kopfdaten) wird per Prototype-Spy gemockt, der rohe Supabase-Client
+ * (für Update/Insert der Kindtabellen) über einen Modul-Mock.
  */
 import {RecipeMigrationJob} from "../RecipeMigrationJob";
 import {SourceRecord} from "../MigrationJob.interface";
 import AuthUser from "../../../Firebase/Authentication/authUser.class";
+import {RecipeRepository} from "../../../Database/Repository/RecipeRepository";
 
-// Supabase-Clients mocken (werden in buildLookupMaps verwendet)
-jest.mock("../../../Database/supabaseClient", () => ({
-  supabase: {
-    from: jest.fn().mockReturnValue({
-      select: jest.fn().mockResolvedValue({data: [], error: null}),
-    }),
-  },
-}));
+// supabaseAdmin mocken (wird für Update der Kopfdaten und Insert der Kindtabellen verwendet)
+jest.mock("../../../Database/supabaseClient", () => {
+  const updateEq = jest.fn().mockResolvedValue({error: null});
+  const update = jest.fn().mockReturnValue({eq: updateEq});
+  const insert = jest.fn().mockResolvedValue({error: null});
+  const from = jest.fn().mockReturnValue({update, insert});
+  return {
+    supabase: {
+      from: jest.fn().mockReturnValue({
+        select: jest.fn().mockResolvedValue({data: [], error: null}),
+      }),
+    },
+    supabaseAdmin: {from},
+    // Test-only Handles, um die Mocks unten greifen zu können
+    __adminMocks: {from, update, insert, updateEq},
+  };
+});
+
+const {__adminMocks: adminMocks} = jest.requireMock(
+  "../../../Database/supabaseClient",
+) as {
+  __adminMocks: {from: jest.Mock; update: jest.Mock; insert: jest.Mock; updateEq: jest.Mock};
+};
+const mockFrom = adminMocks.from;
+const mockUpdate = adminMocks.update;
+const mockInsert = adminMocks.insert;
+const mockUpdateEq = adminMocks.updateEq;
 
 /* =====================================================================
 // Test-Daten
@@ -52,51 +80,25 @@ const makeFirebaseRecord = (
   },
 });
 
-/** Erstellt einen gemockten DatabaseService mit allen benötigten Repositories */
-const createDatabaseMock = () => {
-  const insertedRecipeId = "pg-recipe-uuid-001";
-
-  const recipesMock = {
-    findMany: jest.fn().mockResolvedValue([]),
-    insert: jest.fn().mockResolvedValue({id: insertedRecipeId}),
-    patch: jest.fn().mockResolvedValue(undefined),
-  };
-
-  const ingredientsMock = {
-    insert: jest.fn().mockResolvedValue({id: "pg-ingredient-uuid-001"}),
-    patch: jest.fn().mockResolvedValue(undefined),
-  };
-
-  const stepsMock = {
-    insert: jest.fn().mockResolvedValue({id: "pg-step-uuid-001"}),
-    patch: jest.fn().mockResolvedValue(undefined),
-  };
-
-  const materialsMock = {
-    insert: jest.fn().mockResolvedValue({id: "pg-material-uuid-001"}),
-    patch: jest.fn().mockResolvedValue(undefined),
-  };
-
-  return {
-    recipes: recipesMock,
-    recipeIngredients: ingredientsMock,
-    recipePreparationSteps: stepsMock,
-    recipeMaterials: materialsMock,
-    // admin ist undefined → Fallback auf reguläre Repositories
-    admin: undefined,
-  } as unknown as any;
-};
-
 /* =====================================================================
 // Tests
 // ===================================================================== */
 describe("RecipeMigrationJob", () => {
   let job: RecipeMigrationJob;
-  let database: ReturnType<typeof createDatabaseMock>;
+  let insertSpy: jest.SpyInstance;
 
   beforeEach(() => {
+    jest.clearAllMocks();
+    mockUpdateEq.mockResolvedValue({error: null});
+    mockInsert.mockResolvedValue({error: null});
+    insertSpy = jest
+      .spyOn(RecipeRepository.prototype, "insert")
+      .mockResolvedValue({id: "pg-recipe-uuid-001", value: {} as any});
     job = new RecipeMigrationJob();
-    database = createDatabaseMock();
+  });
+
+  afterEach(() => {
+    insertSpy.mockRestore();
   });
 
   /* ------------------------------------------
@@ -113,28 +115,30 @@ describe("RecipeMigrationJob", () => {
   // ------------------------------------------ */
   describe("checkExists()", () => {
     test("Gibt false zurück wenn Rezept noch nicht migriert wurde", async () => {
-      database.recipes.findMany.mockResolvedValue([]);
+      // In-Memory-Set direkt setzen (normalerweise durch fetchSourceRecords befüllt)
+      (job as any).existingFirebaseUids = new Set<string>();
       const record = makeFirebaseRecord();
 
-      const exists = await job.checkExists(database, record);
+      const exists = await job.checkExists({} as any, record);
 
       expect(exists).toBe(false);
-      expect(database.recipes.findMany).toHaveBeenCalledWith(
-        expect.objectContaining({
-          filters: expect.arrayContaining([
-            expect.objectContaining({field: "firebase_uid", value: "fb-recipe-001"}),
-          ]),
-        }),
-      );
     });
 
     test("Gibt true zurück wenn Rezept bereits migriert wurde", async () => {
-      database.recipes.findMany.mockResolvedValue([{id: "pg-recipe-uuid-001"}]);
+      (job as any).existingFirebaseUids = new Set(["fb-recipe-001"]);
       const record = makeFirebaseRecord();
 
-      const exists = await job.checkExists(database, record);
+      const exists = await job.checkExists({} as any, record);
 
       expect(exists).toBe(true);
+    });
+
+    test("Gibt false zurück wenn das Set noch nicht geladen wurde (null)", async () => {
+      const record = makeFirebaseRecord();
+
+      const exists = await job.checkExists({} as any, record);
+
+      expect(exists).toBe(false);
     });
   });
 
@@ -142,29 +146,51 @@ describe("RecipeMigrationJob", () => {
   // migrateRecord() — Kopfdaten
   // ------------------------------------------ */
   describe("migrateRecord() — Rezept-Kopfdaten", () => {
-    test("Fügt Rezept-Kopfdaten in die recipes-Tabelle ein", async () => {
+    test("Fügt Rezept-Kopfdaten via RecipeRepository ein", async () => {
       const record = makeFirebaseRecord();
 
-      await job.migrateRecord(database, record, authUser);
+      await job.migrateRecord({} as any, record, authUser);
 
-      expect(database.recipes.insert).toHaveBeenCalledTimes(1);
-      const insertArg = database.recipes.insert.mock.calls[0][0].value;
+      expect(insertSpy).toHaveBeenCalledTimes(1);
+      const insertArg = insertSpy.mock.calls[0][0].value;
       expect(insertArg.name).toBe("Spaghetti Bolognese");
       expect(insertArg.portions).toBe(4);
       expect(insertArg.recipeType).toBe("public");
     });
 
-    test("Setzt firebase_uid und created_by via patch nach dem Insert", async () => {
+    test("Setzt firebase_uid via Update auf der recipes-Tabelle nach dem Insert", async () => {
       const record = makeFirebaseRecord();
 
-      await job.migrateRecord(database, record, authUser);
+      await job.migrateRecord({} as any, record, authUser);
 
-      expect(database.recipes.patch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          id: "pg-recipe-uuid-001",
-          fields: expect.objectContaining({firebase_uid: "fb-recipe-001"}),
-        }),
+      expect(mockFrom).toHaveBeenCalledWith("recipes");
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({firebase_uid: "fb-recipe-001"}),
       );
+      expect(mockUpdateEq).toHaveBeenCalledWith("id", "pg-recipe-uuid-001");
+    });
+
+    test("Setzt created_by via Update wenn der Ersteller aufgelöst werden konnte", async () => {
+      // Lookup-Map direkt setzen (normalerweise durch buildLookupMaps befüllt)
+      (job as any).userAuthUidByFirebaseUid = new Map([
+        ["fb-user-001", "auth-uuid-999"],
+      ]);
+      const record = makeFirebaseRecord();
+
+      await job.migrateRecord({} as any, record, authUser);
+
+      expect(mockUpdate).toHaveBeenCalledWith(
+        expect.objectContaining({created_by: "auth-uuid-999"}),
+      );
+    });
+
+    test("Lässt created_by weg wenn der Ersteller nicht aufgelöst werden konnte", async () => {
+      const record = makeFirebaseRecord();
+
+      await job.migrateRecord({} as any, record, authUser);
+
+      const updateArg = mockUpdate.mock.calls[0][0];
+      expect(updateArg.created_by).toBeUndefined();
     });
   });
 
@@ -190,34 +216,18 @@ describe("RecipeMigrationJob", () => {
         },
       });
 
-      await job.migrateRecord(database, record, authUser);
+      await job.migrateRecord({} as any, record, authUser);
 
-      expect(database.recipeIngredients.insert).toHaveBeenCalledTimes(1);
-      const insertArg = database.recipeIngredients.insert.mock.calls[0][0].value;
-      expect(insertArg.recipeId).toBe("pg-recipe-uuid-001");
-      expect(insertArg.posType).toBe("ingredient");
-      expect(insertArg.quantity).toBe(500);
-      expect(insertArg.unit).toBe("g");
-      expect(insertArg.sortOrder).toBe(10);
-    });
-
-    test("Setzt firebase_uid für jede Zutat via patch", async () => {
-      const record = makeFirebaseRecord({
-        ingredients: {
-          entries: {
-            "ing-fb-001": {uid: "ing-fb-001", posType: 0, quantity: 1},
-          },
-          order: ["ing-fb-001"],
-        },
-      });
-
-      await job.migrateRecord(database, record, authUser);
-
-      expect(database.recipeIngredients.patch).toHaveBeenCalledWith(
-        expect.objectContaining({
-          fields: expect.objectContaining({firebase_uid: "ing-fb-001"}),
-        }),
-      );
+      expect(mockFrom).toHaveBeenCalledWith("recipe_ingredients");
+      expect(mockInsert).toHaveBeenCalledTimes(1);
+      const rows = mockInsert.mock.calls[0][0];
+      expect(rows).toHaveLength(1);
+      expect(rows[0].firebase_uid).toBe("ing-fb-001");
+      expect(rows[0].recipe_id).toBe("pg-recipe-uuid-001");
+      expect(rows[0].pos_type).toBe("ingredient");
+      expect(rows[0].quantity).toBe(500);
+      expect(rows[0].unit).toBe("g");
+      expect(rows[0].sort_order).toBe(10);
     });
 
     test("Abschnitt-Einträge werden korrekt als 'section' migriert", async () => {
@@ -234,11 +244,11 @@ describe("RecipeMigrationJob", () => {
         },
       });
 
-      await job.migrateRecord(database, record, authUser);
+      await job.migrateRecord({} as any, record, authUser);
 
-      const insertArg = database.recipeIngredients.insert.mock.calls[0][0].value;
-      expect(insertArg.posType).toBe("section");
-      expect(insertArg.sectionName).toBe("Für die Sosse");
+      const rows = mockInsert.mock.calls[0][0];
+      expect(rows[0].pos_type).toBe("section");
+      expect(rows[0].section_name).toBe("Für die Sosse");
     });
 
     test("Mehrere Zutaten erhalten aufsteigende sort_order (10, 20, ...)", async () => {
@@ -253,12 +263,10 @@ describe("RecipeMigrationJob", () => {
         },
       });
 
-      await job.migrateRecord(database, record, authUser);
+      await job.migrateRecord({} as any, record, authUser);
 
-      const insertArgs = database.recipeIngredients.insert.mock.calls.map(
-        (call: any) => call[0].value.sortOrder,
-      );
-      expect(insertArgs).toEqual([10, 20, 30]);
+      const rows = mockInsert.mock.calls[0][0];
+      expect(rows.map((row: any) => row.sort_order)).toEqual([10, 20, 30]);
     });
   });
 
@@ -268,7 +276,6 @@ describe("RecipeMigrationJob", () => {
   describe("migrateRecord() — Zubereitungsschritte", () => {
     test("Fügt Zubereitungsschritte in recipe_preparation_steps ein", async () => {
       const record = makeFirebaseRecord({
-        steps: undefined,
         preparationSteps: {
           entries: {
             "step-fb-001": {
@@ -278,22 +285,17 @@ describe("RecipeMigrationJob", () => {
             },
           },
           order: ["step-fb-001"],
-        } as any,
-      });
-      // Direktes Setzen der preparationSteps im data-Objekt
-      record.data.preparationSteps = {
-        entries: {
-          "step-fb-001": {uid: "step-fb-001", posType: 1, step: "Zwiebeln würfeln."},
         },
-        order: ["step-fb-001"],
-      };
+      });
 
-      await job.migrateRecord(database, record, authUser);
+      await job.migrateRecord({} as any, record, authUser);
 
-      expect(database.recipePreparationSteps.insert).toHaveBeenCalledTimes(1);
-      const insertArg = database.recipePreparationSteps.insert.mock.calls[0][0].value;
-      expect(insertArg.posType).toBe("preparation_step");
-      expect(insertArg.step).toBe("Zwiebeln würfeln.");
+      expect(mockFrom).toHaveBeenCalledWith("recipe_preparation_steps");
+      const rows = mockInsert.mock.calls[0][0];
+      expect(rows).toHaveLength(1);
+      expect(rows[0].firebase_uid).toBe("step-fb-001");
+      expect(rows[0].pos_type).toBe("preparation_step");
+      expect(rows[0].step).toBe("Zwiebeln würfeln.");
     });
   });
 
@@ -302,25 +304,28 @@ describe("RecipeMigrationJob", () => {
   // ------------------------------------------ */
   describe("migrateRecord() — Materialpositionen", () => {
     test("Fügt Materialpositionen in recipe_materials ein", async () => {
-      const record = makeFirebaseRecord();
-      record.data.materials = {
-        entries: {
-          "mat-fb-001": {
-            uid: "mat-fb-001",
-            material: {uid: "material-fb-001", name: "Topf"},
-            quantity: 1,
+      const record = makeFirebaseRecord({
+        materials: {
+          entries: {
+            "mat-fb-001": {
+              uid: "mat-fb-001",
+              material: {uid: "material-fb-001", name: "Topf"},
+              quantity: 1,
+            },
           },
+          order: ["mat-fb-001"],
         },
-        order: ["mat-fb-001"],
-      };
+      });
 
-      await job.migrateRecord(database, record, authUser);
+      await job.migrateRecord({} as any, record, authUser);
 
-      expect(database.recipeMaterials.insert).toHaveBeenCalledTimes(1);
-      const insertArg = database.recipeMaterials.insert.mock.calls[0][0].value;
-      expect(insertArg.recipeId).toBe("pg-recipe-uuid-001");
-      expect(insertArg.quantity).toBe(1);
-      expect(insertArg.sortOrder).toBe(10);
+      expect(mockFrom).toHaveBeenCalledWith("recipe_materials");
+      const rows = mockInsert.mock.calls[0][0];
+      expect(rows).toHaveLength(1);
+      expect(rows[0].firebase_uid).toBe("mat-fb-001");
+      expect(rows[0].recipe_id).toBe("pg-recipe-uuid-001");
+      expect(rows[0].quantity).toBe(1);
+      expect(rows[0].sort_order).toBe(10);
     });
   });
 
@@ -330,11 +335,12 @@ describe("RecipeMigrationJob", () => {
   test("Rezept ohne Zutaten/Schritte/Materialien migriert nur Kopfdaten", async () => {
     const record = makeFirebaseRecord(); // ingredients/steps/materials sind leer
 
-    await job.migrateRecord(database, record, authUser);
+    await job.migrateRecord({} as any, record, authUser);
 
-    expect(database.recipes.insert).toHaveBeenCalledTimes(1);
-    expect(database.recipeIngredients.insert).not.toHaveBeenCalled();
-    expect(database.recipePreparationSteps.insert).not.toHaveBeenCalled();
-    expect(database.recipeMaterials.insert).not.toHaveBeenCalled();
+    expect(insertSpy).toHaveBeenCalledTimes(1);
+    expect(mockFrom).toHaveBeenCalledWith("recipes");
+    expect(mockFrom).not.toHaveBeenCalledWith("recipe_ingredients");
+    expect(mockFrom).not.toHaveBeenCalledWith("recipe_preparation_steps");
+    expect(mockFrom).not.toHaveBeenCalledWith("recipe_materials");
   });
 });

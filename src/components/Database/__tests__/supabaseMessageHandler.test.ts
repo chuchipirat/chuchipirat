@@ -81,6 +81,42 @@ describe("SupabaseMessageHandler", () => {
     });
   });
 
+  describe("translateMessage — Postgres-Fehler (numerische Überläufe)", () => {
+    test("Übersetzt 'value ... is out of range for type integer' ins Deutsche", () => {
+      const error = {
+        message: 'value "99999999999" is out of range for type integer',
+      };
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(
+        "Die eingegebene Zahl ist zu gross oder zu klein für dieses Feld. Bitte gib einen anderen Wert ein.",
+      );
+    });
+
+    test("Übersetzt die Meldung auch für negative Werte und andere Integer-Typen", () => {
+      const error = {
+        message: 'value "-999999999999" is out of range for type bigint',
+      };
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(
+        "Die eingegebene Zahl ist zu gross oder zu klein für dieses Feld. Bitte gib einen anderen Wert ein.",
+      );
+    });
+
+    test("Übersetzt 'numeric field overflow' ins Deutsche", () => {
+      const error = {message: "numeric field overflow"};
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(
+        "Die eingegebene Zahl ist zu gross für dieses Feld. Bitte gib einen kleineren Wert ein.",
+      );
+    });
+  });
+
   describe("translateMessage — Unbekannte Fehler", () => {
     test("Gibt die originale Nachricht zurück bei unbekannter Meldung", () => {
       const error = {message: "Some unknown Supabase error"};

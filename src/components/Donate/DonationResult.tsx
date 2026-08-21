@@ -10,6 +10,7 @@
  */
 import React, {useCallback, useEffect, useState} from "react";
 import {useSearchParams, useNavigate} from "react-router";
+import * as Sentry from "@sentry/react";
 import {trackEvent} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
@@ -52,8 +53,10 @@ import {
 } from "../../constants/text";
 
 import {supabase} from "../Database/supabaseClient";
+import {useDatabase} from "../Database/DatabaseContext";
 
 import {useCustomStyles} from "../../constants/styles";
+import {useAuthUser} from "../Session/authUserContext";
 
 /* ===================================================================
 // Komponente
@@ -67,9 +70,11 @@ const DonationResultPage = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const classes = useCustomStyles();
+  const database = useDatabase();
+  const authUser = useAuthUser();
 
   const status = searchParams.get("status") ?? "unknown";
-  const _donationId = searchParams.get("donationId");
+  const donationId = searchParams.get("donationId");
   const returnPath = searchParams.get("return") ?? "/home";
   const amountInCents = parseInt(searchParams.get("amount") ?? "0", 10);
   const eventId = searchParams.get("eventId") ?? undefined;
@@ -77,21 +82,42 @@ const DonationResultPage = () => {
   const [isRetrying, setIsRetrying] = useState(false);
   const [retryError, setRetryError] = useState<string | null>(null);
 
-  // Umsatz-Tracking bei erfolgreicher Spende (Umami Revenue)
+  // Hinweis: Das Umsatz-Tracking bei erfolgreicher Spende (DONATION_COMPLETED)
+  // erfolgt serverseitig im payment-webhook, da dieser die einzige
+  // zuverlässige Quelle für eine bestätigte Zahlung ist — diese Seite
+  // verlässt sich nur auf den URL-Parameter `status` und würde doppelt
+  // zählen bzw. verpasst werden, wenn der Browser nie zurückgeleitet wird.
+
+  // Entgangener Umsatz bei Abbruch (Umami Revenue) — separates Event, damit
+  // sich abgebrochene von tatsächlicher Spenden-Revenue getrennt auswerten lässt.
   useEffect(() => {
-    if (status === "success") {
-      trackEvent(AnalyticsEvent.DONATION_COMPLETED, {
-        ...(amountInCents > 0
-          ? {revenue: amountInCents / 100, currency: "CHF"}
-          : {}),
+    if (status === "cancel") {
+      trackEvent(AnalyticsEvent.DONATION_CANCELLED, {
+        ...(eventId ? {eventId} : {}),
+        amount: amountInCents / 100,
+        currency: "CHF",
+        userId: authUser!.uid,
       });
     }
   }, [status, amountInCents]);
 
+  // Spende explizit als abgebrochen markieren — der Zahlungsanbieter sendet
+  // bei einem Checkout-Abbruch (vor Zahlungsmethoden-Versuch) keinen Webhook,
+  // ohne diesen Aufruf bliebe die Spende dauerhaft auf "pending" stehen.
+  useEffect(() => {
+    if (status === "cancel" && donationId) {
+      database.donations
+        .cancelOwnPendingDonation(donationId)
+        .catch((err) => Sentry.captureException(err, {level: "warning"}));
+    }
+  }, [status, donationId, database]);
+
   /**
    * Erstellt eine neue Spende mit denselben Parametern (Betrag, Event)
    * und leitet erneut zur Payrexx-Zahlungsseite weiter.
-   * Die fehlgeschlagene Spende bleibt als Audit-Trail in der DB.
+   * Die abgebrochene/fehlgeschlagene Spende bleibt als Audit-Trail in der DB —
+   * `previousDonationId` lässt `create-donation` nur deren Nachricht
+   * übernehmen, ohne den Datensatz selbst wiederzuverwenden.
    */
   const handleRetry = useCallback(async () => {
     if (!amountInCents) return;
@@ -107,6 +133,7 @@ const DonationResultPage = () => {
             amountInCents,
             eventId,
             returnPath,
+            previousDonationId: donationId ?? undefined,
           },
         },
       );
@@ -122,12 +149,10 @@ const DonationResultPage = () => {
 
       window.location.href = paymentUrl;
     } catch (err) {
-      setRetryError(
-        err instanceof Error ? err.message : TEXT_ERROR_GENERIC,
-      );
+      setRetryError(err instanceof Error ? err.message : TEXT_ERROR_GENERIC);
       setIsRetrying(false);
     }
-  }, [amountInCents, eventId, returnPath]);
+  }, [amountInCents, eventId, returnPath, donationId]);
 
   /** Retry-Button nur anzeigen, wenn Betrag bekannt ist. */
   const showRetry =
@@ -140,7 +165,9 @@ const DonationResultPage = () => {
         return {
           icon: <CheckCircleIcon sx={{fontSize: 64, color: "success.main"}} />,
           title: TEXT_SUCCESS_TITLE,
-          text: eventId ? TEXT_SUCCESS_TEXT_EVENT : TEXT_SUCCESS_TEXT_STANDALONE,
+          text: eventId
+            ? TEXT_SUCCESS_TEXT_EVENT
+            : TEXT_SUCCESS_TEXT_STANDALONE,
         };
       case "failed":
         return {

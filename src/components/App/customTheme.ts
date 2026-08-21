@@ -4,6 +4,7 @@ import {
 } from "@mui/material/styles";
 import {Utils, Environment} from "../Shared/utils.class";
 import {red} from "@mui/material/colors";
+import {LocalStorageKey} from "../../constants/localStorage";
 
 /** Gemeinsame Secondary- und Error-Farben für alle Themes. */
 const SECONDARY: SimplePaletteColorOptions = {
@@ -50,7 +51,10 @@ const PRIMARY_COLORS: Record<
  * bevorzugten Farbschema des Benutzers zurück.
  *
  * In der Test-Umgebung wird ein lilafarbenes Theme verwendet, damit
- * Test und Produktion visuell sofort unterscheidbar sind.
+ * Test und Produktion visuell sofort unterscheidbar sind. Community
+ * Leader und Admins können dies über einen Menüpunkt in der
+ * Navigationsleiste lokal überschreiben (z.B. für Screenshots), siehe
+ * `LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME`.
  *
  * @param prefersDarkMode `true` wenn der Benutzer Dark-Mode bevorzugt.
  * @returns `PaletteOptions` für `createTheme`.
@@ -61,7 +65,12 @@ const PRIMARY_COLORS: Record<
  */
 const getTheme = (prefersDarkMode: boolean): PaletteOptions => {
   const mode = prefersDarkMode ? "dark" : "light";
-  const env = Utils.getEnvironment() === Environment.test ? "test" : "prod";
+  const useOriginalColorScheme =
+    localStorage.getItem(LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME) === "true";
+  const env =
+    !useOriginalColorScheme && Utils.getEnvironment() === Environment.test
+      ? "test"
+      : "prod";
   return buildPalette(mode, PRIMARY_COLORS[env][mode]);
 };
 

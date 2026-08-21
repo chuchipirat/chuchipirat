@@ -28,7 +28,9 @@ import type {MenuplanPageProps} from "./menuplan.page.types";
 import {
   DIALOG_CHOOSE_MENUES_TITLE as TEXT_DIALOG_CHOOSE_MENUES_TITLE,
   DIALOG_CHOOSE_MEALS_TITLE as TEXT_DIALOG_CHOOSE_MEALS_TITLE,
+  ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
 } from "../../../constants/text";
+import {AlertMessage} from "../../Shared/AlertMessage";
 
 // Barrel re-exports für Abwärtskompatibilität externer Consumer
 export {MenuplanDragDropTypes, blockBoardPanningAttr, generatePlanedPortionsText} from "./menuplan.constants";
@@ -55,6 +57,7 @@ const MenuplanPage = ({
   onRecipeUpdate: onRecipeUpdateSuper,
   fetchMissingData,
   onMasterdataCreate,
+  initialOpenRecipeMealId,
 }: MenuplanPageProps) => {
   const theme = useTheme();
   const {customDialog} = useCustomDialog();
@@ -67,6 +70,7 @@ const MenuplanPage = ({
     showDetails: false,
     enableDragAndDrop: false,
   });
+  const [error, setError] = useState<Error | null>(null);
 
   const dialogs = useMenuplanDialogs();
   const {
@@ -199,7 +203,20 @@ const MenuplanPage = ({
     customDialog,
     dialogs,
     userDidChangeDnD,
+    onError: setError,
   });
+
+  /* ------------------------------------------
+  // Deep-Link: Rezept-Drawer automatisch öffnen (z.B. von der Startseite)
+  // ------------------------------------------ */
+  const hasAutoOpenedRecipeFromUrl = useRef(false);
+  useEffect(() => {
+    if (hasAutoOpenedRecipeFromUrl.current) return;
+    if (!initialOpenRecipeMealId || !menuplan.uid) return;
+
+    hasAutoOpenedRecipeFromUrl.current = true;
+    handlers.onMealRecipeOpen(initialOpenRecipeMealId);
+  }, [initialOpenRecipeMealId, menuplan.uid, handlers.onMealRecipeOpen]);
 
   if (
     new Set(menuplan.mealTypes.order).size !== menuplan.mealTypes.order.length
@@ -211,6 +228,12 @@ const MenuplanPage = ({
   }
   return (
     <React.Fragment key={"test"}>
+      {error && (
+        <AlertMessage
+          error={error}
+          messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
+        />
+      )}
       {/* Sticky header — scrolls horizontally via JS sync */}
       <Box
         ref={headerScrollRef}

@@ -47,7 +47,8 @@ import {ImageRepository} from "../../constants/imageRepository";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {LocalStorageKey} from "../../constants/localStorage";
-import {useNavigate} from "react-router";
+import {Role} from "../../constants/roles";
+import {useNavigate, useLocation} from "react-router";
 import {Utils} from "../Shared/utils.class";
 import {useCustomStyles} from "../../constants/styles";
 
@@ -61,10 +62,10 @@ const SUPABASE_ERROR_INVALID_CREDENTIALS = "invalid_credentials";
 
 enum ReducerActions {
   SET_MAINTENANCE_MODE,
-  OVERWRITE_MAINTENANCE_MODE,
   UPDATE_FIELD,
   SIGN_IN,
   GENERIC_ERROR,
+  MAINTENANCE_BLOCKED,
   RESEND_EMAIL_SENT,
   RESEND_EMAIL_ERROR,
 }
@@ -104,9 +105,9 @@ type State = {
 type DispatchAction =
   | {type: ReducerActions.UPDATE_FIELD; payload: {field: string; value: string}}
   | {type: ReducerActions.SET_MAINTENANCE_MODE; payload: {value: boolean}}
-  | {type: ReducerActions.OVERWRITE_MAINTENANCE_MODE}
   | {type: ReducerActions.SIGN_IN}
   | {type: ReducerActions.GENERIC_ERROR; payload: AuthErrorLike}
+  | {type: ReducerActions.MAINTENANCE_BLOCKED}
   | {type: ReducerActions.RESEND_EMAIL_SENT}
   | {type: ReducerActions.RESEND_EMAIL_ERROR; payload: Error};
 
@@ -146,8 +147,8 @@ const signInReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.SIGN_IN:
       return {...state, isSigningIn: true};
-    case ReducerActions.OVERWRITE_MAINTENANCE_MODE:
-      return {...state, maintenanceMode: false};
+    case ReducerActions.MAINTENANCE_BLOCKED:
+      return {...state, isSigningIn: false};
     case ReducerActions.GENERIC_ERROR:
       return {
         ...state,
@@ -181,6 +182,7 @@ const SignInPage = () => {
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [state, dispatch] = React.useReducer(signInReducer, initialState);
 
@@ -189,9 +191,12 @@ const SignInPage = () => {
   const [signInSucceeded, setSignInSucceeded] = React.useState(false);
   React.useEffect(() => {
     if (signInSucceeded && authUser) {
-      navigate(ROUTE_HOME);
+      // Falls AuthorizationGuard hierher umgeleitet hat, zur ursprünglich
+      // angeforderten Seite zurücknavigieren statt immer zur Startseite.
+      const from = (location.state as {from?: string} | null)?.from;
+      navigate(from ?? ROUTE_HOME);
     }
-  }, [signInSucceeded, authUser, navigate]);
+  }, [signInSucceeded, authUser, navigate, location]);
 
   /* ------------------------------------------
   // Einstellungen holen
@@ -203,24 +208,6 @@ const SignInPage = () => {
         payload: {value: result?.maintenanceMode ?? false},
       });
     });
-  }, []);
-
-  // Geheime Tastenkombination zum Deaktivieren des Wartungsmodus (Ctrl+Alt+Shift+C)
-  React.useEffect(() => {
-    const handleKeyPress = (event: KeyboardEvent) => {
-      const isCtrlPressed = event.ctrlKey || event.metaKey;
-      const isAltPressed = event.altKey;
-      const isShiftPressed = event.shiftKey;
-      const isCPressed = event.key === "c" || event.key === "C";
-
-      if (isCtrlPressed && isAltPressed && isShiftPressed && isCPressed) {
-        dispatch({type: ReducerActions.OVERWRITE_MAINTENANCE_MODE});
-      }
-    };
-    window.addEventListener("keydown", handleKeyPress);
-    return () => {
-      window.removeEventListener("keydown", handleKeyPress);
-    };
   }, []);
 
   /* ------------------------------------------
@@ -261,8 +248,9 @@ const SignInPage = () => {
 
       // Profil laden und Login registrieren — beides SECURITY DEFINER RPCs,
       // daher kein RLS-Timing-Problem.
+      let userDomain;
       try {
-        const [userDomain] = await Promise.all([
+        [userDomain] = await Promise.all([
           database.users.findOwnProfile(),
           database.users.registerSignIn(session.user.id),
         ]);
@@ -291,6 +279,19 @@ const SignInPage = () => {
         Sentry.captureException(profileError, {
           extra: {context: "SignIn - Profil laden / Login registrieren"},
         });
+      }
+
+      // Im Wartungsmodus dürfen sich nur Admins tatsächlich anmelden —
+      // die Rolle kommt aus dem serverseitig geladenen Profil, nicht aus
+      // einem client-seitigen Flag. Alle anderen werden sofort wieder ausgeloggt.
+      if (
+        state.maintenanceMode &&
+        !userDomain?.roles.includes(Role.admin)
+      ) {
+        await database.auth.signOut();
+        localStorage.removeItem(LocalStorageKey.AUTH_USER);
+        dispatch({type: ReducerActions.MAINTENANCE_BLOCKED});
+        return;
       }
 
       // State setzen — der useEffect oben navigiert, sobald authUser
@@ -346,7 +347,6 @@ const SignInPage = () => {
                 signInData={state.signInData}
                 onFieldChange={onFieldChange}
                 onSignIn={onSignIn}
-                maintenanceMode={state.maintenanceMode}
               />
               {state.error &&
                 (state.error.code === SUPABASE_ERROR_EMAIL_NOT_CONFIRMED ? (
@@ -385,24 +385,23 @@ const SignInPage = () => {
  * Props für das Sign-In-Formular.
  *
  * @param signInData - Aktuelle Login-Daten
- * @param maintenanceMode - Ob der Wartungsmodus aktiv ist
  * @param onFieldChange - Handler für Feldänderungen
  * @param onSignIn - Handler für den Login-Button
  */
 interface SignInFormProps {
   signInData: SignInData;
-  maintenanceMode: boolean;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onSignIn: () => void;
 }
 
 /**
  * Formular zur Eingabe von E-Mail und Passwort für den Login.
- * Zeigt Passwort-Toggle und deaktiviert Felder im Wartungsmodus.
+ * Zeigt Passwort-Toggle. Bleibt auch im Wartungsmodus bedienbar — die
+ * eigentliche Zugriffsprüfung erfolgt serverseitig nach dem Login
+ * anhand der tatsächlichen Rolle (siehe SignInPage.onSignIn).
  */
 const SignInForm = ({
   signInData,
-  maintenanceMode,
   onFieldChange,
   onSignIn,
 }: SignInFormProps) => {
@@ -448,7 +447,6 @@ const SignInForm = ({
         autoFocus
         value={signInData.email}
         onChange={onFieldChange}
-        disabled={maintenanceMode}
       />
       {/* Passwort */}
       <TextField
@@ -462,7 +460,6 @@ const SignInForm = ({
         autoComplete="current-password"
         value={signInData.password}
         onChange={onFieldChange}
-        disabled={maintenanceMode}
         slotProps={{
           input: {
             endAdornment: (
@@ -481,11 +478,7 @@ const SignInForm = ({
         }}
       />
       <Button
-        disabled={
-          maintenanceMode ||
-          !signInData.password ||
-          !Utils.isEmail(signInData.email)
-        }
+        disabled={!signInData.password || !Utils.isEmail(signInData.email)}
         type="submit"
         fullWidth
         variant="contained"

@@ -27,6 +27,27 @@ import {
 } from "../../constants/text";
 import {ScalingOptions} from "./recipe.class";
 
+/**
+ * Höchste sinnvolle Portionenzahl für die Skalierung. Verhindert absurde
+ * Eingaben (z.B. Tippfehler mit vielen zusätzlichen Nullen), die sonst zu
+ * fehlerhaften skalierten Mengen führen würden.
+ */
+const MAX_SCALABLE_PORTIONS = 1_000_000;
+
+/**
+ * Parst und kappt die Portionen-Eingabe für die Skalierung. Negative und
+ * nicht parsebare Eingaben werden zu 0, zu grosse Werte auf
+ * {@link MAX_SCALABLE_PORTIONS} gekappt.
+ *
+ * @param rawValue - Roher Eingabewert aus dem Zahlenfeld.
+ * @returns Gültige, gekappte Portionenzahl.
+ */
+function clampScaledPortions(rawValue: string): number {
+  const parsed = parseInt(rawValue, 10);
+  if (Number.isNaN(parsed)) return 0;
+  return Math.min(MAX_SCALABLE_PORTIONS, Math.max(0, parsed));
+}
+
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -82,7 +103,7 @@ export const DialogScaleRecipe = ({
   ) => {
     setFormFields({
       ...formFields,
-      scaledPortions: parseInt(event.target.value),
+      scaledPortions: clampScaledPortions(event.target.value),
       initial: false,
     });
   };
@@ -133,6 +154,7 @@ export const DialogScaleRecipe = ({
               variant="outlined"
               label={TEXT_PORTIONS_TO_SCALE}
               type="number"
+              slotProps={{htmlInput: {min: 0, max: MAX_SCALABLE_PORTIONS}}}
             />
           </Grid>
  <Grid size={10} >

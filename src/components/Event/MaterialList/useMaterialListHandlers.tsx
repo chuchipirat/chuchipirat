@@ -636,7 +636,10 @@ export function useMaterialListHandlers({
 
       switch (change.source) {
         case "textfield": {
-          item.quantity = parseFloat(change.value);
+          const parsedQuantity = parseFloat(change.value);
+          item.quantity = Number.isNaN(parsedQuantity)
+            ? 0
+            : Math.max(0, parsedQuantity);
           if (isNewItem) {
             items.push(item);
           } else {
@@ -891,7 +894,7 @@ export function useMaterialListHandlers({
   /* ------------------------------------------
   // PDF erzeugen
   // ------------------------------------------ */
-  const onGeneratePrintVersion = React.useCallback(() => {
+  const onGeneratePrintVersion = React.useCallback(async () => {
     if (!selectedListItem) return;
 
     const items = materialList.lists[selectedListItem]?.items;
@@ -900,21 +903,28 @@ export function useMaterialListHandlers({
       return;
     }
 
-    generateAndDownloadPdf(
-      <MaterialListPdf
-        materialList={materialList.lists[selectedListItem]}
-        materialListSelectedTimeSlice={decodeSelectedMeals({
-          selectedMeals:
-            materialList.lists[selectedListItem].properties.selectedMenues,
-          menuplan: menuplan,
-        })}
-        eventName={event.name}
-        authUser={authUser}
-      />,
-      event.name + " " + TEXT_MATERIAL_LIST + TEXT_SUFFIX_PDF,
-      (error) => onDispatchError(error),
-      {eventUid: event.uid},
-    );
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "materialList"});
+
+    try {
+      await generateAndDownloadPdf(
+        <MaterialListPdf
+          materialList={materialList.lists[selectedListItem]}
+          materialListSelectedTimeSlice={decodeSelectedMeals({
+            selectedMeals:
+              materialList.lists[selectedListItem].properties.selectedMenues,
+            menuplan: menuplan,
+          })}
+          eventName={event.name}
+          authUser={authUser}
+        />,
+        event.name + " " + TEXT_MATERIAL_LIST + TEXT_SUFFIX_PDF,
+        (error) => onDispatchError(error),
+        {eventUid: event.uid},
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      onDispatchError(error as Error);
+    }
   }, [materialList, selectedListItem, menuplan, event.name, authUser, onDispatchError]);
 
   /* ------------------------------------------

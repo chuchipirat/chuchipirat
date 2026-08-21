@@ -140,6 +140,14 @@ const MaterialAutocomplete = ({
       clearOnBlur
       handleHomeEndKeys
       options={materials}
+      // Eindeutiger Key statt Standard-Fallback auf getOptionLabel (=Name):
+      // Mehrere Materialien koennen denselben Namen haben (Datenqualitaets-
+      // Duplikate), was sonst zu doppelten React-Keys in der Optionsliste
+      // fuehrt und Reacts Reconciliation beim Filtern durch Tippen bricht
+      // (veraltete DOM-Eintraege bleiben stehen). Siehe productAutocomplete.tsx.
+      getOptionKey={(option) =>
+        typeof option === "string" ? option : option.uid
+      }
       getOptionLabel={(option) => {
         if (typeof option === "string") {
           return option;

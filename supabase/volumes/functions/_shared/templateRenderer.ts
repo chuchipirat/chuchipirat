@@ -354,7 +354,7 @@ const BODY_TEMPLATES: Record<string, string> = {
               <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
                 <tr>
                   <td align="center" style="padding: 8px 0 0;">
-                    <a href="{{appUrl}}/donate"
+                    <a href="{{appUrl}}/donate?eventId={{eventId}}&amp;source=event_review_email"
                        target="_blank"
                        style="display: inline-block; background-color: #ffffff; color: #006064; text-decoration: none; font-size: 15px; font-weight: 600; padding: 12px 32px; border-radius: 8px; border: 2px solid #006064; letter-spacing: 0.3px;">
                       Jetzt spenden
@@ -507,11 +507,10 @@ export function renderEmailTemplate(
   let rendered: string;
 
   if (HANDLEBARS_TEMPLATES.has(templateName)) {
-    // Handlebars-Rendering (unterstützt Conditionals, Loops etc.)
-    const safeVars: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(variables)) {
-      safeVars[key] = typeof value === "string" ? escapeHtml(value) : value;
-    }
+    // Handlebars-Rendering (unterstützt Conditionals, Loops etc.).
+    // {{variable}} escaped bereits automatisch — kein zusätzliches escapeHtml()
+    // hier, sonst wird z.B. ' zu &#039; und dann nochmals zu &amp;#039;.
+    const safeVars: Record<string, unknown> = {...variables};
     for (const [key, value] of Object.entries(rawVariables)) {
       safeVars[key] = value;
     }

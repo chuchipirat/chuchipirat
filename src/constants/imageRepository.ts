@@ -1,83 +1,39 @@
 /**
- * Stellt umgebungsabhängige Bilder (Landing, Sign-In, PDF-Footer etc.) bereit.
+ * Stellt statische App-Bilder (Landing/Fehlerseiten-Logo, Sign-In-Header,
+ * Platzhalter etc.) bereit.
  *
- * Gibt je nach Umgebungsvariable `VITE_ENVIRONMENT` die passenden
- * Firebase-Storage-URLs für DEV, TEST oder PROD zurück.
+ * Diese Bilder sind Teil des Vite-Builds (`public/images/...`) und daher
+ * umgebungsunabhängig — dieselbe Datei wird in DEV, TEST und PROD
+ * ausgeliefert. `getEnvironmentRelatedPicture()` bleibt als Methodenname
+ * aus Kompatibilitätsgründen erhalten (siehe tech-debt.md).
  */
 export class ImageRepository {
   /* =====================================================================
   // Allgemeine Bilder
   // ===================================================================== */
   /**
-   * Gibt die Bilder-Konstanten für die aktuelle Umgebung zurück.
+   * Gibt die Bilder-Konstanten zurück.
    *
-   * @returns Objekt mit allen Bild-URLs für die aktuelle Umgebung.
+   * @returns Objekt mit allen Bild-Pfaden.
    */
-  static getEnvironmentRelatedPicture = () => {
-    switch (import.meta.env.VITE_ENVIRONMENT) {
-      case "PRD":
-        return PRODUCTION;
-      case "TST":
-        return TEST;
-      case "DEV":
-        return DEVELOPMENT;
-      default:
-        return PRODUCTION;
-    }
-  };
+  static getEnvironmentRelatedPicture = () => PICTURES;
 }
 /* =====================================================================
-// Bild-Konstanten je nach System 
+// Bild-Konstanten
 // ===================================================================== */
-/** Bild-URLs je nach Umgebung (DEV, TEST, PROD). */
+/** Statische Bild-Pfade (aus `public/images/...`). */
 interface PictureRepository {
   LANDING_LOGO: string;
   SIGN_IN_HEADER: string;
-  PDF_FOOTER_IMAGE: string;
   CARD_PLACEHOLDER_MEDIA: string;
   VECTOR_LOGO_GREY: string;
   RECEIPT_IMAGE: string;
 }
 
-const DEVELOPMENT: PictureRepository = {
-  LANDING_LOGO:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2Flanding_logo.svg?alt=media",
-  SIGN_IN_HEADER:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2Flogo_16_9.png?alt=media",
-  PDF_FOOTER_IMAGE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2FpdfFooterImage.png?alt=media",
-  CARD_PLACEHOLDER_MEDIA:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2Fplaceholder.png?alt=media",
-  VECTOR_LOGO_GREY:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2Fdivider_icon.svg?alt=media",
-  RECEIPT_IMAGE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-dev.appspot.com/o/defaults%2FQuittung.png?alt=media",
-};
-const TEST: PictureRepository = {
-  LANDING_LOGO:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2Flanding_logo.svg?alt=media",
-  SIGN_IN_HEADER:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2Flogo_16_9.png?alt=media",
-  PDF_FOOTER_IMAGE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2FpdfFooterImage.png?alt=media",
-  CARD_PLACEHOLDER_MEDIA:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2Fplaceholder.png?alt=media",
-  VECTOR_LOGO_GREY:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2Fdivider_icon.svg?alt=media",
-  RECEIPT_IMAGE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat-tst.appspot.com/o/defaults%2FQuittung.png?alt=media",
-};
-const PRODUCTION: PictureRepository = {
-  LANDING_LOGO:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2Flanding_logo.svg?alt=media",
-  SIGN_IN_HEADER:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2Flogo_16_9.png?alt=media",
-  PDF_FOOTER_IMAGE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2FpdfFooterImage.png?alt=media",
-  CARD_PLACEHOLDER_MEDIA:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2Fplaceholder.png?alt=media",
-  VECTOR_LOGO_GREY:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2Fdivider_icon.svg?alt=media",
-  RECEIPT_IMAGE:
-    "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/defaults%2FQuittung.png?alt=media",
+const PICTURES: PictureRepository = {
+  LANDING_LOGO: "/images/logo/logo_gray.svg",
+  SIGN_IN_HEADER: "/images/auth/sign-in-header.png",
+  CARD_PLACEHOLDER_MEDIA: "/images/placeholders/card-placeholder.png",
+  VECTOR_LOGO_GREY: "/images/logo/logo_vector_grey.svg",
+  RECEIPT_IMAGE: "/images/pdf/receipt-image.png",
 };

@@ -168,7 +168,7 @@ describe("UserRepository", () => {
         },
       ];
 
-      supabaseMock.queryMock.order.mockResolvedValue({
+      supabaseMock.queryMock.range.mockResolvedValue({
         data: overviewRows,
         error: null,
       });
@@ -182,6 +182,8 @@ describe("UserRepository", () => {
       expect(supabaseMock.queryMock.order).toHaveBeenCalledWith("first_name", {
         ascending: true,
       });
+      // Erste Seite beginnt bei Zeile 0
+      expect(supabaseMock.queryMock.range).toHaveBeenCalledWith(0, 999);
       expect(result).toHaveLength(2);
       expect(result[0].uid).toBe("T02c6mxOWDstBdvwzjbs5Tfc2abc");
       expect(result[0].firstName).toBe("Test");
@@ -189,8 +191,46 @@ describe("UserRepository", () => {
       expect(result[1].uid).toBe("X8kLmN3pQrStUvWxYz1234abcde");
     });
 
+    test("Lädt eine zweite Seite nach, wenn die erste Seite voll ist", async () => {
+      const fullPage = Array.from({length: 1000}, (_, index) => ({
+        id: `user-uid-${index}`,
+        first_name: userRow.first_name,
+        last_name: userRow.last_name,
+        email: userRow.email,
+        display_name: userRow.display_name,
+        member_id: userRow.member_id,
+        created_at: userRow.created_at,
+      }));
+      const secondPage = [
+        {
+          id: userRow2.id,
+          first_name: userRow2.first_name,
+          last_name: userRow2.last_name,
+          email: userRow2.email,
+          display_name: userRow2.display_name,
+          member_id: userRow2.member_id,
+          created_at: userRow2.created_at,
+        },
+      ];
+
+      supabaseMock.queryMock.range = jest
+        .fn()
+        .mockResolvedValueOnce({data: fullPage, error: null})
+        .mockResolvedValueOnce({data: secondPage, error: null});
+
+      const result = await repo.findOverview();
+
+      expect(supabaseMock.queryMock.range).toHaveBeenNthCalledWith(1, 0, 999);
+      expect(supabaseMock.queryMock.range).toHaveBeenNthCalledWith(
+        2,
+        1000,
+        1999,
+      );
+      expect(result).toHaveLength(1001);
+    });
+
     test("Fehler bei findOverview() werfen", async () => {
-      supabaseMock.queryMock.order.mockResolvedValue({
+      supabaseMock.queryMock.range.mockResolvedValue({
         data: null,
         error: {message: "Query failed"},
       });

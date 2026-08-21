@@ -16,6 +16,9 @@ import {
   ENABLE_DRAG_AND_DROP as TEXT_ENABLE_DRAG_AND_DROP,
   ADD_MEAL as TEXT_ADD_MEAL,
   PRINTVERSION as TEXT_PRINTVERSION,
+  NOTE as TEXT_NOTE,
+  ADD as TEXT_ADD,
+  DELETE as TEXT_DELETE,
 } from "../../../../constants/text";
 
 const mockCustomDialog = jest.fn().mockResolvedValue({valid: false, input: ""});
@@ -125,5 +128,54 @@ describe("MenuplanHeaderRow", () => {
     render(<MenuplanHeaderRow {...defaultProps} notes={notes} />);
 
     expect(screen.getByText("Testnotiz für den Tag")).toBeInTheDocument();
+  });
+
+  describe("Kontextmenü — schliesst sofort bei Klick, unabhängig vom Dialog-Roundtrip", () => {
+    it("schliesst das Kontextmenü synchron beim Klick auf 'Notiz hinzufügen', bevor der Dialog aufgelöst ist", async () => {
+      // customDialog absichtlich unaufgelöst lassen — beweist, dass das
+      // Schliessen des Menüs nicht vom Dialog-Roundtrip abhängt.
+      let resolveDialog: (value: unknown) => void = () => {};
+      mockCustomDialog.mockReturnValueOnce(
+        new Promise((resolve) => {
+          resolveDialog = resolve;
+        }),
+      );
+
+      render(<MenuplanHeaderRow {...defaultProps} />);
+
+      const menuButton = screen.getAllByRole("button", {name: "settings"})[0];
+      fireEvent.click(menuButton);
+
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText(`${TEXT_NOTE} ${TEXT_ADD}`));
+
+      // Menü muss sofort geschlossen sein — der Dialog wurde absichtlich
+      // noch nicht aufgelöst (resolveDialog noch nicht aufgerufen).
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+
+      // Aufräumen: Dialog aus dem hängenden Promise auflösen
+      resolveDialog({valid: false, input: ""});
+    });
+
+    it("schliesst das Kontextmenü beim Klick auf 'Notiz löschen'", () => {
+      const notes: {[key: string]: Note} = {
+        "note-1": {
+          uid: "note-1",
+          text: "Testnotiz für den Tag",
+          date: "2026-03-10",
+          menueUid: "",
+        },
+      };
+      render(<MenuplanHeaderRow {...defaultProps} notes={notes} />);
+
+      const menuButton = screen.getAllByRole("button", {name: "settings"})[0];
+      fireEvent.click(menuButton);
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+
+      fireEvent.click(screen.getByText(`${TEXT_NOTE} ${TEXT_DELETE}`));
+
+      expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+    });
   });
 });

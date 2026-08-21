@@ -24,10 +24,12 @@ jest.mock("../../Shared/utils.class", () => {
 });
 
 import {getTheme} from "../customTheme";
+import {LocalStorageKey} from "../../../constants/localStorage";
 
 describe("getTheme", () => {
   afterEach(() => {
     mockEnvironment = Environment.production;
+    localStorage.removeItem(LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME);
   });
 
   test("gibt Light-Mode-Palette zurück wenn prefersDarkMode false ist", () => {
@@ -75,5 +77,19 @@ describe("getTheme", () => {
     mockEnvironment = Environment.development;
     const palette = getTheme(false);
     expect((palette.primary as {main: string}).main).toBe("#006064");
+  });
+
+  test("Override aktiv: Test-Umgebung liefert trotzdem Prod-Palette", () => {
+    mockEnvironment = Environment.test;
+    localStorage.setItem(LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME, "true");
+    const palette = getTheme(false);
+    expect((palette.primary as {main: string}).main).toBe("#006064");
+  });
+
+  test("Ohne Override liefert Test-Umgebung weiterhin die Lila-Palette", () => {
+    mockEnvironment = Environment.test;
+    localStorage.setItem(LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME, "false");
+    const palette = getTheme(false);
+    expect((palette.primary as {main: string}).main).toBe("#6a1b9a");
   });
 });

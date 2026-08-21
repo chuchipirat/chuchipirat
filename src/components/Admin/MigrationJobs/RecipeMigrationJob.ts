@@ -32,6 +32,7 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {supabaseAdmin} from "../../Database/supabaseClient";
+import {RecipeRepository} from "../../Database/Repository/RecipeRepository";
 import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 
 /* =====================================================================
@@ -227,6 +228,11 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
   private userAuthUidByFirebaseUid: Map<string, string> = new Map();
   /** Bereits migrierte Rezepte (firebase_uid) — für schnelle checkExists-Prüfung */
   private existingFirebaseUids: Set<string> | null = null;
+  /**
+   * RecipeRepository mit Service-Role-Client. RLS würde Schreibzugriff sonst
+   * auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminRecipes = new RecipeRepository(supabaseAdmin!);
 
   /* =====================================================================
   // Alle Rezepte aus Firebase lesen
@@ -345,7 +351,6 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
   /**
    * Prüft anhand der `firebase_uid`, ob das Rezept bereits migriert wurde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls das Rezept bereits vorhanden ist
    */
@@ -369,18 +374,17 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
    * 3. Zubereitungsschritte / Abschnitt-Trennzeilen (recipe_preparation_steps)
    * 4. Materialpositionen (recipe_materials)
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseRecipeData>,
     authUser: AuthUser,
   ): Promise<void> {
     const data = record.data;
     const client = supabaseAdmin!;
-    const recipes = database.recipes;
+    const recipes = this.adminRecipes;
 
     // 1. Supabase-Auth-UUID des Erstellers auflösen (für created_by / RLS)
     const createdBy =
@@ -411,16 +415,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       authUser,
     });
 
-    // firebase_uid und created_by nachträglich setzen
-    await client
-      .from("recipes")
-      .update({
-        firebase_uid: record.id,
-        ...(createdBy ? {created_by: createdBy} : {}),
-      })
-      .eq("id", recipeId);
-
-    // 3. Zutaten als Batch einfügen (1 INSERT statt 2×N Einzelabfragen)
+    // 3. Zutaten-Rows aufbauen
     const ingredientOrder: string[] = data.ingredients?.order ?? [];
     const ingredientEntries = data.ingredients?.entries ?? {};
     const ingredientRows: Record<string, unknown>[] = [];
@@ -449,14 +444,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       sortOrder += 10;
     }
 
-    if (ingredientRows.length > 0) {
-      const {error: ingredientError} = await client
-        .from("recipe_ingredients")
-        .insert(ingredientRows);
-      if (ingredientError) throw ingredientError;
-    }
-
-    // 4. Zubereitungsschritte als Batch einfügen
+    // 4. Zubereitungsschritt-Rows aufbauen
     const stepOrder: string[] = data.preparationSteps?.order ?? [];
     const stepEntries = data.preparationSteps?.entries ?? {};
     const stepRows: Record<string, unknown>[] = [];
@@ -477,14 +465,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       sortOrder += 10;
     }
 
-    if (stepRows.length > 0) {
-      const {error: stepError} = await client
-        .from("recipe_preparation_steps")
-        .insert(stepRows);
-      if (stepError) throw stepError;
-    }
-
-    // 5. Materialpositionen als Batch einfügen
+    // 5. Material-Rows aufbauen
     const materialOrder: string[] = data.materials?.order ?? [];
     const materialEntries = data.materials?.entries ?? {};
     const materialRows: Record<string, unknown>[] = [];
@@ -508,12 +489,29 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
       sortOrder += 10;
     }
 
-    if (materialRows.length > 0) {
-      const {error: materialError} = await client
-        .from("recipe_materials")
-        .insert(materialRows);
-      if (materialError) throw materialError;
-    }
+    // 6. firebase_uid-Update + alle Kindtabellen parallel ausführen —
+    //    diese Operationen sind voneinander unabhängig, sobald recipeId bekannt ist.
+    const updateFields: Record<string, unknown> = {firebase_uid: record.id};
+    if (createdBy) updateFields.created_by = createdBy;
+
+    const [updateResult, ingredientResult, stepResult, materialResult] =
+      await Promise.all([
+        client.from("recipes").update(updateFields).eq("id", recipeId),
+        ingredientRows.length > 0
+          ? client.from("recipe_ingredients").insert(ingredientRows)
+          : Promise.resolve({error: null}),
+        stepRows.length > 0
+          ? client.from("recipe_preparation_steps").insert(stepRows)
+          : Promise.resolve({error: null}),
+        materialRows.length > 0
+          ? client.from("recipe_materials").insert(materialRows)
+          : Promise.resolve({error: null}),
+      ]);
+
+    if (updateResult.error) throw updateResult.error;
+    if (ingredientResult.error) throw ingredientResult.error;
+    if (stepResult.error) throw stepResult.error;
+    if (materialResult.error) throw materialResult.error;
   }
 
   /* =====================================================================

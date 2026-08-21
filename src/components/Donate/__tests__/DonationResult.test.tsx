@@ -9,10 +9,13 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
+import {DatabaseContext} from "../../Database/DatabaseContext";
+import {AuthUserContext} from "../../Session/authUserContext";
+import {AuthUser} from "../../Firebase/Authentication/authUser.class";
 
 /* ===================================================================
 // Mock-Setup
@@ -46,7 +49,40 @@ jest.mock("react-router", () => {
   };
 });
 
+/** Mock: trackEvent (Umami) */
+const mockTrackEvent = jest.fn();
+jest.mock("../../Analytics/analyticsService", () => ({
+  trackEvent: (...args: unknown[]) => mockTrackEvent(...args),
+}));
+
+/** Mock: supabase.functions.invoke (Retry ruft create-donation direkt auf) */
+const mockInvoke = jest.fn();
+jest.mock("../../Database/supabaseClient", () => ({
+  supabase: {
+    functions: {
+      invoke: (...args: unknown[]) => mockInvoke(...args),
+    },
+  },
+}));
+
 import {DonationResultPage} from "../DonationResult";
+
+/* ===================================================================
+// Mock-DatabaseService
+// =================================================================== */
+
+/** Mock für database.donations.cancelOwnPendingDonation */
+const mockCancelOwnPendingDonation = jest.fn().mockResolvedValue(undefined);
+
+const mockDatabase = {
+  donations: {
+    cancelOwnPendingDonation: mockCancelOwnPendingDonation,
+  },
+} as unknown as import("../../Database/DatabaseService").default;
+
+/** Mock: eingeloggter authUser (Route ist guard: isAuthenticated) */
+const mockAuthUser = new AuthUser();
+mockAuthUser.uid = "test-user-uid";
 
 /* ===================================================================
 // Hilfs-Render-Funktion
@@ -60,7 +96,11 @@ import {DonationResultPage} from "../DonationResult";
 const renderResult = (searchParams: string = "") => {
   return render(
     <MemoryRouter initialEntries={[`/donate/result${searchParams}`]}>
-      <DonationResultPage />
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserContext.Provider value={mockAuthUser}>
+          <DonationResultPage />
+        </AuthUserContext.Provider>
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 };
@@ -72,6 +112,10 @@ const renderResult = (searchParams: string = "") => {
 describe("DonationResultPage", () => {
   beforeEach(() => {
     mockNavigate.mockClear();
+    mockCancelOwnPendingDonation.mockClear();
+    mockTrackEvent.mockClear();
+    mockInvoke.mockClear();
+    mockInvoke.mockResolvedValue({data: {paymentUrl: "https://payment.example/gw"}});
   });
 
   /* ----- Status: success ----- */
@@ -136,6 +180,67 @@ describe("DonationResultPage", () => {
 
       const icon = document.querySelector("[data-testid='WarningAmberIcon']");
       expect(icon).toBeInTheDocument();
+    });
+
+    test("markiert die eigene Spende als abgebrochen (kein Webhook bei Checkout-Abbruch)", async () => {
+      renderResult("?status=cancel&donationId=test-donation-id");
+
+      await waitFor(() => {
+        expect(mockCancelOwnPendingDonation).toHaveBeenCalledWith(
+          "test-donation-id",
+        );
+      });
+    });
+
+    test("ruft die RPC nicht auf, wenn keine donationId in der URL ist", () => {
+      renderResult("?status=cancel");
+
+      expect(mockCancelOwnPendingDonation).not.toHaveBeenCalled();
+    });
+
+    test("trackt entgangenen Umsatz separat von DONATION_COMPLETED", () => {
+      renderResult("?status=cancel&amount=1500");
+
+      expect(mockTrackEvent).toHaveBeenCalledWith("donation_cancelled", {
+        amount: 15,
+        currency: "CHF",
+        userId: "test-user-uid",
+      });
+    });
+
+    test("trackt eventId nur wenn in der URL vorhanden", () => {
+      renderResult("?status=cancel&amount=1500&eventId=event-123");
+
+      expect(mockTrackEvent).toHaveBeenCalledWith("donation_cancelled", {
+        eventId: "event-123",
+        amount: 15,
+        currency: "CHF",
+        userId: "test-user-uid",
+      });
+    });
+  });
+
+  /* ----- Erneut versuchen (Retry) ----- */
+
+  describe("Erneut versuchen", () => {
+    test("gibt die abgebrochene donationId als previousDonationId mit, damit die Nachricht übernommen wird", async () => {
+      renderResult(
+        "?status=cancel&amount=1500&eventId=event-123&donationId=old-donation-id",
+      );
+
+      const retryButton = screen.getByRole("button", {name: "Erneut versuchen"});
+      await userEvent.click(retryButton);
+
+      await waitFor(() => {
+        expect(mockInvoke).toHaveBeenCalledWith("create-donation", {
+          body: {
+            amountInCents: 1500,
+            eventId: "event-123",
+            returnPath: "/home",
+            previousDonationId: "old-donation-id",
+          },
+        });
+      });
     });
   });
 

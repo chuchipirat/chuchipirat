@@ -189,7 +189,7 @@ describe("ProductRepository", () => {
   describe("getAllProducts()", () => {
     test("Lädt alle Produkte ohne Filter und ohne JOIN", async () => {
       const mockData = [testRow, testRow2];
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+      supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
         data: mockData,
         error: null,
       });
@@ -204,12 +204,33 @@ describe("ProductRepository", () => {
       });
       // Ohne onlyUsable kein eq-Filter
       expect(supabaseMock.queryMock.eq).not.toHaveBeenCalled();
+      // Erste Seite beginnt bei Zeile 0
+      expect(supabaseMock.queryMock.range).toHaveBeenCalledWith(0, 999);
       expect(result).toHaveLength(2);
+    });
+
+    test("Lädt eine zweite Seite nach, wenn die erste Seite voll ist", async () => {
+      const fullPage: ProductRow[] = Array.from({length: 1000}, (_, index) => ({
+        ...testRow,
+        id: `prod-uuid-${index}`,
+      }));
+      const secondPage = [testRow2];
+
+      supabaseMock.queryMock.range = jest
+        .fn()
+        .mockResolvedValueOnce({data: fullPage, error: null})
+        .mockResolvedValueOnce({data: secondPage, error: null});
+
+      const result = await repo.getAllProducts();
+
+      expect(supabaseMock.queryMock.range).toHaveBeenNthCalledWith(1, 0, 999);
+      expect(supabaseMock.queryMock.range).toHaveBeenNthCalledWith(2, 1000, 1999);
+      expect(result).toHaveLength(1001);
     });
 
     test("Verwendet departments-JOIN wenn withDepartmentName=true", async () => {
       const mockData = [testRowWithDept];
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+      supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
         data: mockData,
         error: null,
       });
@@ -224,7 +245,7 @@ describe("ProductRepository", () => {
 
     test("Filtert auf usable=true wenn onlyUsable=true", async () => {
       const mockData = [testRow];
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+      supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
         data: mockData,
         error: null,
       });
@@ -237,7 +258,7 @@ describe("ProductRepository", () => {
 
     test("Kombiniert onlyUsable und withDepartmentName", async () => {
       const mockData = [testRowWithDept];
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+      supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
         data: mockData,
         error: null,
       });
@@ -254,7 +275,7 @@ describe("ProductRepository", () => {
     });
 
     test("Fehler bei getAllProducts() werfen", async () => {
-      supabaseMock.queryMock.order = jest.fn().mockResolvedValue({
+      supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
         data: null,
         error: {message: "Query failed"},
       });

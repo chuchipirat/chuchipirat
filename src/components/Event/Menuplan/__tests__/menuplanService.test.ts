@@ -24,6 +24,7 @@ import {
   findMenueOfMealRecipe,
   findMenueOfMealProduct,
   findMenueOfMealMaterial,
+  buildMealPlanForRecipe,
   getMealsOfMenues,
   getMenuesOfMeals,
   createMealRecipe,
@@ -450,6 +451,51 @@ describe("findMenueOfMealRecipe", () => {
       menues: mp.menues,
     });
     expect(result).toBeUndefined();
+  });
+});
+
+describe("buildMealPlanForRecipe", () => {
+  it("baut die chronologisch sortierte Liste aller Einplanungen eines Rezepts", () => {
+    const mp = buildPopulatedMenuplan();
+    mp.mealRecipes = {
+      "mr-1": {
+        uid: "mr-1",
+        recipe: {recipeUid: "recipe-a", name: "Rösti", type: RecipeType.public, createdFromUid: ""},
+        plan: [{diet: PlanedDiet.ALL, intolerance: PlanedIntolerances.ALL, factor: 1, totalPortions: 10}],
+        totalPortions: 10,
+      },
+      "mr-2": {
+        uid: "mr-2",
+        recipe: {recipeUid: "recipe-a", name: "Rösti", type: RecipeType.public, createdFromUid: ""},
+        plan: [{diet: PlanedDiet.ALL, intolerance: PlanedIntolerances.ALL, factor: 1, totalPortions: 5}],
+        totalPortions: 5,
+      },
+      "mr-3": {
+        uid: "mr-3",
+        recipe: {recipeUid: "recipe-b", name: "Anderes Rezept", type: RecipeType.public, createdFromUid: ""},
+        plan: [],
+        totalPortions: 0,
+      },
+    };
+    // mr-1 -> menue-3 (2026-03-11, Frühstück), mr-2 -> menue-1 (2026-03-10, Frühstück)
+    mp.menues["menue-3"].mealRecipeOrder = ["mr-1"];
+    mp.menues["menue-1"].mealRecipeOrder = ["mr-2"];
+    mp.menues["menue-2"].mealRecipeOrder = ["mr-3"];
+
+    const result = buildMealPlanForRecipe(mp, "recipe-a");
+
+    expect(result).toHaveLength(2);
+    expect(result[0].mealPlanRecipe).toBe("mr-2");
+    expect(result[0].meal.date).toBe("2026-03-10");
+    expect(result[0].meal.mealTypeName).toBe("Frühstück");
+    expect(result[1].mealPlanRecipe).toBe("mr-1");
+    expect(result[1].meal.date).toBe("2026-03-11");
+  });
+
+  it("gibt ein leeres Array zurueck, wenn das Rezept nirgends eingeplant ist", () => {
+    const mp = buildPopulatedMenuplan();
+    const result = buildMealPlanForRecipe(mp, "unknown-recipe");
+    expect(result).toEqual([]);
   });
 });
 

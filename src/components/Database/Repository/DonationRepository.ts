@@ -46,8 +46,8 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
    * Nur `getAllDonations()` (Admin-only) verwendet `.select("*")` mit donor_email.
    */
   private static readonly PUBLIC_VIEW_COLUMNS = [
-    "id", "event_id", "payrexx_gateway_id", "payrexx_reference_id",
-    "payrexx_transaction_id", "amount_in_cents", "currency", "status",
+    "id", "event_id", "payment_gateway_id", "payment_reference_id",
+    "payment_transaction_id", "amount_in_cents", "currency", "status",
     "payment_method", "paid_at", "donor_uid", "donor_message",
     "receipt_number", "receipt_sent_at", "created_at",
     "updated_at", "donor_display_name", "event_name",
@@ -76,9 +76,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
   toRow(domain: DonationDomain): Partial<DonationRow> {
     return {
       event_id: domain.eventId,
-      payrexx_gateway_id: domain.payrexxGatewayId,
-      payrexx_reference_id: domain.payrexxReferenceId,
-      payrexx_transaction_id: domain.payrexxTransactionId,
+      payment_gateway_id: domain.paymentGatewayId,
+      payment_reference_id: domain.paymentReferenceId,
+      payment_transaction_id: domain.paymentTransactionId,
       amount_in_cents: domain.amountInCents,
       currency: domain.currency,
       status: domain.status,
@@ -104,9 +104,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
     return {
       id: row.id,
       eventId: row.event_id,
-      payrexxGatewayId: row.payrexx_gateway_id,
-      payrexxReferenceId: row.payrexx_reference_id,
-      payrexxTransactionId: row.payrexx_transaction_id,
+      paymentGatewayId: row.payment_gateway_id,
+      paymentReferenceId: row.payment_reference_id,
+      paymentTransactionId: row.payment_transaction_id,
       amountInCents: row.amount_in_cents,
       currency: row.currency,
       status: row.status as DonationStatus,
@@ -184,19 +184,51 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
   }
 
   /**
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden aller Spenden.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
+   */
+  private static readonly ALL_DONATIONS_PAGE_SIZE = 1000;
+
+  /**
+   * Lädt eine einzelne Seite von Spenden via Range-Pagination.
+   *
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @returns Zeilen dieser Seite
+   */
+  private async fetchDonationsPage(from: number): Promise<DonationRow[]> {
+    const {data, error} = await this.client
+      .from(this.viewName)
+      .select(DonationRepository.ALL_VIEW_COLUMNS)
+      .order("created_at", {ascending: false})
+      .range(from, from + DonationRepository.ALL_DONATIONS_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    return (data ?? []) as unknown as DonationRow[];
+  }
+
+  /**
    * Lädt alle Spenden (Admin-Übersicht).
+   *
+   * Lädt seitenweise via `.range()`, da PostgREST pro Request maximal
+   * `db-max-rows` Zeilen zurückgibt (aktuell 1000) — ohne Pagination würden
+   * Spenden oberhalb dieser Grenze stillschweigend fehlen.
    *
    * @returns Alle Spenden, sortiert nach Erstellungsdatum (neueste zuerst).
    */
   async getAllDonations(): Promise<DonationDomain[]> {
     try {
-      const {data, error} = await this.client
-        .from(this.viewName)
-        .select(DonationRepository.ALL_VIEW_COLUMNS)
-        .order("created_at", {ascending: false});
+      const rows: DonationRow[] = [];
+      let from = 0;
+      let page: DonationRow[];
 
-      if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as DonationRow));
+      do {
+        page = await this.fetchDonationsPage(from);
+        rows.push(...page);
+        from += DonationRepository.ALL_DONATIONS_PAGE_SIZE;
+      } while (page.length === DonationRepository.ALL_DONATIONS_PAGE_SIZE);
+
+      return rows.map((row) => this.toDomain(row));
     } catch (error) {
       Sentry.captureException(error);
       throw error;
@@ -224,6 +256,34 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         donorCount: Number(row?.donor_count ?? 0),
         donationCount: Number(row?.donation_count ?? 0),
       };
+    } catch (error) {
+      Sentry.captureException(error);
+      throw error;
+    }
+  }
+
+  /* =====================================================================
+  // Spende abbrechen (RPC)
+  // ===================================================================== */
+
+  /**
+   * Markiert die eigene, noch offene Spende als abgebrochen.
+   *
+   * Notwendig, da der Zahlungsanbieter bei einem Checkout-Abbruch (vor
+   * Versuch einer Zahlungsmethode) keinen Webhook sendet — ohne diesen
+   * expliziten Aufruf bliebe die Spende dauerhaft auf `pending` stehen.
+   * Serverseitig abgesichert (nur eigene, noch `pending` Spenden werden
+   * geändert, siehe `cancel_own_pending_donation`-RPC).
+   *
+   * @param donationId - ID der abzubrechenden Spende.
+   */
+  async cancelOwnPendingDonation(donationId: string): Promise<void> {
+    try {
+      const {error} = await this.client.rpc("cancel_own_pending_donation", {
+        p_donation_id: donationId,
+      });
+
+      if (error) throw error;
     } catch (error) {
       Sentry.captureException(error);
       throw error;

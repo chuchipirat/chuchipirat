@@ -173,21 +173,22 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
   // Ersetzt: firebase.user.short.read({uids: []}) → 000_allUsers-Dokument
   // ===================================================================== */
   /**
-   * Lädt eine Übersicht aller Benutzer für die Admin-Seite.
-   * Ersetzt das bisherige 000_allUsers-Aggregat-Dokument durch eine SQL-Abfrage.
-   * @returns Array mit Benutzerübersichts-Daten (Name, Email, MemberId, etc.)
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden der Benutzerübersicht.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
    */
-  async findOverview(): Promise<UserOverviewStructure[]> {
-    const {data, error} = await this.client
-      .from(this.tableName)
-      .select(
-        "id, first_name, last_name, email, display_name, member_id, created_at"
-      )
-      .order("first_name", {ascending: true});
+  private static readonly OVERVIEW_PAGE_SIZE = 1000;
 
-    if (error) throw error;
-
-    return (data as Pick<
+  /**
+   * Lädt eine einzelne Seite der Benutzerübersicht via Range-Pagination.
+   *
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @returns Zeilen dieser Seite
+   */
+  private async fetchOverviewPage(
+    from: number,
+  ): Promise<
+    Pick<
       UserRow,
       | "id"
       | "first_name"
@@ -196,7 +197,61 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       | "display_name"
       | "member_id"
       | "created_at"
-    >[]).map((row) => ({
+    >[]
+  > {
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .select(
+        "id, first_name, last_name, email, display_name, member_id, created_at"
+      )
+      .order("first_name", {ascending: true})
+      .range(from, from + UserRepository.OVERVIEW_PAGE_SIZE - 1);
+
+    if (error) throw error;
+
+    return data as Pick<
+      UserRow,
+      | "id"
+      | "first_name"
+      | "last_name"
+      | "email"
+      | "display_name"
+      | "member_id"
+      | "created_at"
+    >[];
+  }
+
+  /**
+   * Lädt eine Übersicht aller Benutzer für die Admin-Seite.
+   * Ersetzt das bisherige 000_allUsers-Aggregat-Dokument durch eine SQL-Abfrage.
+   *
+   * Lädt seitenweise via `.range()`, da PostgREST pro Request maximal
+   * `db-max-rows` Zeilen zurückgibt (aktuell 1000) — ohne Pagination würden
+   * Benutzer oberhalb dieser Grenze stillschweigend fehlen.
+   *
+   * @returns Array mit Benutzerübersichts-Daten (Name, Email, MemberId, etc.)
+   */
+  async findOverview(): Promise<UserOverviewStructure[]> {
+    const rows: Pick<
+      UserRow,
+      | "id"
+      | "first_name"
+      | "last_name"
+      | "email"
+      | "display_name"
+      | "member_id"
+      | "created_at"
+    >[] = [];
+    let from = 0;
+    let page: typeof rows;
+
+    do {
+      page = await this.fetchOverviewPage(from);
+      rows.push(...page);
+      from += UserRepository.OVERVIEW_PAGE_SIZE;
+    } while (page.length === UserRepository.OVERVIEW_PAGE_SIZE);
+
+    return rows.map((row) => ({
       uid: row.id,
       firstName: row.first_name,
       lastName: row.last_name,

@@ -1,5 +1,5 @@
 import React from "react";
-import {trackEvent} from "../Analytics/analyticsService";
+import {trackEvent, getAnalyticsRole} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 
 import Grid from "@mui/material/Grid";
@@ -411,7 +411,9 @@ const DialogProduct = ({
               qaChecked: false,
               qaCheckedAt: null,
             };
-            trackEvent(AnalyticsEvent.PRODUCT_CREATED);
+            trackEvent(AnalyticsEvent.PRODUCT_CREATED, {
+              role: getAnalyticsRole(authUser),
+            });
             handleOk(createdProduct);
             setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
 

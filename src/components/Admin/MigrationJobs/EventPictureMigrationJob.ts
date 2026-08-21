@@ -139,11 +139,17 @@ export class EventPictureMigrationJob implements MigrationJob<EventPictureData> 
     const client = supabaseAdmin!;
     const {eventId, firebasePictureUrl} = record.data;
 
-    // 1. Bild von Firebase Storage herunterladen
-    const response = await fetch(firebasePictureUrl);
+    // 1. Bild von Firebase Storage herunterladen.
+    //    Im Dev-Server wird die URL über den Vite-Proxy umgeleitet (/firebase-storage-proxy),
+    //    damit der Node.js-Server die Anfrage macht und CORS umgangen wird.
+    const proxyUrl = firebasePictureUrl.replace(
+      "https://firebasestorage.googleapis.com",
+      "/firebase-storage-proxy",
+    );
+    const response = await fetch(proxyUrl);
     if (!response.ok) {
       throw new Error(
-        `EventPictureMigrationJob: Bild konnte nicht heruntergeladen werden: ${response.status} ${response.statusText}`,
+        `EventPictureMigrationJob: Bild konnte nicht heruntergeladen werden: ${response.status} ${response.statusText} (${firebasePictureUrl})`,
       );
     }
 

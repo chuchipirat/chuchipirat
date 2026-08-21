@@ -17,7 +17,7 @@ import {Unit} from "../../../Unit/unit.class";
 import Department from "../../../Department/department.class";
 
 import {
-  QUANTITY_MUST_BE_POSITIVE as TEXT_QUANTITY_MUST_BE_POSITIVE,
+  QUANTITY_MUST_NOT_BE_NEGATIVE as TEXT_QUANTITY_MUST_NOT_BE_NEGATIVE,
   CANCEL as TEXT_CANCEL,
   OK as TEXT_OK,
   PRODUCTS as TEXT_PRODUCTS,
@@ -132,7 +132,73 @@ describe("DialogGoods", () => {
     fireEvent.change(quantityInput, {target: {id: "quantity", value: "-1"}});
 
     // Fehlermeldung sichtbar
-    expect(screen.getByText(TEXT_QUANTITY_MUST_BE_POSITIVE)).toBeInTheDocument();
+    expect(
+      screen.getByText(TEXT_QUANTITY_MUST_NOT_BE_NEGATIVE),
+    ).toBeInTheDocument();
+  });
+
+  it("sollte den OK-Button NICHT deaktivieren wenn die Menge leer ist (Produkt gewählt)", () => {
+    const product = {uid: "product-1", name: "Testprodukt"} as Product;
+    const productToUpdate = {
+      uid: "menuplan-product-1",
+      quantity: 0,
+      unit: "",
+      productUid: "product-1",
+      productName: "Testprodukt",
+      planMode: 0,
+      plan: [],
+      totalQuantity: 0,
+    };
+
+    render(
+      <DialogGoods
+        {...defaultProps}
+        products={[product]}
+        productToUpdate={productToUpdate as never}
+      />,
+    );
+
+    const okButton = screen.getByText(TEXT_OK).closest("button");
+    expect(okButton).not.toBeDisabled();
+    expect(
+      screen.queryByText(TEXT_QUANTITY_MUST_NOT_BE_NEGATIVE),
+    ).not.toBeInTheDocument();
+  });
+
+  it("sollte beim Bestätigen mit geleerter Menge onOk mit quantity: 0 aufrufen (nicht mit leerem String)", () => {
+    const product = {uid: "product-1", name: "Testprodukt"} as Product;
+    const productToUpdate = {
+      uid: "menuplan-product-1",
+      quantity: 0,
+      unit: "",
+      productUid: "product-1",
+      productName: "Testprodukt",
+      planMode: 0,
+      plan: [],
+      totalQuantity: 0,
+    };
+
+    render(
+      <DialogGoods
+        {...defaultProps}
+        products={[product]}
+        productToUpdate={productToUpdate as never}
+      />,
+    );
+
+    const quantityInput = screen.getByLabelText(/Menge/i);
+    // Zahl eingeben und danach wieder löschen — der interne State kann
+    // dabei kurzzeitig den rohen leeren String statt einer Zahl enthalten.
+    fireEvent.change(quantityInput, {target: {id: "quantity", value: "5"}});
+    fireEvent.change(quantityInput, {target: {id: "quantity", value: ""}});
+
+    const okButton = screen.getByText(TEXT_OK).closest("button");
+    expect(okButton).not.toBeDisabled();
+    fireEvent.click(okButton!);
+
+    expect(defaultProps.onOk).toHaveBeenCalledWith(
+      expect.objectContaining({quantity: 0}),
+    );
   });
 
   it("sollte Fehlermeldung bei zu grosser Menge anzeigen", () => {

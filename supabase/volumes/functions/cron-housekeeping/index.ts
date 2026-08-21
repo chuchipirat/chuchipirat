@@ -153,7 +153,7 @@ serve(async (req: Request) => {
 
     // 3. Alte Mail-Logs löschen (> 90 Tage)
     try {
-      const deleted = await cleanupTable(supabaseAdmin, "mail_log", "created_at", days90Ago);
+      const deleted = await cleanupTable(supabaseAdmin, "mail_log", "sent_at", days90Ago);
       results.push({task: "mail_log (> 90 Tage)", deleted});
     } catch (err) {
       results.push({task: "mail_log", deleted: 0, error: String(err)});

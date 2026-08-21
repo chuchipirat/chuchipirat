@@ -10,7 +10,7 @@
  * import { sendEmail, escapeHtml, errorResponse, CORS_HEADERS } from "../_shared/emailService.ts";
  * await sendEmail(env, "user@example.com", "Betreff", htmlContent, textContent);
  */
-import {SMTPClient} from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import {quotedPrintableEncode, SMTPClient} from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 
 /* =====================================================================
@@ -57,9 +57,9 @@ async function shouldRedirectToMailpit(): Promise<boolean> {
 // Konstanten
 // ===================================================================== */
 
-/** Erlaubter Origin für CORS (aus APP_URL oder Fallback auf Produktion). */
+/** Erlaubter Origin für CORS (aus SITE_URL oder Fallback auf Produktion). */
 const ALLOWED_ORIGIN =
-  Deno.env.get("APP_URL") || "https://chuchipirat.ch";
+  Deno.env.get("SITE_URL") || "https://chuchipirat.ch";
 
 /** CORS-Header für alle Antworten. */
 export const CORS_HEADERS = {
@@ -70,8 +70,7 @@ export const CORS_HEADERS = {
 };
 
 /** URL des chuchipirat-Logos für E-Mail-Header. */
-export const LOGO_URL =
-  "https://firebasestorage.googleapis.com/v0/b/chuchipirat.appspot.com/o/mailTemplates%2FMail%20Header%20weiss.png?alt=media&token=61c6aa52-d611-4921-ad8c-3c9ecb26f85d";
+export const LOGO_URL = "https://chuchipirat.ch/images/email/mail-header-white.png";
 
 /** Absender-Adresse für alle ausgehenden Benachrichtigungen. */
 export const SENDER_EMAIL = "hallo@chuchipirat.ch";
@@ -235,6 +234,89 @@ async function sendViaBrevo(
  * @param smtpPass - SMTP-Passwort
  * @param fromEmail - Absender-E-Mail-Adresse
  */
+/**
+ * Berechnet die Quoted-Printable-kodierte Länge eines Strings, wie sie
+ * denomailer für die Betreffzeile erzeugen würde (RFC 2047 Encoded-Word).
+ *
+ * @param text Zu prüfender Text.
+ * @returns Kodierte Länge in Zeichen.
+ */
+function quotedPrintableLength(text: string): number {
+  const byteEncoder = new TextEncoder();
+  let length = 0;
+  for (const char of text) {
+    const bytes = byteEncoder.encode(char);
+    if (bytes.length === 1) {
+      const code = bytes[0];
+      const isSafeAscii = code >= 32 && code <= 126 && code !== 61;
+      if (isSafeAscii || code === 9 || code === 10 || code === 13) {
+        length += 1;
+        continue;
+      }
+    }
+    length += bytes.length * 3;
+  }
+  return length;
+}
+
+/**
+ * Kürzt eine Betreffzeile so, dass ihre Quoted-Printable-Kodierung (RFC 2047,
+ * von denomailer für nicht-ASCII-Betreffs via `=?utf-8?Q?...?=` verwendet)
+ * niemals das Limit für ein einzelnes Encoded-Word überschreitet.
+ *
+ * denomailer fügt bei längeren Betreffen fehlerhafte `=\r\n`-Zeilenumbrüche
+ * MITTEN in dieses eine Encoded-Word ein (Body-Zeilenumbruch-Logik,
+ * fälschlich auch für Header verwendet — die Bibliothek foldet nicht in
+ * mehrere gültige Encoded-Words auf). Strikte SMTP-Server (z.B. MailPit)
+ * lehnen den dadurch ungültigen Header komplett ab (451 4.3.5). Betrifft nur
+ * den SMTP-Versandweg (denomailer) — Brevos HTTP-API kennt dieses Problem
+ * nicht, da dort kein RFC-2047-Header-Encoding stattfindet.
+ *
+ * @param subject Ursprüngliche Betreffzeile.
+ * @param maxEncodedLength Sicherer Grenzwert unter dem 74-Zeichen-Limit von denomailer.
+ * @returns Betreffzeile, bei Bedarf mit "…" gekürzt.
+ * @example
+ * safeSmtpSubject("Dein Rezept «Nüdeli mit Chäs» wurde veröffentlicht")
+ * // "Dein Rezept «Nüdeli mit Chäs» wurde verö…" (gekürzt, falls nötig)
+ */
+export function safeSmtpSubject(subject: string, maxEncodedLength = 70): string {
+  if (quotedPrintableLength(subject) <= maxEncodedLength) return subject;
+
+  let truncated = subject;
+  while (
+    truncated.length > 0 &&
+    quotedPrintableLength(`${truncated}…`) > maxEncodedLength
+  ) {
+    truncated = truncated.slice(0, -1);
+  }
+  return `${truncated}…`;
+}
+
+/**
+ * Führt SMTP-"Dot-Stuffing" durch (RFC 5321 §4.5.2): verdoppelt einen
+ * führenden "." auf jeder Content-Zeile, da eine Zeile, die nur aus "."
+ * besteht, laut SMTP-Protokoll das Ende der DATA-Übertragung markiert.
+ * Jeder korrekte SMTP-Empfänger entfernt umgekehrt einen einzelnen
+ * führenden Punkt wieder ("Transparency").
+ *
+ * denomailer führt dieses Dot-Stuffing selbst NICHT durch: Der interne
+ * Quoted-Printable-Zeilenumbruch (alle 74 Zeichen) kann zufällig genau vor
+ * einem "." in normalem Text landen (z.B. in "line-height: 1.6") und so eine
+ * neue Zeile erzeugen, die mit "." beginnt. Ohne Stuffing entfernt der
+ * SMTP-Empfänger dieses eine Zeichen beim Empfang wieder – der Inhalt wird
+ * dadurch je nach Position des Umbruchs (abhängig von der Länge davor
+ * eingefügter Variablen wie z.B. des Empfängernamens) still korrumpiert.
+ *
+ * @param quotedPrintableContent Bereits quoted-printable-kodierter Inhalt.
+ * @returns Inhalt mit dot-stuffing, sicher für den SMTP-DATA-Befehl.
+ */
+function dotStuffLines(quotedPrintableContent: string): string {
+  return quotedPrintableContent
+    .split("\r\n")
+    .map((line) => (line.startsWith(".") ? `.${line}` : line))
+    .join("\r\n");
+}
+
 async function sendViaSmtp(
   to: string,
   subject: string,
@@ -263,12 +345,25 @@ async function sendViaSmtp(
       : undefined,
   });
 
+  // Body-Encoding selbst übernehmen (statt html/content an denomailer zu
+  // übergeben), damit das fehlende Dot-Stuffing von denomailer korrigiert
+  // werden kann, bevor der Inhalt auf die Leitung geht (siehe dotStuffLines).
   await smtpClient.send({
     from: `${SENDER_NAME} <${fromEmail}>`,
     to,
-    subject,
-    html: htmlContent,
-    content: textContent,
+    subject: safeSmtpSubject(subject),
+    mimeContent: [
+      {
+        mimeType: 'text/plain; charset="utf-8"',
+        content: dotStuffLines(quotedPrintableEncode(textContent)),
+        transferEncoding: "quoted-printable",
+      },
+      {
+        mimeType: 'text/html; charset="utf-8"',
+        content: dotStuffLines(quotedPrintableEncode(htmlContent)),
+        transferEncoding: "quoted-printable",
+      },
+    ],
   });
 
   await smtpClient.close();

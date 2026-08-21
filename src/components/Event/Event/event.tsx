@@ -51,6 +51,7 @@ import {
   CONSISTENCY_CHECK as TEXT_CONSISTENCY_CHECK,
   MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED as TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
   MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES as TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
+  EVENT_NOT_FOUND_OR_NO_ACCESS as TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS,
 } from "../../../constants/text";
 
 import {HOME as ROUTE_HOME} from "../../../constants/routes";
@@ -64,10 +65,19 @@ import {MenuplanPage} from "../Menuplan/menuplan";
 import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
 import {EventUsedRecipesPage} from "../UsedRecipes/usedRecipes";
 import {MenuplanData} from "../Menuplan/menuplan.types";
-import {createEmptyMenuplan, recalculatePortions, adjustMenuplanWithNewDays, fixMenuplan} from "../Menuplan/menuplanService";
+import {
+  createEmptyMenuplan,
+  recalculatePortions,
+  adjustMenuplanWithNewDays,
+  fixMenuplan,
+} from "../Menuplan/menuplanService";
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {Utils} from "../../Shared/utils.class";
-import {RecipeShort, createEmptyRecipeShort, createShortRecipeFromRecipe} from "../../Recipe/recipe.types";
+import {
+  RecipeShort,
+  createEmptyRecipeShort,
+  createShortRecipeFromRecipe,
+} from "../../Recipe/recipe.types";
 import {RecipeType} from "../../Recipe/recipe.class";
 import {RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
 import {Material} from "../../Material/material.types";
@@ -80,7 +90,10 @@ import {
 } from "../../Unit/unitConversion.class";
 import {EventShoppingListPage} from "../ShoppingList/shoppingList";
 import {ShoppingListCollection} from "../ShoppingList/shoppingListCollection.class";
-import {ShoppingList,ShoppingListItem} from "../ShoppingList/shoppingList.class";
+import {
+  ShoppingList,
+  ShoppingListItem,
+} from "../ShoppingList/shoppingList.class";
 import {
   headersDomainToCollection,
   itemsDomainToShoppingList,
@@ -92,7 +105,10 @@ import {
   itemsDomainToMaterialListItems,
 } from "../MaterialList/materialListAdapter";
 import {EventInfoPage} from "./eventInfo";
-import {FieldValidationError, FormValidationFieldError} from "../../Shared/fieldValidation.error.class";
+import {
+  FieldValidationError,
+  FormValidationFieldError,
+} from "../../Shared/fieldValidation.error.class";
 import {
   DialogType,
   SingleTextInputResult,
@@ -109,7 +125,10 @@ import {trackEvent} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
-import {EventMasterDataContext,EventMasterData} from "./eventMasterDataContext";
+import {
+  EventMasterDataContext,
+  EventMasterData,
+} from "./eventMasterDataContext";
 
 enum EventTabs {
   menuplan,
@@ -217,7 +236,10 @@ function getChangedShoppingListItemKeys(
       if (!old) {
         // Neues Item
         changed.add(key);
-      } else if (old.quantity !== item.quantity || old.checked !== item.checked) {
+      } else if (
+        old.quantity !== item.quantity ||
+        old.checked !== item.checked
+      ) {
         // Geänderte Menge oder Checkbox
         changed.add(key);
       }
@@ -717,13 +739,10 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       );
 
       if (arrayIndex !== -1) {
-        updatedRecipeList[arrayIndex] =
-          createShortRecipeFromRecipe(newRecipe);
+        updatedRecipeList[arrayIndex] = createShortRecipeFromRecipe(newRecipe);
       } else {
         // Neues Rezept aufnehmen
-        updatedRecipeList.push(
-          createShortRecipeFromRecipe(newRecipe),
-        );
+        updatedRecipeList.push(createShortRecipeFromRecipe(newRecipe));
       }
       // Array sortieren
       updatedRecipeList = Utils.sortArray({
@@ -784,7 +803,7 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       };
     default: {
       const _exhaustiveCheck: never = action;
-      
+
       throw new Error();
     }
   }
@@ -842,14 +861,22 @@ const INTITIAL_STATE_EVENT_DRAF: EventDraftState = {
 
 /**
  * Zuordnung von URL-Query-Parameter `?tab=` auf den passenden EventTabs-Wert.
- * Ermöglicht Deep-Links auf bestimmte Tabs (z.B. aus dem Verwendungsnachweis).
+ * Ermöglicht Deep-Links auf bestimmte Tabs (z.B. aus dem Verwendungsnachweis)
+ * sowie das Wiederherstellen des aktiven Tabs nach einem Seiten-Refresh.
  */
 const TAB_QUERY_PARAM_MAP: Record<string, EventTabs> = {
   menuplan: EventTabs.menuplan,
+  quantitycalculation: EventTabs.quantityCalculation,
+  usedrecipes: EventTabs.usedRecipes,
   shoppinglist: EventTabs.shoppingList,
   materiallist: EventTabs.materialList,
   eventinfo: EventTabs.eventInfo,
 };
+
+/** Umkehrung von TAB_QUERY_PARAM_MAP — EventTabs-Wert → Query-Parameter-String. */
+const TAB_TO_QUERY_PARAM: Record<EventTabs, string> = Object.fromEntries(
+  Object.entries(TAB_QUERY_PARAM_MAP).map(([param, tab]) => [tab, param]),
+) as Record<EventTabs, string>;
 
 const EventPage = () => {
   const firebase = useFirebase();
@@ -857,7 +884,7 @@ const EventPage = () => {
   const authUser = useAuthUser();
   const theme = useTheme();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const {customDialog} = useCustomDialog();
   const navigate = useNavigate();
 
@@ -865,7 +892,8 @@ const EventPage = () => {
   let eventUid = "";
 
   // Initialen Tab aus ?tab= Query-Parameter ableiten (Deep-Link-Unterstützung)
-  const initialTab = TAB_QUERY_PARAM_MAP[searchParams.get("tab") ?? ""] ?? EventTabs.menuplan;
+  const initialTab =
+    TAB_QUERY_PARAM_MAP[searchParams.get("tab") ?? ""] ?? EventTabs.menuplan;
 
   const [state, dispatch] = React.useReducer(eventReducer, INITITIAL_STATE);
   const [activeTab, setActiveTab] = React.useState(initialTab);
@@ -957,6 +985,14 @@ const EventPage = () => {
               numberOfDays: event.numberOfDays,
               cooksCount: event.cooks?.length ?? 0,
             });
+          } else {
+            // Event existiert nicht oder RLS verweigert den Zugriff (getEvent
+            // gibt in beiden Fällen null zurück) — ohne diesen Zweig bliebe
+            // die Seite unendlich im Ladezustand hängen.
+            dispatch({
+              type: ReducerActions.GENERIC_ERROR,
+              payload: new Error(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
+            });
           }
         })
         .catch((error) => {
@@ -976,7 +1012,9 @@ const EventPage = () => {
         });
       },
       (error) => {
-        Sentry.captureException(error, {extra: {context: "Realtime event subscription"}});
+        Sentry.captureException(error, {
+          extra: {context: "Realtime event subscription"},
+        });
       },
     );
 
@@ -996,7 +1034,10 @@ const EventPage = () => {
       .then((gcDomain) => {
         dispatch({
           type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-          payload: database.eventGroupConfig.groupConfigDomainToUi(gcDomain, eventUid),
+          payload: database.eventGroupConfig.groupConfigDomainToUi(
+            gcDomain,
+            eventUid,
+          ),
         });
       })
       .catch((error) => {
@@ -1010,11 +1051,16 @@ const EventPage = () => {
       (gcDomain) => {
         dispatch({
           type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-          payload: database.eventGroupConfig.groupConfigDomainToUi(gcDomain, eventUid),
+          payload: database.eventGroupConfig.groupConfigDomainToUi(
+            gcDomain,
+            eventUid,
+          ),
         });
       },
       (error) => {
-        Sentry.captureException(error, {extra: {context: "Realtime groupconfig subscription"}});
+        Sentry.captureException(error, {
+          extra: {context: "Realtime groupconfig subscription"},
+        });
       },
     );
 
@@ -1089,7 +1135,9 @@ const EventPage = () => {
       eventUid,
       debouncedReload,
       (error) => {
-        Sentry.captureException(error, {extra: {context: "Realtime menuplan subscription"}});
+        Sentry.captureException(error, {
+          extra: {context: "Realtime menuplan subscription"},
+        });
       },
     );
 
@@ -1133,7 +1181,9 @@ const EventPage = () => {
           });
         },
         (error) => {
-          Sentry.captureException(error, {extra: {context: "Realtime shopping list subscription"}});
+          Sentry.captureException(error, {
+            extra: {context: "Realtime shopping list subscription"},
+          });
         },
       );
 
@@ -1287,13 +1337,11 @@ const EventPage = () => {
       database.units
         .getAllUnits()
         .then((unitDomains) => {
-          const units: Unit[] = unitDomains.map(
-            (d) => {
-              const u = new Unit({key: d.key, name: d.name});
-              u.dimension = d.dimension as Unit["dimension"];
-              return u;
-            },
-          );
+          const units: Unit[] = unitDomains.map((d) => {
+            const u = new Unit({key: d.key, name: d.name});
+            u.dimension = d.dimension as Unit["dimension"];
+            return u;
+          });
           dispatch({
             type: ReducerActions.UNITS_FETCH_SUCCESS,
             payload: units,
@@ -1343,7 +1391,9 @@ const EventPage = () => {
           });
         },
         (error) => {
-          Sentry.captureException(error, {extra: {context: "Realtime usedrecipelists subscription"}});
+          Sentry.captureException(error, {
+            extra: {context: "Realtime usedrecipelists subscription"},
+          });
         },
       );
 
@@ -1399,7 +1449,9 @@ const EventPage = () => {
           });
         },
         (error) => {
-          Sentry.captureException(error, {extra: {context: "Realtime materiallists subscription"}});
+          Sentry.captureException(error, {
+            extra: {context: "Realtime materiallists subscription"},
+          });
         },
       );
 
@@ -1421,6 +1473,13 @@ const EventPage = () => {
   // ------------------------------------------ */
   const onTabChange = (event: React.SyntheticEvent, newValue: number) => {
     setActiveTab(newValue);
+    // Tab in der URL persistieren, damit ein Refresh auf demselben Tab landet.
+    // {replace: true} verhindert, dass jeder Tab-Klick einen eigenen
+    // History-Eintrag erzeugt (Zurück-Button würde sonst Tab für Tab abspulen).
+    setSearchParams(
+      {tab: TAB_TO_QUERY_PARAM[newValue as EventTabs]},
+      {replace: true},
+    );
   };
   /* ------------------------------------------
   // Change-Handling
@@ -1446,7 +1505,9 @@ const EventPage = () => {
       })
       .catch((error) => {
         menuplanSaveInProgress.current = false;
-        Sentry.captureException(error, {extra: {context: "Menuplan-Speichern"}});
+        Sentry.captureException(error, {
+          extra: {context: "Menuplan-Speichern"},
+        });
         // Rollback: vorherigen Zustand wiederherstellen, damit keine Daten verloren gehen
         dispatch({
           type: ReducerActions.MENUPLAN_FETCH_SUCCESS,
@@ -1542,9 +1603,18 @@ const EventPage = () => {
 
       // Zeitscheiben speichern
       const dateDomains = database.events.eventDatesToDateDomains(event.dates);
-      await database.events.saveDates(event.uid, dateDomains, authUser as AuthUser);
+      await database.events.saveDates(
+        event.uid,
+        dateDomains,
+        authUser as AuthUser,
+      );
 
-      setEventDraft((prev) => ({...prev, event: event, localPicture: null, formValidation: []}));
+      setEventDraft((prev) => ({
+        ...prev,
+        event: event,
+        localPicture: null,
+        formValidation: [],
+      }));
       dispatch({type: ReducerActions.EVENT_SAVE_SUCCESS, payload: {}});
     } catch (error) {
       Sentry.captureException(error);
@@ -1579,14 +1649,20 @@ const EventPage = () => {
         // Zum ersten fehlerhaften Feld scrollen
         const firstField = error.formValidation[0]?.fieldName;
         if (firstField) {
-          document.getElementById(firstField)?.scrollIntoView({behavior: "smooth"});
+          document
+            .getElementById(firstField)
+            ?.scrollIntoView({behavior: "smooth"});
         }
         return;
       }
       throw error;
     }
     // Validierung bestanden → formValidation zurücksetzen
-    setEventDraft((prev) => ({...prev, event: preparedEvent, formValidation: []}));
+    setEventDraft((prev) => ({
+      ...prev,
+      event: preparedEvent,
+      formValidation: [],
+    }));
 
     // Prüfen ob die Anzahl Tage unterschiedlich sind,
     // wenn durch die Änderung Tage gelöscht wurden und
@@ -1661,7 +1737,11 @@ const EventPage = () => {
       // Event löschen — CASCADE entfernt alle Supabase-Kinder
       // (MaterialLists, ShoppingLists, UsedRecipes etc.)
       await database.events.deleteEvent(state.event.uid);
-      trackEvent(AnalyticsEvent.EVENT_DELETED);
+      trackEvent(AnalyticsEvent.EVENT_DELETED, {
+        eventUid: state.event.uid,
+        eventName: state.event.name,
+        executedBy: authUser?.uid,
+      });
 
       // Kurzer Timeout, damit der Session-Storage nachmag
       setTimeout(function () {
@@ -1683,7 +1763,10 @@ const EventPage = () => {
     }
   };
   const onEventConsistencyCheck = () => {
-    Sentry.addBreadcrumb({category: "event.consistency", message: "Starte Konsistenzprüfung"});
+    Sentry.addBreadcrumb({
+      category: "event.consistency",
+      message: "Starte Konsistenzprüfung",
+    });
     const fixedMenuplan = fixMenuplan(state.menuplan);
 
     if (!fixedMenuplan.isConsistent) {
@@ -1709,7 +1792,10 @@ const EventPage = () => {
       });
       trackEvent(AnalyticsEvent.MENUPLAN_CONSISTENCY_OK);
     }
-    Sentry.addBreadcrumb({category: "event.consistency", message: "Konsistenzprüfung abgeschlossen"});
+    Sentry.addBreadcrumb({
+      category: "event.consistency",
+      message: "Konsistenzprüfung abgeschlossen",
+    });
     ("Konsistenzprüfung abgeschlossen.");
   };
   /* ------------------------------------------
@@ -1748,7 +1834,11 @@ const EventPage = () => {
               rs.noComments = d.noComments;
               rs.type = d.recipeType as RecipeType;
               rs.variantName = d.variantName ?? undefined;
-              rs.created = {date: d.createdAt, fromUid: d.createdBy, fromDisplayName: ""};
+              rs.created = {
+                date: d.createdAt,
+                fromUid: d.createdBy,
+                fromDisplayName: "",
+              };
               return rs;
             };
             const allRecipes = [
@@ -2002,11 +2092,15 @@ const EventPage = () => {
               // Leere Liste ignorieren — entsteht kurzzeitig beim
               // delete-all + re-insert in saveListItems(). Würde sonst
               // den Ref auf leer setzen und beim INSERT alles highlighten.
-              const newItemCount = Object.values(newShoppingList.list)
-                .reduce((sum, dept) => sum + dept.items.length, 0);
+              const newItemCount = Object.values(newShoppingList.list).reduce(
+                (sum, dept) => sum + dept.items.length,
+                0,
+              );
               const oldItemCount = shoppingListRef.current
-                ? Object.values(shoppingListRef.current.list)
-                    .reduce((sum, dept) => sum + dept.items.length, 0)
+                ? Object.values(shoppingListRef.current.list).reduce(
+                    (sum, dept) => sum + dept.items.length,
+                    0,
+                  )
                 : 0;
 
               if (newItemCount === 0 && oldItemCount > 0) {
@@ -2042,7 +2136,9 @@ const EventPage = () => {
               });
             },
             (error) => {
-              Sentry.captureException(error, {extra: {context: "Realtime shopping list items subscription"}});
+              Sentry.captureException(error, {
+                extra: {context: "Realtime shopping list items subscription"},
+              });
             },
           );
           dispatch({
@@ -2125,7 +2221,7 @@ const EventPage = () => {
       >
         <Backdrop
           sx={classes.backdrop}
-          open={state.isLoading || state.isSaving}
+          open={(state.isLoading || state.isSaving) && !state.error}
         >
           <Stack spacing={2} sx={classes.centerCenter}>
             <CircularProgress color="inherit" />
@@ -2192,6 +2288,7 @@ const EventPage = () => {
                 fetchMissingData={fetchMissingData}
                 onMasterdataCreate={onMasterdataCreate}
                 onRecipeUpdate={onRecipeUpdate}
+                initialOpenRecipeMealId={searchParams.get("openRecipe") ?? undefined}
               />
             </HighlightedMenueContext.Provider>
           ) : activeTab == EventTabs.quantityCalculation ? (

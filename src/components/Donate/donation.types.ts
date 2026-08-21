@@ -33,9 +33,9 @@ export enum DonationStatus {
  *
  * @param id - Eindeutige ID der Spende.
  * @param eventId - Optionale Event-ID für Event-gebundene Spenden.
- * @param payrexxGatewayId - Payrexx-Gateway-ID.
- * @param payrexxReferenceId - Payrexx-Referenz-ID (= Spenden-ID).
- * @param payrexxTransactionId - Payrexx-Transaktions-ID.
+ * @param paymentGatewayId - Gateway-ID des Zahlungsanbieters.
+ * @param paymentReferenceId - Referenz-ID des Zahlungsanbieters (= Spenden-ID).
+ * @param paymentTransactionId - Transaktions-ID des Zahlungsanbieters.
  * @param amountInCents - Spendenbetrag in Rappen (min. 500).
  * @param currency - Währung (Standard: CHF).
  * @param status - Aktueller Spenden-Status.
@@ -53,9 +53,9 @@ export enum DonationStatus {
 export type DonationDomain = {
   id: string;
   eventId: string | null;
-  payrexxGatewayId: string | null;
-  payrexxReferenceId: string | null;
-  payrexxTransactionId: string | null;
+  paymentGatewayId: string | null;
+  paymentReferenceId: string | null;
+  paymentTransactionId: string | null;
   amountInCents: number;
   currency: string;
   status: DonationStatus;
@@ -83,9 +83,9 @@ export type DonationRow = {
   [key: string]: unknown;
   id: string;
   event_id: string | null;
-  payrexx_gateway_id: string | null;
-  payrexx_reference_id: string | null;
-  payrexx_transaction_id: string | null;
+  payment_gateway_id: string | null;
+  payment_reference_id: string | null;
+  payment_transaction_id: string | null;
   amount_in_cents: number;
   currency: string;
   status: string;

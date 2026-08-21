@@ -91,6 +91,9 @@ const MealTypeCard = memo(function MealTypeCard({
   // Kontexmenü-Handler
   // ------------------------------------------ */
   const onRenameItem = async () => {
+    // Kontextmenü sofort schliessen — unabhängig vom Dialog-Roundtrip.
+    setContextMenuAnchorElement(null);
+
     let userInput = {valid: false, input: ""} as SingleTextInputResult;
 
     userInput = (await customDialog({
@@ -109,7 +112,6 @@ const MealTypeCard = memo(function MealTypeCard({
         mealType: {...mealType, name: userInput.input},
       });
     }
-    setContextMenuAnchorElement(null);
   };
   const onDeleteItem = () => {
     onMealTypeUpdate({

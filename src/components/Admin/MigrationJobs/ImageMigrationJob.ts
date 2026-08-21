@@ -18,6 +18,7 @@ import {resizeImage} from "../../Shared/imageResize";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
 import {supabaseAdmin} from "../../Database/supabaseClient";
 import {UserStorageRepository} from "../../Database/Repository/UserStorageRepository";
+import {UserRepository} from "../../Database/Repository/UserRepository";
 
 /**
  * Altes Firebase-Picture-Objekt (Firestore-Format).
@@ -63,6 +64,13 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
   description =
     "Migriert Profilbilder von Firebase Storage nach Supabase Storage.";
 
+  /**
+   * UserRepository mit Service-Role-Client. RLS beschränkt Lese-/Schreibzugriff
+   * auf public.users normalerweise auf die eigene Zeile — die Migration muss
+   * aber Bilder für beliebige Benutzer lesen und aktualisieren können.
+   */
+  private readonly adminUsers = new UserRepository(supabaseAdmin!);
+
   /* =====================================================================
   // Alle User mit Bildern ermitteln
   // ===================================================================== */
@@ -86,8 +94,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
       throw new Error("DatabaseService wird für die Bild-Migration benötigt.");
     }
 
-    const users = database.users;
-    const allUsers = await users.findMany({});
+    const allUsers = await this.adminUsers.findMany({});
 
     const records: SourceRecord<ImageSourceData>[] = [];
 
@@ -138,16 +145,17 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
    * Ein Bild gilt als migriert, wenn `picture_src` eine nicht-leere URL enthält,
    * die keine Firebase-Storage-URL ist (d.h. bereits eine Supabase-URL).
    *
-   * @param database - DatabaseService-Instanz
+   * Nutzt den Service-Role-Client (adminUsers), da RLS den Lesezugriff sonst
+   * auf die eigene Zeile des eingeloggten Admin-Users beschränken würde.
+   *
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls das Bild bereits migriert wurde
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<ImageSourceData>
   ): Promise<boolean> {
-    const users = database.users;
-    const user = await users.findById(record.id, true);
+    const user = await this.adminUsers.findById(record.id, true);
     if (!user) return true; // User existiert nicht in Postgres
 
     // Bereits migriert = nicht-leere URL, die KEINE Firebase-URL ist
@@ -162,14 +170,15 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
   // ===================================================================== */
   /**
    * Lädt das Profilbild von der Firebase-URL herunter (Token eingebettet),
-   * skaliert es und lädt es in Supabase Storage hoch. Aktualisiert die DB-URL.
+   * skaliert es und lädt es in Supabase Storage hoch. Aktualisiert die DB-URL
+   * über den Service-Role-Client, da RLS die Schreibrechte des eingeloggten
+   * Admin-Users sonst auf seine eigene Zeile beschränken würde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<ImageSourceData>,
     authUser: AuthUser
   ): Promise<void> {
@@ -200,8 +209,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
     );
 
     // DB-URL aktualisieren
-    const users = database.users;
-    await users.patch({
+    await this.adminUsers.patch({
       id: userId,
       fields: {picture_src: result.publicUrl},
       authUser: authUser,

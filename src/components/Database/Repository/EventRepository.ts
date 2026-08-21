@@ -304,20 +304,51 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
   // Alle Events laden (Admin-Übersicht)
   // ===================================================================== */
   /**
+   * Anzahl Zeilen pro Seite beim seitenweisen Laden der Event-Übersicht.
+   * Entspricht dem PostgREST-Limit `db-max-rows` (siehe supabase/config.toml),
+   * das pro Request serverseitig hart durchgesetzt wird.
+   */
+  private static readonly SHORT_PAGE_SIZE = 1000;
+
+  /**
+   * Lädt eine einzelne Seite der Event-Übersicht via Range-Pagination.
+   *
+   * @param from - Erste Zeilennummer der Seite (0-basiert)
+   * @returns Zeilen dieser Seite (inkl. event_cooks/event_dates-JOINs)
+   */
+  private async fetchEventsShortPage(from: number) {
+    const {data, error} = await this.client
+      .from("events")
+      .select("*, event_cooks(user_id), event_dates(id, sort_order, date_from, date_to)")
+      .order("created_at", {ascending: false})
+      .range(from, from + EventRepository.SHORT_PAGE_SIZE - 1);
+
+    if (error) throw error;
+    return data ?? [];
+  }
+
+  /**
    * Lädt alle Events mit Köche-Anzahl und Zeitscheiben (für die Admin-Übersicht).
    * RLS-geschützt: nur Admins sehen alle Events (via is_admin() Policy).
+   *
+   * Lädt seitenweise via `.range()`, da PostgREST pro Request maximal
+   * `db-max-rows` Zeilen zurückgibt (aktuell 1000) — ohne Pagination würden
+   * Events oberhalb dieser Grenze stillschweigend fehlen.
    *
    * @returns Array aller Events inkl. Köche-Anzahl und Zeitscheiben
    */
   async getAllEventsShort(): Promise<EventDomain[]> {
-    const {data, error} = await this.client
-      .from("events")
-      .select("*, event_cooks(user_id), event_dates(id, sort_order, date_from, date_to)")
-      .order("created_at", {ascending: false});
+    const rows: Awaited<ReturnType<typeof this.fetchEventsShortPage>> = [];
+    let from = 0;
+    let page: typeof rows;
 
-    if (error) throw error;
+    do {
+      page = await this.fetchEventsShortPage(from);
+      rows.push(...page);
+      from += EventRepository.SHORT_PAGE_SIZE;
+    } while (page.length === EventRepository.SHORT_PAGE_SIZE);
 
-    return (data ?? []).map((row) => {
+    return rows.map((row) => {
       const event = this.toDomain(row as EventRow);
       // Köche: nur Anzahl relevant, userId wird für die Zählung gebraucht
       const cookRows = (row as any).event_cooks as EventCookRow[] | undefined;
@@ -734,5 +765,117 @@ export function getMaxDate(event: EventDomain): Date {
   return event.dates.reduce(
     (max, d) => (d.dateTo > max ? d.dateTo : max),
     event.dates[0].dateTo,
+  );
+}
+
+/**
+ * Ermittelt die früheste noch bevorstehende Zeitscheibe eines Events.
+ *
+ * Ein Event kann mehrere Zeitscheiben haben (z.B. zwei Lagerwochenenden mit
+ * einer Pause dazwischen). Bereits vollständig abgelaufene Zeitscheiben
+ * (dateTo < referenceDate) werden zuerst herausgefiltert, bevor die früheste
+ * verbleibende Zeitscheibe bestimmt wird — so wird eine bereits
+ * vorbeigegangene erste Zeitscheibe nicht fälschlich zurückgegeben, wenn
+ * eine spätere Zeitscheibe noch bevorsteht.
+ *
+ * @example
+ * // Zeitscheibe A: 01.–03.03. (bereits vorbei), Zeitscheibe B: 15.–17.03. (bevorstehend)
+ * // referenceDate = 10.03. → gibt Zeitscheibe B zurück, nicht A.
+ *
+ * @param event - Das Event mit Zeitscheiben
+ * @param referenceDate - Referenzdatum für "bevorstehend" (Default: jetzt)
+ * @returns Die früheste noch bevorstehende Zeitscheibe, oder null falls keine Zeitscheiben vorhanden
+ */
+export function getNearestUpcomingDateSlice(
+  event: EventDomain,
+  referenceDate: Date = new Date(),
+): EventDateDomain | null {
+  // Auf Tagesbeginn normalisieren: dateFrom/dateTo sind als Mitternacht
+  // geparst — ein Vergleich mit der vollen aktuellen Uhrzeit würde eine
+  // heute endende Zeitscheibe bereits kurz nach Mitternacht als "vorbei"
+  // einstufen.
+  const today = new Date(referenceDate);
+  today.setHours(0, 0, 0, 0);
+
+  const upcoming = event.dates.filter((d) => d.dateTo >= today);
+  const source = upcoming.length > 0 ? upcoming : event.dates;
+  if (source.length === 0) return null;
+  return source.reduce(
+    (min, d) => (d.dateFrom < min.dateFrom ? d : min),
+    source[0],
+  );
+}
+
+/**
+ * Ermittelt das früheste noch bevorstehende Startdatum (dateFrom) eines Events.
+ * Dünner Wrapper um {@link getNearestUpcomingDateSlice}.
+ *
+ * @param event - Das Event mit Zeitscheiben
+ * @param referenceDate - Referenzdatum für "bevorstehend" (Default: jetzt)
+ * @returns Das früheste noch bevorstehende dateFrom, oder null falls keine Zeitscheiben vorhanden
+ */
+export function getNearestUpcomingStartDate(
+  event: EventDomain,
+  referenceDate: Date = new Date(),
+): Date | null {
+  return getNearestUpcomingDateSlice(event, referenceDate)?.dateFrom ?? null;
+}
+
+/**
+ * Lebenszyklus-Status eines Events relativ zu "heute".
+ *
+ * - "upcoming": heute liegt vor oder zwischen den Zeitscheiben des Events.
+ * - "ongoing": heute liegt innerhalb einer Zeitscheibe des Events.
+ */
+export type EventLifecycleStatus = "upcoming" | "ongoing";
+
+/**
+ * Ermittelt, ob "heute" innerhalb einer der Zeitscheiben eines Events liegt.
+ *
+ * Ein Event mit mehreren Zeitscheiben (z.B. zwei Lagerwochenenden mit Pause
+ * dazwischen) gilt nur als "ongoing", wenn heute in EINER der Scheiben liegt
+ * — in der Pause dazwischen gilt es weiterhin als "upcoming" (Countdown zur
+ * nächsten Scheibe), nicht als "ongoing".
+ *
+ * @param event - Das Event mit Zeitscheiben.
+ * @param today - Referenzdatum (Default: jetzt).
+ * @returns "ongoing" wenn heute in einer Zeitscheibe liegt, sonst "upcoming".
+ * @example
+ * getEventLifecycleStatus(event) // "ongoing" wenn das Lager heute läuft
+ */
+export function getEventLifecycleStatus(
+  event: EventDomain,
+  today: Date = new Date(),
+): EventLifecycleStatus {
+  // Auf Tagesbeginn normalisieren — siehe getNearestUpcomingDateSlice().
+  const referenceDay = new Date(today);
+  referenceDay.setHours(0, 0, 0, 0);
+
+  const isOngoing = event.dates.some(
+    (d) => d.dateFrom <= referenceDay && referenceDay <= d.dateTo,
+  );
+  return isOngoing ? "ongoing" : "upcoming";
+}
+
+/**
+ * Liefert die aktuell laufende Zeitscheibe eines Events, falls "heute"
+ * innerhalb einer Zeitscheibe liegt.
+ *
+ * @param event - Das Event mit Zeitscheiben.
+ * @param today - Referenzdatum (Default: jetzt).
+ * @returns Die laufende Zeitscheibe, oder null falls keine Zeitscheibe heute läuft.
+ */
+export function getActiveDateSlice(
+  event: EventDomain,
+  today: Date = new Date(),
+): EventDateDomain | null {
+  // Auf Tagesbeginn normalisieren — siehe getNearestUpcomingDateSlice().
+  const referenceDay = new Date(today);
+  referenceDay.setHours(0, 0, 0, 0);
+
+  return (
+    event.dates.find(
+      (d) => d.dateFrom <= referenceDay && referenceDay <= d.dateTo,
+    ) ?? null
   );
 }

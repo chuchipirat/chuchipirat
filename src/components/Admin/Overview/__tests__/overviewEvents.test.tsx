@@ -4,7 +4,7 @@
  * Testet das Laden der Anlass-Liste aus Supabase, Kartenansicht, Detail-Dialog,
  * Suche/Filter, Ansichts-Toggle und Fehlerbehandlung.
  *
- * Firebase, Supabase und AuthUser werden vollständig gemockt.
+ * Supabase und AuthUser werden vollständig gemockt.
  */
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
@@ -52,67 +52,6 @@ jest.mock("../../../Session/authUserContext", () => ({
     email: "admin@test.ch",
     publicProfile: {displayName: "Admin"},
   }),
-}));
-
-const mockFirebase = {eventShort: {}};
-jest.mock("../../../Firebase/firebaseContext", () => ({
-  useFirebase: () => mockFirebase,
-}));
-
-// User.getFullProfile mock
-const mockGetFullProfile = jest.fn();
-jest.mock("../../../User/user.class", () => ({
-  User: {
-    getFullProfile: (...args: any[]) => mockGetFullProfile(...args),
-  },
-}));
-
-// Receipt mock
-jest.mock("../../../Event/Event/receipt.class", () => ({
-  __esModule: true,
-  default: class Receipt {
-    eventUid = "";
-    eventName = "";
-    payDate = new Date();
-    amount = 0;
-    donorName = "";
-    donorEmail = "";
-    created = {date: new Date(), fromUid: "", fromDisplayName: ""};
-    static save = jest.fn().mockResolvedValue(undefined);
-  },
-}));
-
-// @react-pdf/renderer mock
-jest.mock("@react-pdf/renderer", () => ({
-  pdf: () => ({toBlob: () => Promise.resolve(new Blob())}),
-  Document: ({children}: any) => <div>{children}</div>,
-  Page: ({children}: any) => <div>{children}</div>,
-  View: ({children}: any) => <div>{children}</div>,
-  Text: ({children}: any) => <span>{children}</span>,
-  Image: () => <img />,
-}));
-
-// file-saver mock
-jest.mock("file-saver", () => ({
-  __esModule: true,
-  default: {saveAs: jest.fn()},
-}));
-
-// EventReceiptPdf mock
-jest.mock("../../../Event/Event/eventRecipePdf", () => ({
-  __esModule: true,
-  EventReceiptPdf: () => <div data-testid="receipt-pdf" />,
-}));
-
-// DatePicker mock (benötigt sonst LocalizationProvider)
-jest.mock("@mui/x-date-pickers", () => ({
-  DatePicker: (props: any) => (
-    <input
-      data-testid={`datepicker-${props.label}`}
-      value={props.value ? props.value.toISOString() : ""}
-      onChange={() => props.onChange?.(new Date())}
-    />
-  ),
 }));
 
 /** Beispiel-Events (Supabase EventDomain-Struktur). */
@@ -176,12 +115,6 @@ beforeEach(() => {
       ["creator-auth-2", "Beat Müller"],
     ]),
   );
-  mockGetFullProfile.mockResolvedValue({
-    email: "anna@test.ch",
-    firstName: "Anna",
-    lastName: "Koch",
-    displayName: "Anna Koch",
-  });
 });
 
 /* ===================================================================
@@ -256,24 +189,6 @@ test("6 – 'Anlass Öffnen' navigiert mit Supabase UUID", async () => {
     expect.stringContaining("550e8400-e29b-41d4-a716-446655440000"),
     expect.objectContaining({state: expect.objectContaining({action: expect.anything()})}),
   );
-});
-
-test("7 – 'Quittung erstellen' öffnet den Quittungs-Dialog", async () => {
-  renderPage();
-  await userEvent.click(await screen.findByText("Sommerlager"));
-
-  const receiptButton = screen.getByRole("button", {
-    name: /quittung erstellen/i,
-  });
-  await userEvent.click(receiptButton);
-
-  await waitFor(() => {
-    expect(mockGetFullProfile).toHaveBeenCalled();
-  });
-
-  await waitFor(() => {
-    expect(screen.getByText("Quittung erstellen")).toBeInTheDocument();
-  });
 });
 
 test("8 – Ansichts-Toggle wechselt zwischen Karten und DataGrid", async () => {

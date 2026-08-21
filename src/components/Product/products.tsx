@@ -72,12 +72,18 @@ import {
   FindReplace as FindReplaceIcon,
   CheckCircleOutline as CheckCircleOutlineIcon,
   Delete as DeleteIcon,
+  ZoomOutMap as ZoomOutMapIcon,
 } from "@mui/icons-material";
 
 import {CustomSnackbar} from "../Shared/customSnackbar";
 import {useCustomStyles} from "../../constants/styles";
 
-import {Product, Allergen, Diet, createEmptyDietProperty} from "./product.types";
+import {
+  Product,
+  Allergen,
+  Diet,
+  createEmptyDietProperty,
+} from "./product.types";
 import {Unit, UnitDimension} from "../Unit/unit.class";
 import Department from "../Department/department.class";
 
@@ -90,12 +96,7 @@ import {
 } from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
-import {WhereUsedEntry} from "../Database/Repository/AdminOperationsRepository";
-import {
-  DataGrid,
-  GridColDef,
-  GridRowSelectionModel,
-} from "@mui/x-data-grid";
+import {DataGrid, GridColDef, GridRowSelectionModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 
 import {useProductsQa, QaFilterStatus, ProductIssue} from "./useProductsQa";
@@ -103,8 +104,17 @@ import {ProductsQaFilterBar} from "./productsQaFilterBar";
 import {ProductsQaBulkActions} from "./productsQaBulkActions";
 import {DialogMergeProducts} from "./dialogMergeProducts";
 import {DialogSynonymPairs} from "./dialogSynonymPairs";
+import {DialogWhereUsedProduct} from "./dialogWhereUsedProduct";
 import {detectProductIssues} from "./productQaUtils";
 import {ReducerActions} from "./useProductsQa";
+import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
+import {CHECK_WHERE_USED as TEXT_CHECK_WHERE_USED} from "../../constants/text/productQa";
+import {trackEvent, getAnalyticsRole} from "../Analytics/analyticsService";
+import {AnalyticsEvent} from "../Analytics/analyticsEvents";
+import {useDebouncedValue} from "../../hooks/useDebouncedValue";
+
+/** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
+const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
 
 const PRODUCT_POPUP_VALUES = {
   productName: "",
@@ -142,6 +152,12 @@ const ProductsPage = () => {
 
   // Synonym-Dialog State
   const [synonymDialogOpen, setSynonymDialogOpen] = React.useState(false);
+
+  // Verwendungsnachweis-Dialog State
+  const [whereUsedProduct, setWhereUsedProduct] = React.useState<{
+    uid: string;
+    name: string;
+  } | null>(null);
 
   // Issue-Detection: Flags bei Produktänderungen neu berechnen
   React.useEffect(() => {
@@ -202,30 +218,8 @@ const ProductsPage = () => {
         "product",
       );
 
-      // Dialog-Text zusammenbauen
-      let dialogText: string | JSX.Element;
-      if (references.length > 0) {
-        // Referenzen nach Tabelle gruppieren
-        const grouped = new Map<string, WhereUsedEntry[]>();
-        for (const entry of references) {
-          const existing = grouped.get(entry.table_name) ?? [];
-          existing.push(entry);
-          grouped.set(entry.table_name, existing);
-        }
-
-        // Menschenlesbare Labels für die Tabellennamen
-        const tableLabels: Record<string, string> = {
-          recipe_ingredients: "Rezepte (Zutaten)",
-          recipe_materials: "Rezepte (Material)",
-          event_shopping_list_items: "Einkaufslisten",
-          event_material_list_items: "Materiallisten",
-          event_menue_products: "Menüpläne (Produkte)",
-          event_menue_materials: "Menüpläne (Material)",
-          event_menue_recipes: "Menüpläne (Rezepte)",
-          unit_conversion_products: "Einheitenumrechnung",
-        };
-
-        dialogText = (
+      const dialogText =
+        references.length > 0 ? (
           <React.Fragment>
             <Typography
               variant="body2"
@@ -235,40 +229,13 @@ const ProductsPage = () => {
             >
               {TEXT_PRODUCT_IN_USE_WARNING}
             </Typography>
-            {Array.from(grouped.entries()).map(
-              ([tableName, tableEntries]) => (
-                <Box key={tableName} sx={{marginBottom: 1}}>
-                  <Typography variant="subtitle2">
-                    {tableLabels[tableName] ?? tableName} (
-                    {tableEntries.length})
-                  </Typography>
-                  <Box
-                    component="ul"
-                    sx={{paddingLeft: 2, margin: 0, marginTop: 0.5}}
-                  >
-                    {tableEntries.map((entry, index) => (
-                      <Typography
-                        component="li"
-                        variant="body2"
-                        color="text.secondary"
-                        key={`${tableName}-${entry.record_id}-${index}`}
-                      >
-                        {entry.context}
-                      </Typography>
-                    ))}
-                  </Box>
-                </Box>
-              ),
-            )}
+            <WhereUsedResultPanel entries={references} />
           </React.Fragment>
-        );
-      } else {
-        dialogText = (
+        ) : (
           <Typography variant="body2" color="text.secondary">
             {TEXT_PRODUCT_NOT_IN_USE}
           </Typography>
         );
-      }
 
       const confirmed = await customDialog({
         dialogType: DialogType.Confirm,
@@ -278,6 +245,13 @@ const ProductsPage = () => {
 
       if (confirmed) {
         await database.products.deleteProduct(product.uid);
+        trackEvent(AnalyticsEvent.PRODUCT_DELETED, {
+          productUid: product.uid,
+          productName: product.name,
+          deletedBy: authUser.uid,
+          source: "ProductsPage",
+          role: getAnalyticsRole(authUser),
+        });
         hook.onDeleteProduct(product);
       }
     } catch (error) {
@@ -289,6 +263,13 @@ const ProductsPage = () => {
         payload: error as Error,
       });
     }
+  };
+
+  /* ------------------------------------------
+  // Verwendungsnachweis-Dialog öffnen
+  // ------------------------------------------ */
+  const onCheckWhereUsed = (product: Product) => {
+    setWhereUsedProduct({uid: product.uid, name: product.name});
   };
 
   /* ------------------------------------------
@@ -368,6 +349,7 @@ const ProductsPage = () => {
           onQaToggle={hook.onQaToggle}
           onConvertProductToMaterial={handleConvertProductToMaterial}
           onDeleteProduct={handleDeleteProduct}
+          onCheckWhereUsed={onCheckWhereUsed}
           onSelectionChange={hook.onSelectionChange}
           selectedProductUids={state.selectedProductUids}
           authUser={authUser}
@@ -403,6 +385,16 @@ const ProductsPage = () => {
           onClose={() => setSynonymDialogOpen(false)}
           synonymPairs={state.synonymPairs}
           onReload={hook.onLoadSynonyms}
+        />
+      )}
+
+      {/* Verwendungsnachweis-Dialog */}
+      {whereUsedProduct && (
+        <DialogWhereUsedProduct
+          open={!!whereUsedProduct}
+          onClose={() => setWhereUsedProduct(null)}
+          productUid={whereUsedProduct.uid}
+          productName={whereUsedProduct.name}
         />
       )}
     </React.Fragment>
@@ -443,7 +435,9 @@ const ProductsButtonRow = ({
   showLoadNewestProducts,
   authUser,
 }: ProductsButtonRowProps) => {
-  const isAdmin = authUser.roles.includes(Roles.admin);
+  const isAdminOrCommunityLeader =
+    authUser.roles.includes(Roles.admin) ||
+    authUser.roles.includes(Roles.communityLeader);
   return (
     <ButtonRow
       key="action_buttons"
@@ -451,9 +445,7 @@ const ProductsButtonRow = ({
         {
           id: "edit",
           hero: true,
-          visible:
-            !editMode &&
-            (authUser.roles.includes(Roles.communityLeader) || isAdmin),
+          visible: !editMode && isAdminOrCommunityLeader,
           label: TEXT_EDIT,
           variant: "contained",
           color: "primary",
@@ -462,7 +454,7 @@ const ProductsButtonRow = ({
         {
           id: "findDuplicates",
           hero: true,
-          visible: isAdmin && !editMode,
+          visible: isAdminOrCommunityLeader && !editMode,
           label: TEXT_FIND_DUPLICATES,
           variant: "outlined",
           color: "primary",
@@ -471,7 +463,7 @@ const ProductsButtonRow = ({
         {
           id: "manageSynonyms",
           hero: true,
-          visible: isAdmin && !editMode,
+          visible: isAdminOrCommunityLeader && !editMode,
           label: TEXT_MANAGE_SYNONYMS,
           variant: "outlined",
           color: "primary",
@@ -536,6 +528,7 @@ interface ProductsTableProps {
   onQaToggle: (uid: string, checked: boolean) => void;
   onConvertProductToMaterial: (product: Product) => void;
   onDeleteProduct: (product: Product) => void;
+  onCheckWhereUsed: (product: Product) => void;
   onSelectionChange: (uids: string[]) => void;
   selectedProductUids: string[];
   authUser: AuthUser;
@@ -586,6 +579,7 @@ const ProductsTable = ({
   onQaToggle,
   onConvertProductToMaterial: onConvertProductToMaterialSuper,
   onDeleteProduct: onDeleteProductSuper,
+  onCheckWhereUsed: onCheckWhereUsedSuper,
   onSelectionChange,
   selectedProductUids,
   authUser,
@@ -602,8 +596,7 @@ const ProductsTable = ({
     React.useState(PRODUCT_POPUP_VALUES);
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     React.useState<HTMLElement | null>(null);
-  const [contextMenuProductUid, setContextMenuProductUid] =
-    React.useState("");
+  const [contextMenuProductUid, setContextMenuProductUid] = React.useState("");
   const [paginationModel, setPaginationModel] = React.useState({
     page: 0,
     pageSize: 100,
@@ -709,6 +702,23 @@ const ProductsTable = ({
   );
 
   /* ------------------------------------------
+  // Analytics: Erfolglose Suchen tracken
+  // ------------------------------------------ */
+  const debouncedSearchString = useDebouncedValue(
+    searchString,
+    SEARCH_ANALYTICS_DEBOUNCE_MS,
+  );
+
+  React.useEffect(() => {
+    if (!debouncedSearchString.trim() || filteredProducts.length > 0) return;
+
+    trackEvent(AnalyticsEvent.SEARCH_NO_RESULTS, {
+      source: "product",
+      searchTerm: debouncedSearchString,
+    });
+  }, [debouncedSearchString, filteredProducts.length]);
+
+  /* ------------------------------------------
   // DataGrid Spalten
   // ------------------------------------------ */
   const dataGridColumns: GridColDef[] = React.useMemo(
@@ -783,7 +793,8 @@ const ProductsTable = ({
               value={
                 departments.find(
                   (department) =>
-                    department.uid === (params.row as ProductLineUi).departmentUid,
+                    department.uid ===
+                    (params.row as ProductLineUi).departmentUid,
                 ) ?? undefined
               }
               onChange={(_event, newValue) => {
@@ -829,9 +840,9 @@ const ProductsTable = ({
                 option.name ? `${option.name} (${option.key})` : ""
               }
               value={
-                units.find(
-                  (unit) => unit.key === (params.value as string),
-                ) ?? units.find((unit) => unit.key === "") ?? null
+                units.find((unit) => unit.key === (params.value as string)) ??
+                units.find((unit) => unit.key === "") ??
+                null
               }
               onChange={(_event, newValue) => {
                 const product = products.find(
@@ -920,11 +931,15 @@ const ProductsTable = ({
               }}
               disableUnderline
             >
-              <MenuItem value={Diet.Meat}>{TEXT_DIET_TYPES[Diet.Meat]}</MenuItem>
+              <MenuItem value={Diet.Meat}>
+                {TEXT_DIET_TYPES[Diet.Meat]}
+              </MenuItem>
               <MenuItem value={Diet.Vegetarian}>
                 {TEXT_DIET_TYPES[Diet.Vegetarian]}
               </MenuItem>
-              <MenuItem value={Diet.Vegan}>{TEXT_DIET_TYPES[Diet.Vegan]}</MenuItem>
+              <MenuItem value={Diet.Vegan}>
+                {TEXT_DIET_TYPES[Diet.Vegan]}
+              </MenuItem>
             </Select>
           );
         },
@@ -968,10 +983,7 @@ const ProductsTable = ({
           const count = params.value as number;
           if (count === 0) return null;
           return (
-            <Tooltip
-              title={(params.row as ProductLineUi).issueTexts}
-              arrow
-            >
+            <Tooltip title={(params.row as ProductLineUi).issueTexts} arrow>
               <Box
                 sx={{
                   display: "flex",
@@ -1023,13 +1035,9 @@ const ProductsTable = ({
   /* ------------------------------------------
   // Checkboxen-Edit (immutabel)
   // ------------------------------------------ */
-  const handleCheckboxChange = (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
+  const handleCheckboxChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const parts = event.target.name.split("_");
-    const product = products.find(
-      (candidate) => candidate.uid === parts[2],
-    );
+    const product = products.find((candidate) => candidate.uid === parts[2]);
     if (!product) return;
 
     if (parts[1] === "usable") {
@@ -1083,6 +1091,14 @@ const ProductsTable = ({
     if (!product) return;
     closeContextMenu();
     onDeleteProductSuper(product);
+  };
+  const onCheckWhereUsed = () => {
+    const product = products.find(
+      (candidate) => candidate.uid === contextMenuProductUid,
+    );
+    if (!product) return;
+    closeContextMenu();
+    onCheckWhereUsedSuper(product);
   };
 
   /* ------------------------------------------
@@ -1210,6 +1226,14 @@ const ProductsTable = ({
             {TEXT_DELETE_PRODUCT}
           </Typography>
         </MenuItem>
+        <MenuItem onClick={onCheckWhereUsed}>
+          <ListItemIcon>
+            <ZoomOutMapIcon />
+          </ListItemIcon>
+          <Typography variant="inherit" noWrap>
+            {TEXT_CHECK_WHERE_USED}
+          </Typography>
+        </MenuItem>
       </Menu>
       <DialogProduct
         dialogType={ProductDialog.EDIT}
@@ -1279,9 +1303,7 @@ const DuplicatesPanel = ({
           }}
         >
           <Typography variant="h6">
-            <FindReplaceIcon
-              sx={{verticalAlign: "middle", marginRight: 1}}
-            />
+            <FindReplaceIcon sx={{verticalAlign: "middle", marginRight: 1}} />
             {similarProducts.length} ähnliche Paare gefunden
           </Typography>
           <IconButton onClick={onClearDuplicates} size="small">

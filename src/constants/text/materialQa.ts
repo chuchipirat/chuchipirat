@@ -39,6 +39,13 @@ export const MATERIAL_NOT_IN_USE =
   "Dieses Material wird nirgends verwendet und kann bedenkenlos gelöscht werden.";
 
 /* =====================================================================
+// Verwendung prüfen
+// ===================================================================== */
+export const CHECK_WHERE_USED = "Verwendung prüfen";
+export const WHERE_USED_MATERIAL_TITLE = (name: string) =>
+  `Verwendung von «${name}»`;
+
+/* =====================================================================
 // Materialien zusammenführen
 // ===================================================================== */
 export const MERGE_MATERIALS = "Materialien zusammenführen";

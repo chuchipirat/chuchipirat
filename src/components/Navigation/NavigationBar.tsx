@@ -8,6 +8,9 @@ import IconButton from "@mui/material/IconButton";
 import MenuItem from "@mui/material/MenuItem";
 import Menu from "@mui/material/Menu";
 import Link from "@mui/material/Link";
+import Checkbox from "@mui/material/Checkbox";
+import ListItemText from "@mui/material/ListItemText";
+import Divider from "@mui/material/Divider";
 import MenuIcon from "@mui/icons-material/Menu";
 import AccountCircle from "@mui/icons-material/AccountCircle";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
@@ -15,6 +18,8 @@ import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import * as ROUTES from "../../constants/routes";
 import * as TEXT from "../../constants/text";
 import {Action} from "../../constants/actions";
+import {Role} from "../../constants/roles";
+import {LocalStorageKey} from "../../constants/localStorage";
 import {useCustomStyles} from "../../constants/styles";
 import {getMatchingHelpPage} from "./helpCenter";
 import {TestTenantRibbon} from "./TestTenantRibbon";
@@ -53,6 +58,15 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
   const menuOpen = Boolean(menuAnchor);
+  const [useOriginalColorScheme, setUseOriginalColorScheme] = useState(
+    () =>
+      localStorage.getItem(LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME) ===
+      "true"
+  );
+
+  const isCommunityLeaderOrAdmin =
+    authUser.roles?.includes(Role.communityLeader) ||
+    authUser.roles?.includes(Role.admin);
 
   const handleToggleDrawer = useCallback(() => {
     setDrawerOpen((previous) => !previous);
@@ -90,6 +104,17 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
     setMenuAnchor(null);
   }, [navigate, authUser.uid]);
 
+  const handleToggleOriginalColorScheme = useCallback(() => {
+    const nextValue = !useOriginalColorScheme;
+    localStorage.setItem(
+      LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME,
+      String(nextValue)
+    );
+    setUseOriginalColorScheme(nextValue);
+    setMenuAnchor(null);
+    window.location.reload();
+  }, [useOriginalColorScheme]);
+
   const handleSignOut = useCallback(async () => {
     setMenuAnchor(null);
     await signOut();
@@ -122,7 +147,9 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
               {TEXT.APP_NAME}
             </Link>
           </Typography>
-          {Utils.isTestEnvironment() ? <TestTenantRibbon /> : null}
+          {Utils.isTestEnvironment() && !useOriginalColorScheme ? (
+            <TestTenantRibbon />
+          ) : null}
           <div>
             <IconButton
               aria-label="Hilfe-Seite aufrufen"
@@ -159,6 +186,25 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
               open={menuOpen}
               onClose={handleMenuClose}
             >
+              {Utils.isTestEnvironment() && isCommunityLeaderOrAdmin
+                ? [
+                    <MenuItem
+                      key="toggleOriginalColorScheme"
+                      onClick={handleToggleOriginalColorScheme}
+                    >
+                      <Checkbox
+                        checked={useOriginalColorScheme}
+                        size="small"
+                        edge="start"
+                        disableRipple
+                      />
+                      <ListItemText
+                        primary={TEXT.NAVIGATION_USE_ORIGINAL_COLOR_SCHEME}
+                      />
+                    </MenuItem>,
+                    <Divider key="toggleOriginalColorSchemeDivider" />,
+                  ]
+                : null}
               <MenuItem onClick={handleNavigateToProfile}>
                 {TEXT.NAVIGATION_USER_PROFILE}
               </MenuItem>

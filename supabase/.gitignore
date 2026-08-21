@@ -6,3 +6,8 @@
 .env.keys
 .env.local
 .env.*.local
+
+# Umgebungsvariablen (enthalten Secrets — nie committen)
+.env
+.env.test
+.env.production

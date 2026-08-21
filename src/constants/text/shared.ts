@@ -77,6 +77,8 @@ export const SIGN_OUT = "Abmelden";
 export const NAVIGATION_USER_PROFILE = "Profil";
 export const NAVIGATION_REQUEST_OVERVIEW = "Anträge";
 export const NAVIGATION_SYSTEM = "System";
+export const NAVIGATION_USE_ORIGINAL_COLOR_SCHEME =
+  "Original-Farbschema verwenden";
 
 /* =====================================================================
 // Statistik
@@ -97,6 +99,8 @@ export const HOME_EMPTY_FEED =
 // ===================================================================== */
 export const FEED = "Feed";
 export const SHOULD_FEED_ENTRY_BE_DELETED = "Feed-Eintrag löschen?";
+export const FEED_SHOW_MORE = (count: number) =>
+  `Zeige weitere Einträge (${count})`;
 
 /* =====================================================================
 // Bilder

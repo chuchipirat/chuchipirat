@@ -17,6 +17,8 @@ import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
 import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {supabaseAdmin} from "../../Database/supabaseClient";
+import {UnitRepository} from "../../Database/Repository/UnitRepository";
 
 /* =====================================================================
 // Typ der Firebase-Quelldaten für eine Einheit
@@ -55,6 +57,12 @@ export class UnitMigrationJob implements MigrationJob<FirebaseUnitData> {
   name = "Einheiten";
   description =
     "Migriert alle Einheiten (Units) von Firebase nach Postgres.";
+
+  /**
+   * UnitRepository mit Service-Role-Client. RLS würde Lese-/Schreibzugriff
+   * sonst auf die Berechtigungen des eingeloggten Admin-Users beschränken.
+   */
+  private readonly adminUnits = new UnitRepository(supabaseAdmin!);
 
   /* =====================================================================
   // Alle Einheiten aus Firebase lesen
@@ -97,16 +105,14 @@ export class UnitMigrationJob implements MigrationJob<FirebaseUnitData> {
   /**
    * Prüft anhand der `firebase_uid`, ob die Einheit bereits migriert wurde.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu prüfende Quelldatensatz
    * @returns true, falls die Einheit bereits vorhanden ist
    */
   async checkExists(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUnitData>
   ): Promise<boolean> {
-    const units = database.units;
-    const existing = await units.findMany({
+    const existing = await this.adminUnits.findMany({
       filters: [
         {field: "firebase_uid", operator: "eq", value: record.id},
       ],
@@ -121,20 +127,18 @@ export class UnitMigrationJob implements MigrationJob<FirebaseUnitData> {
    * Fügt eine Einheit in die Postgres-Tabelle ein und setzt
    * anschliessend die `firebase_uid` per Patch.
    *
-   * @param database - DatabaseService-Instanz
    * @param record - Der zu migrierende Quelldatensatz
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUnitData>,
     authUser: AuthUser
   ): Promise<void> {
     const data = record.data;
-    const units = database.units;
 
     // Einheit einfügen — key = Firebase-Key (Abkürzung)
-    const {id} = await units.insert({
+    const {id} = await this.adminUnits.insert({
       value: {
         key: data.key,
         name: data.name,
@@ -144,7 +148,7 @@ export class UnitMigrationJob implements MigrationJob<FirebaseUnitData> {
     });
 
     // firebase_uid nachträglich setzen (= Firebase-Key)
-    await units.patch({
+    await this.adminUnits.patch({
       id,
       fields: {firebase_uid: record.id},
       authUser,
