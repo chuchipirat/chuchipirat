@@ -14,6 +14,11 @@ jobs:
     runs-on: ubuntu-latest
     # Nur wenn Deploy PROD erfolgreich war
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    # workflow_run-getriggerte Workflows erhalten standardmässig nur ein
+    # read-only GITHUB_TOKEN - ohne dies schlägt "gh release create" mit
+    # 403 fehl.
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
