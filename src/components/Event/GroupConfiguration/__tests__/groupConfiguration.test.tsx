@@ -9,7 +9,7 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen, fireEvent} from "@testing-library/react";
+import {render, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
@@ -67,7 +67,9 @@ function createMinimalGroupConfig(portions = 5): EventGroupConfiguration {
   const intoleranceUid = "intol-1";
 
   groupConfig.diets = {
-    entries: {[dietUid]: {uid: dietUid, name: "Fleisch", totalPortions: portions}},
+    entries: {
+      [dietUid]: {uid: dietUid, name: "Fleisch", totalPortions: portions},
+    },
     order: [dietUid],
   };
   groupConfig.intolerances = {
