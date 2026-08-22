@@ -15,7 +15,7 @@ import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {resizeImage} from "../../Shared/imageResize";
-import {MigrationJob, SourceRecord} from "./MigrationJob.interface";
+import {MigrationJob, SourceRecord, fetchAllRows} from "./MigrationJob.interface";
 import {supabaseAdmin} from "../../Database/supabaseClient";
 import {UserStorageRepository} from "../../Database/Repository/UserStorageRepository";
 import {UserRepository} from "../../Database/Repository/UserRepository";
@@ -94,7 +94,16 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
       throw new Error("DatabaseService wird für die Bild-Migration benötigt.");
     }
 
-    const allUsers = await this.adminUsers.findMany({});
+    // Direkter, paginierter Read statt UserRepository.findMany() — Supabase/
+    // PostgREST liefert ohne Pagination standardmässig nur die ersten 1000
+    // Zeilen. Bei mehr als 1000 Benutzern blieben so alle weiteren Benutzer
+    // (und ihre ggf. noch unmigrierten Firebase-Bilder) unbemerkt aussen vor.
+    const allUsers = await fetchAllRows<{
+      id: string;
+      legacy_firebase_uid: string | null;
+      picture_src: string | null;
+      display_name: string | null;
+    }>(supabaseAdmin!, "users", "id, legacy_firebase_uid, picture_src, display_name");
 
     const records: SourceRecord<ImageSourceData>[] = [];
 
@@ -102,7 +111,7 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
       // Firestore Public Profile lesen, um die Bild-URL zu erhalten.
       // Firestore-Dokumente liegen unter users/{firebaseUid}/public/profile,
       // daher wird die legacy_firebase_uid für den Firestore-Zugriff benötigt.
-      const firestoreUid = user.legacyFirebaseUid ?? user.uid;
+      const firestoreUid = user.legacy_firebase_uid ?? user.id;
       let pictureUrl = "";
       try {
         const profile = await firebase.user.public.profile.read<{
@@ -116,17 +125,17 @@ export class ImageMigrationJob implements MigrationJob<ImageSourceData> {
 
       // Fallback: URL aus Postgres (falls Firestore-Read fehlschlägt
       // aber in Postgres eine Firebase-URL vorhanden ist)
-      if (!pictureUrl && user.pictureSrc?.includes("firebasestorage.googleapis.com")) {
-        pictureUrl = user.pictureSrc;
+      if (!pictureUrl && user.picture_src?.includes("firebasestorage.googleapis.com")) {
+        pictureUrl = user.picture_src;
       }
 
       if (pictureUrl) {
         records.push({
           // id = Supabase UUID (für checkExists und migrateRecord)
-          id: user.uid,
-          label: user.displayName || user.uid,
+          id: user.id,
+          label: user.display_name || user.id,
           data: {
-            userId: user.uid,
+            userId: user.id,
             firebaseUrl: pictureUrl,
           },
         });

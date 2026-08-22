@@ -15,6 +15,9 @@
  * - Material-Name → materials.name → materials.id
  * - Department-Name → departments.name → departments.id + departments.pos
  * - Unit-Key → units.key (direkt)
+ * - `generated.fromUid` (Firebase UID) → users.legacy_firebase_uid → users.id,
+ *   wird explizit als `created_by` gesetzt (Spalten-Default `auth.uid()` ergibt
+ *   beim Insert über den service-role Client sonst NULL)
  *
  * Voraussetzungen:
  * - Events, Products, Materials, Departments, Units
@@ -66,7 +69,11 @@ interface FirebaseShoppingListProperties {
   selectedMeals: string[];
   selectedMenues: string[];
   selectedDepartments: string[];
-  generated: {date: unknown; fromUid: string; fromDisplayName: string};
+  generated: {
+    date: {seconds?: number; toDate?: () => Date} | Date | string | undefined;
+    fromUid: string;
+    fromDisplayName: string;
+  };
   hasManuallyAddedItems: boolean;
 }
 
@@ -118,6 +125,8 @@ export class ShoppingListMigrationJob
   private menueIdByFirebaseUid: Map<string, string> = new Map();
   /** Meal firebase_uid → Postgres ID */
   private mealIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Supabase Auth UUID für Benutzer */
+  private userAuthUidByFirebaseUid: Map<string, string> = new Map();
   /** Bereits migrierte Event-IDs (Postgres) für schnelle Existenzprüfung */
   private existingEventIds: Set<string> | null = null;
 
@@ -221,7 +230,7 @@ export class ShoppingListMigrationJob
    * Migriert alle Einkaufslisten eines Events nach Postgres.
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseShoppingListData>,
     _authUser: AuthUser,
   ): Promise<void> {
@@ -242,6 +251,15 @@ export class ShoppingListMigrationJob
       if (!props) continue;
 
       const listId = crypto.randomUUID();
+
+      // Ersteller der Liste auflösen (Firebase-UID → Supabase Auth-UUID).
+      // Ohne diese explizite Auflösung würde created_by auf den Spalten-Default
+      // (auth.uid()) zurückfallen, der bei Inserts über den service-role Client
+      // (kein JWT-Kontext) immer NULL ergibt.
+      const generatedBy = props.generated?.fromUid
+        ? this.userAuthUidByFirebaseUid.get(props.generated.fromUid) ?? null
+        : null;
+      const generatedAt = this.toIsoString(props.generated?.date);
 
       // Menü-IDs auflösen
       const selectedMenues = (props.selectedMenues ?? [])
@@ -267,6 +285,8 @@ export class ShoppingListMigrationJob
         selected_departments: selectedDepartments,
         has_manually_added_items: props.hasManuallyAddedItems ?? false,
         firebase_uid: props.uid ?? listKey,
+        created_by: generatedBy,
+        ...(generatedAt ? {created_at: generatedAt} : {}),
       });
 
       // Items der Firebase-ShoppingList sammeln
@@ -309,6 +329,7 @@ export class ShoppingListMigrationJob
             checked: item.checked ?? false,
             edit_source: editSource,
             sort_order: itemIdx,
+            created_by: generatedBy,
           });
         }
       }
@@ -335,7 +356,7 @@ export class ShoppingListMigrationJob
   private async buildLookupMaps(): Promise<void> {
     const client = supabaseAdmin!;
 
-    const [eventRows, productRows, materialRows, departmentRows, menueRows, mealRows, unitRows] = await Promise.all([
+    const [eventRows, productRows, materialRows, departmentRows, menueRows, mealRows, unitRows, userRows] = await Promise.all([
       fetchAllRows(client, "events", "id, firebase_uid"),
       fetchAllRows(client, "products", "id, firebase_uid"),
       fetchAllRows(client, "materials", "id, firebase_uid"),
@@ -343,6 +364,8 @@ export class ShoppingListMigrationJob
       fetchAllRows(client, "event_menues", "id, firebase_uid"),
       fetchAllRows(client, "event_meals", "id, firebase_uid"),
       fetchAllRows(client, "units", "key"),
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
     ]);
 
     for (const row of eventRows) {
@@ -367,5 +390,27 @@ export class ShoppingListMigrationJob
     for (const row of unitRows) {
       if (row.key) this.validUnits.add(row.key as string);
     }
+    for (const row of userRows) {
+      if (row.legacy_firebase_uid && row.id) {
+        this.userAuthUidByFirebaseUid.set(row.legacy_firebase_uid as string, row.id as string);
+      }
+    }
+  }
+
+  /**
+   * Konvertiert einen Firebase-Timestamp (oder Date/String) in einen ISO-String.
+   *
+   * @param value - Firestore Timestamp, Date-Objekt, ISO-String oder undefined.
+   * @returns ISO-Datums-String, oder undefined falls kein Wert vorhanden ist.
+   */
+  private toIsoString(
+    value: {seconds?: number; toDate?: () => Date} | Date | string | undefined,
+  ): string | undefined {
+    if (!value) return undefined;
+    if (typeof value === "string") return value;
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value.toDate === "function") return value.toDate().toISOString();
+    if (typeof value.seconds === "number") return new Date(value.seconds * 1000).toISOString();
+    return undefined;
   }
 }

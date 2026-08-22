@@ -11,6 +11,9 @@
  *
  * FK-Auflösung:
  * - `cook.uid` (Firebase UID) → `users.legacy_firebase_uid` → `users.id` (Supabase UUID)
+ * - `created.fromUid` (Firebase UID) → dieselbe Lookup-Map → wird explizit als
+ *   `created_by` auf events/event_cooks/event_dates gesetzt, da der Spalten-Default
+ *   `auth.uid()` beim Insert über den service-role Client sonst NULL ergibt.
  *
  * Voraussetzungen:
  * - Benutzer müssen vor Events migriert sein (FK event_cooks → auth.users)
@@ -229,6 +232,16 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
     const data = record.data;
     const client = supabaseAdmin!;
 
+    // Ursprünglichen Ersteller auflösen (Firebase-UID → Supabase Auth-UUID).
+    // Ohne diese explizite Auflösung würde created_by auf den Spalten-Default
+    // (auth.uid()) zurückfallen, der bei Inserts über den service-role Client
+    // (kein JWT-Kontext) immer NULL ergibt.
+    const createdBy = data.created?.fromUid
+      ? this.userAuthUidByFirebaseUid.get(data.created.fromUid) ?? null
+      : null;
+    // Firestore-Erstellungsdatum übernehmen, statt des Migrations-Zeitpunkts.
+    const createdAt = data.created?.date ? toDate(data.created.date).toISOString() : undefined;
+
     // 1. Event-Kopfdaten einfügen
     const {data: eventRow, error: eventError} = await client
       .from("events")
@@ -238,6 +251,8 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
         location: data.location,
         picture_src: data.pictureSrc,
         firebase_uid: record.id,
+        created_by: createdBy,
+        ...(createdAt ? {created_at: createdAt} : {}),
       })
       .select("id")
       .single();
@@ -255,6 +270,7 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
         event_id: eventId,
         user_id: authUid,
         firebase_uid: cook.uid,
+        created_by: createdBy,
       });
     }
 
@@ -282,6 +298,7 @@ export class EventMigrationJob implements MigrationJob<FirebaseEventData> {
         date_from: toDateString(dateFrom),
         date_to: toDateString(dateTo),
         firebase_uid: dateEntry.uid,
+        created_by: createdBy,
       });
     }
 

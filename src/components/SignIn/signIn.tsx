@@ -46,6 +46,7 @@ import {ImageRepository} from "../../constants/imageRepository";
 
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
+import {UserDomain} from "../Database/Repository/UserRepository";
 import {LocalStorageKey} from "../../constants/localStorage";
 import {Role} from "../../constants/roles";
 import {useNavigate, useLocation} from "react-router";
@@ -248,7 +249,7 @@ const SignInPage = () => {
 
       // Profil laden und Login registrieren — beides SECURITY DEFINER RPCs,
       // daher kein RLS-Timing-Problem.
-      let userDomain;
+      let userDomain: UserDomain | null | undefined;
       try {
         [userDomain] = await Promise.all([
           database.users.findOwnProfile(),
@@ -281,11 +282,31 @@ const SignInPage = () => {
         });
       }
 
+      // Wartungsmodus-Flag frisch abfragen statt den beim Seitenaufruf im
+      // Hintergrund geladenen State (state.maintenanceMode) zu verwenden.
+      // Dieser State startet mit dem unsicheren Default `false` und wird erst
+      // asynchron nach dem Mount aktualisiert — ein Login, das schneller
+      // abläuft als dieser initiale Fetch (z.B. direkt nach einem Kaltstart
+      // der App), sähe sonst immer `false` und würde den Block umgehen.
+      // Schlägt dieser frische Read fehl, wird NICHT blockiert (fail-open):
+      // ein Admin muss sich immer einloggen können, um den Wartungsmodus
+      // wieder auszuschalten — ein einzelner fehlgeschlagener Read darf das
+      // nicht verhindern.
+      let maintenanceModeNow = false;
+      try {
+        const settings = await database.globalSettings.getSettings();
+        maintenanceModeNow = settings?.maintenanceMode ?? false;
+      } catch (settingsError) {
+        Sentry.captureException(settingsError, {
+          extra: {context: "SignIn - Wartungsmodus-Status prüfen"},
+        });
+      }
+
       // Im Wartungsmodus dürfen sich nur Admins tatsächlich anmelden —
-      // die Rolle kommt aus dem serverseitig geladenen Profil, nicht aus
-      // einem client-seitigen Flag. Alle anderen werden sofort wieder ausgeloggt.
+      // die Rolle kommt aus dem serverseitig geladenen Profil. Dies ist
+      // weiterhin eine rein client-seitige Prüfung (keine RLS-Durchsetzung).
       if (
-        state.maintenanceMode &&
+        maintenanceModeNow &&
         !userDomain?.roles.includes(Role.admin)
       ) {
         await database.auth.signOut();
@@ -397,8 +418,12 @@ interface SignInFormProps {
 /**
  * Formular zur Eingabe von E-Mail und Passwort für den Login.
  * Zeigt Passwort-Toggle. Bleibt auch im Wartungsmodus bedienbar — die
- * eigentliche Zugriffsprüfung erfolgt serverseitig nach dem Login
- * anhand der tatsächlichen Rolle (siehe SignInPage.onSignIn).
+ * eigentliche Zugriffsprüfung (inkl. frischem Wartungsmodus-Read, um eine
+ * Race Condition mit dem asynchron geladenen State zu vermeiden) erfolgt
+ * client-seitig nach dem Login anhand der tatsächlichen Rolle
+ * (siehe SignInPage.onSignIn). Es gibt KEINE serverseitige/RLS-Durchsetzung
+ * des Wartungsmodus — ein Admin-Login muss unter allen Umständen möglich
+ * bleiben, daher wird bewusst nicht auf DB-Ebene blockiert.
  */
 const SignInForm = ({
   signInData,

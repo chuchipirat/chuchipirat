@@ -5,6 +5,7 @@ import * as Sentry from "@sentry/react";
 import {App} from "../src/components/App/App";
 import {FirebaseContext} from "./components/Firebase/firebaseContext";
 import {AuthUserProvider} from "./components/Session/authUserContext";
+import {GlobalSettingsProvider} from "./components/Session/globalSettingsContext";
 import packageJson from "../package.json";
 
 import "@fontsource/roboto";
@@ -60,13 +61,15 @@ root.render(
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de">
         <DatabaseContext.Provider value={new DatabaseService()}>
           <FirebaseContext.Provider value={new Firebase()}>
-            <AuthUserProvider>
-              <CustomDialogContextProvider>
-                <NavigationContextProvider>
-                  <App />
-                </NavigationContextProvider>
-              </CustomDialogContextProvider>
-            </AuthUserProvider>
+            <GlobalSettingsProvider>
+              <AuthUserProvider>
+                <CustomDialogContextProvider>
+                  <NavigationContextProvider>
+                    <App />
+                  </NavigationContextProvider>
+                </CustomDialogContextProvider>
+              </AuthUserProvider>
+            </GlobalSettingsProvider>
           </FirebaseContext.Provider>
         </DatabaseContext.Provider>
       </LocalizationProvider>

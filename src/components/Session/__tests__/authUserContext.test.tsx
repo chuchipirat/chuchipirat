@@ -45,13 +45,14 @@ jest.mock("../../Firebase/firebaseContext", () => ({
 
 /** Mock-DatabaseService mit minimaler Auth-API */
 const mockGetSession = jest.fn();
+const mockSignOut = jest.fn().mockResolvedValue(undefined);
 const mockDatabase = {
   auth: {
     getSession: mockGetSession,
     onAuthStateChange: jest.fn(),
     signInWithPassword: jest.fn(),
     signUp: jest.fn(),
-    signOut: jest.fn(),
+    signOut: mockSignOut,
     resetPassword: jest.fn(),
     updatePassword: jest.fn(),
     getUser: jest.fn(),
@@ -64,7 +65,9 @@ const mockDatabase = {
 // ======================== Import nach Mocks =========================
 // =================================================================== */
 import {AuthUserContext, useAuthUser, AuthorizationGuard} from "../authUserContext";
+import {GlobalSettingsContext} from "../globalSettingsContext";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {Role} from "../../../constants/roles";
 
 /* ===================================================================
 // ======================== Hilfs-Funktionen ==========================
@@ -106,18 +109,22 @@ const AuthUserConsumer: React.FC = () => {
  * @param authUser - Der simulierte AuthUser (oder null).
  * @param condition - Die Bedingungs-Funktion fuer den Guard.
  * @param children - Optionaler Kindinhalt (Standard: "Geschuetzter Inhalt").
+ * @param maintenanceMode - Simulierter Wartungsmodus-Status (Standard: false).
  */
 const renderGuard = (
   authUser: AuthUser | null,
   condition: (user: AuthUser | null) => boolean,
   children: React.ReactNode = <div>Geschuetzter Inhalt</div>,
+  maintenanceMode = false,
 ) => {
   return render(
     <MemoryRouter>
       <DatabaseContext.Provider value={mockDatabase}>
-        <AuthUserContext.Provider value={authUser}>
-          <AuthorizationGuard condition={condition}>{children}</AuthorizationGuard>
-        </AuthUserContext.Provider>
+        <GlobalSettingsContext.Provider value={{maintenanceMode}}>
+          <AuthUserContext.Provider value={authUser}>
+            <AuthorizationGuard condition={condition}>{children}</AuthorizationGuard>
+          </AuthUserContext.Provider>
+        </GlobalSettingsContext.Provider>
       </DatabaseContext.Provider>
     </MemoryRouter>,
   );
@@ -200,6 +207,42 @@ describe("AuthorizationGuard", () => {
     await waitFor(() => {
       expect(mockNavigate).toHaveBeenCalledWith("/noauth");
     });
+  });
+
+  /**
+   * Ein bereits angemeldeter Nicht-Admin muss ausgeloggt werden, sobald der
+   * Wartungsmodus aktiviert wird — nicht erst beim naechsten Login (siehe
+   * SignInPage.onSignIn, das nur den Login-Zeitpunkt selbst abdeckt).
+   */
+  test("Loggt Nicht-Admin aus und navigiert zu SIGN_IN, wenn Wartungsmodus waehrend aktiver Session aktiviert wird", async () => {
+    const nonAdmin = createAuthUser({roles: [Role.basic]});
+    const alwaysTrueCondition = () => true;
+
+    renderGuard(nonAdmin, alwaysTrueCondition, undefined, true);
+
+    // Geschuetzter Inhalt wird nicht gerendert, waehrend der Logout laeuft
+    expect(screen.queryByText("Geschuetzter Inhalt")).not.toBeInTheDocument();
+
+    await waitFor(() => {
+      expect(mockSignOut).toHaveBeenCalled();
+    });
+    await waitFor(() => {
+      expect(mockNavigate).toHaveBeenCalledWith("/signin");
+    });
+  });
+
+  /**
+   * Ein Admin darf trotz aktivem Wartungsmodus weiterhin auf geschuetzte
+   * Routen zugreifen.
+   */
+  test("Admin bleibt trotz aktivem Wartungsmodus angemeldet", async () => {
+    const admin = createAuthUser({roles: [Role.admin]});
+    const alwaysTrueCondition = () => true;
+
+    renderGuard(admin, alwaysTrueCondition, undefined, true);
+
+    expect(screen.getByText("Geschuetzter Inhalt")).toBeInTheDocument();
+    expect(mockSignOut).not.toHaveBeenCalled();
   });
 });
 
