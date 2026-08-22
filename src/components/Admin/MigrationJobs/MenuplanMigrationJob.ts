@@ -19,6 +19,11 @@
  * - Material-Firebase-UID → materials.firebase_uid → materials.id
  * - Diet-Firebase-UID → event_groupconfiguration_diets.firebase_uid → id
  * - Intolerance-Firebase-UID → event_groupconfiguration_intolerances.firebase_uid → id
+ * - `created.fromUid` → `users.legacy_firebase_uid` → `users.id` (nur für
+ *   event_menuplan_tracking - die einzige Menuplan-Tabelle mit created_by/
+ *   created_at; alle anderen Menuplan-Tabellen haben keine Audit-Spalten,
+ *   da es keinen sinnvollen Einzel-"Ersteller" für kollaborativ bearbeitete
+ *   Menuplan-Positionen gibt)
  *
  * Voraussetzungen (müssen vor diesem Job ausgeführt worden sein):
  * - Events, Gruppenconfig, Rezepte, Produkte, Materialien
@@ -132,6 +137,12 @@ interface FirebaseMenuplanData {
   products: {[uid: string]: FirebaseMenuplanProduct};
   materials: {[uid: string]: FirebaseMenuplanMaterial};
   notes: {[uid: string]: FirebaseNote};
+  /** Datum wird von Firestore als Timestamp mit .toDate() geliefert */
+  created?: {
+    date?: {toDate: () => Date} | Date | string;
+    fromUid?: string;
+    fromDisplayName?: string;
+  };
 }
 
 /* =====================================================================
@@ -211,6 +222,22 @@ const scopeToDb = (scope: string): string => {
   return "group";
 };
 
+/**
+ * Konvertiert einen Firebase-Timestamp (oder Date/String) in einen ISO-String.
+ *
+ * @param value - Firestore Timestamp, Date-Objekt, ISO-String oder undefined.
+ * @returns ISO-Datums-String, oder undefined falls kein Wert vorhanden ist.
+ */
+const toIsoString = (
+  value: {toDate: () => Date} | Date | string | undefined,
+): string | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  return undefined;
+};
+
 /* =====================================================================
 // MenuplanMigrationJob
 // ===================================================================== */
@@ -237,6 +264,8 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
   private productIdByFirebaseUid: Map<string, string> = new Map();
   /** firebase_uid → Postgres-ID für Materialien */
   private materialIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Supabase-Auth-UUID für Benutzer */
+  private userAuthUidByFirebaseUid: Map<string, string> = new Map();
   /** Gültige Unit-Keys aus der units-Tabelle */
   private validUnits: Set<string> = new Set();
   /** firebase_uid → Postgres-ID für Diäten (event-übergreifend, nach Event aufgebaut) */
@@ -297,6 +326,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
           products: value.products ?? {},
           materials: value.materials ?? {},
           notes: value.notes ?? {},
+          created: value.created ?? {},
         },
       });
     }
@@ -665,10 +695,25 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
       if (noteError) throw noteError;
     }
 
-    // Tracking-Zeile für den Menuplan erstellen
+    // Tracking-Zeile für den Menuplan erstellen. Ersteller auflösen
+    // (Firebase-UID → Supabase Auth-UUID) - ohne diese explizite Auflösung
+    // würde created_by auf den Spalten-Default (auth.uid()) zurückfallen,
+    // der bei Inserts über den service-role Client (kein JWT-Kontext) immer
+    // NULL ergibt. Bewusst record.data (nicht das per JSON.parse/stringify
+    // geklonte "data" aus fixFirebaseMenuplan) - der Klon verliert die
+    // .toDate()-Methode eines Firestore-Timestamps.
+    const createdBy = record.data.created?.fromUid
+      ? this.userAuthUidByFirebaseUid.get(record.data.created.fromUid) ?? null
+      : null;
+    const createdAt = toIsoString(record.data.created?.date);
+
     const {error: trackingError} = await client
       .from("event_menuplan_tracking")
-      .insert({event_id: eventId});
+      .insert({
+        event_id: eventId,
+        created_by: createdBy,
+        ...(createdAt ? {created_at: createdAt} : {}),
+      });
 
     if (trackingError) throw trackingError;
   }
@@ -819,12 +864,14 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
   private async buildLookupMaps(): Promise<void> {
     const client = supabaseAdmin!;
 
-    const [eventRows, recipeRows, productRows, materialRows, unitRows] = await Promise.all([
+    const [eventRows, recipeRows, productRows, materialRows, unitRows, userRows] = await Promise.all([
       fetchAllRows(client, "events", "id, firebase_uid"),
       fetchAllRows(client, "recipes", "id, firebase_uid"),
       fetchAllRows(client, "products", "id, firebase_uid"),
       fetchAllRows(client, "materials", "id, firebase_uid"),
       fetchAllRows(client, "units", "key"),
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
     ]);
 
     for (const row of eventRows) {
@@ -841,6 +888,11 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
     }
     for (const row of unitRows) {
       if (row.key) this.validUnits.add(row.key as string);
+    }
+    for (const row of userRows) {
+      if (row.legacy_firebase_uid && row.id) {
+        this.userAuthUidByFirebaseUid.set(row.legacy_firebase_uid as string, row.id as string);
+      }
     }
 
     // Diäten und Unverträglichkeiten für ALLE Events vorladen
