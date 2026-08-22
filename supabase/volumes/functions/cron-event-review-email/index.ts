@@ -30,6 +30,7 @@ import {
   failCronJob,
   sentryCheckIn,
 } from "../_shared/cronJobHelper.ts";
+import {fetchAllRows} from "../_shared/fetchAllRows.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 
 /* =====================================================================
@@ -91,20 +92,17 @@ serve(async (req: Request) => {
 
     // 2. Events finden, deren maximales date_to = gestern ist
     //    Alle event_dates laden und manuell gruppieren
-    //    (Supabase JS-Client unterstützt kein GROUP BY + HAVING)
-    const {data: allDates, error: datesError} = await supabaseAdmin
-      .from("event_dates")
-      .select("event_id, date_to");
-
-    if (datesError) {
-      throw new Error(
-        `Event-Dates-Abfrage fehlgeschlagen: ${datesError.message}`
-      );
-    }
+    //    (Supabase JS-Client unterstützt kein GROUP BY + HAVING).
+    //    Paginiert - .select() ohne Range liefert bei Supabase/PostgREST
+    //    standardmässig max. 1000 Zeilen und würde bei mehr Datumsscheiben
+    //    welche stillschweigend bei der Auswertung ignorieren.
+    const allDates = await fetchAllRows<{event_id: string; date_to: string}>(
+      supabaseAdmin, "event_dates", "event_id, date_to",
+    );
 
     // Maximales date_to pro Event berechnen
     const maxDateByEvent = new Map<string, string>();
-    for (const dateRow of allDates ?? []) {
+    for (const dateRow of allDates) {
       const eventId = dateRow.event_id as string;
       const dateTo = dateRow.date_to as string;
       const current = maxDateByEvent.get(eventId);
