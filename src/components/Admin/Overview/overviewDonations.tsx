@@ -104,10 +104,18 @@ const OverviewDonationsPage = () => {
     loadDonations();
   }, [loadDonations]);
 
-  /** Zusammenfassende Statistiken. */
+  /**
+   * Zusammenfassende Statistiken für das aktuelle Jahr (Kartenlabel "Total
+   * dieses Jahr"). Filtert nach paidAt statt createdAt, analog zur
+   * get_donation_goal_stats()-RPC (EXTRACT(YEAR FROM paid_at) = ...), damit
+   * beide Stellen dieselbe Definition von "dieses Jahr" verwenden.
+   */
   const stats = useMemo(() => {
+    const currentYear = new Date().getFullYear();
     const confirmed = donations.filter(
-      (donation) => COUNTABLE_DONATION_STATUSES.includes(donation.status),
+      (donation) =>
+        COUNTABLE_DONATION_STATUSES.includes(donation.status) &&
+        donation.paidAt?.getFullYear() === currentYear,
     );
     const totalCents = confirmed.reduce(
       (sum, donation) => sum + donation.amountInCents,
