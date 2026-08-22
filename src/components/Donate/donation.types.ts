@@ -21,6 +21,18 @@ export enum DonationStatus {
   migrated = "migrated",
 }
 
+/**
+ * Status-Werte, die als tatsächlich erfolgte Spende zählen (werden in
+ * Summen, öffentlichem Spendenziel-Fortschritt und Spenden-Anzeigen
+ * berücksichtigt). `migrated` steht für real erfolgte historische Spenden
+ * aus Firebase und wird `confirmed` gleichgestellt — beide repräsentieren
+ * eine tatsächlich eingegangene Spende, nur über unterschiedliche Kanäle.
+ */
+export const COUNTABLE_DONATION_STATUSES: DonationStatus[] = [
+  DonationStatus.confirmed,
+  DonationStatus.migrated,
+];
+
 /* =====================================================================
 // Domain-Modelle (camelCase, werden in der App verwendet)
 // ===================================================================== */

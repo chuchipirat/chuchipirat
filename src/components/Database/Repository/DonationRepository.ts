@@ -23,6 +23,7 @@ import {
   DonationGoalSection,
   DonationGoalSectionRow,
   DonationGoalStats,
+  COUNTABLE_DONATION_STATUSES,
 } from "../../Donate/donation.types";
 
 /* =====================================================================
@@ -161,10 +162,11 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
   }
 
   /**
-   * Lädt alle bestätigten Spenden für ein bestimmtes Event.
+   * Lädt alle zählbaren (bestätigten oder migrierten) Spenden für ein
+   * bestimmtes Event.
    *
    * @param eventId - Die Event-ID.
-   * @returns Bestätigte Event-Spenden, sortiert nach Zahldatum.
+   * @returns Zählbare Event-Spenden, sortiert nach Zahldatum.
    */
   async getEventDonations(eventId: string): Promise<DonationDomain[]> {
     try {
@@ -172,7 +174,7 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         .from(this.viewName)
         .select(DonationRepository.PUBLIC_VIEW_COLUMNS)
         .eq("event_id", eventId)
-        .eq("status", DonationStatus.confirmed)
+        .in("status", COUNTABLE_DONATION_STATUSES)
         .order("paid_at", {ascending: false});
 
       if (error) throw error;

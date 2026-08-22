@@ -115,6 +115,7 @@ import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {User} from "../user.class";
 import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import {DonationDomain, DonationStatus} from "../../Donate/donation.types";
 
 // Typisierte Referenzen auf die Mock-Funktionen
 const mockGetFullProfile = User.getFullProfile as jest.Mock;
@@ -159,6 +160,34 @@ const fullProfile = {
     noFoundBugs: 2,
   },
 };
+
+/**
+ * Erstellt ein minimales DonationDomain-Testobjekt.
+ *
+ * @param overrides - Felder, die vom Standardwert abweichen sollen.
+ */
+const createDonationMock = (
+  overrides: Partial<DonationDomain> = {},
+): DonationDomain => ({
+  id: "donation-1",
+  eventId: null,
+  paymentGatewayId: null,
+  paymentReferenceId: null,
+  paymentTransactionId: null,
+  amountInCents: 5000,
+  currency: "CHF",
+  status: DonationStatus.confirmed,
+  paymentMethod: "twint",
+  paidAt: new Date("2026-03-15"),
+  donorUid: authUserMock.uid,
+  donorMessage: null,
+  receiptNumber: "2026-0001",
+  receiptSentAt: null,
+  createdAt: new Date("2026-03-15"),
+  donorDisplayName: "Test User",
+  eventName: "Sommerlager",
+  ...overrides,
+});
 
 /* ===================================================================
 // ======================== Render-Helper ==============================
@@ -304,6 +333,24 @@ describe("UserProfilePage", () => {
       });
 
       expect(screen.queryByText(/Gefundene Bugs/i)).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Spenden", () => {
+    test("Zeigt bestätigte und migrierte Spenden an, aber keine ausstehenden", async () => {
+      mockGetMyDonations.mockResolvedValueOnce([
+        createDonationMock({id: "d1", status: DonationStatus.confirmed, eventName: "Sommerlager"}),
+        createDonationMock({id: "d2", status: DonationStatus.migrated, eventName: "Winterlager"}),
+        createDonationMock({id: "d3", status: DonationStatus.pending, eventName: "Herbstlager"}),
+      ]);
+
+      renderUserProfilePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Sommerlager")).toBeInTheDocument();
+      });
+      expect(screen.getByText("Winterlager")).toBeInTheDocument();
+      expect(screen.queryByText("Herbstlager")).not.toBeInTheDocument();
     });
   });
 

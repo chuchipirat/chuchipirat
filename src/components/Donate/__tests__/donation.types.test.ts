@@ -4,7 +4,7 @@
  * Stellt sicher, dass das DonationStatus-Enum exakt 6 Werte hat
  * und alle String-Werte den PostgreSQL-ENUM-Labels entsprechen.
  */
-import {DonationStatus} from "../donation.types";
+import {DonationStatus, COUNTABLE_DONATION_STATUSES} from "../donation.types";
 
 /* ===================================================================
 // DonationStatus-Enum
@@ -43,5 +43,32 @@ describe("DonationStatus", () => {
     for (const enumValue of enumValues) {
       expect(typeof enumValue).toBe("string");
     }
+  });
+});
+
+/* ===================================================================
+// COUNTABLE_DONATION_STATUSES
+// =================================================================== */
+
+describe("COUNTABLE_DONATION_STATUSES", () => {
+  test("enthaelt confirmed und migrated", () => {
+    expect(COUNTABLE_DONATION_STATUSES).toEqual(
+      expect.arrayContaining([DonationStatus.confirmed, DonationStatus.migrated]),
+    );
+  });
+
+  test("enthaelt keine nicht-zaehlbaren Status (pending/failed/cancelled/refunded)", () => {
+    expect(COUNTABLE_DONATION_STATUSES).not.toEqual(
+      expect.arrayContaining([
+        DonationStatus.pending,
+        DonationStatus.failed,
+        DonationStatus.cancelled,
+        DonationStatus.refunded,
+      ]),
+    );
+  });
+
+  test("hat exakt 2 Werte", () => {
+    expect(COUNTABLE_DONATION_STATUSES).toHaveLength(2);
   });
 });
