@@ -5,6 +5,8 @@ import * as Sentry from "@sentry/react";
 import AuthUser from "../Firebase/Authentication/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import {LocalStorageKey} from "../../constants/localStorage";
+import {Role} from "../../constants/roles";
+import {useGlobalSettings} from "./globalSettingsContext";
 
 import {
   SIGN_IN as ROUTE_SIGN_IN,
@@ -211,6 +213,15 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
  * zu registrieren. Bei `authUser === null` wird einmalig geprüft, ob
  * eine aktive Session existiert (Lade-Phase vs. tatsächlich abgemeldet).
  *
+ * Prüft zusätzlich den Wartungsmodus (`useGlobalSettings`): wird dieser
+ * aktiviert, während ein Nicht-Admin bereits angemeldet ist, wird er
+ * ausgeloggt und zur Sign-In-Seite umgeleitet — ohne diese Prüfung würde
+ * eine bereits laufende Session vom Wartungsmodus nie erfasst (der bisherige
+ * Check erfolgt sonst nur einmalig beim Login, siehe SignInPage.onSignIn).
+ * Dies ist weiterhin eine rein client-seitige, "weiche" Sperre (Polling,
+ * keine RLS-Durchsetzung) — die eigentliche Sicherheitsgrenze bleibt der
+ * JWT-Ablauf nach einem "Alle Sessions abmelden".
+ *
  * @param condition - Funktion, die prüft, ob der Benutzer Zugriff hat.
  * @param children - Die geschützten Kind-Komponenten.
  */
@@ -226,6 +237,10 @@ export const AuthorizationGuard: React.FC<AuthorizationGuardProps> = ({
   const database = useDatabase();
   const navigate = useNavigate();
   const location = useLocation();
+  const {maintenanceMode} = useGlobalSettings();
+
+  const blockedByMaintenance =
+    maintenanceMode && !!authUser && !authUser.roles.includes(Role.admin);
 
   useEffect(() => {
     if (authUser === null) {
@@ -241,11 +256,16 @@ export const AuthorizationGuard: React.FC<AuthorizationGuardProps> = ({
         }
         // Wenn Session vorhanden, warten bis AuthUserProvider den authUser setzt.
       });
+    } else if (blockedByMaintenance) {
+      database.auth.signOut().then(() => {
+        navigate(ROUTE_SIGN_IN);
+      });
     } else if (!condition(authUser)) {
       navigate(ROUTE_NO_AUTH);
     }
-  }, [authUser, condition, navigate, location]);
+  }, [authUser, condition, navigate, location, blockedByMaintenance, database]);
 
-  // Während authUser null ist (Laden), nichts rendern; bei fehlender Berechtigung ebenfalls.
-  return condition(authUser) ? <>{children}</> : null;
+  // Während authUser null ist (Laden), bei fehlender Berechtigung oder
+  // während des Wartungsmodus-Logouts nichts rendern.
+  return condition(authUser) && !blockedByMaintenance ? <>{children}</> : null;
 };
