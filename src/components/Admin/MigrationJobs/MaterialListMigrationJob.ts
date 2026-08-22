@@ -13,6 +13,9 @@
  * - Material-UID → materials.firebase_uid → materials.id
  * - Menü-Firebase-UID → event_menues.firebase_uid → event_menues.id
  * - Meal-Firebase-UID → event_meals.firebase_uid → event_meals.id
+ * - `generated.fromUid` (Firebase UID) → users.legacy_firebase_uid → users.id,
+ *   wird explizit als `created_by` gesetzt (Spalten-Default `auth.uid()` ergibt
+ *   beim Insert über den service-role Client sonst NULL)
  *
  * Voraussetzungen:
  * - Events, Materials müssen bereits migriert sein
@@ -51,7 +54,11 @@ interface FirebaseMaterialListProperties {
   name: string;
   selectedMeals: string[];
   selectedMenues: string[];
-  generated: {date: unknown; fromUid: string; fromDisplayName: string};
+  generated: {
+    date: {seconds?: number; toDate?: () => Date} | Date | string | undefined;
+    fromUid: string;
+    fromDisplayName: string;
+  };
 }
 
 /** Eintrag in der MaterialList (Firebase-Format). */
@@ -92,6 +99,8 @@ export class MaterialListMigrationJob
   private menueIdByFirebaseUid: Map<string, string> = new Map();
   /** Meal firebase_uid → Postgres ID */
   private mealIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Supabase Auth UUID für Benutzer */
+  private userAuthUidByFirebaseUid: Map<string, string> = new Map();
   /** Bereits migrierte Event-IDs (Postgres) für schnelle Existenzprüfung */
   private existingEventIds: Set<string> | null = null;
 
@@ -177,7 +186,7 @@ export class MaterialListMigrationJob
    * Migriert alle Materiallisten eines Events nach Postgres.
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseMaterialListData>,
     _authUser: AuthUser,
   ): Promise<void> {
@@ -198,6 +207,15 @@ export class MaterialListMigrationJob
       if (!props) continue;
 
       const listId = crypto.randomUUID();
+
+      // Ersteller der Liste auflösen (Firebase-UID → Supabase Auth-UUID).
+      // Ohne diese explizite Auflösung würde created_by auf den Spalten-Default
+      // (auth.uid()) zurückfallen, der bei Inserts über den service-role Client
+      // (kein JWT-Kontext) immer NULL ergibt.
+      const generatedBy = props.generated?.fromUid
+        ? this.userAuthUidByFirebaseUid.get(props.generated.fromUid) ?? null
+        : null;
+      const generatedAt = this.toIsoString(props.generated?.date);
 
       // Menü-IDs auflösen
       const selectedMenues = (props.selectedMenues ?? [])
@@ -222,6 +240,8 @@ export class MaterialListMigrationJob
         selected_meals: selectedMeals,
         has_manually_added_items: hasManuallyAddedItems,
         firebase_uid: props.uid ?? listKey,
+        created_by: generatedBy,
+        ...(generatedAt ? {created_at: generatedAt} : {}),
       });
 
       // Items sammeln
@@ -249,6 +269,7 @@ export class MaterialListMigrationJob
           checked: item.checked ?? false,
           edit_source: editSource,
           sort_order: Number(itemIdx),
+          created_by: generatedBy,
         });
       }
     }
@@ -275,11 +296,13 @@ export class MaterialListMigrationJob
   private async buildLookupMaps(): Promise<void> {
     const client = supabaseAdmin!;
 
-    const [eventRows, materialRows, menueRows, mealRows] = await Promise.all([
+    const [eventRows, materialRows, menueRows, mealRows, userRows] = await Promise.all([
       fetchAllRows(client, "events", "id, firebase_uid"),
       fetchAllRows(client, "materials", "id, firebase_uid"),
       fetchAllRows(client, "event_menues", "id, firebase_uid"),
       fetchAllRows(client, "event_meals", "id, firebase_uid"),
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
     ]);
 
     for (const row of eventRows) {
@@ -294,5 +317,27 @@ export class MaterialListMigrationJob
     for (const row of mealRows) {
       if (row.firebase_uid) this.mealIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
     }
+    for (const row of userRows) {
+      if (row.legacy_firebase_uid && row.id) {
+        this.userAuthUidByFirebaseUid.set(row.legacy_firebase_uid as string, row.id as string);
+      }
+    }
+  }
+
+  /**
+   * Konvertiert einen Firebase-Timestamp (oder Date/String) in einen ISO-String.
+   *
+   * @param value - Firestore Timestamp, Date-Objekt, ISO-String oder undefined.
+   * @returns ISO-Datums-String, oder undefined falls kein Wert vorhanden ist.
+   */
+  private toIsoString(
+    value: {seconds?: number; toDate?: () => Date} | Date | string | undefined,
+  ): string | undefined {
+    if (!value) return undefined;
+    if (typeof value === "string") return value;
+    if (value instanceof Date) return value.toISOString();
+    if (typeof value.toDate === "function") return value.toDate().toISOString();
+    if (typeof value.seconds === "number") return new Date(value.seconds * 1000).toISOString();
+    return undefined;
   }
 }

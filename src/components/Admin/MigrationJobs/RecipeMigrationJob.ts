@@ -19,6 +19,8 @@
  * - `ingredient.product.uid` → `products.firebase_uid` → `products.id`
  * - `material.material.uid`  → `materials.firebase_uid` → `materials.id`
  * - `created.fromUid`        → `users.legacy_firebase_uid` → `users.id` (Supabase UUID, für created_by)
+ * - `created.date`           → wird explizit als `created_at` gesetzt (Spalten-Default
+ *   `now()` würde sonst das Migrations-Datum statt des echten Erstellungsdatums liefern)
  *
  * Voraussetzungen (müssen vor dieser Migration ausgeführt worden sein):
  * - Abteilungen, Einheiten, Materialien, Produkte, Benutzer
@@ -200,6 +202,22 @@ const ingredientPosTypeToDb = (posType: number): string => {
  */
 const stepPosTypeToDb = (posType: number): string => {
   return posType === 2 ? "section" : "preparation_step";
+};
+
+/**
+ * Konvertiert einen Firebase-Timestamp (oder Date/String) in einen ISO-String.
+ *
+ * @param value - Firestore Timestamp, Date-Objekt, ISO-String oder undefined.
+ * @returns ISO-Datums-String, oder undefined falls kein Wert vorhanden ist.
+ */
+const toIsoString = (
+  value: {toDate: () => Date} | Date | string | undefined,
+): string | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  return undefined;
 };
 
 /* =====================================================================
@@ -389,6 +407,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
     // 1. Supabase-Auth-UUID des Erstellers auflösen (für created_by / RLS)
     const createdBy =
       this.userAuthUidByFirebaseUid.get(data.firebaseCreatorUid) ?? null;
+    const createdAt = toIsoString(data.created?.date);
 
     // 2. Rezept-Kopfdaten einfügen (via Repository für Enum-Mapping)
     const {id: recipeId} = await recipes.insert({
@@ -493,6 +512,7 @@ export class RecipeMigrationJob implements MigrationJob<FirebaseRecipeData> {
     //    diese Operationen sind voneinander unabhängig, sobald recipeId bekannt ist.
     const updateFields: Record<string, unknown> = {firebase_uid: record.id};
     if (createdBy) updateFields.created_by = createdBy;
+    if (createdAt) updateFields.created_at = createdAt;
 
     const [updateResult, ingredientResult, stepResult, materialResult] =
       await Promise.all([
