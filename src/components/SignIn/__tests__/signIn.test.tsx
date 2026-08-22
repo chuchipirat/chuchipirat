@@ -312,10 +312,16 @@ describe("SignInPage", () => {
 
   describe("Wartungsmodus — Zugriff nur für Admins", () => {
     test("Nicht-Admin wird nach Login wieder ausgeloggt und bleibt auf der Sign-In-Seite", async () => {
-      mockGetSettings.mockResolvedValueOnce({
-        allowSignUp: true,
-        maintenanceMode: true,
-      });
+      // Zweimal .mockResolvedValueOnce (nicht mockResolvedValue): onSignIn
+      // liest den Wartungsmodus zusätzlich zum initialen Mount-Fetch
+      // nochmals frisch ab, um die Race Condition mit dem asynchron
+      // geladenen State zu vermeiden. mockResolvedValue würde die
+      // Standardimplementierung dauerhaft überschreiben (jest.clearAllMocks
+      // in beforeEach setzt nur Aufruf-Historie zurück, keine
+      // Implementierungen) und so spätere Tests in dieser Datei verfälschen.
+      mockGetSettings
+        .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true})
+        .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true});
       mockSignInWithPassword.mockResolvedValueOnce({
         user: {id: "supabase-uuid"},
       });
@@ -349,10 +355,11 @@ describe("SignInPage", () => {
     });
 
     test("Admin wird trotz Wartungsmodus angemeldet und navigiert weiter", async () => {
-      mockGetSettings.mockResolvedValueOnce({
-        allowSignUp: true,
-        maintenanceMode: true,
-      });
+      // Siehe Kommentar im vorherigen Test: zweimal .mockResolvedValueOnce
+      // statt .mockResolvedValue, um andere Tests nicht zu verfälschen.
+      mockGetSettings
+        .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true})
+        .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true});
       mockSignInWithPassword.mockResolvedValueOnce({
         user: {id: "supabase-uuid"},
       });
@@ -392,6 +399,76 @@ describe("SignInPage", () => {
 
       await waitFor(() => {
         expect(testLocation.pathname).toBe(ROUTE_HOME);
+      });
+      expect(mockSignOut).not.toHaveBeenCalled();
+    });
+
+    test("Nicht-Admin wird blockiert, obwohl der beim Mount geladene State noch 'false' war (Race Condition)", async () => {
+      // Simuliert genau den Bug: der initiale (Mount-)Fetch liefert noch
+      // `false` (z.B. weil der Wartungsmodus erst danach aktiviert wurde
+      // oder der Fetch beim Kaltstart der App langsam war). onSignIn muss
+      // den Status trotzdem frisch abfragen und darf sich nicht auf den
+      // veralteten State verlassen.
+      mockGetSettings
+        .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: false})
+        .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true});
+      mockSignInWithPassword.mockResolvedValueOnce({
+        user: {id: "supabase-uuid"},
+      });
+      mockFindOwnProfile.mockResolvedValueOnce({
+        uid: "user-123",
+        roles: ["basic"],
+      });
+      renderSignInPage();
+
+      // Wartungswarnung ist beim Mount NICHT sichtbar (State ist noch false)
+      await userEvent.type(
+        screen.getByLabelText(/e-mail/i),
+        "basic@example.com",
+      );
+      await userEvent.type(getPasswordField(), "geheim123");
+      await userEvent.click(screen.getByRole("button", {name: /anmelden/i}));
+
+      await waitFor(() => {
+        expect(mockSignOut).toHaveBeenCalled();
+      });
+      expect(testLocation.pathname).toBe("/signin");
+    });
+
+    test("Schlägt der frische Wartungsmodus-Read fehl, wird NICHT blockiert (fail-open)", async () => {
+      // Ein Admin muss sich immer einloggen können, um den Wartungsmodus
+      // wieder auszuschalten — ein fehlgeschlagener Read darf niemanden
+      // aussperren.
+      mockGetSettings
+        .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true})
+        .mockRejectedValueOnce(new Error("network error"));
+      mockSignInWithPassword.mockResolvedValueOnce({
+        user: {id: "supabase-uuid"},
+      });
+      mockFindOwnProfile.mockResolvedValueOnce({
+        uid: "user-123",
+        roles: ["basic"],
+      });
+      renderSignInPage();
+
+      await waitFor(() => {
+        expect(screen.getByText(/Wartungsmodus/i)).toBeInTheDocument();
+      });
+
+      await userEvent.type(
+        screen.getByLabelText(/e-mail/i),
+        "basic@example.com",
+      );
+      await userEvent.type(getPasswordField(), "geheim123");
+      await userEvent.click(screen.getByRole("button", {name: /anmelden/i}));
+
+      // Kein AuthUserContext simuliert hier einen bereits gesetzten User
+      // (anders als im Admin-Testfall oben) — daher wird nicht navigiert.
+      // Warten, bis der zweite (fehlschlagende) getSettings-Aufruf
+      // tatsächlich passiert ist, um sicherzustellen, dass der Catch-Zweig
+      // durchlaufen wurde, bevor geprüft wird, dass NICHT ausgeloggt wurde.
+      await waitFor(() => {
+        expect(mockGetSettings).toHaveBeenCalledTimes(2);
       });
       expect(mockSignOut).not.toHaveBeenCalled();
     });
