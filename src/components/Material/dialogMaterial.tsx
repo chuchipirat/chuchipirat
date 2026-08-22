@@ -23,8 +23,6 @@ import {
 
 import {Material, MaterialType} from "./material.types";
 import {useDatabase} from "../Database/DatabaseContext";
-import {FeedType} from "../Shared/feed.class";
-import {Role} from "../../constants/roles";
 
 import {
   DIALOG_TITLE_MATERIAL_ADD,
@@ -253,19 +251,6 @@ const DialogMaterial = ({
                 ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
                 clear: true,
               });
-
-              // Feed-Eintrag: Material erstellt
-              database.feeds
-                .insertFeed(
-                  {
-                    feedType: FeedType.materialCreated,
-                    visibility: Role.communityLeader,
-                    sourceObjectType: "material",
-                    sourceObjectUid: domain.uid,
-                  },
-                  authUser,
-                )
-                .catch((err) => Sentry.captureException(err, {extra: {context: "Material erstellen: Feed-Eintrag"}}));
             })
             .catch((error) => {
               Sentry.captureException(error, {extra: {context: "Material erstellen"}});
