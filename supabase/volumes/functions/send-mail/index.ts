@@ -37,6 +37,7 @@ import {
 } from "../_shared/emailService.ts";
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
+import {fetchAllRows} from "../_shared/fetchAllRows.ts";
 
 /* =====================================================================
 // Typen
@@ -200,18 +201,18 @@ serve(async (req: Request) => {
     }
 
     // Rollen-basierte Empfänger: E-Mail-Adressen aus public.users laden
+    // (paginiert - .select() ohne Range liefert bei Supabase/PostgREST
+    // standardmässig max. 1000 Zeilen und würde bei mehr Benutzern welche
+    // stillschweigend vom Versand ausschliessen)
     if (recipientType === "role") {
       const roles = recipients; // Rollen als Strings
-      const {data: users, error} = await supabaseAdmin
-        .from("users")
-        .select("email, roles")
-        .not("email", "is", null);
-      if (error) throw new Error(`Benutzer konnten nicht geladen werden: ${error.message}`);
-      resolvedRecipients = (users ?? [])
-        .filter((user: {email: string; roles: string[]}) =>
-          roles.some((role: string) => user.roles?.includes(role))
-        )
-        .map((user: {email: string}) => user.email);
+      const users = await fetchAllRows<{email: string; roles: string[]}>(
+        supabaseAdmin, "users", "email, roles",
+        (query) => query.not("email", "is", null),
+      );
+      resolvedRecipients = users
+        .filter((user) => roles.some((role: string) => user.roles?.includes(role)))
+        .map((user) => user.email);
     }
 
     if (!resolvedRecipients.length) {

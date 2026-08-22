@@ -68,8 +68,6 @@ import {UnitAutocomplete} from "../Unit/unitAutocomplete";
 
 import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";
 import {useDatabase} from "../Database/DatabaseContext";
-import {FeedType} from "../Shared/feed.class";
-import {Role} from "../../constants/roles";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -416,19 +414,6 @@ const DialogProduct = ({
             });
             handleOk(createdProduct);
             setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
-
-            // Feed-Eintrag: Produkt erstellt
-            database.feeds
-              .insertFeed(
-                {
-                  feedType: FeedType.productCreated,
-                  visibility: Role.communityLeader,
-                  sourceObjectType: "product",
-                  sourceObjectUid: result.uid,
-                },
-                authUser,
-              )
-              .catch((err) => Sentry.captureException(err, {extra: {context: "Feed-Eintrag fuer neues Produkt"}}));
           })
           .catch((error) => {
             Sentry.captureException(error, {extra: {context: "Produkt anlegen"}});

@@ -17,6 +17,7 @@ import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 import * as jose from "https://deno.land/x/jose@v4.14.4/index.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
+import {fetchAllRows} from "../_shared/fetchAllRows.ts";
 
 /** CORS-Header für alle Antworten */
 const corsHeaders = {
@@ -103,18 +104,18 @@ serve(async (req: Request) => {
   }
 
   try {
-    // Alle Nicht-Admin-Benutzer laden
-    const {data: users, error: usersError} = await supabaseAdmin
-      .from("users")
-      .select("id, roles");
-
-    if (usersError) throw usersError;
+    // Alle Nicht-Admin-Benutzer laden (paginiert - .select() ohne Range
+    // liefert bei Supabase/PostgREST standardmässig max. 1000 Zeilen und
+    // würde bei mehr Benutzern welche stillschweigend nicht abmelden)
+    const users = await fetchAllRows<{id: string; roles: string[]}>(
+      supabaseAdmin, "users", "id, roles",
+    );
 
     const nonAdminAuthUids: string[] = [];
     const signedOutUsers: string[] = [];
 
-    for (const user of users ?? []) {
-      if ((user.roles as string[]).includes("admin")) continue;
+    for (const user of users) {
+      if (user.roles.includes("admin")) continue;
       nonAdminAuthUids.push(user.id);
       signedOutUsers.push(user.id);
     }

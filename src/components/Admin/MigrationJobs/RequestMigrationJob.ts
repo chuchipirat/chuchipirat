@@ -7,7 +7,9 @@
  * 3. Kommentare (eingebettet in Firebase-Dokumenten → separate Tabelle)
  *
  * FK-Auflösungen:
- * - author.uid (Firebase-UID) → users.legacy_firebase_uid → users.id (Supabase UUID)
+ * - author.uid (Firebase-UID) → users.legacy_firebase_uid → users.id (Supabase UUID),
+ *   wird sowohl als fachliches author_uid als auch als Audit-Spalte created_by gesetzt
+ *   (Spalten-Default auth.uid() ergibt beim Insert über den service-role Client sonst NULL)
  * - assignee.uid (Firebase-UID) → users.legacy_firebase_uid → users.id (Supabase UUID)
  * - requestObject.uid (Rezept-ID) → recipes.id (über firebase_uid)
  *
@@ -251,6 +253,11 @@ export class RequestMigrationJob implements MigrationJob<FirebaseRequest> {
         change_log: changeLog,
         resolve_date: resolveDate,
         created_at: toIsoString(fb.createDate),
+        // author_uid ist das fachliche Feld (wer den Antrag gestellt hat);
+        // created_by ist die separate Audit-Spalte, die sonst auf den
+        // Spalten-Default (auth.uid()) zurückfiele - der bei Inserts über
+        // den service-role Client (kein JWT-Kontext) immer NULL ergibt.
+        created_by: authorAuthUid,
       })
       .select("id")
       .single();

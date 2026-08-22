@@ -9,6 +9,12 @@
  * - Event-Firebase-UID → events.firebase_uid → events.id
  * - Menue-Firebase-UID → event_menues.firebase_uid → event_menues.id
  * - Meal-Firebase-UID → event_meals.firebase_uid → event_meals.id
+ * - `properties.generated.fromUid` → `users.legacy_firebase_uid` → `users.id`,
+ *   wird explizit als `created_by` gesetzt (Spalten-Default `auth.uid()`
+ *   ergibt beim Insert über den service-role Client sonst NULL). Nicht zu
+ *   verwechseln mit dem dokumentweiten `lastChange`-Feld auf oberster Ebene
+ *   des Firestore-Dokuments — das betrifft die letzte Änderung am gesamten
+ *   Dokument, nicht die Erstellung der einzelnen Liste.
  *
  * Voraussetzungen (müssen vor diesem Job ausgeführt worden sein):
  * - Events, Menupläne (für event_menues und event_meals)
@@ -35,9 +41,30 @@ interface FirebaseUsedRecipeListEntry {
     name: string;
     selectedMeals: string[];
     selectedMenues: string[];
+    generated?: {
+      date?: {toDate: () => Date} | Date | string;
+      fromUid?: string;
+      fromDisplayName?: string;
+    };
   };
   // recipes wird ignoriert — in Supabase per RPC abgeleitet
 }
+
+/**
+ * Konvertiert einen Firebase-Timestamp (oder Date/String) in einen ISO-String.
+ *
+ * @param value - Firestore Timestamp, Date-Objekt, ISO-String oder undefined.
+ * @returns ISO-Datums-String, oder undefined falls kein Wert vorhanden ist.
+ */
+const toIsoString = (
+  value: {toDate: () => Date} | Date | string | undefined,
+): string | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  return undefined;
+};
 
 /** Vollständige Firebase-Datenstruktur des UsedRecipes-Dokuments eines Events. */
 interface FirebaseUsedRecipesData {
@@ -70,6 +97,8 @@ export class UsedRecipesMigrationJob
   private menueIdByFirebaseUid: Map<string, string> = new Map();
   /** firebase_uid → Postgres-ID für Meals (event-übergreifend) */
   private mealIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Supabase-Auth-UUID für Benutzer */
+  private userAuthUidByFirebaseUid: Map<string, string> = new Map();
   /** Bereits migrierte Event-IDs (Postgres) für schnelle Existenzprüfung */
   private existingEventIds: Set<string> | null = null;
 
@@ -173,7 +202,7 @@ export class UsedRecipesMigrationJob
    * @param authUser - Der angemeldete Admin-Benutzer
    */
   async migrateRecord(
-    database: DatabaseService,
+    _database: DatabaseService,
     record: SourceRecord<FirebaseUsedRecipesData>,
     _authUser: AuthUser,
   ): Promise<void> {
@@ -203,12 +232,23 @@ export class UsedRecipesMigrationJob
         .map((uid) => this.mealIdByFirebaseUid.get(uid))
         .filter((id): id is string => !!id);
 
+      // Ersteller auflösen (Firebase-UID → Supabase Auth-UUID). Ohne diese
+      // explizite Auflösung würde created_by auf den Spalten-Default
+      // (auth.uid()) zurückfallen, der bei Inserts über den service-role
+      // Client (kein JWT-Kontext) immer NULL ergibt.
+      const createdBy = props.generated?.fromUid
+        ? this.userAuthUidByFirebaseUid.get(props.generated.fromUid) ?? null
+        : null;
+      const createdAt = toIsoString(props.generated?.date);
+
       listRows.push({
         event_id: eventId,
         name: props.name ?? "",
         firebase_uid: props.uid ?? listKey,
         selected_menue_ids: menueIds,
         selected_meal_ids: mealIds,
+        created_by: createdBy,
+        ...(createdAt ? {created_at: createdAt} : {}),
       });
     }
 
@@ -231,10 +271,12 @@ export class UsedRecipesMigrationJob
   private async buildLookupMaps(): Promise<void> {
     const client = supabaseAdmin!;
 
-    const [eventRows, menueRows, mealRows] = await Promise.all([
+    const [eventRows, menueRows, mealRows, userRows] = await Promise.all([
       fetchAllRows(client, "events", "id, firebase_uid"),
       fetchAllRows(client, "event_menues", "id, firebase_uid"),
       fetchAllRows(client, "event_meals", "id, firebase_uid"),
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
     ]);
 
     for (const row of eventRows) {
@@ -257,6 +299,11 @@ export class UsedRecipesMigrationJob
           row.firebase_uid as string,
           row.id as string,
         );
+    }
+    for (const row of userRows) {
+      if (row.legacy_firebase_uid && row.id) {
+        this.userAuthUidByFirebaseUid.set(row.legacy_firebase_uid as string, row.id as string);
+      }
     }
   }
 }

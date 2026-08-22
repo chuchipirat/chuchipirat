@@ -6,6 +6,9 @@
  *
  * FK-Auflösung:
  * - Event-Firebase-UID → `events.firebase_uid` → `events.id`
+ * - `created.fromUid` → `users.legacy_firebase_uid` → `users.id` (Supabase UUID, für created_by)
+ * - `created.date` → wird explizit als `created_at` gesetzt (Spalten-Default
+ *   `now()` würde sonst das Migrations-Datum statt des echten Erstellungsdatums liefern)
  *
  * Voraussetzungen (müssen vor diesem Job ausgeführt worden sein):
  * - Events (EventMigrationJob)
@@ -58,7 +61,29 @@ interface FirebaseGroupConfigData {
   diets: FirebaseGroupConfigObjectStructure<FirebaseGroupConfigItem>;
   intolerances: FirebaseGroupConfigObjectStructure<FirebaseGroupConfigItem>;
   portions: FirebasePortions;
+  /** Datum wird von Firestore als Timestamp mit .toDate() geliefert */
+  created?: {
+    date?: {toDate: () => Date} | Date | string;
+    fromUid?: string;
+    fromDisplayName?: string;
+  };
 }
+
+/**
+ * Konvertiert einen Firebase-Timestamp (oder Date/String) in einen ISO-String.
+ *
+ * @param value - Firestore Timestamp, Date-Objekt, ISO-String oder undefined.
+ * @returns ISO-Datums-String, oder undefined falls kein Wert vorhanden ist.
+ */
+const toIsoString = (
+  value: {toDate: () => Date} | Date | string | undefined,
+): string | undefined => {
+  if (!value) return undefined;
+  if (typeof value === "string") return value;
+  if (value instanceof Date) return value.toISOString();
+  if (typeof value.toDate === "function") return value.toDate().toISOString();
+  return undefined;
+};
 
 /* =====================================================================
 // GroupConfigMigrationJob
@@ -79,6 +104,8 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
 
   /** firebase_uid → Postgres-ID für Events */
   private eventIdByFirebaseUid: Map<string, string> = new Map();
+  /** firebase_uid → Supabase-Auth-UUID für Benutzer */
+  private userAuthUidByFirebaseUid: Map<string, string> = new Map();
 
   /** Vorgeladene Event-IDs aus der Diät-Tabelle für schnelle Existenzprüfung */
   private existingEventIds: Set<string> | null = null;
@@ -130,6 +157,7 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
           diets: value.diets ?? {entries: {}, order: []},
           intolerances: value.intolerances ?? {entries: {}, order: []},
           portions: value.portions ?? {},
+          created: value.created ?? {},
         },
       });
     }
@@ -186,6 +214,15 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
       );
     }
 
+    // Ersteller auflösen (Firebase-UID → Supabase Auth-UUID). Ohne diese
+    // explizite Auflösung würde created_by auf den Spalten-Default
+    // (auth.uid()) zurückfallen, der bei Inserts über den service-role
+    // Client (kein JWT-Kontext) immer NULL ergibt.
+    const createdBy = data.created?.fromUid
+      ? this.userAuthUidByFirebaseUid.get(data.created.fromUid) ?? null
+      : null;
+    const createdAt = toIsoString(data.created?.date);
+
     // Lookup-Maps für Diet/Intolerance Firebase-UIDs → Postgres-IDs (werden in diesem Job befüllt)
     const dietIdByFirebaseUid = new Map<string, string>();
     const intoleranceIdByFirebaseUid = new Map<string, string>();
@@ -204,6 +241,8 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
           name: diet.name ?? "",
           sort_order: index * 10,
           firebase_uid: dietFirebaseUid,
+          created_by: createdBy,
+          ...(createdAt ? {created_at: createdAt} : {}),
         })
         .select("id")
         .single();
@@ -226,6 +265,8 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
           name: intolerance.name ?? "",
           sort_order: index * 10,
           firebase_uid: intoleranceFirebaseUid,
+          created_by: createdBy,
+          ...(createdAt ? {created_at: createdAt} : {}),
         })
         .select("id")
         .single();
@@ -251,6 +292,8 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
           diet_id: dietId,
           intolerance_id: intoleranceId,
           servings: intolerancePortions[intoleranceFirebaseUid] ?? 0,
+          created_by: createdBy,
+          ...(createdAt ? {created_at: createdAt} : {}),
         });
       }
     }
@@ -274,11 +317,20 @@ export class GroupConfigMigrationJob implements MigrationJob<FirebaseGroupConfig
   private async buildLookupMaps(): Promise<void> {
     const client = supabaseAdmin!;
 
-    const eventRows = await fetchAllRows(client, "events", "id, firebase_uid");
+    const [eventRows, userRows] = await Promise.all([
+      fetchAllRows(client, "events", "id, firebase_uid"),
+      fetchAllRows(client, "users", "id, legacy_firebase_uid",
+        (query) => query.not("legacy_firebase_uid", "is", null)),
+    ]);
 
     for (const row of eventRows) {
       if (row.firebase_uid) {
         this.eventIdByFirebaseUid.set(row.firebase_uid as string, row.id as string);
+      }
+    }
+    for (const row of userRows) {
+      if (row.legacy_firebase_uid && row.id) {
+        this.userAuthUidByFirebaseUid.set(row.legacy_firebase_uid as string, row.id as string);
       }
     }
   }

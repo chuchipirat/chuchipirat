@@ -30,7 +30,7 @@ import {useCustomStyles} from "../../../constants/styles";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 
-import {DonationDomain, DonationStatus} from "../../Donate/donation.types";
+import {DonationDomain, DonationStatus, COUNTABLE_DONATION_STATUSES} from "../../Donate/donation.types";
 
 import {
   DONATIONS_OVERVIEW as TEXT_DONATIONS_OVERVIEW,
@@ -107,7 +107,7 @@ const OverviewDonationsPage = () => {
   /** Zusammenfassende Statistiken. */
   const stats = useMemo(() => {
     const confirmed = donations.filter(
-      (donation) => donation.status === DonationStatus.confirmed,
+      (donation) => COUNTABLE_DONATION_STATUSES.includes(donation.status),
     );
     const totalCents = confirmed.reduce(
       (sum, donation) => sum + donation.amountInCents,

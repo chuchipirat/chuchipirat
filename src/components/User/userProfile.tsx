@@ -75,7 +75,7 @@ import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {FeedType} from "../Shared/feed.class";
 import {LocalStorageKey} from "../../constants/localStorage";
-import {DonationDomain} from "../Donate/donation.types";
+import {DonationDomain, COUNTABLE_DONATION_STATUSES} from "../Donate/donation.types";
 import {DonationReceiptPdf} from "../Donate/DonationReceiptPdf";
 import {generateAndDownloadPdf} from "../Shared/pdfUtils";
 
@@ -312,7 +312,9 @@ const UserProfilePage = () => {
     if (!authUser) return;
     database.donations
       .getMyDonations(authUser)
-      .then((result) => setDonations(result.filter((donation) => donation.status === "confirmed")))
+      .then((result) => setDonations(
+        result.filter((donation) => COUNTABLE_DONATION_STATUSES.includes(donation.status)),
+      ))
       .catch((error) => Sentry.captureException(error));
   }, [authUser?.uid]);
   /* ------------------------------------------

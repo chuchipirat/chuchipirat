@@ -32,6 +32,7 @@ import {
   sentryCheckIn,
 } from "../_shared/cronJobHelper.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
+import {fetchAllRows} from "../_shared/fetchAllRows.ts";
 
 /* =====================================================================
 // Konstanten & Label-Maps
@@ -120,6 +121,15 @@ type ConfirmedDonation = {
 
 /** Aggregierter Zähler pro aktionsbasiertem Feed-Typ. */
 type ActionCount = {feed_type: string; count: number};
+
+/** Offener, unzugewiesener Antrag für die Digest-Anzeige. */
+type OpenRequest = {
+  id: string;
+  number: number;
+  recipe_name: string | null;
+  created_at: string;
+  author_display_name: string | null;
+};
 
 /* =====================================================================
 // Hilfsfunktionen
@@ -472,6 +482,25 @@ async function fetchConfirmedDonations(
   }));
 }
 
+/**
+ * Lädt alle offenen, unzugewiesenen Anträge (nicht auf "gestern" begrenzt —
+ * im Gegensatz zu den anderen fetch*-Funktionen hier, da offene Anträge
+ * sich über die Zeit ansammeln). Paginiert - .select() ohne Range liefert
+ * bei Supabase/PostgREST standardmässig max. 1000 Zeilen und würde bei
+ * einem grösseren Rückstand welche stillschweigend aus dem Digest und der
+ * Zählung ausschliessen.
+ */
+async function fetchOpenRequests(client: SupabaseClient): Promise<OpenRequest[]> {
+  return fetchAllRows<OpenRequest>(
+    client, "requests_view",
+    "id, number, recipe_name, created_at, author_display_name",
+    (query) => query
+      .in("status", ["created", "inReview"])
+      .is("assignee_uid", null)
+      .order("created_at", {ascending: false}),
+  );
+}
+
 /* =====================================================================
 // Sektions-Builder
 // ===================================================================== */
@@ -695,15 +724,7 @@ function buildDonationsSection(donations: ConfirmedDonation[]): string {
  * @param openRequests Array offener Anträge aus requests_view.
  * @returns HTML-String oder leerer String wenn keine offenen Anträge.
  */
-function buildOpenRequestsHtml(
-  openRequests: {
-    id: string;
-    number: number;
-    recipe_name: string | null;
-    created_at: string;
-    author_display_name: string | null;
-  }[]
-): string {
+function buildOpenRequestsHtml(openRequests: OpenRequest[]): string {
   if (openRequests.length === 0) return "";
 
   const siteUrl = (Deno.env.get("SITE_URL") ?? "https://chuchipirat.ch").replace(/\/$/, "");
@@ -922,7 +943,7 @@ serve(async (req: Request) => {
       getYesterdayBoundaries();
 
     // 1. Alle Datenquellen parallel abfragen
-    const [newUsers, newEvents, newRecipes, recipeComments, newProducts, newMaterials, actionCounts, confirmedDonations, requestResult] =
+    const [newUsers, newEvents, newRecipes, recipeComments, newProducts, newMaterials, actionCounts, confirmedDonations, openRequests] =
       await Promise.all([
         fetchNewUsers(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchNewEvents(supabaseAdmin, yesterdayStart, yesterdayEnd),
@@ -932,25 +953,8 @@ serve(async (req: Request) => {
         fetchNewMaterials(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchActionFeedCounts(supabaseAdmin, yesterdayStart, yesterdayEnd),
         fetchConfirmedDonations(supabaseAdmin, yesterdayStart, yesterdayEnd),
-        supabaseAdmin
-          .from("requests_view")
-          .select("id, number, recipe_name, created_at, author_display_name")
-          .in("status", ["created", "inReview"])
-          .is("assignee_uid", null)
-          .order("created_at", {ascending: false}),
+        fetchOpenRequests(supabaseAdmin),
       ]);
-
-    // Offene Anträge auswerten
-    if (requestResult.error) {
-      throw new Error(`Antrags-Abfrage fehlgeschlagen: ${requestResult.error.message}`);
-    }
-    const openRequests = (requestResult.data ?? []) as {
-      id: string;
-      number: number;
-      recipe_name: string | null;
-      created_at: string;
-      author_display_name: string | null;
-    }[];
 
     // 2. Prüfen ob es etwas zu senden gibt
     const totalActionFeeds = actionCounts.reduce(
