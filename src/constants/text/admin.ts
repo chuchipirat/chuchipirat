@@ -73,6 +73,11 @@ export const EDITOR = "Editor";
 export const SUBJECT = "Betreff";
 export const TITLE = "Titel";
 export const SUB_TITLE = "Untertitel";
+export const PREHEADER = "Vorschautext (Posteingang-Vorschau)";
+export const PREHEADER_HELPER_TEXT =
+  "Wird nicht angezeigt, sondern als Vorschau im Posteingang genutzt (ca. 40–90 Zeichen).";
+export const MAIL_PERSONALIZATION_HELPER_TEXT =
+  "Personalisierung: {{firstName}}, {{lastName}} und {{displayName}} werden pro Empfänger ersetzt (nur bei Empfängern aus der Nutzerliste).";
 export const MAILTEXT = "E-Mail Nachricht";
 export const DIVIDE_MULTIPLE_VALUES_BY_SEMICOLON =
   "Trenne mehrere Werte mit Semmikolon.";

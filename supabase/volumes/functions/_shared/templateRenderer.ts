@@ -27,6 +27,14 @@ const HEADER = `<!DOCTYPE html>
   <title>{{subject}}</title>
 </head>
 <body style="margin: 0; padding: 0; background-color: #f5f5f5; font-family: 'Roboto', 'Helvetica Neue', Arial, sans-serif;">
+  <div style="display:none; max-height:0; overflow:hidden; mso-hide:all;">
+    {{preheaderText}}
+    &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+    &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+    &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+    &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+    &zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;&zwnj;&nbsp;
+  </div>
   <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background-color: #f5f5f5;">
     <tr>
       <td align="center" style="padding: 40px 20px;">
@@ -510,15 +518,22 @@ export function renderEmailTemplate(
     // Handlebars-Rendering (unterstützt Conditionals, Loops etc.).
     // {{variable}} escaped bereits automatisch — kein zusätzliches escapeHtml()
     // hier, sonst wird z.B. ' zu &#039; und dann nochmals zu &amp;#039;.
-    const safeVars: Record<string, unknown> = {...variables};
+    // preheaderText defaultet auf leer, damit Aufrufer, die keinen Vorschautext
+    // setzen (Handlebars rendert fehlende Variablen ohnehin leer — hier nur
+    // für Konsistenz mit dem Legacy-Zweig unten explizit vorbelegt).
+    const safeVars: Record<string, unknown> = {preheaderText: "", ...variables};
     for (const [key, value] of Object.entries(rawVariables)) {
       safeVars[key] = value;
     }
     const template = Handlebars.compile(fullTemplate);
     rendered = template(safeVars);
   } else {
-    // Einfache {{variable}}-Ersetzung (Legacy)
-    const safeVars: Record<string, string> = {};
+    // Einfache {{variable}}-Ersetzung (Legacy). preheaderText defaultet auf
+    // leer, damit Aufrufer, die keinen Vorschautext setzen, nicht den
+    // literalen Platzhalter "{{preheaderText}}" im (für Gmails Vorschau-Text-
+    // Extraktion sichtbaren, optisch aber verstecktem) Preheader-Block stehen
+    // haben.
+    const safeVars: Record<string, string> = {preheaderText: ""};
     for (const [key, value] of Object.entries(variables)) {
       safeVars[key] = escapeHtml(String(value));
     }
