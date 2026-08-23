@@ -329,12 +329,21 @@ const ProductsPage = () => {
         {editMode && state.selectedProductUids.length > 0 && (
           <ProductsQaBulkActions
             selectedCount={state.selectedProductUids.length}
+            selectedProducts={state.products
+              .filter((product) => state.selectedProductUids.includes(product.uid))
+              .map((product) => ({uid: product.uid, name: product.name}))}
             departments={state.departments}
             onBulkDepartmentChange={hook.onBulkDepartmentChange}
             onBulkDietChange={hook.onBulkDietChange}
             onBulkQaCheck={hook.onBulkQaCheck}
             onMerge={openMergeFromSelection}
             canMerge={state.selectedProductUids.length === 2}
+            onRemoveSelected={(uid) =>
+              hook.onSelectionChange(
+                state.selectedProductUids.filter((selectedUid) => selectedUid !== uid),
+              )
+            }
+            onClearSelection={() => hook.onSelectionChange([])}
           />
         )}
 
@@ -1189,6 +1198,7 @@ const ProductsTable = ({
           getRowId={(row) => row.uid}
           pagination
           checkboxSelection={editMode}
+          keepNonExistentRowsSelected
           rowSelectionModel={selectedProductUids}
           onRowSelectionModelChange={handleSelectionChange}
           localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
