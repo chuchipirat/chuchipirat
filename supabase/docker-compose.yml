@@ -182,6 +182,10 @@ services:
       GOTRUE_MAILER_TEMPLATES_RECOVERY: http://supabase-mail-templates-test/recovery.html
       GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://supabase-mail-templates-test/email_change.html
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
+      # Deutsche Betreffzeilen (GoTrue-Default ist Englisch, unabhängig vom HTML-Template)
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "E-Mail-Adresse bestätigen"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Passwort zurücksetzen"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "Neue E-Mail-Adresse bestätigen"
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}

@@ -8,6 +8,10 @@ import {ConfirmEmailChangePage} from "./confirmEmailChange";
 import {RecoverEmailPage} from "./recoverEmail";
 import {ResetPasswordPage} from "./resetPassword";
 import {PageTitle} from "../Shared/pageTitle";
+import {
+  initialAuthCallbackHash,
+  initialAuthCallbackSearch,
+} from "../Database/supabaseClient";
 
 import {useCustomStyles} from "../../constants/styles";
 import * as TEXT from "../../constants/text";
@@ -116,10 +120,17 @@ function detectMode(search: string, hash: string): DetectedMode {
  */
 export const AuthServiceHandlerPage = () => {
   const location = useLocation();
-  // Modus einmalig beim ersten Render erfassen, bevor Supabase
-  // die URL-Parameter entfernt (PKCE code cleanup).
+  // Modus einmalig beim ersten Render erfassen. Bevorzugt den Schnappschuss
+  // aus supabaseClient.ts (vor jeglicher Supabase-Verarbeitung eingefroren,
+  // siehe Kommentar dort) — location.hash/.search können zu diesem Zeitpunkt
+  // bereits vom Supabase-Client geleert worden sein. Fallback auf location.*
+  // greift in Tests (MemoryRouter berührt window.location nie) sowie für
+  // den seltenen Fall einer SPA-internen Navigation auf diese Route.
   const {mode, oobCode, errorDescription} = React.useRef(
-    detectMode(location.search, location.hash)
+    detectMode(
+      initialAuthCallbackSearch || location.search,
+      initialAuthCallbackHash || location.hash,
+    )
   ).current;
 
   return (
