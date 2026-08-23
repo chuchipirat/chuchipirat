@@ -133,10 +133,36 @@ describe("RecipeRepository", () => {
       expect(row.menu_types).toEqual(["main_course"]);
       expect(row.recipe_type).toBe("public");
       expect(row.outdoor_kitchen_suitable).toBe(false);
+      expect(row.time_preparation).toBe(20);
+      expect(row.time_rest).toBe(0);
+      expect(row.time_cooking).toBe(45);
       // no_comments wird nicht im toRow() gesetzt — wird vom DB-Trigger gepflegt
       expect((row as any).no_comments).toBeUndefined();
       // id darf nicht mitgesendet werden
       expect(row.id).toBeUndefined();
+    });
+
+    test("toRow(): akzeptiert Zeitwerte als String (Editier-Formular liefert event.target.value ungewandelt)", () => {
+      // Regression: das Formular setzt times.* über einen generischen
+      // String-Change-Handler, wodurch der State trotz number-Typisierung
+      // Strings enthalten kann. Number.isFinite("20") ist false und hätte
+      // die Werte früher stillschweigend auf 0 zurückgesetzt.
+      const domainWithStringTimes = {
+        ...testDomain,
+        times: {preparation: "20" as unknown as number, rest: "0" as unknown as number, cooking: "45" as unknown as number},
+      };
+      const row = repo.toRow(domainWithStringTimes);
+      expect(row.time_preparation).toBe(20);
+      expect(row.time_rest).toBe(0);
+      expect(row.time_cooking).toBe(45);
+    });
+
+    test("toRow(): fällt bei fehlendem times-Objekt auf 0 zurück", () => {
+      const domainWithoutTimes = {...testDomain, times: undefined as unknown as RecipeDomain["times"]};
+      const row = repo.toRow(domainWithoutTimes);
+      expect(row.time_preparation).toBe(0);
+      expect(row.time_rest).toBe(0);
+      expect(row.time_cooking).toBe(0);
     });
 
     test("toDomain(): DB-Zeile → Domain mit korrekten numerischen Enum-Werten", () => {

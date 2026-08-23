@@ -255,6 +255,23 @@ export interface RecipeDomain {
   createdBy: string;
 }
 
+/**
+ * Wandelt einen Wert in eine gültige Ganzzahl um, mit `0` als Fallback.
+ *
+ * Notwendig, da das Editier-Formular Zeitfelder (times.preparation/
+ * rest/cooking) über einen generischen `event.target.value`-Handler
+ * setzt und dabei als String im State landet, obwohl `RecipeDomain`
+ * sie als `number` typisiert — `Number.isFinite("20")` wäre `false`
+ * und hätte den Wert stillschweigend auf 0 zurückgesetzt.
+ *
+ * @param value - Roher Wert aus dem Domain-Objekt (number, string oder undefined).
+ * @returns Gültige Ganzzahl, `0` falls `value` nicht in eine Zahl umwandelbar ist.
+ */
+function toSafeInteger(value: unknown): number {
+  const num = Number(value);
+  return Number.isFinite(num) ? num : 0;
+}
+
 /* =====================================================================
 // RecipeRepository
 // ===================================================================== */
@@ -285,9 +302,9 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
       name: domain.name,
       portions: domain.portions,
       source: domain.source,
-      time_preparation: Number.isFinite(domain.times?.preparation) ? domain.times.preparation : 0,
-      time_rest: Number.isFinite(domain.times?.rest) ? domain.times.rest : 0,
-      time_cooking: Number.isFinite(domain.times?.cooking) ? domain.times.cooking : 0,
+      time_preparation: toSafeInteger(domain.times?.preparation),
+      time_rest: toSafeInteger(domain.times?.rest),
+      time_cooking: toSafeInteger(domain.times?.cooking),
       picture_src: domain.pictureSrc ?? "",
       note: domain.note ?? "",
       tags: domain.tags ?? [],
