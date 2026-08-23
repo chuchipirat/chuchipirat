@@ -207,9 +207,32 @@ export class RecipeVariantMigrationJob
   // Alle Varianten-Rezepte aus Firebase lesen
   // ===================================================================== */
   /**
-   * Liest alle Varianten-Rezepte aus Firestore.
-   * Iteriert über `recipes/variants/events/` und liest die Subcollection `recipes/`
-   * jedes Events.
+   * Liest alle Varianten-Rezepte aus Firestore, indem für JEDES bekannte
+   * Event (aus der zuverlässigen Top-Level-`events`-Collection) direkt
+   * dessen `recipes/variants/events/{eventUid}/recipes`-Subcollection
+   * abgefragt wird.
+   *
+   * Bewusst KEINE Auflistung von `recipes/variants/events/` selbst (weder
+   * per normaler Collection-Abfrage noch per `collectionGroup`): Firestore
+   * listet bzw. indexiert Zwischen-Dokumente, die nie selbst mit Feldern
+   * beschrieben wurden und nur implizit durch verschachtelte
+   * Schreibzugriffe entstanden sind ("Ghost-Dokumente"), unzuverlässig.
+   * Manche Events hatten nie ein eigenes
+   * `recipes/variants/events/{eventUid}`-Dokument mit eigenen Feldern,
+   * wodurch deren komplette Varianten-Liste beim Auflisten dieser
+   * Zwischen-Ebene unsichtbar blieb (keine Fehlermeldung, kein Log-Eintrag
+   * - die Datensätze wurden nie zu Kandidaten).
+   *
+   * Eine Subcollection-Abfrage an einem BEKANNTEN Pfad
+   * (`recipes/variants/events/{eventUid}/recipes`) ist davon nicht
+   * betroffen — sie funktioniert unabhängig davon, ob das
+   * Zwischen-Dokument `{eventUid}` selbst je explizit angelegt wurde. Da
+   * die Top-Level-`events`-Collection (anders als das Zwischen-Dokument)
+   * zuverlässig jedes Event enthält — sie wird von jedem anderen
+   * Migrations-Job genauso gelesen (z.B. `EventMigrationJob.ts`) —, liefert
+   * das Iterieren über ALLE bekannten Events + gezielte Subcollection-
+   * Abfrage pro Event garantiert jede Variante, unabhängig vom
+   * Ghost-Dokument-Zustand.
    *
    * Baut ausserdem Lookup-Maps für FK-Auflösungen auf.
    *
@@ -236,15 +259,22 @@ export class RecipeVariantMigrationJob
 
     const records: SourceRecord<FirebaseVariantRecipeData>[] = [];
 
-    // Alle Event-Dokumente unter recipes/variants/events/ lesen
+    // Alle Events aus der zuverlässigen Top-Level-events-Collection lesen
+    // (nicht recipes/variants/events auflisten — siehe Methoden-Doc oben).
     const eventsSnapshot = await getDocs(
-      collection(firebase.firestore, "recipes/variants/events"),
+      collection(firebase.firestore, "events"),
     );
 
     for (const eventDoc of eventsSnapshot.docs) {
       const firebaseEventUid = eventDoc.id;
 
-      // Varianten-Rezepte für dieses Event laden
+      // Meta-Dokument überspringen (analog zu allen anderen event-basierten
+      // Migrations-Jobs)
+      if (firebaseEventUid === "000_allEvents") continue;
+
+      // Varianten-Subcollection dieses Events direkt abfragen — funktioniert
+      // auch, wenn recipes/variants/events/{firebaseEventUid} selbst nie
+      // explizit angelegt wurde.
       const recipesSnapshot = await getDocs(
         collection(
           firebase.firestore,
