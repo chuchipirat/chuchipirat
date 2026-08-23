@@ -167,7 +167,12 @@ services:
       # Uncomment to bypass nonce check in ID Token flow. Commonly set to true when using Google Sign In on mobile.
       # GOTRUE_EXTERNAL_SKIP_NONCE_CHECK: "true"
 
-      # GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
+      # GoTrue-Default für dieses Setting ist "true" (auch wenn hier
+      # auskommentiert) — daher explizit auf "false" gesetzt. Nur die neue
+      # E-Mail-Adresse muss bestätigt werden, nicht zusätzlich die alte
+      # (Frontend/ConfirmEmailChangePage ist ohnehin nur für Single-Confirm
+      # gebaut; Zwei-Schritt-Bestätigung würde als "Link nicht erkannt" enden).
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "false"
       # GOTRUE_SMTP_MAX_FREQUENCY: 1s
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
       GOTRUE_SMTP_HOST: ${SMTP_HOST}
@@ -182,6 +187,10 @@ services:
       GOTRUE_MAILER_TEMPLATES_RECOVERY: http://supabase-mail-templates-prod/recovery.html
       GOTRUE_MAILER_TEMPLATES_EMAIL_CHANGE: http://supabase-mail-templates-prod/email_change.html
       GOTRUE_MAILER_URLPATHS_EMAIL_CHANGE: ${MAILER_URLPATHS_EMAIL_CHANGE}
+      # Deutsche Betreffzeilen (GoTrue-Default ist Englisch, unabhängig vom HTML-Template)
+      GOTRUE_MAILER_SUBJECTS_CONFIRMATION: "E-Mail-Adresse bestätigen"
+      GOTRUE_MAILER_SUBJECTS_RECOVERY: "Passwort zurücksetzen"
+      GOTRUE_MAILER_SUBJECTS_EMAIL_CHANGE: "Neue E-Mail-Adresse bestätigen"
 
       GOTRUE_EXTERNAL_PHONE_ENABLED: ${ENABLE_PHONE_SIGNUP}
       GOTRUE_SMS_AUTOCONFIRM: ${ENABLE_PHONE_AUTOCONFIRM}

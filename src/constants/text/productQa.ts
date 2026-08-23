@@ -47,6 +47,7 @@ export const PRODUCTS_SELECTED = (count: number) =>
 export const BULK_CHANGE_DEPARTMENT = "Abteilung ändern";
 export const BULK_CHANGE_DIET = "Diät ändern";
 export const BULK_QA_CHECK = "Als geprüft markieren";
+export const CLEAR_SELECTION = "Alle entfernen";
 
 /* =====================================================================
 // Synonyme

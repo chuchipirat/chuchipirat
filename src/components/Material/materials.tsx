@@ -656,9 +656,18 @@ const MaterialPage = () => {
         {editMode && state.selectedMaterialUids.length > 0 && (
           <MaterialsQaBulkActions
             selectedCount={state.selectedMaterialUids.length}
+            selectedMaterials={state.materials
+              .filter((material) => state.selectedMaterialUids.includes(material.uid))
+              .map((material) => ({uid: material.uid, name: material.name}))}
             onBulkQaCheck={onBulkQaCheck}
             onMerge={openMergeFromSelection}
             canMerge={state.selectedMaterialUids.length === 2}
+            onRemoveSelected={(uid) =>
+              onSelectionChange(
+                state.selectedMaterialUids.filter((selectedUid) => selectedUid !== uid),
+              )
+            }
+            onClearSelection={() => onSelectionChange([])}
           />
         )}
 
@@ -1226,6 +1235,7 @@ const MaterialsTable = ({
           getRowId={(row) => row.uid}
           pagination
           checkboxSelection={editMode}
+          keepNonExistentRowsSelected
           rowSelectionModel={selectedMaterialUids}
           onRowSelectionModelChange={handleSelectionChange}
           localeText={deDE.components.MuiDataGrid.defaultProps.localeText}

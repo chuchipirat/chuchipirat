@@ -24,6 +24,7 @@ export const SHOW_ISSUES_ONLY = "Nur mit Problemen";
 export const MATERIALS_SELECTED = (count: number) =>
   `${count} Materialien ausgewählt`;
 export const BULK_QA_CHECK = "Als geprüft markieren";
+export const CLEAR_SELECTION = "Alle entfernen";
 
 /* =====================================================================
 // Material löschen

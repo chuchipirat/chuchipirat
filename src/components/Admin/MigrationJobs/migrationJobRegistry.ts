@@ -37,12 +37,16 @@ import {RecipeRatingMigrationJob} from "./RecipeRatingMigrationJob";
  * 4. Produkte (hängt von Abteilungen und Einheiten ab)
  * 5. Standard-Umrechnungen (hängt von Einheiten ab)
  * 6. Produkt-Umrechnungen (hängt von Produkten und Einheiten ab)
- * 7. Rezepte (hängt von Benutzern, Produkten und Materialien ab)
+ * 7. Rezepte, öffentlich/privat (hängt von Benutzern, Produkten und Materialien ab)
  * 8. Events / Köche / Zeitscheiben (hängt von Benutzern ab)
  * 9. Gruppenconfig (hängt von Events ab)
- * 10. Menupläne (hängt von Events, Gruppenconfig, Rezepten, Produkten, Materialien ab)
- * 11. Event-Bilder (hängt von Events ab)
- * 12. Varianten-Rezepte (hängt von Events, Rezepten, Benutzern, Produkten, Materialien ab)
+ * 10. Event-Bilder (hängt von Events ab)
+ * 11. Varianten-Rezepte (hängt von Events, Rezepten öffentlich/privat, Benutzern,
+ *     Produkten, Materialien ab)
+ * 12. Menupläne (hängt von Events, Gruppenconfig, Produkten, Materialien UND
+ *     Varianten-Rezepten ab — Menü-Positionen können auf Varianten-Rezepte
+ *     verweisen; läuft diese Migration vor den Varianten, werden alle
+ *     referenzierten Varianten fälschlich als "[DELETED]" markiert)
  * 13. UsedRecipes (hängt von Events und Menuplänen ab)
  * 14. Einkaufslisten (hängt von Events, Produkten, Materialien, Departments, Units ab)
  * 15. Materiallisten (hängt von Events und Materialien ab)
@@ -65,9 +69,9 @@ export const migrationJobRegistry: Record<string, MigrationJob> = {
   recipeRatings: new RecipeRatingMigrationJob(),
   events: new EventMigrationJob(),
   groupConfig: new GroupConfigMigrationJob(),
-  menuplan: new MenuplanMigrationJob(),
   eventPictures: new EventPictureMigrationJob(),
   recipeVariants: new RecipeVariantMigrationJob(),
+  menuplan: new MenuplanMigrationJob(),
   usedRecipes: new UsedRecipesMigrationJob(),
   shoppingLists: new ShoppingListMigrationJob(),
   materialLists: new MaterialListMigrationJob(),

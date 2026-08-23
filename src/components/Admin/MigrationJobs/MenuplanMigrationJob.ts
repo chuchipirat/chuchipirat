@@ -197,17 +197,42 @@ const normalizeDateToLocalYmd = (value: unknown): string | null => {
 };
 
 /**
+ * Maximal zulässiger Betrag für Spalten vom Typ NUMERIC(10,2)/NUMERIC(12,4)
+ * (z.B. total_portions, quantity, total_quantity, servings) — Postgres
+ * akzeptiert bei dieser Präzision/Skalierung nur Werte < 10^8.
+ */
+const MAX_QUANTITY_VALUE = 99_999_999;
+
+/**
+ * Maximal zulässiger Betrag für die Spalte event_menuplan_item_plans.factor
+ * (NUMERIC(10,4)) — Postgres akzeptiert bei dieser Präzision/Skalierung nur
+ * Werte < 10^6.
+ */
+const MAX_FACTOR_VALUE = 999_999;
+
+/**
  * Gibt einen sicheren numerischen Wert zurück. Fängt leere Strings,
- * NaN, Infinity und null/undefined ab.
+ * NaN, Infinity und null/undefined ab. Ist `maxAbsValue` gesetzt, wird der
+ * Betrag zusätzlich auf diesen Wert begrenzt (statt die gesamte Zeile durch
+ * einen NUMERIC-Overflow scheitern zu lassen) — Fehleingaben/Fake-Werte aus
+ * Firebase (z.B. Portionen: 100000000) dürfen nicht den kompletten
+ * Batch-Insert eines Menüplans zerstören.
  *
  * @param value - Wert aus Firebase (kann String, Zahl oder undefined sein)
  * @param fallback - Rückgabewert bei ungültigem Input (Standard: 0)
- * @returns Gültiger numerischer Wert
+ * @param maxAbsValue - Maximal zulässiger Betrag (optional, kein Limit falls nicht gesetzt)
+ * @returns Gültiger, ggf. begrenzter numerischer Wert
  */
-const safeNumber = (value: unknown, fallback = 0): number => {
+const safeNumber = (
+  value: unknown,
+  fallback = 0,
+  maxAbsValue?: number,
+): number => {
   if (value === undefined || value === null || value === "") return fallback;
   const num = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(num) ? num : fallback;
+  if (!Number.isFinite(num)) return fallback;
+  if (maxAbsValue === undefined) return num;
+  return Math.max(-maxAbsValue, Math.min(maxAbsValue, num));
 };
 
 
@@ -551,7 +576,7 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
         recipe_id: recipeId,
         deleted_recipe_name: deletedRecipeName,
         variant_name: mealRecipe.recipe.variantName ?? null,
-        total_portions: safeNumber(mealRecipe.totalPortions),
+        total_portions: safeNumber(mealRecipe.totalPortions, 0, MAX_QUANTITY_VALUE),
         sort_order: recipeOrderInMenue.get(recipeFirebaseUid) ?? 0,
         firebase_uid: recipeFirebaseUid,
       });
@@ -596,10 +621,10 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
         event_id: eventId,
         menue_id: menueId,
         product_id: productId,
-        quantity: safeNumber(product.quantity),
+        quantity: safeNumber(product.quantity, 0, MAX_QUANTITY_VALUE),
         unit: product.unit && this.validUnits.has(product.unit) ? product.unit : null,
         plan_mode: planModeToDb(safeNumber(product.planMode)),
-        total_quantity: safeNumber(product.totalQuantity),
+        total_quantity: safeNumber(product.totalQuantity, 0, MAX_QUANTITY_VALUE),
         sort_order: productOrderInMenue.get(productFirebaseUid) ?? 0,
         firebase_uid: productFirebaseUid,
       });
@@ -644,10 +669,10 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
         event_id: eventId,
         menue_id: menueId,
         material_id: materialId,
-        quantity: safeNumber(material.quantity),
+        quantity: safeNumber(material.quantity, 0, MAX_QUANTITY_VALUE),
         unit: material.unit && this.validUnits.has(material.unit) ? material.unit : null,
         plan_mode: planModeToDb(safeNumber(material.planMode)),
-        total_quantity: safeNumber(material.totalQuantity),
+        total_quantity: safeNumber(material.totalQuantity, 0, MAX_QUANTITY_VALUE),
         sort_order: materialOrderInMenue.get(materialFirebaseUid) ?? 0,
         firebase_uid: materialFirebaseUid,
       });
@@ -841,8 +866,8 @@ export class MenuplanMigrationJob implements MigrationJob<FirebaseMenuplanData> 
         diet_id: dietId,
         intolerance_scope: intoleranceScope,
         intolerance_id: intoleranceId,
-        factor: safeNumber(plan.factor, 1),
-        servings: safeNumber(plan.totalPortions),
+        factor: safeNumber(plan.factor, 1, MAX_FACTOR_VALUE),
+        servings: safeNumber(plan.totalPortions, 0, MAX_QUANTITY_VALUE),
       };
 
       if (itemType === "recipe") row.menue_recipe_id = itemId;
