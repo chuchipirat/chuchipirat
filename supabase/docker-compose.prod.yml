@@ -167,7 +167,12 @@ services:
       # Uncomment to bypass nonce check in ID Token flow. Commonly set to true when using Google Sign In on mobile.
       # GOTRUE_EXTERNAL_SKIP_NONCE_CHECK: "true"
 
-      # GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "true"
+      # GoTrue-Default für dieses Setting ist "true" (auch wenn hier
+      # auskommentiert) — daher explizit auf "false" gesetzt. Nur die neue
+      # E-Mail-Adresse muss bestätigt werden, nicht zusätzlich die alte
+      # (Frontend/ConfirmEmailChangePage ist ohnehin nur für Single-Confirm
+      # gebaut; Zwei-Schritt-Bestätigung würde als "Link nicht erkannt" enden).
+      GOTRUE_MAILER_SECURE_EMAIL_CHANGE_ENABLED: "false"
       # GOTRUE_SMTP_MAX_FREQUENCY: 1s
       GOTRUE_SMTP_ADMIN_EMAIL: ${SMTP_ADMIN_EMAIL}
       GOTRUE_SMTP_HOST: ${SMTP_HOST}
