@@ -28,7 +28,7 @@ import {serve} from "https://deno.land/std@0.177.1/http/server.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
 import {
   CORS_HEADERS,
-  sendEmail,
+  sendBulkEmail,
   readEmailEnv,
   isEmailConfigured,
   errorResponse,
@@ -38,6 +38,30 @@ import {
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 import {fetchAllRows} from "../_shared/fetchAllRows.ts";
+import {personalize} from "../_shared/personalize.ts";
+
+/** Empfänger mit den Nutzer-Daten für die Personalisierung ({{firstName}} etc.). */
+interface ResolvedRecipient {
+  email: string;
+  firstName: string;
+  lastName: string;
+  displayName: string;
+}
+
+/** Roh-Zeile aus public.users für die Personalisierungs-Auflösung. */
+interface UserPersonalizationRow {
+  email: string;
+  first_name: string;
+  last_name: string;
+  display_name: string;
+}
+
+const toResolvedRecipient = (user: UserPersonalizationRow): ResolvedRecipient => ({
+  email: user.email,
+  firstName: user.first_name ?? "",
+  lastName: user.last_name ?? "",
+  displayName: user.display_name ?? "",
+});
 
 /* =====================================================================
 // Typen
@@ -52,6 +76,8 @@ type SendMailPayload = {
   subtitle?: string;
   buttonText?: string;
   buttonLink?: string;
+  /** Vorschautext für die Posteingang-Vorschau (unsichtbar im Mail-Body). */
+  preheaderText?: string;
   /** Erzwingt einen bestimmten Transport (nur Mail-Konsole, DEV/TEST). */
   forceTransport?: "brevo" | "smtp";
 };
@@ -112,6 +138,7 @@ serve(async (req: Request) => {
       subtitle,
       buttonText,
       buttonLink,
+      preheaderText,
       forceTransport,
     } = payload;
 
@@ -180,67 +207,99 @@ serve(async (req: Request) => {
 
     const htmlContent = renderEmailTemplate(
       "admin-console",
-      {subject},
+      {subject, ...(preheaderText ? {preheaderText} : {})},
       {body, titleBlock, subtitleBlock, buttonBlock},
     );
 
-    // UID-basierte Empfänger: E-Mail-Adressen aus public.users laden
+    // UID-basierte Empfänger: E-Mail-Adressen + Namen aus public.users laden
     // (nicht via auth.admin.listUsers() — das ist auf 50 Einträge pro Seite
     // paginiert und würde UIDs ausserhalb der ersten Seite stillschweigend
     // verwerfen. public.users.email wird per Trigger mit auth.users
-    // synchron gehalten, siehe sync_auth_email()/handle_new_user().)
-    let resolvedRecipients = recipients;
+    // synchron gehalten, siehe sync_auth_email()/handle_new_user().) Über
+    // fetchAllRows paginiert für Konsistenz mit dem Rollen-Pfad unten, auch
+    // wenn ein Admin praktisch nie >1000 UIDs von Hand einträgt.
+    let resolvedRecipients: ResolvedRecipient[] = recipients.map((email) => ({
+      email, firstName: "", lastName: "", displayName: "",
+    }));
     if (recipientType === "uid") {
-      const {data: users, error} = await supabaseAdmin
-        .from("users")
-        .select("email")
-        .in("id", recipients)
-        .not("email", "is", null);
-      if (error) throw new Error(`Benutzer konnten nicht geladen werden: ${error.message}`);
-      resolvedRecipients = (users ?? []).map((user: {email: string}) => user.email);
+      const users = await fetchAllRows<UserPersonalizationRow>(
+        supabaseAdmin, "users", "email, first_name, last_name, display_name",
+        (query) => query.in("id", recipients).not("email", "is", null),
+      );
+      resolvedRecipients = users.map(toResolvedRecipient);
     }
 
-    // Rollen-basierte Empfänger: E-Mail-Adressen aus public.users laden
+    // Rollen-basierte Empfänger: E-Mail-Adressen + Namen aus public.users laden
     // (paginiert - .select() ohne Range liefert bei Supabase/PostgREST
     // standardmässig max. 1000 Zeilen und würde bei mehr Benutzern welche
     // stillschweigend vom Versand ausschliessen)
     if (recipientType === "role") {
       const roles = recipients; // Rollen als Strings
-      const users = await fetchAllRows<{email: string; roles: string[]}>(
-        supabaseAdmin, "users", "email, roles",
+      const users = await fetchAllRows<UserPersonalizationRow & {roles: string[]}>(
+        supabaseAdmin, "users", "email, first_name, last_name, display_name, roles",
         (query) => query.not("email", "is", null),
       );
       resolvedRecipients = users
         .filter((user) => roles.some((role: string) => user.roles?.includes(role)))
-        .map((user) => user.email);
+        .map(toResolvedRecipient);
+    }
+
+    // E-Mail-basierte Empfänger (frei eingetragene Adressen): Namen aus
+    // public.users nachschlagen, wo vorhanden — Adressen ohne Treffer (z.B.
+    // extern eingetragene) bekommen leere Namen, Tokens werden dann leer.
+    if (recipientType === "email") {
+      const users = await fetchAllRows<UserPersonalizationRow>(
+        supabaseAdmin, "users", "email, first_name, last_name, display_name",
+        (query) => query.in("email", recipients),
+      );
+      const userByEmail = new Map(users.map((user) => [user.email, toResolvedRecipient(user)]));
+      resolvedRecipients = recipients.map((email) =>
+        userByEmail.get(email) ?? {email, firstName: "", lastName: "", displayName: ""},
+      );
     }
 
     if (!resolvedRecipients.length) {
       return errorResponse("Keine gültigen E-Mail-Adressen gefunden", 400);
     }
 
-    // E-Mails einzeln versenden (sendEmail akzeptiert einen Empfänger)
-    const textContent = body.replace(/<[^>]*>/g, "");
+    // E-Mails im Batch versenden (sendBulkEmail nutzt bei Brevo
+    // messageVersions statt eines Calls pro Empfänger, siehe emailService.ts).
+    // Jeder Empfänger bekommt seinen eigenen, personalisierten Inhalt
+    // ({{firstName}}/{{lastName}}/{{displayName}} ersetzt, siehe personalize.ts).
     const transport = emailEnv.brevoApiKey ? "Brevo" : "SMTP";
     const transportInfo = forceTransport
       ? `${transport} (forced: ${forceTransport})`
       : transport;
-    const errors: string[] = [];
 
-    for (const recipient of resolvedRecipients) {
-      try {
-        await sendEmail(emailEnv, recipient, subject, htmlContent, textContent);
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`${recipient}: ${msg}`);
-      }
-    }
+    const bulkRecipients = resolvedRecipients.map((recipient) => {
+      const personalizedSubject = personalize(subject, recipient);
+      const personalizedHtml = personalize(htmlContent, recipient);
+      // Klartext-Fallback bewusst aus dem rohen Mailtext ableiten, NICHT aus
+      // personalizedHtml: Der volle Seiten-Render enthält Header/Footer und
+      // den versteckten Preheader-Block — display:none existiert im
+      // Plain-Text-Teil nicht, das würde also sichtbar VOR dem eigentlichen
+      // Text auftauchen (inkl. unkodierter Entities wie &zwnj;&nbsp;, da die
+      // Tag-Strip-Regex nur Tags entfernt, keine Entities dekodiert).
+      const personalizedBody = personalize(body, recipient);
+      return {
+        email: recipient.email,
+        subject: personalizedSubject,
+        htmlContent: personalizedHtml,
+        textContent: personalizedBody.replace(/<[^>]*>/g, ""),
+      };
+    });
+
+    const {failed} = await sendBulkEmail(emailEnv, bulkRecipients);
+    const errors = failed.flatMap((failure) =>
+      failure.emails.map((email) => `${email}: ${failure.error}`),
+    );
 
     const success = errors.length === 0;
 
-    // In mail_log protokollieren
+    // In mail_log protokollieren (nur E-Mail-Adressen, keine Namen — Format
+    // wird von MailLogRepository/overviewMailbox.tsx als string[] erwartet)
     await supabaseAdmin.from("mail_log").insert({
-      recipients: resolvedRecipients,
+      recipients: resolvedRecipients.map((recipient) => recipient.email),
       recipient_type: recipientType,
       subject,
       body,

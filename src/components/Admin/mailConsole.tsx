@@ -61,6 +61,9 @@ import {
   SUBJECT as TEXT_SUBJECT,
   TITLE as TEXT_TITLE,
   SUB_TITLE as TEXT_SUB_TITLE,
+  PREHEADER as TEXT_PREHEADER,
+  PREHEADER_HELPER_TEXT as TEXT_PREHEADER_HELPER_TEXT,
+  MAIL_PERSONALIZATION_HELPER_TEXT as TEXT_MAIL_PERSONALIZATION_HELPER_TEXT,
   MAILTEXT as TEXT_MAILTEXT,
   DIVIDE_MULTIPLE_VALUES_BY_SEMICOLON as TEXT_DIVIDE_MULTIPLE_VALUES_BY_SEMICOLON,
   ROLE_TYPES as TEXT_ROLE_TYPES,
@@ -130,6 +133,7 @@ export type MailObject = {
   mailtext: string;
   title: string;
   subtitle: string;
+  preheader: string;
   buttonText: string;
   buttonLink: string;
 };
@@ -140,6 +144,7 @@ const createInitialMailObject = (): MailObject => ({
   mailtext: "",
   title: "",
   subtitle: "",
+  preheader: "",
   buttonLink: "",
   buttonText: "",
 });
@@ -506,6 +511,10 @@ const MailConsolePage = () => {
           subtitle: state.mailObject.subtitle,
           buttonText: state.mailObject.buttonText,
           buttonLink: state.mailObject.buttonLink,
+          // Vorschautext nur senden, wenn befüllt
+          ...(state.mailObject.preheader && {
+            preheaderText: state.mailObject.preheader,
+          }),
           // Transport-Override nur senden, wenn nicht «Auto»
           ...(transportOverride !== "auto" && {
             forceTransport: transportOverride,
@@ -1083,10 +1092,25 @@ const MailEditor = ({
             />
           </Grid>
           <Grid size={12}>
+            <TextField
+              id="preheader"
+              key="preheader"
+              variant="outlined"
+              fullWidth
+              value={mailObject.preheader}
+              onChange={onFieldChange}
+              label={TEXT_PREHEADER}
+              helperText={TEXT_PREHEADER_HELPER_TEXT}
+            />
+          </Grid>
+          <Grid size={12}>
             <Typography
               color={formValidation.mailtext ? "error" : "textSecondary"}
             >
               {TEXT_MAILTEXT}
+            </Typography>
+            <Typography variant="caption" color="text.secondary" display="block" sx={{mb: 1}}>
+              {TEXT_MAIL_PERSONALIZATION_HELPER_TEXT}
             </Typography>
             <RichTextEditor onChange={onMailTextChange} value="" />
           </Grid>

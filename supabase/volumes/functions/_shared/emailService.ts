@@ -12,6 +12,10 @@
  */
 import {quotedPrintableEncode, SMTPClient} from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 import {createClient} from "https://esm.sh/@supabase/supabase-js@2";
+import {chunkArray} from "./chunkArray.ts";
+import {escapeHtml} from "./escapeHtml.ts";
+
+export {escapeHtml};
 
 /* =====================================================================
 // MailPit-Redirect Cache
@@ -180,6 +184,125 @@ export async function sendEmail(
   } else {
     throw new Error("Neither BREVO_API_KEY nor SMTP_HOST is configured");
   }
+}
+
+/** Maximale Anzahl Empfänger pro Brevo-`messageVersions`-Call (Batch-Versand). */
+const BREVO_BATCH_SIZE = 500;
+
+/**
+ * Ergebnis eines Massenversands via `sendBulkEmail()`.
+ *
+ * @param sent - Erfolgreich versendete Empfänger-Adressen.
+ * @param failed - Fehlgeschlagene Batches: betroffene Adressen + Fehlermeldung.
+ */
+export interface BulkSendResult {
+  sent: string[];
+  failed: {emails: string[]; error: string}[];
+}
+
+/**
+ * Ein Empfänger für `sendBulkEmail()`, mit bereits (falls gewünscht)
+ * individuell personalisiertem Inhalt — z.B. via `personalize()` aus
+ * `personalize.ts`, damit z.B. "Hallo {{displayName}}" pro Empfänger
+ * ersetzt wird, obwohl der Versand gebündelt läuft.
+ *
+ * @param email - Empfänger-E-Mail-Adresse
+ * @param subject - Betreff (bereits personalisiert)
+ * @param htmlContent - HTML-Inhalt (bereits personalisiert)
+ * @param textContent - Klartext-Fallback (bereits personalisiert)
+ */
+export interface BulkEmailRecipient {
+  email: string;
+  subject: string;
+  htmlContent: string;
+  textContent: string;
+}
+
+/**
+ * Sendet an viele Empfänger, ohne pro Empfänger einen eigenen API-Call zu
+ * machen (relevant z.B. für die Mail-Konsole bei ~1800 Empfängern). Jeder
+ * Empfänger bringt seinen eigenen (ggf. personalisierten) Inhalt mit — bei
+ * Brevo als individueller `messageVersions[i]`-Override auf ein gemeinsames
+ * Top-Level-Fallback-Feld, nicht über Brevos eigene `{{ params.x }}`-
+ * Templating-Syntax (bewusst vermieden — wir kontrollieren die Ersetzung
+ * so vollständig selbst und testbar, statt uns bei einem irreversiblen
+ * Versand an echte Nutzer auf ungetestete Drittanbieter-Syntax zu
+ * verlassen). Ein einzelner API-Call transportiert mehrere hundert
+ * individuelle Empfänger (jeder sieht nur seine eigene Adresse), Brevo
+ * übernimmt intern das Pacing gegenüber den empfangenden Mailservern —
+ * kein eigenes Batching mit Wartezeiten nötig. MailPit-Redirect und reiner
+ * SMTP-Fallback (kein Brevo konfiguriert) bleiben sequenziell über
+ * `sendEmail()`, da das nur Dev-/Fallback-Pfade ohne Volumen-Problem sind.
+ *
+ * @param env - E-Mail-Umgebungsvariablen
+ * @param recipients - Empfänger mit individuellem Inhalt
+ * @returns Erfolgreich versendete Adressen sowie fehlgeschlagene Batches mit Fehlermeldung
+ */
+export async function sendBulkEmail(
+  env: EmailEnv,
+  recipients: BulkEmailRecipient[],
+): Promise<BulkSendResult> {
+  const subjectPrefix = Deno.env.get("EMAIL_SUBJECT_PREFIX") ?? "";
+  const redirectToMailpit = await shouldRedirectToMailpit();
+
+  const sent: string[] = [];
+  const failed: {emails: string[]; error: string}[] = [];
+
+  // MailPit-Redirect oder reiner SMTP-Fallback: sequenziell wie bisher
+  // (Dev-/Fallback-Pfad, kein Volumen-Problem).
+  if (redirectToMailpit || !env.brevoApiKey) {
+    for (const recipient of recipients) {
+      try {
+        await sendEmail(env, recipient.email, recipient.subject, recipient.htmlContent, recipient.textContent);
+        sent.push(recipient.email);
+      } catch (err) {
+        failed.push({
+          emails: [recipient.email],
+          error: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    return {sent, failed};
+  }
+
+  // Brevo: Batch-Versand über messageVersions statt 1 Call pro Empfänger.
+  // Jede Version überschreibt subject/htmlContent/textContent individuell —
+  // die Top-Level-Felder (von Brevo als Pflichtfelder verlangt) werden nur
+  // als Fallback mit dem ersten Empfänger des Chunks befüllt.
+  for (const chunk of chunkArray(recipients, BREVO_BATCH_SIZE)) {
+    try {
+      const response = await fetch("https://api.brevo.com/v3/smtp/email", {
+        method: "POST",
+        headers: {
+          "api-key": env.brevoApiKey,
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          sender: {name: SENDER_NAME, email: SENDER_EMAIL},
+          subject: subjectPrefix + chunk[0].subject,
+          htmlContent: chunk[0].htmlContent,
+          textContent: chunk[0].textContent,
+          messageVersions: chunk.map((recipient) => ({
+            to: [{email: recipient.email}],
+            subject: subjectPrefix + recipient.subject,
+            htmlContent: recipient.htmlContent,
+            textContent: recipient.textContent,
+          })),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(`Brevo API Fehler ${response.status}: ${await response.text()}`);
+      }
+      sent.push(...chunk.map((recipient) => recipient.email));
+    } catch (err) {
+      failed.push({
+        emails: chunk.map((recipient) => recipient.email),
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+  return {sent, failed};
 }
 
 /**
@@ -372,21 +495,6 @@ async function sendViaSmtp(
 /* =====================================================================
 // Hilfsfunktionen
 // ===================================================================== */
-
-/**
- * Maskiert HTML-Sonderzeichen, um XSS in E-Mail-Templates zu verhindern.
- *
- * @param text - Der zu maskierende Text
- * @returns Maskierter Text
- */
-export function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#039;");
-}
 
 /**
  * Gibt eine standardisierte JSON-Fehlerantwort zurück und loggt den Fehler.
