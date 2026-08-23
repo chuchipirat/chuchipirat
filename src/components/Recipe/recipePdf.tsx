@@ -629,12 +629,12 @@ export const RecipeMaterial = ({
         </View>
         {scaledPortions ? (
           <View style={styles.tableRow}>
-            <View style={styles.tableColQuantitySmall}>
+            <View style={styles.tableColQuantityHeaderSmall}>
               <Text style={{...styles.tableCell, ...styles.tableCellGrey}}>
                 {TEXT.ORIGINAL}
               </Text>
             </View>
-            <View style={styles.tableColQuantitySmall}>
+            <View style={styles.tableColQuantityHeaderSmall}>
               <Text style={styles.tableCell}>{TEXT.SCALED}</Text>
             </View>
             <View style={styles.tableColQuantitySmall} />
@@ -662,7 +662,7 @@ export const RecipeMaterial = ({
               {scaledPortions && scaledMaterials ? (
                 // Originalmenge
                 <View
-                  style={styles.tableColQuantitySmall}
+                  style={styles.tableColQuantityHeaderSmall}
                   key={
                     "materialOrignalQuantity_" + material.uid + "_" + counter
                   }
@@ -679,7 +679,7 @@ export const RecipeMaterial = ({
               <View
                 style={
                   scaledPortions
-                    ? styles.tableColQuantitySmall
+                    ? styles.tableColQuantityHeaderSmall
                     : styles.tableColQuantitySmall
                 }
                 key={"materialQuantity_" + material.uid + "_" + counter}
@@ -690,14 +690,16 @@ export const RecipeMaterial = ({
                     : quantity.toLocaleString("de-CH")}
                 </Text>
               </View>
-              <View
-                style={
-                  scaledPortions
-                    ? styles.tableColUnitSmall
-                    : styles.tableColUnit
-                }
-                key={"materialUnit_" + material.uid + "_" + counter}
-              ></View>
+              {/* Kein Einheiten-Feld bei Material (keine Einheit vorhanden) —
+                  bei skalierter Ansicht entfällt die Platzhalter-Zelle
+                  komplett, damit Original/Skaliert je 25% einnehmen und die
+                  Item-Spalte bei 50% beginnt (deckungsgleich mit Zutaten). */}
+              {!scaledPortions && (
+                <View
+                  style={styles.tableColUnit}
+                  key={"materialUnit_" + material.uid + "_" + counter}
+                ></View>
+              )}
               <View
                 style={
                   scaledPortions
