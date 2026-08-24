@@ -53,6 +53,7 @@ import {
   MATERIAL_LIST as TEXT_MATERIAL_LIST,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
   ERROR_NO_MATERIALS_FOUND as TEXT_ERROR_NO_MATERIALS_FOUND,
+  ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND,
 } from "../../../constants/text";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {MaterialListEditSource} from "../../Database/Repository/MaterialListRepository";
@@ -133,7 +134,7 @@ export function useMaterialListHandlers({
   onSelectList,
   onDispatchLoading,
   onDispatchError,
-  onDispatchSnackbar: _onDispatchSnackbar,
+  onDispatchSnackbar,
 }: UseMaterialListHandlersProps) {
   const database = useDatabase();
   const {customDialog} = useCustomDialog();
@@ -317,8 +318,12 @@ export function useMaterialListHandlers({
           trackEvent(AnalyticsEvent.MATERIAL_LIST_GENERATED, {eventUid: event.uid});
           onDispatchLoading(false);
         } catch (error) {
-          Sentry.captureException(error);
-          onDispatchError(error instanceof Error ? error : new Error(String(error)));
+          if ((error as Error).toString().includes(TEXT_ERROR_NO_RECIPES_FOUND)) {
+            onDispatchSnackbar("info", TEXT_ERROR_NO_RECIPES_FOUND);
+          } else {
+            Sentry.captureException(error);
+            onDispatchError(error instanceof Error ? error : new Error(String(error)));
+          }
         }
       } else if (dialogSelectMenueData.operationType === OperationType.Update) {
         onRefreshLists(userInput.input, Object.keys(selectedMenues));

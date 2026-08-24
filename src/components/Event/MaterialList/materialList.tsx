@@ -152,6 +152,7 @@ const materialListReducer = (state: State, action: DispatchAction): State => {
     case ReducerActions.SNACKBAR_SHOW:
       return {
         ...state,
+        isLoading: false,
         snackbar: {
           severity: action.payload.severity,
           message: action.payload.message,
