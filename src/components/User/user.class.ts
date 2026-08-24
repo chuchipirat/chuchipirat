@@ -176,6 +176,8 @@ export class User {
   email: string;
   noLogins: number;
   roles: Role[];
+  /** Newsletter-Abmeldung (true = keine Mail-Konsolen-Versände mehr erhalten) */
+  newsletterOptOut: boolean;
   /* =====================================================================
   // Konstruktor
   // ===================================================================== */
@@ -186,6 +188,7 @@ export class User {
     this.email = "";
     this.noLogins = 0;
     this.roles = [];
+    this.newsletterOptOut = false;
   }
   /* =====================================================================
     // Objekt erzeugen
@@ -341,6 +344,7 @@ export class User {
       memberId: fullProfile.memberId,
       motto: fullProfile.motto,
       pictureSrc: fullProfile.pictureSrc,
+      newsletterOptOut: fullProfile.newsletterOptOut,
       stats: fullProfile.stats,
     } as UserFullProfile;
 
@@ -419,6 +423,7 @@ export class User {
         display_name: userProfile.displayName,
         motto: userProfile.motto,
         picture_src: pictureSrc ?? "",
+        newsletter_opt_out: userProfile.newsletterOptOut,
       },
       authUser: authUser,
     });

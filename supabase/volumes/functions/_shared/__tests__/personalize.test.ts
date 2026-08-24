@@ -1,6 +1,11 @@
 import {personalize} from "../personalize";
 
-const VARIABLES = {firstName: "Gio", lastName: "Cettuzzi", displayName: "Gio C."};
+const VARIABLES = {
+  firstName: "Gio",
+  lastName: "Cettuzzi",
+  displayName: "Gio C.",
+  unsubscribeLink: "https://api.chuchipirat.ch/functions/v1/unsubscribe-newsletter?uid=abc-123",
+};
 
 describe("personalize", () => {
   test("ersetzt {{firstName}}, {{lastName}} und {{displayName}}", () => {
@@ -10,6 +15,14 @@ describe("personalize", () => {
         VARIABLES,
       ),
     ).toBe("Hallo Gio Cettuzzi (Gio C.),");
+  });
+
+  test("ersetzt {{unsubscribeLink}} mit dem personalisierten Abmelde-Link", () => {
+    expect(
+      personalize('<a href="{{unsubscribeLink}}">Abmelden</a>', VARIABLES),
+    ).toBe(
+      '<a href="https://api.chuchipirat.ch/functions/v1/unsubscribe-newsletter?uid=abc-123">Abmelden</a>',
+    );
   });
 
   test("ersetzt mehrfach vorkommende Tokens", () => {
@@ -24,9 +37,14 @@ describe("personalize", () => {
   });
 
   test("ersetzt Tokens mit fehlenden Werten durch leeren String", () => {
-    expect(personalize("Hallo {{displayName}},", {firstName: "", lastName: "", displayName: ""})).toBe(
-      "Hallo ,",
-    );
+    expect(
+      personalize("Hallo {{displayName}},", {
+        firstName: "",
+        lastName: "",
+        displayName: "",
+        unsubscribeLink: "",
+      }),
+    ).toBe("Hallo ,");
   });
 
   test("toleriert Whitespace innerhalb der Token-Klammern", () => {
@@ -45,6 +63,7 @@ describe("personalize", () => {
         firstName: "",
         lastName: "",
         displayName: '<script>alert("x")</script>',
+        unsubscribeLink: "",
       }),
     ).toBe("Hallo &lt;script&gt;alert(&quot;x&quot;)&lt;/script&gt;,");
   });

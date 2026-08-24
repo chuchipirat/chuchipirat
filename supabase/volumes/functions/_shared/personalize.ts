@@ -1,18 +1,19 @@
 /**
  * Personalisierung von E-Mail-Inhalten mit Empfänger-Variablen.
  *
- * Ersetzt `{{firstName}}`, `{{lastName}}` und `{{displayName}}` im
- * admin-editierten Mail-Konsole-Inhalt (Betreff/Titel/Untertitel/Mailtext)
- * durch die jeweiligen Werte aus `public.users` (`first_name`, `last_name`,
- * `display_name`) — pro Empfänger, damit ein einzelner Massenversand
- * trotzdem individuell angesprochen wirkt (z.B. "Hallo {{displayName}}").
+ * Ersetzt `{{firstName}}`, `{{lastName}}`, `{{displayName}}` und
+ * `{{unsubscribeLink}}` im admin-editierten Mail-Konsole-Inhalt
+ * (Betreff/Titel/Untertitel/Mailtext/Footer) durch die jeweiligen Werte —
+ * pro Empfänger, damit ein einzelner Massenversand trotzdem individuell
+ * angesprochen wirkt (z.B. "Hallo {{displayName}}") und jede E-Mail einen
+ * auf den Empfänger zugeschnittenen Newsletter-Abmelde-Link enthält.
  *
  * Eigenständiges, von Deno-spezifischen Imports freies Modul (analog zu
  * chunkArray.ts/fetchAllRows.ts), damit es direkt per Jest testbar ist.
  *
  * @example
  * import { personalize } from "../_shared/personalize.ts";
- * personalize("Hallo {{displayName}},", {firstName: "Gio", lastName: "Cettuzzi", displayName: "Gio"});
+ * personalize("Hallo {{displayName}},", {firstName: "Gio", lastName: "Cettuzzi", displayName: "Gio", unsubscribeLink: ""});
  * // "Hallo Gio,"
  */
 import {escapeHtml} from "./escapeHtml.ts";
@@ -23,15 +24,17 @@ import {escapeHtml} from "./escapeHtml.ts";
  * @param firstName - Vorname (public.users.first_name)
  * @param lastName - Nachname (public.users.last_name)
  * @param displayName - Anzeigename (public.users.display_name)
+ * @param unsubscribeLink - Personalisierter Newsletter-Abmelde-Link (enthält die Nutzer-UID)
  */
 export interface PersonalizationVariables {
   firstName: string;
   lastName: string;
   displayName: string;
+  unsubscribeLink: string;
 }
 
-/** Matcht {{firstName}}, {{lastName}}, {{displayName}} (mit optionalem Whitespace). */
-const TOKEN_PATTERN = /\{\{\s*(firstName|lastName|displayName)\s*\}\}/g;
+/** Matcht {{firstName}}, {{lastName}}, {{displayName}}, {{unsubscribeLink}} (mit optionalem Whitespace). */
+const TOKEN_PATTERN = /\{\{\s*(firstName|lastName|displayName|unsubscribeLink)\s*\}\}/g;
 
 /**
  * Ersetzt Personalisierungs-Tokens in `text` durch die Werte aus `variables`.

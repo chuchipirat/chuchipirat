@@ -8,22 +8,25 @@ import {
   ListItemSecondaryAction,
   Divider,
   TextField,
+  Box,
+  Switch,
 } from "@mui/material";
 
 /**
  * Eigenschaften für ein einzelnes Formularelement in einer Liste.
  *
- * @param value Anzuzeigender Wert (Text, Zahl, Datum oder JSX).
+ * @param value Anzuzeigender Wert (Text, Zahl, Datum oder JSX). Bei `type="switch"` ungenutzt.
  * @param id Eindeutige ID des Feldes.
  * @param label Beschriftung / Label.
  * @param icon Optionales Icon links.
- * @param type HTML-Input-Typ (z.B. "number", "text").
+ * @param type HTML-Input-Typ (z.B. "number", "text") oder "switch" für einen Ein/Aus-Schalter.
+ * @param checked Schalterzustand — nur bei `type="switch"` verwendet.
  * @param multiLine Mehrzeilige Eingabe erlauben.
  * @param disabled Feld deaktivieren.
  * @param required Feld als Pflichtfeld markieren.
- * @param editMode Bearbeitungsmodus (TextField) statt Anzeige (ListItemText).
+ * @param editMode Bearbeitungsmodus (TextField) statt Anzeige (ListItemText). Bei `type="switch"` ignoriert.
  * @param helperText Hilfetext unter dem Feld.
- * @param onChange Änderungs-Handler.
+ * @param onChange Änderungs-Handler (bei `type="switch"` liefert `event.target.checked` den neuen Zustand).
  * @param displayAsCode Wert als Code-Schrift anzeigen.
  * @param withDivider Trennlinie nach dem Eintrag anzeigen.
  * @param secondaryAction Optionale sekundäre Aktion (z.B. IconButton).
@@ -31,11 +34,12 @@ import {
  * @param maxLength Maximale Zeichenlänge für das Eingabefeld.
  */
 interface FormListItemProps {
-  value: string | number | Date | JSX.Element | JSX.Element[];
+  value?: string | number | Date | JSX.Element | JSX.Element[];
   id: string;
   label: string;
   icon?: JSX.Element;
   type?: string;
+  checked?: boolean;
   multiLine?: boolean;
   disabled?: boolean;
   required?: boolean;
@@ -59,6 +63,7 @@ export const FormListItem = ({
   label,
   icon,
   type,
+  checked,
   multiLine = false,
   disabled = false,
   required = false,
@@ -76,7 +81,20 @@ export const FormListItem = ({
     <React.Fragment>
       <ListItem key={"listItem_" + id}>
         {icon && <ListItemIcon sx={classes.listItemIcon}>{icon}</ListItemIcon>}
-        {editMode ? (
+        {type === "switch" ? (
+          <React.Fragment>
+            <ListItemText sx={classes.listItemTitle} secondary={label} />
+            <Box sx={classes.listItemContent}>
+              <Switch
+                id={id}
+                name={id}
+                checked={checked}
+                onChange={onChange}
+                disabled={disabled}
+              />
+            </Box>
+          </React.Fragment>
+        ) : editMode ? (
           <TextField
             id={id}
             key={id}
