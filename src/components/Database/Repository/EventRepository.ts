@@ -379,6 +379,14 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
       ?? (await this.client.auth.getUser()).data.user?.id
       ?? "";
 
+    // auth.getUser() kann kurz nach dem Login (Token-Refresh noch nicht
+    // abgeschlossen) transient keinen User liefern — ohne diese Sperre würde
+    // eine leere ID an .eq() gehen und Postgres wirft "invalid input syntax
+    // for the uuid" statt einfach ein leeres Ergebnis zurückzugeben.
+    if (!effectiveUserId) {
+      return [];
+    }
+
     const {data, error} = await this.client
       .from("events")
       .select("*, event_cooks!inner(user_id), event_dates(id, sort_order, date_from, date_to)")

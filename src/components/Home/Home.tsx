@@ -168,7 +168,7 @@ export const HomePage = () => {
     dispatch({type: ReducerActions.EVENTS_FETCH_INIT});
 
     database.events
-      .getAllEventsForUser()
+      .getAllEventsForUser(authUser.uid)
       .then((result) => {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
