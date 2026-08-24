@@ -499,22 +499,31 @@ async function sendViaSmtp(
 /**
  * Gibt eine standardisierte JSON-Fehlerantwort zurück und loggt den Fehler.
  *
- * Interne Fehlerdetails werden nur serverseitig geloggt (console.error + Sentry).
- * Der Client erhält eine generische Fehlermeldung ohne interne Details.
+ * Interne Fehlerdetails werden immer serverseitig geloggt (console.error + Sentry).
+ * Für den Client gilt standardmässig eine generische Fehlermeldung ohne interne
+ * Details (z.B. bei öffentlich erreichbaren Functions wie create-donation oder
+ * payment-webhook). Bei bereits auth-/rollengeprüften Admin-Functions (z.B.
+ * send-mail) kann `exposeMessage` gesetzt werden, damit die Admin-UI den
+ * tatsächlichen Grund anzeigen kann (z.B. "SMTP nicht konfiguriert") statt nur
+ * "non-2xx status code".
  *
  * @param functionName - Name der Edge Function (für Log-Prefix)
- * @param message - Interne Fehlermeldung (nur für Logs, wird NICHT an den Client zurückgegeben)
+ * @param message - Interne Fehlermeldung (für Logs; an den Client nur bei exposeMessage=true)
  * @param statusCode - HTTP-Statuscode
- * @returns HTTP-Response mit generischer JSON-Fehlermeldung
+ * @param exposeMessage - Wenn true, wird `message` unverändert an den Client zurückgegeben (nur für bereits autorisierte Aufrufer verwenden)
+ * @returns HTTP-Response mit JSON-Fehlermeldung
  */
 export function errorResponse(
   functionName: string,
   message: string,
   statusCode: number,
+  exposeMessage = false,
 ): Response {
   console.error(`${functionName}: ${message}`);
   return new Response(
-    JSON.stringify({error: "Ein interner Fehler ist aufgetreten."}),
+    JSON.stringify({
+      error: exposeMessage ? message : "Ein interner Fehler ist aufgetreten.",
+    }),
     {
       status: statusCode,
       headers: {...CORS_HEADERS, "Content-Type": "application/json"},
