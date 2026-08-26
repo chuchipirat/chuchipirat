@@ -121,7 +121,7 @@ import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {Stats, StatsField} from "../../Shared/stats.class";
-import {trackEvent} from "../../Analytics/analyticsService";
+import {trackEvent, trackVirtualPageview} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
@@ -897,6 +897,14 @@ const EventPage = () => {
 
   const [state, dispatch] = React.useReducer(eventReducer, INITITIAL_STATE);
   const [activeTab, setActiveTab] = React.useState(initialTab);
+
+  // Sendet pro Tab einen eigenen virtuellen Pageview an Umami (Journey-/
+  // Pages-Report), da der aktive Tab nur über einen Query-Parameter
+  // abgebildet ist und Umami Query-Strings nicht trackt (data-exclude-search).
+  React.useEffect(() => {
+    trackVirtualPageview(`${location.pathname}/${TAB_TO_QUERY_PARAM[activeTab]}`);
+  }, [activeTab, location.pathname]);
+
   const [eventDraft, setEventDraft] = React.useState(INTITIAL_STATE_EVENT_DRAF);
   // Flag: Während ein Menuplan-Save läuft, soll die Realtime-Subscription
   // keine Reloads auslösen — das delete-all + re-insert würde sonst einen
