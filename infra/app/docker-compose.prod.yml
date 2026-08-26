@@ -1,3 +1,5 @@
+name: chuchipirat-app-prod
+
 services:
   app:
     image: nginx:alpine

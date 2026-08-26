@@ -1,3 +1,5 @@
+name: chuchipirat-app-test
+
 services:
   app:
     image: nginx:alpine
