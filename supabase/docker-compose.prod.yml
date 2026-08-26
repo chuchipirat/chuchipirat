@@ -8,7 +8,7 @@
 #   - Podman does not support nested variable interpolation (${A:-${B}})
 #
 
-name: supabase
+name: supabase-prod
 
 services:
 
