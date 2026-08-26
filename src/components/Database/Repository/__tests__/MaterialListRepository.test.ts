@@ -573,6 +573,96 @@ describe("MaterialListRepository", () => {
       unsubscribe();
       expect(client.removeChannel).toHaveBeenCalled();
     });
+
+    it("sollte nach CHANNEL_ERROR automatisch einen neuen Channel aufbauen (Reconnect)", () => {
+      jest.useFakeTimers();
+      try {
+        const onData = jest.fn();
+        const onError = jest.fn();
+
+        const createMockChannel = () => ({
+          on: jest.fn().mockReturnThis(),
+          subscribe: jest.fn().mockReturnThis(),
+        });
+        const channels: ReturnType<typeof createMockChannel>[] = [];
+        client.channel.mockImplementation(() => {
+          const channel = createMockChannel();
+          channels.push(channel);
+          return channel;
+        });
+
+        repo.subscribeToLists(EVENT_ID, onData, onError);
+        expect(channels).toHaveLength(1);
+
+        // Erster Channel meldet CHANNEL_ERROR
+        const firstSubscribeCallback = channels[0].subscribe.mock.calls[0][0];
+        firstSubscribeCallback("CHANNEL_ERROR", new Error("boom"));
+
+        // Alter Channel wird entfernt, noch kein neuer Channel vor Ablauf des Backoffs
+        expect(client.removeChannel).toHaveBeenCalledWith(channels[0]);
+        expect(channels).toHaveLength(1);
+
+        // Nach dem Backoff (1s) wird tatsächlich neu verbunden
+        jest.advanceTimersByTime(1000);
+        expect(channels).toHaveLength(2);
+        expect(client.channel).toHaveBeenLastCalledWith(
+          `materiallists:${EVENT_ID}`,
+        );
+
+        // Zweiter Channel verbindet erfolgreich — kein onError aufgerufen
+        const secondSubscribeCallback = channels[1].subscribe.mock.calls[0][0];
+        secondSubscribeCallback("SUBSCRIBED", undefined);
+        expect(onError).not.toHaveBeenCalled();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("sollte onError erst nach Ausschöpfen aller Retries aufrufen", () => {
+      jest.useFakeTimers();
+      try {
+        const onData = jest.fn();
+        const onError = jest.fn();
+
+        const createMockChannel = () => ({
+          on: jest.fn().mockReturnThis(),
+          subscribe: jest.fn().mockReturnThis(),
+        });
+        const channels: ReturnType<typeof createMockChannel>[] = [];
+        client.channel.mockImplementation(() => {
+          const channel = createMockChannel();
+          channels.push(channel);
+          return channel;
+        });
+
+        repo.subscribeToLists(EVENT_ID, onData, onError);
+
+        // 5 Fehlversuche mit wachsendem Backoff durchspielen (1s,2s,4s,8s,16s) —
+        // jeder Fehlversuch plant einen neuen Channel (insgesamt 6 Channels:
+        // der ursprüngliche + 5 Retries)
+        const delays = [1000, 2000, 4000, 8000, 16000];
+        for (const delay of delays) {
+          const lastChannel = channels[channels.length - 1];
+          const subscribeCallback = lastChannel.subscribe.mock.calls[0][0];
+          subscribeCallback("CHANNEL_ERROR", new Error("boom"));
+          jest.advanceTimersByTime(delay);
+        }
+
+        // 6. Fehlversuch (auf dem letzten der 5 Retry-Channels) — retryCount
+        // hat MAX_RETRIES erreicht, kein weiterer Retry mehr geplant
+        const finalChannel = channels[channels.length - 1];
+        const finalSubscribeCallback = finalChannel.subscribe.mock.calls[0][0];
+        finalSubscribeCallback("CHANNEL_ERROR", new Error("boom"));
+
+        expect(channels).toHaveLength(6);
+        expect(onError).toHaveBeenCalledTimes(1);
+        expect(onError.mock.calls[0][0].message).toContain(
+          "nach 5 Versuchen fehlgeschlagen",
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    });
   });
 
   /* =====================================================================

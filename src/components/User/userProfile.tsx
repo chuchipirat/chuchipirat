@@ -44,6 +44,7 @@ import {
   MOTTO as TEXT_MOTTO,
   EMAIL as TEXT_EMAIL,
   NO_LOGINS as TEXT_NO_LOGINS,
+  NEWSLETTER_RECEIVE as TEXT_NEWSLETTER_RECEIVE,
   INTRODUCE_YOURSELF as TEXT_INTRODUCE_YOURSELF,
   DISPLAYNAME as TEXT_DISPLAYNAME,
   ON_BOARD_SINCE as TEXT_ON_BOARD_SINCE,
@@ -125,7 +126,7 @@ type DispatchAction =
   | {type: ReducerActions.USER_PROFILE_FETCH_SUCCESS; payload: UserFullProfile}
   | {
       type: ReducerActions.USER_PROFILE_VALUE_CHANGE;
-      payload: {field: string; value: string};
+      payload: {field: string; value: string | boolean};
     }
   | {type: ReducerActions.USER_PROFILE_ON_SAVE}
   | {type: ReducerActions.USER_PICTURE_UPLOAD_START; payload: string}
@@ -371,6 +372,18 @@ const UserProfilePage = () => {
     [],
   );
   /* ------------------------------------------
+  // Newsletter-Präferenz ändern -- onChange
+  // ------------------------------------------ */
+  const onNewsletterReceiveChange = React.useCallback(
+    (receivesNewsletter: boolean) => {
+      dispatch({
+        type: ReducerActions.USER_PROFILE_VALUE_CHANGE,
+        payload: {field: "newsletterOptOut", value: !receivesNewsletter},
+      });
+    },
+    [],
+  );
+  /* ------------------------------------------
   // Passwort ändern
   // ------------------------------------------ */
   const onPasswordChangeClick = () => {
@@ -523,6 +536,7 @@ const UserProfilePage = () => {
                 onFieldChange={onChangeField}
                 onUpload={onPictureUpload}
                 onDelete={onPictureDelete}
+                onNewsletterReceiveChange={onNewsletterReceiveChange}
               />
               <PublicProfileCard
                 userProfile={state.userProfile}
@@ -629,6 +643,7 @@ interface ProfileCardProps {
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onUpload: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onDelete: () => void;
+  onNewsletterReceiveChange: (receivesNewsletter: boolean) => void;
 }
 /**
  * Karte mit persönlichen Profildaten (Name, E-Mail, Logins) und Profilbild.
@@ -640,6 +655,7 @@ interface ProfileCardProps {
  * @param onFieldChange - Callback für Feldänderungen.
  * @param onUpload - Callback für den Bild-Upload.
  * @param onDelete - Callback für das Löschen des Profilbilds.
+ * @param onNewsletterReceiveChange - Callback für die Newsletter-Präferenz.
  */
 const ProfileCard = React.memo(({
   userProfile,
@@ -649,6 +665,7 @@ const ProfileCard = React.memo(({
   onFieldChange,
   onUpload,
   onDelete,
+  onNewsletterReceiveChange,
 }: ProfileCardProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
@@ -755,6 +772,15 @@ const ProfileCard = React.memo(({
             value={userProfile.noLogins}
             label={TEXT_NO_LOGINS}
             disabled={true}
+          />
+          <FormListItem
+            id={"newsletterOptOut"}
+            key={"newsletterOptOut"}
+            type="switch"
+            checked={!userProfile.newsletterOptOut}
+            onChange={(event) => onNewsletterReceiveChange(event.target.checked)}
+            label={TEXT_NEWSLETTER_RECEIVE}
+            disabled={!editMode}
           />
         </List>
       </CardContent>

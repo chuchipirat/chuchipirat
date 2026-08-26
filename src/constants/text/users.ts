@@ -21,6 +21,8 @@ export const USER_PROFILE_SUCCESSFULLY_UPDATED =
 export const MEMBER_ID = "Member-ID";
 export const MEMBER_SINCE = "Mit dabei seit";
 export const ROLES = "Rolen";
+export const NEWSLETTER_RECEIVE = "Newsletter erhalten";
+export const NEWSLETTER_ADMIN_LABEL = "Newsletter";
 
 /* =====================================================================
 // User hinzufügen

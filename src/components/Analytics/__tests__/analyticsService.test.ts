@@ -6,7 +6,11 @@
  * zu halten, sowie `getAnalyticsRole()`, welche Admin-/Community-Leader-
  * getriebene Aktionen von organischer Nutzung unterscheidbar macht.
  */
-import {normalizeAnalyticsUrl, getAnalyticsRole} from "../analyticsService";
+import {
+  normalizeAnalyticsUrl,
+  getAnalyticsRole,
+  trackVirtualPageview,
+} from "../analyticsService";
 import AuthUser from "../../Firebase/Authentication/authUser.class";
 import {Role} from "../../../constants/roles";
 
@@ -42,6 +46,32 @@ describe("normalizeAnalyticsUrl", () => {
     expect(
       normalizeAnalyticsUrl("/event/3FA85F64-5717-4562-B3FC-2C963F66AFA6"),
     ).toBe("/event/:id");
+  });
+});
+
+describe("trackVirtualPageview", () => {
+  afterEach(() => {
+    delete (window as {umami?: unknown}).umami;
+  });
+
+  test("sendet einen Pageview mit der übergebenen URL über die Callback-Form", () => {
+    const track = jest.fn();
+    window.umami = {track};
+
+    trackVirtualPageview("/event/:id/materiallist");
+
+    expect(track).toHaveBeenCalledTimes(1);
+    const callback = track.mock.calls[0][0] as (
+      props: Record<string, unknown>,
+    ) => Record<string, unknown>;
+    expect(callback({title: "Chuchipirat"})).toEqual({
+      title: "Chuchipirat",
+      url: "/event/:id/materiallist",
+    });
+  });
+
+  test("tut nichts, wenn Umami nicht geladen ist", () => {
+    expect(() => trackVirtualPageview("/event/:id/materiallist")).not.toThrow();
   });
 });
 

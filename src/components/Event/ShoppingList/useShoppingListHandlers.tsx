@@ -1472,7 +1472,13 @@ const useShoppingListHandlers = ({
   // ------------------------------------------ */
   const onChangeItem = React.useCallback(
     async (change: ItemChange) => {
-      const field = change.event.target.id.split("_");
+      // Bei Auswahl einer Option per Klick ist event.target das <li>-Element
+      // der Dropdown-Liste, nicht das Input-Feld — event.target.id verweist
+      // dann NICHT mehr auf die Zeile. objectId wird dafür extra durchgereicht
+      // und ist unabhängig davon, welches DOM-Element das Event ausgelöst hat.
+      const rowIdentifier =
+        change.source === "textfield" ? change.event.target.id : change.objectId;
+      const field = rowIdentifier.split("_");
       let newItem = false;
       let itemMovedToRightDepartment = false;
       let item = shoppingList?.list[parseInt(field[1])].items.find(
@@ -1524,7 +1530,10 @@ const useShoppingListHandlers = ({
           }
 
           if (typeof change.value === "string") {
-            if (item.item.uid.length == 20) {
+            // War vorher ein Produkt/Material (Katalog-Auswahl) und wird jetzt
+            // zu Freitext überschrieben: neue UID vergeben, da die alte UID
+            // sonst auf einen Katalog-Eintrag verweisen würde.
+            if (item.type === ItemType.food || item.type === ItemType.material) {
               item.item.uid = Utils.generateUid(10);
             }
             item.item.name = change.value;
@@ -1556,8 +1565,11 @@ const useShoppingListHandlers = ({
             isNewItem: newItem,
           });
 
-          // Duplikat-Erkennung
-          if (item.item.uid.length == 20) {
+          // Duplikat-Erkennung — nur für Katalog-Artikel (Produkt/Material),
+          // nicht für frei getippte Custom-Einträge. Früher anhand der
+          // UID-Länge (20 = Firestore-Doc-ID) erkannt; Supabase-Katalog-UIDs
+          // sind UUIDs, daher stattdessen über den bereits vorhandenen Typ.
+          if (item.type === ItemType.food || item.type === ItemType.material) {
             const currentItem = item;
             const existingShoppingListItem = shoppingList.list[
               department.pos

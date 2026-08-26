@@ -460,9 +460,14 @@ export class ShoppingListRepository extends BaseRepository<
     onError: (error: Error) => void,
   ): () => void {
     const clientRef = this.client;
-    let retryCount = 0;
     const MAX_RETRIES = 5;
-    let retryTimeoutId: ReturnType<typeof setTimeout> | null = null;
+    const BASE_DELAY_MS = 1000;
+    const MAX_DELAY_MS = 30_000;
+
+    let retryCount = 0;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let activeChannel: ReturnType<typeof clientRef.channel> | null = null;
+    let cancelled = false;
 
     const reloadHeaders = () => {
       this.getListsForEvent(eventId)
@@ -472,61 +477,76 @@ export class ShoppingListRepository extends BaseRepository<
         );
     };
 
-    const channel = clientRef
-      .channel(`shoppinglists:${eventId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_shopping_lists",
-          filter: `event_id=eq.${eventId}`,
-        },
-        reloadHeaders,
-      )
-      .subscribe((status, err) => {
-        if (status === "SUBSCRIBED") {
-          retryCount = 0;
-        } else if (status === "CHANNEL_ERROR") {
-          Sentry.addBreadcrumb({
-            category: "realtime",
-            message: `shoppinglists:${eventId} error`,
-            level: "error",
-            data: {error: err?.message},
-          });
+    /**
+     * Erstellt und abonniert einen Realtime-Channel. Bei CHANNEL_ERROR oder
+     * TIMED_OUT wird automatisch mit exponentiellem Backoff (1s, 2s, 4s, …,
+     * max 30s) erneut versucht. Nach MAX_RETRIES wird onError mit einem
+     * permanenten Fehler aufgerufen.
+     */
+    const subscribe = () => {
+      if (cancelled) return;
 
-          if (retryCount < MAX_RETRIES) {
-            // Exponential Backoff: 1s → 2s → 4s → 8s → 16s (max 30s)
-            const delay = Math.min(1000 * Math.pow(2, retryCount), 30000);
-            retryCount++;
-            retryTimeoutId = setTimeout(() => {
-              clientRef.removeChannel(channel);
-              // Rekursiver Aufruf über subscribeToLists nicht möglich ohne
-              // Referenz — stattdessen Error an Caller melden
-              onError(
-                new Error(
-                  `Realtime-Fehler für shoppinglists:${eventId}, Retry ${retryCount}/${MAX_RETRIES}`,
-                ),
-              );
-            }, delay);
-          } else {
-            Sentry.captureException(
-              new Error(
-                `Realtime shoppinglists:${eventId}: max retries reached`,
-              ),
-            );
-            onError(
-              new Error(
-                `Realtime-Fehler für shoppinglists:${eventId}: max Retries erreicht`,
-              ),
-            );
+      const channel = clientRef
+        .channel(`shoppinglists:${eventId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "event_shopping_lists",
+            filter: `event_id=eq.${eventId}`,
+          },
+          reloadHeaders,
+        )
+        .subscribe((status, err) => {
+          if (cancelled) return;
+
+          if (status === "SUBSCRIBED") {
+            retryCount = 0;
+            return;
           }
-        }
-      });
+
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            Sentry.addBreadcrumb({
+              category: "realtime",
+              message: `shoppinglists:${eventId} ${status} (attempt ${retryCount + 1}/${MAX_RETRIES})`,
+              level: "warning",
+              data: {eventId, status, error: err?.message},
+            });
+
+            clientRef.removeChannel(channel);
+            activeChannel = null;
+
+            if (retryCount >= MAX_RETRIES) {
+              const permanentError = new Error(
+                `Realtime-Verbindung für shoppinglists:${eventId} nach ${MAX_RETRIES} Versuchen fehlgeschlagen`,
+              );
+              Sentry.captureException(permanentError, {extra: {eventId, retryCount}});
+              onError(permanentError);
+              return;
+            }
+
+            const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
+            retryCount++;
+            retryTimer = setTimeout(subscribe, delay);
+          }
+        });
+
+      activeChannel = channel;
+    };
+
+    subscribe();
 
     return () => {
-      if (retryTimeoutId) clearTimeout(retryTimeoutId);
-      clientRef.removeChannel(channel);
+      cancelled = true;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      if (activeChannel) {
+        clientRef.removeChannel(activeChannel);
+        activeChannel = null;
+      }
     };
   }
 

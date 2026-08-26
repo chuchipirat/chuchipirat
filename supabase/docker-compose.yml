@@ -8,7 +8,7 @@
 #   - Podman does not support nested variable interpolation (${A:-${B}})
 #
 
-name: supabase
+name: supabase-test
 
 services:
 
@@ -624,6 +624,11 @@ services:
       METRICS_JWT_SECRET: ${JWT_SECRET}
       REGION: local
       ERL_AFLAGS: -proto_dist inet_tcp
+      # Ohne NODE_IP faellt env.sh im Image auf `hostname -f` zurueck, was hier
+      # ohne DNS-Aufloesung fuer den eigenen Containernamen fehlschlaegt und den
+      # Erlang-Knotennamen leer laesst (Crash-Loop). Kein Multi-Node-Clustering
+      # lokal, daher reicht ein fester Platzhalter.
+      NODE_IP: 127.0.0.1
       POOLER_TENANT_ID: ${POOLER_TENANT_ID}
       POOLER_DEFAULT_POOL_SIZE: ${POOLER_DEFAULT_POOL_SIZE}
       POOLER_MAX_CLIENT_CONN: ${POOLER_MAX_CLIENT_CONN}

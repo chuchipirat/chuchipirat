@@ -365,4 +365,19 @@ describe("EventRepository.getAllEventsForUser", () => {
     expect(events).toHaveLength(1);
     expect(events[0].dates).toEqual([]);
   });
+
+  test("gibt leeres Array zurueck statt mit leerer UUID zu queryen, wenn auth.getUser() transient keinen User liefert", async () => {
+    const {client, queryMock} = createSupabaseMock();
+
+    // Race kurz nach dem Login: auth.getUser() liefert (noch) keinen User
+    (client as any).auth = {
+      getUser: jest.fn().mockResolvedValue({data: {user: undefined}}),
+    };
+
+    const repo = new EventRepository(client as any);
+    const events = await repo.getAllEventsForUser();
+
+    expect(events).toEqual([]);
+    expect(queryMock.order).not.toHaveBeenCalled();
+  });
 });

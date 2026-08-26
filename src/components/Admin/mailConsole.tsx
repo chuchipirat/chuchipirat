@@ -11,6 +11,8 @@ import React from "react";
 import * as Sentry from "@sentry/react";
 import DOMPurify from "dompurify";
 
+import {FunctionsHttpError} from "@supabase/supabase-js";
+
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {supabase} from "../Database/supabaseClient";
@@ -401,6 +403,30 @@ const MAIL_TEMPLATES: MailTemplate[] = [
   },
 ];
 
+/**
+ * Extrahiert die tatsächliche Fehlermeldung aus einer fehlgeschlagenen
+ * Edge-Function-Antwort. `supabase.functions.invoke()` liefert bei einem
+ * Non-2xx-Status nur die generische Meldung "Edge Function returned a
+ * non-2xx status code" — der eigentliche Grund (z.B. "SMTP nicht
+ * konfiguriert") steckt im JSON-Body der Response unter `error.context`.
+ *
+ * @param error - Der von `supabase.functions.invoke()` zurückgegebene Fehler.
+ * @returns Die konkrete Fehlermeldung, falls auslesbar, sonst die Original-Message.
+ */
+const extractFunctionErrorMessage = async (error: unknown): Promise<string> => {
+  if (error instanceof FunctionsHttpError) {
+    try {
+      const body = await error.context.json();
+      if (typeof body?.error === "string") {
+        return body.error;
+      }
+    } catch {
+      // Body nicht als JSON lesbar — Fallback auf die generische Message unten
+    }
+  }
+  return error instanceof Error ? error.message : String(error);
+};
+
 /* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
@@ -523,7 +549,7 @@ const MailConsolePage = () => {
       });
 
       if (error) {
-        throw error;
+        throw new Error(await extractFunctionErrorMessage(error));
       }
 
       // Ergebnis aus der Edge Function auswerten

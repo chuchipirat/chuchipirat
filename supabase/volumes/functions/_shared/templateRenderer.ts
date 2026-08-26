@@ -67,6 +67,7 @@ const FOOTER = `            </td>
                 <a href="mailto:hallo@chuchipirat.ch"
                    style="color: #006064; text-decoration: none;">hallo@chuchipirat.ch</a>
               </p>
+              {{unsubscribeBlock}}
             </td>
           </tr>
 
@@ -518,22 +519,26 @@ export function renderEmailTemplate(
     // Handlebars-Rendering (unterstützt Conditionals, Loops etc.).
     // {{variable}} escaped bereits automatisch — kein zusätzliches escapeHtml()
     // hier, sonst wird z.B. ' zu &#039; und dann nochmals zu &amp;#039;.
-    // preheaderText defaultet auf leer, damit Aufrufer, die keinen Vorschautext
-    // setzen (Handlebars rendert fehlende Variablen ohnehin leer — hier nur
-    // für Konsistenz mit dem Legacy-Zweig unten explizit vorbelegt).
-    const safeVars: Record<string, unknown> = {preheaderText: "", ...variables};
+    // preheaderText/unsubscribeBlock defaulten auf leer, damit Aufrufer, die
+    // sie nicht setzen (Handlebars rendert fehlende Variablen ohnehin leer —
+    // hier nur für Konsistenz mit dem Legacy-Zweig unten explizit vorbelegt).
+    const safeVars: Record<string, unknown> = {
+      preheaderText: "",
+      unsubscribeBlock: "",
+      ...variables,
+    };
     for (const [key, value] of Object.entries(rawVariables)) {
       safeVars[key] = value;
     }
     const template = Handlebars.compile(fullTemplate);
     rendered = template(safeVars);
   } else {
-    // Einfache {{variable}}-Ersetzung (Legacy). preheaderText defaultet auf
-    // leer, damit Aufrufer, die keinen Vorschautext setzen, nicht den
-    // literalen Platzhalter "{{preheaderText}}" im (für Gmails Vorschau-Text-
-    // Extraktion sichtbaren, optisch aber verstecktem) Preheader-Block stehen
-    // haben.
-    const safeVars: Record<string, string> = {preheaderText: ""};
+    // Einfache {{variable}}-Ersetzung (Legacy). preheaderText/unsubscribeBlock
+    // defaulten auf leer, damit Aufrufer, die sie nicht setzen, nicht den
+    // literalen Platzhalter "{{preheaderText}}"/"{{unsubscribeBlock}}" im
+    // Ergebnis stehen haben (preheaderText landet sonst sichtbar im Preheader-
+    // Block, den Gmails Vorschau-Text-Extraktion ausliest).
+    const safeVars: Record<string, string> = {preheaderText: "", unsubscribeBlock: ""};
     for (const [key, value] of Object.entries(variables)) {
       safeVars[key] = escapeHtml(String(value));
     }

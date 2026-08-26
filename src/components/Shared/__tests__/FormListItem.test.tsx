@@ -8,7 +8,7 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {render, screen, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import {FormListItem} from "../formListItem";
@@ -110,6 +110,72 @@ describe("FormListItem", () => {
         dateStyle: "medium",
       });
       expect(screen.getByText(formattedDate)).toBeInTheDocument();
+    });
+  });
+
+  describe("Schalter-Modus (type=\"switch\")", () => {
+    test("Rendert Label und Schalter im selben Spalten-Layout wie andere Felder", () => {
+      renderFormListItem({
+        type: "switch",
+        checked: true,
+        label: "Newsletter erhalten",
+      });
+
+      expect(screen.getByText("Newsletter erhalten")).toBeInTheDocument();
+      expect(screen.getByRole("switch")).toBeChecked();
+    });
+
+    test("Zeigt den Schalter als ausgeschaltet, wenn checked=false", () => {
+      renderFormListItem({
+        type: "switch",
+        checked: false,
+        label: "Newsletter erhalten",
+      });
+
+      expect(screen.getByRole("switch")).not.toBeChecked();
+    });
+
+    test("Ruft onChange mit dem neuen Zustand auf, wenn der Schalter geklickt wird", () => {
+      // Checked-Wert synchron im Mock auslesen (statt später über
+      // mock.calls[0][0].target.checked): das ist eine kontrollierte
+      // Komponente, React setzt event.target.checked nach dem Re-Render
+      // wieder auf den unveränderten checked-Prop (false) zurück, wodurch
+      // eine spätere Prüfung des DOM-Werts fälschlich false ergäbe.
+      const onChange = jest.fn((event) => event.target.checked);
+      renderFormListItem({
+        type: "switch",
+        checked: false,
+        label: "Newsletter erhalten",
+        onChange,
+      });
+
+      fireEvent.click(screen.getByRole("switch"));
+
+      expect(onChange).toHaveBeenCalledTimes(1);
+      expect(onChange.mock.results[0].value).toBe(true);
+    });
+
+    test("Deaktiviert den Schalter, wenn disabled=true", () => {
+      renderFormListItem({
+        type: "switch",
+        checked: true,
+        label: "Newsletter erhalten",
+        disabled: true,
+      });
+
+      expect(screen.getByRole("switch")).toBeDisabled();
+    });
+
+    test("Rendert keinen TextField, auch wenn editMode=true gesetzt ist", () => {
+      renderFormListItem({
+        type: "switch",
+        checked: true,
+        label: "Newsletter erhalten",
+        editMode: true,
+      });
+
+      expect(screen.queryByRole("textbox")).not.toBeInTheDocument();
+      expect(screen.getByRole("switch")).toBeInTheDocument();
     });
   });
 

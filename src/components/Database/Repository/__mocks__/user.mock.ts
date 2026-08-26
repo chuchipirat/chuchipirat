@@ -17,6 +17,7 @@ export const userRow: UserRow = {
   member_id: 42,
   motto: "Testing is caring",
   picture_src: "https://example.com/profile.jpg",
+  newsletter_opt_out: false,
   created_at: "2025-01-15T00:00:00.000Z",
   updated_at: "2026-02-20T10:00:00.000Z",
 };
@@ -34,6 +35,7 @@ export const userDomain: UserDomain = {
   memberId: 42,
   motto: "Testing is caring",
   pictureSrc: "https://example.com/profile.jpg",
+  newsletterOptOut: false,
 };
 
 /** Mock: Zweiter User für findMany-Tests */
@@ -49,6 +51,7 @@ export const userRow2: UserRow = {
   member_id: 1,
   motto: "I am the boss",
   picture_src: "",
+  newsletter_opt_out: false,
   created_at: "2024-06-01T00:00:00.000Z",
   updated_at: "2026-02-25T08:00:00.000Z",
 };

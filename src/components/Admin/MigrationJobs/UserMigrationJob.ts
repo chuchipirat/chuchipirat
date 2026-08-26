@@ -260,6 +260,7 @@ export class UserMigrationJob implements MigrationJob<FirebaseUserData> {
       memberId: data.memberId ?? 0,
       motto: data.motto ?? "",
       pictureSrc: this.extractPictureSrc(data.pictureSrc),
+      newsletterOptOut: false,
       createdAt: memberSince,
       legacyFirebaseUid: record.id,
     };

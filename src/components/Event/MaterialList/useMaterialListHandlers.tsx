@@ -53,6 +53,7 @@ import {
   MATERIAL_LIST as TEXT_MATERIAL_LIST,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
   ERROR_NO_MATERIALS_FOUND as TEXT_ERROR_NO_MATERIALS_FOUND,
+  ERROR_NO_RECIPES_FOUND as TEXT_ERROR_NO_RECIPES_FOUND,
 } from "../../../constants/text";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {MaterialListEditSource} from "../../Database/Repository/MaterialListRepository";
@@ -133,7 +134,7 @@ export function useMaterialListHandlers({
   onSelectList,
   onDispatchLoading,
   onDispatchError,
-  onDispatchSnackbar: _onDispatchSnackbar,
+  onDispatchSnackbar,
 }: UseMaterialListHandlersProps) {
   const database = useDatabase();
   const {customDialog} = useCustomDialog();
@@ -150,6 +151,10 @@ export function useMaterialListHandlers({
   const [traceItemDialogValues, setTraceItemDialogValues] = React.useState(
     TRACE_ITEM_DIALOG_INITIAL_VALUES,
   );
+  // Verhindert doppelte INSERTs, solange für ein Item bereits ein Insert
+  // läuft und die Realtime-Subscription die item.supabaseId noch nicht
+  // nachgetragen hat (siehe onChangeItem).
+  const pendingInsertUidsRef = React.useRef<Set<string>>(new Set());
 
   /* ------------------------------------------
   // Rezepte für Menüs laden (Supabase)
@@ -317,8 +322,12 @@ export function useMaterialListHandlers({
           trackEvent(AnalyticsEvent.MATERIAL_LIST_GENERATED, {eventUid: event.uid});
           onDispatchLoading(false);
         } catch (error) {
-          Sentry.captureException(error);
-          onDispatchError(error instanceof Error ? error : new Error(String(error)));
+          if ((error as Error).toString().includes(TEXT_ERROR_NO_RECIPES_FOUND)) {
+            onDispatchSnackbar("info", TEXT_ERROR_NO_RECIPES_FOUND);
+          } else {
+            Sentry.captureException(error);
+            onDispatchError(error instanceof Error ? error : new Error(String(error)));
+          }
         }
       } else if (dialogSelectMenueData.operationType === OperationType.Update) {
         onRefreshLists(userInput.input, Object.keys(selectedMenues));
@@ -692,18 +701,26 @@ export function useMaterialListHandlers({
       const updatedList = JSON.parse(JSON.stringify(materialList)) as MaterialList;
       onMaterialListUpdate(updatedList);
 
-      // Persistieren: Für neue Items ein INSERT, für bestehende ein granulares UPDATE.
-      if (isNewItem && change.source === "autocompleteMaterial" && item.name) {
-        // Neues Item erst persistieren wenn ein Material ausgewählt wurde
-        const rows = materialListItemsToInsertRows([item], selectedListItem, materials);
-        if (rows.length > 0) {
-          saveInProgressRef.current = true;
-          database.materialLists
-            .insertItem(selectedListItem, rows[0])
-            .catch((err) => Sentry.captureException(err))
-            .finally(() => { saveInProgressRef.current = false; });
+      // Persistieren: Solange das Item keine supabaseId hat, wurde es noch
+      // nie in die DB geschrieben (unabhängig davon, ob zuerst die Menge
+      // oder der Materialname geändert wurde) — sonst granulares UPDATE.
+      if (!item.supabaseId) {
+        // Neues Item erst persistieren, sobald ein Material ausgewählt wurde
+        if (item.name && !pendingInsertUidsRef.current.has(item.uid)) {
+          const rows = materialListItemsToInsertRows([item], selectedListItem, materials);
+          if (rows.length > 0) {
+            saveInProgressRef.current = true;
+            pendingInsertUidsRef.current.add(item.uid);
+            database.materialLists
+              .insertItem(selectedListItem, rows[0])
+              .catch((err) => Sentry.captureException(err))
+              .finally(() => {
+                saveInProgressRef.current = false;
+                pendingInsertUidsRef.current.delete(item!.uid);
+              });
+          }
         }
-      } else if (!isNewItem && item.supabaseId) {
+      } else {
         // Granulares Update für bestehendes Item
         const updates: Partial<{
           quantity: number;
@@ -731,7 +748,15 @@ export function useMaterialListHandlers({
           .catch((err) => Sentry.captureException(err));
       }
     },
-    [materialList, selectedListItem, onMaterialListUpdate, materials, database, saveInProgressRef],
+    [
+      materialList,
+      selectedListItem,
+      onMaterialListUpdate,
+      materials,
+      database,
+      saveInProgressRef,
+      pendingInsertUidsRef,
+    ],
   );
 
   /* ------------------------------------------

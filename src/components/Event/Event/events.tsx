@@ -98,7 +98,7 @@ const EventsPage = () => {
       dispatch({type: ReducerActions.EVENTS_FETCH_INIT});
 
       database.events
-        .getAllEventsForUser()
+        .getAllEventsForUser(authUser.uid)
         .then((result) => {
           dispatch({type: ReducerActions.EVENTS_FETCH_SUCCESS, payload: result});
         })

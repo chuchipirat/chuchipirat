@@ -2,6 +2,10 @@
 .branches
 .temp
 
+# Postgres-Dumps/Backups aus utils/upgrade-pg17.sh (enthalten echte Nutzerdaten)
+*.dump
+volumes/db/data.pg15-*
+
 # dotenvx
 .env.keys
 .env.local

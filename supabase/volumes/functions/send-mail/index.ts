@@ -21,6 +21,10 @@
  *
  * Erfordert die Umgebungsvariablen:
  *   SUPABASE_URL, SUPABASE_ANON_KEY, SUPABASE_SERVICE_ROLE_KEY
+ *   SUPABASE_PUBLIC_URL                    (von aussen erreichbare URL,
+ *                                            für den Abmelde-Link — fällt
+ *                                            auf SUPABASE_URL zurück, falls
+ *                                            nicht gesetzt)
  *   BREVO_API_KEY                          (Produktion)
  *   SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS (Fallback / lokal)
  */
@@ -42,6 +46,7 @@ import {personalize} from "../_shared/personalize.ts";
 
 /** Empfänger mit den Nutzer-Daten für die Personalisierung ({{firstName}} etc.). */
 interface ResolvedRecipient {
+  id: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -50,13 +55,16 @@ interface ResolvedRecipient {
 
 /** Roh-Zeile aus public.users für die Personalisierungs-Auflösung. */
 interface UserPersonalizationRow {
+  id: string;
   email: string;
   first_name: string;
   last_name: string;
   display_name: string;
+  newsletter_opt_out: boolean;
 }
 
 const toResolvedRecipient = (user: UserPersonalizationRow): ResolvedRecipient => ({
+  id: user.id,
   email: user.email,
   firstName: user.first_name ?? "",
   lastName: user.last_name ?? "",
@@ -96,12 +104,16 @@ serve(async (req: Request) => {
     // ── Authentifizierung & Autorisierung ──
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
-      return errorResponse("send-mail", "Missing Authorization header", 401);
+      return errorResponse("send-mail", "Missing Authorization header", 401, true);
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    // SUPABASE_URL (http://kong:8000) ist nur intern (Docker-Netzwerk)
+    // erreichbar — für Links in E-Mails (z.B. Abmelde-Link) muss die von
+    // aussen erreichbare SUPABASE_PUBLIC_URL verwendet werden.
+    const publicSupabaseUrl = Deno.env.get("SUPABASE_PUBLIC_URL") ?? supabaseUrl;
 
     // Benutzer aus JWT verifizieren
     const userClient = createClient(supabaseUrl, anonKey, {
@@ -110,7 +122,7 @@ serve(async (req: Request) => {
     });
     const {data: {user}, error: userError} = await userClient.auth.getUser();
     if (userError || !user) {
-      return errorResponse("send-mail", "Unauthorized", 401);
+      return errorResponse("send-mail", "Unauthorized", 401, true);
     }
 
     // Admin-Rolle prüfen
@@ -124,7 +136,7 @@ serve(async (req: Request) => {
       .single();
 
     if (!profile?.roles?.includes("admin")) {
-      return errorResponse("send-mail", "Forbidden: admin role required", 403);
+      return errorResponse("send-mail", "Forbidden: admin role required", 403, true);
     }
 
     // Payload parsen
@@ -144,21 +156,23 @@ serve(async (req: Request) => {
 
     // Validierung
     if (!recipients?.length) {
-      return errorResponse("Keine Empfänger angegeben", 400);
+      return errorResponse("send-mail", "Keine Empfänger angegeben", 400, true);
     }
     if (!subject) {
-      return errorResponse("Kein Betreff angegeben", 400);
+      return errorResponse("send-mail", "Kein Betreff angegeben", 400, true);
     }
     if (!body) {
-      return errorResponse("Kein E-Mail-Text angegeben", 400);
+      return errorResponse("send-mail", "Kein E-Mail-Text angegeben", 400, true);
     }
 
     // E-Mail-Konfiguration laden
     const emailEnv = readEmailEnv();
     if (!isEmailConfigured(emailEnv)) {
       return errorResponse(
+        "send-mail",
         "E-Mail-Versand ist nicht konfiguriert (weder Brevo noch SMTP)",
-        500
+        500,
+        true
       );
     }
 
@@ -167,8 +181,10 @@ serve(async (req: Request) => {
     if (forceTransport === "brevo") {
       if (!emailEnv.brevoApiKey) {
         return errorResponse(
+          "send-mail",
           "Brevo erzwungen, aber BREVO_API_KEY ist nicht gesetzt",
-          400
+          400,
+          true
         );
       }
       // SMTP-Pfad deaktivieren
@@ -176,8 +192,10 @@ serve(async (req: Request) => {
     } else if (forceTransport === "smtp") {
       if (!emailEnv.smtpHost) {
         return errorResponse(
+          "send-mail",
           "SMTP erzwungen, aber SMTP_HOST ist nicht gesetzt",
-          400
+          400,
+          true
         );
       }
       // Brevo-Pfad deaktivieren
@@ -205,10 +223,20 @@ serve(async (req: Request) => {
               </table>`
         : "";
 
+    // Abmelde-Hinweis für den Footer — {{unsubscribeLink}} wird erst beim
+    // Personalisieren pro Empfänger ersetzt (siehe bulkRecipients unten),
+    // da der Link die individuelle UID enthält. Nur bei admin-console
+    // gesetzt — andere Mail-Typen (welcome, request-* etc.) bekommen keinen
+    // Abmelde-Block, siehe templateRenderer.ts.
+    const unsubscribeBlock = `<p style="margin: 16px 0 0; font-size: 12px; color: #9e9e9e; line-height: 1.5;">
+                Du möchtest keine Newsletter mehr erhalten?
+                <a href="{{unsubscribeLink}}" style="color: #9e9e9e;">Hier abmelden</a>.
+              </p>`;
+
     const htmlContent = renderEmailTemplate(
       "admin-console",
       {subject, ...(preheaderText ? {preheaderText} : {})},
-      {body, titleBlock, subtitleBlock, buttonBlock},
+      {body, titleBlock, subtitleBlock, buttonBlock, unsubscribeBlock},
     );
 
     // UID-basierte Empfänger: E-Mail-Adressen + Namen aus public.users laden
@@ -218,15 +246,19 @@ serve(async (req: Request) => {
     // synchron gehalten, siehe sync_auth_email()/handle_new_user().) Über
     // fetchAllRows paginiert für Konsistenz mit dem Rollen-Pfad unten, auch
     // wenn ein Admin praktisch nie >1000 UIDs von Hand einträgt.
+    // Newsletter-Abmeldungen (newsletter_opt_out) werden bei allen drei
+    // Empfänger-Pfaden konsequent herausgefiltert.
     let resolvedRecipients: ResolvedRecipient[] = recipients.map((email) => ({
-      email, firstName: "", lastName: "", displayName: "",
+      id: "", email, firstName: "", lastName: "", displayName: "",
     }));
     if (recipientType === "uid") {
       const users = await fetchAllRows<UserPersonalizationRow>(
-        supabaseAdmin, "users", "email, first_name, last_name, display_name",
+        supabaseAdmin, "users", "id, email, first_name, last_name, display_name, newsletter_opt_out",
         (query) => query.in("id", recipients).not("email", "is", null),
       );
-      resolvedRecipients = users.map(toResolvedRecipient);
+      resolvedRecipients = users
+        .filter((user) => !user.newsletter_opt_out)
+        .map(toResolvedRecipient);
     }
 
     // Rollen-basierte Empfänger: E-Mail-Adressen + Namen aus public.users laden
@@ -236,11 +268,12 @@ serve(async (req: Request) => {
     if (recipientType === "role") {
       const roles = recipients; // Rollen als Strings
       const users = await fetchAllRows<UserPersonalizationRow & {roles: string[]}>(
-        supabaseAdmin, "users", "email, first_name, last_name, display_name, roles",
+        supabaseAdmin, "users", "id, email, first_name, last_name, display_name, newsletter_opt_out, roles",
         (query) => query.not("email", "is", null),
       );
       resolvedRecipients = users
         .filter((user) => roles.some((role: string) => user.roles?.includes(role)))
+        .filter((user) => !user.newsletter_opt_out)
         .map(toResolvedRecipient);
     }
 
@@ -249,17 +282,29 @@ serve(async (req: Request) => {
     // extern eingetragene) bekommen leere Namen, Tokens werden dann leer.
     if (recipientType === "email") {
       const users = await fetchAllRows<UserPersonalizationRow>(
-        supabaseAdmin, "users", "email, first_name, last_name, display_name",
+        supabaseAdmin, "users", "id, email, first_name, last_name, display_name, newsletter_opt_out",
         (query) => query.in("email", recipients),
       );
-      const userByEmail = new Map(users.map((user) => [user.email, toResolvedRecipient(user)]));
-      resolvedRecipients = recipients.map((email) =>
-        userByEmail.get(email) ?? {email, firstName: "", lastName: "", displayName: ""},
+      // Abgemeldete registrierte Adressen explizit ausschliessen — sie
+      // dürften sonst über den "unbekannte Adresse"-Fallback unten trotzdem
+      // wieder reinrutschen (kein Treffer in userByEmail != nicht abgemeldet).
+      const optedOutEmails = new Set(
+        users.filter((user) => user.newsletter_opt_out).map((user) => user.email),
       );
+      const userByEmail = new Map(
+        users
+          .filter((user) => !user.newsletter_opt_out)
+          .map((user) => [user.email, toResolvedRecipient(user)]),
+      );
+      resolvedRecipients = recipients
+        .filter((email) => !optedOutEmails.has(email))
+        .map((email) =>
+          userByEmail.get(email) ?? {id: "", email, firstName: "", lastName: "", displayName: ""},
+        );
     }
 
     if (!resolvedRecipients.length) {
-      return errorResponse("Keine gültigen E-Mail-Adressen gefunden", 400);
+      return errorResponse("send-mail", "Keine gültigen E-Mail-Adressen gefunden", 400, true);
     }
 
     // E-Mails im Batch versenden (sendBulkEmail nutzt bei Brevo
@@ -272,15 +317,19 @@ serve(async (req: Request) => {
       : transport;
 
     const bulkRecipients = resolvedRecipients.map((recipient) => {
-      const personalizedSubject = personalize(subject, recipient);
-      const personalizedHtml = personalize(htmlContent, recipient);
+      const personalizationVariables = {
+        ...recipient,
+        unsubscribeLink: `${publicSupabaseUrl}/functions/v1/unsubscribe-newsletter?uid=${recipient.id}`,
+      };
+      const personalizedSubject = personalize(subject, personalizationVariables);
+      const personalizedHtml = personalize(htmlContent, personalizationVariables);
       // Klartext-Fallback bewusst aus dem rohen Mailtext ableiten, NICHT aus
       // personalizedHtml: Der volle Seiten-Render enthält Header/Footer und
       // den versteckten Preheader-Block — display:none existiert im
       // Plain-Text-Teil nicht, das würde also sichtbar VOR dem eigentlichen
       // Text auftauchen (inkl. unkodierter Entities wie &zwnj;&nbsp;, da die
       // Tag-Strip-Regex nur Tags entfernt, keine Entities dekodiert).
-      const personalizedBody = personalize(body, recipient);
+      const personalizedBody = personalize(body, personalizationVariables);
       return {
         email: recipient.email,
         subject: personalizedSubject,
@@ -327,6 +376,7 @@ serve(async (req: Request) => {
       "send-mail",
       error instanceof Error ? error.message : String(error),
       500,
+      true,
     );
   }
 });

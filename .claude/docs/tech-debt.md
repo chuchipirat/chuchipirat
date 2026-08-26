@@ -36,6 +36,9 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 - **Admin-client bypass in `authUserContext.tsx`** — `database.admin?.users ?? database.users` (Zeile 130) umgeht RLS beim Laden des Benutzerprofils im Auth-State-Change-Listener. Ursprünglich nötig wegen Timing-Problem (RLS erlaubt eigenen User erst nach vollständigem Session-Setup). Prüfen, ob regulärer Client mittlerweile funktioniert, und Admin-Fallback entfernen.
   **Priorität:** mittel · **Komplexität:** klein
 
+- **`authUserContext.tsx` — Cache-Validierung akzeptiert leere `uid` und kein `loading`-Flag** — `isValidCachedAuthUser` (Zeile ~49) prüft nur `typeof obj.uid === "string"`, nicht dass `uid` nicht-leer ist. Der Context hat ausserdem kein `loading`/`isLoading`-Flag — `null` bedeutet laut Kommentar sowohl "ausgeloggt" als auch "lädt noch". Konsumenten prüfen fast überall nur `if (!authUser) return`, was einen (theoretisch) korrupten Cache-Eintrag mit `uid: ""` als vollständig eingeloggt behandeln würde. Zusätzlich fehlt ein try/catch um `JSON.parse` beim Cache-Lesen (Initializer Zeile ~78 und Listener Zeile ~124). Kein aktiver Schreibpfad gefunden, der `uid: ""` erzeugt (Stand 2026-08-24) — daher nicht akut, aber als Verteidigungslinie sinnvoll: `isValidCachedAuthUser` um Non-Empty-Check ergänzen, `JSON.parse` absichern, echtes `loading`-Flag einführen.
+  **Priorität:** mittel · **Komplexität:** klein
+
 ## Performance
 
 - **Recipe loading: 5 parallel queries** — `recipe.tsx` and `recipe.edit.tsx` load a recipe via 4–5 separate parallel Supabase queries, plus a full products list just for name resolution. Refactor to use PostgREST embedded resources (single query with joins). Add `RecipeFullRow` interface, `getRecipeFull(id)` to `RecipeRepository`, `Recipe.fromFullRow()` factory method. Remove `getAllProducts()` workaround. See `database-and-supabase.md` for PostgREST embedded resource syntax.

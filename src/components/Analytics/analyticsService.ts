@@ -26,10 +26,15 @@ type UmamiBeforeSendPayload = {
 declare global {
   interface Window {
     umami?: {
-      track: (
-        eventName: string,
-        eventData?: Record<string, string | number | boolean>,
-      ) => void;
+      track: {
+        (
+          eventName: string,
+          eventData?: Record<string, string | number | boolean>,
+        ): void;
+        (
+          callback: (props: Record<string, unknown>) => Record<string, unknown>,
+        ): void;
+      };
     };
     chuchipiratUmamiBeforeSend?: (
       type: string,
@@ -149,4 +154,29 @@ export function trackEvent(
     return;
   }
   window.umami.track(eventName, eventData);
+}
+
+/**
+ * Sendet einen virtuellen Pageview an Umami, ohne die Browser-URL zu ändern.
+ *
+ * Für Bereiche wie den Event-Tabs, bei denen der aktive Tab nur über einen
+ * Query-Parameter (`?tab=...`) abgebildet wird — Umami trackt Query-Strings
+ * aber nicht (`data-exclude-search`). Über die Callback-Form von
+ * `umami.track()` lässt sich stattdessen ein eigener Pageview mit
+ * beliebiger `url` senden, der korrekt im Pages-/Journey-Report erscheint
+ * (im Gegensatz zu `trackEvent()`, das im Events-Report landet).
+ *
+ * Ignoriert den Aufruf stillschweigend, wenn Umami (noch) nicht geladen ist
+ * — z.B. in Tests oder bei fehlendem Script.
+ *
+ * @param url Virtuelle URL, die anstelle der echten Browser-URL getrackt wird.
+ * @example
+ * trackVirtualPageview("/event/3fa85f64-5717-4562-b3fc-2c963f66afa6/materiallist");
+ * // wird dank data-before-send normalisiert zu "/event/:id/materiallist"
+ */
+export function trackVirtualPageview(url: string): void {
+  if (!window.umami) {
+    return;
+  }
+  window.umami.track((props) => ({...props, url}));
 }

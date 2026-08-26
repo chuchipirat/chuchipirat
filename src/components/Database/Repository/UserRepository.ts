@@ -29,6 +29,7 @@ export interface UserRow {
   member_id: number;
   motto: string;
   picture_src: string;
+  newsletter_opt_out: boolean;
   created_at: string;
   updated_at: string;
   /** Firebase-UID des Benutzers (nur bei migrierten Benutzern gesetzt) */
@@ -57,6 +58,8 @@ export interface UserDomain {
   memberId: number;
   motto: string;
   pictureSrc: string;
+  /** Newsletter-Abmeldung (true = keine Mail-Konsolen-Versände mehr erhalten) */
+  newsletterOptOut: boolean;
   /** Erstellungsdatum (DB-Spalte created_at). Bei der Migration aus memberSince gesetzt. */
   createdAt?: Date;
   /** Firebase-UID des Benutzers (nur bei migrierten Benutzern gesetzt) */
@@ -108,6 +111,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       display_name: user.displayName,
       motto: user.motto,
       picture_src: user.pictureSrc ?? "",
+      newsletter_opt_out: user.newsletterOptOut ?? false,
     };
 
     // member_id nur setzen, wenn vorhanden (Migration).
@@ -152,6 +156,7 @@ export class UserRepository extends BaseRepository<UserDomain, UserRow> {
       memberId: row.member_id,
       motto: row.motto,
       pictureSrc: row.picture_src,
+      newsletterOptOut: row.newsletter_opt_out ?? false,
       createdAt: row.created_at ? new Date(row.created_at) : undefined,
       legacyFirebaseUid: row.legacy_firebase_uid ?? undefined,
     };

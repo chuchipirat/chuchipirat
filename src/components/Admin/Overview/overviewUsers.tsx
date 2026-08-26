@@ -29,6 +29,7 @@ import {
   MEMBER_SINCE as TEXT_MEMBER_SINCE,
   MOTTO as TEXT_MOTTO,
   ROLES as TEXT_ROLES,
+  NEWSLETTER_ADMIN_LABEL as TEXT_NEWSLETTER_ADMIN_LABEL,
   OPEN as TEXT_OPEN,
   EDIT_AUTHORIZATION as TEXT_EDIT_AUTHORIZATION,
   EDIT_AUTHORIZATION_DESCRIPTION as TEXT_EDIT_AUTHORIZATION_DESCRIPTION,
@@ -307,6 +308,30 @@ const OverviewUsersPage = () => {
   };
 
   /* ------------------------------------------
+  // Newsletter-Präferenz ändern
+  // ------------------------------------------ */
+  const onToggleNewsletter = async (receivesNewsletter: boolean) => {
+    if (!selectedUser?.uid) return;
+
+    try {
+      await database.users.patch({
+        id: selectedUser.uid,
+        fields: {newsletter_opt_out: !receivesNewsletter},
+        authUser: authUser,
+      });
+      setUserDomain((prev) =>
+        prev ? {...prev, newsletterOptOut: !receivesNewsletter} : null
+      );
+    } catch (error) {
+      Sentry.captureException(error);
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: error instanceof Error ? error : new Error(String(error)),
+      });
+    }
+  };
+
+  /* ------------------------------------------
   // Rollen aktualisieren
   // ------------------------------------------ */
   const onDialogEditRolesClose = () => {
@@ -395,6 +420,7 @@ const OverviewUsersPage = () => {
             setRoleDialog({open: true, userUid: selectedUser.uid ?? ""})
           }
           onChangeFoundBugs={onChangeFoundBugs}
+          onToggleNewsletter={onToggleNewsletter}
           onOpenEvent={(eventUid) => {
             navigate(`${ROUTE_EVENT}/${eventUid}`, {
               state: {action: Action.VIEW},
@@ -584,6 +610,7 @@ interface DialogUserProps {
   onEditRoles: () => void;
   onChangeFoundBugs: (delta: number) => void;
   onOpenEvent: (eventUid: string) => void;
+  onToggleNewsletter: (receivesNewsletter: boolean) => void;
 }
 
 const DialogUser = ({
@@ -597,6 +624,7 @@ const DialogUser = ({
   onEditRoles,
   onChangeFoundBugs,
   onOpenEvent,
+  onToggleNewsletter,
 }: DialogUserProps) => {
   const [activeTab, setActiveTab] = useState(0);
   const classes = useCustomStyles();
@@ -717,6 +745,14 @@ const DialogUser = ({
                   id="roles"
                   value={userDomain?.roles?.join(", ") ?? ""}
                   label={TEXT_ROLES}
+                />
+                <FormListItem
+                  key="newsletterOptOut"
+                  id="newsletterOptOut"
+                  type="switch"
+                  checked={!userDomain?.newsletterOptOut}
+                  onChange={(event) => onToggleNewsletter(event.target.checked)}
+                  label={TEXT_NEWSLETTER_ADMIN_LABEL}
                 />
               </List>
             )}

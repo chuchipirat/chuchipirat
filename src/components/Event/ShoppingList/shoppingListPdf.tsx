@@ -33,7 +33,7 @@ enum Column {
   LEFT,
   RIGHT,
 }
-enum LineType {
+export enum LineType {
   DEPARTMENT,
   ITEM,
 }
@@ -92,7 +92,7 @@ function createPageControl(maxLines: number): PageControl {
  * @param shoppingList - Die zu formatierende Einkaufsliste.
  * @returns Array von formatierten Seiten mit Steuerungsinformationen.
  */
-function formatShoppingList(
+export function formatShoppingList(
   shoppingList: ShoppingList,
 ): FormattedShoppingListPage[] {
   const pages: FormattedShoppingListPage[] = [];
@@ -125,13 +125,17 @@ function formatShoppingList(
       pages.push({pageControl: createPageControl(LINES_PER_PAGE.FIRST), list: []});
       noLines = noLines - LINES_PER_PAGE.FIRST;
     } else if (pages.length === 0 && noLines <= LINES_PER_PAGE.FIRST) {
-      pages.push({pageControl: createPageControl(noLines), list: []});
+      // Mindestens 2 Zeilen, sonst passt auf der letzten (Rest-)Seite eine
+      // Abteilungsüberschrift ohne ihr erstes Item nicht mehr in dieselbe
+      // Spalte — ensureSpaceForDepartment würde dann auf eine komplett neue
+      // Seite ausweichen, obwohl der Titel dort allein stehen würde.
+      pages.push({pageControl: createPageControl(Math.max(2, noLines)), list: []});
       noLines = 0;
     } else if (pages.length > 0 && noLines > LINES_PER_PAGE.REST) {
       pages.push({pageControl: createPageControl(LINES_PER_PAGE.REST), list: []});
       noLines = noLines - LINES_PER_PAGE.REST;
     } else {
-      pages.push({pageControl: createPageControl(noLines), list: []});
+      pages.push({pageControl: createPageControl(Math.max(2, noLines)), list: []});
       noLines = 0;
     }
   } while (noLines > 0);
