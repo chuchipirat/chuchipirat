@@ -11,6 +11,7 @@
  */
 import * as Sentry from "@sentry/react";
 import {SupabaseClient} from "@supabase/supabase-js";
+import {isTransientNetworkError, toError} from "../../../utils/errorUtils";
 
 /** Basis-Verzögerung für den exponentiellen Backoff (1s). */
 const BASE_DELAY_MS = 1000;
@@ -85,17 +86,27 @@ export function subscribeWithRetry({
   let activeChannel: ReturnType<typeof client.channel> | null = null;
   let cancelled = false;
 
-  /** Ruft onChange auf und leitet synchrone wie asynchrone Fehler an onError. */
+  /**
+   * Meldet einen Fehler aus `onChange`. Vorübergehende Netzfehler (z.B. während
+   * eines Reconnect-Fensters) werden verschluckt — das nächste erfolgreiche
+   * Realtime-Event lädt die Daten ohnehin erneut. Alle übrigen Werte werden in
+   * eine echte `Error`-Instanz normalisiert (Supabase wirft rohe Objekte, deren
+   * `String()` sonst als "[object Object]" in Sentry landet).
+   */
+  const reportChangeError = (error: unknown) => {
+    if (isTransientNetworkError(error)) return;
+    onError(toError(error));
+  };
+
+  /** Ruft onChange auf und leitet synchrone wie asynchrone Fehler weiter. */
   const handleChange = () => {
     try {
       const result = onChange();
       if (result instanceof Promise) {
-        result.catch((error: unknown) =>
-          onError(error instanceof Error ? error : new Error(String(error))),
-        );
+        result.catch(reportChangeError);
       }
     } catch (error) {
-      onError(error instanceof Error ? error : new Error(String(error)));
+      reportChangeError(error);
     }
   };
 

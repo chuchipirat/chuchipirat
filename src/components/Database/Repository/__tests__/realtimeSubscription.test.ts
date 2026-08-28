@@ -137,6 +137,52 @@ describe("subscribeWithRetry", () => {
     expect(params.onError.mock.calls[0][0].message).toBe("boom async");
   });
 
+  test("normalisiert ein rohes Supabase-Fehlerobjekt aus onChange zu einer Error-Instanz", async () => {
+    const {client, channels} = createClientMock();
+    const supabaseError = {
+      code: "42501",
+      details: null,
+      hint: null,
+      message: "permission denied for view event_shopping_list_items_view",
+    };
+    const params = {
+      ...baseParams(client),
+      onChange: jest.fn(() => Promise.reject(supabaseError)),
+    };
+
+    subscribeWithRetry(params);
+    (channels[0].on.mock.calls[0][2] as () => void)();
+    await Promise.resolve();
+
+    expect(params.onError).toHaveBeenCalledTimes(1);
+    const reported = params.onError.mock.calls[0][0];
+    expect(reported).toBeInstanceOf(Error);
+    expect(reported.message).toBe(
+      "permission denied for view event_shopping_list_items_view",
+    );
+  });
+
+  test("verschluckt einen vorübergehenden Netzfehler aus onChange", async () => {
+    const {client, channels} = createClientMock();
+    const params = {
+      ...baseParams(client),
+      onChange: jest.fn(() =>
+        Promise.reject({
+          code: "",
+          details: "TypeError: Failed to fetch",
+          hint: "",
+          message: "TypeError: Failed to fetch (api.chuchipirat.ch)",
+        }),
+      ),
+    };
+
+    subscribeWithRetry(params);
+    (channels[0].on.mock.calls[0][2] as () => void)();
+    await Promise.resolve();
+
+    expect(params.onError).not.toHaveBeenCalled();
+  });
+
   test("meldet bei SUBSCRIBED keinen Fehler", () => {
     const {client, channels} = createClientMock();
     const params = baseParams(client);
