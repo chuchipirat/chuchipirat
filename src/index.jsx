@@ -38,6 +38,14 @@ Sentry.init({
     }),
     Sentry.consoleLoggingIntegration({levels: ["log", "warn", "error"]}),
   ],
+  // Rauschen von Drittanbietern ausfiltern, das nicht aus unserem Code stammt.
+  ignoreErrors: [
+    // Der SafeLink-/Vorschau-Crawler von Microsoft Outlook injiziert beim
+    // Vorab-Scannen von E-Mail-Links (u.a. /authservicehandler) eine kaputte
+    // Bridge und wirft dann diesen String als unhandled rejection. Kein
+    // App-Fehler, kein Stacktrace, nur von Crawler-"Nutzern" ausgelöst.
+    /Object Not Found Matching Id/,
+  ],
   tracesSampleRate: 1.0,
   tracePropagationTargets: ["localhost", /^https:\/\/chuchipirat\.ch/],
   replaysSessionSampleRate: 0.1,
