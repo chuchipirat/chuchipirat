@@ -13,18 +13,6 @@ import {AlertMessage} from "../AlertMessage";
 // =================================================================== */
 
 /**
- * Mock fuer FirebaseMessageHandler.
- * Gibt standardmaessig `null` zurueck (kein Firebase-Match),
- * kann aber pro Test ueberschrieben werden.
- */
-jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
-  __esModule: true,
-  default: {
-    translateMessage: jest.fn(() => null),
-  },
-}));
-
-/**
  * Mock fuer SupabaseMessageHandler.
  * Gibt die `error.message` unveraendert zurueck.
  */
@@ -40,7 +28,6 @@ jest.mock("../../../constants/styles", () => ({
   useCustomStyles: jest.fn(() => ({alertMessage: {}})),
 }));
 
-import FirebaseMessageHandler from "../../Firebase/firebaseMessageHandler.class";
 import SupabaseMessageHandler from "../../Database/supabaseMessageHandler.class";
 
 /* ===================================================================
@@ -66,7 +53,6 @@ const renderAlertMessage = (
 beforeEach(() => {
   jest.clearAllMocks();
   // Standard-Verhalten nach clearAllMocks wiederherstellen
-  (FirebaseMessageHandler.translateMessage as jest.Mock).mockReturnValue(null);
   (SupabaseMessageHandler.translateMessage as jest.Mock).mockImplementation(
     (error: {message: string}) => error.message,
   );
@@ -74,15 +60,11 @@ beforeEach(() => {
 
 describe("AlertMessage", () => {
   describe("Fehleruebersetzung", () => {
-    test("Zeigt die von SupabaseMessageHandler uebersetzte Fehlermeldung an, wenn Firebase null zurueckgibt", () => {
+    test("Zeigt die von SupabaseMessageHandler uebersetzte Fehlermeldung an", () => {
       const testError = new Error("Invalid login credentials");
 
       renderAlertMessage({error: testError});
 
-      // Firebase gibt null zurueck → Fallback auf Supabase
-      expect(FirebaseMessageHandler.translateMessage).toHaveBeenCalledWith(
-        testError,
-      );
       expect(SupabaseMessageHandler.translateMessage).toHaveBeenCalledWith(
         testError,
       );
@@ -91,32 +73,9 @@ describe("AlertMessage", () => {
       ).toBeInTheDocument();
     });
 
-    test("Zeigt die von FirebaseMessageHandler uebersetzte Fehlermeldung an, wenn ein Match vorliegt", () => {
-      const testError = new Error("auth/wrong-password") as Error & {
-        code: string;
-      };
-      testError.code = "auth/wrong-password";
-
-      // Firebase liefert eine uebersetzte Meldung
-      (FirebaseMessageHandler.translateMessage as jest.Mock).mockReturnValue(
-        "Passwort falsch.",
-      );
-
-      renderAlertMessage({error: testError});
-
-      expect(FirebaseMessageHandler.translateMessage).toHaveBeenCalledWith(
-        testError,
-      );
-      // Supabase wird nicht aufgerufen, da Firebase bereits ein Ergebnis liefert (nullish coalescing)
-      expect(SupabaseMessageHandler.translateMessage).not.toHaveBeenCalled();
-      expect(screen.getByText("Passwort falsch.")).toBeInTheDocument();
-    });
-
     test("Zeigt keinen Fehlertext an, wenn error null ist", () => {
       renderAlertMessage({error: null});
 
-      // Keiner der Handler wird aufgerufen
-      expect(FirebaseMessageHandler.translateMessage).not.toHaveBeenCalled();
       expect(SupabaseMessageHandler.translateMessage).not.toHaveBeenCalled();
     });
   });

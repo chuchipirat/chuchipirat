@@ -35,14 +35,6 @@ jest.mock("../../Shared/imageUrl", () => ({
   ImageSize: {AVATAR: 50, PROFILE_CARD: 600, FULL: 1200},
 }));
 
-/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
-jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
-  __esModule: true,
-  default: {
-    translateMessage: () => null,
-  },
-}));
-
 /** Mock: SupabaseMessageHandler — gibt error.message direkt zurück */
 jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   __esModule: true,

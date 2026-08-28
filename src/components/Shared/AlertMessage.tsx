@@ -1,13 +1,12 @@
 import React from "react";
 import {Alert, AlertColor, AlertTitle} from "@mui/material";
-import FirebaseMessageHandler from "../Firebase/firebaseMessageHandler.class";
 import SupabaseMessageHandler from "../Database/supabaseMessageHandler.class";
 import {useCustomStyles} from "../../constants/styles";
 
 /**
  * Eigenschaften für die AlertMessage-Komponente.
  *
- * @param error Optionaler Fehler — wird via Firebase/Supabase-MessageHandler übersetzt.
+ * @param error Optionaler Fehler — wird via SupabaseMessageHandler übersetzt.
  * @param severity Schweregrad der Meldung (Standard: "error").
  * @param messageTitle Optionaler Titel der Alert-Meldung.
  * @param body Optionaler Inhalt als Text oder JSX.
@@ -38,10 +37,8 @@ const AlertMessage = ({
 }: AlertMessageProps) => {
   const classes = useCustomStyles();
 
-  // Firebase-Code zuerst prüfen, dann Supabase-Nachricht
   const translatedError = error
-    ? FirebaseMessageHandler.translateMessage(error) ??
-      SupabaseMessageHandler.translateMessage(error)
+    ? SupabaseMessageHandler.translateMessage(error)
     : null;
 
   return (
