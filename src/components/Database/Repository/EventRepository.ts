@@ -18,6 +18,7 @@ import {AuthUser} from "../../Session/authUser.class";
 import {Event,Cook, EventDate} from "../../Event/Event/event.class";
 import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";
 import {isUuid} from "../../../utils/uuid";
+import {subscribeWithRetry} from "./realtimeSubscription";
 
 /* =====================================================================
 // DB-Zeilenstrukturen (snake_case, entspricht den Postgres-Spalten)
@@ -606,33 +607,21 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
     onData: (eventData: EventDomain) => void,
     onError: (error: Error) => void,
   ): () => void {
-    const clientRef = this.client;
-
-    const reloadEvent = async () => {
-      try {
+    // Ein einziger Channel für alle 3 Event-Tabellen — spart Realtime-Connections
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `event:${eventId}`,
+      bindings: [
+        {table: "events", filter: `id=eq.${eventId}`},
+        {table: "event_cooks", filter: `event_id=eq.${eventId}`},
+        {table: "event_dates", filter: `event_id=eq.${eventId}`},
+      ],
+      onChange: async () => {
         const updated = await this.getEvent(eventId);
         if (updated) onData(updated);
-      } catch (err) {
-        onError(err instanceof Error ? err : new Error(String(err)));
-      }
-    };
-
-    // Ein einziger Channel für alle 3 Event-Tabellen — spart Realtime-Connections
-    const channel = clientRef
-      .channel(`event:${eventId}`)
-      .on("postgres_changes", {event: "*", schema: "public", table: "events", filter: `id=eq.${eventId}`}, reloadEvent)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_cooks", filter: `event_id=eq.${eventId}`}, reloadEvent)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_dates", filter: `event_id=eq.${eventId}`}, reloadEvent)
-      .subscribe((status, err) => {
-        console.debug(`Realtime event:${eventId} status: ${status}`, err ?? "");
-        if (status === "CHANNEL_ERROR") {
-          onError(new Error(`Realtime-Fehler für event:${eventId}`));
-        }
-      });
-
-    return () => {
-      clientRef.removeChannel(channel);
-    };
+      },
+      onError,
+    });
   }
 
   /* =====================================================================

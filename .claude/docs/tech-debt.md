@@ -173,6 +173,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`src/components/Shared/customDialogContext.tsx`** — Modul-Level `resolveCallback` Variable ist fragil bei gleichzeitigen Dialogen. Funktioniert in der Praxis (App zeigt nur einen Dialog gleichzeitig), aber ein `useRef`-basiertes Rewrite wäre robuster. Würde 26 Konsumenten betreffen.
   **Priorität:** tief · **Komplexität:** gross
 
+- **`BaseRepository.subscribe()` nutzt noch das naive Realtime-Muster** — Alle UI-genutzten Realtime-Subscriptions laufen inzwischen über `subscribeWithRetry` (`realtimeSubscription.ts`, Backoff-Reconnect, Breadcrumb statt Exception bei transientem `CHANNEL_ERROR`). `BaseRepository.subscribe()` (Z. ~273) meldet dagegen bei `CHANNEL_ERROR` sofort `onError` und reconnectet nicht. Aktuell kein UI-Consumer (`grep '.subscribe({'` leer), daher nicht dringend. Bei Umstellung Semantik-Unterschiede beachten: Einzelsatz-Subscription, `DELETE`-Event → `onError("Record deleted")`, `cacheUpsert` im Change-Handler.
+  **Priorität:** tief · **Komplexität:** klein
+
 ## Other
 
 - **Duplikate Produkte in `products`-Tabelle** — Mind. 7 Produkte existieren als zwei separate DB-Zeilen mit identischem Namen, aber unterschiedlicher `uid` (bestätigt: Äpfel, Birnen, Diverse Früchte, Frühstücksflocken, Mascarpone vegan, Rotkabis, Weisswein alkoholfrei — siehe [[RC-001 Rezept erstellen]]). Hat einen React-Key-Kollisions-Bug im Produkt-Autocomplete verursacht (behoben via `getOptionKey`), macht Produktauswahl in Zutaten-/Einkaufslisten aber weiterhin für Nutzer verwirrend (zwei identisch benannte, evtl. unterschiedlich klassifizierte Einträge zur Auswahl). Bereinigung (Duplikate zusammenführen oder eindeutig benennen) erfordert Prüfung, ob beide Zeilen bereits in Rezepten/Einkaufslisten referenziert werden.

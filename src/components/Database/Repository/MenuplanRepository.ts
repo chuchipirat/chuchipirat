@@ -16,6 +16,7 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import * as Sentry from "@sentry/react";
+import {subscribeWithRetry} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -664,98 +665,23 @@ export class MenuplanRepository extends BaseRepository<
     onAnyChange: () => void,
     onError: (error: Error) => void,
   ): () => void {
-    const clientRef = this.client;
-    const MAX_RETRIES = 5;
-    const BASE_DELAY_MS = 1000;
-    const MAX_DELAY_MS = 30_000;
-
-    let retryCount = 0;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let activeChannel: ReturnType<typeof clientRef.channel> | null = null;
-    let cancelled = false;
-
-    const handleChange = () => {
-      try {
-        onAnyChange();
-      } catch (err) {
-        onError(err instanceof Error ? err : new Error(String(err)));
-      }
-    };
-
-    /**
-     * Erstellt und abonniert einen Realtime-Channel.
-     * Bei CHANNEL_ERROR oder TIMED_OUT wird automatisch mit
-     * exponentiellem Backoff (1s, 2s, 4s, …, max 30s) erneut versucht.
-     * Nach MAX_RETRIES wird onError mit einem permanenten Fehler aufgerufen.
-     */
-    const subscribe = () => {
-      if (cancelled) return;
-
-      const channel = clientRef
-        .channel(`menuplan:${eventId}`)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_meal_types", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_meals", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menues", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_recipes", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_products", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_materials", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_notes", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menuplan_item_plans", filter: `event_id=eq.${eventId}`}, handleChange)
-        .subscribe((status, _err) => {
-          if (cancelled) return;
-
-          if (status === "SUBSCRIBED") {
-            // Erfolgreich verbunden — Retry-Zähler zurücksetzen
-            retryCount = 0;
-            return;
-          }
-
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            Sentry.addBreadcrumb({
-              category: "realtime",
-              message: `Menuplan channel ${status} (attempt ${retryCount + 1}/${MAX_RETRIES})`,
-              level: "warning",
-              data: {eventId, status, retryCount},
-            });
-
-            // Alten Channel aufräumen
-            clientRef.removeChannel(channel);
-            activeChannel = null;
-
-            if (retryCount >= MAX_RETRIES) {
-              const permanentError = new Error(
-                `Realtime-Verbindung für menuplan:${eventId} nach ${MAX_RETRIES} Versuchen fehlgeschlagen`,
-              );
-              Sentry.captureException(permanentError, {extra: {eventId, retryCount}});
-              onError(permanentError);
-              return;
-            }
-
-            // Exponentieller Backoff: 1s, 2s, 4s, 8s, 16s (gedeckelt bei 30s)
-            const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
-            retryCount++;
-            retryTimer = setTimeout(subscribe, delay);
-          }
-        });
-
-      activeChannel = channel;
-    };
-
-    // Erste Verbindung aufbauen
-    subscribe();
-
-    // Unsubscribe-Funktion: räumt Channel UND ausstehende Retries auf
-    return () => {
-      cancelled = true;
-      if (retryTimer !== null) {
-        clearTimeout(retryTimer);
-        retryTimer = null;
-      }
-      if (activeChannel) {
-        clientRef.removeChannel(activeChannel);
-        activeChannel = null;
-      }
-    };
+    // Ein einziger Channel für alle 8 Menuplan-Tabellen — spart Realtime-Connections
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `menuplan:${eventId}`,
+      bindings: [
+        {table: "event_meal_types", filter: `event_id=eq.${eventId}`},
+        {table: "event_meals", filter: `event_id=eq.${eventId}`},
+        {table: "event_menues", filter: `event_id=eq.${eventId}`},
+        {table: "event_menue_recipes", filter: `event_id=eq.${eventId}`},
+        {table: "event_menue_products", filter: `event_id=eq.${eventId}`},
+        {table: "event_menue_materials", filter: `event_id=eq.${eventId}`},
+        {table: "event_notes", filter: `event_id=eq.${eventId}`},
+        {table: "event_menuplan_item_plans", filter: `event_id=eq.${eventId}`},
+      ],
+      onChange: onAnyChange,
+      onError,
+    });
   }
 
   /* =====================================================================
