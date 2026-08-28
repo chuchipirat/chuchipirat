@@ -60,7 +60,12 @@ const mockDatabase = {
 /* ===================================================================
 // ======================== Import nach Mocks =========================
 // =================================================================== */
-import {AuthUserContext, useAuthUser, AuthorizationGuard} from "../authUserContext";
+import {
+  AuthUserContext,
+  useAuthUser,
+  AuthorizationGuard,
+  isValidCachedAuthUser,
+} from "../authUserContext";
 import {GlobalSettingsContext} from "../globalSettingsContext";
 import AuthUser from "../../Session/authUser.class";
 import {Role} from "../../../constants/roles";
@@ -265,5 +270,49 @@ describe("useAuthUser", () => {
     );
 
     expect(screen.getByTestId("auth-user-value")).toHaveTextContent("context-uid-456");
+  });
+});
+
+/* ===================================================================
+// ======================== isValidCachedAuthUser ====================
+// =================================================================== */
+
+describe("isValidCachedAuthUser", () => {
+  const VALID_UUID = "3f2504e0-4f89-41d3-9a0c-0305e82c3301";
+
+  /** Erzeugt ein minimales, gecachtes AuthUser-artiges Objekt. */
+  const cachedUser = (overrides: Record<string, unknown> = {}): unknown => ({
+    uid: VALID_UUID,
+    email: "test@chuchipirat.ch",
+    publicProfile: {displayName: "Test", motto: "", pictureSrc: ""},
+    ...overrides,
+  });
+
+  test("akzeptiert ein vollstaendiges Objekt mit gueltiger UUID", () => {
+    expect(isValidCachedAuthUser(cachedUser())).toBe(true);
+  });
+
+  test("lehnt einen Cache-Eintrag mit Firebase-UID ab", () => {
+    expect(
+      isValidCachedAuthUser(cachedUser({uid: "e8WxnzFaEnMeo908kVxx1Qgv3hb2"})),
+    ).toBe(false);
+  });
+
+  test("lehnt einen Cache-Eintrag mit leerer uid ab", () => {
+    expect(isValidCachedAuthUser(cachedUser({uid: ""}))).toBe(false);
+  });
+
+  test("lehnt ein Objekt ohne email ab", () => {
+    expect(isValidCachedAuthUser(cachedUser({email: undefined}))).toBe(false);
+  });
+
+  test("lehnt ein Objekt ohne publicProfile ab", () => {
+    expect(isValidCachedAuthUser(cachedUser({publicProfile: null}))).toBe(false);
+  });
+
+  test("lehnt null und primitive Werte ab", () => {
+    expect(isValidCachedAuthUser(null)).toBe(false);
+    expect(isValidCachedAuthUser("string")).toBe(false);
+    expect(isValidCachedAuthUser(undefined)).toBe(false);
   });
 });

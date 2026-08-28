@@ -291,7 +291,7 @@ describe("EventRepository.getAllEventsForUser", () => {
     // Auth-User simulieren
     (client as any).auth = {
       getUser: jest.fn().mockResolvedValue({
-        data: {user: {id: "user-uuid-1"}},
+        data: {user: {id: "11111111-1111-4111-8111-111111111111"}},
       }),
     };
 
@@ -308,7 +308,7 @@ describe("EventRepository.getAllEventsForUser", () => {
         created_by: null,
         updated_at: "2026-01-01T00:00:00Z",
         updated_by: null,
-        event_cooks: [{user_id: "user-uuid-1"}],
+        event_cooks: [{user_id: "11111111-1111-4111-8111-111111111111"}],
         event_dates: [
           {id: "d1", sort_order: 0, date_from: "2026-03-10", date_to: "2026-03-12"},
           {id: "d2", sort_order: 10, date_from: "2026-03-13", date_to: "2026-03-15"},
@@ -336,7 +336,7 @@ describe("EventRepository.getAllEventsForUser", () => {
 
     (client as any).auth = {
       getUser: jest.fn().mockResolvedValue({
-        data: {user: {id: "user-uuid-1"}},
+        data: {user: {id: "11111111-1111-4111-8111-111111111111"}},
       }),
     };
 
@@ -352,7 +352,7 @@ describe("EventRepository.getAllEventsForUser", () => {
         created_by: null,
         updated_at: "2026-01-01T00:00:00Z",
         updated_by: null,
-        event_cooks: [{user_id: "user-uuid-1"}],
+        event_cooks: [{user_id: "11111111-1111-4111-8111-111111111111"}],
         // event_dates fehlt absichtlich
       },
     ];
@@ -376,6 +376,16 @@ describe("EventRepository.getAllEventsForUser", () => {
 
     const repo = new EventRepository(client as any);
     const events = await repo.getAllEventsForUser();
+
+    expect(events).toEqual([]);
+    expect(queryMock.order).not.toHaveBeenCalled();
+  });
+
+  test("gibt leeres Array zurueck statt mit einer Firebase-UID zu queryen", async () => {
+    const {client, queryMock} = createSupabaseMock();
+
+    const repo = new EventRepository(client as any);
+    const events = await repo.getAllEventsForUser("e8WxnzFaEnMeo908kVxx1Qgv3hb2");
 
     expect(events).toEqual([]);
     expect(queryMock.order).not.toHaveBeenCalled();

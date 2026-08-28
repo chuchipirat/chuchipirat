@@ -70,6 +70,9 @@ _(Claude Code: append entries here when you encounter `console.log` / `console.e
 - **DAL wirft rohe Nicht-`Error`-Objekte** — `BaseRepository.findById()` / `findMany()` / `create()` etc. reichen das Supabase-`error`-Objekt (`{code, details, hint, message}`) via `if (error) throw error` unverändert weiter. Aufrufer, die es an `Sentry.captureException()` geben, erzeugen unbrauchbare Gruppen ("Object captured as exception with keys ..."). Aktuell wird das an einer Stelle (`globalSettingsContext.tsx`) über `toError()` aus `src/utils/errorUtils.ts` normalisiert. Langfristig sollte die Normalisierung zentral in `BaseRepository` passieren (einmal `throw toError(error)` statt an jeder der ~263 `captureException`-Aufrufstellen). Gleiches gilt für `isTransientNetworkError()`: vorübergehende `Failed to fetch`-Fehler aus Hintergrund-Polls (`Home.tsx:806/1033`, weitere) sollten dort ebenfalls nicht nach Sentry.
   **Priorität:** tief · **Komplexität:** mittel
 
+- **Kein flächendeckender `isUuid()`-Guard vor `.eq("*_uid"/"user_id", …)`** — Aus veralteten localStorage-Caches kann eine Firebase-UID als `authUser.uid` durchsickern und löst dann Postgres `22P02` ("invalid input syntax for type uuid") aus. Root Cause ist per `isValidCachedAuthUser` (`authUserContext.tsx`) gefixt; als Defense-in-depth haben `EventRepository.getAllEventsForUser` und `DonationRepository.getMyDonations` einen `isUuid()`-Guard (`src/utils/uuid.ts`). Noch offen: ein Audit aller weiteren Repository-Methoden, die eine User-UID direkt in `.eq()` / `.in()` gegen eine `uuid`-Spalte reichen (z.B. `RecipeRepository.searchByCreatorId(s)`, diverse `*_uid`-Filter), und ggf. dort denselben Guard ergänzen.
+  **Priorität:** tief · **Komplexität:** klein
+
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_

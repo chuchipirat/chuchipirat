@@ -17,6 +17,7 @@ import {
 import {AuthUser} from "../../Session/authUser.class";
 import {Event,Cook, EventDate} from "../../Event/Event/event.class";
 import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";
+import {isUuid} from "../../../utils/uuid";
 
 /* =====================================================================
 // DB-Zeilenstrukturen (snake_case, entspricht den Postgres-Spalten)
@@ -380,10 +381,11 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
       ?? "";
 
     // auth.getUser() kann kurz nach dem Login (Token-Refresh noch nicht
-    // abgeschlossen) transient keinen User liefern — ohne diese Sperre würde
-    // eine leere ID an .eq() gehen und Postgres wirft "invalid input syntax
-    // for the uuid" statt einfach ein leeres Ergebnis zurückzugeben.
-    if (!effectiveUserId) {
+    // abgeschlossen) transient keinen User liefern; ausserdem kann aus einem
+    // veralteten Cache eine Firebase-UID durchsickern. Beides würde eine
+    // ungültige ID an .eq() geben und Postgres wirft "invalid input syntax
+    // for type uuid" (22P02) statt ein leeres Ergebnis zurückzugeben.
+    if (!isUuid(effectiveUserId)) {
       return [];
     }
 
