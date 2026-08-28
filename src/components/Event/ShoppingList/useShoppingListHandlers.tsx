@@ -240,8 +240,20 @@ const determineItemDepartment = ({
 
 /**
  * Verschiebt ein Item von einer Abteilung in eine andere.
+ *
+ * Die Zielabteilung wird bei Bedarf angelegt: Sie kann in `shoppingList.list`
+ * noch fehlen, wenn dort bisher kein Artikel enthalten war — etwa wenn ein
+ * bestehender Artikel per Autocomplete auf ein Produkt einer bislang leeren
+ * Abteilung geändert wird.
+ *
+ * @param params.shoppingList - Die zu mutierende Einkaufsliste.
+ * @param params.item - Das zu verschiebende Item.
+ * @param params.fromDepartmentPos - Position der Ausgangsabteilung.
+ * @param params.toDepartment - Zielabteilung.
+ * @param params.isNewItem - Ob das Item neu hinzugefügt wird (noch nicht in der Liste).
+ * @returns `true`, wenn das Item die Abteilung tatsächlich gewechselt hat.
  */
-const moveItemToDepartment = ({
+export const moveItemToDepartment = ({
   shoppingList,
   item,
   fromDepartmentPos,
@@ -254,6 +266,15 @@ const moveItemToDepartment = ({
   toDepartment: Department;
   isNewItem: boolean;
 }): boolean => {
+  // Zielabteilung sicherstellen — greift für neue wie bestehende Items.
+  if (!Object.hasOwn(shoppingList.list, toDepartment.pos)) {
+    shoppingList.list[toDepartment.pos] = {
+      departmentUid: toDepartment.uid,
+      departmentName: toDepartment.name,
+      items: [],
+    };
+  }
+
   if (toDepartment.pos != fromDepartmentPos && !isNewItem) {
     shoppingList.list[Number(fromDepartmentPos) as Department["pos"]].items =
       shoppingList.list[fromDepartmentPos].items.filter(
@@ -262,13 +283,6 @@ const moveItemToDepartment = ({
     shoppingList.list[toDepartment.pos].items.push(item);
     return true;
   } else if (isNewItem) {
-    if (!Object.hasOwn(shoppingList.list, toDepartment.pos)) {
-      shoppingList.list[toDepartment.pos] = {
-        departmentUid: toDepartment.uid,
-        departmentName: toDepartment.name,
-        items: [],
-      };
-    }
     shoppingList.list[toDepartment.pos].items.push(item);
     return toDepartment.pos != fromDepartmentPos;
   }
