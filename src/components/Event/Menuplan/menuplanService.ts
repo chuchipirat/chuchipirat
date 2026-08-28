@@ -261,13 +261,21 @@ export function addMealType({
   menues,
   dates,
 }: AddMealTypeParams) {
-  const newMealTypes = {...mealTypes};
+  // `order` und `entries` echt kopieren — sonst mutiert `.push()` die
+  // State-Referenz direkt, was bei einem Doppelklick eine doppelte uid in
+  // `order` legt (-> unique-constraint 23505 beim Speichern, siehe tech-debt.md).
+  const newMealTypes = {
+    order: [...mealTypes.order],
+    entries: {...mealTypes.entries},
+  };
   const newMeals = {...meals};
   const newMenues = {...menues};
 
   // Mahlzeit in Übersicht aufnehmen
   newMealTypes.entries[mealType.uid] = mealType;
-  newMealTypes.order.push(mealType.uid);
+  if (!newMealTypes.order.includes(mealType.uid)) {
+    newMealTypes.order.push(mealType.uid);
+  }
 
   // Für jeden Tag eine Mahlzeit erstellen und Menü einfügen
   dates.forEach((date) => {

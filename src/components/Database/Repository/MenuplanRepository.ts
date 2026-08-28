@@ -16,6 +16,7 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import * as Sentry from "@sentry/react";
+import {subscribeWithRetry} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -402,6 +403,29 @@ interface MenuplanDummyRow {
 // ===================================================================== */
 
 /**
+ * Entfernt Einträge mit doppelter `uid` (der erste gewinnt).
+ *
+ * Schützt den atomaren Menuplan-Save vor unique-constraint-Verletzungen
+ * (`23505`), falls der Menuplan-Editor durch einen In-Place-Mutation-Bug eine
+ * `uid` doppelt in eine Collection legt (siehe tech-debt.md). Die RPC-Funktion
+ * arbeitet nach dem delete-all-+-re-insert-Prinzip, ein Deduplizieren heilt
+ * daher auch bereits im Client-State verdoppelte Einträge.
+ *
+ * @param items - Die zu deduplizierende Collection.
+ * @returns Neue Liste ohne uid-Duplikate, Reihenfolge bleibt erhalten.
+ */
+export function dedupeByUid<T extends {uid: string}>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of items) {
+    if (seen.has(item.uid)) continue;
+    seen.add(item.uid);
+    result.push(item);
+  }
+  return result;
+}
+
+/**
  * Repository für den Menuplan eines Events.
  *
  * Lädt alle 8 Tabellen parallel und baut das MenuplanDomain zusammen.
@@ -664,98 +688,23 @@ export class MenuplanRepository extends BaseRepository<
     onAnyChange: () => void,
     onError: (error: Error) => void,
   ): () => void {
-    const clientRef = this.client;
-    const MAX_RETRIES = 5;
-    const BASE_DELAY_MS = 1000;
-    const MAX_DELAY_MS = 30_000;
-
-    let retryCount = 0;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let activeChannel: ReturnType<typeof clientRef.channel> | null = null;
-    let cancelled = false;
-
-    const handleChange = () => {
-      try {
-        onAnyChange();
-      } catch (err) {
-        onError(err instanceof Error ? err : new Error(String(err)));
-      }
-    };
-
-    /**
-     * Erstellt und abonniert einen Realtime-Channel.
-     * Bei CHANNEL_ERROR oder TIMED_OUT wird automatisch mit
-     * exponentiellem Backoff (1s, 2s, 4s, …, max 30s) erneut versucht.
-     * Nach MAX_RETRIES wird onError mit einem permanenten Fehler aufgerufen.
-     */
-    const subscribe = () => {
-      if (cancelled) return;
-
-      const channel = clientRef
-        .channel(`menuplan:${eventId}`)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_meal_types", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_meals", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menues", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_recipes", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_products", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menue_materials", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_notes", filter: `event_id=eq.${eventId}`}, handleChange)
-        .on("postgres_changes", {event: "*", schema: "public", table: "event_menuplan_item_plans", filter: `event_id=eq.${eventId}`}, handleChange)
-        .subscribe((status, _err) => {
-          if (cancelled) return;
-
-          if (status === "SUBSCRIBED") {
-            // Erfolgreich verbunden — Retry-Zähler zurücksetzen
-            retryCount = 0;
-            return;
-          }
-
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            Sentry.addBreadcrumb({
-              category: "realtime",
-              message: `Menuplan channel ${status} (attempt ${retryCount + 1}/${MAX_RETRIES})`,
-              level: "warning",
-              data: {eventId, status, retryCount},
-            });
-
-            // Alten Channel aufräumen
-            clientRef.removeChannel(channel);
-            activeChannel = null;
-
-            if (retryCount >= MAX_RETRIES) {
-              const permanentError = new Error(
-                `Realtime-Verbindung für menuplan:${eventId} nach ${MAX_RETRIES} Versuchen fehlgeschlagen`,
-              );
-              Sentry.captureException(permanentError, {extra: {eventId, retryCount}});
-              onError(permanentError);
-              return;
-            }
-
-            // Exponentieller Backoff: 1s, 2s, 4s, 8s, 16s (gedeckelt bei 30s)
-            const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
-            retryCount++;
-            retryTimer = setTimeout(subscribe, delay);
-          }
-        });
-
-      activeChannel = channel;
-    };
-
-    // Erste Verbindung aufbauen
-    subscribe();
-
-    // Unsubscribe-Funktion: räumt Channel UND ausstehende Retries auf
-    return () => {
-      cancelled = true;
-      if (retryTimer !== null) {
-        clearTimeout(retryTimer);
-        retryTimer = null;
-      }
-      if (activeChannel) {
-        clientRef.removeChannel(activeChannel);
-        activeChannel = null;
-      }
-    };
+    // Ein einziger Channel für alle 8 Menuplan-Tabellen — spart Realtime-Connections
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `menuplan:${eventId}`,
+      bindings: [
+        {table: "event_meal_types", filter: `event_id=eq.${eventId}`},
+        {table: "event_meals", filter: `event_id=eq.${eventId}`},
+        {table: "event_menues", filter: `event_id=eq.${eventId}`},
+        {table: "event_menue_recipes", filter: `event_id=eq.${eventId}`},
+        {table: "event_menue_products", filter: `event_id=eq.${eventId}`},
+        {table: "event_menue_materials", filter: `event_id=eq.${eventId}`},
+        {table: "event_notes", filter: `event_id=eq.${eventId}`},
+        {table: "event_menuplan_item_plans", filter: `event_id=eq.${eventId}`},
+      ],
+      onChange: onAnyChange,
+      onError,
+    });
   }
 
   /* =====================================================================
@@ -876,9 +825,13 @@ export class MenuplanRepository extends BaseRepository<
    */
   async saveMenuplan(
     eventId: string,
-    menuplan: MenuplanDomain,
+    menuplanInput: MenuplanDomain,
     _authUser: AuthUser,
   ): Promise<void> {
+    // Doppelte uids (Editor-Bug, siehe tech-debt.md) entfernen, bevor der
+    // atomare Save an einer unique-constraint (23505) scheitert.
+    const menuplan = this.dedupeMenuplanDomain(menuplanInput, eventId);
+
     // FK-Referenzen in-memory validieren, BEVOR die RPC-Funktion aufgerufen wird.
     // Fängt logische Fehler früh ab, ohne einen DB-Roundtrip zu verschwenden.
     this.validateMenuplanDomain(menuplan);
@@ -1130,6 +1083,51 @@ export class MenuplanRepository extends BaseRepository<
         );
       }
     }
+  }
+
+  /**
+   * Entfernt uid-Duplikate aus allen Menuplan-Collections. Duplikate entstehen
+   * durch einen In-Place-Mutation-Bug im Editor (siehe tech-debt.md) und würden
+   * den atomaren Save an einer unique-constraint (23505) scheitern lassen.
+   *
+   * @param menuplan - Das ggf. verdoppelte Domain-Objekt.
+   * @param eventId - Event-ID (für den Sentry-Breadcrumb).
+   * @returns Deduplizierte Kopie (nur betroffene Collections werden ersetzt).
+   */
+  private dedupeMenuplanDomain(
+    menuplan: MenuplanDomain,
+    eventId: string,
+  ): MenuplanDomain {
+    const deduped: MenuplanDomain = {
+      ...menuplan,
+      mealTypes: dedupeByUid(menuplan.mealTypes),
+      meals: dedupeByUid(menuplan.meals),
+      menues: dedupeByUid(menuplan.menues),
+      menueRecipes: dedupeByUid(menuplan.menueRecipes),
+      menueProducts: dedupeByUid(menuplan.menueProducts),
+      menueMaterials: dedupeByUid(menuplan.menueMaterials),
+      notes: dedupeByUid(menuplan.notes),
+    };
+
+    const removed =
+      menuplan.mealTypes.length - deduped.mealTypes.length +
+      (menuplan.meals.length - deduped.meals.length) +
+      (menuplan.menues.length - deduped.menues.length) +
+      (menuplan.menueRecipes.length - deduped.menueRecipes.length) +
+      (menuplan.menueProducts.length - deduped.menueProducts.length) +
+      (menuplan.menueMaterials.length - deduped.menueMaterials.length) +
+      (menuplan.notes.length - deduped.notes.length);
+
+    if (removed > 0) {
+      Sentry.addBreadcrumb({
+        category: "menuplan",
+        message: `saveMenuplan: ${removed} doppelte uid(s) vor dem Speichern entfernt`,
+        level: "warning",
+        data: {eventId, removed},
+      });
+    }
+
+    return deduped;
   }
 
   /* =====================================================================

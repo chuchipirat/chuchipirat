@@ -12,6 +12,11 @@ import {MemoryRouter} from "react-router";
 // ======================== Mock-Setup ================================
 // =================================================================== */
 
+/** Mock: Sentry — um zu prüfen, dass Auth-Hinweise NICHT gemeldet werden */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
 /** Mock: Utils — Standardwerte für Testumgebung */
 jest.mock("../../Shared/utils.class", () => ({
   Utils: {
@@ -96,10 +101,14 @@ jest.mock("../../AuthServiceHandler/passwordReset", () => ({
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
+import * as Sentry from "@sentry/react";
+import {AuthApiError} from "@supabase/supabase-js";
 import {PasswordChangePage} from "../passwordChange";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
 import authUserMock from "../../Session/__mocks__/authuser.mock";
+
+const mockCaptureException = Sentry.captureException as jest.Mock;
 
 /* ===================================================================
 // ======================== Render-Helper =============================
@@ -337,10 +346,14 @@ describe("PasswordChangePage", () => {
   });
 
   describe("Fehlermeldung bei Passwortänderung", () => {
-    test("Fehlermeldung wird bei gleichem Passwort angezeigt", async () => {
+    test("Fehlermeldung wird bei gleichem Passwort angezeigt und NICHT an Sentry gemeldet", async () => {
       mockGetUser.mockResolvedValue({email: "test@example.com"});
       mockUpdatePassword.mockRejectedValueOnce(
-        new Error("New password should be different from the old password."),
+        new AuthApiError(
+          "New password should be different from the old password.",
+          422,
+          "same_password",
+        ),
       );
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
@@ -356,6 +369,7 @@ describe("PasswordChangePage", () => {
           ),
         ).toBeInTheDocument();
       });
+      expect(mockCaptureException).not.toHaveBeenCalled();
     });
 
     test("Fehlermeldung verschwindet nach erfolgreicher Passwortänderung", async () => {

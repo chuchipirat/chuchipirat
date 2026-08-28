@@ -12,6 +12,7 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import {BaseRepository} from "./BaseRepository";
+import {subscribeWithRetry} from "./realtimeSubscription";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
@@ -392,42 +393,17 @@ export class UsedRecipeListRepository extends BaseRepository<
     onData: (lists: UsedRecipeListDomain[]) => void,
     onError: (error: Error) => void,
   ): () => void {
-    const clientRef = this.client;
-
-    const reloadLists = () => {
-      this.getListsForEvent(eventId)
-        .then((lists) => onData(lists))
-        .catch((err) =>
-          onError(err instanceof Error ? err : new Error(String(err))),
-        );
-    };
-
-    const channel = clientRef
-      .channel(`usedrecipelists:${eventId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_used_recipe_lists",
-          filter: `event_id=eq.${eventId}`,
-        },
-        reloadLists,
-      )
-      .subscribe((status, err) => {
-        console.debug(
-          `Realtime usedrecipelists:${eventId} status: ${status}`,
-          err ?? "",
-        );
-        if (status === "CHANNEL_ERROR") {
-          onError(
-            new Error(`Realtime-Fehler für usedrecipelists:${eventId}`),
-          );
-        }
-      });
-
-    return () => {
-      clientRef.removeChannel(channel);
-    };
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `usedrecipelists:${eventId}`,
+      bindings: [
+        {table: "event_used_recipe_lists", filter: `event_id=eq.${eventId}`},
+      ],
+      onChange: async () => {
+        const lists = await this.getListsForEvent(eventId);
+        onData(lists);
+      },
+      onError,
+    });
   }
 }

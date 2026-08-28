@@ -172,10 +172,41 @@ export function deriveEditSource(
 }
 
 /**
+ * Ermittelt die Quell-Spalte einer Einkaufslisten-Position.
+ *
+ * Die DB-Constraint `chk_item_source` verlangt, dass **genau eine** der Spalten
+ * `product_id`, `material_id`, `free_text_name` gesetzt ist. Positionen ohne
+ * gültige Quelle (z.B. nur eine Menge eingetippt, aber noch kein Produkt/Name
+ * gewählt, oder ein per Autocomplete geleerter Eintrag) haben keine — der
+ * Aufrufer überspringt sie, statt eine Constraint-Verletzung zu riskieren.
+ *
+ * @param item - Die Legacy-Position.
+ * @returns Das Quell-Fragment für die Insert-Zeile oder `null`, wenn die
+ *   Position keine gültige Quelle hat.
+ */
+export function resolveItemSource(
+  item: ShoppingListItem,
+): Pick<
+  ShoppingListItemInsertRow,
+  "product_id" | "material_id" | "free_text_name"
+> | null {
+  switch (item.type) {
+    case ItemType.food:
+      return item.item.uid ? {product_id: item.item.uid} : null;
+    case ItemType.material:
+      return item.item.uid ? {material_id: item.item.uid} : null;
+    // ItemType.custom und ItemType.none werden als Freitext behandelt
+    default:
+      return item.item.name ? {free_text_name: item.item.name} : null;
+  }
+}
+
+/**
  * Konvertiert eine Legacy-ShoppingList in Supabase-InsertRows.
  *
  * Iteriert über alle Abteilungen und Items und erzeugt die
- * entsprechenden Insert-Zeilen mit aufgelösten IDs.
+ * entsprechenden Insert-Zeilen mit aufgelösten IDs. Positionen ohne gültige
+ * Quelle (siehe {@link resolveItemSource}) werden übersprungen.
  *
  * @param list - Die Legacy-ShoppingList
  * @param listId - Die Listen-ID für die Supabase-Zuordnung
@@ -204,7 +235,15 @@ export function shoppingListToInsertRows(
         return;
       }
 
-      const row: ShoppingListItemInsertRow = {
+      // Positionen ohne gültige Quelle überspringen — sie würden die
+      // DB-Constraint chk_item_source verletzen (z.B. eine Menge wurde
+      // eingetippt, aber es ist noch kein Produkt/Name gesetzt).
+      const source = resolveItemSource(item);
+      if (!source) {
+        return;
+      }
+
+      rows.push({
         list_id: listId,
         quantity: item.quantity,
         unit: item.unit || null,
@@ -212,28 +251,8 @@ export function shoppingListToInsertRows(
         edit_source: deriveEditSource(item),
         sort_order: sortOrder++,
         department_id: departmentId,
-      };
-
-      // Typ-basierte Zuordnung: product_id, material_id, oder free_text_name
-      switch (item.type) {
-        case ItemType.food:
-          row.product_id = item.item.uid;
-          break;
-        case ItemType.material:
-          row.material_id = item.item.uid;
-          break;
-        case ItemType.custom:
-          row.free_text_name = item.item.name;
-          break;
-        default:
-          // ItemType.none — Freitext als Fallback
-          if (item.item.name) {
-            row.free_text_name = item.item.name;
-          }
-          break;
-      }
-
-      rows.push(row);
+        ...source,
+      });
     });
   });
 

@@ -38,6 +38,20 @@ Sentry.init({
     }),
     Sentry.consoleLoggingIntegration({levels: ["log", "warn", "error"]}),
   ],
+  // Rauschen von Drittanbietern / Browser-APIs ausfiltern, das nicht aus
+  // unserem Code stammt und über das die App keine Kontrolle hat.
+  ignoreErrors: [
+    // Der SafeLink-/Vorschau-Crawler von Microsoft Outlook injiziert beim
+    // Vorab-Scannen von E-Mail-Links (u.a. /authservicehandler) eine kaputte
+    // Bridge und wirft dann diesen String als unhandled rejection. Kein
+    // App-Fehler, kein Stacktrace, nur von Crawler-"Nutzern" ausgelöst.
+    /Object Not Found Matching Id/,
+    // @supabase/auth-js kann den Web-Locks-API-Lock für den Auth-Token nicht
+    // innerhalb von 10s bekommen, wenn ein anderer Tab (oder ein gedrosselter
+    // Hintergrund-Tab / Crawler) ihn hält. Transient, der Client verbindet
+    // sich anschliessend selbst neu — kein App-Fehler.
+    /Navigator LockManager lock .* timed out/,
+  ],
   tracesSampleRate: 1.0,
   tracePropagationTargets: ["localhost", /^https:\/\/chuchipirat\.ch/],
   replaysSessionSampleRate: 0.1,

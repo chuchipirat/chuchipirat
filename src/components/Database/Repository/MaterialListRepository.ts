@@ -12,6 +12,7 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import * as Sentry from "@sentry/react";
+import {subscribeWithRetry} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -498,95 +499,18 @@ export class MaterialListRepository extends BaseRepository<
     onData: (headers: MaterialListHeaderDomain[]) => void,
     onError: (error: Error) => void,
   ): () => void {
-    const clientRef = this.client;
-    const MAX_RETRIES = 5;
-    const BASE_DELAY_MS = 1000;
-    const MAX_DELAY_MS = 30_000;
-
-    let retryCount = 0;
-    let retryTimer: ReturnType<typeof setTimeout> | null = null;
-    let activeChannel: ReturnType<typeof clientRef.channel> | null = null;
-    let cancelled = false;
-
-    const reloadHeaders = () => {
-      this.getListsForEvent(eventId)
-        .then((headers) => onData(headers))
-        .catch((err) =>
-          onError(err instanceof Error ? err : new Error(String(err))),
-        );
-    };
-
-    /**
-     * Erstellt und abonniert einen Realtime-Channel. Bei CHANNEL_ERROR oder
-     * TIMED_OUT wird automatisch mit exponentiellem Backoff (1s, 2s, 4s, …,
-     * max 30s) erneut versucht. Nach MAX_RETRIES wird onError mit einem
-     * permanenten Fehler aufgerufen.
-     */
-    const subscribe = () => {
-      if (cancelled) return;
-
-      const channel = clientRef
-        .channel(`materiallists:${eventId}`)
-        .on(
-          "postgres_changes",
-          {
-            event: "*",
-            schema: "public",
-            table: "event_material_lists",
-            filter: `event_id=eq.${eventId}`,
-          },
-          reloadHeaders,
-        )
-        .subscribe((status, err) => {
-          if (cancelled) return;
-
-          if (status === "SUBSCRIBED") {
-            retryCount = 0;
-            return;
-          }
-
-          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            Sentry.addBreadcrumb({
-              category: "realtime",
-              message: `materiallists:${eventId} ${status} (attempt ${retryCount + 1}/${MAX_RETRIES})`,
-              level: "warning",
-              data: {eventId, status, error: err?.message},
-            });
-
-            clientRef.removeChannel(channel);
-            activeChannel = null;
-
-            if (retryCount >= MAX_RETRIES) {
-              const permanentError = new Error(
-                `Realtime-Verbindung für materiallists:${eventId} nach ${MAX_RETRIES} Versuchen fehlgeschlagen`,
-              );
-              Sentry.captureException(permanentError, {extra: {eventId, retryCount}});
-              onError(permanentError);
-              return;
-            }
-
-            const delay = Math.min(BASE_DELAY_MS * Math.pow(2, retryCount), MAX_DELAY_MS);
-            retryCount++;
-            retryTimer = setTimeout(subscribe, delay);
-          }
-        });
-
-      activeChannel = channel;
-    };
-
-    subscribe();
-
-    return () => {
-      cancelled = true;
-      if (retryTimer !== null) {
-        clearTimeout(retryTimer);
-        retryTimer = null;
-      }
-      if (activeChannel) {
-        clientRef.removeChannel(activeChannel);
-        activeChannel = null;
-      }
-    };
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `materiallists:${eventId}`,
+      bindings: [
+        {table: "event_material_lists", filter: `event_id=eq.${eventId}`},
+      ],
+      onChange: async () => {
+        const headers = await this.getListsForEvent(eventId);
+        onData(headers);
+      },
+      onError,
+    });
   }
 
   /* =====================================================================
@@ -607,46 +531,18 @@ export class MaterialListRepository extends BaseRepository<
     onData: (items: MaterialListItemDomain[]) => void,
     onError: (error: Error) => void,
   ): () => void {
-    const clientRef = this.client;
-
-    const reloadItems = () => {
-      this.getListItems(listId)
-        .then((items) => onData(items))
-        .catch((err) =>
-          onError(err instanceof Error ? err : new Error(String(err))),
-        );
-    };
-
-    const channel = clientRef
-      .channel(`materiallistitems:${listId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "event_material_list_items",
-          filter: `list_id=eq.${listId}`,
-        },
-        reloadItems,
-      )
-      .subscribe((status, err) => {
-        if (status === "CHANNEL_ERROR") {
-          Sentry.captureException(
-            new Error(
-              `Realtime materiallistitems:${listId} error: ${err?.message}`,
-            ),
-          );
-          onError(
-            new Error(
-              `Realtime-Fehler für materiallistitems:${listId}`,
-            ),
-          );
-        }
-      });
-
-    return () => {
-      clientRef.removeChannel(channel);
-    };
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `materiallistitems:${listId}`,
+      bindings: [
+        {table: "event_material_list_items", filter: `list_id=eq.${listId}`},
+      ],
+      onChange: async () => {
+        const items = await this.getListItems(listId);
+        onData(items);
+      },
+      onError,
+    });
   }
 
   /* =====================================================================

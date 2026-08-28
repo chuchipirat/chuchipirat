@@ -7,6 +7,7 @@
  */
 import React from "react";
 import * as Sentry from "@sentry/react";
+import {isAuthApiError} from "@supabase/supabase-js";
 
 import {Link, useNavigate} from "react-router";
 
@@ -291,7 +292,11 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
       trackEvent(AnalyticsEvent.EMAIL_CHANGED);
       dispatch({type: ReducerActions.SUCCESS_MAIL_CHANGE});
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "E-Mail ändern"}});
+      // Supabase-Auth-API-Fehler (z.B. "E-Mail bereits vergeben") sind
+      // Nutzer-Hinweise — nur anzeigen, nicht an Sentry melden.
+      if (!isAuthApiError(error)) {
+        Sentry.captureException(error, {extra: {context: "E-Mail ändern"}});
+      }
       dispatch({type: ReducerActions.EMAIL_ERROR, payload: error as AuthError});
     }
   };
@@ -307,7 +312,11 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
       trackEvent(AnalyticsEvent.PASSWORD_CHANGED);
       dispatch({type: ReducerActions.SUCCESS_PW_CHANGE});
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "Passwort ändern"}});
+      // Supabase-Auth-API-Fehler (z.B. "neues Passwort = altes Passwort",
+      // "zu schwach") sind Nutzer-Hinweise — nur anzeigen, nicht an Sentry.
+      if (!isAuthApiError(error)) {
+        Sentry.captureException(error, {extra: {context: "Passwort ändern"}});
+      }
       dispatch({type: ReducerActions.PASSWORD_ERROR, payload: error as AuthError});
     }
   };

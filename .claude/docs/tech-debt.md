@@ -67,6 +67,15 @@ Identifiziert via Sentry Bundle Size Analysis (Build vom 13.04.2026). Die gröss
 
 _(Claude Code: append entries here when you encounter `console.log` / `console.error` used instead of Sentry, missing error boundaries, or swallowed errors.)_
 
+- **DAL wirft rohe Nicht-`Error`-Objekte** — `BaseRepository.findById()` / `findMany()` / `create()` etc. reichen das Supabase-`error`-Objekt (`{code, details, hint, message}`) via `if (error) throw error` unverändert weiter. Aufrufer, die es an `Sentry.captureException()` geben, erzeugen unbrauchbare Gruppen ("Object captured as exception with keys ..."). Aktuell wird das an einer Stelle (`globalSettingsContext.tsx`) über `toError()` aus `src/utils/errorUtils.ts` normalisiert. Langfristig sollte die Normalisierung zentral in `BaseRepository` passieren (einmal `throw toError(error)` statt an jeder der ~263 `captureException`-Aufrufstellen). Gleiches gilt für `isTransientNetworkError()`: vorübergehende `Failed to fetch`-Fehler aus Hintergrund-Polls (`Home.tsx:806/1033`, weitere) sollten dort ebenfalls nicht nach Sentry.
+  **Priorität:** tief · **Komplexität:** mittel
+
+- **Kein flächendeckender `isUuid()`-Guard vor `.eq("*_uid"/"user_id", …)`** — Aus veralteten localStorage-Caches kann eine Firebase-UID als `authUser.uid` durchsickern und löst dann Postgres `22P02` ("invalid input syntax for type uuid") aus. Root Cause ist per `isValidCachedAuthUser` (`authUserContext.tsx`) gefixt; als Defense-in-depth haben `EventRepository.getAllEventsForUser` und `DonationRepository.getMyDonations` einen `isUuid()`-Guard (`src/utils/uuid.ts`). Noch offen: ein Audit aller weiteren Repository-Methoden, die eine User-UID direkt in `.eq()` / `.in()` gegen eine `uuid`-Spalte reichen (z.B. `RecipeRepository.searchByCreatorId(s)`, diverse `*_uid`-Filter), und ggf. dort denselben Guard ergänzen.
+  **Priorität:** tief · **Komplexität:** klein
+
+- **`catch { Sentry.captureException(error); throw error; }`-Doppelmeldung in Repositories** — Etliche Repository-Methoden fangen den Fehler nur, um ihn zu melden, und werfen ihn dann weiter — der Aufrufer meldet ihn ein zweites (bei `insertFeed` → `getFeedById` sogar ein drittes) Mal. `FeedRepository` wurde bereinigt (meldet nicht mehr selbst; Aktivitäts-Feeds laufen über `postActivityFeed`, `src/components/Shared/feedActivity.ts`). Gleiches Muster noch in `MaterialListRepository`, `MenuplanRepository`, `RequestRepository`, `RecipeRepository` u.a. Sweep: Die Repository-Schicht meldet nicht selbst an Sentry — sie normalisiert höchstens via `toError()` und wirft; die aufrufende Schicht entscheidet über die Meldung.
+  **Priorität:** tief · **Komplexität:** mittel
+
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_
@@ -166,6 +175,15 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 - **`src/components/Shared/customDialogContext.tsx`** — Modul-Level `resolveCallback` Variable ist fragil bei gleichzeitigen Dialogen. Funktioniert in der Praxis (App zeigt nur einen Dialog gleichzeitig), aber ein `useRef`-basiertes Rewrite wäre robuster. Würde 26 Konsumenten betreffen.
   **Priorität:** tief · **Komplexität:** gross
+
+- **`BaseRepository.subscribe()` nutzt noch das naive Realtime-Muster** — Alle UI-genutzten Realtime-Subscriptions laufen inzwischen über `subscribeWithRetry` (`realtimeSubscription.ts`, Backoff-Reconnect, Breadcrumb statt Exception bei transientem `CHANNEL_ERROR`). `BaseRepository.subscribe()` (Z. ~273) meldet dagegen bei `CHANNEL_ERROR` sofort `onError` und reconnectet nicht. Aktuell kein UI-Consumer (`grep '.subscribe({'` leer), daher nicht dringend. Bei Umstellung Semantik-Unterschiede beachten: Einzelsatz-Subscription, `DELETE`-Event → `onError("Record deleted")`, `cacheUpsert` im Change-Handler.
+  **Priorität:** tief · **Komplexität:** klein
+
+- **`recipe.edit.tsx`-Reducer mutiert State in-place** — Der `recipeEditReducer` (und `onPostionMoreContextMenuClick`) kopieren `state.recipe.ingredients` / `preparationSteps` / `materials` nur flach (`{...state.recipe.ingredients}`) und mutieren dann `.entries[uid][field] = …` bzw. `.order.push()/.splice()` direkt auf den State-Referenzen (z.B. Z. ~355–381, ~433–460, ~1496–1546, Z. 392 kopiert gar nicht). Dadurch können `order` und `entries` bei rasch aufeinanderfolgenden oder unterbrochenen Aktionen desynchronisieren — ein `order`-Eintrag ohne passenden `entries`-Eintrag hat CHUCHIPIRAT-G3 ausgelöst (`ingredient.uid` auf `undefined` im Render). Übergangsweise per Render-Guard (`if (!ingredient) return null`) + `LastCardMoved`-Guard abgefangen. Sauberer Fix: Reducer vollständig immutabel machen (`order` als `[...]`, `entries` als `{...}` kopieren, Positions-Objekte vor Mutation klonen) — grösserer, eigener PR, alle 3 Blöcke betroffen.
+  **Priorität:** mittel · **Komplexität:** gross
+
+- **Menuplan-Editor mutiert State in-place** — Gleiche Klasse wie der `recipe.edit`-Reducer. `menuplanService.ts`-Funktionen (`addMealType` war betroffen, gefixt; `deleteMealType`, `onMealTypeUpdate`/`tempMealTypes` in `useMenuplanHandlers.tsx` u.a.) kopieren `{...mealTypes}` flach und mutieren dann `.order`/`.entries`. `order.push()` ohne Guard konnte eine `uid` doppelt in `mealTypes.order` legen → beim Speichern `duplicate key … event_meal_types_pkey` (23505, CHUCHIPIRAT-GE). Übergangsweise: `addMealType` immutabel + `!order.includes`-Guard, und `MenuplanRepository.saveMenuplan` dedupliziert alle Collections via `dedupeByUid` (heilt auch bereits verdoppelten Client-State). Es existiert bereits eine Render-Zeit-Telemetrie (`menuplan.tsx` Z. ~219: `captureMessage("Doppelte MealTypes im Menüplan")`). Sauberer Fix: `useMenuplanHandlers` + `menuplanService` durchgängig immutabel.
+  **Priorität:** mittel · **Komplexität:** gross
 
 ## Other
 

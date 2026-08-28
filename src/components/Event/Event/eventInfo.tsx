@@ -72,6 +72,7 @@ import {User} from "../../User/user.class";
 
 import DatabaseService from "../../Database/DatabaseService";
 import {FeedType} from "../../Shared/feed.class";
+import {postActivityFeed} from "../../Shared/feedActivity";
 import AuthUser from "../../Session/authUser.class";
 import {Utils} from "../../Shared/utils.class";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
@@ -354,17 +355,17 @@ const EventInfoPage = ({
         trackEvent(AnalyticsEvent.EVENT_COOK_ADDED);
 
         // Feed-Eintrag: Koch zum Team hinzugefügt
-        database.feeds
-          .insertFeed(
-            {
-              feedType: FeedType.eventCookAdded,
-              sourceObjectType: "event",
-              sourceObjectUid: event.uid,
-              userUid: personUid,
-            },
-            authUser,
-          )
-          .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+        postActivityFeed({
+          database,
+          feed: {
+            feedType: FeedType.eventCookAdded,
+            sourceObjectType: "event",
+            sourceObjectUid: event.uid,
+            userUid: personUid,
+          },
+          authUser,
+          context: "Koch zum Team hinzugefügt",
+        });
       }
 
       onUpdateEvent({...event, cooks: updatedCooks} as Event);
