@@ -67,6 +67,9 @@ Identifiziert via Sentry Bundle Size Analysis (Build vom 13.04.2026). Die gröss
 
 _(Claude Code: append entries here when you encounter `console.log` / `console.error` used instead of Sentry, missing error boundaries, or swallowed errors.)_
 
+- **DAL wirft rohe Nicht-`Error`-Objekte** — `BaseRepository.findById()` / `findMany()` / `create()` etc. reichen das Supabase-`error`-Objekt (`{code, details, hint, message}`) via `if (error) throw error` unverändert weiter. Aufrufer, die es an `Sentry.captureException()` geben, erzeugen unbrauchbare Gruppen ("Object captured as exception with keys ..."). Aktuell wird das an einer Stelle (`globalSettingsContext.tsx`) über `toError()` aus `src/utils/errorUtils.ts` normalisiert. Langfristig sollte die Normalisierung zentral in `BaseRepository` passieren (einmal `throw toError(error)` statt an jeder der ~263 `captureException`-Aufrufstellen). Gleiches gilt für `isTransientNetworkError()`: vorübergehende `Failed to fetch`-Fehler aus Hintergrund-Polls (`Home.tsx:806/1033`, weitere) sollten dort ebenfalls nicht nach Sentry.
+  **Priorität:** tief · **Komplexität:** mittel
+
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_

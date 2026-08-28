@@ -2,6 +2,8 @@ import React from "react";
 import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
+import * as Sentry from "@sentry/react";
+
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {DatabaseService} from "../../Database/DatabaseService";
 
@@ -125,6 +127,47 @@ describe("GlobalSettingsProvider", () => {
 
     // Wert bleibt weiterhin "true", trotz fehlgeschlagenem Poll
     expect(screen.getByTestId("maintenance-mode")).toHaveTextContent("true");
+  });
+
+  test("Meldet vorübergehende Netzfehler NICHT an Sentry und behält den letzten Wert", async () => {
+    const failedToFetch = {
+      code: "",
+      details: "TypeError: Failed to fetch",
+      hint: "",
+      message: "TypeError: Failed to fetch (api.chuchipirat.ch)",
+    };
+    mockGetSettings
+      .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true})
+      .mockRejectedValueOnce(failedToFetch);
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("maintenance-mode")).toHaveTextContent("true");
+    });
+
+    jest.advanceTimersByTime(60_000);
+
+    await waitFor(() => {
+      expect(mockGetSettings).toHaveBeenCalledTimes(2);
+    });
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(screen.getByTestId("maintenance-mode")).toHaveTextContent("true");
+  });
+
+  test("Meldet unerwartete Fehler als Error-Instanz an Sentry", async () => {
+    mockGetSettings.mockRejectedValue(new Error("unerwartet"));
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    });
+
+    const capturedError = (Sentry.captureException as jest.Mock).mock.calls[0][0];
+    expect(capturedError).toBeInstanceOf(Error);
+    expect(capturedError.message).toBe("unerwartet");
   });
 
   test("Fragt die Einstellungen periodisch erneut ab", async () => {
