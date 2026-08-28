@@ -116,11 +116,9 @@ import {
 } from "../../Shared/customDialogContext";
 import {Action} from "../../../constants/actions";
 import {ValueObject} from "../../Shared/global.interface";
-import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
-import {Stats, StatsField} from "../../Shared/stats.class";
 import {trackEvent, trackVirtualPageview} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
@@ -879,7 +877,6 @@ const TAB_TO_QUERY_PARAM: Record<EventTabs, string> = Object.fromEntries(
 ) as Record<EventTabs, string>;
 
 const EventPage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const theme = useTheme();
@@ -1703,13 +1700,6 @@ const EventPage = () => {
       menuplan: state.menuplan,
       newEvent: preparedEvent,
       existingEvent: state.event,
-    });
-
-    // Statistik anpassen
-    Stats.incrementStat({
-      firebase: firebase,
-      field: StatsField.noPlanedDays,
-      value: preparedEvent.numberOfDays - state.event.numberOfDays,
     });
 
     onMenuplanUpdate(updatedMenuplan);

@@ -102,7 +102,6 @@ jest.mock("file-saver", () => ({
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
 import {UserProfilePage} from "../userProfile";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {User} from "../user.class";
@@ -115,9 +114,6 @@ const mockSaveFullProfile = User.saveFullProfile as jest.Mock;
 const mockUploadPicture = User.uploadPicture as jest.Mock;
 const mockDeletePicture = User.deletePicture as jest.Mock;
 const mockCheckUserProfileData = User.checkUserProfileData as jest.Mock;
-
-/** Mock-Firebase-Instanz */
-const mockFirebase = {} as any;
 
 /** Mock-DatabaseService */
 const mockGetMyDonations = jest.fn().mockResolvedValue([]);
@@ -193,13 +189,11 @@ const createDonationMock = (
 const renderUserProfilePage = (authUser = authUserMock) => {
   return render(
     <MemoryRouter initialEntries={["/profile"]}>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <DatabaseContext.Provider value={mockDatabase}>
-          <AuthUserContext.Provider value={authUser}>
-            <UserProfilePage />
-          </AuthUserContext.Provider>
-        </DatabaseContext.Provider>
-      </FirebaseContext.Provider>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserContext.Provider value={authUser}>
+          <UserProfilePage />
+        </AuthUserContext.Provider>
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 };

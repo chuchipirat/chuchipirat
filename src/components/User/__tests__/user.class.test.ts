@@ -8,7 +8,6 @@ import {User, UserFullProfile} from "../user.class";
 import {AuthUser} from "../../Session/authUser.class";
 import {Role} from "../../../constants/roles";
 import {UserPublicProfile} from "../user.public.profile.class";
-import {SortOrder} from "../../Shared/global.interface";
 
 /* ------------------------------------------
 // imageResize Mock (Canvas ist in jsdom nicht verfügbar)
@@ -60,21 +59,6 @@ const mockDatabase = {
   },
 };
 
-const mockFirebase = {
-  analytics: {},
-  user: {
-    readCollection: jest.fn(),
-    public: {profile: {incrementField: jest.fn()}},
-  },
-  fileStore: {
-    users: {
-      uploadFile: jest.fn(),
-      getPictureVariants: jest.fn(),
-      deleteFile: jest.fn(),
-    },
-  },
-};
-
 /* ------------------------------------------
 // Setup
 // ------------------------------------------ */
@@ -118,38 +102,6 @@ describe("factory()", () => {
     expect(result.lastName).toBe("Muster");
     expect(result.email).toBe("max@test.ch");
     expect(result.noLogins).toBe(42);
-  });
-});
-
-/* =====================================================================
-// getAllUsers()
-// ===================================================================== */
-describe("getAllUsers()", () => {
-  test("Firebase readCollection aufrufen und Ergebnis zurückgeben", async () => {
-    const mockUsers = [
-      {uid: "1", firstName: "A"},
-      {uid: "2", firstName: "B"},
-    ];
-    mockFirebase.user.readCollection.mockResolvedValue(mockUsers);
-
-    const result = await User.getAllUsers({firebase: mockFirebase as any});
-
-    expect(mockFirebase.user.readCollection).toHaveBeenCalledWith({
-      uids: [""],
-      orderBy: {field: "firstName", sortOrder: SortOrder.desc},
-      ignoreCache: true,
-    });
-    expect(result).toEqual(mockUsers);
-  });
-
-  test("Fehler propagieren", async () => {
-    mockFirebase.user.readCollection.mockRejectedValue(
-      new Error("Firebase error")
-    );
-
-    await expect(
-      User.getAllUsers({firebase: mockFirebase as any})
-    ).rejects.toThrow("Firebase error");
   });
 });
 
@@ -415,7 +367,6 @@ describe("saveFullProfile()", () => {
 
   test("Profil ohne Bild speichern", async () => {
     await User.saveFullProfile({
-      firebase: mockFirebase as any,
       database: mockDatabase as any,
       userProfile: {...baseProfile},
       authUser: authUser,
@@ -444,7 +395,6 @@ describe("saveFullProfile()", () => {
     });
 
     await User.saveFullProfile({
-      firebase: mockFirebase as any,
       database: mockDatabase as any,
       userProfile: {...baseProfile},
       authUser: authUser,
@@ -463,7 +413,6 @@ describe("saveFullProfile()", () => {
 
   test("DisplayName-Änderung wird direkt gespeichert (keine Cloud Function)", async () => {
     await User.saveFullProfile({
-      firebase: mockFirebase as any,
       database: mockDatabase as any,
       userProfile: {...baseProfile, displayName: "NeuerName"},
       authUser: authUser,
@@ -480,7 +429,6 @@ describe("saveFullProfile()", () => {
 
   test("Motto-Änderung wird direkt gespeichert (keine Cloud Function)", async () => {
     await User.saveFullProfile({
-      firebase: mockFirebase as any,
       database: mockDatabase as any,
       userProfile: {...baseProfile, motto: "New motto"},
       authUser: authUser,
@@ -534,7 +482,6 @@ describe("deletePicture()", () => {
     mockDatabase.users.patch.mockResolvedValue(undefined);
 
     await User.deletePicture({
-      firebase: mockFirebase as any,
       database: mockDatabase as any,
       authUser: authUser,
     });
@@ -564,7 +511,6 @@ describe("updateRoles()", () => {
     mockDatabase.users.patch.mockResolvedValue(undefined);
 
     await User.updateRoles({
-      firebase: mockFirebase as any,
       database: mockDatabase as any,
       userUid: "target-user",
       newRoles: [Role.basic, Role.admin],
