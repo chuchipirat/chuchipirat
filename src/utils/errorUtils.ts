@@ -91,6 +91,22 @@ export function isTransientNetworkError(error: unknown): boolean {
 }
 
 /**
+ * Erkennt eine Postgres-RLS-Verletzung (`42501` / "row-level security policy").
+ *
+ * In einer authentifizierten Client-App bedeutet das in der Praxis, dass die
+ * Supabase-Sitzung fehlt oder abgelaufen ist — die betroffenen INSERT-Policies
+ * (z.B. `events_insert`) prüfen lediglich `auth.uid() IS NOT NULL`. Solche
+ * Fehler sind ein Nutzer-Hinweis ("bitte neu anmelden"), kein Code-Bug.
+ *
+ * @param error - Der geworfene Wert.
+ * @returns `true`, wenn es sich um eine RLS-/Berechtigungs-Verletzung handelt.
+ */
+export function isRlsViolationError(error: unknown): boolean {
+  if (isRecordLike(error) && error.code === "42501") return true;
+  return /row-level security policy/i.test(extractErrorText(error));
+}
+
+/**
  * Normalisiert einen beliebigen geworfenen Wert in eine echte `Error`-Instanz.
  *
  * `Error`-Instanzen werden unverändert zurückgegeben. Objektartige Werte (z.B.

@@ -1,4 +1,8 @@
-import {isTransientNetworkError, toError} from "../errorUtils";
+import {
+  isRlsViolationError,
+  isTransientNetworkError,
+  toError,
+} from "../errorUtils";
 
 /* ===================================================================
 // ======================== Test-Helfer ==============================
@@ -146,5 +150,38 @@ describe("toError", () => {
   test("liefert einen generischen Error für null/undefined", () => {
     expect(toError(null).message).toBe("Unbekannter Fehler");
     expect(toError(undefined).message).toBe("Unbekannter Fehler");
+  });
+});
+
+/* ===================================================================
+// ======================== isRlsViolationError =====================
+// =================================================================== */
+
+describe("isRlsViolationError", () => {
+  test("erkennt ein Supabase-Objekt mit code 42501", () => {
+    expect(
+      isRlsViolationError({
+        code: "42501",
+        details: null,
+        hint: null,
+        message: 'new row violates row-level security policy for table "events"',
+      }),
+    ).toBe(true);
+  });
+
+  test("erkennt die Meldung auch ohne code", () => {
+    expect(
+      isRlsViolationError(
+        new Error("new row violates row-level security policy for table \"events\""),
+      ),
+    ).toBe(true);
+  });
+
+  test("liefert false für andere Postgres-Fehler", () => {
+    expect(
+      isRlsViolationError({code: "23505", message: "duplicate key"}),
+    ).toBe(false);
+    expect(isRlsViolationError(new Error("Failed to fetch"))).toBe(false);
+    expect(isRlsViolationError(null)).toBe(false);
   });
 });

@@ -19,6 +19,7 @@ import {
 
 import {
   CREATE_YOUR_EVENT as TEXT_CREATE_YOUR_EVENT,
+  ERROR_SESSION_EXPIRED as TEXT_ERROR_SESSION_EXPIRED,
   WHAT_ARE_YOU_UP_TO as TEXT_WHAT_ARE_YOU_UP_TO,
   EVENT_INFO as TEXT_EVENT_INFO,
   QUANTITY_CALCULATION_INFO as TEXT_QUANTITY_CALCULATION_INFO,
@@ -46,6 +47,7 @@ import {
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
 import {postActivityFeed} from "../../Shared/feedActivity";
+import {isRlsViolationError, toError} from "../../../utils/errorUtils";
 
 import {
   NavigationValuesContext,
@@ -488,8 +490,22 @@ const CreateEventPage = () => {
       await saveEvent(value);
       setActiveStep(WizardSteps.completion);
     } catch (error) {
-      Sentry.captureException(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+      if (isRlsViolationError(error)) {
+        // RLS-Verletzung beim Event-INSERT = Sitzung fehlt/abgelaufen
+        // (Policy prüft nur auth.uid() IS NOT NULL). Nutzer-Hinweis, kein Bug.
+        Sentry.addBreadcrumb({
+          category: "auth",
+          message: "Event-Erstellung abgebrochen — Sitzung vermutlich abgelaufen (RLS)",
+          level: "warning",
+        });
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: new Error(TEXT_ERROR_SESSION_EXPIRED),
+        });
+      } else {
+        Sentry.captureException(toError(error));
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: toError(error)});
+      }
       window.scrollTo({top: 0, behavior: "smooth"});
     }
   };
