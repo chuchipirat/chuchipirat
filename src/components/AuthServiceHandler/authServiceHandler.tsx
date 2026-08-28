@@ -5,7 +5,6 @@ import {Alert, AlertTitle, Container, Typography} from "@mui/material";
 
 import {VerifyEmailPage} from "./verifyEmail";
 import {ConfirmEmailChangePage} from "./confirmEmailChange";
-import {RecoverEmailPage} from "./recoverEmail";
 import {ResetPasswordPage} from "./resetPassword";
 import {PageTitle} from "../Shared/pageTitle";
 import {
@@ -19,31 +18,28 @@ import * as TEXT from "../../constants/text";
 const AUTH_SERVICE_HANDLER_MODE = {
   VERIFY_EMAIL: "verifyEmail",
   RESET_PASSWORD: "resetPassword",
-  RECOVER_EMAIL: "recoverEmail",
   EMAIL_CHANGE: "emailChange",
 };
 
 /** Rückgabewert von detectMode */
 type DetectedMode = {
   mode: string;
-  oobCode: string;
   errorDescription: string;
 };
 
 /**
  * Erkennt den Modus anhand der URL-Parameter.
  *
- * Unterstützt drei Formate:
+ * Unterstützt zwei Formate:
  * - Supabase Implicit: `#access_token=...&type=signup` (Hash-Fragment)
  * - Supabase PKCE: `?code=AUTH_CODE` (Query-Parameter)
- * - Firebase: `?mode=resetPassword&oobCode=...` (Query-Parameter)
  *
  * Erkennt auch Supabase-Fehlerweiterleitungen bei abgelaufenen oder
  * ungültigen Links (`?error=...&error_description=...` oder `#error=...`).
  *
  * @param search - Query-String der URL (location.search)
  * @param hash - Hash-Fragment der URL (location.hash)
- * @returns Erkannter Modus, ggf. oobCode für Firebase und Fehlerbeschreibung
+ * @returns Erkannter Modus und ggf. Fehlerbeschreibung
  */
 function detectMode(search: string, hash: string): DetectedMode {
   // 0. Supabase-Fehlerweiterleitung prüfen (abgelaufene/ungültige Links)
@@ -54,7 +50,6 @@ function detectMode(search: string, hash: string): DetectedMode {
     if (hashParams.has("error")) {
       return {
         mode: "",
-        oobCode: "",
         errorDescription: hashParams.get("error_description") || "",
       };
     }
@@ -64,7 +59,6 @@ function detectMode(search: string, hash: string): DetectedMode {
     if (searchParams.has("error")) {
       return {
         mode: "",
-        oobCode: "",
         errorDescription: searchParams.get("error_description") || "",
       };
     }
@@ -76,13 +70,13 @@ function detectMode(search: string, hash: string): DetectedMode {
     const type = hashParams.get("type");
 
     if (type === "recovery") {
-      return {mode: AUTH_SERVICE_HANDLER_MODE.RESET_PASSWORD, oobCode: "", errorDescription: ""};
+      return {mode: AUTH_SERVICE_HANDLER_MODE.RESET_PASSWORD, errorDescription: ""};
     }
     if (type === "signup") {
-      return {mode: AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL, oobCode: "", errorDescription: ""};
+      return {mode: AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL, errorDescription: ""};
     }
     if (type === "email_change") {
-      return {mode: AUTH_SERVICE_HANDLER_MODE.EMAIL_CHANGE, oobCode: "", errorDescription: ""};
+      return {mode: AUTH_SERVICE_HANDLER_MODE.EMAIL_CHANGE, errorDescription: ""};
     }
   }
 
@@ -94,29 +88,20 @@ function detectMode(search: string, hash: string): DetectedMode {
     if (searchParams.has("code")) {
       const type = searchParams.get("type");
       if (type === "email_change") {
-        return {mode: AUTH_SERVICE_HANDLER_MODE.EMAIL_CHANGE, oobCode: "", errorDescription: ""};
+        return {mode: AUTH_SERVICE_HANDLER_MODE.EMAIL_CHANGE, errorDescription: ""};
       }
-      return {mode: AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL, oobCode: "", errorDescription: ""};
+      return {mode: AUTH_SERVICE_HANDLER_MODE.VERIFY_EMAIL, errorDescription: ""};
     }
   }
 
-  // 3. Firebase Query-Format prüfen (?mode=...&oobCode=...)
-  if (search) {
-    const searchParams = new URLSearchParams(search);
-    const mode = searchParams.get("mode") || "";
-    const oobCode = searchParams.get("oobCode") || "";
-    return {mode, oobCode, errorDescription: ""};
-  }
-
-  return {mode: "", oobCode: "", errorDescription: ""};
+  return {mode: "", errorDescription: ""};
 }
 
 /**
  * AuthServiceHandler — Routing für Auth-Aktionen (Passwort-Reset, E-Mail-Verifizierung).
  *
- * Unterstützt sowohl Firebase-Style Query-Parameter als auch
- * Supabase-Style Hash-Fragmente. Bei Supabase wird die Session
- * automatisch vom Client etabliert, sodass kein oobCode benötigt wird.
+ * Unterstützt Supabase-Style Hash-Fragmente und PKCE-Query-Parameter.
+ * Die Session wird automatisch vom Client etabliert.
  */
 export const AuthServiceHandlerPage = () => {
   const location = useLocation();
@@ -126,7 +111,7 @@ export const AuthServiceHandlerPage = () => {
   // bereits vom Supabase-Client geleert worden sein. Fallback auf location.*
   // greift in Tests (MemoryRouter berührt window.location nie) sowie für
   // den seltenen Fall einer SPA-internen Navigation auf diese Route.
-  const {mode, oobCode, errorDescription} = React.useRef(
+  const {mode, errorDescription} = React.useRef(
     detectMode(
       initialAuthCallbackSearch || location.search,
       initialAuthCallbackHash || location.hash,
@@ -139,9 +124,6 @@ export const AuthServiceHandlerPage = () => {
       {mode === AUTH_SERVICE_HANDLER_MODE.RESET_PASSWORD && <ResetPasswordPage />}
       {mode === AUTH_SERVICE_HANDLER_MODE.EMAIL_CHANGE && (
         <ConfirmEmailChangePage />
-      )}
-      {mode === AUTH_SERVICE_HANDLER_MODE.RECOVER_EMAIL && (
-        <RecoverEmailPage oobCode={oobCode} />
       )}
       {!mode && (
         <AuthServiceHandlerError errorDescription={errorDescription} />

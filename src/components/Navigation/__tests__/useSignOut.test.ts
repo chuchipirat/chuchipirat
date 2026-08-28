@@ -1,8 +1,8 @@
 /**
  * Unit-Tests für den useSignOut-Hook.
  *
- * Testet, ob beide Auth-Provider abgemeldet werden, der
- * localStorage bereinigt und zur Landing-Seite navigiert wird.
+ * Testet, ob bei Supabase abgemeldet, der localStorage bereinigt
+ * und zur Landing-Seite navigiert wird.
  */
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(globalThis, {TextEncoder, TextDecoder});
@@ -24,11 +24,6 @@ jest.mock("../../Database/DatabaseContext", () => ({
   useDatabase: () => ({auth: {signOut: mockSignOutDb}}),
 }));
 
-const mockSignOutFb = jest.fn().mockResolvedValue(undefined);
-jest.mock("../../Firebase/firebaseContext", () => ({
-  useFirebase: () => ({signOut: mockSignOutFb}),
-}));
-
 import {useSignOut} from "../useSignOut";
 
 /* ===================================================================
@@ -41,7 +36,7 @@ describe("useSignOut", () => {
     localStorage.clear();
   });
 
-  test("meldet bei Supabase und Firebase ab", async () => {
+  test("meldet bei Supabase ab", async () => {
     const {result} = renderHook(() => useSignOut());
 
     await act(async () => {
@@ -49,7 +44,6 @@ describe("useSignOut", () => {
     });
 
     expect(mockSignOutDb).toHaveBeenCalledTimes(1);
-    expect(mockSignOutFb).toHaveBeenCalledTimes(1);
   });
 
   test("entfernt den Auth-User aus dem localStorage", async () => {
