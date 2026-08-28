@@ -541,7 +541,6 @@ const CreateEventPage = () => {
               event={state.event}
               localPicture={state.localPicture}
               formValidation={state.eventFormValidation}
-              firebase={firebase}
               database={database}
               authUser={authUser}
               onUpdateEvent={onUpdateEvent}

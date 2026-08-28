@@ -38,15 +38,12 @@ import {AlertMessage} from "../Shared/AlertMessage";
 import {DialogReauthenticate} from "../SignIn/dialogReauthenticate";
 import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 
-import {AuthMessages} from "../../constants/firebaseMessages";
 import * as ROUTES from "../../constants/routes";
 import {
   EMAIL as TEXT_EMAIL,
   PASSWORD_CHANGE as TEXT_PASSWORD_CHANGE,
   LOGIN_CHANGE as TEXT_LOGIN_CHANGE,
   PASSWORD_CHANGE_ARE_YOU_READY as TEXT_PASSWORD_CHANGE_ARE_YOU_READY,
-  ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
-  PASSWORD_RESET_EXPIRED as TEXT_PASSWORD_RESET_EXPIRED,
   ONE_TWO_TRHEE_DONE as TEXT_ONE_TWO_TRHEE_DONE,
   PASSWORD_HAS_BEEN_CHANGED as TEXT_PASSWORD_HAS_BEEN_CHANGED,
   EMAIL_HAS_BEEN_CHANGED as TEXT_EMAIL_HAS_BEEN_CHANGED,
@@ -64,7 +61,6 @@ import {
   PASSWORD_RESET_GO_TO_SIGN_IN as TEXT_GO_TO_SIGN_IN,
 } from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
-import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
 import {Utils} from "../Shared/utils.class";
 import {FirebaseError} from "@firebase/util";
 import {useAuthUser} from "../Session/authUserContext";
@@ -580,15 +576,6 @@ const PasswordChangeCard = ({
         >
           {resetCode ? TEXT_PASSWORD_CHANGE_ARE_YOU_READY : TEXT_CHANGE_PASSWORD}
         </Typography>
-        {error &&
-        (error.code === AuthMessages.EXPIRED_ACTION_CODE ||
-          error.code === AuthMessages.INVALID_ACTION_CODE) ? (
-          <Alert severity="warning">
-            <AlertTitle>{TEXT_ALERT_TITLE_UUPS}</AlertTitle>
-            {TEXT_PASSWORD_RESET_EXPIRED}
-            <ForgotPasswordLink />
-          </Alert>
-        ) : null}
         {successPwChange && (
           <Alert severity="success">
             <AlertTitle>{TEXT_ONE_TWO_TRHEE_DONE}</AlertTitle>

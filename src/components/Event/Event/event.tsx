@@ -2367,7 +2367,6 @@ const EventPage = () => {
                   event={eventDraft.event}
                   localPicture={eventDraft.localPicture}
                   formValidation={eventDraft.formValidation}
-                  firebase={firebase}
                   database={database}
                   authUser={authUser}
                   onUpdateEvent={onEventUpdate}
