@@ -78,6 +78,7 @@ import {
 } from "../../../constants/text";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
+import {postActivityFeed} from "../../Shared/feedActivity";
 import {
   shoppingListToInsertRows,
 } from "./shoppingListAdapter";
@@ -807,17 +808,17 @@ const useShoppingListHandlers = ({
                 : `${randomItem.quantity} ${randomItem.item.name}`;
               const remaining = nonEmptyItems.length - 1;
 
-              database.feeds
-                .insertFeed(
-                  {
-                    feedType: FeedType.shoppingListCreated,
-                    sourceObjectType: "event",
-                    sourceObjectUid: event.uid,
-                    sourceObjectData: {randomItem: itemText, remainingCount: remaining},
-                  },
-                  authUser,
-                )
-                .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+              postActivityFeed({
+                database,
+                feed: {
+                  feedType: FeedType.shoppingListCreated,
+                  sourceObjectType: "event",
+                  sourceObjectUid: event.uid,
+                  sourceObjectData: {randomItem: itemText, remainingCount: remaining},
+                },
+                authUser,
+                context: "Einkaufsliste erstellt",
+              });
             }
 
             // Liste laden und anzeigen

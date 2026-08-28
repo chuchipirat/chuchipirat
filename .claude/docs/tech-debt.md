@@ -73,6 +73,9 @@ _(Claude Code: append entries here when you encounter `console.log` / `console.e
 - **Kein flächendeckender `isUuid()`-Guard vor `.eq("*_uid"/"user_id", …)`** — Aus veralteten localStorage-Caches kann eine Firebase-UID als `authUser.uid` durchsickern und löst dann Postgres `22P02` ("invalid input syntax for type uuid") aus. Root Cause ist per `isValidCachedAuthUser` (`authUserContext.tsx`) gefixt; als Defense-in-depth haben `EventRepository.getAllEventsForUser` und `DonationRepository.getMyDonations` einen `isUuid()`-Guard (`src/utils/uuid.ts`). Noch offen: ein Audit aller weiteren Repository-Methoden, die eine User-UID direkt in `.eq()` / `.in()` gegen eine `uuid`-Spalte reichen (z.B. `RecipeRepository.searchByCreatorId(s)`, diverse `*_uid`-Filter), und ggf. dort denselben Guard ergänzen.
   **Priorität:** tief · **Komplexität:** klein
 
+- **`catch { Sentry.captureException(error); throw error; }`-Doppelmeldung in Repositories** — Etliche Repository-Methoden fangen den Fehler nur, um ihn zu melden, und werfen ihn dann weiter — der Aufrufer meldet ihn ein zweites (bei `insertFeed` → `getFeedById` sogar ein drittes) Mal. `FeedRepository` wurde bereinigt (meldet nicht mehr selbst; Aktivitäts-Feeds laufen über `postActivityFeed`, `src/components/Shared/feedActivity.ts`). Gleiches Muster noch in `MaterialListRepository`, `MenuplanRepository`, `RequestRepository`, `RecipeRepository` u.a. Sweep: Die Repository-Schicht meldet nicht selbst an Sentry — sie normalisiert höchstens via `toError()` und wirft; die aufrufende Schicht entscheidet über die Meldung.
+  **Priorität:** tief · **Komplexität:** mittel
+
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_

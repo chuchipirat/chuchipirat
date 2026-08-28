@@ -14,6 +14,7 @@ import {RequestStatus, RequestType} from "./request.class";
 import DatabaseService from "../Database/DatabaseService";
 import {supabase} from "../Database/supabaseClient";
 import {FeedType} from "../Shared/feed.class";
+import {postActivityFeed} from "../Shared/feedActivity";
 import {AuthUser} from "../Session/authUser.class";
 import {RecipeType} from "../Recipe/recipe.class";
 
@@ -99,19 +100,17 @@ export class RequestService {
 
         // Feed-Eintrag: Rezept wurde veröffentlicht
         if (authUser) {
-          database.feeds
-            .insertFeed(
-              {
-                feedType: FeedType.recipePublished,
-                sourceObjectType: "recipe",
-                sourceObjectUid: request.recipeUid,
-                userUid: request.authorUid,
-              },
-              authUser,
-            )
-            .catch((err) => {
-              Sentry.captureException(err);
-            });
+          postActivityFeed({
+            database,
+            feed: {
+              feedType: FeedType.recipePublished,
+              sourceObjectType: "recipe",
+              sourceObjectUid: request.recipeUid,
+              userUid: request.authorUid,
+            },
+            authUser,
+            context: "Rezept veröffentlicht",
+          });
         }
         break;
 

@@ -74,6 +74,7 @@ import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {FeedType} from "../Shared/feed.class";
+import {postActivityFeed} from "../Shared/feedActivity";
 import {LocalStorageKey} from "../../constants/localStorage";
 import {DonationDomain, COUNTABLE_DONATION_STATUSES} from "../Donate/donation.types";
 import {DonationReceiptPdf} from "../Donate/DonationReceiptPdf";
@@ -435,16 +436,16 @@ const UserProfilePage = () => {
       });
 
       // Feed-Eintrag: Profilbild geändert
-      database.feeds
-        .insertFeed(
-          {
-            feedType: FeedType.profilePictureChanged,
-            sourceObjectType: "user",
-            sourceObjectUid: authUser!.uid,
-          },
-          authUser!,
-        )
-        .catch((err) => Sentry.captureException(err, {level: "warning"}));
+      postActivityFeed({
+        database,
+        feed: {
+          feedType: FeedType.profilePictureChanged,
+          sourceObjectType: "user",
+          sourceObjectUid: authUser!.uid,
+        },
+        authUser: authUser!,
+        context: "Profilbild geändert",
+      });
     } catch (error) {
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     } finally {

@@ -45,6 +45,7 @@ import {
 
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
+import {postActivityFeed} from "../../Shared/feedActivity";
 
 import {
   NavigationValuesContext,
@@ -418,16 +419,16 @@ const CreateEventPage = () => {
     trackEvent(AnalyticsEvent.EVENT_CREATED);
 
     // 8. Feed-Einträge erstellen (nicht blockierend)
-    database.feeds
-      .insertFeed(
-        {
-          feedType: FeedType.eventCreated,
-          sourceObjectType: "event",
-          sourceObjectUid: eventDomain.uid,
-        },
-        authUser,
-      )
-      .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+    postActivityFeed({
+      database,
+      feed: {
+        feedType: FeedType.eventCreated,
+        sourceObjectType: "event",
+        sourceObjectUid: eventDomain.uid,
+      },
+      authUser,
+      context: "Anlass erstellt",
+    });
 
     const usersForFeed = database.users;
     for (const cook of state.event.cooks) {
@@ -436,17 +437,23 @@ const CreateEventPage = () => {
           .findById(cook.uid)
           .then((userDomain) => {
             if (!userDomain?.uid) return;
-            return database.feeds.insertFeed(
-              {
+            postActivityFeed({
+              database,
+              feed: {
                 feedType: FeedType.eventCookAdded,
                 sourceObjectType: "event",
                 sourceObjectUid: eventDomain.uid,
                 userUid: userDomain.uid,
               },
               authUser,
-            );
+              context: "Koch zum Anlass hinzugefügt",
+            });
           })
-          .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+          .catch((error) =>
+            Sentry.captureException(error, {
+              extra: {context: "Koch für Feed-Eintrag laden"},
+            }),
+          );
       }
     }
 
