@@ -15,6 +15,7 @@ import {
   ERROR_PRODUCT_UNKNOWN as TEXT_ERROR_PRODUCT_UNKNOWN,
 } from "../../../constants/text";
 
+import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import unitConversionBasic from "../../Unit/__mocks__/unitConversionBasic.mock";
 import unitConversionProducts from "../../Unit/__mocks__/unitConversionProducts.mock";
 /* =====================================================================
@@ -365,6 +366,12 @@ test("Recipe.checkRecipeData(), kein Name", () => {
   expect(() => Recipe.checkRecipeData(recipeMock)).toThrow(
     TEXT_RECIPE_NAME_CANT_BE_EMPTY
   );
+});
+test("Recipe.checkRecipeData() wirft FieldValidationError (Nutzer-Hinweis, kein Sentry)", () => {
+  const recipeMock = structuredClone(recipe);
+  recipeMock.portions = 0;
+
+  expect(() => Recipe.checkRecipeData(recipeMock)).toThrow(FieldValidationError);
 });
 test("Recipe.checkRecipeData(), fehlender Variantennamen", () => {
   const recipeMock = structuredClone(recipe);

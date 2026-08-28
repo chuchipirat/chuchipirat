@@ -101,6 +101,7 @@ import {Unit, UnitDimension} from "../Unit/unit.class";
 import {Utils} from "../Shared/utils.class";
 import Department from "../Department/department.class";
 import {AlertMessage} from "../Shared/AlertMessage";
+import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import * as TEXT from "../../constants/text";
@@ -1299,9 +1300,13 @@ const RecipeEdit = ({
     try {
       Recipe.checkRecipeData(state.recipe);
     } catch (error) {
-      Sentry.captureException(error, {
-        extra: {context: "RecipeEdit – Rezeptdaten validieren"},
-      });
+      // FieldValidationError = Nutzer-Hinweis (Pflichtfeld fehlt o.ä.) —
+      // nur anzeigen, nicht an Sentry melden.
+      if (!(error instanceof FieldValidationError)) {
+        Sentry.captureException(error, {
+          extra: {context: "RecipeEdit – Rezeptdaten validieren"},
+        });
+      }
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error as Error,
@@ -1399,9 +1404,13 @@ const RecipeEdit = ({
         });
       }
     } catch (error) {
-      Sentry.captureException(error, {
-        extra: {context: "RecipeEdit – Rezept speichern"},
-      });
+      // FieldValidationError kann bei einem State-Wechsel zwischen erster
+      // Prüfung und prepareSave() erneut auftreten — nur anzeigen, nicht melden.
+      if (!(error instanceof FieldValidationError)) {
+        Sentry.captureException(error, {
+          extra: {context: "RecipeEdit – Rezept speichern"},
+        });
+      }
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
