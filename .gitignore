@@ -72,10 +72,6 @@ supabase/.env.production
 supabase/.temp/
 supabase/html-report/*
 
-
-# documentation
-firebase-auth-migration.md
-
 # Migration
 generate-auth-import.mjs
 supabase/volumes/functions/.DS_Store

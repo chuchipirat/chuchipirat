@@ -112,7 +112,6 @@ export enum ProductDialog {
 /**
  * Props für den Produkt-Dialog.
  *
- * @param firebase - Firebase-Instanz (nicht mehr benötigt, wird ignoriert). Veraltet.
  * @param dialogType - Art des Dialogs (CREATE oder EDIT)
  * @param productName - Vorausgefüllter Produktname
  * @param productUid - UID des zu bearbeitenden Produkts (nur EDIT)

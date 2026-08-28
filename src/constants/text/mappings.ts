@@ -1,6 +1,6 @@
 /**
  * Enum-zu-Label-Tabellen und Übersetzungsmaps (Rollen, Status,
- * Feed-Texte, Firebase-/Supabase-Meldungen, Dimensionen usw.).
+ * Feed-Texte, Supabase-Meldungen, Dimensionen usw.).
  */
 import {MATERIAL_TYPE_CONSUMABLE, MATERIAL_TYPE_USAGE} from "./masterdata";
 import {LACTOSE, GLUTEN} from "./recipes";
@@ -189,33 +189,6 @@ export const HOME_STATS_CAPTIONS = {
   noPlanedDays: "Geplante Anlasstage",
   noMaterials: "Materialien",
   noMaterialLists: "Generierte Materiallisten",
-};
-
-/* =====================================================================
-// Firebase-Meldungen (englische Originalmeldungen → Deutsch)
-// ===================================================================== */
-export const FIREBASE_MESSAGES = {
-  WEAK_PASSWORD:
-    "Passwort zu schwach: Passwort muss aus mindestens 6 Zeichen bestehen.",
-  INVALID_EMAIL: "E-Mail Adresse ungültig",
-  EMAIL_ALREADY_IN_USE:
-    "Es besteht bereits ein Account mit dieser Adresse. Setze das Passwort zurück, falls du dich nicht mehr daran erinnerst.",
-  USER_DISABLED: "User ist deaktiviert. Melde dich unter hallo@chuchipirat.ch",
-  USER_NOT_FOUND: "Ungültige Anmeldedaten.",
-  WRONG_PASSWORD: "Ungültige Anmeldedaten.",
-  ACCOUNT_EXISTS_WITH_DIFFERENT_CREDENTIAL:
-    "Es existiert bereits ein Konto mit der gleichen E-Mail-Adresse. Versuche dich anzumelden und verknüpfe die Social-Media-Accounts in deinem Profil miteinander.",
-  PERMISSION_DENIED: "Dir fehlt die nötige Berechtigung, für diese Aktion.",
-  INVALID_ACTION_CODE:
-    "Der Verifizierungscode ist ungültig. Dies kann passieren, wenn der Code fehlerhaft ist, abläuft oder bereits verwendet wurde.",
-  UNAVAILABLE:
-    "Bist du bist Offline? Damit du die Daten bearbeiten und lesen kannst, musst du mit dem Internet verbunden sein.",
-  REQUIRES_RECENT_LOGIN:
-    "Dieser Vorgang ist sensibel und erfordert eine aktuelle Authentifizierung. Melde dich erneut an, bevor du diese Anfrage erneut versuchst.",
-  TOO_MANY_REQUESTS:
-    "Der Zugriff auf dieses Konto wurde aufgrund vieler fehlgeschlagener Anmeldeversuche vorübergehend deaktiviert. Du kannst das Konto entsperren, indem du dein Passwort zurücksetzt, oder du kannst es später erneut versuchen.",
-  INTERNAL_ERROR:
-    "Fehler bei der Anmeldung: Die eingegebenen Anmeldeinformationen sind ungültig.",
 };
 
 /* =====================================================================

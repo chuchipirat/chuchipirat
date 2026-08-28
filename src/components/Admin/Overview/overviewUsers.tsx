@@ -18,7 +18,6 @@ import React, {useEffect, useReducer, useState} from "react";
 import {
   USER_LIST as TEXT_USER_LIST,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
-  UID as TEXT_UID,
   FIRSTNAME as TEXT_FIRSTNAME,
   LASTNAME as TEXT_LASTNAME,
   DISPLAYNAME as TEXT_DISPLAYNAME,
@@ -708,15 +707,6 @@ const DialogUser = ({
                     id="uid"
                     value={user.uid}
                     label="Supabase-ID"
-                    displayAsCode
-                  />
-                )}
-                {user.uid && (
-                  <FormListItem
-                    key="uid"
-                    id="uid"
-                    value={user.uid}
-                    label={`Firebase-${TEXT_UID}`}
                     displayAsCode
                   />
                 )}

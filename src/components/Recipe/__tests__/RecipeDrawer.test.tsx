@@ -43,7 +43,6 @@ const baseProps = {
   scaledPortions: 0,
   editMode: false,
   disableFunctionality: false,
-  firebase: {} as any,
   authUser: {uid: "user-1"} as AuthUser,
   onClose: jest.fn(),
 };

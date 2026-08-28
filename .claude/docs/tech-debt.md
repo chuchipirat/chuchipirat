@@ -30,11 +30,8 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 
 ## Security / Auth
 
-- **Admin-client bypass in profile picture uploads** — `User.uploadPicture()` and `User.deletePicture()` in `user.class.ts` use `database.admin?.storage.users ?? database.storage.users`, bypassing Storage RLS. Switch to regular client (`database.storage.users`), verify authenticated user has active Supabase session, remove `database.admin?.storage` fallback.
-  **Priorität:** mittel · **Komplexität:** klein
-
-- **Admin-client bypass in `authUserContext.tsx`** — `database.admin?.users ?? database.users` (Zeile 130) umgeht RLS beim Laden des Benutzerprofils im Auth-State-Change-Listener. Ursprünglich nötig wegen Timing-Problem (RLS erlaubt eigenen User erst nach vollständigem Session-Setup). Prüfen, ob regulärer Client mittlerweile funktioniert, und Admin-Fallback entfernen.
-  **Priorität:** mittel · **Komplexität:** klein
+- **`signIn.tsx` `setTimeout` delay** — 1× hardcoded `setTimeout(resolve, 2000)` wartet, bis der Auth-Context die Session übernommen hat. Richtiger Fix erfordert ein "ready"-Signal im Auth-Context oder `onAuthStateChange`-Subscription.
+  **Priorität:** mittel · **Komplexität:** mittel
 
 - **`authUserContext.tsx` — Cache-Validierung akzeptiert leere `uid` und kein `loading`-Flag** — `isValidCachedAuthUser` (Zeile ~49) prüft nur `typeof obj.uid === "string"`, nicht dass `uid` nicht-leer ist. Der Context hat ausserdem kein `loading`/`isLoading`-Flag — `null` bedeutet laut Kommentar sowohl "ausgeloggt" als auch "lädt noch". Konsumenten prüfen fast überall nur `if (!authUser) return`, was einen (theoretisch) korrupten Cache-Eintrag mit `uid: ""` als vollständig eingeloggt behandeln würde. Zusätzlich fehlt ein try/catch um `JSON.parse` beim Cache-Lesen (Initializer Zeile ~78 und Listener Zeile ~124). Kein aktiver Schreibpfad gefunden, der `uid: ""` erzeugt (Stand 2026-08-24) — daher nicht akut, aber als Verteidigungslinie sinnvoll: `isValidCachedAuthUser` um Non-Empty-Check ergänzen, `JSON.parse` absichern, echtes `loading`-Flag einführen.
   **Priorität:** mittel · **Komplexität:** klein
@@ -51,7 +48,7 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 
 Identifiziert via Sentry Bundle Size Analysis (Build vom 13.04.2026). Die grössten Chunks bieten das meiste Optimierungspotenzial.
 
-- **`index.js` — 3.3 MB (gzip: 1.2 MB)** — Haupt-Bundle enthält zu viele Abhängigkeiten. Firebase SDK, Supabase SDK, Material UI, Sentry und React landen alle im selben Chunk. Nach Firebase-Removal reduziert sich das deutlich. Danach: `manualChunks` in Vite konfigurieren, um MUI, Supabase und Sentry in separate Vendor-Chunks auszulagern.
+- **`index.js` — 2.6 MB (gzip: 1.0 MB)** — Haupt-Bundle enthält zu viele Abhängigkeiten (Supabase SDK, Material UI, Sentry, React landen alle im selben Chunk). Firebase-SDK-Anteil ist seit dem Firebase-Abbau (Issue #215) bereits weg — verbleibende Grösse ist rein Supabase/MUI/Sentry/React. `manualChunks` in Vite konfigurieren, um MUI, Supabase und Sentry in separate Vendor-Chunks auszulagern.
   **Priorität:** mittel · **Komplexität:** gross
 
 - **`pdfUtils.js` — 2.5 MB (gzip: 758 KB)** — `@react-pdf/renderer` ist sehr gross. Wird nur für Spendenquittung und Rezept-PDF benötigt. Bereits lazy-loaded (eigener Chunk), aber die Bibliothek selbst ist schwer. Alternative: Server-side PDF-Generierung via Edge Function (z.B. mit `jsPDF` oder Puppeteer). Oder: akzeptieren, da nur bei PDF-Download geladen.
@@ -66,53 +63,13 @@ Identifiziert via Sentry Bundle Size Analysis (Build vom 13.04.2026). Die gröss
 - **`event.js` — 227 KB (gzip: 62 KB)** — Event-Seite (Menuplan, Listen, Gruppenconfig) ist die grösste Einzelseite. Könnte in Sub-Tabs aufgeteilt werden (Tab-basiertes Code-Splitting).
   **Priorität:** mittel · **Komplexität:** gross
 
-## Naming
-
-- **`src/components/Shared/enviroment.class.ts`** — Firebase-abhängig, Dateiname-Tippfehler (enviroment → environment), `console.error`. Vollständige Migration nach Supabase erforderlich.
-  **Priorität:** mittel · **Komplexität:** klein
-
-- **`dialogDepartment.tsx`** — Verwendet `authUser`-Prop mit Typ `AuthUser` (Firebase-Klasse). Funktioniert, ist aber irreführend, da die App jetzt Supabase-Auth nutzt. Alle Dialog-Komponenten, die `authUser` akzeptieren, sollten einen gemeinsamen Supabase-kompatiblen Typ verwenden.
-  **Priorität:** tief · **Komplexität:** mittel (codebase-weit, viele Dialoge)
-
-- **`AuthUser`-Klasse aus `Firebase/`-Ordner verschieben** — `AuthUser` ist vollständig Supabase-basiert (befüllt aus `UserRepository` + Supabase Auth Session), liegt aber unter `src/components/Firebase/Authentication/authUser.class.ts`. Der Importpfad suggeriert fälschlicherweise eine Firebase-Abhängigkeit. Verschieben nach `src/components/Session/` oder `src/components/Auth/` und 50+ Importer aktualisieren. Gleichzeitig Konvertierung von Klasse zu Type/Interface erwägen.
-  **Priorität:** hoch · **Komplexität:** mittel (mechanisches Suchen-und-Ersetzen, aber 50+ Dateien)
-
 ## Error Handling
-
-- **`src/components/Shared/stats.class.ts`** — Firebase-abhängig, 4× `console.error` statt Sentry. Vollständige Migration nach Supabase erforderlich.
-  **Priorität:** mittel · **Komplexität:** mittel
 
 _(Claude Code: append entries here when you encounter `console.log` / `console.error` used instead of Sentry, missing error boundaries, or swallowed errors.)_
 
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_
-
-## Firebase Class Removal
-
-- **`src/components/Department/department.class.ts`** — Legacy-Firebase-Klasse, Shape identisch mit `DepartmentDomain`. Wird als Typ in ~20 Dateien importiert. Nur `product.class.ts` ruft eine statische Methode (`Department.getAllDepartments()`) auf. Sobald die Products-Migration abgeschlossen ist, Klasse löschen und alle Typ-Imports durch `DepartmentDomain` ersetzen.
-  **Priorität:** mittel · **Komplexität:** mittel (20+ Dateien, mechanisches Suchen-und-Ersetzen)
-
-- **`src/components/Recipe/recipeShort.class.ts`** — 7 statische Firebase-Methoden haben null Aufrufer (getShortRecipes*, delete*, deleteOverview). Datei kann gelöscht werden, nachdem Typen extrahiert sind (erledigt in recipe.types.ts) und Firebase-DB-Dateien entfernt werden.
-  **Priorität:** mittel · **Komplexität:** klein
-
-- **`src/components/Recipe/recipe.comment.class.ts`** — `getComments()` und `save()` haben null Aufrufer. `RecipeCommentRepository` übernimmt alle Persistenz. Datei kann nach Typ-Extraktion gelöscht werden.
-  **Priorität:** mittel · **Komplexität:** klein
-
-- **`src/components/Recipe/recipe.rating.class.ts`** — `getUserRating()` und `updateUserRating()` haben null Aufrufer. `RecipeRatingRepository` übernimmt alle Persistenz. Datei kann nach Typ-Extraktion gelöscht werden.
-  **Priorität:** mittel · **Komplexität:** klein
-
-- **Firebase-Auth-Listener in `authUserContext.tsx`** — Der sekundäre Firebase `onAuthUserListener` (Zeilen 202–213) ist eine Migrationsbrücke für noch nicht zu Supabase migrierte User. Sobald alle User migriert sind, Listener und `useFirebase()`-Import entfernen. Damit entfällt die `firebaseContext`-Abhängigkeit im Session-Ordner vollständig.
-  **Priorität:** mittel · **Komplexität:** klein (ca. 15 Zeilen + Import entfernen, aber zuerst sicherstellen, dass alle User migriert sind)
-
-- **`signIn.tsx` `setTimeout` delay** — 1× hardcoded `setTimeout(resolve, 2000)` wartet, bis der Auth-Context die Session übernommen hat. Richtiger Fix erfordert ein "ready"-Signal im Auth-Context oder `onAuthStateChange`-Subscription.
-  **Priorität:** mittel · **Komplexität:** mittel
-
-- **`src/components/Event/Event/event.tsx`** — Aktiver `firebase.analytics`-Aufruf für Event-Logging. Zu Supabase Analytics migrieren oder eigenständigen Firebase-Analytics-Import verwenden.
-  **Priorität:** mittel · **Komplexität:** klein
-
-- **`src/components/Event/Event/receipt.class.ts` + `eventInfo.tsx`** — Aktive Firestore-Lese-/Schreiboperationen für Quittungen. Erfordert ReceiptRepository-Migration nach Supabase.
-  **Priorität:** mittel · **Komplexität:** mittel
 
 ## Navigation Guards
 
@@ -234,24 +191,12 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## User Folder
 
-- **Firebase `getAllUsers()` Migration** (`src/components/User/user.class.ts:230`) — Ruft noch `firebase.user.readCollection()` auf. Erfordert Datenmigration nach Supabase (kein reines Refactoring).
-  **Priorität:** hoch · **Komplexität:** mittel
-
-- **Firebase DB Mirror-Dateien** — `firebase.db.user.public.class.ts`, `firebase.db.user.public.searchFields.class.ts` referenzieren die gelöschten Domain-Klassen (`user.public.class.ts`, `user.public.searchFields.class.ts`). Aufräumen, wenn Firebase vollständig entfernt wird.
-  **Priorität:** tief · **Komplexität:** klein
-
 - **User-Klasse → Standalone-Funktionen** — `user.class.ts` verwendet statische Methoden auf einer Klasse. Moderne Konvention: eigenständige exportierte Funktionen. Betrifft 13+ Import-Stellen.
   **Priorität:** tief · **Komplexität:** gross
-
-- **Admin-Client-Bypass in User-Methoden** — `user.class.ts`-Methoden verwenden `database.admin?.users ?? database.users` um RLS während der Migrationsphase zu umgehen. Nach vollständiger Migration auf regulären Client umstellen.
-  **Priorität:** mittel · **Komplexität:** klein
 
 ## Constants Folder
 
 - **`ImageRepository.getEnvironmentRelatedPicture()` — Namensrelikt** — Methode gibt seit der Migration auf `public/`-Assets keine umgebungsabhängigen Bilder mehr zurück; Name ist irreführend. Bei Gelegenheit zu einer einfachen exportierten Konstante (`IMAGE_PATHS`) umbauen und alle ~30 Aufrufstellen anpassen.
-  **Priorität:** tief · **Komplexität:** mittel
-
-- **`firebaseEvent.ts` — Firebase-Analytics-Abhängigkeit** — Enum wird für Firebase-Analytics-Logging verwendet. Wenn Firebase vollständig entfernt wird, muss diese Datei gelöscht oder durch Supabase/PostHog-Analytics ersetzt werden.
   **Priorität:** tief · **Komplexität:** mittel
 
 - **`styles.ts` — 662 LOC in einer Datei** — Könnte in domänenspezifische Style-Module aufgeteilt werden (eventStyles, recipeStyles etc.). Aktuell 82 Konsumenten, daher riskant ohne grösseres Refactoring.

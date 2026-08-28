@@ -129,46 +129,14 @@ Wird durch die Baseline-Migration `20260401000007_grants_indexes.sql` erstellt. 
 
 ---
 
-## 5. Firebase Auth → Supabase Auth (User-Import)
-
-Bevor Tabellen mit `FK → auth.users(id)` migriert werden (z.B. `requests`), müssen alle Firebase-Auth-Benutzer in Supabase Auth importiert werden. Siehe **[Firebase Auth Migration Playbook](../docs/claude/firebase-auth-migration.md)** für die vollständige Anleitung.
-
----
-
-## 6. Daten-Migration (Firebase → Postgres)
-
-Die Firebase-Daten müssen über die Admin-Migrationsseite (`/admin/migration`) migriert werden. Diese Seite ist nur für Admins zugänglich.
-
-### Reihenfolge
-
-1. **Users** migrieren (erstellt Zeilen in `public.users`)
-2. **member_id Sequenz zurücksetzen** — nach der User-Migration muss die Identity-Sequenz auf den höchsten migrierten Wert gesetzt werden, damit neue Benutzer fortlaufende Nummern erhalten:
-   ```sql
-   SELECT setval(pg_get_serial_sequence('public.users', 'member_id'),
-                 (SELECT COALESCE(MAX(member_id), 1) FROM public.users));
-   ```
-3. **Profilbilder** migrieren (kopiert von Firebase Storage in Supabase Storage)
-4. **Departments** migrieren (Abteilungen)
-5. **Units** migrieren (Einheiten)
-6. **Materials** migrieren (Material/Küchenutensilien)
-7. **Products** migrieren (Produkte/Zutaten — hängt von Departments + Units ab)
-8. **UnitConversionBasic** migrieren (Basis-Umrechnungen — hängt von Units ab)
-9. **UnitConversionProducts** migrieren (Produkt-Umrechnungen — hängt von Products + Units ab)
-10. **Recipes** migrieren (Rezepte — hängt von Users, Products, Materials ab)
-11. **Events** migrieren (Event-Kopfdaten, Köche, Zeitscheiben — hängt von Users ab)
-12. **GroupConfig** migrieren (Gruppenconfig: Diäten, Unverträglichkeiten, Portionen — hängt von Events ab)
-13. **Menuplan** migrieren (Menupläne: Mahlzeiten, Menüs, Rezepte, Produkte, Materialien — hängt von Events, GroupConfig, Recipes, Products, Materials ab)
-14. **EventPictures** migrieren (kopiert Event-Bilder von Firebase Storage nach Supabase Storage — hängt von Events ab)
-15. **RecipeVariants** migrieren (Varianten-Rezepte — hängt von Events, Recipes, Users, Products, Materials ab)
-16. **UsedRecipeListMeals** migrieren (Meal-Zuordnungen für Mengenberechnungs-Listen — hängt von Events, Menuplan ab)
-17. **ShoppingLists** migrieren (Einkaufslisten — hängt von Events, Products, Materials, Departments, Units ab)
-18. **MaterialLists** migrieren (Materiallisten — hängt von Events, Materials ab)
-19. **Requests** migrieren (Anträge — hängt von Users, Recipes ab)
-20. **Feeds** migrieren (Feed-Einträge — hängt von Users, Recipes, Events, Products, Materials ab; `menuplanCreated` → `eventCreated`, `recipeCreated`/`none` übersprungen)
+> Die einmalige Firebase→Supabase-Datenmigration (Auth-User-Import, Admin-
+> Migrationsseite mit 20 Entitäten) ist abgeschlossen und für neue Umgebungen
+> nicht mehr relevant — Details dazu in der Git-Historie (Issue #215,
+> Firebase-Abbau). Eine neue Umgebung startet direkt mit leeren Tabellen.
 
 ---
 
-## 7. Umgebungsspezifische Werte
+## 6. Umgebungsspezifische Werte
 
 | Variable                    | Dev (lokal)                 | Test          | Produktion               |
 | --------------------------- | --------------------------- | ------------- | ------------------------ |

@@ -386,7 +386,7 @@ const UserProfilePage = () => {
     navigate(ROUTE_PASSWORD_CHANGE);
   };
   /* ------------------------------------------
-  // Bild in Firebase Storage hochladen
+  // Bild in Supabase Storage hochladen
   // ------------------------------------------ */
   /** Erlaubte MIME-Typen für Profilbilder. */
   const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
