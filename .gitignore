@@ -29,7 +29,6 @@
 .env.production.local
 .env.test
 .env.local
-.firebaseerc
 .imageRepository.js
 .temp.jsx
 report.*.json

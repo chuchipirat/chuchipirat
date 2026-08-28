@@ -2,9 +2,6 @@
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(globalThis, {TextEncoder, TextDecoder});
 
-// firebase/auth benötigt Web-APIs die in jsdom nicht vorhanden sind
-jest.mock("firebase/auth", () => ({}));
-
 import {routeConfig} from "../routeConfig";
 import {Role} from "../../../constants/roles";
 import type AuthUser from "../../Session/authUser.class";

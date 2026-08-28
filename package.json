@@ -33,7 +33,6 @@
     "dayjs": "^1.11.20",
     "dompurify": "^3.3.3",
     "file-saver": "^2.0.5",
-    "firebase": "^12.9.0",
     "fuse.js": "^7.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
