@@ -15,7 +15,6 @@ import {
 
 import {MemoryRouter, useLocation} from "react-router";
 import {AuthUserContext} from "../../Session/authUserContext";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
 import authUser from "../../Session/__mocks__/authuser.mock";
 
 
@@ -44,17 +43,13 @@ const LocationDisplay = () => {
   return null;
 };
 
-const mockFirebase = {} as unknown;
-
 const renderLanding = (authUserValue: unknown = null) => {
   return render(
     <MemoryRouter initialEntries={["/"]}>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <AuthUserContext.Provider value={authUserValue}>
-          <LandingPage />
-          <LocationDisplay />
-        </AuthUserContext.Provider>
-      </FirebaseContext.Provider>
+      <AuthUserContext.Provider value={authUserValue}>
+        <LandingPage />
+        <LocationDisplay />
+      </AuthUserContext.Provider>
     </MemoryRouter>,
   );
 };

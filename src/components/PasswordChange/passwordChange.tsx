@@ -62,7 +62,6 @@ import {
 } from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
 import {Utils} from "../Shared/utils.class";
-import {FirebaseError} from "@firebase/util";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {trackEvent} from "../Analytics/analyticsService";
@@ -82,6 +81,11 @@ enum ReducerActions {
   SET_SUBMITTING,
 }
 
+/** Authentifizierungsfehler mit optionalem Code (z.B. von Supabase Auth). */
+export interface AuthError extends Error {
+  code?: string;
+}
+
 /** Daten für E-Mail- und Passwortänderung. */
 type PasswordChangeData = {
   email: string;
@@ -92,8 +96,8 @@ type PasswordChangeData = {
 /** State der PasswordChange-Seite mit getrennten Fehler-/Erfolgsfeldern. */
 type State = {
   passwordChangeData: PasswordChangeData;
-  emailError: FirebaseError | null;
-  passwordError: FirebaseError | null;
+  emailError: AuthError | null;
+  passwordError: AuthError | null;
   successPwChange: boolean;
   successEmailChange: boolean;
   isSubmittingEmail: boolean;
@@ -106,8 +110,8 @@ type State = {
  */
 type DispatchAction =
   | {type: ReducerActions.UPDATE_FIELD; payload: {field: string; value: string}}
-  | {type: ReducerActions.EMAIL_ERROR; payload: FirebaseError}
-  | {type: ReducerActions.PASSWORD_ERROR; payload: FirebaseError}
+  | {type: ReducerActions.EMAIL_ERROR; payload: AuthError}
+  | {type: ReducerActions.PASSWORD_ERROR; payload: AuthError}
   | {type: ReducerActions.SUCCESS_MAIL_CHANGE}
   | {type: ReducerActions.SUCCESS_PW_CHANGE}
   | {type: ReducerActions.SUCCESS_REAUTHENTICATION}
@@ -274,7 +278,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
     if (authUser.email === state.passwordChangeData.email) {
       dispatch({
         type: ReducerActions.EMAIL_ERROR,
-        payload: {code: "", message: TEXT_NEW_EMAIL_IDENTICAL} as FirebaseError,
+        payload: {code: "", message: TEXT_NEW_EMAIL_IDENTICAL} as AuthError,
       });
       return;
     }
@@ -288,7 +292,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
       dispatch({type: ReducerActions.SUCCESS_MAIL_CHANGE});
     } catch (error) {
       Sentry.captureException(error, {extra: {context: "E-Mail ändern"}});
-      dispatch({type: ReducerActions.EMAIL_ERROR, payload: error as FirebaseError});
+      dispatch({type: ReducerActions.EMAIL_ERROR, payload: error as AuthError});
     }
   };
   /* ------------------------------------------
@@ -304,7 +308,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
       dispatch({type: ReducerActions.SUCCESS_PW_CHANGE});
     } catch (error) {
       Sentry.captureException(error, {extra: {context: "Passwort ändern"}});
-      dispatch({type: ReducerActions.PASSWORD_ERROR, payload: error as FirebaseError});
+      dispatch({type: ReducerActions.PASSWORD_ERROR, payload: error as AuthError});
     }
   };
   /* ------------------------------------------
@@ -396,7 +400,7 @@ interface EmailChangeCardProps {
   /** Ob gerade eine API-Anfrage läuft. */
   isSubmitting: boolean;
   /** Fehler bei der E-Mail-Änderung (oder null). */
-  error: FirebaseError | null;
+  error: AuthError | null;
   /** Handler für Feldänderungen. */
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   /** Handler zum Absenden der E-Mail-Änderung. */
@@ -494,7 +498,7 @@ interface PasswordChangeCardProps {
   /** Ob gerade eine API-Anfrage läuft. */
   isSubmitting: boolean;
   /** Fehler bei der Passwort-Änderung (oder null). */
-  error: FirebaseError | null;
+  error: AuthError | null;
   /** Handler für Feldänderungen. */
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   /** Handler zum Absenden der Passwort-Änderung. */
