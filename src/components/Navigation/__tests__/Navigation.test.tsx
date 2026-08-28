@@ -37,10 +37,6 @@ jest.mock("../../Database/DatabaseContext", () => ({
   useDatabase: () => ({auth: {signOut: jest.fn()}}),
 }));
 
-/** Mock: useFirebase */
-jest.mock("../../Firebase/firebaseContext", () => ({
-  useFirebase: () => ({signOut: jest.fn()}),
-}));
 
 /** Mock: NavigationValuesContext */
 jest.mock("../navigationContext", () => ({

@@ -5,7 +5,7 @@
  * den Dialog mit Profil/Statistik/Anlässe-Tabs, die noFoundBugs-Buttons
  * sowie Fehlerbehandlung.
  *
- * Supabase, Firebase und AuthUser werden vollständig gemockt.
+ * Supabase und AuthUser werden vollständig gemockt.
  */
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});

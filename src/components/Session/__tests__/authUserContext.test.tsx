@@ -38,10 +38,6 @@ jest.mock("../../../constants/imageRepository", () => ({
   },
 }));
 
-/** Mock: Firebase-Context — wird von authUserContext indirekt importiert */
-jest.mock("../../Firebase/firebaseContext", () => ({
-  useFirebase: jest.fn(),
-}));
 
 /** Mock-DatabaseService mit minimaler Auth-API */
 const mockGetSession = jest.fn();

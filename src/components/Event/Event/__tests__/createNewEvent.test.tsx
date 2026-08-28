@@ -54,10 +54,6 @@ jest.mock("../../../../constants/imageRepository", () => ({
   },
 }));
 
-/** Mock: useFirebase (noch fuer andere Komponenten referenziert) */
-jest.mock("../../../Firebase/firebaseContext", () => ({
-  useFirebase: () => ({}),
-}));
 
 /** Mock: NavigationValuesContext */
 jest.mock("../../../Navigation/navigationContext", () => ({

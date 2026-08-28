@@ -4,7 +4,7 @@
  * Prüft das Rendering in verschiedenen Zuständen (offen/geschlossen,
  * View/Edit-Modus, mit/ohne groupConfiguration).
  * RecipeView und RecipeEdit werden gemockt um die schweren Abhängigkeiten
- * (Firebase, Supabase, etc.) zu vermeiden.
+ * (Supabase, etc.) zu vermeiden.
  */
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});

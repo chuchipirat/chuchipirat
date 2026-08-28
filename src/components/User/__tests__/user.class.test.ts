@@ -2,7 +2,7 @@
  * Unit-Tests für User Service-Klasse.
  *
  * Testet alle statischen Methoden der User-Klasse. Die Abhängigkeiten
- * (DatabaseService, Firebase) werden vollständig gemockt.
+ * (DatabaseService) werden vollständig gemockt.
  */
 import {User, UserFullProfile} from "../user.class";
 import {AuthUser} from "../../Session/authUser.class";
