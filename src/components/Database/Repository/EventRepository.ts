@@ -13,7 +13,7 @@ import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
+} from "../../Shared/sessionStorageHandler.class";
 import {AuthUser} from "../../Session/authUser.class";
 import {Event,Cook, EventDate} from "../../Event/Event/event.class";
 import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";

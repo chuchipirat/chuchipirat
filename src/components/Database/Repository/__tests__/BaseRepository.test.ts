@@ -10,7 +10,7 @@ import {
   STORAGE_OBJECT_PROPERTY,
   SessionStorageHandler,
   StorageObjectProperty,
-} from "../../../Firebase/Db/sessionStorageHandler.class";
+} from "../../../Shared/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 
 /* =====================================================================

@@ -9,13 +9,13 @@ import {
   DepartmentDomain,
   DepartmentRow,
 } from "../DepartmentRepository";
-import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
+import {STORAGE_OBJECT_PROPERTY} from "../../../Shared/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Session/authUser.class";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
-jest.mock("../../../Firebase/Db/sessionStorageHandler.class", () => {
-  const actual = jest.requireActual("../../../Firebase/Db/sessionStorageHandler.class");
+jest.mock("../../../Shared/sessionStorageHandler.class", () => {
+  const actual = jest.requireActual("../../../Shared/sessionStorageHandler.class");
   return {
     ...actual,
     SessionStorageHandler: {

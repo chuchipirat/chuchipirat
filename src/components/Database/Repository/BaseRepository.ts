@@ -19,7 +19,7 @@ import {supabase} from "../supabaseClient";
 import {
   SessionStorageHandler,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
+} from "../../Shared/sessionStorageHandler.class";
 import {AuthUser} from "../../Session/authUser.class";
 
 /**

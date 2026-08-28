@@ -9,7 +9,7 @@ import {
   GlobalSettingsDomain,
   GlobalSettingsRow,
 } from "../GlobalSettingsRepository";
-import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
+import {STORAGE_OBJECT_PROPERTY} from "../../../Shared/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Session/authUser.class";
 

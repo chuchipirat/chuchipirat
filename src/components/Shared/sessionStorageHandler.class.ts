@@ -1,7 +1,29 @@
-import {Operator, OrderBy, ValueObject, Where} from "./firebase.db.super.class";
+import {SortOrder, ValueObject} from "./global.interface";
 
-import {ERROR_NOT_IMPLEMENTED_YET} from "../../../constants/text";
-import {Utils} from "../../Shared/utils.class";
+import {ERROR_NOT_IMPLEMENTED_YET} from "../../constants/text";
+import {Utils} from "./utils.class";
+
+export interface OrderBy {
+  field: string;
+  sortOrder: SortOrder;
+}
+export interface Where {
+  field: string;
+  operator: Operator;
+  value: any;
+}
+export enum Operator {
+  LT = "<",
+  LE = "<=",
+  EQ = "==",
+  GT = ">",
+  GE = ">=",
+  NE = "!=",
+  ArrayContains = "array-contains",
+  ArrayContainsAny = "array-contains-any",
+  in = "in",
+  notIn = "not-in",
+}
 
 export interface StorageObjectProperty {
   durationOfValidity: number; // in Minuten
