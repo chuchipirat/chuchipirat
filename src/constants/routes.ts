@@ -43,7 +43,6 @@ export const SYSTEM_DONATION_GOALS = "/system/donationgoals";
 export const SYSTEM_MEAL_TYPE_CUTOFF_TIMES = "/system/mealtypecutofftimes";
 
 export const SYSTEM_MAIL_CONSOLE = "/system/mailconsole";
-export const SYSTEM_MIGRATION = "/system/migration";
 
 export const USER_PUBLIC_PROFILE = "/publicprofile";
 export const USER_PUBLIC_PROFILE_UID = "/publicprofile/:id";
