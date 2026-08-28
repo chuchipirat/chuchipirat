@@ -34,7 +34,7 @@ jest.mock("../../Shared/utils.class", () => ({
 import {DialogAddUser} from "../dialogAddUser";
 import {User} from "../user.class";
 import {Utils} from "../../Shared/utils.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import DatabaseService from "../../Database/DatabaseService";
 
 // Typisierte Mock-Referenzen

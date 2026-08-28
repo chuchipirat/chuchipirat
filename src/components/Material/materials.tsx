@@ -96,7 +96,7 @@ import {DialogConvertMaterialToProduct} from "./dialogConvertMaterialToProduct";
 import {DialogWhereUsedMaterial} from "./dialogWhereUsedMaterial";
 import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {Material, MaterialType} from "./material.types";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";

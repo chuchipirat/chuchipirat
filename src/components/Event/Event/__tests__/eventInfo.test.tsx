@@ -84,21 +84,8 @@ jest.mock("../event.class", () => {
       addCookToEvent: jest.fn().mockResolvedValue([]),
       removeCookFromEvent: jest.fn().mockResolvedValue([]),
     },
-    EventRefDocuments: actual.EventRefDocuments ?? {},
   };
 });
-
-/** Mock: Receipt-Klasse */
-jest.mock("../receipt.class", () => ({
-  __esModule: true,
-  Receipt: {getReceipt: jest.fn()},
-}));
-
-/** Mock: EventReceiptPdf-Komponente */
-jest.mock("../eventRecipePdf", () => ({
-  __esModule: true,
-  EventReceiptPdf: () => null,
-}));
 
 /** Mock: User-Klasse */
 jest.mock("../../../User/user.class", () => ({
@@ -164,10 +151,8 @@ const mockEvent = {
     },
   ],
   pictureSrc: "",
-  refDocuments: [],
 };
 
-const mockFirebase = {} as any;
 const mockDatabase = {
   donations: {
     getEventDonations: jest.fn().mockResolvedValue([]),
@@ -191,7 +176,6 @@ const renderEventInfoPage = (overrides: Record<string, any> = {}) => {
   const defaultProps = {
     event: mockEvent as any,
     localPicture: null,
-    firebase: mockFirebase,
     database: mockDatabase,
     authUser: mockAuthUser,
     formValidation: [],

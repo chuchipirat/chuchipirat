@@ -1,6 +1,6 @@
 import {lazy, type ComponentType, type LazyExoticComponent} from "react";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {Role} from "../../constants/roles";
 import * as ROUTES from "../../constants/routes";
 
@@ -107,7 +107,6 @@ const ActivateSupportUser = lazy(
   () => import("../Admin/activateSupportUser")
 );
 const MailConsole = lazy(() => import("../Admin/mailConsole"));
-const Migration = lazy(() => import("../Admin/migration"));
 const DataIntegrity = lazy(
   () => import("../Admin/DataIntegrity/dataIntegrity")
 );
@@ -452,12 +451,6 @@ const routeConfig: RouteDefinition[] = [
   {
     path: ROUTES.SYSTEM_GLOBAL_SETTINGS,
     component: GlobalSettings,
-    guard: isAdmin,
-    layout: {showGoBackFab: true, showFooter: true},
-  },
-  {
-    path: ROUTES.SYSTEM_MIGRATION,
-    component: Migration,
     guard: isAdmin,
     layout: {showGoBackFab: true, showFooter: true},
   },

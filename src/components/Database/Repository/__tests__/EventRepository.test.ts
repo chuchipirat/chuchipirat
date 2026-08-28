@@ -18,8 +18,8 @@ import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {parseLocalDate} from "../../../../utils/dateUtils";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
-jest.mock("../../../Firebase/Db/sessionStorageHandler.class", () => {
-  const actual = jest.requireActual("../../../Firebase/Db/sessionStorageHandler.class");
+jest.mock("../../../Shared/sessionStorageHandler.class", () => {
+  const actual = jest.requireActual("../../../Shared/sessionStorageHandler.class");
   return {
     ...actual,
     SessionStorageHandler: {

@@ -59,7 +59,7 @@ import {HOME as ROUTE_HOME} from "../../../constants/routes";
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
 import {Unit} from "../../Unit/unit.class";
 
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {MenuplanPage} from "../Menuplan/menuplan";
 import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
@@ -115,12 +115,10 @@ import {
   useCustomDialog,
 } from "../../Shared/customDialogContext";
 import {Action} from "../../../constants/actions";
-import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
-import {useFirebase} from "../../Firebase/firebaseContext";
+import {ValueObject} from "../../Shared/global.interface";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
-import {Stats, StatsField} from "../../Shared/stats.class";
 import {trackEvent, trackVirtualPageview} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
@@ -879,7 +877,6 @@ const TAB_TO_QUERY_PARAM: Record<EventTabs, string> = Object.fromEntries(
 ) as Record<EventTabs, string>;
 
 const EventPage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const theme = useTheme();
@@ -1705,13 +1702,6 @@ const EventPage = () => {
       existingEvent: state.event,
     });
 
-    // Statistik anpassen
-    Stats.incrementStat({
-      firebase: firebase,
-      field: StatsField.noPlanedDays,
-      value: preparedEvent.numberOfDays - state.event.numberOfDays,
-    });
-
     onMenuplanUpdate(updatedMenuplan);
     onEventSave(preparedEvent);
     dispatch({
@@ -2290,7 +2280,6 @@ const EventPage = () => {
                 products={state.products}
                 materials={state.materials}
                 departments={state.departments}
-                firebase={firebase}
                 authUser={authUser}
                 onMenuplanUpdate={onMenuplanUpdate}
                 fetchMissingData={fetchMissingData}
@@ -2302,7 +2291,6 @@ const EventPage = () => {
           ) : activeTab == EventTabs.quantityCalculation ? (
             <Container>
               <EventGroupConfigurationPage
-                firebase={firebase}
                 authUser={authUser}
                 event={state.event}
                 groupConfiguration={state.groupConfig}
@@ -2367,7 +2355,6 @@ const EventPage = () => {
                   event={eventDraft.event}
                   localPicture={eventDraft.localPicture}
                   formValidation={eventDraft.formValidation}
-                  firebase={firebase}
                   database={database}
                   authUser={authUser}
                   onUpdateEvent={onEventUpdate}

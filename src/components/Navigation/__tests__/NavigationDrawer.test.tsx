@@ -37,7 +37,7 @@ jest.mock("react-router", () => ({
 }));
 
 import {NavigationDrawer} from "../NavigationDrawer";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 /* ===================================================================
 // ====================== Testdaten & Helpers ========================

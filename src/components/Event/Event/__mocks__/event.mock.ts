@@ -42,5 +42,4 @@ export const event: Event = {
     fromDisplayName: "Test User",
     fromUid: "RvLIR9NDGOWPwos8PrSZVgfIZvj9",
   },
-  refDocuments: [],
 };

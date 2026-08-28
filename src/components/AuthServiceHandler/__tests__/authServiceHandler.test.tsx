@@ -46,15 +46,6 @@ jest.mock("../confirmEmailChange", () => ({
   ConfirmEmailChangePage: () => <div data-testid="confirm-email-change" />,
 }));
 
-/**
- * Mock: RecoverEmail — vereinfachtes div, das den oobCode als data-Attribut ausgibt.
- */
-jest.mock("../recoverEmail", () => ({
-  RecoverEmailPage: ({oobCode}: {oobCode: string}) => (
-    <div data-testid="recover-email" data-oobcode={oobCode} />
-  ),
-}));
-
 /** Mock: PageTitle — vereinfacht für Tests */
 jest.mock("../../Shared/pageTitle", () => ({
   PageTitle: ({subTitle}: {subTitle?: string}) => (
@@ -145,35 +136,13 @@ describe("AuthServiceHandlerPage", () => {
     });
   });
 
-  describe("Firebase Legacy Flow (Query-Parameter mit mode/oobCode)", () => {
-    test("Query ?mode=resetPassword&oobCode=abc rendert ResetPassword", () => {
+  describe("Alte Firebase-Query-Parameter (mode/oobCode) werden nicht mehr erkannt", () => {
+    test("Query ?mode=resetPassword&oobCode=abc zeigt generische Fehlermeldung", () => {
       renderWithUrl("/action?mode=resetPassword&oobCode=abc");
 
-      expect(screen.getByTestId("reset-password")).toBeInTheDocument();
-      expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("recover-email")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
-    });
-
-    test("Query ?mode=recoverEmail&oobCode=xyz rendert RecoverEmail mit oobCode", () => {
-      renderWithUrl("/action?mode=recoverEmail&oobCode=xyz");
-
-      const recoverEmail = screen.getByTestId("recover-email");
-      expect(recoverEmail).toBeInTheDocument();
-      // oobCode muss korrekt an die Kind-Komponente weitergegeben werden
-      expect(recoverEmail).toHaveAttribute("data-oobcode", "xyz");
       expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
       expect(screen.queryByTestId("verify-email")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
-    });
-
-    test("Query ?mode=verifyEmail&oobCode=abc rendert VerifyEmail", () => {
-      renderWithUrl("/action?mode=verifyEmail&oobCode=abc");
-
-      expect(screen.getByTestId("verify-email")).toBeInTheDocument();
-      expect(screen.queryByTestId("reset-password")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("recover-email")).not.toBeInTheDocument();
-      expect(screen.queryByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).not.toBeInTheDocument();
+      expect(screen.getByText(TEXT.AUTH_SERVICE_HANDLER_NO_MODE_TITLE)).toBeInTheDocument();
     });
   });
 

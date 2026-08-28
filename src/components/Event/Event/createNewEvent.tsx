@@ -43,7 +43,6 @@ import {
   EVENT as ROUTE_EVENT,
 } from "../../../constants/routes";
 
-import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
 
@@ -275,7 +274,6 @@ function mapGroupConfigToGroupConfigDomain(
  * Führt den Benutzer durch: Event-Info → Gruppenkonfiguration → Abschluss.
  */
 const CreateEventPage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
@@ -541,7 +539,6 @@ const CreateEventPage = () => {
               event={state.event}
               localPicture={state.localPicture}
               formValidation={state.eventFormValidation}
-              firebase={firebase}
               database={database}
               authUser={authUser}
               onUpdateEvent={onUpdateEvent}
@@ -575,7 +572,6 @@ const CreateEventPage = () => {
       case WizardSteps.groupConfig:
         return (
           <EventGroupConfigurationPage
-            firebase={firebase}
             authUser={authUser}
             event={state.event}
             deferSave={true}

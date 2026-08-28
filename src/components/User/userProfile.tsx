@@ -68,11 +68,10 @@ import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 import {AlertMessage} from "../Shared/AlertMessage";
 
 import {UserPublicProfile} from "./user.public.profile.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {FormListItem} from "../Shared/formListItem";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {FeedType} from "../Shared/feed.class";
 import {LocalStorageKey} from "../../constants/localStorage";
@@ -268,7 +267,6 @@ const userProfileReducer = (state: State, action: DispatchAction): State => {
  * Bearbeitungsmodus, der inline-Änderungen erlaubt.
  */
 const UserProfilePage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
@@ -288,7 +286,6 @@ const UserProfilePage = () => {
     }
     dispatch({type: ReducerActions.USER_PROFILE_FETCH_INIT, payload: authUser});
     User.getFullProfile({
-      firebase: firebase,
       database: database,
       uid: authUser.uid,
     })
@@ -340,7 +337,6 @@ const UserProfilePage = () => {
     dispatch({type: ReducerActions.SET_IS_LOADING, payload: true});
 
     User.saveFullProfile({
-      firebase: firebase,
       database: database,
       userProfile: state.userProfile,
       localPicture: state.localPicture,
@@ -390,7 +386,7 @@ const UserProfilePage = () => {
     navigate(ROUTE_PASSWORD_CHANGE);
   };
   /* ------------------------------------------
-  // Bild in Firebase Storage hochladen
+  // Bild in Supabase Storage hochladen
   // ------------------------------------------ */
   /** Erlaubte MIME-Typen für Profilbilder. */
   const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
@@ -471,7 +467,6 @@ const UserProfilePage = () => {
     }
 
     User.deletePicture({
-      firebase: firebase,
       database: database,
       authUser: authUser!,
     })
@@ -482,7 +477,7 @@ const UserProfilePage = () => {
           payload: error,
         });
       });
-  }, [authUser, database, firebase, customDialog]);
+  }, [authUser, database, customDialog]);
   /* ------------------------------------------
   // Snackback schliessen
   // ------------------------------------------ */

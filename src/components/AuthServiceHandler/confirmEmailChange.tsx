@@ -24,7 +24,7 @@ import {
 import {LocalStorageKey} from "../../constants/localStorage";
 import {useCustomStyles} from "../../constants/styles";
 import {useDatabase} from "../Database/DatabaseContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 import {PageTitle} from "../Shared/pageTitle";
 

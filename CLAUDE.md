@@ -37,7 +37,7 @@ Three environments: **DEV / TEST / PROD**.
 
 - Strict mode, no `any` — use `unknown` and narrow
 - Prefer `type` over `interface`
-- New enums **must** use string values matching the PostgreSQL ENUM labels (e.g. `enum Diet { meat = 'meat', vegetarian = 'vegetarian' }`). Never create numeric enums. Existing numeric enums are migration debt (see `migration.md`).
+- New enums **must** use string values matching the PostgreSQL ENUM labels (e.g. `enum Diet { meat = 'meat', vegetarian = 'vegetarian' }`). Never create numeric enums. Existing numeric enums are migration debt (see `tech-debt.md`).
 - Functions: max 20 lines, single responsibility, descriptive names
 - Named exports only, no default exports
 - JSDoc/TSDoc on all public functions — **in German**
@@ -70,7 +70,7 @@ Three environments: **DEV / TEST / PROD**.
 
 ## Git
 
-- Branch naming: `feature/`, `fix/`, `refactor/`, `migration/`
+- Branch naming: `feature/`, `fix/`, `refactor/`, `migration/`, `chore/`
 - Commit messages: conventional commits (feat, fix, refactor, docs, chore)
 - One logical change per commit
 - Always rebase on main before PR
@@ -122,7 +122,6 @@ For deeper context, see `.claude/docs/`:
 | `architecture.md`           | Creating new features, understanding the 3-layer pattern          |
 | `conventions.md`            | Email templates, language rules, error logging                    |
 | `database-and-supabase.md`  | Creating/modifying tables, writing Repositories, RLS, enums       |
-| `migration.md`              | Firebase → Supabase migration work (temporary)                    |
 | `tech-debt.md`              | Tracking and reviewing convention violations and cleanup tasks    |
 | `manual-testcases.md`       | Writing or generating integration test cases                      |
 | `refactoring-guidelines.md` | Refactoring code (naming, functions, performance, React patterns) |

@@ -89,7 +89,7 @@ import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfigur
 import {formatLocalDate} from "../../utils/dateUtils";
 
 import {useAuthUser} from "../Session/authUserContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {FeedType} from "../Shared/feed.class";
 import {FeedDomain} from "../Database/Repository/FeedRepository";
 import {RecipeCardLoading} from "../Recipe/recipeCard";

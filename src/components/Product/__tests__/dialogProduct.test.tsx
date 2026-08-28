@@ -17,7 +17,7 @@ import {DialogProduct, ProductDialog} from "../dialogProduct";
 import {Allergen, Diet} from "../product.types";
 import Department from "../../Department/department.class";
 import {Unit, UnitDimension} from "../../Unit/unit.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
 /* ===================================================================

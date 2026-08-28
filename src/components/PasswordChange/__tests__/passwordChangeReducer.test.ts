@@ -12,8 +12,7 @@ import {
   ReducerActions,
   initialState,
 } from "../passwordChange";
-import type {State} from "../passwordChange";
-import {FirebaseError} from "@firebase/util";
+import type {State, AuthError} from "../passwordChange";
 
 /* ===================================================================
 // ======================== Tests =====================================
@@ -44,7 +43,7 @@ describe("passwordChangeReducer", () => {
       ...initialState,
       successEmailChange: true,
     };
-    const error = {code: "test", message: "Fehler"} as FirebaseError;
+    const error = {code: "test", message: "Fehler"} as AuthError;
 
     const result = passwordChangeReducer(stateWithSuccess, {
       type: ReducerActions.EMAIL_ERROR,
@@ -61,7 +60,7 @@ describe("passwordChangeReducer", () => {
       ...initialState,
       successPwChange: true,
     };
-    const error = {code: "test", message: "Fehler"} as FirebaseError;
+    const error = {code: "test", message: "Fehler"} as AuthError;
 
     const result = passwordChangeReducer(stateWithSuccess, {
       type: ReducerActions.PASSWORD_ERROR,
@@ -76,7 +75,7 @@ describe("passwordChangeReducer", () => {
   test("SUCCESS_MAIL_CHANGE setzt Erfolg und loescht Fehler", () => {
     const stateWithError: State = {
       ...initialState,
-      emailError: {code: "test", message: "Fehler"} as FirebaseError,
+      emailError: {code: "test", message: "Fehler"} as AuthError,
       isSubmittingEmail: true,
     };
 
@@ -92,7 +91,7 @@ describe("passwordChangeReducer", () => {
   test("SUCCESS_PW_CHANGE setzt Erfolg und loescht Fehler", () => {
     const stateWithError: State = {
       ...initialState,
-      passwordError: {code: "test", message: "Fehler"} as FirebaseError,
+      passwordError: {code: "test", message: "Fehler"} as AuthError,
       isSubmittingPassword: true,
     };
 

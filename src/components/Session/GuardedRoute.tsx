@@ -1,6 +1,6 @@
 import React from "react";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {AuthorizationGuard} from "./authUserContext";
 import {EmailVerificationGuard} from "./emailVerificationGuard";
 

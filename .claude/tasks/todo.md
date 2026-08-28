@@ -82,3 +82,11 @@ Phase 13 complete. All 6 sub-phases implemented:
 - 13.4: Migrated activateSupportUser, added Data Integrity + Cron Job Monitoring
 - 13.5: Migrated mailConsole + overviewMailbox to Edge Function + MailLogRepository
 - 13.6: Final cleanup of orphaned Firebase code
+
+## Update (Issue #215)
+
+The items intentionally kept above (`migration.tsx`, `MigrationJobs/`,
+`rebuildStats`) plus all remaining Firebase-dependent code (`src/components/Firebase/`,
+`functions/`, the `firebase` npm dependency, Firebase env vars/CI secrets)
+have since been removed on branch `chore/remove-firebase`. Firebase is
+fully gone from the codebase as of that branch.

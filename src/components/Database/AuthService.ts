@@ -8,11 +8,6 @@ import {supabase} from "./supabaseClient";
 /**
  * AuthService — Kapselt alle Supabase Auth Methoden.
  *
- * Ersetzt schrittweise die Authentifizierungs-Methoden aus firebase.class.ts.
- * Während der Migrationsphase (Phase 2) werden beide Auth-Provider parallel
- * betrieben: Supabase Auth als primärer Provider, Firebase Auth als Fallback
- * für noch nicht migrierte Benutzer.
- *
  * @example
  * const authService = new AuthService();
  * const session = await authService.signInWithPassword("user@example.com", "pw");
@@ -108,8 +103,6 @@ export class AuthService {
   // ===================================================================== */
   /**
    * Meldet den aktuellen Benutzer von Supabase Auth ab.
-   * Firebase Sign-Out muss separat aufgerufen werden, falls der Benutzer
-   * noch über Firebase authentifiziert ist.
    *
    * @throws {AuthError} Bei Netzwerkfehler
    */

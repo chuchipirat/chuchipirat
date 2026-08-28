@@ -14,7 +14,7 @@ import {RequestStatus, RequestType} from "./request.class";
 import DatabaseService from "../Database/DatabaseService";
 import {supabase} from "../Database/supabaseClient";
 import {FeedType} from "../Shared/feed.class";
-import {AuthUser} from "../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../Session/authUser.class";
 import {RecipeType} from "../Recipe/recipe.class";
 
 /**

@@ -23,3 +23,20 @@ export interface ButtonAction<T = unknown> {
     value?: T,
   ) => void;
 }
+
+/**
+ * Generisches Marker-Interface für Domänen-Objekte, die über ein
+ * Repository persistiert werden. Domänenübergreifend verwendet (nicht nur
+ * von Supabase-Repositories), daher hier statt in einem einzelnen
+ * Repository-Modul definiert.
+ */
+export interface ValueObject {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  [key: string]: any;
+}
+
+/** Sortierrichtung für Repository-Abfragen. */
+export enum SortOrder {
+  desc = "desc",
+  asc = "asc",
+}

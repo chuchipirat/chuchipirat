@@ -29,7 +29,6 @@
 .env.production.local
 .env.test
 .env.local
-.firebaseerc
 .imageRepository.js
 .temp.jsx
 report.*.json
@@ -72,10 +71,6 @@ supabase/.env.test
 supabase/.env.production
 supabase/.temp/
 supabase/html-report/*
-
-
-# documentation
-firebase-auth-migration.md
 
 # Migration
 generate-auth-import.mjs

@@ -2,9 +2,6 @@
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
-// firebase/auth benötigt Web-APIs die in jsdom nicht vorhanden sind
-jest.mock("firebase/auth", () => ({}));
-
 import React from "react";
 import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";

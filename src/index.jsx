@@ -3,7 +3,6 @@ import {createRoot} from "react-dom/client";
 import * as Sentry from "@sentry/react";
 
 import {App} from "../src/components/App/App";
-import {FirebaseContext} from "./components/Firebase/firebaseContext";
 import {AuthUserProvider} from "./components/Session/authUserContext";
 import {GlobalSettingsProvider} from "./components/Session/globalSettingsContext";
 import packageJson from "../package.json";
@@ -13,7 +12,6 @@ import "@fontsource/roboto-mono";
 
 import {CustomDialogContextProvider} from "./components/Shared/customDialogContext";
 import {NavigationContextProvider} from "./components/Navigation/navigationContext";
-import Firebase from "./components/Firebase/firebase.class";
 import {DatabaseContext} from "./components/Database/DatabaseContext";
 import DatabaseService from "./components/Database/DatabaseService";
 import {ErrorPage} from "./components/500/500";
@@ -41,11 +39,7 @@ Sentry.init({
     Sentry.consoleLoggingIntegration({levels: ["log", "warn", "error"]}),
   ],
   tracesSampleRate: 1.0,
-  tracePropagationTargets: [
-    "localhost",
-    /^https:\/\/chuchipirat\.ch/,
-    /^https:\/\/chuchipirat-tst\.web\.app/,
-  ],
+  tracePropagationTargets: ["localhost", /^https:\/\/chuchipirat\.ch/],
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
   enableLogs: true,
@@ -60,17 +54,15 @@ root.render(
     <Sentry.ErrorBoundary fallback={<ErrorPage />}>
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de">
         <DatabaseContext.Provider value={new DatabaseService()}>
-          <FirebaseContext.Provider value={new Firebase()}>
-            <GlobalSettingsProvider>
-              <AuthUserProvider>
-                <CustomDialogContextProvider>
-                  <NavigationContextProvider>
-                    <App />
-                  </NavigationContextProvider>
-                </CustomDialogContextProvider>
-              </AuthUserProvider>
-            </GlobalSettingsProvider>
-          </FirebaseContext.Provider>
+          <GlobalSettingsProvider>
+            <AuthUserProvider>
+              <CustomDialogContextProvider>
+                <NavigationContextProvider>
+                  <App />
+                </NavigationContextProvider>
+              </CustomDialogContextProvider>
+            </AuthUserProvider>
+          </GlobalSettingsProvider>
         </DatabaseContext.Provider>
       </LocalizationProvider>
     </Sentry.ErrorBoundary>

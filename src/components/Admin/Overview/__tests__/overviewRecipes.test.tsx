@@ -4,7 +4,7 @@
  * Testet die Suchfunktionalität in allen 4 Modi (Rezeptname, Rezept-ID,
  * Ersteller-ID, Ersteller-Name), Fehlerbehandlung und Empty States.
  *
- * Der Supabase-Client, Firebase und AuthUser werden vollständig gemockt.
+ * Der Supabase-Client und AuthUser werden vollständig gemockt.
  * RecipeDrawer wird gemockt um die schweren Abhängigkeiten zu vermeiden.
  */
 import {TextEncoder, TextDecoder} from "util";
@@ -18,7 +18,6 @@ import {MemoryRouter} from "react-router";
 
 import OverviewRecipePage from "../overviewRecipes";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
-import {FirebaseContext} from "../../../Firebase/firebaseContext";
 
 /* ===================================================================
 // ======================== Mocks =====================================
@@ -105,8 +104,6 @@ const mockDatabase: any = {
   },
 };
 
-const mockFirebase = {} as any;
-
 beforeEach(() => jest.clearAllMocks());
 
 /* ===================================================================
@@ -116,11 +113,9 @@ beforeEach(() => jest.clearAllMocks());
 const renderPage = () =>
   render(
     <MemoryRouter>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <DatabaseContext.Provider value={mockDatabase}>
-          <OverviewRecipePage />
-        </DatabaseContext.Provider>
-      </FirebaseContext.Provider>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <OverviewRecipePage />
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 

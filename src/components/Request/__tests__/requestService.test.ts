@@ -11,7 +11,7 @@ import {RequestStatus, RequestType} from "../request.class";
 import {RecipeType} from "../../Recipe/recipe.class";
 import {FeedType} from "../../Shared/feed.class";
 import type {RequestDomain} from "../../Database/Repository/RequestRepository";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 
 /* =====================================================================
 // Mocks

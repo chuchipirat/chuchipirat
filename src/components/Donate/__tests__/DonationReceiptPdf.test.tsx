@@ -47,7 +47,7 @@ import {render} from "@testing-library/react";
 
 import {DonationReceiptPdf} from "../DonationReceiptPdf";
 import {DonationDomain, DonationStatus} from "../donation.types";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 /* ── Hilfsfunktionen ─────────────────────────────────────────────── */
 

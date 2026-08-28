@@ -53,7 +53,6 @@ import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {useDatabase} from "../../Database/DatabaseContext";
-import {useFirebase} from "../../Firebase/firebaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import type {RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
 import Recipe, {RecipeType} from "../../Recipe/recipe.class";
@@ -469,7 +468,6 @@ export const DialogRecipeAdminDetail = ({
  */
 const OverviewRecipePage = () => {
   const database = useDatabase();
-  const firebase = useFirebase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const {customDialog} = useCustomDialog();
@@ -887,7 +885,7 @@ const OverviewRecipePage = () => {
       />
 
       {/* Rezept-Drawer */}
-      {firebase && (
+      {authUser && (
         <RecipeDrawer
           drawerSettings={{open: drawerOpen, isLoadingData: false}}
           recipe={drawerRecipe}
@@ -895,7 +893,6 @@ const OverviewRecipePage = () => {
           scaledPortions={0}
           editMode={false}
           disableFunctionality={true}
-          firebase={firebase}
           authUser={authUser}
           onClose={() => setDrawerOpen(false)}
         />

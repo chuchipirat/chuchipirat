@@ -35,14 +35,6 @@ jest.mock("../../Shared/imageUrl", () => ({
   ImageSize: {AVATAR: 50, PROFILE_CARD: 600, FULL: 1200},
 }));
 
-/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
-jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
-  __esModule: true,
-  default: {
-    translateMessage: () => null,
-  },
-}));
-
 /** Mock: SupabaseMessageHandler — gibt error.message direkt zurück */
 jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   __esModule: true,
@@ -66,18 +58,15 @@ import {
   PublicProfileList,
   AchievedRewardsList,
 } from "../publicProfile";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {User} from "../user.class";
 import {UserPublicProfile} from "../user.public.profile.class";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 
 // Typisierte Referenz auf die Mock-Funktion
 const mockGetPublicProfile = User.getPublicProfile as jest.Mock;
 
-/** Mock-Firebase-Instanz */
-const mockFirebase = {} as any;
 
 /** Mock-DatabaseService */
 const mockDatabase = {} as any;
@@ -139,15 +128,13 @@ const renderPublicProfilePage = ({
 
   return render(
     <MemoryRouter initialEntries={[initialEntry]}>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <DatabaseContext.Provider value={mockDatabase}>
-          <AuthUserContext.Provider value={authUser}>
-            <Routes>
-              <Route path="/profile/:id" element={<PublicProfilePage />} />
-            </Routes>
-          </AuthUserContext.Provider>
-        </DatabaseContext.Provider>
-      </FirebaseContext.Provider>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserContext.Provider value={authUser}>
+          <Routes>
+            <Route path="/profile/:id" element={<PublicProfilePage />} />
+          </Routes>
+        </AuthUserContext.Provider>
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 };

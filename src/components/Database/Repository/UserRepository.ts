@@ -2,7 +2,7 @@ import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
+} from "../../Shared/sessionStorageHandler.class";
 import {Role} from "../../../constants/roles";
 import {UserOverviewStructure} from "../../User/user.class";
 import {UserPublicProfile} from "../../User/user.public.profile.class";

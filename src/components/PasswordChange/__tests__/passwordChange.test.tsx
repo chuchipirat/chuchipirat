@@ -54,12 +54,6 @@ const mockDatabase = {
   users: {},
 } as any;
 
-/** Mock-Firebase-Instanz */
-const mockFirebase = {
-  emailChange: jest.fn(),
-  sendEmailVerification: jest.fn(),
-} as any;
-
 /** Mock: User.registerSignIn & User.updateEmail */
 jest.mock("../../User/user.class", () => ({
   User: {
@@ -74,14 +68,6 @@ jest.mock("../../../constants/imageRepository", () => ({
     getEnvironmentRelatedPicture: () => ({
       SIGN_IN_HEADER: "test-image.png",
     }),
-  },
-}));
-
-/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
-jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
-  __esModule: true,
-  default: {
-    translateMessage: () => null,
   },
 }));
 
@@ -111,10 +97,9 @@ jest.mock("../../AuthServiceHandler/passwordReset", () => ({
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
 import {PasswordChangePage} from "../passwordChange";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 
 /* ===================================================================
 // ======================== Render-Helper =============================
@@ -135,13 +120,11 @@ const renderPasswordChangePage = ({
 } = {}) => {
   return render(
     <MemoryRouter initialEntries={["/pw-change"]}>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <DatabaseContext.Provider value={mockDatabase}>
-          <AuthUserContext.Provider value={authUser}>
-            <PasswordChangePage oobCode={oobCode} />
-          </AuthUserContext.Provider>
-        </DatabaseContext.Provider>
-      </FirebaseContext.Provider>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserContext.Provider value={authUser}>
+          <PasswordChangePage oobCode={oobCode} />
+        </AuthUserContext.Provider>
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 };

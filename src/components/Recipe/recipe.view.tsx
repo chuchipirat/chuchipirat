@@ -139,7 +139,7 @@ import {useCustomStyles} from "../../constants/styles";
 import {Utils} from "../Shared/utils.class";
 import {AlertMessage} from "../Shared/AlertMessage";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {OnUpdateRecipeProps, RecipeDivider} from "./recipe";
 import {
@@ -151,7 +151,6 @@ import {
   VeganIcon,
   VegetarianIcon,
 } from "../Shared/icons";
-import Firebase from "../Firebase/firebase.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import {RecipeCommentDomain} from "../Database/Repository/RecipeCommentRepository";
 import {FeedType} from "../Shared/feed.class";
@@ -261,7 +260,6 @@ interface ScalingInformation {
 
 interface RecipeViewProps {
   recipe: Recipe;
-  firebase: Firebase;
   mealPlan: Array<PlanedMealsRecipe>;
   scaledPortions: number;
   isLoading: boolean;
@@ -290,7 +288,6 @@ interface RecipeViewProps {
  */
 export const RecipeView = ({
   recipe,
-  firebase: _firebase,
   mealPlan,
   scaledPortions,
   isLoading,

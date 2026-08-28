@@ -19,8 +19,8 @@ import {supabase} from "../supabaseClient";
 import {
   SessionStorageHandler,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+} from "../../Shared/sessionStorageHandler.class";
+import {AuthUser} from "../../Session/authUser.class";
 
 /**
  * Filter-Definition für Datenbankabfragen.
