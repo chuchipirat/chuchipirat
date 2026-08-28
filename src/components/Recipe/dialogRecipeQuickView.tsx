@@ -17,7 +17,6 @@ import {DialogContent, Link, List} from "@mui/material";
 import AuthUser from "../Session/authUser.class";
 import {FormListItem} from "../Shared/formListItem";
 import {Utils} from "../Shared/utils.class";
-import Firebase from "../Firebase/firebase.class";
 
 import {
   SOURCE as TEXT_SOURCE,
@@ -43,7 +42,6 @@ export interface DialogQuickViewActions {
 // ==================== Pop Up Rezept Kurzübersicht ==================
 // =================================================================== */
 interface DialogRecipeQuickViewProps {
-  firebase: Firebase;
   recipeShort: RecipeShort;
   dialogOpen: boolean;
   handleClose: (event, reason) => void;
@@ -62,7 +60,6 @@ interface DialogRecipeQuickViewProps {
  * @param props - Rezept-Kurzinfo, Dialog-Steuerung und verfügbare Aktionen.
  */
 export const DialogRecipeQuickView = ({
-  firebase,
   recipeShort,
   dialogOpen,
   handleClose,
@@ -77,7 +74,6 @@ export const DialogRecipeQuickView = ({
 
   if (recipeShort.uid && !recipe.uid) {
     Recipe.getRecipe({
-      firebase: firebase,
       uid: recipeShort.uid,
       userUid: recipeShort.created.fromUid,
       type: recipeShort.type,

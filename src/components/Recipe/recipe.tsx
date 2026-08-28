@@ -23,7 +23,6 @@ import {
   PUBLIC_RECIPE as TEXT_PUBLIC_RECIPE,
 } from "../../constants/text";
 import {useAuthUser} from "../Session/authUserContext";
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 
 // Lazy Loading
@@ -223,7 +222,6 @@ const recipeReducer = (state: State, action: ReducerAction): State => {
  * @returns Die Rezeptseite mit Ansichts-/Bearbeitungsmodus und Snackbar.
  */
 export const RecipePage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const location = useLocation();
@@ -414,7 +412,6 @@ export const RecipePage = () => {
         <RecipeView
           recipe={state.recipe}
           scaledPortions={scaledPortions}
-          firebase={firebase}
           mealPlan={[]}
           isLoading={state.isLoading}
           error={state.error}

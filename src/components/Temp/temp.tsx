@@ -37,8 +37,6 @@ import {
 } from "@mui/icons-material";
 
 
-import {useFirebase} from "../Firebase/firebaseContext";
-
 // import {useAuthUser} from "../Session/authUserContext";
 import {PageTitle} from "../Shared/pageTitle";
 import useCustomStyles from "../../constants/styles";
@@ -349,7 +347,6 @@ export const blockBoardPanningAttr = "data-block-board-panning" as const;
 // =============================== Base ==============================
 // =================================================================== */
 const TempPage = () => {
-  const _firebase = useFirebase();
   // const classes = useCustomStyles();
 
   const [data, setData] = useState(initialData);

@@ -546,7 +546,6 @@ const EventMaterialListPage = ({
           scaledPortions={recipeDrawerData.scaledPortions}
           editMode={false}
           disableFunctionality={true}
-          firebase={undefined as any}
           authUser={authUser}
           onClose={onRecipeDrawerClose}
         />

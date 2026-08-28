@@ -87,7 +87,6 @@ import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.
 import {Event as EventClass} from "../Event/event.class";
 import {Unit} from "../../Unit/unit.class";
 import Department from "../../Department/department.class";
-import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Session/authUser.class";
 import {trackEvent} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
@@ -101,7 +100,6 @@ import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
  * @param event - Event-Objekt.
  * @param recipes - Geladene Rezepte (Key-Value-Map).
  * @param recipeList - Liste kurzer Rezepteinträge für die Suche.
- * @param firebase - Firebase-Instanz.
  * @param authUser - Authentifizierter Benutzer.
  * @param units - Verfügbare Einheiten.
  * @param products - Verfügbare Produkte.
@@ -124,7 +122,6 @@ export interface UseMenuplanHandlersParams {
   event: EventClass;
   recipes: Recipes;
   recipeList: RecipeShort[];
-  firebase: Firebase;
   authUser: AuthUser;
   units: Unit[];
   products: Product[];
@@ -254,7 +251,6 @@ export function useMenuplanHandlers({
   event,
   recipes,
   recipeList,
-  firebase: _firebase,
   authUser,
   units,
   products,

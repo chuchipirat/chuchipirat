@@ -163,7 +163,10 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Type Safety
 
-- **`src/components/Shared/localStorageHandler.class.ts`** — Firebase `ValueObject`-Import, `values: any` im Interface `LocalStorageValue`, keine localStorage-Validierung. Migration nach Supabase-Typen erforderlich.
+- **`tsconfig.json` prüft keine `.tsx`-Dateien** — `include` ist `["./src/**/*.ts", "../functions/**/*.ts"]`, enthält kein `*.tsx`-Pattern. `npx tsc --noEmit` (lokal wie im CI-`typecheck`-Job, `.github/workflows/ci.yml`) hat dadurch noch nie eine einzige React-Komponente typgeprüft. Bestätigt reale, dadurch unentdeckte Fehler: `App.tsx` übergibt eine `themeLight`-Prop, die auf `OverrideFeedbackConfiguration` nicht existiert; `Recipe/dialogRecipeQuickView.tsx` ruft `Recipe.getRecipe(...)` auf, eine Methode, die auf der Klasse gar nicht existiert (Datei ist allerdings unerreichbar — keine Importer, keine Route); `Temp/temp.tsx` und `Temp/templates.tsx` haben mehrere echte Typfehler (ebenfalls unerreichbar, keine Route). Fix: `.tsx` zu `include` hinzufügen und die dadurch aufgedeckten Fehler in einer eigenen Aufräum-PR beheben — nicht nebenbei in einer fachfremden Änderung, da unklar ist, wie viele Fehler insgesamt auftauchen.
+  **Priorität:** hoch · **Komplexität:** mittel
+
+- **`src/components/Shared/localStorageHandler.class.ts`** — `values: any` im Interface `LocalStorageValue`, keine localStorage-Validierung. Migration nach Supabase-Typen erforderlich. (Der ursprünglich hier vermerkte Firebase-`ValueObject`-Import wurde im Rahmen des Firebase-Abbaus, Issue #215, bereits behoben — `ValueObject` kommt jetzt aus `global.interface.ts`.)
   **Priorität:** tief · **Komplexität:** klein
 
 - **`display: "table" as any` in PDF-Style-Dateien** — `pdfTokens.ts`, `stylesRecipePdf.ts` und alle PDF-Style-Dateien verwenden `as any` für `display: "table"`, weil `@react-pdf/renderer` den Wert `"table"` nicht in seinem `Display`-Typ definiert. Wird behoben, sobald die Bibliothek den Typ erweitert.

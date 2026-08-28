@@ -12,7 +12,6 @@
  *   mealPlan={[]}
  *   scaledPortions={0}
  *   editMode={false}
- *   firebase={firebase}
  *   authUser={authUser}
  *   onClose={() => setOpen(false)}
  * />
@@ -27,7 +26,6 @@ import {RecipeEdit} from "./recipe.edit";
 import Recipe from "./recipe.class";
 import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfiguration.class";
 import type {PlanedMealsRecipe, MealRecipe} from "../Event/Menuplan/menuplan.types";
-import Firebase from "../Firebase/firebase.class";
 import AuthUser from "../Session/authUser.class";
 
 /* =====================================================================
@@ -84,7 +82,6 @@ export const RECIPE_DRAWER_DATA_INITIAL_VALUES: RecipeDrawerData = {
  * @param scaledPortions - Skalierte Portionen
  * @param editMode - Edit-Modus aktiv
  * @param disableFunctionality - Alle Aktions-Buttons deaktivieren (z.B. im Admin-Kontext)
- * @param firebase - Firebase-Instanz
  * @param authUser - Angemeldeter Benutzer
  * @param onClose - Callback beim Schliessen
  * @param onAddToEvent - Callback: Rezept zu Event hinzufügen (optional)
@@ -101,7 +98,6 @@ interface RecipeDrawerProps {
   scaledPortions: number;
   editMode: boolean;
   disableFunctionality?: boolean;
-  firebase: Firebase;
   authUser: AuthUser;
   onClose: () => void;
   onAddToEvent?: ({recipe}: OnAddToEvent) => void;
@@ -130,7 +126,6 @@ export const RecipeDrawer = ({
   editMode,
   disableFunctionality = false,
   scaledPortions,
-  firebase,
   authUser,
   onClose,
   onAddToEvent,
@@ -185,7 +180,6 @@ export const RecipeDrawer = ({
           <RecipeView
             recipe={recipe}
             mealPlan={mealPlan}
-            firebase={firebase}
             isEmbedded={true}
             isLoading={drawerSettings.isLoadingData}
             error={null}

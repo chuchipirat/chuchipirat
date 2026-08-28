@@ -47,7 +47,6 @@ const MenuplanPage = ({
   event,
   recipes,
   recipeList,
-  firebase,
   authUser,
   units,
   products,
@@ -188,7 +187,6 @@ const MenuplanPage = ({
     event,
     recipes,
     recipeList,
-    firebase,
     authUser,
     units,
     products,
@@ -321,7 +319,6 @@ const MenuplanPage = ({
         groupConfiguration={groupConfiguration}
         scaledPortions={recipeDrawerData.scaledPortions}
         editMode={recipeDrawerData.editMode}
-        firebase={firebase}
         authUser={authUser}
         onClose={handlers.onRecipeDrawerClose}
         onAddToEvent={handlers.onRecipeSelection}

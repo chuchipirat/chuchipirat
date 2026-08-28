@@ -62,7 +62,6 @@ import {AlertMessage} from "../../Shared/AlertMessage";
 import {Event} from "../Event/event.class";
 import {EventGroupConfiguration} from "./groupConfiguration.class";
 
-import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Session/authUser.class";
 import {
   DialogType,
@@ -189,8 +188,6 @@ const groupConfigurationReducer = (
 
 /** Props für die Gruppenkonfiguration-Seite. */
 interface EventGroupConfigurationPageProps {
-  /** Firebase-Instanz für DB-Zugriffe. */
-  firebase: Firebase;
   /** Authentifizierter Benutzer. */
   authUser: AuthUser;
   /** Das zugehörige Event. */
@@ -215,7 +212,6 @@ interface EventGroupConfigurationPageProps {
  * und deren Portionenzuordnung.
  */
 const EventGroupConfigurationPage = ({
-  firebase: _firebase,
   authUser,
   event,
   groupConfiguration,

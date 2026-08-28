@@ -2290,7 +2290,6 @@ const EventPage = () => {
                 products={state.products}
                 materials={state.materials}
                 departments={state.departments}
-                firebase={firebase}
                 authUser={authUser}
                 onMenuplanUpdate={onMenuplanUpdate}
                 fetchMissingData={fetchMissingData}
@@ -2302,7 +2301,6 @@ const EventPage = () => {
           ) : activeTab == EventTabs.quantityCalculation ? (
             <Container>
               <EventGroupConfigurationPage
-                firebase={firebase}
                 authUser={authUser}
                 event={state.event}
                 groupConfiguration={state.groupConfig}

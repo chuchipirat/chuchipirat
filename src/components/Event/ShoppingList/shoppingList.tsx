@@ -59,8 +59,6 @@ import {
 import {MoreVert as MoreVertIcon} from "@mui/icons-material";
 
 import {useCustomStyles} from "../../../constants/styles";
-
-import Firebase from "../../Firebase/firebase.class";
 import AuthUser from "../../Session/authUser.class";
 import {MenuplanData} from "../Menuplan/menuplan.types";
 import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
@@ -113,7 +111,6 @@ import {
 import {DialogSelectDepartments} from "./dialogSelectDepartments";
 
 import {useEventMasterData} from "../Event/eventMasterDataContext";
-import {useFirebase} from "../../Firebase/firebaseContext";
 import {HighlightedShoppingListItemContext} from "./shoppingListHighlightContext";
 
 // Custom hooks
@@ -235,8 +232,6 @@ const EventShoppingListPage = ({
 }: EventShoppingListPageProps) => {
   const classes = useCustomStyles();
   const theme = useTheme();
-  // Firebase wird nur noch für RecipeDrawer benötigt (TODO: nach Recipe-Migration entfernen)
-  const firebase = useFirebase();
   const {
     products,
     units,
@@ -561,7 +556,6 @@ const EventShoppingListPage = ({
         units={units ?? []}
         departments={departments}
         editMode={handleItemDialogValues.item.uid ? true : false}
-        firebase={firebase}
         authUser={authUser}
         handleOk={onDialogHandleItemOk}
         handleClose={onDialogHandleItemClose}
@@ -609,7 +603,6 @@ const EventShoppingListPage = ({
           scaledPortions={recipeDrawerData.scaledPortions}
           editMode={false}
           disableFunctionality={true}
-          firebase={firebase}
           authUser={authUser}
           onClose={onRecipeDrawerClose}
         />
@@ -1044,7 +1037,6 @@ interface DialogHandleItemProps {
   units: Unit[];
   departments: Department[];
   editMode: boolean;
-  firebase: Firebase;
   authUser: AuthUser;
   handleOk: (props: OnDialogAddItemOk) => void;
   handleClose: () => void;
@@ -1091,7 +1083,6 @@ const DialogHandleItem = ({
   units,
   departments,
   editMode,
-  firebase: _firebase,
   authUser,
   handleOk: handleOkSuper,
   handleClose: handleCloseSuper,
