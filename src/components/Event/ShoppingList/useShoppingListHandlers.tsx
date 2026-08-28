@@ -1029,15 +1029,31 @@ const useShoppingListHandlers = ({
   const onOpenContextMenu = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const pressedButton = event.currentTarget.id.split("_");
-      const item = shoppingList?.list[parseInt(pressedButton[1])].items.find(
-        (item) => item.item.uid == pressedButton[2],
+      const departmentKey = parseInt(pressedButton[1]);
+      const productUid = pressedButton[2];
+
+      const item = shoppingList?.list[departmentKey]?.items.find(
+        (listItem) => listItem.item.uid == productUid,
       );
+
+      // Item nicht (mehr) gefunden — z.B. weil es zwischenzeitlich per
+      // Realtime-Update verschoben oder gelöscht wurde. Kontextmenü nicht
+      // öffnen, statt auf einem undefined-Item abzustürzen.
+      if (!item) {
+        Sentry.addBreadcrumb({
+          category: "shoppinglist",
+          message: "Kontextmenü: Item nicht gefunden",
+          level: "warning",
+          data: {departmentKey, productUid, buttonId: event.currentTarget.id},
+        });
+        return;
+      }
 
       setContextMenuSelectedItem({
         anchor: event.currentTarget,
-        departmentKey: parseInt(pressedButton[1]),
-        productUid: pressedButton[2],
-        itemType: item!.type as ItemType,
+        departmentKey,
+        productUid,
+        itemType: item.type as ItemType,
         unit: pressedButton[3],
       });
     },
