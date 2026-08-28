@@ -8,6 +8,7 @@ import {AuthUser} from "../Session/authUser.class";
 import {UserPublicProfile} from "./user.public.profile.class";
 
 import {resizeImage} from "../Shared/imageResize";
+import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 import DatabaseService from "../Database/DatabaseService";
 
 /**
@@ -226,14 +227,15 @@ export class User {
    * @param database - DatabaseService-Instanz
    * @param email - E-Mail-Adresse zum Suchen
    * @returns UID des gefundenen Users
-   * @throws Error wenn kein User mit dieser E-Mail gefunden wird
+   * @throws {FieldValidationError} Wenn kein User mit dieser E-Mail gefunden
+   *   wird — Nutzer-Hinweis, wird nicht an Sentry gemeldet.
    */
   static getUidByEmail = async ({database, email, eventId}: GetUidByEmail) => {
     const users = database.users;
     const userUid = await users.findByEmail(email, eventId);
 
     if (!userUid) {
-      throw new Error(TEXT_NO_USER_WITH_THIS_EMAIL);
+      throw new FieldValidationError(TEXT_NO_USER_WITH_THIS_EMAIL);
     }
     return userUid;
   };
