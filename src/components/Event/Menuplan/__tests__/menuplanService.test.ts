@@ -326,6 +326,31 @@ describe("addMealType", () => {
       expect(result.menues[meal.menuOrder[0]]).toBeDefined();
     });
   });
+
+  it("mutiert die übergebene mealTypes-Struktur nicht (kein doppeltes order bei Doppelklick)", () => {
+    const mealTypes: MenuplanObjectStructure<MealType> = {
+      entries: {},
+      order: [],
+    };
+    const newMealType: MealType = {uid: "mt-x", name: "Zvieri"};
+
+    // Erster Aufruf
+    addMealType({mealType: newMealType, mealTypes, meals: {}, menues: {}, dates: []});
+    // Ursprungsstruktur bleibt unangetastet
+    expect(mealTypes.order).toEqual([]);
+
+    // Zweiter Aufruf auf demselben (noch nicht committeten) State
+    const result = addMealType({
+      mealType: newMealType,
+      mealTypes,
+      meals: {},
+      menues: {},
+      dates: [],
+    });
+
+    // order enthält die uid genau einmal
+    expect(result.mealTypes.order).toEqual(["mt-x"]);
+  });
 });
 
 describe("deleteMealType", () => {

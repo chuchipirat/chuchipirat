@@ -403,6 +403,29 @@ interface MenuplanDummyRow {
 // ===================================================================== */
 
 /**
+ * Entfernt Einträge mit doppelter `uid` (der erste gewinnt).
+ *
+ * Schützt den atomaren Menuplan-Save vor unique-constraint-Verletzungen
+ * (`23505`), falls der Menuplan-Editor durch einen In-Place-Mutation-Bug eine
+ * `uid` doppelt in eine Collection legt (siehe tech-debt.md). Die RPC-Funktion
+ * arbeitet nach dem delete-all-+-re-insert-Prinzip, ein Deduplizieren heilt
+ * daher auch bereits im Client-State verdoppelte Einträge.
+ *
+ * @param items - Die zu deduplizierende Collection.
+ * @returns Neue Liste ohne uid-Duplikate, Reihenfolge bleibt erhalten.
+ */
+export function dedupeByUid<T extends {uid: string}>(items: T[]): T[] {
+  const seen = new Set<string>();
+  const result: T[] = [];
+  for (const item of items) {
+    if (seen.has(item.uid)) continue;
+    seen.add(item.uid);
+    result.push(item);
+  }
+  return result;
+}
+
+/**
  * Repository für den Menuplan eines Events.
  *
  * Lädt alle 8 Tabellen parallel und baut das MenuplanDomain zusammen.
@@ -802,9 +825,13 @@ export class MenuplanRepository extends BaseRepository<
    */
   async saveMenuplan(
     eventId: string,
-    menuplan: MenuplanDomain,
+    menuplanInput: MenuplanDomain,
     _authUser: AuthUser,
   ): Promise<void> {
+    // Doppelte uids (Editor-Bug, siehe tech-debt.md) entfernen, bevor der
+    // atomare Save an einer unique-constraint (23505) scheitert.
+    const menuplan = this.dedupeMenuplanDomain(menuplanInput, eventId);
+
     // FK-Referenzen in-memory validieren, BEVOR die RPC-Funktion aufgerufen wird.
     // Fängt logische Fehler früh ab, ohne einen DB-Roundtrip zu verschwenden.
     this.validateMenuplanDomain(menuplan);
@@ -1056,6 +1083,51 @@ export class MenuplanRepository extends BaseRepository<
         );
       }
     }
+  }
+
+  /**
+   * Entfernt uid-Duplikate aus allen Menuplan-Collections. Duplikate entstehen
+   * durch einen In-Place-Mutation-Bug im Editor (siehe tech-debt.md) und würden
+   * den atomaren Save an einer unique-constraint (23505) scheitern lassen.
+   *
+   * @param menuplan - Das ggf. verdoppelte Domain-Objekt.
+   * @param eventId - Event-ID (für den Sentry-Breadcrumb).
+   * @returns Deduplizierte Kopie (nur betroffene Collections werden ersetzt).
+   */
+  private dedupeMenuplanDomain(
+    menuplan: MenuplanDomain,
+    eventId: string,
+  ): MenuplanDomain {
+    const deduped: MenuplanDomain = {
+      ...menuplan,
+      mealTypes: dedupeByUid(menuplan.mealTypes),
+      meals: dedupeByUid(menuplan.meals),
+      menues: dedupeByUid(menuplan.menues),
+      menueRecipes: dedupeByUid(menuplan.menueRecipes),
+      menueProducts: dedupeByUid(menuplan.menueProducts),
+      menueMaterials: dedupeByUid(menuplan.menueMaterials),
+      notes: dedupeByUid(menuplan.notes),
+    };
+
+    const removed =
+      menuplan.mealTypes.length - deduped.mealTypes.length +
+      (menuplan.meals.length - deduped.meals.length) +
+      (menuplan.menues.length - deduped.menues.length) +
+      (menuplan.menueRecipes.length - deduped.menueRecipes.length) +
+      (menuplan.menueProducts.length - deduped.menueProducts.length) +
+      (menuplan.menueMaterials.length - deduped.menueMaterials.length) +
+      (menuplan.notes.length - deduped.notes.length);
+
+    if (removed > 0) {
+      Sentry.addBreadcrumb({
+        category: "menuplan",
+        message: `saveMenuplan: ${removed} doppelte uid(s) vor dem Speichern entfernt`,
+        level: "warning",
+        data: {eventId, removed},
+      });
+    }
+
+    return deduped;
   }
 
   /* =====================================================================
