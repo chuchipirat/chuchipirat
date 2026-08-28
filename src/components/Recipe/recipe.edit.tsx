@@ -2358,6 +2358,9 @@ const RecipeIngredients = ({
       return;
     }
     const {item} = lastCardMoved;
+    // item kann fehlen, wenn die verschobene Position zwischenzeitlich aus
+    // entries verschwunden ist (verwaister order-Eintrag).
+    if (!item) return;
     const element = registry.getElement(item.uid);
     if (element) {
       triggerPostMoveFlash(element);
@@ -2422,23 +2425,29 @@ const RecipeIngredients = ({
         <Grid size={12} sx={classes.centerCenter}>
           <IngredientListContext.Provider value={contextValue}>
             <List key={"listIngredients"} sx={{flexGrow: 1}}>
-              {recipe.ingredients.order.map((ingredientUid, index) => (
-                <React.Fragment key={"ingredient_" + ingredientUid}>
-                  <IngredientListEntry
-                    key={"ingredientStep_" + ingredientUid}
-                    ingredient={recipe.ingredients.entries[ingredientUid]}
-                    index={index}
-                    recipe={recipe}
-                    units={units}
-                    products={products}
-                    gridSize={gridSize}
-                    showScaleFactors={showScaleFactors}
-                    onChangeIngredient={onChangeIngredient}
-                    onPositionMoreClick={onPositionMoreClick}
-                  />
-                  {breakpointIsXs && <Divider variant="middle" />}
-                </React.Fragment>
-              ))}
+              {recipe.ingredients.order.map((ingredientUid, index) => {
+                const ingredient = recipe.ingredients.entries[ingredientUid];
+                // Verwaister order-Eintrag ohne passende entries-Position —
+                // überspringen (index bleibt erhalten für Drag & Drop).
+                if (!ingredient) return null;
+                return (
+                  <React.Fragment key={"ingredient_" + ingredientUid}>
+                    <IngredientListEntry
+                      key={"ingredientStep_" + ingredientUid}
+                      ingredient={ingredient}
+                      index={index}
+                      recipe={recipe}
+                      units={units}
+                      products={products}
+                      gridSize={gridSize}
+                      showScaleFactors={showScaleFactors}
+                      onChangeIngredient={onChangeIngredient}
+                      onPositionMoreClick={onPositionMoreClick}
+                    />
+                    {breakpointIsXs && <Divider variant="middle" />}
+                  </React.Fragment>
+                );
+              })}
             </List>
           </IngredientListContext.Provider>
         </Grid>
@@ -2859,6 +2868,9 @@ const RecipePreparationSteps = ({
       return;
     }
     const {item} = lastCardMoved;
+    // item kann fehlen, wenn die verschobene Position zwischenzeitlich aus
+    // entries verschwunden ist (verwaister order-Eintrag).
+    if (!item) return;
     const element = registry.getElement(item.uid);
     if (element) {
       triggerPostMoveFlash(element);
@@ -2896,18 +2908,22 @@ const RecipePreparationSteps = ({
             <List key={"listPreparationSteps"} sx={{flexGrow: 1}}>
               {/* Zutaten auflsiten */}
               {recipe.preparationSteps.order.map(
-                (preparationStepUid, index) => (
-                  <PreparationStepListEntry
-                    key={"preparationStep_" + preparationStepUid}
-                    preparationStep={
-                      recipe.preparationSteps.entries[preparationStepUid]
-                    }
-                    index={index}
-                    recipe={recipe}
-                    onChange={onChange}
-                    onPositionMoreClick={onPositionMoreClick}
-                  />
-                ),
+                (preparationStepUid, index) => {
+                  const preparationStep =
+                    recipe.preparationSteps.entries[preparationStepUid];
+                  // Verwaister order-Eintrag ohne passende entries-Position.
+                  if (!preparationStep) return null;
+                  return (
+                    <PreparationStepListEntry
+                      key={"preparationStep_" + preparationStepUid}
+                      preparationStep={preparationStep}
+                      index={index}
+                      recipe={recipe}
+                      onChange={onChange}
+                      onPositionMoreClick={onPositionMoreClick}
+                    />
+                  );
+                },
               )}
             </List>
           </PreparationListContext.Provider>
@@ -3240,6 +3256,9 @@ const RecipeMaterials = ({
       return;
     }
     const {item} = lastCardMoved;
+    // item kann fehlen, wenn die verschobene Position zwischenzeitlich aus
+    // entries verschwunden ist (verwaister order-Eintrag).
+    if (!item) return;
     const element = registry.getElement(item.uid);
     if (element) {
       triggerPostMoveFlash(element);
@@ -3275,16 +3294,21 @@ const RecipeMaterials = ({
         <Grid size={12} sx={classes.centerCenter}>
           <MaterialListContext.Provider value={contextValue}>
             <List key={"listMaterials"} sx={{flexGrow: 1}}>
-              {recipe.materials.order.map((materialUid, index) => (
-                <MaterialListEntry
-                  key={"material_" + materialUid}
-                  material={recipe.materials.entries[materialUid]}
-                  materials={materials}
-                  index={index}
-                  onChange={onChange}
-                  onPositionMoreClick={onPositionMoreClick}
-                />
-              ))}
+              {recipe.materials.order.map((materialUid, index) => {
+                const material = recipe.materials.entries[materialUid];
+                // Verwaister order-Eintrag ohne passende entries-Position.
+                if (!material) return null;
+                return (
+                  <MaterialListEntry
+                    key={"material_" + materialUid}
+                    material={material}
+                    materials={materials}
+                    index={index}
+                    onChange={onChange}
+                    onPositionMoreClick={onPositionMoreClick}
+                  />
+                );
+              })}
             </List>
           </MaterialListContext.Provider>
         </Grid>
