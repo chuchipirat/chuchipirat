@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/react";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import Firebase from "../../Firebase/firebase.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {Event,EventRefDocuments} from "./event.class";

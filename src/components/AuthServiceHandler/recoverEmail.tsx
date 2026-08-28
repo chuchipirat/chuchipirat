@@ -22,7 +22,7 @@ import {
   SIGN_IN as TEXT_SIGN_IN,
 } from "../../constants/text";
 import {LocalStorageKey} from "../../constants/localStorage";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {checkActionCode} from "firebase/auth";
 
 /**

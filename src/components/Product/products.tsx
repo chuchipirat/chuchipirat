@@ -87,7 +87,7 @@ import {
 import {Unit, UnitDimension} from "../Unit/unit.class";
 import Department from "../Department/department.class";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {MaterialType} from "../Material/material.types";
 import {
   DialogType,

@@ -2,11 +2,9 @@ import * as Sentry from "@sentry/react";
 import Recipe, {MenuType, RecipeType} from "./recipe.class";
 import {Event} from "../Event/Event/event.class";
 import Firebase from "../Firebase/firebase.class";
-import {AuthUser} from "../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../Session/authUser.class";
 import {Utils} from "../Shared/utils.class";
-import {ChangeRecord} from "../Shared/global.interface";
-
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
+import {ChangeRecord, ValueObject} from "../Shared/global.interface";
 
 import {ERROR_PARAMETER_NOT_PASSED} from "../../constants/text";
 import {PublicRecipeRating} from "./recipe.types";

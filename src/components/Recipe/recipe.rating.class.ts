@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/react";
 import Firebase from "../Firebase/firebase.class";
-import {AuthUser} from "../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../Session/authUser.class";
 import {FeedType} from "../Shared/feed.class";
 import Recipe from "./recipe.class";
 import {Role} from "../../constants/roles";

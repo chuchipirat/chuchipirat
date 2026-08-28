@@ -45,7 +45,7 @@ import {MoreVert as MoreVertIcon} from "@mui/icons-material";
 
 import {useCustomStyles} from "../../../constants/styles";
 
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {Event,Cook} from "../Event/event.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {SnackbarState} from "../../Shared/customSnackbar";

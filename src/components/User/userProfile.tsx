@@ -68,7 +68,7 @@ import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 import {AlertMessage} from "../Shared/AlertMessage";
 
 import {UserPublicProfile} from "./user.public.profile.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {FormListItem} from "../Shared/formListItem";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";

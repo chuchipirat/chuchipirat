@@ -139,7 +139,7 @@ import {useCustomStyles} from "../../constants/styles";
 import {Utils} from "../Shared/utils.class";
 import {AlertMessage} from "../Shared/AlertMessage";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {OnUpdateRecipeProps, RecipeDivider} from "./recipe";
 import {

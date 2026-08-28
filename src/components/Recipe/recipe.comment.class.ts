@@ -1,10 +1,10 @@
 import * as Sentry from "@sentry/react";
 import {UserShort} from "../User/user.class";
 import Firebase from "../Firebase/firebase.class";
-import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
+import {SortOrder} from "../Shared/global.interface";
 
 import * as DEFAULT_VALUES from "../../constants/defaultValues";
-import {AuthUser} from "../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../Session/authUser.class";
 
 interface GetComments {
   firebase: Firebase;

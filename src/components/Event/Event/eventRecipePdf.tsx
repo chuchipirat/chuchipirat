@@ -4,7 +4,7 @@ import "../../Shared/pdfFontRegistration";
 
 import {Receipt} from "./receipt.class";
 import {pdfStyles} from "../../../constants/stylesEventReceiptPdf";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 import {
   APP_NAME as TEXT_APP_NAME,

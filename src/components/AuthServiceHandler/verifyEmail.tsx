@@ -15,7 +15,7 @@ import {useCustomStyles} from "../../constants/styles";
 import {useDatabase} from "../Database/DatabaseContext";
 import {supabase} from "../Database/supabaseClient";
 import {FeedType} from "../Shared/feed.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {Typography, Alert, AlertTitle} from "@mui/material";

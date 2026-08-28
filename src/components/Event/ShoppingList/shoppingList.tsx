@@ -61,7 +61,7 @@ import {MoreVert as MoreVertIcon} from "@mui/icons-material";
 import {useCustomStyles} from "../../../constants/styles";
 
 import Firebase from "../../Firebase/firebase.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {MenuplanData} from "../Menuplan/menuplan.types";
 import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
 import {

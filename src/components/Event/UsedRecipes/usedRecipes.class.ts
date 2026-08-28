@@ -8,7 +8,7 @@
  * const usedRecipes = UsedRecipes.factory({event});
  * const recipeIds = UsedRecipes.defineSelectedRecipes({menueplan, selectedMenues});
  */
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import Recipe, {RecipeIdentifier} from "../../Recipe/recipe.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {Utils} from "../../Shared/utils.class";

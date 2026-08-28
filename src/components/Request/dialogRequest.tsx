@@ -80,7 +80,7 @@ import {Action} from "../../constants/actions";
 import {Request, RequestStatus, RequestAction} from "./request.class";
 import {RequestDomain, ChangeLogEntry} from "../Database/Repository/RequestRepository";
 import {RequestCommentDomain} from "../Database/Repository/RequestCommentRepository";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {Role} from "../../constants/roles";
 import {StatusChips} from "./requestOverview";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";

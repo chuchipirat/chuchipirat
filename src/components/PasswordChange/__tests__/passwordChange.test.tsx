@@ -114,7 +114,7 @@ import {PasswordChangePage} from "../passwordChange";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 
 /* ===================================================================
 // ======================== Render-Helper =============================

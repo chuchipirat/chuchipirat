@@ -114,7 +114,7 @@ import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {User} from "../user.class";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 import {DonationDomain, DonationStatus} from "../../Donate/donation.types";
 
 // Typisierte Referenzen auf die Mock-Funktionen

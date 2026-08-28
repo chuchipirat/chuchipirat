@@ -10,7 +10,7 @@ import {
   SystemMessageRow,
 } from "../SystemMessageRepository";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
-import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../../Session/authUser.class";
 import {
   systemMessageRow,
   systemMessageRow2,

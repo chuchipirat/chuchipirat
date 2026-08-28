@@ -16,7 +16,7 @@ import userEvent from "@testing-library/user-event";
 
 import {RecipeDrawer} from "../RecipeDrawer";
 import Recipe from "../recipe.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 /* ===================================================================
 // ======================== Mocks =====================================

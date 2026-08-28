@@ -30,7 +30,7 @@ import {Product} from "../../Product/product.types";
 import {Material} from "../../Material/material.types";
 import Department from "../../Department/department.class";
 import Firebase from "../../Firebase/firebase.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {
   FetchMissingDataProps,
   OnMasterdataCreateProps,

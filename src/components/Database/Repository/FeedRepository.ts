@@ -20,7 +20,7 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {FeedType, getFeedTitle, getFeedText} from "../../Shared/feed.class";
 import {Role} from "../../../constants/roles";
 

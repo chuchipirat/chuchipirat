@@ -25,7 +25,7 @@ import {Product} from "../../Product/product.types";
 import Department from "../../Department/department.class";
 import {Unit} from "../../Unit/unit.class";
 import {Material} from "../../Material/material.types";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {Event} from "../Event/event.class";
 import {
   Menue,

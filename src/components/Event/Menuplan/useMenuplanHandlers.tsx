@@ -88,7 +88,7 @@ import {Event as EventClass} from "../Event/event.class";
 import {Unit} from "../../Unit/unit.class";
 import Department from "../../Department/department.class";
 import Firebase from "../../Firebase/firebase.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {trackEvent} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 

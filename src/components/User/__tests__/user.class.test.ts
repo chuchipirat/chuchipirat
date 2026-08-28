@@ -5,10 +5,10 @@
  * (DatabaseService, Firebase) werden vollständig gemockt.
  */
 import {User, UserFullProfile} from "../user.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {Role} from "../../../constants/roles";
 import {UserPublicProfile} from "../user.public.profile.class";
-import {SortOrder} from "../../Firebase/Db/firebase.db.super.class";
+import {SortOrder} from "../../Shared/global.interface";
 
 /* ------------------------------------------
 // imageResize Mock (Canvas ist in jsdom nicht verfügbar)

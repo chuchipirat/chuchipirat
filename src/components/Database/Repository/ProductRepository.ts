@@ -14,7 +14,7 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {
   ALLERGEN_FROM_DB,
   ALLERGEN_TO_DB,

@@ -15,7 +15,7 @@ import * as ROUTES from "../../constants/routes";
 import * as TEXT from "../../constants/text";
 import {Role} from "../../constants/roles";
 import {DonateIcon} from "../Shared/icons";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 /**
  * Konfiguration eines einzelnen Navigations-Menüeintrags.

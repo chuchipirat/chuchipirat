@@ -11,7 +11,7 @@ import {
   getAnalyticsRole,
   trackVirtualPageview,
 } from "../analyticsService";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {Role} from "../../../constants/roles";
 
 const buildAuthUser = (roles: Role[]): AuthUser => {

@@ -106,7 +106,7 @@ import {ImageRepository} from "../../constants/imageRepository";
 import * as TEXT from "../../constants/text";
 import * as ROUTES from "../../constants/routes";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import type {
   RecipeDomain,

@@ -28,7 +28,7 @@ import Recipe from "./recipe.class";
 import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfiguration.class";
 import type {PlanedMealsRecipe, MealRecipe} from "../Event/Menuplan/menuplan.types";
 import Firebase from "../Firebase/firebase.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 /* =====================================================================
 // Typen — werden auch von menuplan.tsx und Admin-Seiten genutzt

@@ -63,7 +63,7 @@ import {
 } from "../../constants/text";
 import Department from "../Department/department.class";
 import {Unit, UnitDimension} from "../Unit/unit.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {UnitAutocomplete} from "../Unit/unitAutocomplete";
 
 import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";

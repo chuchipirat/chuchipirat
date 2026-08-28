@@ -16,7 +16,7 @@ import {
 import {MemoryRouter, useLocation} from "react-router";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {FirebaseContext} from "../../Firebase/firebaseContext";
-import authUser from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUser from "../../Session/__mocks__/authuser.mock";
 
 
 // IntersectionObserver-Mock: observe() löst Callback aus (nach Konstruktor-Return)

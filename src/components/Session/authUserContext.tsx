@@ -2,7 +2,7 @@ import React, {useState, useEffect, useRef} from "react";
 import {useNavigate, useLocation} from "react-router";
 import * as Sentry from "@sentry/react";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import {LocalStorageKey} from "../../constants/localStorage";
 import {Role} from "../../constants/roles";

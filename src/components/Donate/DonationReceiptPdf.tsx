@@ -15,7 +15,7 @@ import {Document, Page, View, Text, Image, Svg, Path} from "@react-pdf/renderer"
 import "../Shared/pdfFontRegistration";
 
 import {donationReceiptStyles as styles} from "../../constants/stylesDonationReceiptPdf";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {DonationDomain} from "./donation.types";
 
 import {

@@ -1,6 +1,6 @@
 import * as Sentry from "@sentry/react";
 import {HOME_STATS_CAPTIONS as TEXT_HOME_STATS_CAPTIONS} from "../../constants/text";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import Firebase from "../Firebase/firebase.class";
 import Recipe from "../Recipe/recipe.class";
 

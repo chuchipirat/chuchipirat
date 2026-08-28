@@ -1,4 +1,4 @@
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
+import {ValueObject} from "./global.interface";
 
 interface GetLocalStorageEntryProps {
   path: string;

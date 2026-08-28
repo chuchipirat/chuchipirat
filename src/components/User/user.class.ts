@@ -8,9 +8,9 @@ import {
   USER_PROFILE_ERROR_DISPLAYNAME_MISSING as TEXT_USER_PROFILE_ERROR_DISPLAYNAME_MISSING,
   NO_USER_WITH_THIS_EMAIL as TEXT_NO_USER_WITH_THIS_EMAIL,
 } from "../../constants/text";
-import {AuthUser} from "../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../Session/authUser.class";
 import {UserPublicProfile} from "./user.public.profile.class";
-import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
+import {SortOrder} from "../Shared/global.interface";
 
 import {resizeImage} from "../Shared/imageResize";
 import DatabaseService from "../Database/DatabaseService";

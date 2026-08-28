@@ -75,7 +75,7 @@ import {User} from "../../User/user.class";
 import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import {FeedType} from "../../Shared/feed.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {Utils} from "../../Shared/utils.class";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 import {DialogAddUser} from "../../User/dialogAddUser";

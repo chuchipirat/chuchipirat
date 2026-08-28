@@ -14,7 +14,7 @@ import {
 import {RecipeShort} from "./recipe.types";
 import Recipe from "./recipe.class";
 import {DialogContent, Link, List} from "@mui/material";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {FormListItem} from "../Shared/formListItem";
 import {Utils} from "../Shared/utils.class";
 import Firebase from "../Firebase/firebase.class";

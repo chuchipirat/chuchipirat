@@ -59,7 +59,7 @@ import {HOME as ROUTE_HOME} from "../../../constants/routes";
 import Recipe, {Recipes} from "../../Recipe/recipe.class";
 import {Unit} from "../../Unit/unit.class";
 
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {MenuplanPage} from "../Menuplan/menuplan";
 import {EventGroupConfigurationPage} from "../GroupConfiguration/groupConfiguration";
@@ -115,7 +115,7 @@ import {
   useCustomDialog,
 } from "../../Shared/customDialogContext";
 import {Action} from "../../../constants/actions";
-import {ValueObject} from "../../Firebase/Db/firebase.db.super.class";
+import {ValueObject} from "../../Shared/global.interface";
 import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";

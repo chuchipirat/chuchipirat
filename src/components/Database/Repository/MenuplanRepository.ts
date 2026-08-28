@@ -21,7 +21,7 @@ import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";
 import type {MenuplanData} from "../../Event/Menuplan/menuplan.types";
 import {

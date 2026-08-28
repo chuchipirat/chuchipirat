@@ -63,7 +63,7 @@ import {Event} from "../Event/event.class";
 import {EventGroupConfiguration} from "./groupConfiguration.class";
 
 import Firebase from "../../Firebase/firebase.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {
   DialogType,
   SingleTextInputResult,

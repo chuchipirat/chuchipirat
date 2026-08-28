@@ -20,7 +20,7 @@ import {
   SessionStorageHandler,
   StorageObjectProperty,
 } from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 
 /**
  * Filter-Definition für Datenbankabfragen.

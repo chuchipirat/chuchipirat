@@ -3,7 +3,7 @@ import React from "react";
 import {pdfStyles} from "../../constants/stylesGeneralPdf";
 
 import {Text, Svg, Path} from "@react-pdf/renderer";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 import {
   APP_NAME as TEXT_APP_NAME,

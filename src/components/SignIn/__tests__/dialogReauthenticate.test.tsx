@@ -58,7 +58,7 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
 // =================================================================== */
 import {DialogReauthenticate} from "../dialogReauthenticate";
 import {User} from "../../User/user.class";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 
 // Typisierte Referenz auf Mock-Funktion
 const mockRegisterSignIn = User.registerSignIn as jest.Mock;

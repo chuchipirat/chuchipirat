@@ -14,7 +14,7 @@ import {
 import {
   AuthUser,
   AuthUserPublicProfile,
-} from "../../Firebase/Authentication/authUser.class";
+} from "../../Session/authUser.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {
   FieldValidationError,

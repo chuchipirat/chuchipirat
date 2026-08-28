@@ -1,8 +1,8 @@
 import * as Sentry from "@sentry/react";
 import {Utils} from "../Shared/utils.class";
 import Firebase from "../Firebase/firebase.class";
-import {ValueObject} from "../Firebase/Db/firebase.db.super.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import {ValueObject} from "../Shared/global.interface";
+import AuthUser from "../Session/authUser.class";
 
 interface GetAllDepartments {
   firebase: Firebase;

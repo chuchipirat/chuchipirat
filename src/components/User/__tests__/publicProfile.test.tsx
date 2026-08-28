@@ -71,7 +71,7 @@ import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {User} from "../user.class";
 import {UserPublicProfile} from "../user.public.profile.class";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 
 // Typisierte Referenz auf die Mock-Funktion
 const mockGetPublicProfile = User.getPublicProfile as jest.Mock;

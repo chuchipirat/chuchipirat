@@ -110,7 +110,7 @@ import {DataGrid, GridColDef, GridSortModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 
 import * as Sentry from "@sentry/react";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 /* ===================================================================
 // ======================== Typen / State ============================

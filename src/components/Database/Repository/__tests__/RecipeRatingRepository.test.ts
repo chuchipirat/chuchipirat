@@ -13,7 +13,7 @@ import {
 } from "../RecipeRatingRepository";
 import {STORAGE_OBJECT_PROPERTY} from "../../../Firebase/Db/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
-import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../../Session/authUser.class";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
 jest.mock("../../../Firebase/Db/sessionStorageHandler.class", () => {
