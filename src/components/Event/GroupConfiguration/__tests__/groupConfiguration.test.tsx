@@ -16,8 +16,7 @@ import {MemoryRouter} from "react-router";
 import {EventGroupConfigurationPage} from "../groupConfiguration";
 import {EventGroupConfiguration} from "../groupConfiguration.class";
 import {Event} from "../../Event/event.class";
-import type Firebase from "../../../Firebase/firebase.class";
-import AuthUser from "../../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../../Session/authUser.class";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 
 /* ===================================================================
@@ -93,7 +92,6 @@ const renderPage = (groupConfiguration: EventGroupConfiguration) => {
     <MemoryRouter>
       <DatabaseContext.Provider value={mockDatabase}>
         <EventGroupConfigurationPage
-          firebase={{} as Firebase}
           authUser={new AuthUser()}
           event={new Event()}
           groupConfiguration={groupConfiguration}

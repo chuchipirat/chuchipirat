@@ -17,7 +17,7 @@
     "strictNullChecks": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
-    "types": ["vite/client", "jest"]
+    "types": ["vite/client", "jest", "node"]
   },
-  "include": ["./src/**/*.ts", "../functions/**/*.ts"]
+  "include": ["./src/**/*.ts"]
 }

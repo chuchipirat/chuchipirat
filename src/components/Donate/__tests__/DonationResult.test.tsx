@@ -15,7 +15,7 @@ import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 
 /* ===================================================================
 // Mock-Setup

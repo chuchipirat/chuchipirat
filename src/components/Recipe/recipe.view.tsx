@@ -139,7 +139,7 @@ import {useCustomStyles} from "../../constants/styles";
 import {Utils} from "../Shared/utils.class";
 import {AlertMessage} from "../Shared/AlertMessage";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {OnUpdateRecipeProps, RecipeDivider} from "./recipe";
 import {
@@ -151,10 +151,10 @@ import {
   VeganIcon,
   VegetarianIcon,
 } from "../Shared/icons";
-import Firebase from "../Firebase/firebase.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import {RecipeCommentDomain} from "../Database/Repository/RecipeCommentRepository";
 import {FeedType} from "../Shared/feed.class";
+import {postActivityFeed} from "../Shared/feedActivity";
 import {RequestAction, RequestType} from "../Request/request.class";
 import {Request as RequestClass} from "../Request/request.class";
 import {RequestService} from "../Request/requestService";
@@ -261,7 +261,6 @@ interface ScalingInformation {
 
 interface RecipeViewProps {
   recipe: Recipe;
-  firebase: Firebase;
   mealPlan: Array<PlanedMealsRecipe>;
   scaledPortions: number;
   isLoading: boolean;
@@ -290,7 +289,6 @@ interface RecipeViewProps {
  */
 export const RecipeView = ({
   recipe,
-  firebase: _firebase,
   mealPlan,
   scaledPortions,
   isLoading,
@@ -397,24 +395,17 @@ export const RecipeView = ({
       );
       trackEvent(AnalyticsEvent.RECIPE_RATING_SET);
       // Feed-Eintrag: Rezept bewertet
-      database.feeds
-        .insertFeed(
-          {
-            feedType: FeedType.recipeRated,
-            sourceObjectType: "recipe",
-            sourceObjectUid: recipe.uid,
-            sourceObjectData: {rating: value},
-          },
-          authUser,
-        )
-        .catch((err) =>
-          Sentry.captureException(err, {
-            extra: {
-              context:
-                "RecipeView.onSetRating – Feed-Eintrag konnte nicht erstellt werden",
-            },
-          }),
-        );
+      postActivityFeed({
+        database,
+        feed: {
+          feedType: FeedType.recipeRated,
+          sourceObjectType: "recipe",
+          sourceObjectUid: recipe.uid,
+          sourceObjectData: {rating: value},
+        },
+        authUser,
+        context: "Rezept bewertet",
+      });
 
       // DB-Trigger hat avg_rating + no_ratings in recipes aktualisiert → nachladen.
       // Cache umgehen, damit die vom Trigger aktualisierten Werte gelesen werden.
@@ -2494,23 +2485,16 @@ const RecipeComments = ({
       setNewComment("");
 
       // Feed-Eintrag: Rezept kommentiert
-      database.feeds
-        .insertFeed(
-          {
-            feedType: FeedType.recipeCommented,
-            sourceObjectType: "recipe",
-            sourceObjectUid: recipeId,
-          },
-          authUser,
-        )
-        .catch((err) =>
-          Sentry.captureException(err, {
-            extra: {
-              context:
-                "RecipeComments.onAddComment – Feed-Eintrag konnte nicht erstellt werden",
-            },
-          }),
-        );
+      postActivityFeed({
+        database,
+        feed: {
+          feedType: FeedType.recipeCommented,
+          sourceObjectType: "recipe",
+          sourceObjectUid: recipeId,
+        },
+        authUser,
+        context: "Rezept kommentiert",
+      });
     } catch (err) {
       Sentry.captureException(err, {
         extra: {

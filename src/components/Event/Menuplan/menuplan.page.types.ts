@@ -29,8 +29,7 @@ import {Unit} from "../../Unit/unit.class";
 import {Product} from "../../Product/product.types";
 import {Material} from "../../Material/material.types";
 import Department from "../../Department/department.class";
-import Firebase from "../../Firebase/firebase.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {
   FetchMissingDataProps,
   OnMasterdataCreateProps,
@@ -57,7 +56,6 @@ export type OnMenuplanUpdate = Partial<MenuplanData>;
  * @param products - Verfügbare Produkte
  * @param materials - Verfügbare Materialien
  * @param departments - Verfügbare Abteilungen
- * @param firebase - Firebase-Instanz
  * @param authUser - Authentifizierter Benutzer
  * @param onMenuplanUpdate - Callback bei Menüplan-Änderung
  * @param fetchMissingData - Callback zum Nachladen von Daten
@@ -74,7 +72,6 @@ export interface MenuplanPageProps {
   products: Product[];
   materials: Material[];
   departments: Department[];
-  firebase: Firebase;
   authUser: AuthUser;
   onMenuplanUpdate: (menuplan: MenuplanData) => void;
   fetchMissingData: ({type, recipeShort}: FetchMissingDataProps) => void;

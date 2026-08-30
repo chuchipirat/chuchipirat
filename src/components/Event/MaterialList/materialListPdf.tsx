@@ -2,7 +2,7 @@ import React from "react";
 import {Document, Page, View, Text} from "@react-pdf/renderer";
 import "../../Shared/pdfFontRegistration";
 import {Event} from "../Event/event.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {pdfStyles} from "../../../constants/stylesMaterialListPdf";
 
 import {

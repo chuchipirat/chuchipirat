@@ -32,7 +32,7 @@ import {
 } from "./menuplan.types";
 import type {MenuplanPdfOptions} from "./dialogMenuplanPdfOptions";
 import {Event} from "../Event/event.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {RecipeType} from "../../Recipe/recipe.class";
 import {Footer, Header} from "../../Shared/pdfComponents";
 import "../../Shared/pdfFontRegistration";

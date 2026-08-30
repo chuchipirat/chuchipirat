@@ -84,9 +84,9 @@ import {Allergen, Diet} from "../Product/product.types";
 import {
   STORAGE_OBJECT_PROPERTY,
   SessionStorageHandler,
-} from "../Firebase/Db/sessionStorageHandler.class";
+} from "../Shared/sessionStorageHandler.class";
 import {useAuthUser} from "../Session/authUserContext";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 /* ===================================================================
 // ======================== Cache-Konstanten =========================

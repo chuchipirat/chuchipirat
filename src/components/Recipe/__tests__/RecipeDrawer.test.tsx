@@ -4,7 +4,7 @@
  * Prüft das Rendering in verschiedenen Zuständen (offen/geschlossen,
  * View/Edit-Modus, mit/ohne groupConfiguration).
  * RecipeView und RecipeEdit werden gemockt um die schweren Abhängigkeiten
- * (Firebase, Supabase, etc.) zu vermeiden.
+ * (Supabase, etc.) zu vermeiden.
  */
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
@@ -16,7 +16,7 @@ import userEvent from "@testing-library/user-event";
 
 import {RecipeDrawer} from "../RecipeDrawer";
 import Recipe from "../recipe.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 /* ===================================================================
 // ======================== Mocks =====================================
@@ -43,7 +43,6 @@ const baseProps = {
   scaledPortions: 0,
   editMode: false,
   disableFunctionality: false,
-  firebase: {} as any,
   authUser: {uid: "user-1"} as AuthUser,
   onClose: jest.fn(),
 };

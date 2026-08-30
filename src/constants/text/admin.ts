@@ -30,32 +30,6 @@ export const WHERE_USED_DESCRIPTION =
   "Verfolgungsnachweis für Produkte und Rezepte. ";
 
 /* =====================================================================
-// Migration
-// ===================================================================== */
-export const MIGRATION = "Migration";
-export const MIGRATION_DESCRIPTION =
-  "Daten von Firebase nach Postgres migrieren.";
-export const MIGRATION_SELECT_OBJECT = "Objekt auswählen";
-export const MIGRATION_DRY_RUN = "Testlauf (kein Schreiben)";
-export const MIGRATION_START = "Migration starten";
-export const MIGRATION_CANCEL = "Abbrechen";
-export const MIGRATION_STATS_TOTAL = "Total Quelldatensätze";
-export const MIGRATION_STATS_ALREADY_MIGRATED = "Bereits migriert";
-export const MIGRATION_STATS_SUCCESS = "Erfolgreich migriert";
-export const MIGRATION_STATS_FAILED = "Fehlgeschlagen";
-export const MIGRATION_STATS_CURRENT = "Aktueller Datensatz";
-export const MIGRATION_PHASE_FETCHING = "Quelldaten werden geladen…";
-export const MIGRATION_PHASE_RUNNING = "Migration läuft…";
-export const MIGRATION_PHASE_COMPLETED = "Migration abgeschlossen";
-export const MIGRATION_PHASE_CANCELLED = "Migration abgebrochen";
-export const MIGRATION_LOG_TITLE = "Protokoll";
-export const MIGRATION_FIREBASE_SIGN_IN_TITLE = "Firebase-Anmeldung";
-export const MIGRATION_FIREBASE_SIGN_IN_DESCRIPTION =
-  "Für den Zugriff auf Firebase-Daten wird eine separate Anmeldung benötigt.";
-export const MIGRATION_FIREBASE_SIGN_IN_BUTTON = "Firebase anmelden";
-export const MIGRATION_FIREBASE_CONNECTED = "Firebase verbunden";
-
-/* =====================================================================
 // Übersichten
 // ===================================================================== */
 export const OVERVIEW_RECIPES_DESCRIPTION = "Übersicht über alle Rezepte";

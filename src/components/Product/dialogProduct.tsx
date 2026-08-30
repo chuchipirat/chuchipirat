@@ -63,7 +63,7 @@ import {
 } from "../../constants/text";
 import Department from "../Department/department.class";
 import {Unit, UnitDimension} from "../Unit/unit.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {UnitAutocomplete} from "../Unit/unitAutocomplete";
 
 import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";
@@ -112,7 +112,6 @@ export enum ProductDialog {
 /**
  * Props für den Produkt-Dialog.
  *
- * @param firebase - Firebase-Instanz (nicht mehr benötigt, wird ignoriert). Veraltet.
  * @param dialogType - Art des Dialogs (CREATE oder EDIT)
  * @param productName - Vorausgefüllter Produktname
  * @param productUid - UID des zu bearbeitenden Produkts (nur EDIT)

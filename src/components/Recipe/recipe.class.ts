@@ -1,5 +1,5 @@
-import * as Sentry from "@sentry/react";
 import {RecipeShort} from "./recipe.types";
+import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 import {Rating} from "./recipe.types";
 import {ChangeRecord} from "../Shared/global.interface";
 import * as TEXT from "../../constants/text";
@@ -522,42 +522,44 @@ export default class Recipe {
    * Validiert Pflichtfelder eines Rezepts.
    *
    * @param recipe - Das zu prüfende Rezept.
-   * @throws {Error} Wenn Pflichtfelder fehlen oder ungültige Werte enthalten.
+   * @throws {FieldValidationError} Wenn Pflichtfelder fehlen oder ungültige
+   *   Werte enthalten. Der Fehler ist eine Nutzer-Hinweismeldung und wird
+   *   bewusst nicht an Sentry gemeldet.
    */
   static checkRecipeData(recipe: Recipe) {
     if (!recipe.name) {
-      throw new Error(TEXT.RECIPE_NAME_CANT_BE_EMPTY);
+      throw new FieldValidationError(TEXT.RECIPE_NAME_CANT_BE_EMPTY);
     }
     if (
       recipe.type == RecipeType.variant &&
       !recipe.variantProperties?.variantName
     ) {
-      throw new Error(TEXT.RECIPE_VARIANT_NAME_CANT_BE_EMPTY);
+      throw new FieldValidationError(TEXT.RECIPE_VARIANT_NAME_CANT_BE_EMPTY);
     }
 
     if (!recipe.portions) {
-      throw new Error(TEXT.ERROR_GIVE_FIELD_VALUE("Portionen"));
+      throw new FieldValidationError(TEXT.ERROR_GIVE_FIELD_VALUE("Portionen"));
     }
 
     if (recipe.portions < 0) {
-      throw new Error(TEXT.ERROR_PORTIONS_NEGATIV);
+      throw new FieldValidationError(TEXT.ERROR_PORTIONS_NEGATIV);
     }
 
     if (isNaN(recipe.portions)) {
-      throw new Error(TEXT.ERROR_PORTIONS_NOT_NUMERIC);
+      throw new FieldValidationError(TEXT.ERROR_PORTIONS_NOT_NUMERIC);
     }
 
     if (recipe.ingredients.order.length == 0) {
-      throw new Error(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
+      throw new FieldValidationError(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
     } else if (recipe.ingredients.order.length == 1) {
       let lastEntry = recipe.ingredients.entries[recipe.ingredients.order[0]];
 
       if (lastEntry.posType == PositionType.section) {
-        throw new Error(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
+        throw new FieldValidationError(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
       }
       lastEntry = lastEntry as Ingredient;
       if (lastEntry.product.uid == "") {
-        throw new Error(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
+        throw new FieldValidationError(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
       }
     }
 
@@ -568,7 +570,9 @@ export default class Recipe {
           !position.product.uid &&
           (position.quantity || position.unit || position.product.name)
         ) {
-          throw new Error(TEXT.ERROR_POS_WITHOUT_PRODUCT(counter + 1));
+          throw new FieldValidationError(
+            TEXT.ERROR_POS_WITHOUT_PRODUCT(counter + 1),
+          );
         }
       }
     });
@@ -577,7 +581,7 @@ export default class Recipe {
         !position.material.uid &&
         (position.quantity || position.material.name)
       ) {
-        throw new Error(TEXT.ERROR_POS_WITHOUT_MATERIAL(counter));
+        throw new FieldValidationError(TEXT.ERROR_POS_WITHOUT_MATERIAL(counter));
       }
     });
   }
@@ -592,7 +596,7 @@ export default class Recipe {
    * @param recipe - Das zu speichernde Rezept.
    * @param products - Produktliste für die Diät-Berechnung.
    * @returns Bereinigtes und validiertes Rezept.
-   * @throws {Error} Wenn die Validierung fehlschlägt.
+   * @throws {FieldValidationError} Wenn die Validierung fehlschlägt.
    */
   static prepareSave({recipe, products}: PrepareSave) {
     // Leere Positionen entfernen
@@ -614,13 +618,9 @@ export default class Recipe {
       products: products,
     });
 
-    // Nochmals prüfen ob alles ok
-    try {
-      Recipe.checkRecipeData(recipe);
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+    // Nochmals prüfen ob alles ok (wirft FieldValidationError — Nutzer-Hinweis,
+    // wird von der aufrufenden Schicht behandelt, nicht an Sentry gemeldet)
+    Recipe.checkRecipeData(recipe);
 
     // Sicherstellen, dass numerische Werte korrekt gespeichert werden
     Object.values(recipe.ingredients.entries).forEach((ingredient) => {

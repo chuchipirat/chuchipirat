@@ -35,12 +35,6 @@ jest.mock("../../Database/DatabaseContext", () => ({
   useDatabase: () => ({auth: {signOut: mockSignOutDb}}),
 }));
 
-/** Mock: useFirebase */
-const mockSignOutFb = jest.fn().mockResolvedValue(undefined);
-jest.mock("../../Firebase/firebaseContext", () => ({
-  useFirebase: () => ({signOut: mockSignOutFb}),
-}));
-
 /** Mock: NavigationValuesContext */
 jest.mock("../navigationContext", () => ({
   NavigationValuesContext: React.createContext({
@@ -157,7 +151,6 @@ describe("NavigationBar", () => {
     await userEvent.click(signOutItem);
 
     expect(mockSignOutDb).toHaveBeenCalledTimes(1);
-    expect(mockSignOutFb).toHaveBeenCalledTimes(1);
   });
 
   test("öffnet die Hilfe-Seite beim Klick auf den Hilfe-Button", async () => {

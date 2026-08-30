@@ -14,7 +14,7 @@ import {
 import {
   AuthUser,
   AuthUserPublicProfile,
-} from "../../Firebase/Authentication/authUser.class";
+} from "../../Session/authUser.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {
   FieldValidationError,
@@ -29,18 +29,6 @@ import {getEventDateList} from "../Menuplan/menuplanService";
 export enum EventType {
   actual = "actual",
   history = "history",
-}
-
-/**
- * Dokumententypen, die einem Event zugeordnet werden können.
- * Wird verwendet, um zu tracken, welche Sub-Dokumente für einen Event existieren.
- */
-export enum EventRefDocuments {
-  usedRecipes = 1,
-  shoppingList,
-  materialList,
-  recipeVariants,
-  receipt,
 }
 
 /**
@@ -65,10 +53,6 @@ export interface EventDate {
   to: Date;
 }
 
-interface AddRefDocument {
-  refDocuments: Event["refDocuments"];
-  newDocumentType: EventRefDocuments;
-}
 interface CheckIfDeletedDayArePlanned {
   event: Event;
   menuplan: MenuplanData;
@@ -92,7 +76,7 @@ export class Event {
   authUsers: string[];
   created: ChangeRecord;
   lastChange: ChangeRecord;
-  refDocuments?: EventRefDocuments[];  /**
+  /**
    * Erstellt eine neue, leere Event-Instanz mit Standardwerten.
    */
   constructor() {
@@ -359,21 +343,9 @@ export class Event {
         date.to.getFullYear() !== 1970 ||
         index === 0,
     );
-  }  /**
-   * Fügt einen neuen Dokumententyp zur Liste der Referenzdokumente eines Events hinzu.
-   *
-   * @param refDocuments Bisherige Liste der Referenzdokumente.
-   * @param newDocumentType Der neue Dokumententyp.
-   * @returns Aktualisiertes Array der Referenzdokumente.
-   */
-  static addRefDocument({refDocuments, newDocumentType}: AddRefDocument) {
-    let updatedDocuments: Event["refDocuments"] = [];
-    if (refDocuments) {
-      updatedDocuments = [...refDocuments];
-    }
-    updatedDocuments.push(newDocumentType);
-    return updatedDocuments;
-  }  /**
+  }
+
+  /**
    * Prüft, ob durch die Anpassung der Event-Daten bereits geplante Menüplan-Tage
    * gelöscht würden. Vergleicht die neuen Datumsangaben mit den bestehenden
    * Menüplan-Daten.

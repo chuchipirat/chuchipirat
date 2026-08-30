@@ -28,7 +28,7 @@ import {User} from "../User/user.class";
 
 import {AlertMessage} from "../Shared/AlertMessage";
 import DatabaseService from "../Database/DatabaseService";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================

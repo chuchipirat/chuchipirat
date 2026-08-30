@@ -25,7 +25,7 @@ import {Product} from "../../Product/product.types";
 import Department from "../../Department/department.class";
 import {Unit} from "../../Unit/unit.class";
 import {Material} from "../../Material/material.types";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {Event} from "../Event/event.class";
 import {
   Menue,
@@ -78,6 +78,7 @@ import {
 } from "../../../constants/text";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
+import {postActivityFeed} from "../../Shared/feedActivity";
 import {
   shoppingListToInsertRows,
 } from "./shoppingListAdapter";
@@ -240,8 +241,20 @@ const determineItemDepartment = ({
 
 /**
  * Verschiebt ein Item von einer Abteilung in eine andere.
+ *
+ * Die Zielabteilung wird bei Bedarf angelegt: Sie kann in `shoppingList.list`
+ * noch fehlen, wenn dort bisher kein Artikel enthalten war — etwa wenn ein
+ * bestehender Artikel per Autocomplete auf ein Produkt einer bislang leeren
+ * Abteilung geändert wird.
+ *
+ * @param params.shoppingList - Die zu mutierende Einkaufsliste.
+ * @param params.item - Das zu verschiebende Item.
+ * @param params.fromDepartmentPos - Position der Ausgangsabteilung.
+ * @param params.toDepartment - Zielabteilung.
+ * @param params.isNewItem - Ob das Item neu hinzugefügt wird (noch nicht in der Liste).
+ * @returns `true`, wenn das Item die Abteilung tatsächlich gewechselt hat.
  */
-const moveItemToDepartment = ({
+export const moveItemToDepartment = ({
   shoppingList,
   item,
   fromDepartmentPos,
@@ -254,6 +267,15 @@ const moveItemToDepartment = ({
   toDepartment: Department;
   isNewItem: boolean;
 }): boolean => {
+  // Zielabteilung sicherstellen — greift für neue wie bestehende Items.
+  if (!Object.hasOwn(shoppingList.list, toDepartment.pos)) {
+    shoppingList.list[toDepartment.pos] = {
+      departmentUid: toDepartment.uid,
+      departmentName: toDepartment.name,
+      items: [],
+    };
+  }
+
   if (toDepartment.pos != fromDepartmentPos && !isNewItem) {
     shoppingList.list[Number(fromDepartmentPos) as Department["pos"]].items =
       shoppingList.list[fromDepartmentPos].items.filter(
@@ -262,13 +284,6 @@ const moveItemToDepartment = ({
     shoppingList.list[toDepartment.pos].items.push(item);
     return true;
   } else if (isNewItem) {
-    if (!Object.hasOwn(shoppingList.list, toDepartment.pos)) {
-      shoppingList.list[toDepartment.pos] = {
-        departmentUid: toDepartment.uid,
-        departmentName: toDepartment.name,
-        items: [],
-      };
-    }
     shoppingList.list[toDepartment.pos].items.push(item);
     return toDepartment.pos != fromDepartmentPos;
   }
@@ -793,17 +808,17 @@ const useShoppingListHandlers = ({
                 : `${randomItem.quantity} ${randomItem.item.name}`;
               const remaining = nonEmptyItems.length - 1;
 
-              database.feeds
-                .insertFeed(
-                  {
-                    feedType: FeedType.shoppingListCreated,
-                    sourceObjectType: "event",
-                    sourceObjectUid: event.uid,
-                    sourceObjectData: {randomItem: itemText, remainingCount: remaining},
-                  },
-                  authUser,
-                )
-                .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+              postActivityFeed({
+                database,
+                feed: {
+                  feedType: FeedType.shoppingListCreated,
+                  sourceObjectType: "event",
+                  sourceObjectUid: event.uid,
+                  sourceObjectData: {randomItem: itemText, remainingCount: remaining},
+                },
+                authUser,
+                context: "Einkaufsliste erstellt",
+              });
             }
 
             // Liste laden und anzeigen
@@ -1015,15 +1030,31 @@ const useShoppingListHandlers = ({
   const onOpenContextMenu = React.useCallback(
     (event: React.MouseEvent<HTMLButtonElement>) => {
       const pressedButton = event.currentTarget.id.split("_");
-      const item = shoppingList?.list[parseInt(pressedButton[1])].items.find(
-        (item) => item.item.uid == pressedButton[2],
+      const departmentKey = parseInt(pressedButton[1]);
+      const productUid = pressedButton[2];
+
+      const item = shoppingList?.list[departmentKey]?.items.find(
+        (listItem) => listItem.item.uid == productUid,
       );
+
+      // Item nicht (mehr) gefunden — z.B. weil es zwischenzeitlich per
+      // Realtime-Update verschoben oder gelöscht wurde. Kontextmenü nicht
+      // öffnen, statt auf einem undefined-Item abzustürzen.
+      if (!item) {
+        Sentry.addBreadcrumb({
+          category: "shoppinglist",
+          message: "Kontextmenü: Item nicht gefunden",
+          level: "warning",
+          data: {departmentKey, productUid, buttonId: event.currentTarget.id},
+        });
+        return;
+      }
 
       setContextMenuSelectedItem({
         anchor: event.currentTarget,
-        departmentKey: parseInt(pressedButton[1]),
-        productUid: pressedButton[2],
-        itemType: item!.type as ItemType,
+        departmentKey,
+        productUid,
+        itemType: item.type as ItemType,
         unit: pressedButton[3],
       });
     },

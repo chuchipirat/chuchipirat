@@ -6,7 +6,7 @@
  * Service ist zustandslos und kann überall importiert werden.
  */
 import {AnalyticsEventName} from "./analyticsEvents";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {Role} from "../../constants/roles";
 
 /** UUID-Segment in einem Pfad, z.B. `/event/3fa85f64-5717-4562-b3fc-2c963f66afa6`. */

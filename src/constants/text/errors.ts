@@ -17,3 +17,6 @@ export const ERROR_PARAMETER_NOT_PASSED =
   "Methodenparameter wurden nicht übergeben.";
 export const ERROR_GENERIC =
   "Ein unerwarteter Fehler ist aufgetreten. Bitte versuche es erneut.";
+export const ERROR_SESSION_EXPIRED =
+  "Deine Sitzung ist möglicherweise abgelaufen. Bitte lade die Seite neu, " +
+  "melde dich erneut an und versuche es nochmals.";

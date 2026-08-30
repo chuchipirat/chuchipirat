@@ -47,7 +47,7 @@ import {DialogMaterial,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
 import Department from "../../Department/department.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 import {
   MATERIAL as TEXT_MATERIAL,

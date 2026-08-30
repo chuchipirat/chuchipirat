@@ -27,7 +27,7 @@ import {NavigationDrawer} from "./NavigationDrawer";
 import {useSignOut} from "./useSignOut";
 import {NavigationValuesContext} from "./navigationContext";
 import {Utils} from "../Shared/utils.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 /**
  * Props für die NavigationBar-Komponente.

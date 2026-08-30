@@ -54,7 +54,7 @@ jest.mock("@sentry/react", () => ({
 // ======================== Import nach Mocks =========================
 // =================================================================== */
 import {EmailVerificationGuard} from "../emailVerificationGuard";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 /* ===================================================================
 // ======================== Render-Helper =============================

@@ -16,7 +16,7 @@ import userEvent from "@testing-library/user-event";
 
 import {DialogDepartment} from "../dialogDepartment";
 import {DatabaseContext} from "../../Database/DatabaseContext";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================

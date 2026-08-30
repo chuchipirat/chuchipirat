@@ -14,13 +14,12 @@
  * await repo.insertFeed({feedType: FeedType.recipePublished, ...}, authUser);
  */
 import {SupabaseClient} from "@supabase/supabase-js";
-import * as Sentry from "@sentry/react";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+} from "../../Shared/sessionStorageHandler.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {FeedType, getFeedTitle, getFeedText} from "../../Shared/feed.class";
 import {Role} from "../../../constants/roles";
 
@@ -297,29 +296,24 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
     visibility?: string,
     feedType?: FeedType,
   ): Promise<FeedDomain[]> {
-    try {
-      let query = this.client
-        .from(this.viewName)
-        .select("*")
-        .order("created_at", {ascending: false})
-        .limit(limit);
+    let query = this.client
+      .from(this.viewName)
+      .select("*")
+      .order("created_at", {ascending: false})
+      .limit(limit);
 
-      if (visibility) {
-        query = query.eq("visibility", visibility);
-      }
-
-      if (feedType) {
-        query = query.eq("feed_type", feedType);
-      }
-
-      const {data, error} = await query;
-
-      if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as FeedRow));
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
+    if (visibility) {
+      query = query.eq("visibility", visibility);
     }
+
+    if (feedType) {
+      query = query.eq("feed_type", feedType);
+    }
+
+    const {data, error} = await query;
+
+    if (error) throw error;
+    return (data ?? []).map((row) => this.toDomain(row as unknown as FeedRow));
   }
 
   /**
@@ -329,19 +323,14 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
    * @returns Der Feed oder null, falls nicht gefunden
    */
   async getFeedById(uid: string): Promise<FeedDomain | null> {
-    try {
-      const {data, error} = await this.client
-        .from(this.viewName)
-        .select("*")
-        .eq("id", uid)
-        .maybeSingle();
+    const {data, error} = await this.client
+      .from(this.viewName)
+      .select("*")
+      .eq("id", uid)
+      .maybeSingle();
 
-      if (error) throw error;
-      return data ? this.toDomain(data as unknown as FeedRow) : null;
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+    if (error) throw error;
+    return data ? this.toDomain(data as unknown as FeedRow) : null;
   }
 
   /**
@@ -378,22 +367,17 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
    * @returns Array aller Feeds, sortiert nach Erstellungsdatum (neueste zuerst)
    */
   async getAllFeeds(): Promise<FeedDomain[]> {
-    try {
-      const rows: FeedRow[] = [];
-      let from = 0;
-      let page: FeedRow[];
+    const rows: FeedRow[] = [];
+    let from = 0;
+    let page: FeedRow[];
 
-      do {
-        page = await this.fetchFeedsPage(from);
-        rows.push(...page);
-        from += FeedRepository.PAGE_SIZE;
-      } while (page.length === FeedRepository.PAGE_SIZE);
+    do {
+      page = await this.fetchFeedsPage(from);
+      rows.push(...page);
+      from += FeedRepository.PAGE_SIZE;
+    } while (page.length === FeedRepository.PAGE_SIZE);
 
-      return rows.map((row) => this.toDomain(row));
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+    return rows.map((row) => this.toDomain(row));
   }
 
   /* =====================================================================
@@ -414,33 +398,28 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
     params: CreateFeedParams,
     authUser: AuthUser,
   ): Promise<FeedDomain> {
-    try {
-      const userUid = params.userUid ?? authUser.uid;
-      const visibility = params.visibility ?? Role.basic;
+    const userUid = params.userUid ?? authUser.uid;
+    const visibility = params.visibility ?? Role.basic;
 
-      const {data, error} = await this.client
-        .from(this.tableName)
-        .insert({
-          feed_type: params.feedType,
-          visibility: visibility,
-          user_uid: userUid,
-          source_object_type: params.sourceObjectType,
-          source_object_uid: params.sourceObjectUid,
-          source_object_data: params.sourceObjectData ?? null,
-        })
-        .select("*")
-        .single();
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .insert({
+        feed_type: params.feedType,
+        visibility: visibility,
+        user_uid: userUid,
+        source_object_type: params.sourceObjectType,
+        source_object_uid: params.sourceObjectUid,
+        source_object_data: params.sourceObjectData ?? null,
+      })
+      .select("*")
+      .single();
 
-      if (error) throw error;
+    if (error) throw error;
 
-      // View-Daten nachladen, um die aufgelösten Felder zu erhalten
-      const created = await this.getFeedById(data.id);
-      if (!created) throw new Error("Erstellter Feed nicht gefunden");
-      return created;
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+    // View-Daten nachladen, um die aufgelösten Felder zu erhalten
+    const created = await this.getFeedById(data.id);
+    if (!created) throw new Error("Erstellter Feed nicht gefunden");
+    return created;
   }
 
   /**
@@ -449,12 +428,7 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
    * @param uid - Die Feed-ID
    */
   async deleteFeed(uid: string): Promise<void> {
-    try {
-      return this.remove(uid);
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+    return this.remove(uid);
   }
 
   /**
@@ -464,21 +438,16 @@ export class FeedRepository extends BaseRepository<FeedDomain, FeedRow> {
    * @returns Anzahl der gelöschten Einträge
    */
   async deleteFeedsByAge(daysOffset: number): Promise<number> {
-    try {
-      const offsetDate = new Date();
-      offsetDate.setDate(offsetDate.getDate() - daysOffset);
+    const offsetDate = new Date();
+    offsetDate.setDate(offsetDate.getDate() - daysOffset);
 
-      const {data, error} = await this.client
-        .from(this.tableName)
-        .delete()
-        .lt("created_at", offsetDate.toISOString())
-        .select("id");
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .delete()
+      .lt("created_at", offsetDate.toISOString())
+      .select("id");
 
-      if (error) throw error;
-      return data?.length ?? 0;
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+    if (error) throw error;
+    return data?.length ?? 0;
   }
 }

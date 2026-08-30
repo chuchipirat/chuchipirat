@@ -178,10 +178,6 @@ jest.mock("../../Admin/mailConsole", () => ({
   __esModule: true,
   default: () => <div>MailConsole</div>,
 }));
-jest.mock("../../Admin/migration", () => ({
-  __esModule: true,
-  default: () => <div>Migration</div>,
-}));
 jest.mock("../../Admin/DataIntegrity/dataIntegrity", () => ({
   __esModule: true,
   default: () => <div>DataIntegrity</div>,

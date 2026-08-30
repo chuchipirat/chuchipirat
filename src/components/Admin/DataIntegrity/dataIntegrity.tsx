@@ -59,7 +59,6 @@ import {SYSTEM_BREADCRUMB} from "../system";
 import {useCustomStyles} from "../../../constants/styles";
 import {supabase} from "../../Database/supabaseClient";
 import {useDatabase} from "../../Database/DatabaseContext";
-import {useFirebase} from "../../Firebase/firebaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import {
   RecipeRepository,
@@ -509,7 +508,6 @@ const CONFIRM_DIALOG_INITIAL: ConfirmDialogState = {
 const DataIntegrityPage = () => {
   const classes = useCustomStyles();
   const database = useDatabase();
-  const firebase = useFirebase();
   const authUser = useAuthUser();
   const [state, dispatch] = useReducer(integrityReducer, initialState);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(
@@ -1007,7 +1005,7 @@ const DataIntegrityPage = () => {
       )}
 
       {/* Rezept-Drawer */}
-      {firebase && authUser && (
+      {authUser && (
         <RecipeDrawer
           drawerSettings={{open: drawerOpen, isLoadingData: false}}
           recipe={drawerRecipe}
@@ -1015,7 +1013,6 @@ const DataIntegrityPage = () => {
           scaledPortions={0}
           editMode={false}
           disableFunctionality={true}
-          firebase={firebase}
           authUser={authUser}
           onClose={() => setDrawerOpen(false)}
         />

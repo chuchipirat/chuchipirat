@@ -20,6 +20,3 @@ export const supabase = {
     })),
   },
 };
-
-/** Mock: Admin-Client ist in Tests immer null (kein Service Role Key) */
-export const supabaseAdmin = null;

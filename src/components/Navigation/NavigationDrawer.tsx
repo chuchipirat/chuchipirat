@@ -9,7 +9,7 @@ import {
   navigationMenuItems,
   type NavigationMenuItem,
 } from "./navigationMenuConfig";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 /**
  * Props für die NavigationDrawer-Komponente.

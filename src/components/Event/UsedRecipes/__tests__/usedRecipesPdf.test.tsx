@@ -108,7 +108,7 @@ import type {
   MenueCoordinates,
   MenuplanData,
 } from "../../Menuplan/menuplan.types";
-import type AuthUser from "../../../Firebase/Authentication/authUser.class";
+import type AuthUser from "../../../Session/authUser.class";
 import type {UsedRecipeListEntry} from "../usedRecipes.class";
 
 

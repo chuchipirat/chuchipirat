@@ -28,14 +28,12 @@ Willst du als Entwickler\*in am chuchipirat mitarbeiten? Hier findest du alle n�
 | Bereich                 | Technologie                                                                                                        |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------ |
 | **Frontend**            | [React](https://react.dev/) 18, [TypeScript](https://www.typescriptlang.org/), [Material UI](https://mui.com/) 7   |
-| **Backend / Datenbank** | [Supabase](https://supabase.com/) (PostgreSQL, Auth\*, Edge Functions, Storage)                                    |
+| **Backend / Datenbank** | [Supabase](https://supabase.com/) (PostgreSQL, Auth, Edge Functions, Storage)                                      |
 | **Build-Tool**          | [Vite](https://vite.dev/)                                                                                          |
 | **Tests**               | [Jest](https://jestjs.io/), [React Testing Library](https://testing-library.com/docs/react-testing-library/intro/) |
 | **PDF-Export**          | [@react-pdf/renderer](https://react-pdf.org/)                                                                      |
 | **Fehler-Tracking**     | [Sentry](https://sentry.io)                                                                                        |
 | **Analytics**           | [Umami](https://umami.is/)                                                                                         |
-
-> \* Authentifizierung läuft aktuell noch über Firebase Auth und wird schrittweise auf Supabase Auth migriert.
 
 ## Voraussetzungen
 
@@ -45,7 +43,6 @@ Stelle sicher, dass folgende Software auf deinem Rechner installiert ist:
 - **npm** (wird mit Node.js mitgeliefert)
 - **Docker** — wird für die lokale Supabase-Instanz benötigt
 - **Supabase CLI** — [Installationsanleitung](https://supabase.com/docs/guides/cli/getting-started)
-- **Firebase-Projekt** — wird für die Authentifizierung benötigt (während der Migration)
 
 ## Installation
 
@@ -79,8 +76,7 @@ Stelle sicher, dass folgende Software auf deinem Rechner installiert ist:
    | Kategorie | Prefix / Variablen | Beschreibung                                    |
    | --------- | ------------------ | ----------------------------------------------- |
    | Umgebung  | `VITE_ENVIRONMENT` | `DEV`, `TST` oder `PRD`                         |
-   | Firebase  | `VITE_FIREBASE_*`  | API-Key, Auth-Domain etc. für Authentifizierung |
-   | Supabase  | `VITE_SUPABASE_*`  | URL, Anon-Key und Service-Role-Key              |
+   | Supabase  | `VITE_SUPABASE_*`  | URL und Anon-Key                                |
    | Sentry    | `VITE_SENTRY_DSN`  | DSN für Fehler-Tracking                         |
    | Umami     | `VITE_UMAMI_*`     | Host und Website-ID für Analytics               |
 
@@ -125,7 +121,6 @@ chuchipirat/
 │   ├── volumes/functions/      # Supabase Edge Functions
 │   ├── config.toml             # Supabase-Konfiguration
 │   └── docker-compose.yml      # Docker-Setup für lokale Instanz
-├── functions/                  # Firebase Cloud Functions (Legacy)
 ├── .env.example                # Vorlage für Umgebungsvariablen
 ├── vite.config.ts              # Vite-Konfiguration
 ├── tsconfig.json               # TypeScript-Konfiguration

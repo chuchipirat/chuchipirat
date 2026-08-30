@@ -5,7 +5,7 @@
  * Suche/Filter, Detail-Dialog, Einzellöschung, Massenlöschung,
  * und Fehlerbehandlung.
  *
- * Firebase, Supabase und AuthUser werden vollständig gemockt.
+ * Supabase und AuthUser werden vollständig gemockt.
  */
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
@@ -47,10 +47,6 @@ jest.mock("../../../Session/authUserContext", () => ({
   }),
 }));
 
-const mockFirebase = {};
-jest.mock("../../../Firebase/firebaseContext", () => ({
-  useFirebase: () => mockFirebase,
-}));
 
 /** Mock: useCustomDialog — simuliert den Bestätigungsdialog */
 const mockCustomDialog = jest.fn();

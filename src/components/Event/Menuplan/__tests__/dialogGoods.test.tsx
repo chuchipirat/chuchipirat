@@ -10,7 +10,7 @@ import {render, screen, fireEvent} from "@testing-library/react";
 
 import {DialogGoods} from "../dialogGoods";
 import {GoodsType} from "../menuplan.types";
-import AuthUser from "../../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../../Session/authUser.class";
 import {Product} from "../../../Product/product.types";
 import {Material} from "../../../Material/material.types";
 import {Unit} from "../../../Unit/unit.class";

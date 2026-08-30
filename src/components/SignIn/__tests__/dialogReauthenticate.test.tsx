@@ -37,14 +37,6 @@ jest.mock("../../User/user.class", () => ({
   },
 }));
 
-/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
-jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
-  __esModule: true,
-  default: {
-    translateMessage: () => null,
-  },
-}));
-
 /** Mock: SupabaseMessageHandler — gibt error.message direkt zurück */
 jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   __esModule: true,
@@ -58,7 +50,7 @@ jest.mock("../../Database/supabaseMessageHandler.class", () => ({
 // =================================================================== */
 import {DialogReauthenticate} from "../dialogReauthenticate";
 import {User} from "../../User/user.class";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 
 // Typisierte Referenz auf Mock-Funktion
 const mockRegisterSignIn = User.registerSignIn as jest.Mock;

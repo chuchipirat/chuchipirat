@@ -13,6 +13,7 @@ import {
 } from "@mui/material";
 
 import {Utils} from "../Shared/utils.class";
+import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 import {User} from "./user.class";
 
 import {
@@ -27,7 +28,7 @@ import {
   ERROR_GENERIC as TEXT_ERROR_GENERIC,
 } from "../../constants/text";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import DatabaseService from "../Database/DatabaseService";
 
 /* ===================================================================
@@ -105,6 +106,12 @@ const DialogAddUser = ({
           setUserEmail("");
         })
         .catch((error) => {
+          // "Keine Person mit dieser E-Mail" ist ein Nutzer-Hinweis —
+          // die konkrete Meldung anzeigen, nicht an Sentry melden.
+          if (error instanceof FieldValidationError) {
+            setInfoBox({visible: true, text: error.message});
+            return;
+          }
           Sentry.captureException(error);
           setInfoBox({visible: true, text: TEXT_ERROR_GENERIC});
         });

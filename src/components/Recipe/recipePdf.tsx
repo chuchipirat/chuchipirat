@@ -14,7 +14,7 @@ import Recipe, {
   RecipeType,
   Section,
 } from "./recipe.class";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {MenueCoordinates} from "../Event/Menuplan/menuplan.types";
 import {Footer} from "../Shared/pdfComponents";
 

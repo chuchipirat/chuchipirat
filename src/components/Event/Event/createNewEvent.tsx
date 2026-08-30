@@ -19,6 +19,7 @@ import {
 
 import {
   CREATE_YOUR_EVENT as TEXT_CREATE_YOUR_EVENT,
+  ERROR_SESSION_EXPIRED as TEXT_ERROR_SESSION_EXPIRED,
   WHAT_ARE_YOU_UP_TO as TEXT_WHAT_ARE_YOU_UP_TO,
   EVENT_INFO as TEXT_EVENT_INFO,
   QUANTITY_CALCULATION_INFO as TEXT_QUANTITY_CALCULATION_INFO,
@@ -43,9 +44,10 @@ import {
   EVENT as ROUTE_EVENT,
 } from "../../../constants/routes";
 
-import {useFirebase} from "../../Firebase/firebaseContext";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
+import {postActivityFeed} from "../../Shared/feedActivity";
+import {isRlsViolationError, toError} from "../../../utils/errorUtils";
 
 import {
   NavigationValuesContext,
@@ -275,7 +277,6 @@ function mapGroupConfigToGroupConfigDomain(
  * Führt den Benutzer durch: Event-Info → Gruppenkonfiguration → Abschluss.
  */
 const CreateEventPage = () => {
-  const firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
@@ -420,16 +421,16 @@ const CreateEventPage = () => {
     trackEvent(AnalyticsEvent.EVENT_CREATED);
 
     // 8. Feed-Einträge erstellen (nicht blockierend)
-    database.feeds
-      .insertFeed(
-        {
-          feedType: FeedType.eventCreated,
-          sourceObjectType: "event",
-          sourceObjectUid: eventDomain.uid,
-        },
-        authUser,
-      )
-      .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+    postActivityFeed({
+      database,
+      feed: {
+        feedType: FeedType.eventCreated,
+        sourceObjectType: "event",
+        sourceObjectUid: eventDomain.uid,
+      },
+      authUser,
+      context: "Anlass erstellt",
+    });
 
     const usersForFeed = database.users;
     for (const cook of state.event.cooks) {
@@ -438,17 +439,23 @@ const CreateEventPage = () => {
           .findById(cook.uid)
           .then((userDomain) => {
             if (!userDomain?.uid) return;
-            return database.feeds.insertFeed(
-              {
+            postActivityFeed({
+              database,
+              feed: {
                 feedType: FeedType.eventCookAdded,
                 sourceObjectType: "event",
                 sourceObjectUid: eventDomain.uid,
                 userUid: userDomain.uid,
               },
               authUser,
-            );
+              context: "Koch zum Anlass hinzugefügt",
+            });
           })
-          .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+          .catch((error) =>
+            Sentry.captureException(error, {
+              extra: {context: "Koch für Feed-Eintrag laden"},
+            }),
+          );
       }
     }
 
@@ -483,8 +490,22 @@ const CreateEventPage = () => {
       await saveEvent(value);
       setActiveStep(WizardSteps.completion);
     } catch (error) {
-      Sentry.captureException(error);
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+      if (isRlsViolationError(error)) {
+        // RLS-Verletzung beim Event-INSERT = Sitzung fehlt/abgelaufen
+        // (Policy prüft nur auth.uid() IS NOT NULL). Nutzer-Hinweis, kein Bug.
+        Sentry.addBreadcrumb({
+          category: "auth",
+          message: "Event-Erstellung abgebrochen — Sitzung vermutlich abgelaufen (RLS)",
+          level: "warning",
+        });
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: new Error(TEXT_ERROR_SESSION_EXPIRED),
+        });
+      } else {
+        Sentry.captureException(toError(error));
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: toError(error)});
+      }
       window.scrollTo({top: 0, behavior: "smooth"});
     }
   };
@@ -541,7 +562,6 @@ const CreateEventPage = () => {
               event={state.event}
               localPicture={state.localPicture}
               formValidation={state.eventFormValidation}
-              firebase={firebase}
               database={database}
               authUser={authUser}
               onUpdateEvent={onUpdateEvent}
@@ -575,7 +595,6 @@ const CreateEventPage = () => {
       case WizardSteps.groupConfig:
         return (
           <EventGroupConfigurationPage
-            firebase={firebase}
             authUser={authUser}
             event={state.event}
             deferSave={true}

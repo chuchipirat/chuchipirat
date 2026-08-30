@@ -2,7 +2,7 @@
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
-import {SessionStorageHandler} from "../../Firebase/Db/sessionStorageHandler.class";
+import {SessionStorageHandler} from "../../Shared/sessionStorageHandler.class";
 
 /** Mock: Utils — Standardwerte für Testumgebung */
 jest.mock("../../Shared/utils.class", () => ({
@@ -50,7 +50,7 @@ jest.mock("../AppLayout", () => ({
 jest.mock("@sentry/react", () => ({
   feedbackIntegration: () => ({attachTo: jest.fn()}),
 }));
-jest.mock("../../Firebase/Db/sessionStorageHandler.class", () => ({
+jest.mock("../../Shared/sessionStorageHandler.class", () => ({
   SessionStorageHandler: {
     clearAll: jest.fn(),
   },

@@ -34,7 +34,6 @@ import {
   Send as SendIcon,
   RssFeed as RssFeedIcon,
   Feedback as FeedbackIcon,
-  SwapHoriz as SwapHorizIcon,
   People as PeopleIcon,
   Schedule as ScheduleIcon,
   HealthAndSafety as HealthAndSafetyIcon,
@@ -62,8 +61,6 @@ import {
   ACTIVATE_SUPPORT_USER_DESCRIPTION as TEXT_ACTIVATE_SUPPORT_USER_DESCRIPTION,
   MAIL_CONSOLE as TEXT_MAIL_CONSOLE,
   MAIL_CONSOLE_DESCRIPTION as TEXT_MAIL_CONSOLE_DESCRIPTION,
-  MIGRATION as TEXT_MIGRATION,
-  MIGRATION_DESCRIPTION as TEXT_MIGRATION_DESCRIPTION,
   MAILBOX as TEXT_MAILBOX,
   FEEDS as TEXT_FEEDS,
   SYSTEM_MESSAGE as TEXT_SYSTEM_MESSAGE,
@@ -102,7 +99,6 @@ import {
   SYSTEM_OVERVIEW_EVENTS as ROUTE_SYSTEM_OVERVIEW_EVENTS,
   SYSTEM_ACTIVATE_SUPPORT_USER as ROUTE_SYSTEM_ACTIVATE_SUPPORT_USER,
   SYSTEM_MAIL_CONSOLE as ROUTE_SYSTEM_MAIL_CONSOLE,
-  SYSTEM_MIGRATION as ROUTE_SYSTEM_MIGRATION,
   SYSTEM_OVERVIEW_MAILBOX as ROUTE_SYSTEM_OVERVIEW_MAILBOX,
   SYSTEM_OVERVIEW_FEEDS as ROUTE_OVERVIEW_FEEDS,
   SYSTEM_SYSTEM_MESSAGES as ROUTE_SYSTEM_SYSTEM_MESSAGES,
@@ -308,16 +304,6 @@ const SystemPage = () => {
                   icon={<MailIcon />}
                   action={goToDestination}
                   routeDestination={ROUTE_SYSTEM_MAIL_CONSOLE}
-                />
-              </Grid>
-              <Grid size={{xs: 12, sm: 6, md: 4}}>
-                <AdminTile
-                  id="migration"
-                  text={TEXT_MIGRATION}
-                  description={TEXT_MIGRATION_DESCRIPTION}
-                  icon={<SwapHorizIcon />}
-                  action={goToDestination}
-                  routeDestination={ROUTE_SYSTEM_MIGRATION}
                 />
               </Grid>
             </>

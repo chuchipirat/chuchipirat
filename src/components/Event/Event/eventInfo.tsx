@@ -55,8 +55,6 @@ import {
   ADD_COOK_TO_EVENT as TEXT_ADD_COOK_TO_EVENT,
   QUESTION_DELETE_IMAGE as TEXT_QUESTION_DELETE_IMAGE,
   DELETE as TEXT_DELETE,
-  RECEIPT as TEXT_RECEIPT,
-  CREATE_RECEIPT as TEXT_CREATE_RECEIPT,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
   IMAGE_FORMAT_NOT_SUPPORTED as TEXT_IMAGE_FORMAT_NOT_SUPPORTED,
   IMAGE_TOO_LARGE as TEXT_IMAGE_TOO_LARGE,
@@ -69,13 +67,13 @@ import {useCustomStyles} from "../../../constants/styles";
 
 import {ImageRepository} from "../../../constants/imageRepository";
 
-import {Event,EventRefDocuments} from "./event.class";
+import {Event} from "./event.class";
 import {User} from "../../User/user.class";
 
-import Firebase from "../../Firebase/firebase.class";
 import DatabaseService from "../../Database/DatabaseService";
 import {FeedType} from "../../Shared/feed.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {postActivityFeed} from "../../Shared/feedActivity";
+import AuthUser from "../../Session/authUser.class";
 import {Utils} from "../../Shared/utils.class";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
 import {DialogAddUser} from "../../User/dialogAddUser";
@@ -89,8 +87,6 @@ import {
   NavigationValuesContext,
 } from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
-import {Receipt} from "./receipt.class";
-import {EventReceiptPdf} from "./eventRecipePdf";
 import {EventDate} from "./event.class";
 import {DatePicker} from "@mui/x-date-pickers";
 import dayjs, {Dayjs} from "dayjs";
@@ -159,8 +155,6 @@ interface EventInfoPageProps {
   event: Event;
   /** Lokal ausgewähltes Bild (noch nicht hochgeladen). */
   localPicture: File | null;
-  /** Firebase-Instanz für DB-Zugriffe. */
-  firebase: Firebase;
   /** Datenbank-Service für Supabase-Zugriffe. */
   database: DatabaseService;
   /** Authentifizierter Benutzer. */
@@ -185,7 +179,6 @@ interface EventInfoPageProps {
 const EventInfoPage = ({
   event,
   localPicture,
-  firebase,
   database,
   authUser,
   formValidation,
@@ -362,17 +355,17 @@ const EventInfoPage = ({
         trackEvent(AnalyticsEvent.EVENT_COOK_ADDED);
 
         // Feed-Eintrag: Koch zum Team hinzugefügt
-        database.feeds
-          .insertFeed(
-            {
-              feedType: FeedType.eventCookAdded,
-              sourceObjectType: "event",
-              sourceObjectUid: event.uid,
-              userUid: personUid,
-            },
-            authUser,
-          )
-          .catch((error) => Sentry.captureException(error, {extra: {context: "Feed-Eintrag erstellen"}}));
+        postActivityFeed({
+          database,
+          feed: {
+            feedType: FeedType.eventCookAdded,
+            sourceObjectType: "event",
+            sourceObjectUid: event.uid,
+            userUid: personUid,
+          },
+          authUser,
+          context: "Koch zum Team hinzugefügt",
+        });
       }
 
       onUpdateEvent({...event, cooks: updatedCooks} as Event);
@@ -416,28 +409,6 @@ const EventInfoPage = ({
     }
   };
   /* ------------------------------------------
-  // Quittung
-  // ------------------------------------------ */
-  const onDownloadReceipt = async () => {
-    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "receipt"});
-    try {
-      const receiptData = await Receipt.getReceipt({
-        firebase: firebase,
-        eventUid: event.uid,
-      });
-      await generateAndDownloadPdf(
-        <EventReceiptPdf receiptData={receiptData} authUser={authUser} />,
-        event.name + TEXT_CREATE_RECEIPT + TEXT_SUFFIX_PDF,
-        (error) => onError?.(error),
-        {eventUid: event.uid},
-      );
-    } catch (error) {
-      Sentry.captureException(error);
-      onError?.(error as Error);
-    }
-  };
-
-  /* ------------------------------------------
   // Spendenquittung
   // ------------------------------------------ */
   const onDownloadDonationReceipt = async () => {
@@ -471,7 +442,6 @@ const EventInfoPage = ({
           previewPictureUrl={
             localPicture ? URL.createObjectURL(localPicture) : ""
           }
-          onDownloadReceipt={onDownloadReceipt}
           eventDonation={eventDonation}
           onDownloadDonationReceipt={onDownloadDonationReceipt}
         />
@@ -516,8 +486,6 @@ interface EventBasicInfoCardProps {
   onImageDelete: () => void;
   /** Callback bei Fehlern (z.B. Bildvalidierung). */
   onError?: (error: Error) => void;
-  /** Callback zum Herunterladen der Quittung als PDF. */
-  onDownloadReceipt: () => void;
   /** Bestätigte Spende für dieses Event (null wenn keine vorhanden). */
   eventDonation: DonationDomain | null;
   /** Callback zum Herunterladen der Spendenquittung als PDF. */
@@ -539,7 +507,6 @@ const EventBasicInfoCard = ({
   onImageUpload,
   onImageDelete,
   onError,
-  onDownloadReceipt,
   eventDonation,
   onDownloadDonationReceipt,
   previewPictureUrl,
@@ -553,32 +520,20 @@ const EventBasicInfoCard = ({
         title={TEXT_EVENT_INFO}
         subheader={TEXT_DEFINE_BASIC_EVENT_DATA}
         action={
-          (event.refDocuments?.includes(EventRefDocuments.receipt) ||
-            eventDonation) && (
+          eventDonation && (
             <Stack
               direction="row"
               spacing={1}
               sx={{mt: theme.spacing(1), mr: theme.spacing(0.6)}}
             >
-              {event.refDocuments?.includes(EventRefDocuments.receipt) && (
-                <Button
-                  color="primary"
-                  variant="outlined"
-                  onClick={onDownloadReceipt}
-                >
-                  {TEXT_RECEIPT}
-                </Button>
-              )}
-              {eventDonation && (
-                <Button
-                  color="primary"
-                  variant="outlined"
-                  startIcon={<ReceiptLongIcon />}
-                  onClick={onDownloadDonationReceipt}
-                >
-                  {TEXT_DONATION_RECEIPT_DOWNLOAD}
-                </Button>
-              )}
+              <Button
+                color="primary"
+                variant="outlined"
+                startIcon={<ReceiptLongIcon />}
+                onClick={onDownloadDonationReceipt}
+              >
+                {TEXT_DONATION_RECEIPT_DOWNLOAD}
+              </Button>
             </Stack>
           )
         }

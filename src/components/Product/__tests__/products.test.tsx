@@ -45,10 +45,6 @@ jest.mock("../../../constants/imageRepository", () => ({
   },
 }));
 
-/** Mock: useFirebase — gibt ein leeres Objekt zurueck (Firebase wird noch fuer Feed + Material benoetigt) */
-jest.mock("../../Firebase/firebaseContext", () => ({
-  useFirebase: () => ({}),
-}));
 
 /** Mock: @mui/x-data-grid — DataGrid rendert nicht korrekt in jsdom */
 jest.mock("@mui/x-data-grid", () => ({

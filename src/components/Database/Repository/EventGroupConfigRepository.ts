@@ -10,12 +10,13 @@
  * const config = await repo.getGroupConfig(eventId);
  */
 import {SupabaseClient} from "@supabase/supabase-js";
+import {subscribeWithRetry} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+} from "../../Shared/sessionStorageHandler.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {EventGroupConfiguration,
   Diet,
   Intolerance,
@@ -381,32 +382,21 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
     onData: (config: GroupConfigDomain) => void,
     onError: (error: Error) => void,
   ): () => void {
-    const clientRef = this.client;
-
-    const reloadConfig = () => {
-      this.getGroupConfig(eventId)
-        .then((config) => onData(config))
-        .catch((err) =>
-          onError(err instanceof Error ? err : new Error(String(err))),
-        );
-    };
-
     // Ein einziger Channel für alle 3 GroupConfig-Tabellen — spart Realtime-Connections
-    const channel = clientRef
-      .channel(`groupconfig:${eventId}`)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_groupconfiguration_diets", filter: `event_id=eq.${eventId}`}, reloadConfig)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_groupconfiguration_intolerances", filter: `event_id=eq.${eventId}`}, reloadConfig)
-      .on("postgres_changes", {event: "*", schema: "public", table: "event_groupconfiguration_portions", filter: `event_id=eq.${eventId}`}, reloadConfig)
-      .subscribe((status, err) => {
-        console.debug(`Realtime groupconfig:${eventId} status: ${status}`, err ?? "");
-        if (status === "CHANNEL_ERROR") {
-          onError(new Error(`Realtime-Fehler für groupconfig:${eventId}`));
-        }
-      });
-
-    return () => {
-      clientRef.removeChannel(channel);
-    };
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `groupconfig:${eventId}`,
+      bindings: [
+        {table: "event_groupconfiguration_diets", filter: `event_id=eq.${eventId}`},
+        {table: "event_groupconfiguration_intolerances", filter: `event_id=eq.${eventId}`},
+        {table: "event_groupconfiguration_portions", filter: `event_id=eq.${eventId}`},
+      ],
+      onChange: async () => {
+        const config = await this.getGroupConfig(eventId);
+        onData(config);
+      },
+      onError,
+    });
   }
 
   /* =====================================================================

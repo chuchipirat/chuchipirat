@@ -20,7 +20,7 @@ import {
   ConditionalFeedbackFab,
   ConditionalFooter,
 } from "./AppLayout";
-import {SessionStorageHandler} from "../Firebase/Db/sessionStorageHandler.class";
+import {SessionStorageHandler} from "../Shared/sessionStorageHandler.class";
 import {SentryRouteTracker} from "../Sentry/SentryRouteTracker";
 import {FEEDBACK as TEXT_FEEDBACK} from "../../constants/text";
 

@@ -1,18 +1,14 @@
-import * as Sentry from "@sentry/react";
-
 import {Role} from "../../constants/roles";
-
-import Firebase from "../Firebase/firebase.class";
 
 import {
   USER_PROFILE_ERROR_DISPLAYNAME_MISSING as TEXT_USER_PROFILE_ERROR_DISPLAYNAME_MISSING,
   NO_USER_WITH_THIS_EMAIL as TEXT_NO_USER_WITH_THIS_EMAIL,
 } from "../../constants/text";
-import {AuthUser} from "../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../Session/authUser.class";
 import {UserPublicProfile} from "./user.public.profile.class";
-import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
 
 import {resizeImage} from "../Shared/imageResize";
+import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 import DatabaseService from "../Database/DatabaseService";
 
 /**
@@ -75,12 +71,6 @@ interface GetUser {
   uid: string;
 }
 
-/** Parameter für {@link User.getAllUsers} */
-interface GetAllUsers {
-  /** Firebase-Instanz (nutzt noch Firebase für diese Abfrage) */
-  firebase: Firebase;
-}
-
 /** Parameter für {@link User.getUsersOverview} */
 interface GetUsersOverview {
   /** DatabaseService-Instanz für Supabase-Zugriff */
@@ -97,8 +87,6 @@ interface GetPublicProfile {
 
 /** Parameter für {@link User.getFullProfile} */
 interface GetFullProfile {
-  /** Firebase-Instanz (optional, nicht mehr benötigt seit Supabase-Migration) */
-  firebase?: Firebase;
   /** DatabaseService-Instanz für Supabase-Zugriff */
   database: DatabaseService;
   /** UID des gesuchten Users */
@@ -107,8 +95,6 @@ interface GetFullProfile {
 
 /** Parameter für {@link User.saveFullProfile} */
 interface SaveFullProfile {
-  /** Firebase-Instanz (für Storage und Cloud Functions) */
-  firebase: Firebase;
   /** DatabaseService-Instanz für Supabase-Zugriff */
   database: DatabaseService;
   /** Das zu speichernde Benutzerprofil */
@@ -131,8 +117,6 @@ interface UploadPicture {
 
 /** Parameter für {@link User.deletePicture} */
 interface DeletePicture {
-  /** Firebase-Instanz (für Storage) */
-  firebase: Firebase;
   /** DatabaseService-Instanz für Supabase-Zugriff */
   database: DatabaseService;
   /** Der angemeldete Benutzer */
@@ -141,8 +125,6 @@ interface DeletePicture {
 
 /** Parameter für {@link User.updateRoles} */
 interface UpdateRoles {
-  /** Firebase-Instanz (noch benötigt während Übergangsphase) */
-  firebase: Firebase;
   /** DatabaseService-Instanz für Supabase-Zugriff */
   database: DatabaseService;
   /** UID des Benutzers, dessen Rollen geändert werden */
@@ -167,7 +149,6 @@ interface UpdateStats {
  * Zentrale Service-Klasse für Benutzeroperationen.
  *
  * Delegiert die meisten DB-Operationen an das UserRepository (Supabase/Postgres).
- * Firebase wird noch für Storage und einige Legacy-Abfragen verwendet.
  */
 export class User {
   uid: string;
@@ -211,28 +192,6 @@ export class User {
   }
 
   /* =====================================================================
-  // Alle User holen
-  // ===================================================================== */
-  /**
-   * Lädt alle User aus Firebase (Legacy-Methode).
-   *
-   * @param firebase - Firebase-Instanz
-   * @returns Array aller User
-   * @throws Error bei Datenbankfehler
-   */
-  static async getAllUsers({firebase}: GetAllUsers) {
-    try {
-      return await firebase.user.readCollection<User>({
-        uids: [""],
-        orderBy: {field: "firstName", sortOrder: SortOrder.desc},
-        ignoreCache: true,
-      });
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
-  }
-  /* =====================================================================
   // Übersicht aller User holen
   // ===================================================================== */
   /**
@@ -268,14 +227,15 @@ export class User {
    * @param database - DatabaseService-Instanz
    * @param email - E-Mail-Adresse zum Suchen
    * @returns UID des gefundenen Users
-   * @throws Error wenn kein User mit dieser E-Mail gefunden wird
+   * @throws {FieldValidationError} Wenn kein User mit dieser E-Mail gefunden
+   *   wird — Nutzer-Hinweis, wird nicht an Sentry gemeldet.
    */
   static getUidByEmail = async ({database, email, eventId}: GetUidByEmail) => {
     const users = database.users;
     const userUid = await users.findByEmail(email, eventId);
 
     if (!userUid) {
-      throw new Error(TEXT_NO_USER_WITH_THIS_EMAIL);
+      throw new FieldValidationError(TEXT_NO_USER_WITH_THIS_EMAIL);
     }
     return userUid;
   };
@@ -373,14 +333,12 @@ export class User {
    * Speichert die vom Benutzer änderbaren Profilwerte.
    * Lädt optional ein neues Profilbild hoch.
    *
-   * @param firebase - Firebase-Instanz (für Storage)
    * @param database - DatabaseService-Instanz
    * @param userProfile - Das zu speichernde Profil
    * @param authUser - Der angemeldete Benutzer
    * @param localPicture - Optionale Bilddatei zum Hochladen
    */
   static saveFullProfile = async ({
-    firebase,
     database,
     userProfile,
     localPicture,
@@ -398,7 +356,6 @@ export class User {
         // Vorhandenes Bild löschen
         try {
           await User.deletePicture({
-            firebase: firebase,
             database: database,
             authUser: authUser,
           });

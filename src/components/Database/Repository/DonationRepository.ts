@@ -14,8 +14,8 @@ import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+} from "../../Shared/sessionStorageHandler.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {
   DonationDomain,
   DonationRow,
@@ -25,6 +25,7 @@ import {
   DonationGoalStats,
   COUNTABLE_DONATION_STATUSES,
 } from "../../Donate/donation.types";
+import {isUuid} from "../../../utils/uuid";
 
 /* =====================================================================
 // DonationRepository
@@ -146,6 +147,13 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
    * @returns Eigene Spenden, sortiert nach Erstellungsdatum (neueste zuerst).
    */
   async getMyDonations(authUser: AuthUser): Promise<DonationDomain[]> {
+    // Aus einem veralteten Cache kann eine Firebase-UID durchsickern. Eine
+    // ungültige ID an .eq() würde Postgres "invalid input syntax for type
+    // uuid" (22P02) werfen statt ein leeres Ergebnis zurückzugeben.
+    if (!isUuid(authUser.uid)) {
+      return [];
+    }
+
     try {
       const {data, error} = await this.client
         .from(this.viewName)

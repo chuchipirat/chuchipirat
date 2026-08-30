@@ -44,7 +44,7 @@ import {
 } from "../../constants/text";
 
 import * as Sentry from "@sentry/react";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================

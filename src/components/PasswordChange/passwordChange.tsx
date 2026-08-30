@@ -7,6 +7,7 @@
  */
 import React from "react";
 import * as Sentry from "@sentry/react";
+import {isAuthApiError} from "@supabase/supabase-js";
 
 import {Link, useNavigate} from "react-router";
 
@@ -38,15 +39,12 @@ import {AlertMessage} from "../Shared/AlertMessage";
 import {DialogReauthenticate} from "../SignIn/dialogReauthenticate";
 import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 
-import {AuthMessages} from "../../constants/firebaseMessages";
 import * as ROUTES from "../../constants/routes";
 import {
   EMAIL as TEXT_EMAIL,
   PASSWORD_CHANGE as TEXT_PASSWORD_CHANGE,
   LOGIN_CHANGE as TEXT_LOGIN_CHANGE,
   PASSWORD_CHANGE_ARE_YOU_READY as TEXT_PASSWORD_CHANGE_ARE_YOU_READY,
-  ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
-  PASSWORD_RESET_EXPIRED as TEXT_PASSWORD_RESET_EXPIRED,
   ONE_TWO_TRHEE_DONE as TEXT_ONE_TWO_TRHEE_DONE,
   PASSWORD_HAS_BEEN_CHANGED as TEXT_PASSWORD_HAS_BEEN_CHANGED,
   EMAIL_HAS_BEEN_CHANGED as TEXT_EMAIL_HAS_BEEN_CHANGED,
@@ -64,9 +62,7 @@ import {
   PASSWORD_RESET_GO_TO_SIGN_IN as TEXT_GO_TO_SIGN_IN,
 } from "../../constants/text";
 import {ImageRepository} from "../../constants/imageRepository";
-import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
 import {Utils} from "../Shared/utils.class";
-import {FirebaseError} from "@firebase/util";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {trackEvent} from "../Analytics/analyticsService";
@@ -86,6 +82,11 @@ enum ReducerActions {
   SET_SUBMITTING,
 }
 
+/** Authentifizierungsfehler mit optionalem Code (z.B. von Supabase Auth). */
+export interface AuthError extends Error {
+  code?: string;
+}
+
 /** Daten für E-Mail- und Passwortänderung. */
 type PasswordChangeData = {
   email: string;
@@ -96,8 +97,8 @@ type PasswordChangeData = {
 /** State der PasswordChange-Seite mit getrennten Fehler-/Erfolgsfeldern. */
 type State = {
   passwordChangeData: PasswordChangeData;
-  emailError: FirebaseError | null;
-  passwordError: FirebaseError | null;
+  emailError: AuthError | null;
+  passwordError: AuthError | null;
   successPwChange: boolean;
   successEmailChange: boolean;
   isSubmittingEmail: boolean;
@@ -110,8 +111,8 @@ type State = {
  */
 type DispatchAction =
   | {type: ReducerActions.UPDATE_FIELD; payload: {field: string; value: string}}
-  | {type: ReducerActions.EMAIL_ERROR; payload: FirebaseError}
-  | {type: ReducerActions.PASSWORD_ERROR; payload: FirebaseError}
+  | {type: ReducerActions.EMAIL_ERROR; payload: AuthError}
+  | {type: ReducerActions.PASSWORD_ERROR; payload: AuthError}
   | {type: ReducerActions.SUCCESS_MAIL_CHANGE}
   | {type: ReducerActions.SUCCESS_PW_CHANGE}
   | {type: ReducerActions.SUCCESS_REAUTHENTICATION}
@@ -278,7 +279,7 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
     if (authUser.email === state.passwordChangeData.email) {
       dispatch({
         type: ReducerActions.EMAIL_ERROR,
-        payload: {code: "", message: TEXT_NEW_EMAIL_IDENTICAL} as FirebaseError,
+        payload: {code: "", message: TEXT_NEW_EMAIL_IDENTICAL} as AuthError,
       });
       return;
     }
@@ -291,8 +292,12 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
       trackEvent(AnalyticsEvent.EMAIL_CHANGED);
       dispatch({type: ReducerActions.SUCCESS_MAIL_CHANGE});
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "E-Mail ändern"}});
-      dispatch({type: ReducerActions.EMAIL_ERROR, payload: error as FirebaseError});
+      // Supabase-Auth-API-Fehler (z.B. "E-Mail bereits vergeben") sind
+      // Nutzer-Hinweise — nur anzeigen, nicht an Sentry melden.
+      if (!isAuthApiError(error)) {
+        Sentry.captureException(error, {extra: {context: "E-Mail ändern"}});
+      }
+      dispatch({type: ReducerActions.EMAIL_ERROR, payload: error as AuthError});
     }
   };
   /* ------------------------------------------
@@ -307,8 +312,12 @@ const PasswordChangePage: React.FC<PasswordChangePageProps> = ({oobCode}) => {
       trackEvent(AnalyticsEvent.PASSWORD_CHANGED);
       dispatch({type: ReducerActions.SUCCESS_PW_CHANGE});
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "Passwort ändern"}});
-      dispatch({type: ReducerActions.PASSWORD_ERROR, payload: error as FirebaseError});
+      // Supabase-Auth-API-Fehler (z.B. "neues Passwort = altes Passwort",
+      // "zu schwach") sind Nutzer-Hinweise — nur anzeigen, nicht an Sentry.
+      if (!isAuthApiError(error)) {
+        Sentry.captureException(error, {extra: {context: "Passwort ändern"}});
+      }
+      dispatch({type: ReducerActions.PASSWORD_ERROR, payload: error as AuthError});
     }
   };
   /* ------------------------------------------
@@ -400,7 +409,7 @@ interface EmailChangeCardProps {
   /** Ob gerade eine API-Anfrage läuft. */
   isSubmitting: boolean;
   /** Fehler bei der E-Mail-Änderung (oder null). */
-  error: FirebaseError | null;
+  error: AuthError | null;
   /** Handler für Feldänderungen. */
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   /** Handler zum Absenden der E-Mail-Änderung. */
@@ -498,7 +507,7 @@ interface PasswordChangeCardProps {
   /** Ob gerade eine API-Anfrage läuft. */
   isSubmitting: boolean;
   /** Fehler bei der Passwort-Änderung (oder null). */
-  error: FirebaseError | null;
+  error: AuthError | null;
   /** Handler für Feldänderungen. */
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   /** Handler zum Absenden der Passwort-Änderung. */
@@ -580,15 +589,6 @@ const PasswordChangeCard = ({
         >
           {resetCode ? TEXT_PASSWORD_CHANGE_ARE_YOU_READY : TEXT_CHANGE_PASSWORD}
         </Typography>
-        {error &&
-        (error.code === AuthMessages.EXPIRED_ACTION_CODE ||
-          error.code === AuthMessages.INVALID_ACTION_CODE) ? (
-          <Alert severity="warning">
-            <AlertTitle>{TEXT_ALERT_TITLE_UUPS}</AlertTitle>
-            {TEXT_PASSWORD_RESET_EXPIRED}
-            <ForgotPasswordLink />
-          </Alert>
-        ) : null}
         {successPwChange && (
           <Alert severity="success">
             <AlertTitle>{TEXT_ONE_TWO_TRHEE_DONE}</AlertTitle>

@@ -28,18 +28,26 @@ jest.mock("../../Shared/utils.class", () => ({
   },
 }));
 
+/** Mock: Sentry — um zu prüfen, dass Nutzer-Hinweise NICHT gemeldet werden */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
+import * as Sentry from "@sentry/react";
 import {DialogAddUser} from "../dialogAddUser";
 import {User} from "../user.class";
 import {Utils} from "../../Shared/utils.class";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
+import AuthUser from "../../Session/authUser.class";
 import DatabaseService from "../../Database/DatabaseService";
 
 // Typisierte Mock-Referenzen
 const mockGetUidByEmail = User.getUidByEmail as jest.Mock;
 const mockIsEmail = Utils.isEmail as jest.Mock;
+const mockCaptureException = Sentry.captureException as jest.Mock;
 
 /** Mock-AuthUser mit E-Mail */
 const mockAuthUser = {
@@ -131,10 +139,10 @@ describe("DialogAddUser", () => {
     });
   });
 
-  it("zeigt Fehlermeldung wenn User nicht gefunden wird", async () => {
+  it("zeigt die konkrete Meldung wenn kein User gefunden wird und meldet nicht an Sentry", async () => {
     mockIsEmail.mockReturnValue(true);
     mockGetUidByEmail.mockRejectedValue(
-      new Error("Kein*e Benutzer*in mit dieser E-Mail-Adresse gefunden"),
+      new FieldValidationError("Wir kennen keine Person mit dieser E-Mail-Adresse."),
     );
     renderDialog();
 
@@ -142,7 +150,11 @@ describe("DialogAddUser", () => {
     await userEvent.type(emailInput, "unknown@example.com");
     await userEvent.click(screen.getByRole("button", {name: /hinzufügen/i}));
 
-    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Wir kennen keine Person mit dieser E-Mail-Adresse.",
+    );
+    expect(mockCaptureException).not.toHaveBeenCalled();
   });
 
   it("ruft handleClose beim Abbrechen auf", async () => {

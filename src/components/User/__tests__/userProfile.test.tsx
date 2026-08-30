@@ -71,14 +71,6 @@ jest.mock("../../Shared/customDialogContext", () => ({
   useCustomDialog: () => ({customDialog: mockCustomDialog}),
 }));
 
-/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
-jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
-  __esModule: true,
-  default: {
-    translateMessage: () => null,
-  },
-}));
-
 /** Mock: SupabaseMessageHandler — gibt error.message direkt zurück */
 jest.mock("../../Database/supabaseMessageHandler.class", () => ({
   __esModule: true,
@@ -110,11 +102,10 @@ jest.mock("file-saver", () => ({
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
 import {UserProfilePage} from "../userProfile";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
 import {User} from "../user.class";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
 import {DonationDomain, DonationStatus} from "../../Donate/donation.types";
 
 // Typisierte Referenzen auf die Mock-Funktionen
@@ -123,9 +114,6 @@ const mockSaveFullProfile = User.saveFullProfile as jest.Mock;
 const mockUploadPicture = User.uploadPicture as jest.Mock;
 const mockDeletePicture = User.deletePicture as jest.Mock;
 const mockCheckUserProfileData = User.checkUserProfileData as jest.Mock;
-
-/** Mock-Firebase-Instanz */
-const mockFirebase = {} as any;
 
 /** Mock-DatabaseService */
 const mockGetMyDonations = jest.fn().mockResolvedValue([]);
@@ -201,13 +189,11 @@ const createDonationMock = (
 const renderUserProfilePage = (authUser = authUserMock) => {
   return render(
     <MemoryRouter initialEntries={["/profile"]}>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <DatabaseContext.Provider value={mockDatabase}>
-          <AuthUserContext.Provider value={authUser}>
-            <UserProfilePage />
-          </AuthUserContext.Provider>
-        </DatabaseContext.Provider>
-      </FirebaseContext.Provider>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserContext.Provider value={authUser}>
+          <UserProfilePage />
+        </AuthUserContext.Provider>
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 };

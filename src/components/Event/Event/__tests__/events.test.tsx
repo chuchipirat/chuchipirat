@@ -44,10 +44,6 @@ jest.mock("../../../../constants/imageRepository", () => ({
   },
 }));
 
-/** Mock: useFirebase (noch fuer andere Komponenten referenziert) */
-jest.mock("../../../Firebase/firebaseContext", () => ({
-  useFirebase: () => ({}),
-}));
 
 /** Mock: EventRepository */
 const mockGetAllEventsForUser = jest.fn();

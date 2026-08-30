@@ -582,6 +582,11 @@ export class ShoppingList {
   /**
    * Entfernt ein Item aus der Liste. Löscht die Abteilung, wenn sie leer ist.
    *
+   * Existiert die Abteilung nicht (mehr) — z.B. weil das Item zwischen dem
+   * Öffnen des Kontextmenüs und dem Klick auf "Löschen" per Realtime-Update
+   * oder einem Doppel-Tap bereits entfernt wurde —, wird die Liste unverändert
+   * zurückgegeben.
+   *
    * @param params - Item-Identifikation (UID, Einheit, Abteilung)
    * @returns Aktualisierte ShoppingList (Kopie)
    */
@@ -593,12 +598,16 @@ export class ShoppingList {
   }: DeleteItemParams) => {
     const updatedShoppingList = structuredClone(shoppingListReference) as ShoppingList;
 
-    updatedShoppingList.list[departmentKey].items =
-      updatedShoppingList.list[departmentKey].items.filter(
-        (item) => item.unit !== unit || item.item.uid !== itemUid,
-      );
+    const department = updatedShoppingList.list[departmentKey];
+    if (!department) {
+      return updatedShoppingList;
+    }
 
-    if (updatedShoppingList.list[departmentKey].items.length === 0) {
+    department.items = department.items.filter(
+      (item) => item.unit !== unit || item.item.uid !== itemUid,
+    );
+
+    if (department.items.length === 0) {
       delete updatedShoppingList.list[departmentKey];
     }
     return updatedShoppingList;

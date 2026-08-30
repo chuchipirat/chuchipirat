@@ -49,7 +49,6 @@ import {
 import {Action} from "../../constants/actions";
 import * as ROUTES from "../../constants/routes";
 import {ImageRepository} from "../../constants/imageRepository";
-import {useFirebase} from "../Firebase/firebaseContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {UserPublicProfile} from "./user.public.profile.class";
 import {getImageUrl, ImageSize} from "../Shared/imageUrl";
@@ -132,7 +131,6 @@ const publicProfileReducer = (state: State, action: DispatchAction): State => {
  * Bietet einen Bearbeiten-Button, wenn das eigene Profil angeschaut wird.
  */
 const PublicProfilePage = () => {
-  const _firebase = useFirebase();
   const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();

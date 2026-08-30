@@ -1,5 +1,5 @@
-import AuthUser from "../Firebase/Authentication/authUser.class";
-import {SortOrder} from "../Firebase/Db/firebase.db.super.class";
+import AuthUser from "../Session/authUser.class";
+import {SortOrder} from "./global.interface";
 import {ChangeRecord} from "./global.interface";
 import {once} from "@atlaskit/pragmatic-drag-and-drop/once";
 

@@ -17,7 +17,7 @@ import userEvent from "@testing-library/user-event";
 import * as Sentry from "@sentry/react";
 import {DialogMaterial, MaterialDialog} from "../dialogMaterial";
 import {MaterialType} from "../material.types";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 
 /* ===================================================================

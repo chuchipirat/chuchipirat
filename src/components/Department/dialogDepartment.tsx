@@ -17,7 +17,7 @@ import {
   CANCEL as TEXT_CANCEL,
   CREATE as TEXT_CREATE,
 } from "../../constants/text";
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
 
 /**

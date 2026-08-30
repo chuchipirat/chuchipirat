@@ -12,7 +12,7 @@ import {SignInPage, AlertMaintenanceMode} from "../signIn";
 import {SignUpLink} from "../../SignUp/signUp";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../Session/authUser.class";
 import {
   SIGN_UP as ROUTE_SIGN_UP,
   HOME as ROUTE_HOME,

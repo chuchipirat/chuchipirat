@@ -2,6 +2,7 @@ import React, {useEffect, useState} from "react";
 import * as Sentry from "@sentry/react";
 
 import {useDatabase} from "../Database/DatabaseContext";
+import {isTransientNetworkError, toError} from "../../utils/errorUtils";
 
 /** Intervall (ms), in dem der Wartungsmodus-Status im Hintergrund neu geladen wird. */
 const POLL_INTERVAL_MS = 60_000;
@@ -54,6 +55,10 @@ export const useGlobalSettings = (): GlobalSettingsState => {
  * startet mit `maintenanceMode: false` (fail-open), bis ein Read erfolgreich
  * war.
  *
+ * Vorübergehende Netzfehler (Mobilgerät kurz offline im Lager) werden bewusst
+ * verschluckt und nicht an Sentry gemeldet; nur unerwartete Fehler werden
+ * — als normalisierter `Error` — erfasst.
+ *
  * @example
  * <GlobalSettingsProvider>
  *   <App />
@@ -75,7 +80,13 @@ export const GlobalSettingsProvider: React.FC<{children: React.ReactNode}> = ({
           setState({maintenanceMode: settings?.maintenanceMode ?? false});
         }
       } catch (error) {
-        Sentry.captureException(error, {
+        // Vorübergehender Netzausfall (z.B. Mobilgerät offline im Lager): Der
+        // zuletzt bekannte Wert bleibt erhalten — kein Sentry-Rauschen für
+        // erwartetes Verhalten.
+        if (isTransientNetworkError(error)) {
+          return;
+        }
+        Sentry.captureException(toError(error), {
           extra: {context: "GlobalSettingsProvider - Einstellungen laden"},
         });
       }

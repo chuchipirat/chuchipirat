@@ -31,7 +31,7 @@ import {
   FOLLOW_CURRENT_MENUES as TEXT_FOLLOW_CURRENT_MENUES,
 } from "../../../constants/text";
 
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {Event} from "../Event/event.class";
 import {

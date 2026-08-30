@@ -108,7 +108,6 @@ describe("SystemPage", () => {
       ).toBeInTheDocument();
       expect(screen.getByText("Support-User aktivieren")).toBeInTheDocument();
       expect(screen.getByText("Mail-Konsole")).toBeInTheDocument();
-      expect(screen.getByText("Migration")).toBeInTheDocument();
       expect(screen.getByText("Datenintegrität")).toBeInTheDocument();
     });
 
@@ -177,7 +176,6 @@ describe("SystemPage", () => {
       expect(screen.queryByText("Systemmeldung")).not.toBeInTheDocument();
       expect(screen.queryByText("Job-Übersicht")).not.toBeInTheDocument();
       expect(screen.queryByText("Mail-Konsole")).not.toBeInTheDocument();
-      expect(screen.queryByText("Migration")).not.toBeInTheDocument();
       expect(screen.queryByText("Users")).not.toBeInTheDocument();
       expect(screen.queryByText("Mailbox")).not.toBeInTheDocument();
       expect(screen.queryByText("Cron Jobs")).not.toBeInTheDocument();

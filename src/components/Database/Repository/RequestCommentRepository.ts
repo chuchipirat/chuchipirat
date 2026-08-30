@@ -18,8 +18,8 @@ import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
-} from "../../Firebase/Db/sessionStorageHandler.class";
-import {AuthUser} from "../../Firebase/Authentication/authUser.class";
+} from "../../Shared/sessionStorageHandler.class";
+import {AuthUser} from "../../Session/authUser.class";
 
 /* =====================================================================
 // DB-Zeilenstruktur (snake_case, entspricht den Postgres-Spalten der View)

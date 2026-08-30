@@ -10,7 +10,7 @@ import {
   SystemMessageRow,
 } from "../SystemMessageRepository";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
-import {AuthUser} from "../../../Firebase/Authentication/authUser.class";
+import {AuthUser} from "../../../Session/authUser.class";
 import {
   systemMessageRow,
   systemMessageRow2,
@@ -18,8 +18,8 @@ import {
 } from "../__mocks__/systemMessage.mock";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
-jest.mock("../../../Firebase/Db/sessionStorageHandler.class", () => {
-  const actual = jest.requireActual("../../../Firebase/Db/sessionStorageHandler.class");
+jest.mock("../../../Shared/sessionStorageHandler.class", () => {
+  const actual = jest.requireActual("../../../Shared/sessionStorageHandler.class");
   return {
     ...actual,
     SessionStorageHandler: {

@@ -16,7 +16,7 @@ import {DialogRequest} from "../dialogRequest";
 import {RequestStatus, RequestType} from "../request.class";
 import {RequestDomain} from "../../Database/Repository/RequestRepository";
 import {RequestCommentDomain} from "../../Database/Repository/RequestCommentRepository";
-import AuthUser from "../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../Session/authUser.class";
 import {Role} from "../../../constants/roles";
 
 /* ===================================================================

@@ -12,6 +12,11 @@ import {MemoryRouter} from "react-router";
 // ======================== Mock-Setup ================================
 // =================================================================== */
 
+/** Mock: Sentry — um zu prüfen, dass Auth-Hinweise NICHT gemeldet werden */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
 /** Mock: Utils — Standardwerte für Testumgebung */
 jest.mock("../../Shared/utils.class", () => ({
   Utils: {
@@ -54,12 +59,6 @@ const mockDatabase = {
   users: {},
 } as any;
 
-/** Mock-Firebase-Instanz */
-const mockFirebase = {
-  emailChange: jest.fn(),
-  sendEmailVerification: jest.fn(),
-} as any;
-
 /** Mock: User.registerSignIn & User.updateEmail */
 jest.mock("../../User/user.class", () => ({
   User: {
@@ -74,14 +73,6 @@ jest.mock("../../../constants/imageRepository", () => ({
     getEnvironmentRelatedPicture: () => ({
       SIGN_IN_HEADER: "test-image.png",
     }),
-  },
-}));
-
-/** Mock: FirebaseMessageHandler — gibt null zurück (kein Firebase-Match) */
-jest.mock("../../Firebase/firebaseMessageHandler.class", () => ({
-  __esModule: true,
-  default: {
-    translateMessage: () => null,
   },
 }));
 
@@ -110,11 +101,14 @@ jest.mock("../../AuthServiceHandler/passwordReset", () => ({
 /* ===================================================================
 // ======================== Imports nach Mocks =========================
 // =================================================================== */
+import * as Sentry from "@sentry/react";
+import {AuthApiError} from "@supabase/supabase-js";
 import {PasswordChangePage} from "../passwordChange";
-import {FirebaseContext} from "../../Firebase/firebaseContext";
 import {DatabaseContext} from "../../Database/DatabaseContext";
 import {AuthUserContext} from "../../Session/authUserContext";
-import authUserMock from "../../Firebase/Authentication/__mocks__/authuser.mock";
+import authUserMock from "../../Session/__mocks__/authuser.mock";
+
+const mockCaptureException = Sentry.captureException as jest.Mock;
 
 /* ===================================================================
 // ======================== Render-Helper =============================
@@ -135,13 +129,11 @@ const renderPasswordChangePage = ({
 } = {}) => {
   return render(
     <MemoryRouter initialEntries={["/pw-change"]}>
-      <FirebaseContext.Provider value={mockFirebase}>
-        <DatabaseContext.Provider value={mockDatabase}>
-          <AuthUserContext.Provider value={authUser}>
-            <PasswordChangePage oobCode={oobCode} />
-          </AuthUserContext.Provider>
-        </DatabaseContext.Provider>
-      </FirebaseContext.Provider>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserContext.Provider value={authUser}>
+          <PasswordChangePage oobCode={oobCode} />
+        </AuthUserContext.Provider>
+      </DatabaseContext.Provider>
     </MemoryRouter>,
   );
 };
@@ -354,10 +346,14 @@ describe("PasswordChangePage", () => {
   });
 
   describe("Fehlermeldung bei Passwortänderung", () => {
-    test("Fehlermeldung wird bei gleichem Passwort angezeigt", async () => {
+    test("Fehlermeldung wird bei gleichem Passwort angezeigt und NICHT an Sentry gemeldet", async () => {
       mockGetUser.mockResolvedValue({email: "test@example.com"});
       mockUpdatePassword.mockRejectedValueOnce(
-        new Error("New password should be different from the old password."),
+        new AuthApiError(
+          "New password should be different from the old password.",
+          422,
+          "same_password",
+        ),
       );
       renderPasswordChangePage({oobCode: "reset-code-123"});
 
@@ -373,6 +369,7 @@ describe("PasswordChangePage", () => {
           ),
         ).toBeInTheDocument();
       });
+      expect(mockCaptureException).not.toHaveBeenCalled();
     });
 
     test("Fehlermeldung verschwindet nach erfolgreicher Passwortänderung", async () => {

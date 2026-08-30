@@ -79,7 +79,7 @@ import type {
 import {GoodsPlanMode} from "../menuplan.types";
 import {RecipeType} from "../../../Recipe/recipe.class";
 import {Event} from "../../Event/event.class";
-import AuthUser from "../../../Firebase/Authentication/authUser.class";
+import AuthUser from "../../../Session/authUser.class";
 
 import {isTimesliceBoundary, getColumnBackground, COLUMN_TINT} from "../../../../constants/stylesMenuplanPdf";
 

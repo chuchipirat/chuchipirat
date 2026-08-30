@@ -2,11 +2,12 @@ import React, {useState, useEffect, useRef} from "react";
 import {useNavigate, useLocation} from "react-router";
 import * as Sentry from "@sentry/react";
 
-import AuthUser from "../Firebase/Authentication/authUser.class";
+import AuthUser from "../Session/authUser.class";
 import {useDatabase} from "../Database/DatabaseContext";
 import {LocalStorageKey} from "../../constants/localStorage";
 import {Role} from "../../constants/roles";
 import {useGlobalSettings} from "./globalSettingsContext";
+import {isUuid} from "../../utils/uuid";
 
 import {
   SIGN_IN as ROUTE_SIGN_IN,
@@ -41,16 +42,20 @@ export const useAuthUser = (): AuthUser | null => {
  * Prüft, ob der geparste localStorage-Wert ein gültiges AuthUser-Objekt ist.
  *
  * Schützt vor manipulierten oder veralteten Cache-Einträgen, die nach
- * einem `JSON.parse` nicht die erwartete Struktur aufweisen.
+ * einem `JSON.parse` nicht die erwartete Struktur aufweisen. `uid` muss eine
+ * kanonische UUID sein — so werden insbesondere Cache-Einträge aus der
+ * Firebase-Ära (28-stellige Firebase-UID) verworfen, die sonst als
+ * `authUser.uid` an Postgres-`uuid`-Spalten gereicht würden (Fehler `22P02`).
  *
  * @param value - Der geparste Wert aus dem localStorage.
  * @returns `true`, wenn der Wert die minimale AuthUser-Struktur aufweist.
  */
-const isValidCachedAuthUser = (value: unknown): value is AuthUser => {
+export const isValidCachedAuthUser = (value: unknown): value is AuthUser => {
   if (typeof value !== "object" || value === null) return false;
   const obj = value as Record<string, unknown>;
   return (
     typeof obj.uid === "string" &&
+    isUuid(obj.uid) &&
     typeof obj.email === "string" &&
     typeof obj.publicProfile === "object" &&
     obj.publicProfile !== null
