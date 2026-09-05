@@ -54,6 +54,12 @@ describe("getFeedTitle()", () => {
     expect(getFeedTitle(FeedType.materialCreated, ["Pfanne"])).toBe("Pfanne");
   });
 
+  test("donationConfirmed gibt den passenden Titel zurück", () => {
+    expect(getFeedTitle(FeedType.donationConfirmed)).toBe(
+      TEXT_FEED_TITLE.DONATION_CONFIRMED,
+    );
+  });
+
   test("unbekannter FeedType gibt '?' zurück", () => {
     expect(getFeedTitle("unknownType" as FeedType)).toBe("?");
   });
@@ -143,6 +149,53 @@ describe("getFeedText()", () => {
   test("profilePictureChanged gibt statischen Text zurück", () => {
     const result = getFeedText(FeedType.profilePictureChanged);
     expect(result).toContain("Profilbild");
+  });
+
+  test("donationConfirmed: CHF 5–9 — Schatztruhe", () => {
+    const result = getFeedText(FeedType.donationConfirmed, ["500"]);
+    expect(result).toBe(
+      "hat CHF 5.00 in die Schatztruhe geworfen. Merci vielmal!",
+    );
+  });
+
+  test("donationConfirmed: CHF 9.75 (Dezimalbetrag) bleibt in der Schatztruhe-Stufe", () => {
+    const result = getFeedText(FeedType.donationConfirmed, ["975"]);
+    expect(result).toBe(
+      "hat CHF 9.75 in die Schatztruhe geworfen. Merci vielmal!",
+    );
+  });
+
+  test("donationConfirmed: CHF 10–19 — Bordkasse", () => {
+    const result = getFeedText(FeedType.donationConfirmed, ["1000"]);
+    expect(result).toBe("hat CHF 10.00 in die Bordkasse gelegt. Merci vielmal!");
+  });
+
+  test("donationConfirmed: CHF 20–49 — Kriegskasse", () => {
+    const result = getFeedText(FeedType.donationConfirmed, ["2000"]);
+    expect(result).toBe(
+      "hat CHF 20.00 in die Kriegskasse gebuddelt. Ahoi, das ist grosszügig!",
+    );
+  });
+
+  test("donationConfirmed: CHF 49.90 bleibt in der Kriegskasse-Stufe", () => {
+    const result = getFeedText(FeedType.donationConfirmed, ["4990"]);
+    expect(result).toBe(
+      "hat CHF 49.90 in die Kriegskasse gebuddelt. Ahoi, das ist grosszügig!",
+    );
+  });
+
+  test("donationConfirmed: CHF ≥50 — Legende der sieben Meere", () => {
+    const result = getFeedText(FeedType.donationConfirmed, ["5000"]);
+    expect(result).toBe(
+      "hat CHF 50.00 versenkt und segelt ab sofort als Legende der sieben Meere. Tausend Dank!",
+    );
+  });
+
+  test("donationConfirmed: sehr grosser Betrag bleibt in der höchsten Stufe", () => {
+    const result = getFeedText(FeedType.donationConfirmed, ["100000"]);
+    expect(result).toBe(
+      "hat CHF 1000.00 versenkt und segelt ab sofort als Legende der sieben Meere. Tausend Dank!",
+    );
   });
 
   test("unbekannter FeedType gibt '?' zurück", () => {
