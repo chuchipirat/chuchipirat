@@ -1,4 +1,5 @@
 import {
+  isJwtExpiredError,
   isRlsViolationError,
   isTransientNetworkError,
   toError,
@@ -183,5 +184,34 @@ describe("isRlsViolationError", () => {
     ).toBe(false);
     expect(isRlsViolationError(new Error("Failed to fetch"))).toBe(false);
     expect(isRlsViolationError(null)).toBe(false);
+  });
+});
+
+/* ===================================================================
+// ======================== isJwtExpiredError =======================
+// =================================================================== */
+
+describe("isJwtExpiredError", () => {
+  test("erkennt ein Supabase-Objekt mit code PGRST301", () => {
+    expect(
+      isJwtExpiredError({
+        code: "PGRST301",
+        details: null,
+        hint: null,
+        message: "JWT expired",
+      }),
+    ).toBe(true);
+  });
+
+  test("erkennt die Meldung auch ohne code (z.B. AuthApiError)", () => {
+    expect(isJwtExpiredError(new Error("JWT expired"))).toBe(true);
+  });
+
+  test("liefert false für andere Postgres-/Auth-Fehler", () => {
+    expect(
+      isJwtExpiredError({code: "42501", message: "row-level security"}),
+    ).toBe(false);
+    expect(isJwtExpiredError(new Error("Failed to fetch"))).toBe(false);
+    expect(isJwtExpiredError(null)).toBe(false);
   });
 });
