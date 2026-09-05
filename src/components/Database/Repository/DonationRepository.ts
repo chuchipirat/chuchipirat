@@ -37,7 +37,10 @@ import {isUuid} from "../../../utils/uuid";
  * Bietet Methoden für eigene Spenden, Event-Spenden, Admin-Übersicht,
  * Spendenstatistik und Spendenziel-Abschnitte.
  */
-export class DonationRepository extends BaseRepository<DonationDomain, DonationRow> {
+export class DonationRepository extends BaseRepository<
+  DonationDomain,
+  DonationRow
+> {
   tableName = "donations";
 
   /** View-Name für Leseoperationen (JOINt Spender- und Event-Daten). */
@@ -48,11 +51,24 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
    * Nur `getAllDonations()` (Admin-only) verwendet `.select("*")` mit donor_email.
    */
   private static readonly PUBLIC_VIEW_COLUMNS = [
-    "id", "event_id", "payment_gateway_id", "payment_reference_id",
-    "payment_transaction_id", "amount_in_cents", "currency", "status",
-    "payment_method", "paid_at", "donor_uid", "donor_message",
-    "receipt_number", "receipt_sent_at", "created_at",
-    "updated_at", "donor_display_name", "event_name",
+    "id",
+    "event_id",
+    "payment_gateway_id",
+    "payment_reference_id",
+    "payment_transaction_id",
+    "amount_in_cents",
+    "currency",
+    "status",
+    "payment_method",
+    "paid_at",
+    "donor_uid",
+    "donor_message",
+    "receipt_number",
+    "receipt_sent_at",
+    "created_at",
+    "updated_at",
+    "donor_display_name",
+    "event_name",
   ].join(", ");
 
   /**
@@ -162,7 +178,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         .order("created_at", {ascending: false});
 
       if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as DonationRow));
+      return (data ?? []).map((row) =>
+        this.toDomain(row as unknown as DonationRow),
+      );
     } catch (error) {
       Sentry.captureException(error);
       throw error;
@@ -177,20 +195,18 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
    * @returns Zählbare Event-Spenden, sortiert nach Zahldatum.
    */
   async getEventDonations(eventId: string): Promise<DonationDomain[]> {
-    try {
-      const {data, error} = await this.client
-        .from(this.viewName)
-        .select(DonationRepository.PUBLIC_VIEW_COLUMNS)
-        .eq("event_id", eventId)
-        .in("status", COUNTABLE_DONATION_STATUSES)
-        .order("paid_at", {ascending: false});
+    // Fehlermeldung erfolgt in der aufrufenden Schicht
+    const {data, error} = await this.client
+      .from(this.viewName)
+      .select(DonationRepository.PUBLIC_VIEW_COLUMNS)
+      .eq("event_id", eventId)
+      .in("status", COUNTABLE_DONATION_STATUSES)
+      .order("paid_at", {ascending: false});
 
-      if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as DonationRow));
-    } catch (error) {
-      Sentry.captureException(error);
-      throw error;
-    }
+    if (error) throw error;
+    return (data ?? []).map((row) =>
+      this.toDomain(row as unknown as DonationRow),
+    );
   }
 
   /**
