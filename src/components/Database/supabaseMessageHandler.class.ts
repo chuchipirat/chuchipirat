@@ -30,6 +30,18 @@ const SUPABASE_MESSAGE_PATTERNS: {
     translate: () =>
       "Die eingegebene Zahl ist zu gross oder zu klein für dieses Feld. Bitte gib einen anderen Wert ein.",
   },
+  // Postgres-Fehler beim Löschen eines Datensatzes, der noch per ON DELETE
+  // RESTRICT referenziert wird, z.B. 'update or delete on table "products"
+  // violates foreign key constraint "event_menue_products_product_id_fkey"
+  // on table "event_menue_products"'. Aktuell nur für Produkte/Materialien/
+  // Rezepte relevant, die noch in einem Menüplan eingeplant sind — die
+  // Where-Used-Prüfung vor dem Löschen warnt zwar bereits, verhindert die
+  // Aktion aber nicht; die DB-Constraint ist die eigentliche Absicherung.
+  {
+    pattern: /^update or delete on table "[^"]+" violates foreign key constraint "[^"]+" on table "[^"]+"\.?$/,
+    translate: () =>
+      "Dieses Element kann nicht gelöscht werden, da es noch in einem Menüplan verwendet wird.",
+  },
 ];
 
 class SupabaseMessageHandler {

@@ -117,7 +117,7 @@ export const FEED_TITLE = {
   EVENT_COOK_ADDED: "Küchen-Crew vergrössert",
   SHOPPINGLIST_CREATED: "Einkaufen ist angesagt",
   PROFILE_PICTURE_CHANGED: "Neues Profilbild",
-  DONATION_CONFIRMED: "Spende eingegangen",
+  DONATION_CONFIRMED: "Ahoi, eine Spende!",
 };
 
 export const FEED_TEXT = {
@@ -166,10 +166,23 @@ export const FEED_TEXT = {
   RECIPE_COMMENTED: (textElements: string[]) =>
     `hat das Rezept «${textElements[0]}» kommentiert.`,
   PROFILE_PICTURE_CHANGED: "hat ein neues Profilbild hochgeladen.",
+  // Gestaffelt nach Spendenbetrag (Mindestspende ist CHF 5, siehe
+  // DonationForm.tsx) — je grosszügiger, desto überschwänglicher der Text.
   DONATION_CONFIRMED: (textElements: string[]) => {
     const amountCents = parseInt(textElements[0] ?? "0", 10);
-    const amountFormatted = (amountCents / 100).toFixed(2);
-    return `hat CHF ${amountFormatted} gespendet. Merci 1000!`;
+    const amountChf = amountCents / 100;
+    const amountFormatted = amountChf.toFixed(2);
+
+    if (amountChf >= 50) {
+      return `hat CHF ${amountFormatted} versenkt und segelt ab sofort als Legende der sieben Meere. Tausend Dank!`;
+    }
+    if (amountChf >= 20) {
+      return `hat CHF ${amountFormatted} in die Kriegskasse gebuddelt. Ahoi, das ist grosszügig!`;
+    }
+    if (amountChf >= 10) {
+      return `hat CHF ${amountFormatted} in die Bordkasse gelegt. Merci vielmal!`;
+    }
+    return `hat CHF ${amountFormatted} in die Schatztruhe geworfen. Merci vielmal!`;
   },
 };
 

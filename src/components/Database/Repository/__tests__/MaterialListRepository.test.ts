@@ -552,7 +552,7 @@ describe("MaterialListRepository", () => {
       };
       client.channel.mockReturnValue(mockChannel);
 
-      const unsubscribe = repo.subscribeToLists(EVENT_ID, onData, onError);
+      const {unsubscribe} = repo.subscribeToLists(EVENT_ID, onData, onError);
 
       expect(client.channel).toHaveBeenCalledWith(
         `materiallists:${EVENT_ID}`,
@@ -618,11 +618,12 @@ describe("MaterialListRepository", () => {
       }
     });
 
-    it("sollte onError erst nach Ausschöpfen aller Retries aufrufen", () => {
+    it("sollte onStatusChange('failed') erst nach Ausschöpfen aller Retries aufrufen (nicht onError)", () => {
       jest.useFakeTimers();
       try {
         const onData = jest.fn();
         const onError = jest.fn();
+        const onStatusChange = jest.fn();
 
         const createMockChannel = () => ({
           on: jest.fn().mockReturnThis(),
@@ -635,7 +636,7 @@ describe("MaterialListRepository", () => {
           return channel;
         });
 
-        repo.subscribeToLists(EVENT_ID, onData, onError);
+        repo.subscribeToLists(EVENT_ID, onData, onError, onStatusChange);
 
         // 5 Fehlversuche mit wachsendem Backoff durchspielen (1s,2s,4s,8s,16s) —
         // jeder Fehlversuch plant einen neuen Channel (insgesamt 6 Channels:
@@ -655,10 +656,10 @@ describe("MaterialListRepository", () => {
         finalSubscribeCallback("CHANNEL_ERROR", new Error("boom"));
 
         expect(channels).toHaveLength(6);
-        expect(onError).toHaveBeenCalledTimes(1);
-        expect(onError.mock.calls[0][0].message).toContain(
-          "nach 5 Versuchen fehlgeschlagen",
-        );
+        // onError ist ausschliesslich für Fehler aus onData/Reload reserviert —
+        // ein dauerhafter Verbindungsverlust läuft über onStatusChange.
+        expect(onError).not.toHaveBeenCalled();
+        expect(onStatusChange).toHaveBeenLastCalledWith("failed");
       } finally {
         jest.useRealTimers();
       }
@@ -678,7 +679,7 @@ describe("MaterialListRepository", () => {
       };
       client.channel.mockReturnValue(mockChannel);
 
-      const unsubscribe = repo.subscribeToListItems(
+      const {unsubscribe} = repo.subscribeToListItems(
         "list-001",
         onData,
         onError,

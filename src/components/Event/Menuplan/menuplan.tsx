@@ -116,13 +116,18 @@ const MenuplanPage = ({
     if (todayColumn) {
       hasScrolledToToday.current = true;
       requestAnimationFrame(() => {
+        // Refs können bis zum nächsten Frame null geworden sein (Komponente
+        // wurde in der Zwischenzeit unmounted, z.B. schnelle Navigation weg
+        // von der Seite) — ohne diese Prüfung stürzt scrollTo() dann ab.
+        if (!scrollableRef.current || !headerScrollRef.current) return;
+
         const columnEl = todayColumn as HTMLElement;
         const scrollTarget = columnEl.offsetLeft - parseInt(theme.spacing(4));
-        scrollableRef.current!.scrollTo({
+        scrollableRef.current.scrollTo({
           left: scrollTarget,
           behavior: "smooth",
         });
-        headerScrollRef.current!.scrollTo({
+        headerScrollRef.current.scrollTo({
           left: scrollTarget,
           behavior: "smooth",
         });

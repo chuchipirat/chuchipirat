@@ -366,9 +366,12 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
       if (
         action.payload.uid ==
         tmpIngredients.order.reduce((result, ingredientUid) => {
-          // Über Reduce die letzte Zutat holen
+          // Über Reduce die letzte Zutat holen. entries[ingredientUid] kann
+          // fehlen, wenn order/entries desynchronisiert sind (verwaister
+          // order-Eintrag, siehe tech-debt.md) — dann überspringen statt
+          // abzustürzen.
           if (
-            state.recipe.ingredients.entries[ingredientUid].posType ==
+            state.recipe.ingredients.entries[ingredientUid]?.posType ==
             PositionType.ingredient
           ) {
             // UID zurückggeben
@@ -443,10 +446,13 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
       if (
         action.payload.uid ==
         preparationStepsToUpdate.order.reduce((result, preparationStepUid) => {
-          // Über Reduce die letzte Zutat holen
+          // Über Reduce die letzte Zutat holen. entries[preparationStepUid]
+          // kann fehlen, wenn order/entries desynchronisiert sind (verwaister
+          // order-Eintrag, siehe tech-debt.md) — dann überspringen statt
+          // abzustürzen.
           if (
-            state.recipe.preparationSteps.entries[preparationStepUid].posType ==
-            PositionType.preparationStep
+            state.recipe.preparationSteps.entries[preparationStepUid]
+              ?.posType == PositionType.preparationStep
           ) {
             // UID zurückggeben
             return preparationStepUid;
