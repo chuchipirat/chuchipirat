@@ -1,4 +1,5 @@
 import {
+  isForeignKeyViolationError,
   isJwtExpiredError,
   isRlsViolationError,
   isTransientNetworkError,
@@ -213,5 +214,43 @@ describe("isJwtExpiredError", () => {
     ).toBe(false);
     expect(isJwtExpiredError(new Error("Failed to fetch"))).toBe(false);
     expect(isJwtExpiredError(null)).toBe(false);
+  });
+});
+
+/* ===================================================================
+// ======================== isForeignKeyViolationError ================
+// =================================================================== */
+
+describe("isForeignKeyViolationError", () => {
+  test("erkennt ein Supabase-Objekt mit code 23503", () => {
+    expect(
+      isForeignKeyViolationError({
+        code: "23503",
+        details: 'Key is still referenced from table "event_menue_products".',
+        hint: null,
+        message:
+          'update or delete on table "products" violates foreign key constraint "event_menue_products_product_id_fkey" on table "event_menue_products"',
+      }),
+    ).toBe(true);
+  });
+
+  test("erkennt die Meldung auch ohne code", () => {
+    expect(
+      isForeignKeyViolationError(
+        new Error(
+          'update or delete on table "materials" violates foreign key constraint "event_menue_materials_material_id_fkey" on table "event_menue_materials"',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test("liefert false für andere Postgres-Fehler", () => {
+    expect(
+      isForeignKeyViolationError({code: "23505", message: "duplicate key"}),
+    ).toBe(false);
+    expect(isForeignKeyViolationError(new Error("Failed to fetch"))).toBe(
+      false,
+    );
+    expect(isForeignKeyViolationError(null)).toBe(false);
   });
 });

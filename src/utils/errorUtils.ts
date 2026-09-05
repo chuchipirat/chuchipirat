@@ -124,6 +124,23 @@ export function isJwtExpiredError(error: unknown): boolean {
 }
 
 /**
+ * Erkennt eine Postgres-FK-Verletzung (`23503`) — z.B. der Versuch, ein
+ * Produkt/Material/Rezept zu löschen, das noch per `ON DELETE RESTRICT` in
+ * einem Menüplan referenziert wird. Die Where-Used-Prüfung vor dem Löschen
+ * warnt zwar bereits, verhindert die Aktion aber nicht — die DB-Constraint
+ * ist die eigentliche Absicherung. Erwartetes, vom Datenmodell korrekt
+ * verhindertes Verhalten (Nutzer-Hinweis via
+ * {@link SupabaseMessageHandler.translateMessage}), kein Code-Bug.
+ *
+ * @param error - Der geworfene Wert.
+ * @returns `true`, wenn es sich um eine FK-Verletzung handelt.
+ */
+export function isForeignKeyViolationError(error: unknown): boolean {
+  if (isRecordLike(error) && error.code === "23503") return true;
+  return /violates foreign key constraint/i.test(extractErrorText(error));
+}
+
+/**
  * Normalisiert einen beliebigen geworfenen Wert in eine echte `Error`-Instanz.
  *
  * `Error`-Instanzen werden unverändert zurückgegeben. Objektartige Werte (z.B.

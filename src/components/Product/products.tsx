@@ -95,6 +95,7 @@ import {
   useCustomDialog,
 } from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
+import {isForeignKeyViolationError, toError} from "../../utils/errorUtils";
 import {useDatabase} from "../Database/DatabaseContext";
 import {DataGrid, GridColDef, GridRowSelectionModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
@@ -255,12 +256,19 @@ const ProductsPage = () => {
         hook.onDeleteProduct(product);
       }
     } catch (error) {
-      Sentry.captureException(error, {
-        extra: {context: "Produkt löschen", productUid: product.uid},
-      });
+      // Löschen trotz Verwendung in einem Menüplan (ON DELETE RESTRICT) —
+      // die Where-Used-Prüfung oben warnt bereits, verhindert die Aktion aber
+      // nicht. Erwartetes, von der DB korrekt verhindertes Verhalten, kein
+      // Bug: Nutzer-Hinweis anzeigen (übersetzt via SupabaseMessageHandler),
+      // nicht an Sentry melden.
+      if (!isForeignKeyViolationError(error)) {
+        Sentry.captureException(error, {
+          extra: {context: "Produkt löschen", productUid: product.uid},
+        });
+      }
       hook.dispatch({
         type: ReducerActions.GENERIC_ERROR,
-        payload: error as Error,
+        payload: toError(error),
       });
     }
   };
