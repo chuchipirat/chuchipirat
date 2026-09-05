@@ -12,7 +12,11 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import * as Sentry from "@sentry/react";
-import {subscribeWithRetry} from "./realtimeSubscription";
+import {
+  subscribeWithRetry,
+  RealtimeConnectionStatus,
+  RealtimeSubscriptionHandle,
+} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -491,14 +495,16 @@ export class MaterialListRepository extends BaseRepository<
    *
    * @param eventId - Die ID des Events
    * @param onData - Callback mit aktuellen Headers
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToLists(
     eventId: string,
     onData: (headers: MaterialListHeaderDomain[]) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     return subscribeWithRetry({
       client: this.client,
       channelName: `materiallists:${eventId}`,
@@ -510,6 +516,7 @@ export class MaterialListRepository extends BaseRepository<
         onData(headers);
       },
       onError,
+      onStatusChange,
     });
   }
 
@@ -523,14 +530,16 @@ export class MaterialListRepository extends BaseRepository<
    *
    * @param listId - Die ID der Liste
    * @param onData - Callback mit aktuellen Items
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToListItems(
     listId: string,
     onData: (items: MaterialListItemDomain[]) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     return subscribeWithRetry({
       client: this.client,
       channelName: `materiallistitems:${listId}`,
@@ -542,6 +551,7 @@ export class MaterialListRepository extends BaseRepository<
         onData(items);
       },
       onError,
+      onStatusChange,
     });
   }
 

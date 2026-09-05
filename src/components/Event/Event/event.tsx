@@ -119,6 +119,8 @@ import {ValueObject} from "../../Shared/global.interface";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
+import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
+import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {trackEvent, trackVirtualPageview} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
@@ -895,6 +897,10 @@ const EventPage = () => {
   const [state, dispatch] = React.useReducer(eventReducer, INITITIAL_STATE);
   const [activeTab, setActiveTab] = React.useState(initialTab);
 
+  // Aggregierter Verbindungsstatus über alle Realtime-Subscriptions dieser
+  // Seite (Event, GroupConfig, Menuplan, Einkaufs-/Material-/Rezeptlisten).
+  const realtime = useRealtimeConnectionStatus();
+
   // Sendet pro Tab einen eigenen virtuellen Pageview an Umami (Journey-/
   // Pages-Report), da der aktive Tab nur über einen Query-Parameter
   // abgebildet ist und Umami Query-Strings nicht trackt (data-exclude-search).
@@ -1006,8 +1012,9 @@ const EventPage = () => {
     }
 
     // Realtime-Subscription für laufende Änderungen
-    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
-    const unsubscribe = database.events.subscribeToEvent(
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client
+    // reconnected automatisch (Status/Retry-Button siehe RealtimeStatusBanner)
+    const {unsubscribe, reconnect} = database.events.subscribeToEvent(
       eventUid,
       (eventDomain) => {
         const event = database.events.eventDomainToUi(eventDomain);
@@ -1021,10 +1028,13 @@ const EventPage = () => {
           extra: {context: "Realtime event subscription"},
         });
       },
+      (status) => realtime.setStatus("event", status),
     );
+    realtime.register("event", reconnect);
 
     return function cleanup() {
       unsubscribe();
+      realtime.unregister("event");
       // Sentry-Event-Kontext zurücksetzen, wenn die Event-Seite verlassen wird.
       Sentry.setContext("event", null);
     };
@@ -1050,27 +1060,32 @@ const EventPage = () => {
       });
 
     // Realtime-Subscription für laufende Änderungen
-    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
-    const unsubscribe = database.eventGroupConfig.subscribeToGroupConfig(
-      eventUid,
-      (gcDomain) => {
-        dispatch({
-          type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-          payload: database.eventGroupConfig.groupConfigDomainToUi(
-            gcDomain,
-            eventUid,
-          ),
-        });
-      },
-      (error) => {
-        Sentry.captureException(error, {
-          extra: {context: "Realtime groupconfig subscription"},
-        });
-      },
-    );
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client
+    // reconnected automatisch (Status/Retry-Button siehe RealtimeStatusBanner)
+    const {unsubscribe, reconnect} =
+      database.eventGroupConfig.subscribeToGroupConfig(
+        eventUid,
+        (gcDomain) => {
+          dispatch({
+            type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
+            payload: database.eventGroupConfig.groupConfigDomainToUi(
+              gcDomain,
+              eventUid,
+            ),
+          });
+        },
+        (error) => {
+          Sentry.captureException(error, {
+            extra: {context: "Realtime groupconfig subscription"},
+          });
+        },
+        (status) => realtime.setStatus("groupconfig", status),
+      );
+    realtime.register("groupconfig", reconnect);
 
     return function cleanup() {
       unsubscribe();
+      realtime.unregister("groupconfig");
     };
   }, []);
   React.useEffect(() => {
@@ -1135,8 +1150,9 @@ const EventPage = () => {
     };
 
     // Realtime-Subscription für laufende Änderungen
-    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
-    const unsubscribe = database.menuplan.subscribeToMenuplan(
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client
+    // reconnected automatisch (Status/Retry-Button siehe RealtimeStatusBanner)
+    const {unsubscribe, reconnect} = database.menuplan.subscribeToMenuplan(
       eventUid,
       debouncedReload,
       (error) => {
@@ -1144,11 +1160,14 @@ const EventPage = () => {
           extra: {context: "Realtime menuplan subscription"},
         });
       },
+      (status) => realtime.setStatus("menuplan", status),
     );
+    realtime.register("menuplan", reconnect);
 
     return function cleanup() {
       if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribe();
+      realtime.unregister("menuplan");
       if (highlightTimeoutRef.current)
         clearTimeout(highlightTimeoutRef.current);
     };
@@ -1176,7 +1195,7 @@ const EventPage = () => {
         });
 
       // Realtime-Subscription für laufende Änderungen
-      const unsubscribe = database.shoppingLists.subscribeToLists(
+      const {unsubscribe, reconnect} = database.shoppingLists.subscribeToLists(
         eventUid,
         (headers) => {
           const collection = headersDomainToCollection(headers, eventUid);
@@ -1190,10 +1209,13 @@ const EventPage = () => {
             extra: {context: "Realtime shopping list subscription"},
           });
         },
+        (status) => realtime.setStatus("shoppinglists", status),
       );
+      realtime.register("shoppinglists", reconnect);
 
       return function cleanup() {
         unsubscribe();
+        realtime.unregister("shoppinglists");
         if (shoppingHighlightTimeoutRef.current)
           clearTimeout(shoppingHighlightTimeoutRef.current);
       };
@@ -1383,27 +1405,31 @@ const EventPage = () => {
         });
 
       // Realtime-Subscription — bei jeder Änderung Listen neu laden
-      const unsubscribe = database.usedRecipeLists.subscribeToLists(
-        eventUid,
-        (lists) => {
-          dispatch({
-            type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
-            payload: UsedRecipes.fromDomainLists({
-              lists,
-              eventUid,
-              menuplan: menuplanRef.current,
-            }),
-          });
-        },
-        (error) => {
-          Sentry.captureException(error, {
-            extra: {context: "Realtime usedrecipelists subscription"},
-          });
-        },
-      );
+      const {unsubscribe, reconnect} =
+        database.usedRecipeLists.subscribeToLists(
+          eventUid,
+          (lists) => {
+            dispatch({
+              type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
+              payload: UsedRecipes.fromDomainLists({
+                lists,
+                eventUid,
+                menuplan: menuplanRef.current,
+              }),
+            });
+          },
+          (error) => {
+            Sentry.captureException(error, {
+              extra: {context: "Realtime usedrecipelists subscription"},
+            });
+          },
+          (status) => realtime.setStatus("usedrecipelists", status),
+        );
+      realtime.register("usedrecipelists", reconnect);
 
       return function cleanup() {
         unsubscribe();
+        realtime.unregister("usedrecipelists");
       };
     }
   }, [activeTab]);
@@ -1434,7 +1460,7 @@ const EventPage = () => {
         });
 
       // Realtime-Subscription auf Kopfzeilen
-      const unsubscribe = database.materialLists.subscribeToLists(
+      const {unsubscribe, reconnect} = database.materialLists.subscribeToLists(
         eventUid,
         async (headers) => {
           // Während eines Saves den Realtime-Reload unterdrücken,
@@ -1458,10 +1484,13 @@ const EventPage = () => {
             extra: {context: "Realtime materiallists subscription"},
           });
         },
+        (status) => realtime.setStatus("materiallists", status),
       );
+      realtime.register("materiallists", reconnect);
 
       return function cleanup() {
         unsubscribe();
+        realtime.unregister("materiallists");
       };
     }
   }, [activeTab]);
@@ -2054,6 +2083,7 @@ const EventPage = () => {
         if (state.shoppingList.unsubscribe !== null) {
           // Vorheriger Listener beenden
           state.shoppingList.unsubscribe();
+          realtime.unregister("shoppinglistitems");
         }
         dispatch({type: ReducerActions.SHOPPINGLIST_FETCH_INIT, payload: {}});
 
@@ -2079,7 +2109,7 @@ const EventPage = () => {
 
         // Realtime-Subscription für Item-Änderungen
         {
-          const unsubscribe = database.shoppingLists.subscribeToListItems(
+          const {unsubscribe, reconnect} = database.shoppingLists.subscribeToListItems(
             objectUid as string,
             (items) => {
               const newShoppingList = itemsDomainToShoppingList(
@@ -2138,7 +2168,9 @@ const EventPage = () => {
                 extra: {context: "Realtime shopping list items subscription"},
               });
             },
+            (status) => realtime.setStatus("shoppinglistitems", status),
           );
+          realtime.register("shoppinglistitems", reconnect);
           dispatch({
             type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_LISTENER,
             payload: unsubscribe,
@@ -2241,6 +2273,10 @@ const EventPage = () => {
           />
         ) : (
           <React.Fragment>
+            <RealtimeStatusBanner
+              status={realtime.overallStatus}
+              onRetry={realtime.retryAll}
+            />
             <Box component="div" sx={classes.menuplanTabsContainer}>
               <Tabs
                 value={activeTab}

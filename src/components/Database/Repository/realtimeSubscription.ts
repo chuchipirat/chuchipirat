@@ -35,6 +35,33 @@ export type RealtimeTableBinding = {
 };
 
 /**
+ * Verbindungsstatus einer Realtime-Subscription, für die UI gedacht.
+ *
+ * - `connected` — verbunden (oder noch nie ein Problem hatte, siehe unten).
+ * - `reconnecting` — ein Verbindungsabbruch wird gerade automatisch behoben.
+ * - `failed` — alle automatischen Versuche ausgeschöpft; nur noch ein
+ *   manueller {@link RealtimeSubscriptionHandle.reconnect} hilft.
+ *
+ * `onStatusChange` wird bewusst NICHT beim ganz ersten erfolgreichen Connect
+ * aufgerufen (kein UI-Flackern bei normalem Seitenaufruf) — erst ab dem
+ * ersten tatsächlichen Problem, danach auch wieder bei Erholung.
+ */
+export type RealtimeConnectionStatus = "connected" | "reconnecting" | "failed";
+
+/**
+ * Rückgabewert von {@link subscribeWithRetry}.
+ *
+ * @param unsubscribe - Entfernt den aktiven Channel und bricht einen
+ *   ausstehenden Reconnect-Timer ab.
+ * @param reconnect - Bricht einen laufenden Retry-Zyklus ab und startet sofort
+ *   neu, mit frischem Retry-Budget (z.B. für einen "Erneut versuchen"-Button).
+ */
+export type RealtimeSubscriptionHandle = {
+  unsubscribe: () => void;
+  reconnect: () => void;
+};
+
+/**
  * Parameter für {@link subscribeWithRetry}.
  *
  * @param client - Der Supabase-Client.
@@ -43,8 +70,13 @@ export type RealtimeTableBinding = {
  * @param bindings - Tabellen, deren Änderungen `onChange` auslösen.
  * @param onChange - Wird bei jeder relevanten DB-Änderung aufgerufen (Daten neu
  *   laden). Darf synchron oder asynchron sein; Fehler landen in `onError`.
- * @param onError - Wird nur bei dauerhaftem Verbindungsverlust (nach
- *   `maxRetries`) oder bei einem Fehler in `onChange` aufgerufen.
+ * @param onError - Wird NUR bei einem Fehler in `onChange` aufgerufen (z.B.
+ *   Reload nach Realtime-Event schlägt fehl). Ein dauerhafter Verbindungsverlust
+ *   (nach `maxRetries`) läuft stattdessen über `onStatusChange` — Sentry wird
+ *   dafür bereits intern einmalig gemeldet, keine Doppelmeldung nötig.
+ * @param onStatusChange - Optional: wird bei Statuswechseln aufgerufen (siehe
+ *   {@link RealtimeConnectionStatus}) — zum Anzeigen eines
+ *   Reconnect-Hinweises in der UI.
  * @param maxRetries - Maximale Reconnect-Versuche. Default: 5.
  */
 export type SubscribeWithRetryParams = {
@@ -53,6 +85,7 @@ export type SubscribeWithRetryParams = {
   bindings: RealtimeTableBinding[];
   onChange: () => void | Promise<void>;
   onError: (error: Error) => void;
+  onStatusChange?: (status: RealtimeConnectionStatus) => void;
   maxRetries?: number;
 };
 
@@ -61,17 +94,17 @@ export type SubscribeWithRetryParams = {
  * transienten Verbindungsabbrüchen automatisch mit exponentiellem Backoff neu.
  *
  * @param params - Siehe {@link SubscribeWithRetryParams}.
- * @returns Unsubscribe-Funktion, die den aktiven Channel entfernt und einen
- *   ausstehenden Reconnect-Timer abbricht.
+ * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()` und `reconnect()`.
  * @example
- * const unsubscribe = subscribeWithRetry({
+ * const {unsubscribe, reconnect} = subscribeWithRetry({
  *   client,
  *   channelName: `event:${eventId}`,
  *   bindings: [{table: "events", filter: `id=eq.${eventId}`}],
  *   onChange: () => reloadEvent(),
  *   onError: (error) => Sentry.captureException(error),
+ *   onStatusChange: (status) => setConnectionStatus(status),
  * });
- * // Später: unsubscribe();
+ * // Später: unsubscribe(); oder bei Bedarf: reconnect();
  */
 export function subscribeWithRetry({
   client,
@@ -79,12 +112,18 @@ export function subscribeWithRetry({
   bindings,
   onChange,
   onError,
+  onStatusChange,
   maxRetries = DEFAULT_MAX_RETRIES,
-}: SubscribeWithRetryParams): () => void {
+}: SubscribeWithRetryParams): RealtimeSubscriptionHandle {
   let retryCount = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
   let activeChannel: ReturnType<typeof client.channel> | null = null;
   let cancelled = false;
+  // Nur gesetzt, nachdem onStatusChange mindestens einmal mit "reconnecting"
+  // oder "failed" aufgerufen wurde — steuert, ob ein SUBSCRIBED als
+  // "Erholung" gilt (dann onStatusChange("connected")) oder als stiller
+  // Normalfall (dann keine Meldung, kein UI-Flackern).
+  let lastReportedStatus: RealtimeConnectionStatus | null = null;
 
   /**
    * Meldet einen Fehler aus `onChange`. Vorübergehende Netzfehler (z.B. während
@@ -135,8 +174,14 @@ export function subscribeWithRetry({
       if (cancelled) return;
 
       if (status === "SUBSCRIBED") {
-        // Erfolgreich verbunden — Retry-Zähler zurücksetzen.
+        // Erfolgreich verbunden — Retry-Zähler zurücksetzen. Nur als
+        // "Erholung" an die UI melden, wenn zuvor tatsächlich ein Problem
+        // gemeldet wurde — der ganz normale erste Connect bleibt still.
         retryCount = 0;
+        if (lastReportedStatus !== null) {
+          lastReportedStatus = null;
+          onStatusChange?.("connected");
+        }
         return;
       }
 
@@ -152,15 +197,22 @@ export function subscribeWithRetry({
         activeChannel = null;
 
         if (retryCount >= maxRetries) {
+          // Endgültig aufgegeben — einmalig an Sentry melden (nicht über
+          // onError, das ist ausschliesslich für onChange-Fehler reserviert;
+          // sonst würde jede Aufrufstelle das hier ein zweites Mal melden).
           const permanentError = new Error(
             `Realtime-Verbindung für ${channelName} nach ${maxRetries} Versuchen fehlgeschlagen`,
           );
           Sentry.captureException(permanentError, {
             extra: {channelName, retryCount},
           });
-          onError(permanentError);
+          lastReportedStatus = "failed";
+          onStatusChange?.("failed");
           return;
         }
+
+        lastReportedStatus = "reconnecting";
+        onStatusChange?.("reconnecting");
 
         // Exponentieller Backoff: 1s, 2s, 4s, 8s, 16s (gedeckelt bei 30s).
         const delay = Math.min(
@@ -177,15 +229,36 @@ export function subscribeWithRetry({
 
   connect();
 
-  return () => {
-    cancelled = true;
-    if (retryTimer !== null) {
-      clearTimeout(retryTimer);
-      retryTimer = null;
-    }
-    if (activeChannel) {
-      client.removeChannel(activeChannel);
-      activeChannel = null;
-    }
+  return {
+    unsubscribe: () => {
+      cancelled = true;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      if (activeChannel) {
+        client.removeChannel(activeChannel);
+        activeChannel = null;
+      }
+    },
+    reconnect: () => {
+      if (cancelled) return;
+
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      if (activeChannel) {
+        client.removeChannel(activeChannel);
+        activeChannel = null;
+      }
+
+      // Sofortige, optimistische Rückmeldung — der eigentliche Connect
+      // braucht noch einen Moment.
+      retryCount = 0;
+      lastReportedStatus = "reconnecting";
+      onStatusChange?.("reconnecting");
+      connect();
+    },
   };
 }

@@ -16,7 +16,11 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import * as Sentry from "@sentry/react";
-import {subscribeWithRetry} from "./realtimeSubscription";
+import {
+  subscribeWithRetry,
+  RealtimeConnectionStatus,
+  RealtimeSubscriptionHandle,
+} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -680,14 +684,16 @@ export class MenuplanRepository extends BaseRepository<
    *
    * @param eventId - Die ID des Events
    * @param onAnyChange - Callback bei jeder Datenänderung
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onAnyChange
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToMenuplan(
     eventId: string,
     onAnyChange: () => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     // Ein einziger Channel für alle 8 Menuplan-Tabellen — spart Realtime-Connections
     return subscribeWithRetry({
       client: this.client,
@@ -704,6 +710,7 @@ export class MenuplanRepository extends BaseRepository<
       ],
       onChange: onAnyChange,
       onError,
+      onStatusChange,
     });
   }
 

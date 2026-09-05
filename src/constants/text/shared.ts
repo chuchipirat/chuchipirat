@@ -228,6 +228,14 @@ export const HOME_DASHBOARD = "Home-Dashboard";
 export const DATE = "Datum";
 
 /* =====================================================================
+// Realtime-Verbindungsstatus
+// ===================================================================== */
+export const REALTIME_RECONNECTING = "Verbindung wird wiederhergestellt …";
+export const REALTIME_CONNECTION_FAILED =
+  "Live-Aktualisierung momentan nicht möglich. Änderungen anderer Personen werden erst nach einem erneuten Verbindungsversuch angezeigt.";
+export const REALTIME_RETRY = "Erneut versuchen";
+
+/* =====================================================================
 // Abkürzungen
 // ===================================================================== */
 export const ABBREVIATION_UNIT = "Einh.";
