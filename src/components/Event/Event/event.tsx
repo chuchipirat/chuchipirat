@@ -794,8 +794,12 @@ const eventReducer = (state: State, action: DispatchAction): State => {
         },
       };
     case ReducerActions.GENERIC_ERROR:
-      // Allgemeiner Fehler
-      Sentry.captureException(action.payload);
+      // Allgemeiner Fehler — FieldValidationError ist ein Nutzer-Hinweis
+      // (z.B. ungültiger/veralteter Event-Link), wird angezeigt, aber nicht
+      // an Sentry gemeldet.
+      if (!(action.payload instanceof FieldValidationError)) {
+        Sentry.captureException(action.payload);
+      }
       return {
         ...state,
         isLoading: false,
@@ -999,10 +1003,11 @@ const EventPage = () => {
           } else {
             // Event existiert nicht oder RLS verweigert den Zugriff (getEvent
             // gibt in beiden Fällen null zurück) — ohne diesen Zweig bliebe
-            // die Seite unendlich im Ladezustand hängen.
+            // die Seite unendlich im Ladezustand hängen. Nutzer-Hinweis
+            // (ungültiger/veralteter Link, entferntes Event) — kein Bug.
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
-              payload: new Error(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
+              payload: new FieldValidationError(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
             });
           }
         })
