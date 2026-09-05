@@ -152,6 +152,7 @@ export const QUANTITY_CALCULATION = "Mengenberechnung";
 export const SHOPPING_LIST = "Einkaufsliste";
 export const MENUPLAN = "Menüplan";
 export const MATERIAL_LIST = "Materialliste";
+export const EXPENSE_TRACKING = "Abrechnung";
 export const EVENT_INFO_SHORT = "Infos zum Anlass";
 export const PLANED_RECIPES = "Verwendete Rezepte";
 export const SUFFIX_PDF = ".pdf";
