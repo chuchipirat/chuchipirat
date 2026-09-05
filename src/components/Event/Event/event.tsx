@@ -30,6 +30,7 @@ import {
   PLANED_RECIPES as TEXT_PLANED_RECIPES,
   SHOPPING_LIST as TEXT_SHOPPING_LIST,
   MATERIAL_LIST as TEXT_MATERIAL_LIST,
+  EXPENSE_TRACKING as TEXT_EXPENSE_TRACKING,
   EVENT_INFO_SHORT as TEXT_EVENT_INFO_SHORT,
   MATERIAL_CREATED as TEXT_MATERIAL_CREATED,
   PRODUCT_CREATED as TEXT_PRODUCT_CREATED,
@@ -98,6 +99,7 @@ import {
   headersDomainToMaterialList,
   itemsDomainToMaterialListItems,
 } from "../MaterialList/materialListAdapter";
+import {EventExpenseTrackingPage} from "../ExpenseTracking/expenseTracking";
 import {EventInfoPage} from "./eventInfo";
 import {
   FieldValidationError,
@@ -135,6 +137,7 @@ enum EventTabs {
   usedRecipes,
   shoppingList,
   materialList,
+  expenseTracking,
   eventInfo,
 }
 interface DeriveEventUid {
@@ -859,6 +862,7 @@ const TAB_QUERY_PARAM_MAP: Record<string, EventTabs> = {
   usedrecipes: EventTabs.usedRecipes,
   shoppinglist: EventTabs.shoppingList,
   materiallist: EventTabs.materialList,
+  expensetracking: EventTabs.expenseTracking,
   eventinfo: EventTabs.eventInfo,
 };
 
@@ -894,7 +898,9 @@ const EventPage = () => {
   // Pages-Report), da der aktive Tab nur über einen Query-Parameter
   // abgebildet ist und Umami Query-Strings nicht trackt (data-exclude-search).
   React.useEffect(() => {
-    trackVirtualPageview(`${location.pathname}/${TAB_TO_QUERY_PARAM[activeTab]}`);
+    trackVirtualPageview(
+      `${location.pathname}/${TAB_TO_QUERY_PARAM[activeTab]}`,
+    );
   }, [activeTab, location.pathname]);
 
   const [eventDraft, setEventDraft] = React.useState(INTITIAL_STATE_EVENT_DRAF);
@@ -2230,9 +2236,11 @@ const EventPage = () => {
                   ? TEXT_SHOPPING_LIST
                   : activeTab === EventTabs.materialList
                     ? TEXT_MATERIAL_LIST
-                    : activeTab === EventTabs.eventInfo
-                      ? TEXT_EVENT_INFO_SHORT
-                      : "xx"
+                    : activeTab === EventTabs.expenseTracking
+                      ? TEXT_EXPENSE_TRACKING
+                      : activeTab === EventTabs.eventInfo
+                        ? TEXT_EVENT_INFO_SHORT
+                        : "xx"
         }`}
       />
       {/* ===== BODY ===== */}
@@ -2295,7 +2303,8 @@ const EventPage = () => {
                 <Tab label={TEXT_PLANED_RECIPES} {...tabProps(2)} />
                 <Tab label={TEXT_SHOPPING_LIST} {...tabProps(3)} />
                 <Tab label={TEXT_MATERIAL_LIST} {...tabProps(4)} />
-                <Tab label={TEXT_EVENT_INFO_SHORT} {...tabProps(5)} />
+                <Tab label={TEXT_EXPENSE_TRACKING} {...tabProps(5)} />
+                <Tab label={TEXT_EVENT_INFO_SHORT} {...tabProps(6)} />
               </Tabs>
             </Box>
           </React.Fragment>
@@ -2319,7 +2328,9 @@ const EventPage = () => {
                 fetchMissingData={fetchMissingData}
                 onMasterdataCreate={onMasterdataCreate}
                 onRecipeUpdate={onRecipeUpdate}
-                initialOpenRecipeMealId={searchParams.get("openRecipe") ?? undefined}
+                initialOpenRecipeMealId={
+                  searchParams.get("openRecipe") ?? undefined
+                }
               />
             </HighlightedMenueContext.Provider>
           ) : activeTab == EventTabs.quantityCalculation ? (
@@ -2382,6 +2393,13 @@ const EventPage = () => {
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}
+              />
+            </Container>
+          ) : activeTab == EventTabs.expenseTracking ? (
+            <Container>
+              <EventExpenseTrackingPage
+                event={state.event}
+                database={database}
               />
             </Container>
           ) : (
