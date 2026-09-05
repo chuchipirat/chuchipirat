@@ -17,6 +17,7 @@ import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {
   ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND as TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND,
 } from "../../../constants/text";
+import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import Recipe, {
   Ingredient,
   RecipeMaterialPosition,
@@ -189,7 +190,8 @@ export class ShoppingList {
    *
    * @param params - Ausgewählte Menüs, vorgeladene Rezepte, Stammdaten
    * @returns Generierte ShoppingList und Trace-Map
-   * @throws {Error} Wenn keine Produkte/Materialien gefunden wurden
+   * @throws {FieldValidationError} Wenn keine Produkte/Materialien gefunden
+   *   wurden — Nutzer-Hinweis, wird nicht an Sentry gemeldet.
    */
   static createNewList(params: CreateNewListParams): {
     shoppingList: ShoppingList;
@@ -227,7 +229,7 @@ export class ShoppingList {
     itemCounter += materialResult.itemCount;
 
     if (itemCounter === 0) {
-      throw new Error(TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND);
+      throw new FieldValidationError(TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND);
     }
 
     return {shoppingList, trace};
