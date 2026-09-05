@@ -107,6 +107,40 @@ export function isRlsViolationError(error: unknown): boolean {
 }
 
 /**
+ * Erkennt einen abgelaufenen Supabase-JWT (`PGRST301` / "JWT expired").
+ *
+ * Tritt auf, wenn ein API-Aufruf mit einem bereits abgelaufenen Access-Token
+ * ausgeführt wird — z.B. nach längerer Inaktivität (Laptop im Standby, Tab im
+ * Hintergrund) kurz bevor der `auth-js`-Client automatisch neu auffrischt.
+ * Erwartetes, selbstheilendes Verhalten (der nächste Aufruf nutzt ein
+ * aufgefrischtes Token) — kein Code-Bug, daher kein Sentry-Report.
+ *
+ * @param error - Der geworfene Wert.
+ * @returns `true`, wenn es sich um einen abgelaufenen JWT handelt.
+ */
+export function isJwtExpiredError(error: unknown): boolean {
+  if (isRecordLike(error) && error.code === "PGRST301") return true;
+  return /jwt expired/i.test(extractErrorText(error));
+}
+
+/**
+ * Erkennt eine Postgres-FK-Verletzung (`23503`) — z.B. der Versuch, ein
+ * Produkt/Material/Rezept zu löschen, das noch per `ON DELETE RESTRICT` in
+ * einem Menüplan referenziert wird. Die Where-Used-Prüfung vor dem Löschen
+ * warnt zwar bereits, verhindert die Aktion aber nicht — die DB-Constraint
+ * ist die eigentliche Absicherung. Erwartetes, vom Datenmodell korrekt
+ * verhindertes Verhalten (Nutzer-Hinweis via
+ * {@link SupabaseMessageHandler.translateMessage}), kein Code-Bug.
+ *
+ * @param error - Der geworfene Wert.
+ * @returns `true`, wenn es sich um eine FK-Verletzung handelt.
+ */
+export function isForeignKeyViolationError(error: unknown): boolean {
+  if (isRecordLike(error) && error.code === "23503") return true;
+  return /violates foreign key constraint/i.test(extractErrorText(error));
+}
+
+/**
  * Normalisiert einen beliebigen geworfenen Wert in eine echte `Error`-Instanz.
  *
  * `Error`-Instanzen werden unverändert zurückgegeben. Objektartige Werte (z.B.

@@ -1007,5 +1007,54 @@ describe("HomePage", () => {
         expect(Sentry.captureException).toHaveBeenCalledWith(testError);
       });
     });
+
+    // Regression CHUCHIPIRAT-FP: ein vorübergehender Netzfehler (z.B.
+    // Mobilgerät kurz offline) wird dem Nutzer weiterhin als Fehlerzustand
+    // angezeigt, aber nicht an Sentry gemeldet.
+    test("meldet einen vorübergehenden Netzfehler beim Rezepte-Laden NICHT an Sentry", async () => {
+      const Sentry = jest.requireMock<typeof import("@sentry/react")>("@sentry/react");
+      const networkError = {
+        code: "",
+        details: "TypeError: Failed to fetch",
+        hint: "",
+        message: "TypeError: Failed to fetch (api.chuchipirat.ch)",
+      };
+      mockGetNewestFeeds.mockRejectedValue(networkError);
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toBeInTheDocument();
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    test("meldet einen vorübergehenden Netzfehler beim Events-Laden NICHT an Sentry", async () => {
+      const Sentry = jest.requireMock<typeof import("@sentry/react")>("@sentry/react");
+      mockGetAllEventsForUser.mockRejectedValue(
+        new TypeError("NetworkError when attempting to fetch resource."),
+      );
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByRole("alert")).toBeInTheDocument();
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    test("meldet einen vorübergehenden Netzfehler bei Systemmeldungen NICHT an Sentry", async () => {
+      const Sentry = jest.requireMock<typeof import("@sentry/react")>("@sentry/react");
+      mockGetValidMessages.mockRejectedValue({
+        code: "",
+        details: "TypeError: Failed to fetch",
+        hint: "",
+        message: "TypeError: Failed to fetch (api.chuchipirat.ch)",
+      });
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(mockGetValidMessages).toHaveBeenCalled();
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
   });
 });

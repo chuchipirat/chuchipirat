@@ -79,6 +79,7 @@ import {
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
 import {postActivityFeed} from "../../Shared/feedActivity";
+import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import {
   shoppingListToInsertRows,
 } from "./shoppingListAdapter";
@@ -661,7 +662,11 @@ const useShoppingListHandlers = ({
         );
         trackEvent(AnalyticsEvent.SHOPPING_LIST_REFRESHED, {eventUid: event.uid});
       } catch (error) {
-        Sentry.captureException(error);
+        // "Die Auswahl beinhaltet keine Artikel." ist ein Nutzer-Hinweis —
+        // anzeigen, aber nicht an Sentry melden.
+        if (!(error instanceof FieldValidationError)) {
+          Sentry.captureException(error);
+        }
         onDispatchError(error as Error);
       }
     },
@@ -831,6 +836,10 @@ const useShoppingListHandlers = ({
           } catch (error) {
             if ((error as Error).toString().includes(TEXT_ERROR_NO_RECIPES_FOUND)) {
               onDispatchSnackbar("info", TEXT_ERROR_NO_RECIPES_FOUND);
+            } else if (error instanceof FieldValidationError) {
+              // z.B. "Die Auswahl beinhaltet keine Artikel." — Nutzer-Hinweis,
+              // nicht an Sentry melden (vgl. ShoppingList.createNewList).
+              onDispatchSnackbar("info", error.message);
             } else {
               Sentry.captureException(error);
               onDispatchError(error as Error);

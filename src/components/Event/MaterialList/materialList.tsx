@@ -50,6 +50,8 @@ import {Event,Cook} from "../Event/event.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {SnackbarState} from "../../Shared/customSnackbar";
 import {AlertMessage} from "../../Shared/AlertMessage";
+import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
+import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {
   DialogSelectMenues,
 } from "../Menuplan/dialogSelectMenues";
@@ -239,6 +241,7 @@ const EventMaterialListPage = ({
   const [state, dispatch] = React.useReducer(materialListReducer, initialState);
   const [highlightedItemUids, setHighlightedItemUids] = React.useState<Set<string>>(new Set());
   const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const realtime = useRealtimeConnectionStatus();
 
   const [recipeDrawerData, setRecipeDrawerData] =
     React.useState<RecipeDrawerData>(RECIPE_DRAWER_DATA_INITIAL_VALUES);
@@ -327,7 +330,7 @@ const EventMaterialListPage = ({
   React.useEffect(() => {
     if (!state.selectedListItem) return;
 
-    const unsubscribe = database.materialLists.subscribeToListItems(
+    const {unsubscribe, reconnect} = database.materialLists.subscribeToListItems(
       state.selectedListItem,
       (items) => {
         // Während eines eigenen Saves ignorieren
@@ -375,9 +378,14 @@ const EventMaterialListPage = ({
       (error) => {
         Sentry.captureException(error, {extra: {context: "Realtime materiallistitems subscription"}});
       },
+      (status) => realtime.setStatus("materiallistitems", status),
     );
+    realtime.register("materiallistitems", reconnect);
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      realtime.unregister("materiallistitems");
+    };
   }, [state.selectedListItem]);
 
   /* ------------------------------------------
@@ -459,6 +467,10 @@ const EventMaterialListPage = ({
 
   return (
     <Stack spacing={2}>
+      <RealtimeStatusBanner
+        status={realtime.overallStatus}
+        onRetry={realtime.retryAll}
+      />
       {state.isError && (
         <AlertMessage
           error={state.error!}

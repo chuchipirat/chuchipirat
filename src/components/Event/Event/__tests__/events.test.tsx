@@ -13,10 +13,17 @@ import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
+/** Mock: Sentry — um zu pruefen, dass transiente Netzfehler NICHT gemeldet werden */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
+
+import * as Sentry from "@sentry/react";
 import {EventsPage} from "../events";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 import {EventDomain} from "../../../Database/Repository/EventRepository";
 
+const mockCaptureException = Sentry.captureException as jest.Mock;
 
 /** Mock: useAuthUser */
 const mockAuthUser = {
@@ -165,13 +172,26 @@ describe("EventsPage", () => {
     });
   });
 
-  test("zeigt Fehlermeldung bei fehlgeschlagenem Laden", async () => {
+  test("zeigt Fehlermeldung bei fehlgeschlagenem Laden und meldet an Sentry", async () => {
     mockGetAllEventsForUser.mockRejectedValue(new Error("DB Fehler"));
     renderEventsPage();
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
     });
+    expect(mockCaptureException).toHaveBeenCalledTimes(1);
+  });
+
+  test("zeigt Fehlermeldung bei vorübergehendem Netzfehler, meldet aber NICHT an Sentry", async () => {
+    mockGetAllEventsForUser.mockRejectedValue(
+      new TypeError("NetworkError when attempting to fetch resource."),
+    );
+    renderEventsPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(mockCaptureException).not.toHaveBeenCalled();
   });
 
   test("zeigt Seitentitel 'Anlässe'", async () => {
