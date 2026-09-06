@@ -21,14 +21,16 @@ import Department from "../../../Department/department.class";
 // Hilfsfunktionen
 // ===================================================================== */
 
-/** Erzeugt ein ShoppingListItem mit sinnvollen Defaults. */
+let rowIdCounter = 0;
+
+/** Erzeugt ein ShoppingListItem mit sinnvollen Defaults (eindeutige `id`). */
 const createItem = (overrides: Partial<ShoppingListItem> = {}): ShoppingListItem => ({
   checked: false,
   quantity: 1,
   unit: "kg",
   item: {uid: "prod-1", name: "Äpfel"},
   type: ItemType.food,
-  id: "row-1",
+  id: `row-${++rowIdCounter}`,
   ...overrides,
 });
 
@@ -154,32 +156,22 @@ describe("shoppingListToInsertRows", () => {
     expect(shoppingListToInsertRows(list, "list-1", departments)).toHaveLength(0);
   });
 
-  test("kollabiert denselben Katalog-Artikel über zwei Abteilungen (Race-Regression)", () => {
+  test("kollabiert zwei Zeilen mit identischer id (verhindert ON-CONFLICT-Fehler)", () => {
+    // Race: Autocomplete-Select + nachlaufendes Blur erzeugen je ein neues
+    // Item aus derselben Vorlagen-Zeile → beide tragen deren stabile id.
     const list = new ShoppingList();
     list.list[0] = {
       departmentUid: "dep-0",
       departmentName: "Gemüse",
       items: [
-        createItem({
-          id: "row-a",
-          type: ItemType.food,
-          quantity: 0,
-          unit: "kg",
-          item: {uid: "zitrone", name: "Zitrone"},
-        }),
+        createItem({id: "tmpl-row-0", quantity: 0, item: {uid: "zitrone", name: "Zitrone"}}),
       ],
     };
     list.list[1] = {
       departmentUid: "dep-1",
       departmentName: "Früchte",
       items: [
-        createItem({
-          id: "row-b",
-          type: ItemType.food,
-          quantity: 3,
-          unit: "kg",
-          item: {uid: "zitrone", name: "Zitrone"},
-        }),
+        createItem({id: "tmpl-row-0", quantity: 3, item: {uid: "zitrone", name: "Zitrone"}}),
       ],
     };
 
@@ -189,10 +181,10 @@ describe("shoppingListToInsertRows", () => {
     ]);
 
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({product_id: "zitrone", quantity: 3});
+    expect(rows[0]).toMatchObject({id: "tmpl-row-0", quantity: 3});
   });
 
-  test("lässt denselben Artikel mit unterschiedlicher Einheit unangetastet", () => {
+  test("lässt denselben Artikel mit unterschiedlicher id/Einheit unangetastet", () => {
     const list = listWith([
       createItem({id: "row-a", type: ItemType.food, unit: "kg", item: {uid: "p1", name: "Mehl"}}),
       createItem({id: "row-b", type: ItemType.food, unit: "Stück", item: {uid: "p1", name: "Mehl"}}),
