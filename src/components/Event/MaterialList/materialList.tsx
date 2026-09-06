@@ -692,7 +692,7 @@ const EventMaterialListList = React.memo(
     const shouldFocusNewRowRef = React.useRef(false);
 
     const prepareItemsForDisplay = React.useCallback(
-      (items: MaterialListMaterial[]) => {
+      (items: MaterialListMaterial[], templateRowUid: string) => {
         const sortedList = [...items].sort((itemA, itemB) => {
           if (!itemA.name && !itemB.name) return 0;
           if (!itemA.name) return 1;
@@ -701,6 +701,13 @@ const EventMaterialListList = React.memo(
         });
 
         const templateRow = createEmptyMaterialListItem();
+        // Stabile ID/UID der Vorlagen-Zeile — sonst würde die leere „neues
+        // Material"-Zeile bei jeder Item-Änderung neu gemountet und ein gerade
+        // getippter Wert / der Fokus ginge verloren. `onChangeItem` übernimmt
+        // dieselbe ID für das neu erzeugte Item, damit der React-Key über den
+        // Übergang „Vorlage → echtes Item" hinweg identisch bleibt.
+        templateRow.uid = templateRowUid;
+        templateRow.id = templateRowUid;
 
         if (
           sortedList.length === 0 ||
@@ -711,16 +718,28 @@ const EventMaterialListList = React.memo(
 
         return {
           items: sortedList,
-          templateRowUid: templateRow.uid,
+          templateRowUid,
         };
       },
       [],
     );
 
-    const displayData = React.useMemo(
-      () => prepareItemsForDisplay(materialList.items),
-      [materialList.items, prepareItemsForDisplay],
-    );
+    const displayData = React.useMemo(() => {
+      // Vorlagen-ID darf keine bereits vergebene Zeilen-ID sein. Sobald die
+      // Vorlage „verbraucht" wurde (neues Item übernimmt die ID), rückt sie
+      // hier deterministisch weiter — kein Neu-Mounten pro Render.
+      const usedItemIds = new Set(
+        materialList.items.map((material) => material.id),
+      );
+      const listUid = materialList.properties.uid;
+      let templateRowUid = "tmpl-row-" + listUid;
+      let suffix = materialList.items.length;
+      while (usedItemIds.has(templateRowUid)) {
+        templateRowUid = "tmpl-row-" + listUid + "-" + suffix;
+        suffix += 1;
+      }
+      return prepareItemsForDisplay(materialList.items, templateRowUid);
+    }, [materialList.items, materialList.properties.uid, prepareItemsForDisplay]);
 
     React.useEffect(() => {
       if (shouldFocusNewRowRef.current) {

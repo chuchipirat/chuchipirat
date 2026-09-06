@@ -258,5 +258,52 @@ export function shoppingListToInsertRows(
     });
   });
 
-  return rows;
+  return dedupeInsertRows(rows);
+}
+
+/**
+ * Entfernt versehentliche Doppel-Positionen aus den Insert-Zeilen.
+ *
+ * Zwei Ebenen:
+ * 1. Exakte ID-Kollision (kann bei einem Bug in der Vorlagen-Zeilen-ID
+ *    entstehen) — die zweite Zeile würde per `ON CONFLICT (id)` die erste
+ *    überschreiben; wir behalten die mit der grösseren Menge.
+ * 2. Derselbe Katalog-Artikel (`product_id`/`material_id`) mit derselben
+ *    Einheit in mehreren Zeilen — ein Katalog-Artikel gehört zu genau einer
+ *    Abteilung, ein solcher Zustand entsteht nur durch eine Race-Bedingung
+ *    beim gleichzeitigen Autocomplete-Select + Blur. Freitext-Positionen
+ *    (eigene, eindeutige `id`) sind davon nicht betroffen.
+ *
+ * @param rows - Die roh erzeugten Insert-Zeilen.
+ * @returns Die deduplizierten Insert-Zeilen in ursprünglicher Reihenfolge.
+ */
+function dedupeInsertRows(
+  rows: ShoppingListItemInsertRow[],
+): ShoppingListItemInsertRow[] {
+  const byKey = new Map<string, ShoppingListItemInsertRow>();
+
+  for (const row of rows) {
+    const sourceKey = row.product_id
+      ? `p:${row.product_id}`
+      : row.material_id
+        ? `m:${row.material_id}`
+        : `id:${row.id}`;
+    const key = `${sourceKey}|${row.unit ?? ""}`;
+    const existing = byKey.get(key);
+
+    if (!existing) {
+      byKey.set(key, row);
+      continue;
+    }
+
+    // Kollision: die „vollständigere" Zeile behalten (grössere Menge, sonst
+    // die bereits erfasste).
+    if ((row.quantity ?? 0) > (existing.quantity ?? 0)) {
+      byKey.set(key, {...row, id: existing.id, sort_order: existing.sort_order});
+    }
+  }
+
+  return Array.from(byKey.values()).sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
 }

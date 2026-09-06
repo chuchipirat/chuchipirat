@@ -467,34 +467,65 @@ const useShoppingListHandlers = ({
     lastPersistedItemIdsRef.current = new Set(getPersistedItemIds());
   }, [selectedListItem, getPersistedItemIds]);
 
+  // Single-Flight: nur ein Save gleichzeitig. Weitere Aufrufe während eines
+  // laufenden Saves überschreiben nur den „ausstehenden" Stand — nach dem
+  // aktuellen Save wird genau einmal mit dem neuesten Stand nachgezogen.
+  // Verhindert, dass zwei schnell aufeinanderfolgende Mutationen (z.B.
+  // Autocomplete-Select + Blur) mit demselben veralteten `knownIds` parallel
+  // speichern und die Diff-RPC beide Zeilen behält (Duplikat).
+  const runningSaveRef = React.useRef<Promise<void> | null>(null);
+  const pendingSaveRef = React.useRef<{listId: string; list: ShoppingList} | null>(
+    null,
+  );
+
   /**
    * Speichert den gewünschten Voll-Zustand der Positionen einer Liste über die
-   * Diff-RPC (`save_shopping_list_items`).
+   * Diff-RPC (`save_shopping_list_items`), serialisiert (Single-Flight).
    *
    * Der `saveInProgressRef`-Zähler wird synchron hochgezählt und erst mit
    * kurzer Verzögerung nach dem Save wieder heruntergezählt: die WAL-Events des
    * eigenen Saves treffen asynchron ein (typisch < 300 ms). Innerhalb dieses
    * Fensters ignoriert die Realtime-Subscription in `event.tsx` die Echos —
-   * der optimistische lokale Stand ist bereits korrekt, ein voller Reload +
-   * Re-Render pro Tastendruck wäre reine Verschwendung und würde ausserdem den
-   * Fokus stören. Änderungen anderer Köch:innen kommen danach ganz normal an.
+   * der optimistische lokale Stand ist bereits korrekt.
    */
   const persistListItems = React.useCallback(
-    async (listId: string, list: ShoppingList) => {
-      saveInProgressRef.current += 1;
-      try {
-        const rows = shoppingListToInsertRows(list, listId, departments);
-        await database.shoppingLists.saveListItems(listId, rows, [
-          ...lastPersistedItemIdsRef.current,
-        ]);
-        lastPersistedItemIdsRef.current = new Set(
-          rows.map((row) => row.id).filter((id): id is string => Boolean(id)),
-        );
-      } finally {
-        setTimeout(() => {
-          saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
-        }, 400);
+    (listId: string, list: ShoppingList): Promise<void> => {
+      const runSave = async (
+        saveListId: string,
+        saveList: ShoppingList,
+      ): Promise<void> => {
+        saveInProgressRef.current += 1;
+        try {
+          const rows = shoppingListToInsertRows(saveList, saveListId, departments);
+          await database.shoppingLists.saveListItems(saveListId, rows, [
+            ...lastPersistedItemIdsRef.current,
+          ]);
+          lastPersistedItemIdsRef.current = new Set(
+            rows.map((row) => row.id).filter((id): id is string => Boolean(id)),
+          );
+        } finally {
+          setTimeout(() => {
+            saveInProgressRef.current = Math.max(
+              0,
+              saveInProgressRef.current - 1,
+            );
+          }, 400);
+          const next = pendingSaveRef.current;
+          pendingSaveRef.current = null;
+          if (next) {
+            await runSave(next.listId, next.list);
+          }
+        }
+      };
+
+      if (runningSaveRef.current) {
+        pendingSaveRef.current = {listId, list};
+        return runningSaveRef.current;
       }
+      runningSaveRef.current = runSave(listId, list).finally(() => {
+        runningSaveRef.current = null;
+      });
+      return runningSaveRef.current;
     },
     [database, departments, saveInProgressRef],
   );
@@ -1581,6 +1612,13 @@ const useShoppingListHandlers = ({
       if (!item) {
         item = ShoppingList.createEmptyListItem();
         item.item.uid = field[2];
+        // Die stabile ID der Vorlagen-Zeile übernehmen (statt der frischen
+        // UUID aus createEmptyListItem): so bleibt der React-Key der
+        // ListItem-Zeile über den Übergang „Vorlage → echtes Item" hinweg
+        // identisch und der Fokus im Mengen-/Einheitenfeld geht beim
+        // folgenden Re-Render nicht verloren. Die nächste Vorlagen-Zeile
+        // bekommt in shoppingList.tsx automatisch eine neue ID.
+        item.id = field[2];
         newItem = true;
       }
 

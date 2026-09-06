@@ -651,7 +651,12 @@ export function useMaterialListHandlers({
           quantity: 0,
           trace: [],
           manualAdd: true,
-          id: crypto.randomUUID(),
+          // Die stabile ID der Vorlagen-Zeile übernehmen (statt einer frischen
+          // UUID), damit der React-Key der ListItem-Zeile über den Übergang
+          // „Vorlage → echtes Item" identisch bleibt und der Fokus im
+          // Mengenfeld erhalten bleibt. Die nächste Vorlagen-Zeile bekommt in
+          // materialList.tsx automatisch eine neue ID.
+          id: materialUid,
         };
         isNewItem = true;
       }

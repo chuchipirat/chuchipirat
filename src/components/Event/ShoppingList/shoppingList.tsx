@@ -718,19 +718,17 @@ const EventShoppingListList = React.memo(
     );
 
     const prepareDepartmentItemsForDisplay = React.useCallback(
-      (items: ShoppingListItem[], departmentKey: string) => {
+      (
+        items: ShoppingListItem[],
+        departmentKey: string,
+        templateRowUid: string,
+      ) => {
         const sortedList = [...items].sort((a, b) => {
           if (!a.item.name && !b.item.name) return 0;
           if (!a.item.name) return 1;
           if (!b.item.name) return -1;
           return a.item.name.localeCompare(b.item.name);
         });
-
-        // Stabile ID/UID der Vorlagen-Zeile pro Abteilung — sonst würde die
-        // leere „neuer Artikel"-Zeile bei jedem Re-Render neu gemountet und ein
-        // gerade darin getippter Wert / der Fokus ginge verloren. Ohne
-        // Unterstriche, da Row-Identifier per `split("_")` geparst werden.
-        const templateRowUid = "tmpl-row-" + departmentKey;
 
         if (shoppingListModus === ListMode.VIEW) {
           return {items: sortedList, templateRowUid: ""};
@@ -763,15 +761,34 @@ const EventShoppingListList = React.memo(
 
     // Memoize display data per department (sorted items + template row UIDs)
     const displayDataByDepartment = React.useMemo(() => {
+      // Alle vergebenen Zeilen-IDs über die gesamte Liste — die Vorlagen-Zeile
+      // darf keine davon tragen. Sobald `onChangeItem` die Vorlage „verbraucht"
+      // (das neu erzeugte Item übernimmt die Vorlagen-ID, damit der Fokus
+      // erhalten bleibt), rückt die nächste Vorlagen-ID hier deterministisch
+      // weiter — kein Neu-Mounten pro Render, keine Kollision mit einem echten
+      // (ggf. in eine andere Abteilung verschobenen) Item.
+      const usedItemIds = new Set<string>();
+      Object.values(shoppingList.list).forEach((department) => {
+        department.items.forEach((item) => usedItemIds.add(item.id));
+      });
+
       const result: Record<
         string,
         {items: ShoppingListItem[]; templateRowUid: string}
       > = {};
       Object.entries(shoppingList.list).forEach(
         ([departmentKey, department]) => {
+          // Ohne Unterstriche, da Row-Identifier per `split("_")` geparst werden.
+          let templateRowUid = "tmpl-row-" + departmentKey;
+          let suffix = department.items.length;
+          while (usedItemIds.has(templateRowUid)) {
+            templateRowUid = "tmpl-row-" + departmentKey + "-" + suffix;
+            suffix += 1;
+          }
           result[departmentKey] = prepareDepartmentItemsForDisplay(
             department.items,
             departmentKey,
+            templateRowUid,
           );
         },
       );
