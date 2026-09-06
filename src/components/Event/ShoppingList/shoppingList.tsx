@@ -74,17 +74,18 @@ import {
 import {Action} from "../../../constants/actions";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {ShoppingListCollection} from "./shoppingListCollection.class";
-import {ShoppingList,ItemType, ShoppingListItem} from "./shoppingList.class";
+import {ShoppingList, ItemType, ShoppingListItem} from "./shoppingList.class";
 
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
 import {Event} from "../Event/event.class";
 import {UnitAutocomplete} from "../../Unit/unitAutocomplete";
-import {ItemAutocomplete,MaterialItem, ProductItem} from "./itemAutocomplete";
+import {ItemAutocomplete, MaterialItem, ProductItem} from "./itemAutocomplete";
 import {Unit} from "../../Unit/unit.class";
 import {Product, createEmptyProduct} from "../../Product/product.types";
 import Department from "../../Department/department.class";
 import {Recipes} from "../../Recipe/recipe.class";
-import {DialogMaterial,
+import {
+  DialogMaterial,
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
@@ -115,7 +116,8 @@ import {HighlightedShoppingListItemContext} from "./shoppingListHighlightContext
 
 // Custom hooks
 import {useRecipeDrawer} from "./useRecipeDrawer";
-import {useShoppingListHandlers,
+import {
+  useShoppingListHandlers,
   DialogSelectDepartmentsCaller,
   OnDialogAddItemOk,
   ItemChange,
@@ -946,7 +948,7 @@ const EventShoppingListList = React.memo(
                           sx={{flex: 1, minWidth: 0}}
                         >
                           <Grid
-                            size={{xs: 5, sm: 3}}
+                            size={{xs: 6, sm: 3}}
                             key={"quantity_grid_" + item.item.uid}
                           >
                             <QuantityField
@@ -957,7 +959,7 @@ const EventShoppingListList = React.memo(
                             />
                           </Grid>
                           <Grid
-                            size={{xs: 4, sm: 3}}
+                            size={{xs: 6, sm: 3}}
                             key={"unit_grid_" + item.item.uid}
                           >
                             <UnitAutocomplete
