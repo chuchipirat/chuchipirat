@@ -642,6 +642,13 @@ export function useMaterialListHandlers({
       let item = items.find((existingItem) => existingItem.uid === materialUid);
       let isNewItem = false;
 
+      // Vorlagen-Zeile schon von einem vorherigen Aufruf in ein echtes Item
+      // verwandelt (das übernahm die Vorlagen-UUID als `id`)? Dann dieselbe
+      // Zeile weiterbearbeiten statt ein Duplikat mit derselben `id` anzulegen.
+      if (!item) {
+        item = items.find((existingItem) => existingItem.id === materialUid);
+      }
+
       if (!item) {
         item = {
           checked: false,
@@ -651,11 +658,13 @@ export function useMaterialListHandlers({
           quantity: 0,
           trace: [],
           manualAdd: true,
-          // Die stabile ID der Vorlagen-Zeile übernehmen (statt einer frischen
-          // UUID), damit der React-Key der ListItem-Zeile über den Übergang
-          // „Vorlage → echtes Item" identisch bleibt und der Fokus im
-          // Mengenfeld erhalten bleibt. Die nächste Vorlagen-Zeile bekommt in
-          // materialList.tsx automatisch eine neue ID.
+          // Die UUID der Vorlagen-Zeile als stabile `id` übernehmen, damit der
+          // React-Key der ListItem-Zeile über den Übergang „Vorlage → echtes
+          // Item" identisch bleibt und der Fokus im Mengenfeld erhalten bleibt.
+          // Die Vorlagen-UUID ist global eindeutig (crypto.randomUUID in
+          // materialList.tsx) — sonst kollidiert die `id` als PK mit einer Zeile
+          // einer anderen Materialliste. Die nächste Vorlagen-Zeile bekommt
+          // dort automatisch eine neue UUID.
           id: materialUid,
         };
         isNewItem = true;

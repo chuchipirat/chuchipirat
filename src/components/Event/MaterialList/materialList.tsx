@@ -724,22 +724,28 @@ const EventMaterialListList = React.memo(
       [],
     );
 
+    // Aktuelle Vorlagen-Zeilen-ID. Muss eine **global eindeutige** UUID sein:
+    // die ID landet unverändert als Primärschlüssel in
+    // `event_material_list_items` und die Diff-RPC macht daraus ein
+    // `INSERT … ON CONFLICT (id) DO UPDATE`. Eine nicht-eindeutige ID
+    // kollidiert mit einer Zeile einer anderen Materialliste.
+    const templateRowIdRef = React.useRef<string>("");
+
     const displayData = React.useMemo(() => {
       // Vorlagen-ID darf keine bereits vergebene Zeilen-ID sein. Sobald die
-      // Vorlage „verbraucht" wurde (neues Item übernimmt die ID), rückt sie
-      // hier deterministisch weiter — kein Neu-Mounten pro Render.
+      // Vorlage „verbraucht" wurde (neues Item übernimmt die ID), bekommt die
+      // nächste Vorlagen-Zeile eine frische UUID — kein Neu-Mounten pro Render.
       const usedItemIds = new Set(
         materialList.items.map((material) => material.id),
       );
-      const listUid = materialList.properties.uid;
-      let templateRowUid = "tmpl-row-" + listUid;
-      let suffix = materialList.items.length;
-      while (usedItemIds.has(templateRowUid)) {
-        templateRowUid = "tmpl-row-" + listUid + "-" + suffix;
-        suffix += 1;
+      if (
+        !templateRowIdRef.current ||
+        usedItemIds.has(templateRowIdRef.current)
+      ) {
+        templateRowIdRef.current = crypto.randomUUID();
       }
-      return prepareItemsForDisplay(materialList.items, templateRowUid);
-    }, [materialList.items, materialList.properties.uid, prepareItemsForDisplay]);
+      return prepareItemsForDisplay(materialList.items, templateRowIdRef.current);
+    }, [materialList.items, prepareItemsForDisplay]);
 
     React.useEffect(() => {
       if (shouldFocusNewRowRef.current) {

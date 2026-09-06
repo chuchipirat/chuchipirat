@@ -761,14 +761,21 @@ const EventShoppingListList = React.memo(
       [classes.container],
     );
 
+    // Aktuelle Vorlagen-Zeilen-ID pro Abteilung. Muss eine **global eindeutige**
+    // UUID sein: die ID landet unverändert als Primärschlüssel in
+    // `event_shopping_list_items`, und die Diff-RPC macht daraus ein
+    // `INSERT … ON CONFLICT (id) DO UPDATE`. Eine nicht-eindeutige ID (z.B.
+    // abgeleitet aus der Abteilungs-Position) kollidiert mit einer Zeile einer
+    // *anderen* Einkaufsliste und der neue Eintrag verschwindet.
+    const templateRowIdsRef = React.useRef<Record<string, string>>({});
+
     // Memoize display data per department (sorted items + template row UIDs)
     const displayDataByDepartment = React.useMemo(() => {
       // Alle vergebenen Zeilen-IDs über die gesamte Liste — die Vorlagen-Zeile
       // darf keine davon tragen. Sobald `onChangeItem` die Vorlage „verbraucht"
       // (das neu erzeugte Item übernimmt die Vorlagen-ID, damit der Fokus
-      // erhalten bleibt), rückt die nächste Vorlagen-ID hier deterministisch
-      // weiter — kein Neu-Mounten pro Render, keine Kollision mit einem echten
-      // (ggf. in eine andere Abteilung verschobenen) Item.
+      // erhalten bleibt), bekommt die nächste Vorlagen-Zeile hier eine frische
+      // UUID — kein Neu-Mounten pro Render.
       const usedItemIds = new Set<string>();
       Object.values(shoppingList.list).forEach((department) => {
         department.items.forEach((item) => usedItemIds.add(item.id));
@@ -780,12 +787,10 @@ const EventShoppingListList = React.memo(
       > = {};
       Object.entries(shoppingList.list).forEach(
         ([departmentKey, department]) => {
-          // Ohne Unterstriche, da Row-Identifier per `split("_")` geparst werden.
-          let templateRowUid = "tmpl-row-" + departmentKey;
-          let suffix = department.items.length;
-          while (usedItemIds.has(templateRowUid)) {
-            templateRowUid = "tmpl-row-" + departmentKey + "-" + suffix;
-            suffix += 1;
+          let templateRowUid = templateRowIdsRef.current[departmentKey];
+          if (!templateRowUid || usedItemIds.has(templateRowUid)) {
+            templateRowUid = crypto.randomUUID();
+            templateRowIdsRef.current[departmentKey] = templateRowUid;
           }
           result[departmentKey] = prepareDepartmentItemsForDisplay(
             department.items,
