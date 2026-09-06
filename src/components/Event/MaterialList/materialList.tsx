@@ -97,7 +97,10 @@ import {
 
 import {useMaterialListHandlers} from "./useMaterialListHandlers";
 import {useDatabase} from "../../Database/DatabaseContext";
-import {itemsDomainToMaterialListItems} from "./materialListAdapter";
+import {
+  headersDomainToMaterialList,
+  itemsDomainToMaterialListItems,
+} from "./materialListAdapter";
 
 enum ReducerActions {
   SHOW_LOADING,
@@ -332,66 +335,94 @@ const EventMaterialListPage = ({
     }
   }, [materialList, state.selectedListItem]);
 
+  // Item-level Realtime für ALLE angezeigten Listen (ein Kanal, ein Binding je
+  // list_id). Fremd-Änderungen an Positionen werden dadurch live sichtbar —
+  // auch auf gerade nicht ausgewählten Listen. `onChange` liefert keine
+  // Payload; die betroffenen Listen werden neu geladen.
+  const materialListIdsKey = Object.keys(materialList.lists).sort().join(",");
   React.useEffect(() => {
-    if (!state.selectedListItem) return;
+    const listIds = materialListIdsKey ? materialListIdsKey.split(",") : [];
+    if (listIds.length === 0) return;
 
-    const {unsubscribe, reconnect} = database.materialLists.subscribeToListItems(
-      state.selectedListItem,
-      (items) => {
-        // Während eines eigenen Saves ignorieren
-        if (saveInProgressRef.current) return;
+    const {unsubscribe, reconnect} =
+      database.materialLists.subscribeToItemsForLists(
+        event.uid,
+        listIds,
+        async () => {
+          // Während eines eigenen Saves ignorieren.
+          if (saveInProgressRef.current) return;
 
-        // Leere Liste ignorieren (kurzzeitig bei delete-all + re-insert)
-        if (items.length === 0 && materialListItemsRef.current.length > 0) {
-          return;
-        }
-
-        const updatedItems = itemsDomainToMaterialListItems(items);
-
-        // Geänderte Items ermitteln (für Highlight)
-        const oldMap = new Map<string, {quantity: number; checked: boolean; cookName: string}>();
-        materialListItemsRef.current.forEach((material) => {
-          oldMap.set(material.uid, {quantity: material.quantity, checked: material.checked, cookName: material.resolvedCookName ?? material.assignedCookName ?? ""});
-        });
-        const changedUids = new Set<string>();
-        updatedItems.forEach((material) => {
-          const old = oldMap.get(material.uid);
-          const currentCookName = material.resolvedCookName ?? material.assignedCookName ?? "";
-          if (!old) {
-            changedUids.add(material.uid);
-          } else if (old.quantity !== material.quantity || old.checked !== material.checked || old.cookName !== currentCookName) {
-            changedUids.add(material.uid);
+          const headers = await database.materialLists.getListsForEvent(event.uid);
+          const reloaded = headersDomainToMaterialList(headers, event.uid);
+          for (const header of headers) {
+            const items = await database.materialLists.getListItems(header.id);
+            reloaded.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
-        });
 
-        if (changedUids.size > 0) {
-          setHighlightedItemUids(changedUids);
-          if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
-          highlightTimeoutRef.current = setTimeout(
-            () => setHighlightedItemUids(new Set()),
-            2000,
-          );
-        }
+          // Highlight-Diff für die aktuell ausgewählte Liste (item.id-basiert).
+          const selectedId = state.selectedListItem;
+          if (selectedId && reloaded.lists[selectedId]) {
+            const oldMap = new Map(
+              materialListItemsRef.current.map((material) => [
+                material.id,
+                {
+                  quantity: material.quantity,
+                  checked: material.checked,
+                  cookName:
+                    material.resolvedCookName ?? material.assignedCookName ?? "",
+                },
+              ]),
+            );
+            const changedIds = new Set<string>();
+            reloaded.lists[selectedId].items.forEach((material) => {
+              const old = oldMap.get(material.id);
+              const cookName =
+                material.resolvedCookName ?? material.assignedCookName ?? "";
+              if (
+                !old ||
+                old.quantity !== material.quantity ||
+                old.checked !== material.checked ||
+                old.cookName !== cookName
+              ) {
+                changedIds.add(material.id);
+              }
+            });
+            if (changedIds.size > 0) {
+              setHighlightedItemUids(changedIds);
+              if (highlightTimeoutRef.current)
+                clearTimeout(highlightTimeoutRef.current);
+              highlightTimeoutRef.current = setTimeout(
+                () => setHighlightedItemUids(new Set()),
+                2000,
+              );
+            }
+            materialListItemsRef.current = reloaded.lists[selectedId].items;
+          }
 
-        // Ref sofort aktualisieren
-        materialListItemsRef.current = updatedItems;
-
-        const updatedMaterialList = JSON.parse(JSON.stringify(materialList)) as MaterialList;
-        updatedMaterialList.lists[state.selectedListItem!].items = updatedItems;
-        onMaterialListUpdate(updatedMaterialList);
-      },
-      (error) => {
-        Sentry.captureException(error, {extra: {context: "Realtime materiallistitems subscription"}});
-      },
-      (status) => realtime.setStatus("materiallistitems", status),
-    );
+          onMaterialListUpdate(reloaded);
+        },
+        (error) => {
+          Sentry.captureException(error, {
+            extra: {context: "Realtime materiallistitems subscription"},
+          });
+        },
+        (status) => realtime.setStatus("materiallistitems", status),
+      );
     realtime.register("materiallistitems", reconnect);
 
     return () => {
       unsubscribe();
       realtime.unregister("materiallistitems");
     };
-  }, [state.selectedListItem]);
+  }, [
+    materialListIdsKey,
+    event.uid,
+    database,
+    realtime,
+    state.selectedListItem,
+    onMaterialListUpdate,
+    saveInProgressRef,
+  ]);
 
   /* ------------------------------------------
   // Listen-Element-Handler
@@ -726,10 +757,10 @@ const EventMaterialListList = React.memo(
             {displayData.items.map((material) => {
               return (
                 <ListItem
-                  key={"materialListItem_" + material.uid}
+                  key={"materialListItem_" + material.id}
                   sx={{
                     ...classes.eventListItem,
-                    ...(highlightedItemUids.has(material.uid) && classes.remoteChangeGlow),
+                    ...(highlightedItemUids.has(material.id) && classes.remoteChangeGlow),
                   }}
                 >
                   <ListItemIcon>

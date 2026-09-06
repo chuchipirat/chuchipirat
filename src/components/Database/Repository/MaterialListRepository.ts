@@ -513,6 +513,43 @@ export class MaterialListRepository extends BaseRepository<
   }
 
   /* =====================================================================
+  // Echtzeit-Subscription: Items mehrerer Listen (ein Kanal)
+  // ===================================================================== */
+
+  /**
+   * Abonniert Echtzeit-Änderungen der Positionen mehrerer Listen über einen
+   * einzigen Kanal (ein `postgres_changes`-Binding je `list_id`). Der Callback
+   * bekommt keine Payload — er ist ein „irgendetwas hat sich geändert, neu
+   * laden"-Signal; der Aufrufer lädt die betroffenen Listen selbst neu.
+   *
+   * @param eventId - Event-ID (nur für den Kanalnamen).
+   * @param listIds - Die zu beobachtenden Listen-IDs.
+   * @param onChange - Wird bei jeder Item-Änderung aufgerufen.
+   * @param onError - Callback bei Fehler.
+   * @param onStatusChange - Optionaler Verbindungsstatus-Callback.
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`.
+   */
+  subscribeToItemsForLists(
+    eventId: string,
+    listIds: string[],
+    onChange: () => void | Promise<void>,
+    onError: (error: Error) => void,
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `materiallistitems:${eventId}`,
+      bindings: listIds.map((listId) => ({
+        table: "event_material_list_items",
+        filter: `list_id=eq.${listId}`,
+      })),
+      onChange,
+      onError,
+      onStatusChange,
+    });
+  }
+
+  /* =====================================================================
   // Echtzeit-Subscription: Items einer Liste
   // ===================================================================== */
 
