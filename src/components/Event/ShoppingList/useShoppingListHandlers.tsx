@@ -284,9 +284,11 @@ export const moveItemToDepartment = ({
   }
 
   if (toDepartment.pos != fromDepartmentPos && !isNewItem) {
+    // Über die stabile Zeilen-ID filtern — vorher `item.item.uid`, was
+    // gleicher-Produkt/andere-Einheit-Positionen fälschlich mitentfernte.
     shoppingList.list[Number(fromDepartmentPos) as Department["pos"]].items =
       shoppingList.list[fromDepartmentPos].items.filter(
-        (listItem) => listItem.item.uid != item.item.uid,
+        (listItem) => listItem.id !== item.id,
       );
     shoppingList.list[toDepartment.pos].items.push(item);
     return true;

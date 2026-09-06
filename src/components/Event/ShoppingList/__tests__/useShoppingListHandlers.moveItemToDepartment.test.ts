@@ -40,13 +40,17 @@ import Department from "../../../Department/department.class";
 // ===================================================================== */
 
 /** Erzeugt ein minimales ShoppingListItem mit gegebener UID. */
-const createItem = (uid: string): ShoppingListItem => ({
+const createItem = (
+  uid: string,
+  overrides: Partial<ShoppingListItem> = {},
+): ShoppingListItem => ({
   checked: false,
   quantity: 1,
   unit: "kg",
   item: {uid, name: `Artikel ${uid}`},
   type: ItemType.food,
   id: `row-${uid}`,
+  ...overrides,
 });
 
 /** Erzeugt eine Abteilung mit Position und UID. */
@@ -158,5 +162,34 @@ describe("moveItemToDepartment", () => {
 
     expect(moved).toBe(false);
     expect(shoppingList.list[2].items).toEqual([item]);
+  });
+
+  test("entfernt nur die verschobene Zeile, nicht gleicher-Produkt/andere-Einheit", () => {
+    const shoppingList = new ShoppingList();
+    const kg = createItem("a", {id: "row-a-kg", unit: "kg"});
+    const stk = createItem("a", {id: "row-a-stk", unit: "Stk"});
+    shoppingList.list[0] = {
+      departmentUid: "dep-0",
+      departmentName: "Gemüse",
+      items: [kg, stk],
+    };
+    const toDepartment = createDepartment(5, "dep-5", "Getränke");
+
+    const moved = moveItemToDepartment({
+      shoppingList,
+      item: kg,
+      fromDepartmentPos: 0,
+      toDepartment,
+      isNewItem: false,
+    });
+
+    expect(moved).toBe(true);
+    // Die "Stk"-Position mit derselben Produkt-UID bleibt in Abteilung 0
+    expect(shoppingList.list[0].items.map((entry) => entry.id)).toEqual([
+      "row-a-stk",
+    ]);
+    expect(shoppingList.list[5].items.map((entry) => entry.id)).toEqual([
+      "row-a-kg",
+    ]);
   });
 });
