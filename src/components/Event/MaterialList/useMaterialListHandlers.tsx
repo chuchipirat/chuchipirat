@@ -105,6 +105,8 @@ interface UseMaterialListHandlersProps {
   materialList: MaterialList;
   selectedListItem: string | null;
   saveInProgressRef: React.MutableRefObject<boolean>;
+  /** Liefert je Liste die zuletzt aus der DB geladenen Zeilen-IDs (knownIds). */
+  getPersistedItemIds: (listId: string) => string[];
   fetchMissingData: ({type}: FetchMissingDataProps) => void;
   onMaterialListUpdate: (materialList: MaterialList) => void;
   onSelectList: (listUid: string) => void;
@@ -129,6 +131,7 @@ export function useMaterialListHandlers({
   materialList,
   selectedListItem,
   saveInProgressRef,
+  getPersistedItemIds,
   fetchMissingData: _fetchMissingData,
   onMaterialListUpdate,
   onSelectList,
@@ -210,7 +213,11 @@ export function useMaterialListHandlers({
       saveInProgressRef.current = true;
       try {
         const insertRows = materialListItemsToInsertRows(items, listId, materials);
-        await database.materialLists.saveListItems(listId, insertRows);
+        await database.materialLists.saveListItems(
+          listId,
+          insertRows,
+          getPersistedItemIds(listId),
+        );
       } catch (error) {
         Sentry.captureException(error);
         onDispatchError(error instanceof Error ? error : new Error(String(error)));
@@ -218,7 +225,7 @@ export function useMaterialListHandlers({
         saveInProgressRef.current = false;
       }
     },
-    [database, saveInProgressRef, onDispatchError],
+    [database, saveInProgressRef, materials, getPersistedItemIds, onDispatchError],
   );
 
   const persistCollectionHeader = React.useCallback(

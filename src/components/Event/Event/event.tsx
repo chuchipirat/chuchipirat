@@ -940,6 +940,24 @@ const EventPage = () => {
   // Callbacks und beim initialen Laden aktualisiert, damit der nächste
   // Callback immer den aktuellen Stand als Vergleichsbasis hat.
   const shoppingListRef = React.useRef<ShoppingList | null>(null);
+  // Basis-Snapshot für den serverseitigen Diff: die Zeilen-IDs, die zuletzt
+  // aus der DB geladen/geechte wurden (nicht die optimistisch lokal
+  // mutierten). Der Persistenz-Helfer nutzt sie als `knownIds`.
+  const getShoppingListPersistedItemIds = React.useCallback((): string[] => {
+    const current = shoppingListRef.current;
+    if (!current) return [];
+    return Object.values(current.list).flatMap((department) =>
+      department.items.map((item) => item.id),
+    );
+  }, []);
+  // Analoger DB-Snapshot der Materialliste (nur DB-Stand, keine optimistischen
+  // Mutationen). `getMaterialListPersistedItemIds` liefert die knownIds je Liste.
+  const materialListRef = React.useRef<MaterialList | null>(null);
+  const getMaterialListPersistedItemIds = React.useCallback(
+    (listId: string): string[] =>
+      materialListRef.current?.lists[listId]?.items.map((item) => item.id) ?? [],
+    [],
+  );
   // Ref für den aktuellen Menuplan, damit der Debounce-Callback (der in einem
   // useEffect mit [] lebt) immer Zugriff auf den neuesten Stand hat.
   const menuplanRef = React.useRef<MenuplanData>(state.menuplan);
@@ -1455,6 +1473,7 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
+          materialListRef.current = ml;
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -1479,6 +1498,7 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
+          materialListRef.current = ml;
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -2366,6 +2386,7 @@ const EventPage = () => {
                   shoppingListCollection={state.shoppingListCollection}
                   shoppingList={state.shoppingList.value}
                   saveInProgressRef={shoppingListSaveInProgress}
+                  getPersistedItemIds={getShoppingListPersistedItemIds}
                   fetchMissingData={fetchMissingData}
                   onShoppingListUpdate={onShoppingListUpdate}
                   onShoppingCollectionUpdate={onShoppingCollectionUpdate}
@@ -2384,6 +2405,7 @@ const EventPage = () => {
                 materials={state.materials}
                 recipes={state.recipes}
                 saveInProgressRef={materialListSaveInProgress}
+                getPersistedItemIds={getMaterialListPersistedItemIds}
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}

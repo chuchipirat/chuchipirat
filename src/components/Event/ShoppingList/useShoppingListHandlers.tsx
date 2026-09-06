@@ -184,6 +184,12 @@ interface UseShoppingListHandlersProps {
   shoppingList: ShoppingList | null;
   selectedListItem: string | null;
   saveInProgressRef: React.MutableRefObject<boolean>;
+  /**
+   * Liefert die Zeilen-IDs, die zuletzt aus der DB geladen/geechte wurden
+   * (Basis-Snapshot). Dient als `knownIds` für den serverseitigen Diff: nur
+   * diese IDs dürfen gelöscht werden.
+   */
+  getPersistedItemIds: () => string[];
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (
@@ -364,6 +370,7 @@ const useShoppingListHandlers = ({
   shoppingList,
   selectedListItem,
   saveInProgressRef,
+  getPersistedItemIds,
   fetchMissingData,
   onShoppingListUpdate,
   onShoppingCollectionUpdate,
@@ -440,14 +447,32 @@ const useShoppingListHandlers = ({
   // ------------------------------------------ */
 
   /**
-   * Speichert die Items einer Liste in Supabase (delete-all + re-insert).
+   * Zeilen-IDs, die zuletzt tatsächlich persistiert wurden — dient als
+   * `knownIds` für den serverseitigen Diff. Wird beim Listenwechsel aus dem
+   * DB-Snapshot geseedet und nach jedem Save synchron auf den neuen
+   * Payload-Stand gesetzt (damit ein direkt folgender Save den gerade
+   * eingefügten Eintrag als „bekannt" führt).
+   */
+  const lastPersistedItemIdsRef = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    lastPersistedItemIdsRef.current = new Set(getPersistedItemIds());
+  }, [selectedListItem, getPersistedItemIds]);
+
+  /**
+   * Speichert den gewünschten Voll-Zustand der Positionen einer Liste über die
+   * Diff-RPC (`save_shopping_list_items`).
    */
   const persistListItems = React.useCallback(
     async (listId: string, list: ShoppingList) => {
       saveInProgressRef.current = true;
       try {
         const rows = shoppingListToInsertRows(list, listId, departments);
-        await database.shoppingLists.saveListItems(listId, rows);
+        await database.shoppingLists.saveListItems(listId, rows, [
+          ...lastPersistedItemIdsRef.current,
+        ]);
+        lastPersistedItemIdsRef.current = new Set(
+          rows.map((row) => row.id).filter((id): id is string => Boolean(id)),
+        );
       } finally {
         // Kurz warten, damit die Realtime-Callbacks noch das Flag sehen —
         // die WAL-Events treffen asynchron ein.

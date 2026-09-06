@@ -211,6 +211,8 @@ interface EventMaterialListPageProps {
   materials: Material[];
   recipes: Recipes;
   saveInProgressRef: React.MutableRefObject<boolean>;
+  /** Liefert je Liste die zuletzt aus der DB geladenen Zeilen-IDs. */
+  getPersistedItemIds: (listId: string) => string[];
   fetchMissingData: ({type}: FetchMissingDataProps) => void;
   onMaterialListUpdate: (materialList: MaterialList) => void;
   onMasterdataCreate: ({type, value}: OnMasterdataCreateProps) => void;
@@ -231,6 +233,7 @@ const EventMaterialListPage = ({
   materials,
   recipes,
   saveInProgressRef,
+  getPersistedItemIds,
   fetchMissingData,
   onMaterialListUpdate,
   onMasterdataCreate,
@@ -257,6 +260,7 @@ const EventMaterialListPage = ({
     materialList,
     selectedListItem: state.selectedListItem,
     saveInProgressRef,
+    getPersistedItemIds,
     fetchMissingData,
     onMaterialListUpdate,
     onSelectList: (listUid: string) =>

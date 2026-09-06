@@ -207,6 +207,8 @@ interface EventShoppingListPageProps {
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
   saveInProgressRef: React.MutableRefObject<boolean>;
+  /** Liefert die zuletzt aus der DB geladenen Zeilen-IDs (Basis-Snapshot). */
+  getPersistedItemIds: () => string[];
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (
@@ -221,6 +223,7 @@ const EventShoppingListPage = ({
   menuplan,
   event,
   saveInProgressRef,
+  getPersistedItemIds,
   materials,
   recipes,
   shoppingListCollection,
@@ -314,6 +317,7 @@ const EventShoppingListPage = ({
     shoppingList,
     selectedListItem: state.selectedListItem,
     saveInProgressRef,
+    getPersistedItemIds,
     fetchMissingData,
     onShoppingListUpdate,
     onShoppingCollectionUpdate,
