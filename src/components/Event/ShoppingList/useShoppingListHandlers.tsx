@@ -183,7 +183,14 @@ interface UseShoppingListHandlersProps {
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
   selectedListItem: string | null;
-  saveInProgressRef: React.MutableRefObject<boolean>;
+  /**
+   * Zähler laufender Speichervorgänge der Einkaufsliste. > 0 bedeutet, dass
+   * gerade ein eigener Save läuft — die Realtime-Subscription in `event.tsx`
+   * ignoriert dann eingehende Snapshots, damit ein Echo den optimistischen
+   * lokalen Stand nicht überschreibt. Zähler (statt Boolean), damit sich
+   * überlappende Saves sauber verschachteln.
+   */
+  saveInProgressRef: React.MutableRefObject<number>;
   /**
    * Liefert die Zeilen-IDs, die zuletzt aus der DB geladen/geechte wurden
    * (Basis-Snapshot). Dient als `knownIds` für den serverseitigen Diff: nur
@@ -463,10 +470,15 @@ const useShoppingListHandlers = ({
   /**
    * Speichert den gewünschten Voll-Zustand der Positionen einer Liste über die
    * Diff-RPC (`save_shopping_list_items`).
+   *
+   * Der `saveInProgressRef`-Zähler wird synchron hoch- und im `finally` wieder
+   * heruntergezählt: das eigene Realtime-Echo trifft erst nach dem `await` ein,
+   * sieht den Zähler wieder auf 0 und übernimmt den Stand dann als regulärer
+   * Reconcile — inklusive paralleler Änderungen anderer Köch:innen.
    */
   const persistListItems = React.useCallback(
     async (listId: string, list: ShoppingList) => {
-      saveInProgressRef.current = true;
+      saveInProgressRef.current += 1;
       try {
         const rows = shoppingListToInsertRows(list, listId, departments);
         await database.shoppingLists.saveListItems(listId, rows, [
@@ -476,11 +488,7 @@ const useShoppingListHandlers = ({
           rows.map((row) => row.id).filter((id): id is string => Boolean(id)),
         );
       } finally {
-        // Kurz warten, damit die Realtime-Callbacks noch das Flag sehen —
-        // die WAL-Events treffen asynchron ein.
-        setTimeout(() => {
-          saveInProgressRef.current = false;
-        }, 500);
+        saveInProgressRef.current -= 1;
       }
     },
     [database, departments, saveInProgressRef],
@@ -1228,6 +1236,14 @@ const useShoppingListHandlers = ({
 
           onShoppingListUpdate(updatedShoppingList!);
           onShoppingCollectionUpdate(updatedShoppingListCollection);
+
+          // Löschung persistieren — ohne diesen Call bleibt die Zeile in der DB
+          // und taucht beim nächsten Realtime-Echo wieder auf.
+          persistListItems(updatedShoppingList!.uid, updatedShoppingList!).catch(
+            (error) => {
+              Sentry.captureException(error);
+            },
+          );
           break;
 
         case Action.TRACE:
@@ -1257,6 +1273,7 @@ const useShoppingListHandlers = ({
       onShoppingListUpdate,
       onShoppingCollectionUpdate,
       computeTraceOnDemand,
+      persistListItems,
     ],
   );
 
@@ -1513,19 +1530,18 @@ const useShoppingListHandlers = ({
       onShoppingListUpdate(shoppingList);
 
       // Granulares Update in Supabase
-      saveInProgressRef.current = true;
       if (item.supabaseId) {
+        saveInProgressRef.current += 1;
         database.shoppingLists
           .updateItemChecked(item.supabaseId, item.checked)
-          .then(() => {
-            setTimeout(() => { saveInProgressRef.current = false; }, 500);
-          })
           .catch((error) => {
-            saveInProgressRef.current = false;
             Sentry.captureException(error);
+          })
+          .finally(() => {
+            saveInProgressRef.current -= 1;
           });
       } else {
-        // Fallback: alle Items neu speichern
+        // Fallback: alle Positionen neu speichern (zählt selbst hoch/runter)
         persistListItems(shoppingList.uid, shoppingList).catch((error) => {
           Sentry.captureException(error);
         });

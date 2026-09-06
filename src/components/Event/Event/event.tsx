@@ -929,9 +929,11 @@ const EventPage = () => {
     React.useState<Set<string>>(new Set());
   const shoppingHighlightTimeoutRef =
     React.useRef<ReturnType<typeof setTimeout>>();
-  // Flag: Während ein Shopping-List-Save läuft, Highlighting unterdrücken —
-  // eigene Änderungen sollen nicht hervorgehoben werden.
-  const shoppingListSaveInProgress = React.useRef(false);
+  // Zähler laufender Shopping-List-Saves. > 0 bedeutet: eigener Save aktiv —
+  // die Realtime-Subscription ignoriert dann eingehende Snapshots, damit ein
+  // Echo den optimistischen lokalen Stand nicht überschreibt. Zähler statt
+  // Boolean, damit sich überlappende Saves sauber verschachteln.
+  const shoppingListSaveInProgress = React.useRef(0);
   // Flag: Während ein Material-List-Save läuft, Realtime-Reloads unterdrücken —
   // eigene Änderungen sollen den optimistischen State nicht überschreiben.
   const materialListSaveInProgress = React.useRef(false);
@@ -957,6 +959,11 @@ const EventPage = () => {
       materialListRef.current?.lists[listId]?.items.map((item) => item.id) ?? [],
     [],
   );
+  // Unsubscribe der aktuell aktiven Items-Subscription. Synchron gesetzt/
+  // abgebaut, damit ein zweiter fetchMissingData(SHOPPING_LIST)-Aufruf im
+  // selben Tick nicht am veralteten State-Wert vorbei einen zweiten Channel
+  // aufmacht (verwaister Channel → doppelter Refetch-Sturm).
+  const shoppingListItemsUnsubRef = React.useRef<(() => void) | null>(null);
   // Ref für den aktuellen Menuplan, damit der Debounce-Callback (der in einem
   // useEffect mit [] lebt) immer Zugriff auf den neuesten Stand hat.
   const menuplanRef = React.useRef<MenuplanData>(state.menuplan);
@@ -1238,6 +1245,14 @@ const EventPage = () => {
       return function cleanup() {
         unsubscribe();
         realtime.unregister("shoppinglists");
+        // Items-Subscription der aktuell offenen Liste ebenfalls abbauen —
+        // sie hängt nicht an diesem useEffect, sondern wird in
+        // fetchMissingData(SHOPPING_LIST) aufgebaut.
+        if (shoppingListItemsUnsubRef.current !== null) {
+          shoppingListItemsUnsubRef.current();
+          shoppingListItemsUnsubRef.current = null;
+          realtime.unregister("shoppinglistitems");
+        }
         if (shoppingHighlightTimeoutRef.current)
           clearTimeout(shoppingHighlightTimeoutRef.current);
       };
@@ -2104,9 +2119,12 @@ const EventPage = () => {
           });
         break;
       case FetchMissingDataType.SHOPPING_LIST:
-        if (state.shoppingList.unsubscribe !== null) {
-          // Vorheriger Listener beenden
-          state.shoppingList.unsubscribe();
+        // Vorherige Items-Subscription synchron über den Ref abbauen (nicht
+        // über state.shoppingList.unsubscribe — dessen Wert kann in einem
+        // zweiten Aufruf im selben Tick noch veraltet sein → verwaister Channel).
+        if (shoppingListItemsUnsubRef.current !== null) {
+          shoppingListItemsUnsubRef.current();
+          shoppingListItemsUnsubRef.current = null;
           realtime.unregister("shoppinglistitems");
         }
         dispatch({type: ReducerActions.SHOPPINGLIST_FETCH_INIT, payload: {}});
@@ -2136,19 +2154,30 @@ const EventPage = () => {
           const {unsubscribe, reconnect} = database.shoppingLists.subscribeToListItems(
             objectUid as string,
             (items) => {
+              // Läuft gerade ein eigener Save, wird das Echo komplett ignoriert
+              // (analog Material-Liste). Der Zähler geht erst nach dem `await`
+              // in persistListItems wieder auf 0 — das dann eintreffende Echo
+              // aktualisiert den State als regulärer Reconcile und zieht dabei
+              // auch parallele Änderungen anderer Köch:innen nach.
+              if (shoppingListSaveInProgress.current > 0) {
+                return;
+              }
+
               const newShoppingList = itemsDomainToShoppingList(
                 items,
                 objectUid as string,
               );
 
-              // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr —
-              // ein leerer Snapshot bedeutet jetzt „die Liste ist wirklich
-              // leer" und muss propagieren. Der frühere newItemCount-Guard
-              // entfällt daher.
+              // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
+              // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
+              // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
+              const newItemCount = Object.values(newShoppingList.list).reduce(
+                (sum, dept) => sum + dept.items.length,
+                0,
+              );
 
-              // Highlighting nur für Änderungen anderer Köch:innen —
-              // eigene Saves setzen shoppingListSaveInProgress.
-              if (!shoppingListSaveInProgress.current) {
+              // Highlighting für Änderungen anderer Köch:innen.
+              if (newItemCount > 0) {
                 const changedKeys = getChangedShoppingListItemKeys(
                   shoppingListRef.current,
                   newShoppingList,
@@ -2182,11 +2211,13 @@ const EventPage = () => {
             (status) => realtime.setStatus("shoppinglistitems", status),
           );
           realtime.register("shoppinglistitems", reconnect);
+          shoppingListItemsUnsubRef.current = unsubscribe;
           dispatch({
             type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_LISTENER,
             payload: unsubscribe,
           });
         }
+        break;
     }
   };
   /* ------------------------------------------

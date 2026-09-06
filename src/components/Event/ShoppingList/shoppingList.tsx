@@ -206,7 +206,8 @@ interface EventShoppingListPageProps {
   recipes: Recipes;
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
-  saveInProgressRef: React.MutableRefObject<boolean>;
+  /** Zähler laufender eigener Speichervorgänge (> 0 = Save aktiv). */
+  saveInProgressRef: React.MutableRefObject<number>;
   /** Liefert die zuletzt aus der DB geladenen Zeilen-IDs (Basis-Snapshot). */
   getPersistedItemIds: () => string[];
   fetchMissingData: (props: FetchMissingDataProps) => void;
