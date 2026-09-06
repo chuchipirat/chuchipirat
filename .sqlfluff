@@ -1,0 +1,20 @@
+# SQL-Formatierung: bewusst NUR Gross-/Kleinschreibung.
+# sqlfluff ist regel-granular — es werden ausschliesslich die
+# capitalisation-Regeln aktiviert, daher kein Umbrechen und kein
+# Neu-Einrücken. Der Zeilen-/Layout-Stil der Baseline-Migrationen
+# bleibt unangetastet.
+#
+# Baseline-Konvention (supabase/migrations/20260401*..):
+#   - Schlüsselwörter GROSS  (CREATE TABLE, NOT NULL, DEFAULT, REFERENCES ...)
+#   - Datentypen klein       (text, integer, timestamptz, uuid, boolean ...)
+#   - Bezeichner klein        (snake_case)
+[sqlfluff]
+dialect = postgres
+templater = raw
+rules = capitalisation.keywords, capitalisation.types
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = upper
+
+[sqlfluff:rules:capitalisation.types]
+extended_capitalisation_policy = lower
