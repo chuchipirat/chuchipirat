@@ -18,7 +18,11 @@ import {AuthUser} from "../../Session/authUser.class";
 import {Event,Cook, EventDate} from "../../Event/Event/event.class";
 import {parseLocalDate, formatLocalDate} from "../../../utils/dateUtils";
 import {isUuid} from "../../../utils/uuid";
-import {subscribeWithRetry} from "./realtimeSubscription";
+import {
+  subscribeWithRetry,
+  RealtimeConnectionStatus,
+  RealtimeSubscriptionHandle,
+} from "./realtimeSubscription";
 
 /* =====================================================================
 // DB-Zeilenstrukturen (snake_case, entspricht den Postgres-Spalten)
@@ -599,14 +603,16 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
    *
    * @param eventId - Die ID des Events
    * @param onData - Callback bei Datenänderung
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToEvent(
     eventId: string,
     onData: (eventData: EventDomain) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     // Ein einziger Channel für alle 3 Event-Tabellen — spart Realtime-Connections
     return subscribeWithRetry({
       client: this.client,
@@ -621,6 +627,7 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
         if (updated) onData(updated);
       },
       onError,
+      onStatusChange,
     });
   }
 

@@ -92,6 +92,7 @@ import {
 } from "./materialsQaFilterBar";
 import {MergeMaterialsResult} from "../Database/Repository/AdminOperationsRepository";
 import {DialogMergeMaterials} from "./dialogMergeMaterials";
+import {isForeignKeyViolationError, toError} from "../../utils/errorUtils";
 import {DialogConvertMaterialToProduct} from "./dialogConvertMaterialToProduct";
 import {DialogWhereUsedMaterial} from "./dialogWhereUsedMaterial";
 import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
@@ -526,12 +527,19 @@ const MaterialPage = () => {
         });
       }
     } catch (error) {
-      Sentry.captureException(error, {
-        extra: {context: "Material löschen", materialUid: material.uid},
-      });
+      // Löschen trotz Verwendung in einem Menüplan (ON DELETE RESTRICT) —
+      // die Where-Used-Prüfung oben warnt bereits, verhindert die Aktion aber
+      // nicht. Erwartetes, von der DB korrekt verhindertes Verhalten, kein
+      // Bug: Nutzer-Hinweis anzeigen (übersetzt via SupabaseMessageHandler),
+      // nicht an Sentry melden.
+      if (!isForeignKeyViolationError(error)) {
+        Sentry.captureException(error, {
+          extra: {context: "Material löschen", materialUid: material.uid},
+        });
+      }
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
-        payload: error as Error,
+        payload: toError(error),
       });
     }
   };

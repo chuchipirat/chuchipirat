@@ -358,7 +358,7 @@ describe("UsedRecipeListRepository", () => {
       };
       client.channel.mockReturnValue(mockChannel);
 
-      const unsubscribe = repo.subscribeToLists(EVENT_ID, onData, onError);
+      const {unsubscribe} = repo.subscribeToLists(EVENT_ID, onData, onError);
 
       expect(client.channel).toHaveBeenCalledWith(
         `usedrecipelists:${EVENT_ID}`,

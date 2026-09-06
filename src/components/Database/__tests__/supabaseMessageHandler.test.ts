@@ -115,6 +115,41 @@ describe("SupabaseMessageHandler", () => {
         "Die eingegebene Zahl ist zu gross für dieses Feld. Bitte gib einen kleineren Wert ein.",
       );
     });
+
+    // Regression CHUCHIPIRAT-GW: Löschen eines Produkts/Materials/Rezepts,
+    // das noch in einem Menüplan verwendet wird (ON DELETE RESTRICT).
+    test("Übersetzt eine FK-Verletzung beim Löschen (Produkt in Menüplan verwendet)", () => {
+      const error = {
+        message:
+          'update or delete on table "products" violates foreign key constraint "event_menue_products_product_id_fkey" on table "event_menue_products"',
+      };
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(
+        "Dieses Element kann nicht gelöscht werden, da es noch in einem Menüplan verwendet wird.",
+      );
+    });
+
+    test("Übersetzt eine FK-Verletzung auch für Materialien und Rezepte", () => {
+      expect(
+        SupabaseMessageHandler.translateMessage({
+          message:
+            'update or delete on table "materials" violates foreign key constraint "event_menue_materials_material_id_fkey" on table "event_menue_materials"',
+        }),
+      ).toBe(
+        "Dieses Element kann nicht gelöscht werden, da es noch in einem Menüplan verwendet wird.",
+      );
+
+      expect(
+        SupabaseMessageHandler.translateMessage({
+          message:
+            'update or delete on table "recipes" violates foreign key constraint "event_menue_recipes_recipe_id_fkey" on table "event_menue_recipes"',
+        }),
+      ).toBe(
+        "Dieses Element kann nicht gelöscht werden, da es noch in einem Menüplan verwendet wird.",
+      );
+    });
   });
 
   describe("translateMessage — Unbekannte Fehler", () => {

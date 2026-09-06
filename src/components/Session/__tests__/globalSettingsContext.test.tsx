@@ -156,6 +156,33 @@ describe("GlobalSettingsProvider", () => {
     expect(screen.getByTestId("maintenance-mode")).toHaveTextContent("true");
   });
 
+  test("Meldet einen abgelaufenen JWT NICHT an Sentry und behält den letzten Wert", async () => {
+    const jwtExpired = {
+      code: "PGRST301",
+      details: null,
+      hint: null,
+      message: "JWT expired",
+    };
+    mockGetSettings
+      .mockResolvedValueOnce({allowSignUp: true, maintenanceMode: true})
+      .mockRejectedValueOnce(jwtExpired);
+
+    renderProvider();
+
+    await waitFor(() => {
+      expect(screen.getByTestId("maintenance-mode")).toHaveTextContent("true");
+    });
+
+    jest.advanceTimersByTime(60_000);
+
+    await waitFor(() => {
+      expect(mockGetSettings).toHaveBeenCalledTimes(2);
+    });
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(screen.getByTestId("maintenance-mode")).toHaveTextContent("true");
+  });
+
   test("Meldet unerwartete Fehler als Error-Instanz an Sentry", async () => {
     mockGetSettings.mockRejectedValue(new Error("unerwartet"));
 

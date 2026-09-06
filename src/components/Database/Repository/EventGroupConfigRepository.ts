@@ -10,7 +10,11 @@
  * const config = await repo.getGroupConfig(eventId);
  */
 import {SupabaseClient} from "@supabase/supabase-js";
-import {subscribeWithRetry} from "./realtimeSubscription";
+import {
+  subscribeWithRetry,
+  RealtimeConnectionStatus,
+  RealtimeSubscriptionHandle,
+} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -366,11 +370,12 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
    *
    * @param eventId - Die ID des Events
    * @param onData - Callback, der bei jeder Änderung die aktuelle GroupConfigDomain erhält
-   * @param onError - Callback bei Fehler (z.B. Realtime-Verbindungsfehler)
-   * @returns Unsubscribe-Funktion, die alle drei Channels entfernt
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    *
    * @example
-   * const unsubscribe = repo.subscribeToGroupConfig(
+   * const {unsubscribe} = repo.subscribeToGroupConfig(
    *   eventId,
    *   (config) => setGroupConfig(config),
    *   (error) => console.error(error),
@@ -381,7 +386,8 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
     eventId: string,
     onData: (config: GroupConfigDomain) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     // Ein einziger Channel für alle 3 GroupConfig-Tabellen — spart Realtime-Connections
     return subscribeWithRetry({
       client: this.client,
@@ -395,6 +401,7 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
         const config = await this.getGroupConfig(eventId);
         onData(config);
       },
+      onStatusChange,
       onError,
     });
   }

@@ -112,6 +112,7 @@ const testItemViewRow2: MaterialListItemViewRow = {
 };
 
 const testInsertItem: MaterialListItemInsertRow = {
+  id: "row-001",
   list_id: "list-001",
   material_id: "mat-001",
   quantity: 3,
@@ -332,62 +333,48 @@ describe("MaterialListRepository", () => {
   // saveListItems
   // ===================================================================== */
   describe("saveListItems", () => {
-    it("should delete all existing items then insert new ones", async () => {
-      // Erster from()-Aufruf: delete
-      const deleteMock = {
-        delete: jest.fn().mockReturnValue({
-          eq: jest.fn().mockResolvedValue({data: null, error: null}),
-        }),
-      };
-      // Zweiter from()-Aufruf: insert
-      const insertMock = {
-        insert: jest.fn().mockResolvedValue({data: null, error: null}),
-      };
+    it("ruft die Diff-RPC save_material_list_items mit list-id, items und knownIds", async () => {
+      await repo.saveListItems("list-001", [testInsertItem], ["row-001", "row-002"]);
 
-      client.from
-        .mockReturnValueOnce(deleteMock)
-        .mockReturnValueOnce(insertMock);
-
-      await repo.saveListItems("list-001", [testInsertItem]);
-
-      expect(client.from).toHaveBeenCalledWith("event_material_list_items");
-      expect(deleteMock.delete).toHaveBeenCalled();
-      expect(insertMock.insert).toHaveBeenCalledWith([
-        {...testInsertItem, list_id: "list-001"},
-      ]);
+      expect(client.rpc).toHaveBeenCalledTimes(1);
+      expect(client.rpc).toHaveBeenCalledWith("save_material_list_items", {
+        p_list_id: "list-001",
+        p_items: [
+          {
+            id: "row-001",
+            material_id: "mat-001",
+            quantity: 3,
+            edit_source: "generated",
+            sort_order: 0,
+          },
+        ],
+        p_known_ids: ["row-001", "row-002"],
+      });
+      // list_id wird serverseitig gesetzt und ist nicht im Payload
+      const [, args] = client.rpc.mock.calls[0];
+      expect(args.p_items[0]).not.toHaveProperty("list_id");
+      expect(client.from).not.toHaveBeenCalled();
     });
 
-    it("should only delete when items array is empty", async () => {
-      const deleteMock = {
-        delete: jest.fn().mockReturnValue({
-          eq: jest.fn().mockResolvedValue({data: null, error: null}),
-        }),
-      };
+    it("schickt bei leerer Liste ein leeres Items-Array", async () => {
+      await repo.saveListItems("list-001", [], ["row-001"]);
 
-      client.from.mockReturnValueOnce(deleteMock);
-
-      await repo.saveListItems("list-001", []);
-
-      expect(client.from).toHaveBeenCalledTimes(1);
+      expect(client.rpc).toHaveBeenCalledWith("save_material_list_items", {
+        p_list_id: "list-001",
+        p_items: [],
+        p_known_ids: ["row-001"],
+      });
     });
 
-    it("should throw on delete error", async () => {
-      const deleteMock = {
-        delete: jest.fn().mockReturnValue({
-          eq: jest
-            .fn()
-            .mockResolvedValue({
-              data: null,
-              error: {message: "Delete failed"},
-            }),
-        }),
-      };
-
-      client.from.mockReturnValueOnce(deleteMock);
+    it("wirft, wenn die RPC scheitert", async () => {
+      client.rpc.mockResolvedValueOnce({
+        data: null,
+        error: {message: "RLS violation"},
+      });
 
       await expect(
-        repo.saveListItems("list-001", [testInsertItem]),
-      ).rejects.toEqual({message: "Delete failed"});
+        repo.saveListItems("list-001", [testInsertItem], []),
+      ).rejects.toEqual({message: "RLS violation"});
     });
   });
 
@@ -552,7 +539,7 @@ describe("MaterialListRepository", () => {
       };
       client.channel.mockReturnValue(mockChannel);
 
-      const unsubscribe = repo.subscribeToLists(EVENT_ID, onData, onError);
+      const {unsubscribe} = repo.subscribeToLists(EVENT_ID, onData, onError);
 
       expect(client.channel).toHaveBeenCalledWith(
         `materiallists:${EVENT_ID}`,
@@ -618,11 +605,12 @@ describe("MaterialListRepository", () => {
       }
     });
 
-    it("sollte onError erst nach Ausschöpfen aller Retries aufrufen", () => {
+    it("sollte onStatusChange('failed') erst nach Ausschöpfen aller Retries aufrufen (nicht onError)", () => {
       jest.useFakeTimers();
       try {
         const onData = jest.fn();
         const onError = jest.fn();
+        const onStatusChange = jest.fn();
 
         const createMockChannel = () => ({
           on: jest.fn().mockReturnThis(),
@@ -635,7 +623,7 @@ describe("MaterialListRepository", () => {
           return channel;
         });
 
-        repo.subscribeToLists(EVENT_ID, onData, onError);
+        repo.subscribeToLists(EVENT_ID, onData, onError, onStatusChange);
 
         // 5 Fehlversuche mit wachsendem Backoff durchspielen (1s,2s,4s,8s,16s) —
         // jeder Fehlversuch plant einen neuen Channel (insgesamt 6 Channels:
@@ -655,10 +643,10 @@ describe("MaterialListRepository", () => {
         finalSubscribeCallback("CHANNEL_ERROR", new Error("boom"));
 
         expect(channels).toHaveLength(6);
-        expect(onError).toHaveBeenCalledTimes(1);
-        expect(onError.mock.calls[0][0].message).toContain(
-          "nach 5 Versuchen fehlgeschlagen",
-        );
+        // onError ist ausschliesslich für Fehler aus onData/Reload reserviert —
+        // ein dauerhafter Verbindungsverlust läuft über onStatusChange.
+        expect(onError).not.toHaveBeenCalled();
+        expect(onStatusChange).toHaveBeenLastCalledWith("failed");
       } finally {
         jest.useRealTimers();
       }
@@ -678,7 +666,7 @@ describe("MaterialListRepository", () => {
       };
       client.channel.mockReturnValue(mockChannel);
 
-      const unsubscribe = repo.subscribeToListItems(
+      const {unsubscribe} = repo.subscribeToListItems(
         "list-001",
         onData,
         onError,

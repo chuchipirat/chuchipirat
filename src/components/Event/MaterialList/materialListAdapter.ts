@@ -92,6 +92,7 @@ export function itemsDomainToMaterialListItems(
       type: MaterialType.usage,
       quantity: item.quantity,
       trace: [],
+      id: item.id,
       supabaseId: item.id,
       assignedCookId: item.assignedCookId,
       assignedCookName: item.assignedCookName,
@@ -154,6 +155,7 @@ export function materialListItemsToInsertRows(
     }
 
     const row: MaterialListItemInsertRow = {
+      id: item.id,
       list_id: listId,
       quantity: item.quantity,
       checked: item.checked,

@@ -17,6 +17,7 @@ import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {
   ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND as TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND,
 } from "../../../constants/text";
+import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import Recipe, {
   Ingredient,
   RecipeMaterialPosition,
@@ -61,7 +62,12 @@ export enum ItemType {
  * @param type - Art der Position (food, material, custom)
  * @param manualEdit - Wurde die Position manuell bearbeitet
  * @param manualAdd - Wurde die Position manuell hinzugefügt
- * @param supabaseId - Supabase-Zeilen-ID für granulare Updates (z.B. Checkbox)
+ * @param id - Stabile Zeilen-ID (client-generiert bei Erstellung, bleibt über
+ *   Speichervorgänge/Realtime hinweg konstant). Persistenz und Realtime-Diff
+ *   adressieren die Position darüber.
+ * @param supabaseId - `true`-wertig, sobald die Position in der DB existiert
+ *   (nur vom Lese-Adapter gesetzt). Wird von den granularen Schnellspuren
+ *   (Checkbox) genutzt, um „schon persistiert?" zu erkennen.
  */
 export interface ShoppingListItem {
   checked: boolean;
@@ -71,6 +77,7 @@ export interface ShoppingListItem {
   type: ItemType;
   manualEdit?: boolean;
   manualAdd?: boolean;
+  id: string;
   supabaseId?: string;
 }
 
@@ -189,7 +196,8 @@ export class ShoppingList {
    *
    * @param params - Ausgewählte Menüs, vorgeladene Rezepte, Stammdaten
    * @returns Generierte ShoppingList und Trace-Map
-   * @throws {Error} Wenn keine Produkte/Materialien gefunden wurden
+   * @throws {FieldValidationError} Wenn keine Produkte/Materialien gefunden
+   *   wurden — Nutzer-Hinweis, wird nicht an Sentry gemeldet.
    */
   static createNewList(params: CreateNewListParams): {
     shoppingList: ShoppingList;
@@ -227,7 +235,7 @@ export class ShoppingList {
     itemCounter += materialResult.itemCount;
 
     if (itemCounter === 0) {
-      throw new Error(TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND);
+      throw new FieldValidationError(TEXT_ERROR_NO_RECIPE_PRODUCT_MATERIAL_FOUND);
     }
 
     return {shoppingList, trace};
@@ -520,6 +528,7 @@ export class ShoppingList {
         unit,
         item: {uid: item.uid, name: item.name},
         type: itemType,
+        id: crypto.randomUUID(),
       };
 
       if (addedManually) {
@@ -612,6 +621,50 @@ export class ShoppingList {
     }
     return updatedShoppingList;
   };
+
+  /**
+   * Überträgt stabile Zeilen-IDs von einer vorherigen Liste auf eine frisch
+   * generierte.
+   *
+   * `createNewList` mintet bei jeder Neuberechnung neue IDs für alle
+   * generierten Positionen. Ohne diesen Abgleich wäre jede Neuberechnung ein
+   * kompletter Austausch aller Zeilen (Realtime-/WAL-Sturm), obwohl sich nur
+   * einzelne Mengen geändert haben. Positionen werden über
+   * (`item.uid`, `unit`) innerhalb derselben Abteilungsposition abgeglichen;
+   * bei einem Treffer übernimmt die neue Position die alte ID, sonst behält
+   * sie ihre frisch gemintete.
+   *
+   * Mutiert `nextList` in-place.
+   *
+   * @param prevList - Die `list`-Struktur der bisherigen Einkaufsliste.
+   * @param nextList - Die frisch generierte Einkaufsliste (wird mutiert).
+   */
+  static carryOverItemIds = (
+    prevList: ShoppingList["list"],
+    nextList: ShoppingList,
+  ): void => {
+    const previousIdByKey = new Map<string, string>();
+    Object.entries(prevList).forEach(([departmentPos, department]) => {
+      department.items.forEach((item) => {
+        previousIdByKey.set(
+          `${departmentPos}__${item.item.uid}__${item.unit}`,
+          item.id,
+        );
+      });
+    });
+
+    Object.entries(nextList.list).forEach(([departmentPos, department]) => {
+      department.items.forEach((item) => {
+        const previousId = previousIdByKey.get(
+          `${departmentPos}__${item.item.uid}__${item.unit}`,
+        );
+        if (previousId) {
+          item.id = previousId;
+        }
+      });
+    });
+  };
+
   /**
    * Fügt eine Abteilung zur Einkaufsliste hinzu, falls diese noch nicht existiert.
    *
@@ -670,6 +723,7 @@ export class ShoppingList {
     type: ItemType.none,
     manualEdit: false,
     manualAdd: true,
+    id: crypto.randomUUID(),
   });
   /**
    * Entfernt alle Items ohne Menge, Einheit und Name.

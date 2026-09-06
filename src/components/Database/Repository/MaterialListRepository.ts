@@ -12,7 +12,11 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import * as Sentry from "@sentry/react";
-import {subscribeWithRetry} from "./realtimeSubscription";
+import {
+  subscribeWithRetry,
+  RealtimeConnectionStatus,
+  RealtimeSubscriptionHandle,
+} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -304,45 +308,37 @@ export class MaterialListRepository extends BaseRepository<
   }
 
   /* =====================================================================
-  // Items einer Liste speichern (delete-all + re-insert)
+  // Items einer Liste speichern (nebenläufigkeitssicherer Diff)
   // ===================================================================== */
 
   /**
-   * Ersetzt alle Items einer Liste komplett (delete-all + re-insert).
-   * Wird beim Neuberechnen oder nach Änderungen verwendet.
+   * Persistiert den gewünschten Voll-Zustand der Positionen einer Liste.
    *
-   * @param listId - Die ID der Liste
-   * @param items - Die neuen Items
+   * Delegiert an die Postgres-Funktion `save_material_list_items` (Advisory
+   * Lock + Transaktion): löscht nur `knownIds`, die jetzt fehlen, und macht ein
+   * `INSERT … ON CONFLICT (id) DO UPDATE … WHERE row-is-distinct`. Unveränderte
+   * Zeilen erzeugen keinen Schreibvorgang. Siehe `ShoppingListRepository.saveListItems`.
+   *
+   * @param listId - Die ID der Liste.
+   * @param items - Die gewünschten Positionen; jede trägt eine stabile `id`.
+   * @param knownIds - IDs, die im Basis-Snapshot des Clients vorhanden waren.
    */
   async saveListItems(
     listId: string,
     items: MaterialListItemInsertRow[],
+    knownIds: string[],
   ): Promise<void> {
-    // Bestehende Items löschen
-    const {error: deleteError} = await this.client
-      .from("event_material_list_items")
-      .delete()
-      .eq("list_id", listId);
+    const payload = items.map(({list_id: _listId, ...rest}) => rest);
 
-    if (deleteError) {
-      Sentry.captureException(deleteError);
-      throw deleteError;
-    }
+    const {error} = await this.client.rpc("save_material_list_items", {
+      p_list_id: listId,
+      p_items: payload,
+      p_known_ids: knownIds,
+    });
 
-    // Neue Items einfügen
-    if (items.length > 0) {
-      const itemRows = items.map((item) => ({
-        ...item,
-        list_id: listId,
-      }));
-      const {error: insertError} = await this.client
-        .from("event_material_list_items")
-        .insert(itemRows);
-
-      if (insertError) {
-        Sentry.captureException(insertError);
-        throw insertError;
-      }
+    if (error) {
+      Sentry.captureException(error);
+      throw error;
     }
   }
 
@@ -491,14 +487,16 @@ export class MaterialListRepository extends BaseRepository<
    *
    * @param eventId - Die ID des Events
    * @param onData - Callback mit aktuellen Headers
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToLists(
     eventId: string,
     onData: (headers: MaterialListHeaderDomain[]) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     return subscribeWithRetry({
       client: this.client,
       channelName: `materiallists:${eventId}`,
@@ -510,6 +508,44 @@ export class MaterialListRepository extends BaseRepository<
         onData(headers);
       },
       onError,
+      onStatusChange,
+    });
+  }
+
+  /* =====================================================================
+  // Echtzeit-Subscription: Items mehrerer Listen (ein Kanal)
+  // ===================================================================== */
+
+  /**
+   * Abonniert Echtzeit-Änderungen der Positionen mehrerer Listen über einen
+   * einzigen Kanal (ein `postgres_changes`-Binding je `list_id`). Der Callback
+   * bekommt keine Payload — er ist ein „irgendetwas hat sich geändert, neu
+   * laden"-Signal; der Aufrufer lädt die betroffenen Listen selbst neu.
+   *
+   * @param eventId - Event-ID (nur für den Kanalnamen).
+   * @param listIds - Die zu beobachtenden Listen-IDs.
+   * @param onChange - Wird bei jeder Item-Änderung aufgerufen.
+   * @param onError - Callback bei Fehler.
+   * @param onStatusChange - Optionaler Verbindungsstatus-Callback.
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`.
+   */
+  subscribeToItemsForLists(
+    eventId: string,
+    listIds: string[],
+    onChange: () => void | Promise<void>,
+    onError: (error: Error) => void,
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `materiallistitems:${eventId}`,
+      bindings: listIds.map((listId) => ({
+        table: "event_material_list_items",
+        filter: `list_id=eq.${listId}`,
+      })),
+      onChange,
+      onError,
+      onStatusChange,
     });
   }
 
@@ -523,14 +559,16 @@ export class MaterialListRepository extends BaseRepository<
    *
    * @param listId - Die ID der Liste
    * @param onData - Callback mit aktuellen Items
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToListItems(
     listId: string,
     onData: (items: MaterialListItemDomain[]) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     return subscribeWithRetry({
       client: this.client,
       channelName: `materiallistitems:${listId}`,
@@ -542,6 +580,7 @@ export class MaterialListRepository extends BaseRepository<
         onData(items);
       },
       onError,
+      onStatusChange,
     });
   }
 

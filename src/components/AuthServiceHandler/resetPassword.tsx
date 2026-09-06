@@ -2,6 +2,7 @@ import React from "react";
 
 import {useNavigate} from "react-router";
 import * as Sentry from "@sentry/react";
+import {isAuthApiError} from "@supabase/supabase-js";
 
 import {
   Container,
@@ -98,7 +99,12 @@ export const ResetPasswordPage = () => {
       await database.auth.updatePassword(password);
       setResetState("success");
     } catch (err) {
-      Sentry.captureException(err);
+      // Supabase-Auth-API-Fehler (z.B. "neues Passwort = altes Passwort",
+      // "zu schwach") sind Nutzer-Hinweise — nur anzeigen, nicht an Sentry
+      // melden (konsistent mit passwordChange.tsx).
+      if (!isAuthApiError(err)) {
+        Sentry.captureException(err);
+      }
       const message =
         err instanceof Error ? err.message : "Unbekannter Fehler";
       setError(SupabaseMessageHandler.translateMessage({message}));

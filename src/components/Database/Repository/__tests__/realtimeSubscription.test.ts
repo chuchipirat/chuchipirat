@@ -236,11 +236,12 @@ describe("subscribeWithRetry", () => {
       expect(channels).toHaveLength(2);
     });
 
-    test("meldet nach maxRetries einen permanenten Fehler und stoppt", () => {
+    test("meldet nach maxRetries einmalig an Sentry und stoppt — onError bleibt aus, onStatusChange('failed') stattdessen", () => {
       const {client, channels} = createClientMock();
       const params = baseParams(client);
+      const onStatusChange = jest.fn();
 
-      subscribeWithRetry(params);
+      subscribeWithRetry({...params, onStatusChange});
 
       const delays = [1000, 2000, 4000, 8000, 16000];
       for (const delay of delays) {
@@ -251,20 +252,104 @@ describe("subscribeWithRetry", () => {
       lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
 
       expect(channels).toHaveLength(6);
-      expect(params.onError).toHaveBeenCalledTimes(1);
-      expect(params.onError.mock.calls[0][0].message).toBe(
-        "Realtime-Verbindung für event:evt-1 nach 5 Versuchen fehlgeschlagen",
-      );
+      // onError ist ausschliesslich für onChange-Fehler reserviert — ein
+      // dauerhafter Verbindungsverlust wird nur einmal intern gemeldet und
+      // über onStatusChange kommuniziert (keine Doppelmeldung mehr).
+      expect(params.onError).not.toHaveBeenCalled();
       expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+      expect(Sentry.captureException).toHaveBeenCalledWith(
+        expect.objectContaining({
+          message: "Realtime-Verbindung für event:evt-1 nach 5 Versuchen fehlgeschlagen",
+        }),
+        expect.anything(),
+      );
+      expect(onStatusChange).toHaveBeenLastCalledWith("failed");
 
-      // Kein weiterer Reconnect
+      // Kein weiterer automatischer Reconnect
       jest.advanceTimersByTime(60_000);
       expect(channels).toHaveLength(6);
+      expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    });
+
+    test("onStatusChange('reconnecting') bei jedem Fehlversuch vor dem Limit", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+
+      expect(onStatusChange).toHaveBeenCalledWith("reconnecting");
+      expect(onStatusChange).not.toHaveBeenCalledWith("failed");
+      expect(onStatusChange).not.toHaveBeenCalledWith("connected");
+    });
+
+    test("onStatusChange wird beim allerersten erfolgreichen Connect NICHT aufgerufen", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+      lastStatusCallback(channels)("SUBSCRIBED");
+
+      expect(onStatusChange).not.toHaveBeenCalled();
+    });
+
+    test("onStatusChange('connected') nach Erholung von einem vorherigen Fehler", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      jest.advanceTimersByTime(1000);
+      lastStatusCallback(channels)("SUBSCRIBED");
+
+      expect(onStatusChange.mock.calls.map((call) => call[0])).toEqual([
+        "reconnecting",
+        "connected",
+      ]);
+    });
+
+    test("reconnect() meldet sofort 'reconnecting', baut neu auf und bekommt frisches Retry-Budget", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+
+      const {reconnect} = subscribeWithRetry({
+        ...baseParams(client),
+        onStatusChange,
+      });
+
+      // In den "failed"-Zustand bringen
+      const delays = [1000, 2000, 4000, 8000, 16000];
+      for (const delay of delays) {
+        lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+        jest.advanceTimersByTime(delay);
+      }
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      expect(onStatusChange).toHaveBeenLastCalledWith("failed");
+      const channelsBeforeRetry = channels.length;
+
+      // Manueller Retry
+      reconnect();
+      expect(onStatusChange).toHaveBeenLastCalledWith("reconnecting");
+      expect(channels).toHaveLength(channelsBeforeRetry + 1);
+
+      // Erfolgreich verbunden — Erholung wird gemeldet
+      lastStatusCallback(channels)("SUBSCRIBED");
+      expect(onStatusChange).toHaveBeenLastCalledWith("connected");
+
+      // Frisches Budget: 5 weitere Fehlversuche nötig, bevor wieder "failed"
+      for (const delay of delays) {
+        lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+        jest.advanceTimersByTime(delay);
+      }
+      expect(onStatusChange).toHaveBeenLastCalledWith("reconnecting");
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      expect(onStatusChange).toHaveBeenLastCalledWith("failed");
     });
 
     test("Unsubscribe räumt Channel und ausstehenden Retry-Timer auf", () => {
       const {client, channels} = createClientMock();
-      const unsubscribe = subscribeWithRetry(baseParams(client));
+      const {unsubscribe} = subscribeWithRetry(baseParams(client));
 
       lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
       unsubscribe();
@@ -276,7 +361,7 @@ describe("subscribeWithRetry", () => {
     test("ignoriert Status-Callbacks nach dem Unsubscribe", () => {
       const {client, channels} = createClientMock();
       const params = baseParams(client);
-      const unsubscribe = subscribeWithRetry(params);
+      const {unsubscribe} = subscribeWithRetry(params);
 
       unsubscribe();
       lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));

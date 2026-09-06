@@ -105,6 +105,8 @@ interface UseMaterialListHandlersProps {
   materialList: MaterialList;
   selectedListItem: string | null;
   saveInProgressRef: React.MutableRefObject<boolean>;
+  /** Liefert je Liste die zuletzt aus der DB geladenen Zeilen-IDs (knownIds). */
+  getPersistedItemIds: (listId: string) => string[];
   fetchMissingData: ({type}: FetchMissingDataProps) => void;
   onMaterialListUpdate: (materialList: MaterialList) => void;
   onSelectList: (listUid: string) => void;
@@ -129,6 +131,7 @@ export function useMaterialListHandlers({
   materialList,
   selectedListItem,
   saveInProgressRef,
+  getPersistedItemIds,
   fetchMissingData: _fetchMissingData,
   onMaterialListUpdate,
   onSelectList,
@@ -210,15 +213,24 @@ export function useMaterialListHandlers({
       saveInProgressRef.current = true;
       try {
         const insertRows = materialListItemsToInsertRows(items, listId, materials);
-        await database.materialLists.saveListItems(listId, insertRows);
+        await database.materialLists.saveListItems(
+          listId,
+          insertRows,
+          getPersistedItemIds(listId),
+        );
       } catch (error) {
         Sentry.captureException(error);
         onDispatchError(error instanceof Error ? error : new Error(String(error)));
       } finally {
-        saveInProgressRef.current = false;
+        // Kurzes Nachlauf-Fenster: die WAL-Events des eigenen Saves treffen
+        // asynchron ein und würden sonst einen vollständigen Reload + Re-Render
+        // auslösen.
+        setTimeout(() => {
+          saveInProgressRef.current = false;
+        }, 400);
       }
     },
-    [database, saveInProgressRef, onDispatchError],
+    [database, saveInProgressRef, materials, getPersistedItemIds, onDispatchError],
   );
 
   const persistCollectionHeader = React.useCallback(
@@ -630,6 +642,13 @@ export function useMaterialListHandlers({
       let item = items.find((existingItem) => existingItem.uid === materialUid);
       let isNewItem = false;
 
+      // Vorlagen-Zeile schon von einem vorherigen Aufruf in ein echtes Item
+      // verwandelt (das übernahm die Vorlagen-UUID als `id`)? Dann dieselbe
+      // Zeile weiterbearbeiten statt ein Duplikat mit derselben `id` anzulegen.
+      if (!item) {
+        item = items.find((existingItem) => existingItem.id === materialUid);
+      }
+
       if (!item) {
         item = {
           checked: false,
@@ -639,6 +658,14 @@ export function useMaterialListHandlers({
           quantity: 0,
           trace: [],
           manualAdd: true,
+          // Die UUID der Vorlagen-Zeile als stabile `id` übernehmen, damit der
+          // React-Key der ListItem-Zeile über den Übergang „Vorlage → echtes
+          // Item" identisch bleibt und der Fokus im Mengenfeld erhalten bleibt.
+          // Die Vorlagen-UUID ist global eindeutig (crypto.randomUUID in
+          // materialList.tsx) — sonst kollidiert die `id` als PK mit einer Zeile
+          // einer anderen Materialliste. Die nächste Vorlagen-Zeile bekommt
+          // dort automatisch eine neue UUID.
+          id: materialUid,
         };
         isNewItem = true;
       }

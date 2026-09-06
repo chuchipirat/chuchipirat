@@ -11,7 +11,11 @@
  * const items = await repo.getListItems(listId);
  */
 import {SupabaseClient} from "@supabase/supabase-js";
-import {subscribeWithRetry} from "./realtimeSubscription";
+import {
+  subscribeWithRetry,
+  RealtimeConnectionStatus,
+  RealtimeSubscriptionHandle,
+} from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
   STORAGE_OBJECT_PROPERTY,
@@ -305,40 +309,41 @@ export class ShoppingListRepository extends BaseRepository<
   }
 
   /* =====================================================================
-  // Items einer Liste speichern (delete-all + re-insert)
+  // Items einer Liste speichern (nebenläufigkeitssicherer Diff)
   // ===================================================================== */
 
   /**
-   * Ersetzt alle Items einer Liste komplett (delete-all + re-insert).
-   * Wird beim Neuberechnen oder nach Änderungen verwendet.
+   * Persistiert den gewünschten Voll-Zustand der Positionen einer Liste.
    *
-   * @param listId - Die ID der Liste
-   * @param items - Die neuen Items
+   * Delegiert an die Postgres-Funktion `save_shopping_list_items`, die unter
+   * einem Advisory Lock in einer Transaktion:
+   * - nur Positionen löscht, die der Client kannte (`knownIds`) UND jetzt
+   *   weglässt — eine Zeile, die eine andere Köchin seit dem Client-Snapshot
+   *   angelegt hat, bleibt erhalten;
+   * - Positionen per `INSERT … ON CONFLICT (id) DO UPDATE … WHERE row-is-distinct`
+   *   einfügt/aktualisiert — unveränderte Zeilen erzeugen keinen Schreibvorgang,
+   *   keinen Trigger und kein Realtime-Echo.
+   *
+   * @param listId - Die ID der Liste.
+   * @param items - Die gewünschten Positionen; jede trägt eine stabile `id`.
+   * @param knownIds - IDs, die im Basis-Snapshot des Clients vorhanden waren.
+   * @throws Der Supabase-Fehler, falls die RPC scheitert (z.B. RLS-Verletzung).
    */
   async saveListItems(
     listId: string,
     items: ShoppingListItemInsertRow[],
+    knownIds: string[],
   ): Promise<void> {
-    // Bestehende Items löschen
-    const {error: deleteError} = await this.client
-      .from("event_shopping_list_items")
-      .delete()
-      .eq("list_id", listId);
+    // `list_id` wird serverseitig gesetzt und aus dem Payload entfernt.
+    const payload = items.map(({list_id: _listId, ...rest}) => rest);
 
-    if (deleteError) throw deleteError;
+    const {error} = await this.client.rpc("save_shopping_list_items", {
+      p_list_id: listId,
+      p_items: payload,
+      p_known_ids: knownIds,
+    });
 
-    // Neue Items einfügen
-    if (items.length > 0) {
-      const itemRows = items.map((item) => ({
-        ...item,
-        list_id: listId,
-      }));
-      const {error: insertError} = await this.client
-        .from("event_shopping_list_items")
-        .insert(itemRows);
-
-      if (insertError) throw insertError;
-    }
+    if (error) throw error;
   }
 
   /* =====================================================================
@@ -391,38 +396,6 @@ export class ShoppingListRepository extends BaseRepository<
   }
 
   /* =====================================================================
-  // Einzelnes Item aktualisieren
-  // ===================================================================== */
-
-  /**
-   * Aktualisiert einzelne Felder eines Items.
-   *
-   * @param itemId - Die ID des Items
-   * @param updates - Partielle Item-Felder zum Aktualisieren
-   */
-  async updateItem(
-    itemId: string,
-    updates: Partial<{
-      product_id: string | null;
-      material_id: string | null;
-      department_id: string | null;
-      free_text_name: string | null;
-      quantity: number;
-      unit: string | null;
-      checked: boolean;
-      edit_source: ShoppingListEditSource;
-      sort_order: number;
-    }>,
-  ): Promise<void> {
-    const {error} = await this.client
-      .from("event_shopping_list_items")
-      .update(updates)
-      .eq("id", itemId);
-
-    if (error) throw error;
-  }
-
-  /* =====================================================================
   // Liste löschen (CASCADE entfernt Items)
   // ===================================================================== */
 
@@ -451,14 +424,16 @@ export class ShoppingListRepository extends BaseRepository<
    *
    * @param eventId - Die ID des Events
    * @param onData - Callback mit aktuellen Headers
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToLists(
     eventId: string,
     onData: (headers: ShoppingListHeaderDomain[]) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     return subscribeWithRetry({
       client: this.client,
       channelName: `shoppinglists:${eventId}`,
@@ -470,6 +445,7 @@ export class ShoppingListRepository extends BaseRepository<
         onData(headers);
       },
       onError,
+      onStatusChange,
     });
   }
 
@@ -483,14 +459,16 @@ export class ShoppingListRepository extends BaseRepository<
    *
    * @param listId - Die ID der Liste
    * @param onData - Callback mit aktuellen Items
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    */
   subscribeToListItems(
     listId: string,
     onData: (items: ShoppingListItemDomain[]) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     return subscribeWithRetry({
       client: this.client,
       channelName: `shoppinglistitems:${listId}`,
@@ -502,6 +480,7 @@ export class ShoppingListRepository extends BaseRepository<
         onData(items);
       },
       onError,
+      onStatusChange,
     });
   }
 

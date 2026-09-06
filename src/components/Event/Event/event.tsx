@@ -119,6 +119,8 @@ import {ValueObject} from "../../Shared/global.interface";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
+import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
+import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {trackEvent, trackVirtualPageview} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
@@ -192,21 +194,45 @@ function getChangedMenueUids(
 }
 
 /**
- * Stabiler Vergleichs-Key für ein Shopping-List-Item.
- * Verwendet den Artikelnamen statt der UID, da Freitext-Items bei
- * jedem delete-all + re-insert eine neue Supabase-UUID erhalten.
+ * Stabiler Vergleichs-Key für ein Shopping-List-Item — die client-generierte
+ * Zeilen-ID, die über Speichervorgänge und Realtime hinweg konstant bleibt.
  */
 function shoppingListItemKey(item: ShoppingListItem): string {
-  return item.item.name + "_" + item.unit;
+  return item.id;
 }
 
 /**
- * Vergleicht zwei ShoppingLists und liefert die Keys der Items zurück,
+ * Prüft, ob zwei Einkaufslisten inhaltlich gleich sind (persistierte Felder je
+ * Position). Dient dazu, ein Realtime-Echo zu verwerfen, das nichts Neues
+ * bringt — dann muss der State nicht ersetzt und die Liste nicht neu gerendert
+ * werden.
+ */
+function shoppingListsAreEquivalent(
+  a: ShoppingList | null,
+  b: ShoppingList | null,
+): boolean {
+  if (!a || !b) return false;
+  const signature = (list: ShoppingList): string =>
+    Object.values(list.list)
+      .flatMap((department) =>
+        department.items.map(
+          (item) =>
+            `${item.id}|${item.quantity}|${item.checked ? 1 : 0}|${item.unit}|` +
+            `${item.item.uid}|${item.item.name}`,
+        ),
+      )
+      .sort()
+      .join("\n");
+  return signature(a) === signature(b);
+}
+
+/**
+ * Vergleicht zwei ShoppingLists und liefert die IDs der Items zurück,
  * die sich geändert haben oder neu hinzugekommen sind.
  *
  * @param oldList - Bisherige Einkaufsliste (oder null)
  * @param newList - Neu geladene Einkaufsliste
- * @returns Set von geänderten Item-Keys (`name_unit`)
+ * @returns Set von geänderten Item-IDs
  */
 function getChangedShoppingListItemKeys(
   oldList: ShoppingList | null,
@@ -792,8 +818,12 @@ const eventReducer = (state: State, action: DispatchAction): State => {
         },
       };
     case ReducerActions.GENERIC_ERROR:
-      // Allgemeiner Fehler
-      Sentry.captureException(action.payload);
+      // Allgemeiner Fehler — FieldValidationError ist ein Nutzer-Hinweis
+      // (z.B. ungültiger/veralteter Event-Link), wird angezeigt, aber nicht
+      // an Sentry gemeldet.
+      if (!(action.payload instanceof FieldValidationError)) {
+        Sentry.captureException(action.payload);
+      }
       return {
         ...state,
         isLoading: false,
@@ -895,6 +925,10 @@ const EventPage = () => {
   const [state, dispatch] = React.useReducer(eventReducer, INITITIAL_STATE);
   const [activeTab, setActiveTab] = React.useState(initialTab);
 
+  // Aggregierter Verbindungsstatus über alle Realtime-Subscriptions dieser
+  // Seite (Event, GroupConfig, Menuplan, Einkaufs-/Material-/Rezeptlisten).
+  const realtime = useRealtimeConnectionStatus();
+
   // Sendet pro Tab einen eigenen virtuellen Pageview an Umami (Journey-/
   // Pages-Report), da der aktive Tab nur über einen Query-Parameter
   // abgebildet ist und Umami Query-Strings nicht trackt (data-exclude-search).
@@ -920,9 +954,11 @@ const EventPage = () => {
     React.useState<Set<string>>(new Set());
   const shoppingHighlightTimeoutRef =
     React.useRef<ReturnType<typeof setTimeout>>();
-  // Flag: Während ein Shopping-List-Save läuft, Highlighting unterdrücken —
-  // eigene Änderungen sollen nicht hervorgehoben werden.
-  const shoppingListSaveInProgress = React.useRef(false);
+  // Zähler laufender Shopping-List-Saves. > 0 bedeutet: eigener Save aktiv —
+  // die Realtime-Subscription ignoriert dann eingehende Snapshots, damit ein
+  // Echo den optimistischen lokalen Stand nicht überschreibt. Zähler statt
+  // Boolean, damit sich überlappende Saves sauber verschachteln.
+  const shoppingListSaveInProgress = React.useRef(0);
   // Flag: Während ein Material-List-Save läuft, Realtime-Reloads unterdrücken —
   // eigene Änderungen sollen den optimistischen State nicht überschreiben.
   const materialListSaveInProgress = React.useRef(false);
@@ -930,6 +966,29 @@ const EventPage = () => {
   // Callbacks und beim initialen Laden aktualisiert, damit der nächste
   // Callback immer den aktuellen Stand als Vergleichsbasis hat.
   const shoppingListRef = React.useRef<ShoppingList | null>(null);
+  // Basis-Snapshot für den serverseitigen Diff: die Zeilen-IDs, die zuletzt
+  // aus der DB geladen/geechte wurden (nicht die optimistisch lokal
+  // mutierten). Der Persistenz-Helfer nutzt sie als `knownIds`.
+  const getShoppingListPersistedItemIds = React.useCallback((): string[] => {
+    const current = shoppingListRef.current;
+    if (!current) return [];
+    return Object.values(current.list).flatMap((department) =>
+      department.items.map((item) => item.id),
+    );
+  }, []);
+  // Analoger DB-Snapshot der Materialliste (nur DB-Stand, keine optimistischen
+  // Mutationen). `getMaterialListPersistedItemIds` liefert die knownIds je Liste.
+  const materialListRef = React.useRef<MaterialList | null>(null);
+  const getMaterialListPersistedItemIds = React.useCallback(
+    (listId: string): string[] =>
+      materialListRef.current?.lists[listId]?.items.map((item) => item.id) ?? [],
+    [],
+  );
+  // Unsubscribe der aktuell aktiven Items-Subscription. Synchron gesetzt/
+  // abgebaut, damit ein zweiter fetchMissingData(SHOPPING_LIST)-Aufruf im
+  // selben Tick nicht am veralteten State-Wert vorbei einen zweiten Channel
+  // aufmacht (verwaister Channel → doppelter Refetch-Sturm).
+  const shoppingListItemsUnsubRef = React.useRef<(() => void) | null>(null);
   // Ref für den aktuellen Menuplan, damit der Debounce-Callback (der in einem
   // useEffect mit [] lebt) immer Zugriff auf den neuesten Stand hat.
   const menuplanRef = React.useRef<MenuplanData>(state.menuplan);
@@ -993,10 +1052,11 @@ const EventPage = () => {
           } else {
             // Event existiert nicht oder RLS verweigert den Zugriff (getEvent
             // gibt in beiden Fällen null zurück) — ohne diesen Zweig bliebe
-            // die Seite unendlich im Ladezustand hängen.
+            // die Seite unendlich im Ladezustand hängen. Nutzer-Hinweis
+            // (ungültiger/veralteter Link, entferntes Event) — kein Bug.
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
-              payload: new Error(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
+              payload: new FieldValidationError(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
             });
           }
         })
@@ -1006,8 +1066,9 @@ const EventPage = () => {
     }
 
     // Realtime-Subscription für laufende Änderungen
-    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
-    const unsubscribe = database.events.subscribeToEvent(
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client
+    // reconnected automatisch (Status/Retry-Button siehe RealtimeStatusBanner)
+    const {unsubscribe, reconnect} = database.events.subscribeToEvent(
       eventUid,
       (eventDomain) => {
         const event = database.events.eventDomainToUi(eventDomain);
@@ -1021,10 +1082,13 @@ const EventPage = () => {
           extra: {context: "Realtime event subscription"},
         });
       },
+      (status) => realtime.setStatus("event", status),
     );
+    realtime.register("event", reconnect);
 
     return function cleanup() {
       unsubscribe();
+      realtime.unregister("event");
       // Sentry-Event-Kontext zurücksetzen, wenn die Event-Seite verlassen wird.
       Sentry.setContext("event", null);
     };
@@ -1050,27 +1114,32 @@ const EventPage = () => {
       });
 
     // Realtime-Subscription für laufende Änderungen
-    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
-    const unsubscribe = database.eventGroupConfig.subscribeToGroupConfig(
-      eventUid,
-      (gcDomain) => {
-        dispatch({
-          type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
-          payload: database.eventGroupConfig.groupConfigDomainToUi(
-            gcDomain,
-            eventUid,
-          ),
-        });
-      },
-      (error) => {
-        Sentry.captureException(error, {
-          extra: {context: "Realtime groupconfig subscription"},
-        });
-      },
-    );
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client
+    // reconnected automatisch (Status/Retry-Button siehe RealtimeStatusBanner)
+    const {unsubscribe, reconnect} =
+      database.eventGroupConfig.subscribeToGroupConfig(
+        eventUid,
+        (gcDomain) => {
+          dispatch({
+            type: ReducerActions.GROUP_CONFIG_FETCH_SUCCESS,
+            payload: database.eventGroupConfig.groupConfigDomainToUi(
+              gcDomain,
+              eventUid,
+            ),
+          });
+        },
+        (error) => {
+          Sentry.captureException(error, {
+            extra: {context: "Realtime groupconfig subscription"},
+          });
+        },
+        (status) => realtime.setStatus("groupconfig", status),
+      );
+    realtime.register("groupconfig", reconnect);
 
     return function cleanup() {
       unsubscribe();
+      realtime.unregister("groupconfig");
     };
   }, []);
   React.useEffect(() => {
@@ -1135,8 +1204,9 @@ const EventPage = () => {
     };
 
     // Realtime-Subscription für laufende Änderungen
-    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client reconnected automatisch
-    const unsubscribe = database.menuplan.subscribeToMenuplan(
+    // Fehler nur loggen — Realtime-Verbindungsfehler sind transient, Client
+    // reconnected automatisch (Status/Retry-Button siehe RealtimeStatusBanner)
+    const {unsubscribe, reconnect} = database.menuplan.subscribeToMenuplan(
       eventUid,
       debouncedReload,
       (error) => {
@@ -1144,11 +1214,14 @@ const EventPage = () => {
           extra: {context: "Realtime menuplan subscription"},
         });
       },
+      (status) => realtime.setStatus("menuplan", status),
     );
+    realtime.register("menuplan", reconnect);
 
     return function cleanup() {
       if (debounceTimer) clearTimeout(debounceTimer);
       unsubscribe();
+      realtime.unregister("menuplan");
       if (highlightTimeoutRef.current)
         clearTimeout(highlightTimeoutRef.current);
     };
@@ -1176,7 +1249,7 @@ const EventPage = () => {
         });
 
       // Realtime-Subscription für laufende Änderungen
-      const unsubscribe = database.shoppingLists.subscribeToLists(
+      const {unsubscribe, reconnect} = database.shoppingLists.subscribeToLists(
         eventUid,
         (headers) => {
           const collection = headersDomainToCollection(headers, eventUid);
@@ -1190,10 +1263,21 @@ const EventPage = () => {
             extra: {context: "Realtime shopping list subscription"},
           });
         },
+        (status) => realtime.setStatus("shoppinglists", status),
       );
+      realtime.register("shoppinglists", reconnect);
 
       return function cleanup() {
         unsubscribe();
+        realtime.unregister("shoppinglists");
+        // Items-Subscription der aktuell offenen Liste ebenfalls abbauen —
+        // sie hängt nicht an diesem useEffect, sondern wird in
+        // fetchMissingData(SHOPPING_LIST) aufgebaut.
+        if (shoppingListItemsUnsubRef.current !== null) {
+          shoppingListItemsUnsubRef.current();
+          shoppingListItemsUnsubRef.current = null;
+          realtime.unregister("shoppinglistitems");
+        }
         if (shoppingHighlightTimeoutRef.current)
           clearTimeout(shoppingHighlightTimeoutRef.current);
       };
@@ -1383,27 +1467,31 @@ const EventPage = () => {
         });
 
       // Realtime-Subscription — bei jeder Änderung Listen neu laden
-      const unsubscribe = database.usedRecipeLists.subscribeToLists(
-        eventUid,
-        (lists) => {
-          dispatch({
-            type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
-            payload: UsedRecipes.fromDomainLists({
-              lists,
-              eventUid,
-              menuplan: menuplanRef.current,
-            }),
-          });
-        },
-        (error) => {
-          Sentry.captureException(error, {
-            extra: {context: "Realtime usedrecipelists subscription"},
-          });
-        },
-      );
+      const {unsubscribe, reconnect} =
+        database.usedRecipeLists.subscribeToLists(
+          eventUid,
+          (lists) => {
+            dispatch({
+              type: ReducerActions.USED_RECIPES_FETCH_SUCCESS,
+              payload: UsedRecipes.fromDomainLists({
+                lists,
+                eventUid,
+                menuplan: menuplanRef.current,
+              }),
+            });
+          },
+          (error) => {
+            Sentry.captureException(error, {
+              extra: {context: "Realtime usedrecipelists subscription"},
+            });
+          },
+          (status) => realtime.setStatus("usedrecipelists", status),
+        );
+      realtime.register("usedrecipelists", reconnect);
 
       return function cleanup() {
         unsubscribe();
+        realtime.unregister("usedrecipelists");
       };
     }
   }, [activeTab]);
@@ -1424,6 +1512,11 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
+          // Ref = unveränderliche DB-Wahrheit, Reducer-State = optimistisch
+          // mutierbar. Ohne die tiefe Kopie teilen beide dieselben
+          // `items`-Arrays und jede In-place-Mutation der Handler verunreinigt
+          // die Vergleichsbasis (analog Einkaufsliste).
+          materialListRef.current = structuredClone(ml);
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -1434,7 +1527,7 @@ const EventPage = () => {
         });
 
       // Realtime-Subscription auf Kopfzeilen
-      const unsubscribe = database.materialLists.subscribeToLists(
+      const {unsubscribe, reconnect} = database.materialLists.subscribeToLists(
         eventUid,
         async (headers) => {
           // Während eines Saves den Realtime-Reload unterdrücken,
@@ -1448,6 +1541,7 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
+          materialListRef.current = structuredClone(ml);
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -1458,10 +1552,13 @@ const EventPage = () => {
             extra: {context: "Realtime materiallists subscription"},
           });
         },
+        (status) => realtime.setStatus("materiallists", status),
       );
+      realtime.register("materiallists", reconnect);
 
       return function cleanup() {
         unsubscribe();
+        realtime.unregister("materiallists");
       };
     }
   }, [activeTab]);
@@ -2051,9 +2148,13 @@ const EventPage = () => {
           });
         break;
       case FetchMissingDataType.SHOPPING_LIST:
-        if (state.shoppingList.unsubscribe !== null) {
-          // Vorheriger Listener beenden
-          state.shoppingList.unsubscribe();
+        // Vorherige Items-Subscription synchron über den Ref abbauen (nicht
+        // über state.shoppingList.unsubscribe — dessen Wert kann in einem
+        // zweiten Aufruf im selben Tick noch veraltet sein → verwaister Channel).
+        if (shoppingListItemsUnsubRef.current !== null) {
+          shoppingListItemsUnsubRef.current();
+          shoppingListItemsUnsubRef.current = null;
+          realtime.unregister("shoppinglistitems");
         }
         dispatch({type: ReducerActions.SHOPPINGLIST_FETCH_INIT, payload: {}});
 
@@ -2061,15 +2162,21 @@ const EventPage = () => {
         database.shoppingLists
           .getListItems(objectUid as string)
           .then((items) => {
-            const shoppingList = itemsDomainToShoppingList(
+            // Zwei unabhängige Instanzen: der Ref ist die unveränderliche
+            // DB-Wahrheit (Basis für Realtime-Vergleiche + `p_known_ids`), der
+            // Reducer-State wird von den Handlern optimistisch in-place mutiert
+            // (`onChangeItem` pusht/filtert `list[pos].items`). Würden beide
+            // dieselben verschachtelten Arrays teilen, landete jede
+            // optimistische Mutation (z.B. eine Mengen-Zeile ohne Artikel) auch
+            // im Ref → `shoppingListsAreEquivalent` schlägt fehl und das nächste
+            // Echo überschreibt die laufende Eingabe.
+            shoppingListRef.current = itemsDomainToShoppingList(
               items,
               objectUid as string,
             );
-            // Ref sofort setzen — Basis für Realtime-Vergleiche
-            shoppingListRef.current = shoppingList;
             dispatch({
               type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
-              payload: shoppingList,
+              payload: itemsDomainToShoppingList(items, objectUid as string),
             });
           })
           .catch((error) => {
@@ -2079,35 +2186,45 @@ const EventPage = () => {
 
         // Realtime-Subscription für Item-Änderungen
         {
-          const unsubscribe = database.shoppingLists.subscribeToListItems(
+          const {unsubscribe, reconnect} = database.shoppingLists.subscribeToListItems(
             objectUid as string,
             (items) => {
+              // Läuft gerade ein eigener Save, wird das Echo komplett ignoriert
+              // (analog Material-Liste). Der Zähler geht erst nach dem `await`
+              // in persistListItems wieder auf 0 — das dann eintreffende Echo
+              // aktualisiert den State als regulärer Reconcile und zieht dabei
+              // auch parallele Änderungen anderer Köch:innen nach.
+              if (shoppingListSaveInProgress.current > 0) {
+                return;
+              }
+
               const newShoppingList = itemsDomainToShoppingList(
                 items,
                 objectUid as string,
               );
 
-              // Leere Liste ignorieren — entsteht kurzzeitig beim
-              // delete-all + re-insert in saveListItems(). Würde sonst
-              // den Ref auf leer setzen und beim INSERT alles highlighten.
+              // Bringt das Echo gegenüber dem letzten Stand nichts Neues
+              // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
+              // dispatchen — spart einen vollständigen Re-Render der Liste.
+              if (
+                shoppingListsAreEquivalent(
+                  shoppingListRef.current,
+                  newShoppingList,
+                )
+              ) {
+                return;
+              }
+
+              // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
+              // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
+              // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
               const newItemCount = Object.values(newShoppingList.list).reduce(
                 (sum, dept) => sum + dept.items.length,
                 0,
               );
-              const oldItemCount = shoppingListRef.current
-                ? Object.values(shoppingListRef.current.list).reduce(
-                    (sum, dept) => sum + dept.items.length,
-                    0,
-                  )
-                : 0;
 
-              if (newItemCount === 0 && oldItemCount > 0) {
-                return;
-              }
-
-              // Highlighting nur für Änderungen anderer Benutzer —
-              // eigene Saves setzen shoppingListSaveInProgress.
-              if (!shoppingListSaveInProgress.current && newItemCount > 0) {
+              // Highlighting für Änderungen anderer Köch:innen.
+              if (newItemCount > 0) {
                 const changedKeys = getChangedShoppingListItemKeys(
                   shoppingListRef.current,
                   newShoppingList,
@@ -2125,12 +2242,15 @@ const EventPage = () => {
 
               // Ref sofort aktualisieren, damit der nächste Realtime-Callback
               // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
-              // asynchronen useEffect-Zyklus zu warten.
+              // asynchronen useEffect-Zyklus zu warten. `newShoppingList` geht
+              // in den Ref (unveränderliche DB-Wahrheit); der Reducer bekommt
+              // eine eigene Instanz, die die Handler optimistisch mutieren
+              // dürfen, ohne den Ref zu verunreinigen.
               shoppingListRef.current = newShoppingList;
 
               dispatch({
                 type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
-                payload: newShoppingList,
+                payload: itemsDomainToShoppingList(items, objectUid as string),
               });
             },
             (error) => {
@@ -2138,12 +2258,16 @@ const EventPage = () => {
                 extra: {context: "Realtime shopping list items subscription"},
               });
             },
+            (status) => realtime.setStatus("shoppinglistitems", status),
           );
+          realtime.register("shoppinglistitems", reconnect);
+          shoppingListItemsUnsubRef.current = unsubscribe;
           dispatch({
             type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_LISTENER,
             payload: unsubscribe,
           });
         }
+        break;
     }
   };
   /* ------------------------------------------
@@ -2241,6 +2365,10 @@ const EventPage = () => {
           />
         ) : (
           <React.Fragment>
+            <RealtimeStatusBanner
+              status={realtime.overallStatus}
+              onRetry={realtime.retryAll}
+            />
             <Box component="div" sx={classes.menuplanTabsContainer}>
               <Tabs
                 value={activeTab}
@@ -2325,6 +2453,7 @@ const EventPage = () => {
                   shoppingListCollection={state.shoppingListCollection}
                   shoppingList={state.shoppingList.value}
                   saveInProgressRef={shoppingListSaveInProgress}
+                  getPersistedItemIds={getShoppingListPersistedItemIds}
                   fetchMissingData={fetchMissingData}
                   onShoppingListUpdate={onShoppingListUpdate}
                   onShoppingCollectionUpdate={onShoppingCollectionUpdate}
@@ -2343,6 +2472,7 @@ const EventPage = () => {
                 materials={state.materials}
                 recipes={state.recipes}
                 saveInProgressRef={materialListSaveInProgress}
+                getPersistedItemIds={getMaterialListPersistedItemIds}
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}

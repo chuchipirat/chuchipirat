@@ -37,6 +37,7 @@ import {
   CREATE_NEW_EVENT as ROUTES_CREATE_NEW_EVENT,
 } from "../../../constants/routes";
 import {useAuthUser} from "../../Session/authUserContext";
+import {isTransientNetworkError, toError} from "../../../utils/errorUtils";
 
 enum ReducerActions {
   EVENTS_FETCH_INIT,
@@ -103,10 +104,17 @@ const EventsPage = () => {
           dispatch({type: ReducerActions.EVENTS_FETCH_SUCCESS, payload: result});
         })
         .catch((error) => {
-          Sentry.captureException(error, {extra: {context: "Events laden"}});
+          // Vorübergehende Netzfehler (z.B. Mobilgerät kurz offline) sind
+          // erwartbar — dem Nutzer trotzdem anzeigen (Anlässe konnten nicht
+          // geladen werden), aber nicht an Sentry melden.
+          if (!isTransientNetworkError(error)) {
+            Sentry.captureException(toError(error), {
+              extra: {context: "Events laden"},
+            });
+          }
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
-            payload: error instanceof Error ? error : new Error(String(error)),
+            payload: toError(error),
           });
         });
     }

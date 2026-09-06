@@ -80,6 +80,7 @@ import {
   EventCardReadinessItem,
 } from "../Event/Event/eventCard";
 import {getEventWeatherRange, WeatherForecastDay} from "./openMeteo";
+import {isTransientNetworkError, toError} from "../../utils/errorUtils";
 import {MealTypeCutoffDomain} from "../Database/Repository/MenuplanRepository";
 import {RecipeDomain} from "../Database/Repository/RecipeRepository";
 import {MenuplanData, PortionPlan} from "../Event/Menuplan/menuplan.types";
@@ -186,10 +187,14 @@ export const HomePage = () => {
         });
       })
       .catch((error) => {
-        Sentry.captureException(error);
+        // Vorübergehende Netzfehler (z.B. Mobilgerät kurz offline) sind
+        // erwartbar — dem Nutzer trotzdem anzeigen, aber nicht an Sentry melden.
+        if (!isTransientNetworkError(error)) {
+          Sentry.captureException(toError(error));
+        }
         dispatch({
           type: ReducerActions.EVENTS_FETCH_ERROR,
-          payload: error as Error,
+          payload: toError(error),
         });
       });
   }, [authUser]);
@@ -212,10 +217,12 @@ export const HomePage = () => {
         });
       })
       .catch((error) => {
-        Sentry.captureException(error);
+        if (!isTransientNetworkError(error)) {
+          Sentry.captureException(toError(error));
+        }
         dispatch({
           type: ReducerActions.NEWEST_RECIPES_FETCH_ERROR,
-          payload: error as Error,
+          payload: toError(error),
         });
       });
   }, [authUser]);
@@ -234,10 +241,12 @@ export const HomePage = () => {
         });
       })
       .catch((error) => {
-        Sentry.captureException(error);
+        if (!isTransientNetworkError(error)) {
+          Sentry.captureException(toError(error));
+        }
         dispatch({
           type: ReducerActions.FEED_FETCH_ERROR,
-          payload: error as Error,
+          payload: toError(error),
         });
       });
   }, [authUser]);
@@ -256,10 +265,12 @@ export const HomePage = () => {
         });
       })
       .catch((error) => {
-        Sentry.captureException(error);
+        if (!isTransientNetworkError(error)) {
+          Sentry.captureException(toError(error));
+        }
         dispatch({
           type: ReducerActions.STATS_FETCH_ERROR,
-          payload: error as Error,
+          payload: toError(error),
         });
       });
   }, [authUser]);
@@ -280,7 +291,12 @@ export const HomePage = () => {
         }
       })
       .catch((error) => {
-        Sentry.captureException(error);
+        // Systemmeldungen sind rein informativ (Banner) — kein Fehlerzustand
+        // in der UI, daher wie ein Hintergrund-Poll behandelt: transiente
+        // Netzfehler verschlucken, echte Fehler melden.
+        if (!isTransientNetworkError(error)) {
+          Sentry.captureException(toError(error));
+        }
       });
   }, [authUser]);
 

@@ -12,7 +12,11 @@
  */
 import {SupabaseClient} from "@supabase/supabase-js";
 import {BaseRepository} from "./BaseRepository";
-import {subscribeWithRetry} from "./realtimeSubscription";
+import {
+  subscribeWithRetry,
+  RealtimeConnectionStatus,
+  RealtimeSubscriptionHandle,
+} from "./realtimeSubscription";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
@@ -378,11 +382,12 @@ export class UsedRecipeListRepository extends BaseRepository<
    *
    * @param eventId - Die ID des Events
    * @param onData - Callback, der bei jeder Änderung die aktuellen Listen erhält
-   * @param onError - Callback bei Fehler
-   * @returns Unsubscribe-Funktion
+   * @param onError - Callback bei Fehler in onData/Reload
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
    *
    * @example
-   * const unsubscribe = repo.subscribeToLists(
+   * const {unsubscribe} = repo.subscribeToLists(
    *   eventId,
    *   (lists) => setLists(lists),
    *   (error) => console.error(error),
@@ -392,7 +397,8 @@ export class UsedRecipeListRepository extends BaseRepository<
     eventId: string,
     onData: (lists: UsedRecipeListDomain[]) => void,
     onError: (error: Error) => void,
-  ): () => void {
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ): RealtimeSubscriptionHandle {
     return subscribeWithRetry({
       client: this.client,
       channelName: `usedrecipelists:${eventId}`,
@@ -404,6 +410,7 @@ export class UsedRecipeListRepository extends BaseRepository<
         onData(lists);
       },
       onError,
+      onStatusChange,
     });
   }
 }

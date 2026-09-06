@@ -196,9 +196,18 @@ const ItemAutocomplete: React.FC<ItemAutocompleteProps> = ({
     setItems(tempItems);
   }, [materials, products]);
 
+  // Nur auf den tatsächlichen Namen/Text reagieren, nicht auf die bei jedem
+  // Parent-Render neu erzeugte Objekt-Referenz von `item` (die aufrufende
+  // Zeile baut das Prop pro Render frisch zusammen). Ohne diese Entkopplung
+  // würde jeder Re-Render den gerade getippten bzw. eben per Dropdown
+  // gewählten Wert zurücksetzen — der Doppel-Verarbeitungs-Schutz in `onBlur`
+  // (Vergleich gegen `lastSelectedNameRef`) liefe dann ins Leere und die
+  // Position landete doppelt (einmal pro Abteilung).
+  const committedItemLabel =
+    typeof item === "string" ? item : (item?.name ?? "");
   React.useEffect(() => {
-    setInputValue(typeof item === "string" ? item : (item?.name ?? ""));
-  }, [item]);
+    setInputValue(committedItemLabel);
+  }, [committedItemLabel]);
 
   const objectId = "item_" + componentKey;
 

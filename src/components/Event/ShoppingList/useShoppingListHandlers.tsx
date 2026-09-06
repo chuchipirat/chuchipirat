@@ -79,6 +79,7 @@ import {
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
 import {postActivityFeed} from "../../Shared/feedActivity";
+import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import {
   shoppingListToInsertRows,
 } from "./shoppingListAdapter";
@@ -182,7 +183,20 @@ interface UseShoppingListHandlersProps {
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
   selectedListItem: string | null;
-  saveInProgressRef: React.MutableRefObject<boolean>;
+  /**
+   * Zähler laufender Speichervorgänge der Einkaufsliste. > 0 bedeutet, dass
+   * gerade ein eigener Save läuft — die Realtime-Subscription in `event.tsx`
+   * ignoriert dann eingehende Snapshots, damit ein Echo den optimistischen
+   * lokalen Stand nicht überschreibt. Zähler (statt Boolean), damit sich
+   * überlappende Saves sauber verschachteln.
+   */
+  saveInProgressRef: React.MutableRefObject<number>;
+  /**
+   * Liefert die Zeilen-IDs, die zuletzt aus der DB geladen/geechte wurden
+   * (Basis-Snapshot). Dient als `knownIds` für den serverseitigen Diff: nur
+   * diese IDs dürfen gelöscht werden.
+   */
+  getPersistedItemIds: () => string[];
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (
@@ -277,9 +291,11 @@ export const moveItemToDepartment = ({
   }
 
   if (toDepartment.pos != fromDepartmentPos && !isNewItem) {
+    // Über die stabile Zeilen-ID filtern — vorher `item.item.uid`, was
+    // gleicher-Produkt/andere-Einheit-Positionen fälschlich mitentfernte.
     shoppingList.list[Number(fromDepartmentPos) as Department["pos"]].items =
       shoppingList.list[fromDepartmentPos].items.filter(
-        (listItem) => listItem.item.uid != item.item.uid,
+        (listItem) => listItem.id !== item.id,
       );
     shoppingList.list[toDepartment.pos].items.push(item);
     return true;
@@ -363,6 +379,7 @@ const useShoppingListHandlers = ({
   shoppingList,
   selectedListItem,
   saveInProgressRef,
+  getPersistedItemIds,
   fetchMissingData,
   onShoppingListUpdate,
   onShoppingCollectionUpdate,
@@ -439,23 +456,86 @@ const useShoppingListHandlers = ({
   // ------------------------------------------ */
 
   /**
-   * Speichert die Items einer Liste in Supabase (delete-all + re-insert).
+   * Zeilen-IDs, die zuletzt tatsächlich persistiert wurden — dient als
+   * `knownIds` für den serverseitigen Diff. Wird beim Listenwechsel aus dem
+   * DB-Snapshot geseedet und nach jedem Save synchron auf den neuen
+   * Payload-Stand gesetzt (damit ein direkt folgender Save den gerade
+   * eingefügten Eintrag als „bekannt" führt).
+   */
+  const lastPersistedItemIdsRef = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    lastPersistedItemIdsRef.current = new Set(getPersistedItemIds());
+  }, [selectedListItem, getPersistedItemIds]);
+
+  // Single-Flight: nur ein Save gleichzeitig. Weitere Aufrufe während eines
+  // laufenden Saves überschreiben nur den „ausstehenden" Stand — nach dem
+  // aktuellen Save wird genau einmal mit dem neuesten Stand nachgezogen.
+  // Verhindert, dass zwei schnell aufeinanderfolgende Mutationen (z.B.
+  // Autocomplete-Select + Blur) mit demselben veralteten `knownIds` parallel
+  // speichern und die Diff-RPC beide Zeilen behält (Duplikat).
+  const runningSaveRef = React.useRef<Promise<void> | null>(null);
+  const pendingSaveRef = React.useRef<{listId: string; list: ShoppingList} | null>(
+    null,
+  );
+
+  /**
+   * Speichert den gewünschten Voll-Zustand der Positionen einer Liste über die
+   * Diff-RPC (`save_shopping_list_items`), serialisiert (Single-Flight).
+   *
+   * Der `saveInProgressRef`-Zähler wird synchron hochgezählt und erst mit
+   * kurzer Verzögerung nach dem Save wieder heruntergezählt: die WAL-Events des
+   * eigenen Saves treffen asynchron ein (typisch < 300 ms). Innerhalb dieses
+   * Fensters ignoriert die Realtime-Subscription in `event.tsx` die Echos —
+   * der optimistische lokale Stand ist bereits korrekt.
    */
   const persistListItems = React.useCallback(
-    async (listId: string, list: ShoppingList) => {
-      saveInProgressRef.current = true;
-      try {
-        const rows = shoppingListToInsertRows(list, listId, departments);
-        await database.shoppingLists.saveListItems(listId, rows);
-      } finally {
-        // Kurz warten, damit die Realtime-Callbacks noch das Flag sehen —
-        // die WAL-Events treffen asynchron ein.
-        setTimeout(() => {
-          saveInProgressRef.current = false;
-        }, 500);
+    (listId: string, list: ShoppingList): Promise<void> => {
+      const runSave = async (
+        saveListId: string,
+        saveList: ShoppingList,
+      ): Promise<void> => {
+        saveInProgressRef.current += 1;
+        try {
+          // Fallback-Seed: Lief der Seed-Effekt vor dem ersten DB-Load
+          // (shoppingListRef noch leer), wäre `lastPersistedItemIdsRef` dauerhaft
+          // leer → die Diff-RPC bekäme `p_known_ids: []` und könnte serverseitig
+          // nichts mehr abgleichen (u.a. Kontextmenü-Löschen). Beim ersten Save
+          // aus dem aktuellen DB-Stand nachziehen.
+          if (lastPersistedItemIdsRef.current.size === 0) {
+            lastPersistedItemIdsRef.current = new Set(getPersistedItemIds());
+          }
+          const rows = shoppingListToInsertRows(saveList, saveListId, departments);
+          await database.shoppingLists.saveListItems(saveListId, rows, [
+            ...lastPersistedItemIdsRef.current,
+          ]);
+          lastPersistedItemIdsRef.current = new Set(
+            rows.map((row) => row.id).filter((id): id is string => Boolean(id)),
+          );
+        } finally {
+          setTimeout(() => {
+            saveInProgressRef.current = Math.max(
+              0,
+              saveInProgressRef.current - 1,
+            );
+          }, 400);
+          const next = pendingSaveRef.current;
+          pendingSaveRef.current = null;
+          if (next) {
+            await runSave(next.listId, next.list);
+          }
+        }
+      };
+
+      if (runningSaveRef.current) {
+        pendingSaveRef.current = {listId, list};
+        return runningSaveRef.current;
       }
+      runningSaveRef.current = runSave(listId, list).finally(() => {
+        runningSaveRef.current = null;
+      });
+      return runningSaveRef.current;
     },
-    [database, departments, saveInProgressRef],
+    [database, departments, saveInProgressRef, getPersistedItemIds],
   );
 
   /**
@@ -661,7 +741,11 @@ const useShoppingListHandlers = ({
         );
         trackEvent(AnalyticsEvent.SHOPPING_LIST_REFRESHED, {eventUid: event.uid});
       } catch (error) {
-        Sentry.captureException(error);
+        // "Die Auswahl beinhaltet keine Artikel." ist ein Nutzer-Hinweis —
+        // anzeigen, aber nicht an Sentry melden.
+        if (!(error instanceof FieldValidationError)) {
+          Sentry.captureException(error);
+        }
         onDispatchError(error as Error);
       }
     },
@@ -831,6 +915,10 @@ const useShoppingListHandlers = ({
           } catch (error) {
             if ((error as Error).toString().includes(TEXT_ERROR_NO_RECIPES_FOUND)) {
               onDispatchSnackbar("info", TEXT_ERROR_NO_RECIPES_FOUND);
+            } else if (error instanceof FieldValidationError) {
+              // z.B. "Die Auswahl beinhaltet keine Artikel." — Nutzer-Hinweis,
+              // nicht an Sentry melden (vgl. ShoppingList.createNewList).
+              onDispatchSnackbar("info", error.message);
             } else {
               Sentry.captureException(error);
               onDispatchError(error as Error);
@@ -1192,6 +1280,14 @@ const useShoppingListHandlers = ({
 
           onShoppingListUpdate(updatedShoppingList!);
           onShoppingCollectionUpdate(updatedShoppingListCollection);
+
+          // Löschung persistieren — ohne diesen Call bleibt die Zeile in der DB
+          // und taucht beim nächsten Realtime-Echo wieder auf.
+          persistListItems(updatedShoppingList!.uid, updatedShoppingList!).catch(
+            (error) => {
+              Sentry.captureException(error);
+            },
+          );
           break;
 
         case Action.TRACE:
@@ -1221,6 +1317,7 @@ const useShoppingListHandlers = ({
       onShoppingListUpdate,
       onShoppingCollectionUpdate,
       computeTraceOnDemand,
+      persistListItems,
     ],
   );
 
@@ -1477,19 +1574,18 @@ const useShoppingListHandlers = ({
       onShoppingListUpdate(shoppingList);
 
       // Granulares Update in Supabase
-      saveInProgressRef.current = true;
       if (item.supabaseId) {
+        saveInProgressRef.current += 1;
         database.shoppingLists
           .updateItemChecked(item.supabaseId, item.checked)
-          .then(() => {
-            setTimeout(() => { saveInProgressRef.current = false; }, 500);
-          })
           .catch((error) => {
-            saveInProgressRef.current = false;
             Sentry.captureException(error);
+          })
+          .finally(() => {
+            saveInProgressRef.current -= 1;
           });
       } else {
-        // Fallback: alle Items neu speichern
+        // Fallback: alle Positionen neu speichern (zählt selbst hoch/runter)
         persistListItems(shoppingList.uid, shoppingList).catch((error) => {
           Sentry.captureException(error);
         });
@@ -1521,9 +1617,34 @@ const useShoppingListHandlers = ({
       if (!shoppingList) {
         return;
       }
+
+      // `field[2]` ist die UID der angesprochenen Zeile. Bei einer noch nicht
+      // befüllten Vorlagen-Zeile ist das deren (global eindeutige) UUID; sobald
+      // die Zeile ein echtes Produkt trägt, ist es dessen Produkt-/Freitext-UID.
+      const rowUid = field[2];
+
+      if (!item) {
+        // Hat ein (fast gleichzeitiger) vorheriger Aufruf dieselbe Vorlagen-
+        // Zeile bereits in ein echtes Item verwandelt? Das neu erzeugte Item
+        // übernimmt die Vorlagen-UID als `id` — ein zweiter Aufruf (z.B. ein der
+        // Auswahl hinterherlaufendes Blur) darf daraus kein Duplikat mit
+        // derselben `id` machen, sondern muss dieselbe Zeile weiterbearbeiten.
+        item = Object.values(shoppingList.list)
+          .flatMap((department) => department.items)
+          .find((existing) => existing.id === rowUid);
+      }
+
       if (!item) {
         item = ShoppingList.createEmptyListItem();
-        item.item.uid = field[2];
+        item.item.uid = rowUid;
+        // Die UUID der Vorlagen-Zeile als stabile `id` übernehmen (statt der
+        // frischen aus createEmptyListItem): so bleibt der React-Key der
+        // ListItem-Zeile über den Übergang „Vorlage → echtes Item" hinweg
+        // identisch und der Fokus im Mengen-/Einheitenfeld geht nicht verloren.
+        // Die Vorlagen-UUID ist global eindeutig (crypto.randomUUID in
+        // shoppingList.tsx) — sonst kollidiert die `id` als PK mit einer Zeile
+        // einer anderen Liste. Die nächste Vorlagen-Zeile bekommt eine neue UUID.
+        item.id = rowUid;
         newItem = true;
       }
 
@@ -1544,6 +1665,15 @@ const useShoppingListHandlers = ({
         }
 
         case "autocompleteItem":
+          // Leeres/gelöschtes Autocomplete-Event auf einer Zeile, die es in der
+          // Liste noch gar nicht gibt: No-op. Das ist typischerweise ein
+          // Blur-Event, das der eigentlichen Auswahl hinterherläuft. Würde hier
+          // `onShoppingListUpdate` + `persistListItems` laufen, könnte ein
+          // veralteter Handler-Closure die Liste auf einen früheren Stand
+          // zurückschreiben und gerade Hinzugefügtes wieder löschen.
+          if (newItem && (change.reason === "clear" || !change.value)) {
+            return;
+          }
           if (change.reason === "clear") {
             item.item.name = "";
             break;

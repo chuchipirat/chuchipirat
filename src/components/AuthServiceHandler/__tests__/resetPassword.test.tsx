@@ -82,7 +82,11 @@ jest.mock("@sentry/react", () => ({
   captureException: jest.fn(),
 }));
 
+import * as Sentry from "@sentry/react";
+import {AuthApiError} from "@supabase/supabase-js";
 import {ResetPasswordPage} from "../resetPassword";
+
+const mockCaptureException = Sentry.captureException as jest.Mock;
 
 /**
  * Rendert die ResetPasswordPage mit allen nötigen Context-Providern.
@@ -214,9 +218,13 @@ describe("ResetPasswordPage", () => {
   });
 
   describe("Fehlerbehandlung", () => {
-    test("Fehlermeldung wird inline angezeigt", async () => {
+    test("Fehlermeldung wird inline angezeigt und NICHT an Sentry gemeldet (AuthApiError)", async () => {
       mockUpdatePassword.mockRejectedValueOnce(
-        new Error("New password should be different from the old password.")
+        new AuthApiError(
+          "New password should be different from the old password.",
+          422,
+          "same_password",
+        )
       );
       renderResetPasswordPage();
       triggerSessionEstablished();
@@ -236,6 +244,23 @@ describe("ResetPasswordPage", () => {
 
       // Uups-Titel ist sichtbar
       expect(screen.getByText(/Uups/i)).toBeInTheDocument();
+      expect(mockCaptureException).not.toHaveBeenCalled();
+    });
+
+    test("Unerwarteter Fehler wird weiterhin an Sentry gemeldet", async () => {
+      mockUpdatePassword.mockRejectedValueOnce(new Error("Network error"));
+      renderResetPasswordPage();
+      triggerSessionEstablished();
+
+      await userEvent.type(getPasswordField(), "neuesPasswort");
+      await userEvent.click(
+        screen.getByRole("button", {name: /Passwort ändern/i})
+      );
+
+      await waitFor(() => {
+        expect(screen.getByText(/Network error/i)).toBeInTheDocument();
+      });
+      expect(mockCaptureException).toHaveBeenCalledTimes(1);
     });
 
     test("Formular bleibt nach Fehler sichtbar", async () => {

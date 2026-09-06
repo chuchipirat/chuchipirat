@@ -138,6 +138,7 @@ export function itemsDomainToShoppingList(
         name: item.itemName,
       },
       type: deriveItemType(item),
+      id: item.id,
       supabaseId: item.id,
     };
 
@@ -244,6 +245,7 @@ export function shoppingListToInsertRows(
       }
 
       rows.push({
+        id: item.id,
         list_id: listId,
         quantity: item.quantity,
         unit: item.unit || null,
@@ -256,5 +258,44 @@ export function shoppingListToInsertRows(
     });
   });
 
-  return rows;
+  return dedupeInsertRows(rows);
+}
+
+/**
+ * Entfernt Zeilen mit doppelter `id` aus den Insert-Zeilen.
+ *
+ * Ein solcher Zustand kann entstehen, wenn zwei fast gleichzeitige Handler-
+ * Aufrufe (Autocomplete-Select + nachlaufendes Blur) je ein neues Item aus
+ * derselben Vorlagen-Zeile erzeugen — beide übernehmen dann deren stabile ID.
+ * Die Diff-RPC macht daraus `INSERT … SELECT … ON CONFLICT (id) DO UPDATE`;
+ * zwei Payload-Elemente mit derselben `id` führen dort zu
+ * „ON CONFLICT DO UPDATE command cannot affect row a second time" → der ganze
+ * Save schlägt fehl und nichts wird gespeichert.
+ *
+ * Es wird **nur** exakt-gleiche `id` kollabiert (immer sicher: zwei Zeilen mit
+ * demselben Primärschlüssel können ohnehin nicht koexistieren). Die Zeile mit
+ * der grösseren Menge gewinnt.
+ *
+ * @param rows - Die roh erzeugten Insert-Zeilen.
+ * @returns Die deduplizierten Insert-Zeilen in ursprünglicher Reihenfolge.
+ */
+function dedupeInsertRows(
+  rows: ShoppingListItemInsertRow[],
+): ShoppingListItemInsertRow[] {
+  const byId = new Map<string | undefined, ShoppingListItemInsertRow>();
+
+  for (const row of rows) {
+    const existing = byId.get(row.id);
+    if (!existing) {
+      byId.set(row.id, row);
+      continue;
+    }
+    if ((row.quantity ?? 0) > (existing.quantity ?? 0)) {
+      byId.set(row.id, {...row, sort_order: existing.sort_order});
+    }
+  }
+
+  return Array.from(byId.values()).sort(
+    (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+  );
 }

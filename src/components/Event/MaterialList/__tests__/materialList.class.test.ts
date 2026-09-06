@@ -388,6 +388,7 @@ describe("MaterialList (Domain-Klasse)", () => {
       const manualItem: MaterialListMaterial = {
         checked: false,
         name: "Manuell hinzugefügt",
+        id: "manual-001",
         uid: "manual-001",
         type: MaterialType.usage,
         quantity: 1,
@@ -517,6 +518,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         {
           checked: false,
           name: "Pfanne gross",
+          id: "mat-pfanne",
           uid: "mat-pfanne",
           type: MaterialType.usage,
           quantity: 5,
@@ -575,6 +577,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         {
           checked: false,
           name: "Pfanne gross",
+          id: "mat-pfanne",
           uid: "mat-pfanne",
           type: MaterialType.usage,
           quantity: 5,
@@ -583,6 +586,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         {
           checked: false,
           name: "Schüssel",
+          id: "mat-schuessel",
           uid: "mat-schuessel",
           type: MaterialType.usage,
           quantity: 3,
@@ -604,6 +608,7 @@ describe("MaterialList (Domain-Klasse)", () => {
         {
           checked: false,
           name: "Pfanne gross",
+          id: "mat-pfanne",
           uid: "mat-pfanne",
           type: MaterialType.usage,
           quantity: 5,
@@ -680,8 +685,8 @@ describe("MaterialList (Domain-Klasse)", () => {
           generated: {date: new Date(), fromUid: "", fromDisplayName: ""},
         },
         items: [
-          {checked: false, name: "X", uid: "1", type: MaterialType.usage, quantity: 1, trace: []},
-          {checked: false, name: "Y", uid: "2", type: MaterialType.usage, quantity: 2, trace: []},
+          {checked: false, name: "X", id: "1", uid: "1", type: MaterialType.usage, quantity: 1, trace: []},
+          {checked: false, name: "Y", id: "2", uid: "2", type: MaterialType.usage, quantity: 2, trace: []},
         ],
       };
       materialList.lists["list-002"] = {
@@ -693,7 +698,7 @@ describe("MaterialList (Domain-Klasse)", () => {
           generated: {date: new Date(), fromUid: "", fromDisplayName: ""},
         },
         items: [
-          {checked: false, name: "Z", uid: "3", type: MaterialType.usage, quantity: 3, trace: []},
+          {checked: false, name: "Z", id: "3", uid: "3", type: MaterialType.usage, quantity: 3, trace: []},
         ],
       };
 

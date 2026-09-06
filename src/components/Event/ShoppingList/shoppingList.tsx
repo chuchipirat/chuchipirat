@@ -74,17 +74,18 @@ import {
 import {Action} from "../../../constants/actions";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {ShoppingListCollection} from "./shoppingListCollection.class";
-import {ShoppingList,ItemType, ShoppingListItem} from "./shoppingList.class";
+import {ShoppingList, ItemType, ShoppingListItem} from "./shoppingList.class";
 
 import {DialogSelectMenues} from "../Menuplan/dialogSelectMenues";
 import {Event} from "../Event/event.class";
 import {UnitAutocomplete} from "../../Unit/unitAutocomplete";
-import {ItemAutocomplete,MaterialItem, ProductItem} from "./itemAutocomplete";
+import {ItemAutocomplete, MaterialItem, ProductItem} from "./itemAutocomplete";
 import {Unit} from "../../Unit/unit.class";
 import {Product, createEmptyProduct} from "../../Product/product.types";
 import Department from "../../Department/department.class";
 import {Recipes} from "../../Recipe/recipe.class";
-import {DialogMaterial,
+import {
+  DialogMaterial,
   MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   MaterialDialog,
 } from "../../Material/dialogMaterial";
@@ -115,7 +116,8 @@ import {HighlightedShoppingListItemContext} from "./shoppingListHighlightContext
 
 // Custom hooks
 import {useRecipeDrawer} from "./useRecipeDrawer";
-import {useShoppingListHandlers,
+import {
+  useShoppingListHandlers,
   DialogSelectDepartmentsCaller,
   OnDialogAddItemOk,
   ItemChange,
@@ -206,7 +208,10 @@ interface EventShoppingListPageProps {
   recipes: Recipes;
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
-  saveInProgressRef: React.MutableRefObject<boolean>;
+  /** Zähler laufender eigener Speichervorgänge (> 0 = Save aktiv). */
+  saveInProgressRef: React.MutableRefObject<number>;
+  /** Liefert die zuletzt aus der DB geladenen Zeilen-IDs (Basis-Snapshot). */
+  getPersistedItemIds: () => string[];
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (
@@ -221,6 +226,7 @@ const EventShoppingListPage = ({
   menuplan,
   event,
   saveInProgressRef,
+  getPersistedItemIds,
   materials,
   recipes,
   shoppingListCollection,
@@ -314,6 +320,7 @@ const EventShoppingListPage = ({
     shoppingList,
     selectedListItem: state.selectedListItem,
     saveInProgressRef,
+    getPersistedItemIds,
     fetchMissingData,
     onShoppingListUpdate,
     onShoppingCollectionUpdate,
@@ -713,7 +720,11 @@ const EventShoppingListList = React.memo(
     );
 
     const prepareDepartmentItemsForDisplay = React.useCallback(
-      (items: ShoppingListItem[]) => {
+      (
+        items: ShoppingListItem[],
+        departmentKey: string,
+        templateRowUid: string,
+      ) => {
         const sortedList = [...items].sort((a, b) => {
           if (!a.item.name && !b.item.name) return 0;
           if (!a.item.name) return 1;
@@ -721,15 +732,14 @@ const EventShoppingListList = React.memo(
           return a.item.name.localeCompare(b.item.name);
         });
 
-        let templateRowUid = "";
-
         if (shoppingListModus === ListMode.VIEW) {
-          return {items: sortedList, templateRowUid};
+          return {items: sortedList, templateRowUid: ""};
         }
 
         const newItem = ShoppingList.createEmptyListItem();
         newItem.manualAdd = true;
-        templateRowUid = newItem.item.uid;
+        newItem.id = templateRowUid;
+        newItem.item.uid = templateRowUid;
 
         if (
           sortedList.length === 0 ||
@@ -751,16 +761,41 @@ const EventShoppingListList = React.memo(
       [classes.container],
     );
 
+    // Aktuelle Vorlagen-Zeilen-ID pro Abteilung. Muss eine **global eindeutige**
+    // UUID sein: die ID landet unverändert als Primärschlüssel in
+    // `event_shopping_list_items`, und die Diff-RPC macht daraus ein
+    // `INSERT … ON CONFLICT (id) DO UPDATE`. Eine nicht-eindeutige ID (z.B.
+    // abgeleitet aus der Abteilungs-Position) kollidiert mit einer Zeile einer
+    // *anderen* Einkaufsliste und der neue Eintrag verschwindet.
+    const templateRowIdsRef = React.useRef<Record<string, string>>({});
+
     // Memoize display data per department (sorted items + template row UIDs)
     const displayDataByDepartment = React.useMemo(() => {
+      // Alle vergebenen Zeilen-IDs über die gesamte Liste — die Vorlagen-Zeile
+      // darf keine davon tragen. Sobald `onChangeItem` die Vorlage „verbraucht"
+      // (das neu erzeugte Item übernimmt die Vorlagen-ID, damit der Fokus
+      // erhalten bleibt), bekommt die nächste Vorlagen-Zeile hier eine frische
+      // UUID — kein Neu-Mounten pro Render.
+      const usedItemIds = new Set<string>();
+      Object.values(shoppingList.list).forEach((department) => {
+        department.items.forEach((item) => usedItemIds.add(item.id));
+      });
+
       const result: Record<
         string,
         {items: ShoppingListItem[]; templateRowUid: string}
       > = {};
       Object.entries(shoppingList.list).forEach(
         ([departmentKey, department]) => {
+          let templateRowUid = templateRowIdsRef.current[departmentKey];
+          if (!templateRowUid || usedItemIds.has(templateRowUid)) {
+            templateRowUid = crypto.randomUUID();
+            templateRowIdsRef.current[departmentKey] = templateRowUid;
+          }
           result[departmentKey] = prepareDepartmentItemsForDisplay(
             department.items,
+            departmentKey,
+            templateRowUid,
           );
         },
       );
@@ -815,16 +850,13 @@ const EventShoppingListList = React.memo(
                 >
                   {departmentDisplayData.items.map((item) => (
                     <ListItem
-                      key={
-                        "shoppingListItem_" + item.item.uid + "_" + item.unit
-                      }
+                      key={"shoppingListItem_" + item.id}
                       sx={{
                         ...(shoppingListModus === ListMode.VIEW
                           ? viewModeItemSx
                           : classes.eventListItem),
-                        ...(highlightedItemKeys.has(
-                          item.item.name + "_" + item.unit,
-                        ) && classes.remoteChangeGlow),
+                        ...(highlightedItemKeys.has(item.id) &&
+                          classes.remoteChangeGlow),
                       }}
                     >
                       <ListItemIcon
@@ -921,7 +953,7 @@ const EventShoppingListList = React.memo(
                           sx={{flex: 1, minWidth: 0}}
                         >
                           <Grid
-                            size={{xs: 5, sm: 3}}
+                            size={{xs: 6, sm: 3}}
                             key={"quantity_grid_" + item.item.uid}
                           >
                             <QuantityField
@@ -932,7 +964,7 @@ const EventShoppingListList = React.memo(
                             />
                           </Grid>
                           <Grid
-                            size={{xs: 4, sm: 3}}
+                            size={{xs: 6, sm: 3}}
                             key={"unit_grid_" + item.item.uid}
                           >
                             <UnitAutocomplete
