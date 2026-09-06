@@ -206,7 +206,8 @@ interface EventShoppingListPageProps {
   recipes: Recipes;
   shoppingListCollection: ShoppingListCollection;
   shoppingList: ShoppingList | null;
-  saveInProgressRef: React.MutableRefObject<boolean>;
+  /** Zähler laufender eigener Speichervorgänge (> 0 = Save aktiv). */
+  saveInProgressRef: React.MutableRefObject<number>;
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (

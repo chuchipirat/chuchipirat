@@ -309,40 +309,36 @@ export class ShoppingListRepository extends BaseRepository<
   }
 
   /* =====================================================================
-  // Items einer Liste speichern (delete-all + re-insert)
+  // Items einer Liste speichern (atomarer Replace-all)
   // ===================================================================== */
 
   /**
-   * Ersetzt alle Items einer Liste komplett (delete-all + re-insert).
-   * Wird beim Neuberechnen oder nach Änderungen verwendet.
+   * Ersetzt alle Positionen einer Liste komplett.
    *
-   * @param listId - Die ID der Liste
-   * @param items - Die neuen Items
+   * Delegiert an die Postgres-Funktion `save_shopping_list_items`, die DELETE +
+   * INSERT in einer Transaktion ausführt und konkurrierende Aufrufe pro Liste
+   * über einen Advisory Lock serialisiert. Dadurch entstehen bei parallelen
+   * Speichervorgängen (schnelle Edits, mehrere Köch:innen, mehrere Tabs) keine
+   * Duplikat-Zeilen mehr, und andere Clients sehen nie den transienten
+   * Leerzustand zwischen DELETE und INSERT.
+   *
+   * @param listId - Die ID der Liste.
+   * @param items - Die neuen Positionen (ohne `id`; die DB vergibt neue UUIDs).
+   * @throws Der Supabase-Fehler, falls die RPC scheitert (z.B. RLS-Verletzung).
    */
   async saveListItems(
     listId: string,
     items: ShoppingListItemInsertRow[],
   ): Promise<void> {
-    // Bestehende Items löschen
-    const {error: deleteError} = await this.client
-      .from("event_shopping_list_items")
-      .delete()
-      .eq("list_id", listId);
+    // `list_id` wird serverseitig gesetzt und aus dem Payload entfernt.
+    const payload = items.map(({list_id: _listId, ...rest}) => rest);
 
-    if (deleteError) throw deleteError;
+    const {error} = await this.client.rpc("save_shopping_list_items", {
+      p_list_id: listId,
+      p_items: payload,
+    });
 
-    // Neue Items einfügen
-    if (items.length > 0) {
-      const itemRows = items.map((item) => ({
-        ...item,
-        list_id: listId,
-      }));
-      const {error: insertError} = await this.client
-        .from("event_shopping_list_items")
-        .insert(itemRows);
-
-      if (insertError) throw insertError;
-    }
+    if (error) throw error;
   }
 
   /* =====================================================================
