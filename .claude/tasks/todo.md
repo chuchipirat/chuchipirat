@@ -41,3 +41,18 @@ Alle 8 Schritte umgesetzt. Kernpunkte:
 
 **Nicht angefasst** (Track-B-Cleanup, `createList`→RPC, Debounce) — siehe Plan
 „Out of scope".
+
+## Nachtrag — DEV-Test-Regressionen (Commit 3f0feab)
+
+- **Fokusverlust** Mengenfeld Vorlagen-Zeile + Tab: neues Item übernahm eine
+  frische UUID statt der Vorlagen-ID → ListItem-`key` änderte sich → Remount.
+  Fix: `onChangeItem` übernimmt `field[2]`; `shoppingList.tsx` /
+  `materialList.tsx` vergeben die Vorlagen-ID deterministisch und rotieren sie
+  bei Kollision (globale ID-Prüfung).
+- **Abteilungs-Duplikat** (Artikel landet in Quell- *und* Ziel-Abteilung):
+  `itemAutocomplete`-`inputValue`-Reset hing an der pro Render neuen
+  `item`-Objektreferenz → Doppel-Verarbeitungs-Schutz in `onBlur` wirkungslos.
+  Fix: Reset hängt am reinen Namen. Zusätzlich Cross-Abteilungs-Dedup in
+  `shoppingListToInsertRows` als Sicherheitsnetz + Single-Flight in
+  `persistListItems`.
+- [ ] Manuelle DEV-Verifikation durch User ausstehend.
