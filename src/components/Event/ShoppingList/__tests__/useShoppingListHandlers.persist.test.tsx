@@ -252,6 +252,52 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
     expect(createdItem.quantity).toBe(5);
   });
 
+  test("nachlaufendes leeres Blur auf verbrauchter Vorlagen-Zeile löscht das Item nicht", async () => {
+    const {result, saveListItems, onShoppingListUpdate} = renderHandlers();
+
+    // 1. Auswahl per Dropdown → neues Item entsteht aus der Vorlagen-Zeile.
+    await act(async () => {
+      await result.current.onChangeItem({
+        source: "autocompleteItem",
+        event: {target: {id: "item_0_tmpl-row-0"}} as never,
+        objectId: "item_0_tmpl-row-0",
+        reason: "selectOption" as never,
+        value: {
+          uid: "p1",
+          name: "Zitrone",
+          itemType: ItemType.food,
+          department: {uid: "dep-0"},
+        } as never,
+      });
+    });
+
+    // 2. Der Auswahl hinterherlaufendes Blur mit leerem Wert auf derselben
+    //    (jetzt verbrauchten) Vorlagen-Zeilen-UID.
+    await act(async () => {
+      await result.current.onChangeItem({
+        source: "autocompleteItem",
+        event: {target: {id: "item_0_tmpl-row-0"}} as never,
+        objectId: "item_0_tmpl-row-0",
+        reason: "blur" as never,
+        value: null as never,
+      });
+    });
+
+    const lastList = onShoppingListUpdate.mock.calls.at(-1)?.[0];
+    const zitroneRows = Object.values(lastList.list).flatMap((department) =>
+      (department as {items: {item: {name: string}}[]}).items.filter(
+        (entry) => entry.item.name === "Zitrone",
+      ),
+    );
+    // Genau ein Zitrone-Item, keine Regression durch das zweite Event.
+    expect(zitroneRows).toHaveLength(1);
+    // Kein Save mit einem Payload, der die neu hinzugefügte Zeile weglässt.
+    for (const call of saveListItems.mock.calls) {
+      const rows = call[1] as {free_text_name?: string; product_id?: string}[];
+      expect(rows.some((row) => row.product_id === "p1")).toBe(true);
+    }
+  });
+
   test("dekrementiert den Zähler auch bei fehlgeschlagenem Save", async () => {
     jest.useFakeTimers();
     const saveListItems = jest.fn().mockRejectedValue(new Error("boom"));

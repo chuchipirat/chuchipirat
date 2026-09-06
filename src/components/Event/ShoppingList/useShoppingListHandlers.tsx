@@ -1609,16 +1609,34 @@ const useShoppingListHandlers = ({
       if (!shoppingList) {
         return;
       }
+
+      // `field[2]` ist die UID der angesprochenen Zeile. Bei einer noch nicht
+      // befüllten Vorlagen-Zeile ist das die Vorlagen-UID (`tmpl-row-…`);
+      // sobald die Zeile ein echtes Produkt trägt, ist es dessen Produkt-UID.
+      const rowUid = field[2];
+      const isTemplateRow = rowUid?.startsWith("tmpl-row-") ?? false;
+
+      if (!item && isTemplateRow) {
+        // Hat ein (fast gleichzeitiger) vorheriger Aufruf dieselbe Vorlagen-
+        // Zeile bereits in ein echtes Item verwandelt? Das neu erzeugte Item
+        // übernimmt die stabile Vorlagen-ID — ein zweiter Aufruf (z.B. ein der
+        // Auswahl hinterherlaufendes Blur) darf daraus kein Duplikat mit
+        // derselben ID machen, sondern muss dieselbe Zeile weiterbearbeiten.
+        item = Object.values(shoppingList.list)
+          .flatMap((department) => department.items)
+          .find((existing) => existing.id === rowUid);
+      }
+
       if (!item) {
         item = ShoppingList.createEmptyListItem();
-        item.item.uid = field[2];
+        item.item.uid = rowUid;
         // Die stabile ID der Vorlagen-Zeile übernehmen (statt der frischen
         // UUID aus createEmptyListItem): so bleibt der React-Key der
         // ListItem-Zeile über den Übergang „Vorlage → echtes Item" hinweg
         // identisch und der Fokus im Mengen-/Einheitenfeld geht beim
         // folgenden Re-Render nicht verloren. Die nächste Vorlagen-Zeile
         // bekommt in shoppingList.tsx automatisch eine neue ID.
-        item.id = field[2];
+        item.id = rowUid;
         newItem = true;
       }
 
@@ -1639,6 +1657,20 @@ const useShoppingListHandlers = ({
         }
 
         case "autocompleteItem":
+          // Leeres/gelöschtes Autocomplete-Event auf einer noch nie befüllten
+          // Vorlagen-Zeile: No-op. Das ist typischerweise ein Blur-Event, das
+          // der eigentlichen Auswahl hinterherläuft. Würde hier
+          // `onShoppingListUpdate` + `persistListItems` laufen, könnte ein
+          // veralteter Handler-Closure die Liste auf einen früheren Stand
+          // zurückschreiben und gerade Hinzugefügtes wieder löschen (die
+          // Diff-RPC entfernt dann die neue Zeile als „vom Client weggelassen").
+          if (
+            newItem &&
+            isTemplateRow &&
+            (change.reason === "clear" || !change.value)
+          ) {
+            return;
+          }
           if (change.reason === "clear") {
             item.item.name = "";
             break;

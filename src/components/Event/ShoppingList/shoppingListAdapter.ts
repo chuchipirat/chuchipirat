@@ -262,17 +262,19 @@ export function shoppingListToInsertRows(
 }
 
 /**
- * Entfernt versehentliche Doppel-Positionen aus den Insert-Zeilen.
+ * Entfernt Zeilen mit doppelter `id` aus den Insert-Zeilen.
  *
- * Zwei Ebenen:
- * 1. Exakte ID-Kollision (kann bei einem Bug in der Vorlagen-Zeilen-ID
- *    entstehen) — die zweite Zeile würde per `ON CONFLICT (id)` die erste
- *    überschreiben; wir behalten die mit der grösseren Menge.
- * 2. Derselbe Katalog-Artikel (`product_id`/`material_id`) mit derselben
- *    Einheit in mehreren Zeilen — ein Katalog-Artikel gehört zu genau einer
- *    Abteilung, ein solcher Zustand entsteht nur durch eine Race-Bedingung
- *    beim gleichzeitigen Autocomplete-Select + Blur. Freitext-Positionen
- *    (eigene, eindeutige `id`) sind davon nicht betroffen.
+ * Ein solcher Zustand kann entstehen, wenn zwei fast gleichzeitige Handler-
+ * Aufrufe (Autocomplete-Select + nachlaufendes Blur) je ein neues Item aus
+ * derselben Vorlagen-Zeile erzeugen — beide übernehmen dann deren stabile ID.
+ * Die Diff-RPC macht daraus `INSERT … SELECT … ON CONFLICT (id) DO UPDATE`;
+ * zwei Payload-Elemente mit derselben `id` führen dort zu
+ * „ON CONFLICT DO UPDATE command cannot affect row a second time" → der ganze
+ * Save schlägt fehl und nichts wird gespeichert.
+ *
+ * Es wird **nur** exakt-gleiche `id` kollabiert (immer sicher: zwei Zeilen mit
+ * demselben Primärschlüssel können ohnehin nicht koexistieren). Die Zeile mit
+ * der grösseren Menge gewinnt.
  *
  * @param rows - Die roh erzeugten Insert-Zeilen.
  * @returns Die deduplizierten Insert-Zeilen in ursprünglicher Reihenfolge.
@@ -280,30 +282,20 @@ export function shoppingListToInsertRows(
 function dedupeInsertRows(
   rows: ShoppingListItemInsertRow[],
 ): ShoppingListItemInsertRow[] {
-  const byKey = new Map<string, ShoppingListItemInsertRow>();
+  const byId = new Map<string | undefined, ShoppingListItemInsertRow>();
 
   for (const row of rows) {
-    const sourceKey = row.product_id
-      ? `p:${row.product_id}`
-      : row.material_id
-        ? `m:${row.material_id}`
-        : `id:${row.id}`;
-    const key = `${sourceKey}|${row.unit ?? ""}`;
-    const existing = byKey.get(key);
-
+    const existing = byId.get(row.id);
     if (!existing) {
-      byKey.set(key, row);
+      byId.set(row.id, row);
       continue;
     }
-
-    // Kollision: die „vollständigere" Zeile behalten (grössere Menge, sonst
-    // die bereits erfasste).
     if ((row.quantity ?? 0) > (existing.quantity ?? 0)) {
-      byKey.set(key, {...row, id: existing.id, sort_order: existing.sort_order});
+      byId.set(row.id, {...row, sort_order: existing.sort_order});
     }
   }
 
-  return Array.from(byKey.values()).sort(
+  return Array.from(byId.values()).sort(
     (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
   );
 }
