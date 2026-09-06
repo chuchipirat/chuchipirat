@@ -496,6 +496,14 @@ const useShoppingListHandlers = ({
       ): Promise<void> => {
         saveInProgressRef.current += 1;
         try {
+          // Fallback-Seed: Lief der Seed-Effekt vor dem ersten DB-Load
+          // (shoppingListRef noch leer), wäre `lastPersistedItemIdsRef` dauerhaft
+          // leer → die Diff-RPC bekäme `p_known_ids: []` und könnte serverseitig
+          // nichts mehr abgleichen (u.a. Kontextmenü-Löschen). Beim ersten Save
+          // aus dem aktuellen DB-Stand nachziehen.
+          if (lastPersistedItemIdsRef.current.size === 0) {
+            lastPersistedItemIdsRef.current = new Set(getPersistedItemIds());
+          }
           const rows = shoppingListToInsertRows(saveList, saveListId, departments);
           await database.shoppingLists.saveListItems(saveListId, rows, [
             ...lastPersistedItemIdsRef.current,
@@ -527,7 +535,7 @@ const useShoppingListHandlers = ({
       });
       return runningSaveRef.current;
     },
-    [database, departments, saveInProgressRef],
+    [database, departments, saveInProgressRef, getPersistedItemIds],
   );
 
   /**
@@ -1611,17 +1619,16 @@ const useShoppingListHandlers = ({
       }
 
       // `field[2]` ist die UID der angesprochenen Zeile. Bei einer noch nicht
-      // befüllten Vorlagen-Zeile ist das die Vorlagen-UID (`tmpl-row-…`);
-      // sobald die Zeile ein echtes Produkt trägt, ist es dessen Produkt-UID.
+      // befüllten Vorlagen-Zeile ist das deren (global eindeutige) UUID; sobald
+      // die Zeile ein echtes Produkt trägt, ist es dessen Produkt-/Freitext-UID.
       const rowUid = field[2];
-      const isTemplateRow = rowUid?.startsWith("tmpl-row-") ?? false;
 
-      if (!item && isTemplateRow) {
+      if (!item) {
         // Hat ein (fast gleichzeitiger) vorheriger Aufruf dieselbe Vorlagen-
         // Zeile bereits in ein echtes Item verwandelt? Das neu erzeugte Item
-        // übernimmt die stabile Vorlagen-ID — ein zweiter Aufruf (z.B. ein der
+        // übernimmt die Vorlagen-UID als `id` — ein zweiter Aufruf (z.B. ein der
         // Auswahl hinterherlaufendes Blur) darf daraus kein Duplikat mit
-        // derselben ID machen, sondern muss dieselbe Zeile weiterbearbeiten.
+        // derselben `id` machen, sondern muss dieselbe Zeile weiterbearbeiten.
         item = Object.values(shoppingList.list)
           .flatMap((department) => department.items)
           .find((existing) => existing.id === rowUid);
@@ -1630,12 +1637,13 @@ const useShoppingListHandlers = ({
       if (!item) {
         item = ShoppingList.createEmptyListItem();
         item.item.uid = rowUid;
-        // Die stabile ID der Vorlagen-Zeile übernehmen (statt der frischen
-        // UUID aus createEmptyListItem): so bleibt der React-Key der
+        // Die UUID der Vorlagen-Zeile als stabile `id` übernehmen (statt der
+        // frischen aus createEmptyListItem): so bleibt der React-Key der
         // ListItem-Zeile über den Übergang „Vorlage → echtes Item" hinweg
-        // identisch und der Fokus im Mengen-/Einheitenfeld geht beim
-        // folgenden Re-Render nicht verloren. Die nächste Vorlagen-Zeile
-        // bekommt in shoppingList.tsx automatisch eine neue ID.
+        // identisch und der Fokus im Mengen-/Einheitenfeld geht nicht verloren.
+        // Die Vorlagen-UUID ist global eindeutig (crypto.randomUUID in
+        // shoppingList.tsx) — sonst kollidiert die `id` als PK mit einer Zeile
+        // einer anderen Liste. Die nächste Vorlagen-Zeile bekommt eine neue UUID.
         item.id = rowUid;
         newItem = true;
       }
@@ -1657,18 +1665,13 @@ const useShoppingListHandlers = ({
         }
 
         case "autocompleteItem":
-          // Leeres/gelöschtes Autocomplete-Event auf einer noch nie befüllten
-          // Vorlagen-Zeile: No-op. Das ist typischerweise ein Blur-Event, das
-          // der eigentlichen Auswahl hinterherläuft. Würde hier
+          // Leeres/gelöschtes Autocomplete-Event auf einer Zeile, die es in der
+          // Liste noch gar nicht gibt: No-op. Das ist typischerweise ein
+          // Blur-Event, das der eigentlichen Auswahl hinterherläuft. Würde hier
           // `onShoppingListUpdate` + `persistListItems` laufen, könnte ein
           // veralteter Handler-Closure die Liste auf einen früheren Stand
-          // zurückschreiben und gerade Hinzugefügtes wieder löschen (die
-          // Diff-RPC entfernt dann die neue Zeile als „vom Client weggelassen").
-          if (
-            newItem &&
-            isTemplateRow &&
-            (change.reason === "clear" || !change.value)
-          ) {
+          // zurückschreiben und gerade Hinzugefügtes wieder löschen.
+          if (newItem && (change.reason === "clear" || !change.value)) {
             return;
           }
           if (change.reason === "clear") {
