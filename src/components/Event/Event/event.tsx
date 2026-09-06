@@ -1512,7 +1512,11 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
-          materialListRef.current = ml;
+          // Ref = unveränderliche DB-Wahrheit, Reducer-State = optimistisch
+          // mutierbar. Ohne die tiefe Kopie teilen beide dieselben
+          // `items`-Arrays und jede In-place-Mutation der Handler verunreinigt
+          // die Vergleichsbasis (analog Einkaufsliste).
+          materialListRef.current = structuredClone(ml);
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -1537,7 +1541,7 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
-          materialListRef.current = ml;
+          materialListRef.current = structuredClone(ml);
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -2158,15 +2162,21 @@ const EventPage = () => {
         database.shoppingLists
           .getListItems(objectUid as string)
           .then((items) => {
-            const shoppingList = itemsDomainToShoppingList(
+            // Zwei unabhängige Instanzen: der Ref ist die unveränderliche
+            // DB-Wahrheit (Basis für Realtime-Vergleiche + `p_known_ids`), der
+            // Reducer-State wird von den Handlern optimistisch in-place mutiert
+            // (`onChangeItem` pusht/filtert `list[pos].items`). Würden beide
+            // dieselben verschachtelten Arrays teilen, landete jede
+            // optimistische Mutation (z.B. eine Mengen-Zeile ohne Artikel) auch
+            // im Ref → `shoppingListsAreEquivalent` schlägt fehl und das nächste
+            // Echo überschreibt die laufende Eingabe.
+            shoppingListRef.current = itemsDomainToShoppingList(
               items,
               objectUid as string,
             );
-            // Ref sofort setzen — Basis für Realtime-Vergleiche
-            shoppingListRef.current = shoppingList;
             dispatch({
               type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
-              payload: shoppingList,
+              payload: itemsDomainToShoppingList(items, objectUid as string),
             });
           })
           .catch((error) => {
@@ -2232,12 +2242,15 @@ const EventPage = () => {
 
               // Ref sofort aktualisieren, damit der nächste Realtime-Callback
               // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
-              // asynchronen useEffect-Zyklus zu warten.
+              // asynchronen useEffect-Zyklus zu warten. `newShoppingList` geht
+              // in den Ref (unveränderliche DB-Wahrheit); der Reducer bekommt
+              // eine eigene Instanz, die die Handler optimistisch mutieren
+              // dürfen, ohne den Ref zu verunreinigen.
               shoppingListRef.current = newShoppingList;
 
               dispatch({
                 type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
-                payload: newShoppingList,
+                payload: itemsDomainToShoppingList(items, objectUid as string),
               });
             },
             (error) => {
