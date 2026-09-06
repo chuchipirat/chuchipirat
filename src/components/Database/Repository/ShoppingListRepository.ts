@@ -309,26 +309,30 @@ export class ShoppingListRepository extends BaseRepository<
   }
 
   /* =====================================================================
-  // Items einer Liste speichern (atomarer Replace-all)
+  // Items einer Liste speichern (nebenläufigkeitssicherer Diff)
   // ===================================================================== */
 
   /**
-   * Ersetzt alle Positionen einer Liste komplett.
+   * Persistiert den gewünschten Voll-Zustand der Positionen einer Liste.
    *
-   * Delegiert an die Postgres-Funktion `save_shopping_list_items`, die DELETE +
-   * INSERT in einer Transaktion ausführt und konkurrierende Aufrufe pro Liste
-   * über einen Advisory Lock serialisiert. Dadurch entstehen bei parallelen
-   * Speichervorgängen (schnelle Edits, mehrere Köch:innen, mehrere Tabs) keine
-   * Duplikat-Zeilen mehr, und andere Clients sehen nie den transienten
-   * Leerzustand zwischen DELETE und INSERT.
+   * Delegiert an die Postgres-Funktion `save_shopping_list_items`, die unter
+   * einem Advisory Lock in einer Transaktion:
+   * - nur Positionen löscht, die der Client kannte (`knownIds`) UND jetzt
+   *   weglässt — eine Zeile, die eine andere Köchin seit dem Client-Snapshot
+   *   angelegt hat, bleibt erhalten;
+   * - Positionen per `INSERT … ON CONFLICT (id) DO UPDATE … WHERE row-is-distinct`
+   *   einfügt/aktualisiert — unveränderte Zeilen erzeugen keinen Schreibvorgang,
+   *   keinen Trigger und kein Realtime-Echo.
    *
    * @param listId - Die ID der Liste.
-   * @param items - Die neuen Positionen (ohne `id`; die DB vergibt neue UUIDs).
+   * @param items - Die gewünschten Positionen; jede trägt eine stabile `id`.
+   * @param knownIds - IDs, die im Basis-Snapshot des Clients vorhanden waren.
    * @throws Der Supabase-Fehler, falls die RPC scheitert (z.B. RLS-Verletzung).
    */
   async saveListItems(
     listId: string,
     items: ShoppingListItemInsertRow[],
+    knownIds: string[],
   ): Promise<void> {
     // `list_id` wird serverseitig gesetzt und aus dem Payload entfernt.
     const payload = items.map(({list_id: _listId, ...rest}) => rest);
@@ -336,6 +340,7 @@ export class ShoppingListRepository extends BaseRepository<
     const {error} = await this.client.rpc("save_shopping_list_items", {
       p_list_id: listId,
       p_items: payload,
+      p_known_ids: knownIds,
     });
 
     if (error) throw error;
@@ -385,38 +390,6 @@ export class ShoppingListRepository extends BaseRepository<
     const {error} = await this.client
       .from("event_shopping_list_items")
       .update({checked})
-      .eq("id", itemId);
-
-    if (error) throw error;
-  }
-
-  /* =====================================================================
-  // Einzelnes Item aktualisieren
-  // ===================================================================== */
-
-  /**
-   * Aktualisiert einzelne Felder eines Items.
-   *
-   * @param itemId - Die ID des Items
-   * @param updates - Partielle Item-Felder zum Aktualisieren
-   */
-  async updateItem(
-    itemId: string,
-    updates: Partial<{
-      product_id: string | null;
-      material_id: string | null;
-      department_id: string | null;
-      free_text_name: string | null;
-      quantity: number;
-      unit: string | null;
-      checked: boolean;
-      edit_source: ShoppingListEditSource;
-      sort_order: number;
-    }>,
-  ): Promise<void> {
-    const {error} = await this.client
-      .from("event_shopping_list_items")
-      .update(updates)
       .eq("id", itemId);
 
     if (error) throw error;

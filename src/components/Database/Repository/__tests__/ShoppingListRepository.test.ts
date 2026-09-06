@@ -1,10 +1,8 @@
 /**
  * Unit-Tests für ShoppingListRepository.
  *
- * Schwerpunkt: `saveListItems` delegiert an die atomare RPC
- * `save_shopping_list_items` (statt separatem DELETE + INSERT), damit
- * konkurrierende Speichervorgänge serverseitig serialisiert werden und keine
- * Duplikat-Zeilen mehr entstehen.
+ * Schwerpunkt: `saveListItems` delegiert an die nebenläufigkeitssichere
+ * Diff-RPC `save_shopping_list_items(p_list_id, p_items, p_known_ids)`.
  */
 import {
   ShoppingListRepository,
@@ -36,6 +34,7 @@ jest.mock("@sentry/react", () => ({
 const LIST_ID = "list-001";
 
 const insertItem: ShoppingListItemInsertRow = {
+  id: "row-1",
   list_id: LIST_ID,
   product_id: "product-001",
   quantity: 3,
@@ -55,14 +54,15 @@ describe("ShoppingListRepository.saveListItems", () => {
     (repo as unknown as {client: typeof client}).client = client;
   });
 
-  it("ruft die RPC save_shopping_list_items mit list-id und items auf", async () => {
-    await repo.saveListItems(LIST_ID, [insertItem]);
+  it("ruft die Diff-RPC mit list-id, items und knownIds (ohne list_id im Payload)", async () => {
+    await repo.saveListItems(LIST_ID, [insertItem], ["row-1", "row-2"]);
 
     expect(client.rpc).toHaveBeenCalledTimes(1);
     expect(client.rpc).toHaveBeenCalledWith("save_shopping_list_items", {
       p_list_id: LIST_ID,
       p_items: [
         {
+          id: "row-1",
           product_id: "product-001",
           quantity: 3,
           unit: "kg",
@@ -71,34 +71,28 @@ describe("ShoppingListRepository.saveListItems", () => {
           sort_order: 0,
         },
       ],
+      p_known_ids: ["row-1", "row-2"],
     });
-    // Kein direkter Tabellenzugriff mehr — alles über die RPC.
     expect(client.from).not.toHaveBeenCalled();
   });
 
-  it("entfernt list_id aus dem Payload (wird serverseitig gesetzt)", async () => {
-    await repo.saveListItems(LIST_ID, [insertItem]);
-
-    const [, args] = client.rpc.mock.calls[0];
-    expect(args.p_items[0]).not.toHaveProperty("list_id");
-  });
-
-  it("schickt bei leerer Liste ein leeres Array (löscht serverseitig alle)", async () => {
-    await repo.saveListItems(LIST_ID, []);
+  it("schickt bei leerer Liste ein leeres Items-Array", async () => {
+    await repo.saveListItems(LIST_ID, [], ["row-1"]);
 
     expect(client.rpc).toHaveBeenCalledWith("save_shopping_list_items", {
       p_list_id: LIST_ID,
       p_items: [],
+      p_known_ids: ["row-1"],
     });
   });
 
-  it("wirft den Fehler, wenn die RPC scheitert", async () => {
+  it("wirft, wenn die RPC scheitert", async () => {
     client.rpc.mockResolvedValueOnce({
       data: null,
       error: {message: "row-level security violation"},
     });
 
-    await expect(repo.saveListItems(LIST_ID, [insertItem])).rejects.toEqual({
+    await expect(repo.saveListItems(LIST_ID, [insertItem], [])).rejects.toEqual({
       message: "row-level security violation",
     });
   });

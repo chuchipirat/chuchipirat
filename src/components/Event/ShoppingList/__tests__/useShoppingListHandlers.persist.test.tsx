@@ -103,6 +103,7 @@ const renderHandlers = (overrides: {saveListItems?: jest.Mock} = {}) => {
     overrides.saveListItems ?? jest.fn().mockResolvedValue(undefined);
   const saveInProgressRef: React.MutableRefObject<number> = {current: 0};
   const shoppingList = makeShoppingList();
+  const onShoppingListUpdate = jest.fn();
 
   const mockDatabase = {
     shoppingLists: {
@@ -143,8 +144,12 @@ const renderHandlers = (overrides: {saveListItems?: jest.Mock} = {}) => {
         shoppingList,
         selectedListItem: LIST_ID,
         saveInProgressRef,
+        getPersistedItemIds: () =>
+          Object.values(shoppingList.list).flatMap((department) =>
+            department.items.map((entry) => entry.id),
+          ),
         fetchMissingData: jest.fn(),
-        onShoppingListUpdate: jest.fn(),
+        onShoppingListUpdate,
         onShoppingCollectionUpdate: jest.fn(),
         onDispatchLoading: jest.fn(),
         onDispatchSetSelectedListItem: jest.fn(),
@@ -154,7 +159,7 @@ const renderHandlers = (overrides: {saveListItems?: jest.Mock} = {}) => {
     {wrapper},
   );
 
-  return {result, saveListItems, saveInProgressRef};
+  return {result, saveListItems, saveInProgressRef, onShoppingListUpdate, shoppingList};
 };
 
 /** Öffnet das Kontextmenü für eine Position (Button-ID: `btn_<dept>_<uid>_<unit>`). */
@@ -192,7 +197,8 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
-  test("zählt saveInProgressRef synchron hoch und nach dem Save sofort wieder auf 0 (kein Timer)", async () => {
+  test("hält saveInProgressRef während des Saves + kurzer Nachlaufzeit oben, danach 0", async () => {
+    jest.useFakeTimers();
     const deferred = defer();
     const saveListItems = jest.fn().mockReturnValue(deferred.promise);
     const {result, saveInProgressRef} = renderHandlers({saveListItems});
@@ -214,11 +220,40 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
       await clickPromise;
     });
 
-    // Sofort nach dem Settle wieder 0 — beweist, dass das setTimeout(500) weg ist
+    // Nach dem Settle noch oben (Nachlauf-Fenster für WAL-Echos)
+    expect(saveInProgressRef.current).toBe(1);
+
+    act(() => {
+      jest.advanceTimersByTime(400);
+    });
     expect(saveInProgressRef.current).toBe(0);
+    jest.useRealTimers();
+  });
+
+  test("neues Item aus der Vorlagen-Zeile übernimmt deren ID (Fokus-Regression)", async () => {
+    const {result, onShoppingListUpdate} = renderHandlers();
+
+    await act(async () => {
+      await result.current.onChangeItem({
+        source: "textfield",
+        event: {target: {id: "quantity_0_tmpl-row-0"}} as never,
+        value: "5",
+      });
+    });
+
+    const updatedList = onShoppingListUpdate.mock.calls.at(-1)?.[0];
+    const createdItem = updatedList.list[0].items.find(
+      (entry: {item: {uid: string}}) => entry.item.uid === "tmpl-row-0",
+    );
+    // Die ID ist die Vorlagen-ID (field[2]) — nicht die frische UUID aus
+    // createEmptyListItem —, damit der React-Key der ListItem-Zeile stabil
+    // bleibt und der Fokus im Mengenfeld nach dem Re-Render erhalten bleibt.
+    expect(createdItem.id).toBe("tmpl-row-0");
+    expect(createdItem.quantity).toBe(5);
   });
 
   test("dekrementiert den Zähler auch bei fehlgeschlagenem Save", async () => {
+    jest.useFakeTimers();
     const saveListItems = jest.fn().mockRejectedValue(new Error("boom"));
     const {result, saveInProgressRef} = renderHandlers({saveListItems});
 
@@ -230,7 +265,11 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
       } as never);
     });
 
+    act(() => {
+      jest.advanceTimersByTime(400);
+    });
     expect(saveInProgressRef.current).toBe(0);
     expect(Sentry.captureException).toHaveBeenCalled();
+    jest.useRealTimers();
   });
 });

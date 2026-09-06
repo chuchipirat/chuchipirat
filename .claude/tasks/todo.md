@@ -1,47 +1,58 @@
-# Track B — Einkaufslisten-Save-Race Hotfix (fix/shopping-list-save-race → release/2.0.4)
+# Track A — Einkaufs-/Materialliste: stabile Row-IDs + Diff-Persistenz
 
-Plan: ~/.claude/plans/linked-tinkering-pelican.md
+Branch: `refactor/shopping-list-surgical-writes` von `develop`
+Plan: `~/.claude/plans/linked-tinkering-pelican.md`
 
-## Tasks
+## Commits (alle erledigt)
 
-- [x] B5: Migration `20260906000002_save_shopping_list_items_rpc.sql` (RPC + advisory lock)
-- [x] B5: `ShoppingListRepository.saveListItems()` → RPC-Call
-- [x] B1a: `persistListItems` — Save-Flag als Zähler, synchron (kein setTimeout(500))
-- [x] B1a: Checkbox-Pfad ebenfalls auf Zähler + synchron
-- [x] B2: `event.tsx` Realtime `onChange` — harte Early-Return bei `saveInProgress > 0`
-- [x] B2: Empty-List-Heuristik entfernt (RPC ist atomar → kein transienter Leerzustand)
-- [x] B3: Kontextmenü-Delete (`Action.DELETE`) persistiert jetzt
-- [x] B4: `shoppingListItemsUnsubRef` + synchroner Teardown (+ Tab-Cleanup) + `break`
-- [x] Tests: `ShoppingListRepository.test.ts` (RPC-Call, 4) + `useShoppingListHandlers.persist.test.tsx` (B1a/B3, 3)
-- [x] Verify: tsc clean, eslint 0 errors, 832 Tests grün
-- [x] Verify: Migration gegen -test-DB; Concurrency-Test (Session B blockiert 2.38s auf Advisory-Lock → 1 Zeile, kein Duplikat); RLS-Test (Nicht-Koch → RLS-Verletzung); Empty-Array → 0 Zeilen
-- [ ] Commit + Push + PR gegen release/2.0.4
+- [x] 1. Migration `20260907000001_list_surgical_writes.sql` (2 Diff-RPCs) + Concurrency-Skript
+- [x] 2-3. Domain: `id` auf ShoppingListItem/MaterialListMaterial, Mint-Stellen, `carryOverItemIds`, `refreshList`-Wiring + Adapter emittieren/tragen `id` (+ Tests)
+- [x] 4-5. Repos: `saveListItems(…, knownIds)` → RPC; toter Shopping-`updateItem` weg; `getPersistedItemIds`-Plumbing (event.tsx-Refs → Prop → Hook-Ref)
+- [x] 6. Einkaufsliste: `shoppingListItemKey`→id, Empty-Snapshot-Guard raus, `shoppingList.tsx` Keys→id
+- [x] 7. Materialliste: `subscribeToItemsForLists` (alle Listen, ein Kanal), `materialList.tsx` Subscription + Keys→id
+- [x] 8. `moveItemToDepartment` über `item.id` filtern
+
+## Verifikation
+
+- [x] tsc clean, lint 0 Fehler, **2163 Tests grün** (188 Suites)
+- [x] Migration + beide RPCs gegen `-test`-DB angewendet
+- [x] Concurrency-Skript: No-op-Guard (0 Writes bei identischem Payload),
+      Feld-Update schreibt nur die geänderte Zeile, Koch-B-Add überlebt
+      Koch-A-Save, Diff-Delete, RLS-Verletzung. Material-RPC analog geprüft.
+- [ ] Manueller Zwei-Tab-Test (in PR-Beschreibung, vom User)
+- [ ] PR gegen `develop` — Merge-Hazard mit Track B (`20260906000002`) dokumentieren
 
 ## Review
 
-**Umgesetzt (Track B, minimal & wegwerf-frei):**
+Alle 8 Schritte umgesetzt. Kernpunkte:
 
-- **B5** ist der strukturelle Kern: `save_shopping_list_items(p_list_id, p_items jsonb)`
-  RPC (Vorbild `save_menuplan`, kein SECURITY DEFINER → RLS greift automatisch),
-  `pg_advisory_xact_lock(hashtext(p_list_id))` + DELETE + INSERT in einer TX.
-  Gegen die laufende `-test`-DB verifiziert: parallele Aufrufe serialisieren
-  (2.38s Wartezeit), Endstand genau 1 Zeile statt 2 → **Duplikate strukturell
-  unmöglich**.
-- **B1a/B2**: `saveInProgressRef` ist jetzt ein **Zähler** (überlappende Saves),
-  synchron hoch/runter (kein `setTimeout(500)`-Hack mehr). Die Realtime-
-  Subscription bricht bei `> 0` **komplett ab** (wie Material-Liste) statt nur
-  das Highlighting zu unterdrücken → eigenes Echo überschreibt lokale Edits
-  nicht mehr. Nach dem Save (Zähler 0) übernimmt das dann eintreffende Echo als
-  regulärer Reconcile (inkl. paralleler Fremdänderungen).
-- **B3**: Kontextmenü „Löschen" rief bisher keinerlei Repo-Methode auf → die
-  Zeile blieb in der DB und kam per Echo zurück. Jetzt `persistListItems`.
-- **B4**: Zweiter `fetchMissingData(SHOPPING_LIST)`-Aufruf im selben Tick baute
-  am veralteten `state.shoppingList.unsubscribe` vorbei einen zweiten Channel
-  auf. Jetzt synchroner Ref-basierter Teardown + Cleanup beim Tab-Wechsel.
+- **Stabile client-`id`** (`crypto.randomUUID()`) auf jedem Item ab Geburt.
+  `carryOverItemIds` verhindert, dass eine Neuberechnung alle Zeilen austauscht.
+- **Diff-RPCs** `save_shopping_list_items` / `save_material_list_items`
+  `(p_list_id, p_items, p_known_ids)`: Advisory Lock + Transaktion, löscht nur
+  `known_ids`, die jetzt fehlen (Fremd-Adds überleben), `ON CONFLICT DO UPDATE
+  … WHERE row-is-distinct` → unveränderte Zeilen = kein Write, kein Echo.
+- **`knownIds`** aus `shoppingListRef` / neuem `materialListRef` (nur DB-Stand)
+  via `getPersistedItemIds`-Prop; im Hook synchron nachgeführt.
+- **Realtime** difft/keyt über `item.id`; Freitext-`item.item.uid` ist dadurch
+  ebenfalls stabil → laufende Mengeneingaben überleben Fremd-Echos.
+- **Materialliste**: item-level Realtime jetzt über alle angezeigten Listen.
+- `moveItemToDepartment`-unit-Bug mitgefixt.
 
-**Bewusst NICHT in Track B:** Save-Coalescing (nur falls Lost-Update-Test es
-zeigt), MaterialList-Härtung, Save-Fehler-UX, `state.shoppingList.unsubscribe`
-als tote State (superseded durch Ref, Entfernung in Track A).
+**Nicht angefasst** (Track-B-Cleanup, `createList`→RPC, Debounce) — siehe Plan
+„Out of scope".
 
-**Track A** (surgical writes mit stabilen IDs, `develop`) folgt als eigener Plan.
-Muss zusätzlich in `tech-debt.md`.
+## Nachtrag — DEV-Test-Regressionen (Commit 3f0feab)
+
+- **Fokusverlust** Mengenfeld Vorlagen-Zeile + Tab: neues Item übernahm eine
+  frische UUID statt der Vorlagen-ID → ListItem-`key` änderte sich → Remount.
+  Fix: `onChangeItem` übernimmt `field[2]`; `shoppingList.tsx` /
+  `materialList.tsx` vergeben die Vorlagen-ID deterministisch und rotieren sie
+  bei Kollision (globale ID-Prüfung).
+- **Abteilungs-Duplikat** (Artikel landet in Quell- *und* Ziel-Abteilung):
+  `itemAutocomplete`-`inputValue`-Reset hing an der pro Render neuen
+  `item`-Objektreferenz → Doppel-Verarbeitungs-Schutz in `onBlur` wirkungslos.
+  Fix: Reset hängt am reinen Namen. Zusätzlich Cross-Abteilungs-Dedup in
+  `shoppingListToInsertRows` als Sicherheitsnetz + Single-Flight in
+  `persistListItems`.
+- [ ] Manuelle DEV-Verifikation durch User ausstehend.

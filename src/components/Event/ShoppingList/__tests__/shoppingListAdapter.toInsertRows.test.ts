@@ -28,6 +28,7 @@ const createItem = (overrides: Partial<ShoppingListItem> = {}): ShoppingListItem
   unit: "kg",
   item: {uid: "prod-1", name: "Äpfel"},
   type: ItemType.food,
+  id: "row-1",
   ...overrides,
 });
 
@@ -151,5 +152,52 @@ describe("shoppingListToInsertRows", () => {
     ]);
 
     expect(shoppingListToInsertRows(list, "list-1", departments)).toHaveLength(0);
+  });
+
+  test("kollabiert denselben Katalog-Artikel über zwei Abteilungen (Race-Regression)", () => {
+    const list = new ShoppingList();
+    list.list[0] = {
+      departmentUid: "dep-0",
+      departmentName: "Gemüse",
+      items: [
+        createItem({
+          id: "row-a",
+          type: ItemType.food,
+          quantity: 0,
+          unit: "kg",
+          item: {uid: "zitrone", name: "Zitrone"},
+        }),
+      ],
+    };
+    list.list[1] = {
+      departmentUid: "dep-1",
+      departmentName: "Früchte",
+      items: [
+        createItem({
+          id: "row-b",
+          type: ItemType.food,
+          quantity: 3,
+          unit: "kg",
+          item: {uid: "zitrone", name: "Zitrone"},
+        }),
+      ],
+    };
+
+    const rows = shoppingListToInsertRows(list, "list-1", [
+      createDepartment(0, "dep-0"),
+      createDepartment(1, "dep-1"),
+    ]);
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({product_id: "zitrone", quantity: 3});
+  });
+
+  test("lässt denselben Artikel mit unterschiedlicher Einheit unangetastet", () => {
+    const list = listWith([
+      createItem({id: "row-a", type: ItemType.food, unit: "kg", item: {uid: "p1", name: "Mehl"}}),
+      createItem({id: "row-b", type: ItemType.food, unit: "Stück", item: {uid: "p1", name: "Mehl"}}),
+    ]);
+
+    expect(shoppingListToInsertRows(list, "list-1", departments)).toHaveLength(2);
   });
 });

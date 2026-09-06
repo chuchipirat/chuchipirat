@@ -191,6 +191,12 @@ interface UseShoppingListHandlersProps {
    * überlappende Saves sauber verschachteln.
    */
   saveInProgressRef: React.MutableRefObject<number>;
+  /**
+   * Liefert die Zeilen-IDs, die zuletzt aus der DB geladen/geechte wurden
+   * (Basis-Snapshot). Dient als `knownIds` für den serverseitigen Diff: nur
+   * diese IDs dürfen gelöscht werden.
+   */
+  getPersistedItemIds: () => string[];
   fetchMissingData: (props: FetchMissingDataProps) => void;
   onShoppingListUpdate: (shoppingList: ShoppingList) => void;
   onShoppingCollectionUpdate: (
@@ -285,9 +291,11 @@ export const moveItemToDepartment = ({
   }
 
   if (toDepartment.pos != fromDepartmentPos && !isNewItem) {
+    // Über die stabile Zeilen-ID filtern — vorher `item.item.uid`, was
+    // gleicher-Produkt/andere-Einheit-Positionen fälschlich mitentfernte.
     shoppingList.list[Number(fromDepartmentPos) as Department["pos"]].items =
       shoppingList.list[fromDepartmentPos].items.filter(
-        (listItem) => listItem.item.uid != item.item.uid,
+        (listItem) => listItem.id !== item.id,
       );
     shoppingList.list[toDepartment.pos].items.push(item);
     return true;
@@ -371,6 +379,7 @@ const useShoppingListHandlers = ({
   shoppingList,
   selectedListItem,
   saveInProgressRef,
+  getPersistedItemIds,
   fetchMissingData,
   onShoppingListUpdate,
   onShoppingCollectionUpdate,
@@ -447,24 +456,76 @@ const useShoppingListHandlers = ({
   // ------------------------------------------ */
 
   /**
-   * Speichert alle Positionen einer Liste in Supabase.
+   * Zeilen-IDs, die zuletzt tatsächlich persistiert wurden — dient als
+   * `knownIds` für den serverseitigen Diff. Wird beim Listenwechsel aus dem
+   * DB-Snapshot geseedet und nach jedem Save synchron auf den neuen
+   * Payload-Stand gesetzt (damit ein direkt folgender Save den gerade
+   * eingefügten Eintrag als „bekannt" führt).
+   */
+  const lastPersistedItemIdsRef = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    lastPersistedItemIdsRef.current = new Set(getPersistedItemIds());
+  }, [selectedListItem, getPersistedItemIds]);
+
+  // Single-Flight: nur ein Save gleichzeitig. Weitere Aufrufe während eines
+  // laufenden Saves überschreiben nur den „ausstehenden" Stand — nach dem
+  // aktuellen Save wird genau einmal mit dem neuesten Stand nachgezogen.
+  // Verhindert, dass zwei schnell aufeinanderfolgende Mutationen (z.B.
+  // Autocomplete-Select + Blur) mit demselben veralteten `knownIds` parallel
+  // speichern und die Diff-RPC beide Zeilen behält (Duplikat).
+  const runningSaveRef = React.useRef<Promise<void> | null>(null);
+  const pendingSaveRef = React.useRef<{listId: string; list: ShoppingList} | null>(
+    null,
+  );
+
+  /**
+   * Speichert den gewünschten Voll-Zustand der Positionen einer Liste über die
+   * Diff-RPC (`save_shopping_list_items`), serialisiert (Single-Flight).
    *
-   * Delegiert an `ShoppingListRepository.saveListItems`, das serverseitig
-   * (RPC + Advisory Lock) atomar ersetzt. Der `saveInProgressRef`-Zähler wird
-   * **synchron** hoch- und im `finally` wieder heruntergezählt: das eigene
-   * Realtime-Echo trifft erst nach dem `await` ein, sieht den Zähler wieder
-   * auf 0 und aktualisiert den State dann als regulärer Reconcile — inklusive
-   * paralleler Änderungen anderer Köch:innen.
+   * Der `saveInProgressRef`-Zähler wird synchron hochgezählt und erst mit
+   * kurzer Verzögerung nach dem Save wieder heruntergezählt: die WAL-Events des
+   * eigenen Saves treffen asynchron ein (typisch < 300 ms). Innerhalb dieses
+   * Fensters ignoriert die Realtime-Subscription in `event.tsx` die Echos —
+   * der optimistische lokale Stand ist bereits korrekt.
    */
   const persistListItems = React.useCallback(
-    async (listId: string, list: ShoppingList) => {
-      saveInProgressRef.current += 1;
-      try {
-        const rows = shoppingListToInsertRows(list, listId, departments);
-        await database.shoppingLists.saveListItems(listId, rows);
-      } finally {
-        saveInProgressRef.current -= 1;
+    (listId: string, list: ShoppingList): Promise<void> => {
+      const runSave = async (
+        saveListId: string,
+        saveList: ShoppingList,
+      ): Promise<void> => {
+        saveInProgressRef.current += 1;
+        try {
+          const rows = shoppingListToInsertRows(saveList, saveListId, departments);
+          await database.shoppingLists.saveListItems(saveListId, rows, [
+            ...lastPersistedItemIdsRef.current,
+          ]);
+          lastPersistedItemIdsRef.current = new Set(
+            rows.map((row) => row.id).filter((id): id is string => Boolean(id)),
+          );
+        } finally {
+          setTimeout(() => {
+            saveInProgressRef.current = Math.max(
+              0,
+              saveInProgressRef.current - 1,
+            );
+          }, 400);
+          const next = pendingSaveRef.current;
+          pendingSaveRef.current = null;
+          if (next) {
+            await runSave(next.listId, next.list);
+          }
+        }
+      };
+
+      if (runningSaveRef.current) {
+        pendingSaveRef.current = {listId, list};
+        return runningSaveRef.current;
       }
+      runningSaveRef.current = runSave(listId, list).finally(() => {
+        runningSaveRef.current = null;
+      });
+      return runningSaveRef.current;
     },
     [database, departments, saveInProgressRef],
   );
@@ -1551,6 +1612,13 @@ const useShoppingListHandlers = ({
       if (!item) {
         item = ShoppingList.createEmptyListItem();
         item.item.uid = field[2];
+        // Die stabile ID der Vorlagen-Zeile übernehmen (statt der frischen
+        // UUID aus createEmptyListItem): so bleibt der React-Key der
+        // ListItem-Zeile über den Übergang „Vorlage → echtes Item" hinweg
+        // identisch und der Fokus im Mengen-/Einheitenfeld geht beim
+        // folgenden Re-Render nicht verloren. Die nächste Vorlagen-Zeile
+        // bekommt in shoppingList.tsx automatisch eine neue ID.
+        item.id = field[2];
         newItem = true;
       }
 

@@ -23,6 +23,7 @@ const createItem = (
   unit,
   item: {uid, name: `Artikel ${uid}`},
   type: ItemType.food,
+  id: `${uid}_${unit}`,
   ...overrides,
 });
 

@@ -194,21 +194,45 @@ function getChangedMenueUids(
 }
 
 /**
- * Stabiler Vergleichs-Key für ein Shopping-List-Item.
- * Verwendet den Artikelnamen statt der UID, da Freitext-Items bei
- * jedem delete-all + re-insert eine neue Supabase-UUID erhalten.
+ * Stabiler Vergleichs-Key für ein Shopping-List-Item — die client-generierte
+ * Zeilen-ID, die über Speichervorgänge und Realtime hinweg konstant bleibt.
  */
 function shoppingListItemKey(item: ShoppingListItem): string {
-  return item.item.name + "_" + item.unit;
+  return item.id;
 }
 
 /**
- * Vergleicht zwei ShoppingLists und liefert die Keys der Items zurück,
+ * Prüft, ob zwei Einkaufslisten inhaltlich gleich sind (persistierte Felder je
+ * Position). Dient dazu, ein Realtime-Echo zu verwerfen, das nichts Neues
+ * bringt — dann muss der State nicht ersetzt und die Liste nicht neu gerendert
+ * werden.
+ */
+function shoppingListsAreEquivalent(
+  a: ShoppingList | null,
+  b: ShoppingList | null,
+): boolean {
+  if (!a || !b) return false;
+  const signature = (list: ShoppingList): string =>
+    Object.values(list.list)
+      .flatMap((department) =>
+        department.items.map(
+          (item) =>
+            `${item.id}|${item.quantity}|${item.checked ? 1 : 0}|${item.unit}|` +
+            `${item.item.uid}|${item.item.name}`,
+        ),
+      )
+      .sort()
+      .join("\n");
+  return signature(a) === signature(b);
+}
+
+/**
+ * Vergleicht zwei ShoppingLists und liefert die IDs der Items zurück,
  * die sich geändert haben oder neu hinzugekommen sind.
  *
  * @param oldList - Bisherige Einkaufsliste (oder null)
  * @param newList - Neu geladene Einkaufsliste
- * @returns Set von geänderten Item-Keys (`name_unit`)
+ * @returns Set von geänderten Item-IDs
  */
 function getChangedShoppingListItemKeys(
   oldList: ShoppingList | null,
@@ -942,6 +966,24 @@ const EventPage = () => {
   // Callbacks und beim initialen Laden aktualisiert, damit der nächste
   // Callback immer den aktuellen Stand als Vergleichsbasis hat.
   const shoppingListRef = React.useRef<ShoppingList | null>(null);
+  // Basis-Snapshot für den serverseitigen Diff: die Zeilen-IDs, die zuletzt
+  // aus der DB geladen/geechte wurden (nicht die optimistisch lokal
+  // mutierten). Der Persistenz-Helfer nutzt sie als `knownIds`.
+  const getShoppingListPersistedItemIds = React.useCallback((): string[] => {
+    const current = shoppingListRef.current;
+    if (!current) return [];
+    return Object.values(current.list).flatMap((department) =>
+      department.items.map((item) => item.id),
+    );
+  }, []);
+  // Analoger DB-Snapshot der Materialliste (nur DB-Stand, keine optimistischen
+  // Mutationen). `getMaterialListPersistedItemIds` liefert die knownIds je Liste.
+  const materialListRef = React.useRef<MaterialList | null>(null);
+  const getMaterialListPersistedItemIds = React.useCallback(
+    (listId: string): string[] =>
+      materialListRef.current?.lists[listId]?.items.map((item) => item.id) ?? [],
+    [],
+  );
   // Unsubscribe der aktuell aktiven Items-Subscription. Synchron gesetzt/
   // abgebaut, damit ein zweiter fetchMissingData(SHOPPING_LIST)-Aufruf im
   // selben Tick nicht am veralteten State-Wert vorbei einen zweiten Channel
@@ -1470,6 +1512,7 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
+          materialListRef.current = ml;
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -1494,6 +1537,7 @@ const EventPage = () => {
             ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
           }
 
+          materialListRef.current = ml;
           dispatch({
             type: ReducerActions.MATERIALLIST_FETCH_SUCCESS,
             payload: ml,
@@ -2149,6 +2193,21 @@ const EventPage = () => {
                 objectUid as string,
               );
 
+              // Bringt das Echo gegenüber dem letzten Stand nichts Neues
+              // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
+              // dispatchen — spart einen vollständigen Re-Render der Liste.
+              if (
+                shoppingListsAreEquivalent(
+                  shoppingListRef.current,
+                  newShoppingList,
+                )
+              ) {
+                return;
+              }
+
+              // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
+              // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
+              // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
               const newItemCount = Object.values(newShoppingList.list).reduce(
                 (sum, dept) => sum + dept.items.length,
                 0,
@@ -2381,6 +2440,7 @@ const EventPage = () => {
                   shoppingListCollection={state.shoppingListCollection}
                   shoppingList={state.shoppingList.value}
                   saveInProgressRef={shoppingListSaveInProgress}
+                  getPersistedItemIds={getShoppingListPersistedItemIds}
                   fetchMissingData={fetchMissingData}
                   onShoppingListUpdate={onShoppingListUpdate}
                   onShoppingCollectionUpdate={onShoppingCollectionUpdate}
@@ -2399,6 +2459,7 @@ const EventPage = () => {
                 materials={state.materials}
                 recipes={state.recipes}
                 saveInProgressRef={materialListSaveInProgress}
+                getPersistedItemIds={getMaterialListPersistedItemIds}
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}
