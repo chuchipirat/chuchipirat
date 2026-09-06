@@ -639,6 +639,7 @@ export function useMaterialListHandlers({
           quantity: 0,
           trace: [],
           manualAdd: true,
+          id: crypto.randomUUID(),
         };
         isNewItem = true;
       }

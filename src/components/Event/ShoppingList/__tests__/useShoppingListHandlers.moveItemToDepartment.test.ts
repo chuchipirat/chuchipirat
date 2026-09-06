@@ -46,6 +46,7 @@ const createItem = (uid: string): ShoppingListItem => ({
   unit: "kg",
   item: {uid, name: `Artikel ${uid}`},
   type: ItemType.food,
+  id: `row-${uid}`,
 });
 
 /** Erzeugt eine Abteilung mit Position und UID. */

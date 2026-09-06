@@ -138,6 +138,7 @@ export function itemsDomainToShoppingList(
         name: item.itemName,
       },
       type: deriveItemType(item),
+      id: item.id,
       supabaseId: item.id,
     };
 
@@ -244,6 +245,7 @@ export function shoppingListToInsertRows(
       }
 
       rows.push({
+        id: item.id,
         list_id: listId,
         quantity: item.quantity,
         unit: item.unit || null,

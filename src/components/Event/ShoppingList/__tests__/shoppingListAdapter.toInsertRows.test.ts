@@ -28,6 +28,7 @@ const createItem = (overrides: Partial<ShoppingListItem> = {}): ShoppingListItem
   unit: "kg",
   item: {uid: "prod-1", name: "Äpfel"},
   type: ItemType.food,
+  id: "row-1",
   ...overrides,
 });
 

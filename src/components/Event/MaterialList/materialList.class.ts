@@ -35,7 +35,11 @@ export interface MaterialListEntry {
  * @param trace - Herkunfts-Trace (nur in-memory, nicht in DB)
  * @param manualEdit - Manuell bearbeitet
  * @param manualAdd - Manuell hinzugefügt
- * @param supabaseId - Supabase-Row-ID für granulare Updates
+ * @param id - Stabile Zeilen-ID (client-generiert bei Erstellung, konstant
+ *   über Speichervorgänge/Realtime). Persistenz und Realtime-Diff adressieren
+ *   die Position darüber.
+ * @param supabaseId - `true`-wertig, sobald die Position in der DB existiert
+ *   (nur vom Lese-Adapter gesetzt). Von den granularen Schnellspuren genutzt.
  * @param assignedCookId - ID des zugewiesenen Kochs (event_cooks.id)
  * @param assignedCookName - Freitext-Koch-Name
  * @param resolvedCookName - Aufgelöster Koch-Anzeigename
@@ -49,6 +53,7 @@ export interface MaterialListMaterial {
   trace: ProductTrace[];
   manualEdit?: boolean;
   manualAdd?: boolean;
+  id: string;
   supabaseId?: string;
   assignedCookId?: string | null;
   assignedCookName?: string | null;
@@ -302,8 +307,37 @@ export class MaterialList {
     updatedMaterialList.lists[listUidToRefresh].properties.uid =
       listUidToRefresh;
 
+    // Stabile Zeilen-IDs unveränderter Materialien von der bisherigen Liste
+    // übernehmen, damit die Neuberechnung ein Diff bleibt.
+    MaterialList.carryOverItemIds(
+      materialList.lists[listUidToRefresh]?.items ?? [],
+      updatedMaterialList.lists[listUidToRefresh].items,
+    );
+
     return updatedMaterialList;
   }
+
+  /**
+   * Überträgt stabile Zeilen-IDs unveränderter Materialien von einer
+   * bisherigen Liste auf eine frisch generierte (Abgleich über `uid`).
+   * Mutiert `nextItems` in-place. Siehe `ShoppingList.carryOverItemIds`.
+   *
+   * @param prevItems - Materialien der bisherigen Liste.
+   * @param nextItems - Frisch generierte Materialien (werden mutiert).
+   */
+  static carryOverItemIds = (
+    prevItems: MaterialListMaterial[],
+    nextItems: MaterialListMaterial[],
+  ): void => {
+    const previousIdByUid = new Map<string, string>();
+    prevItems.forEach((material) => previousIdByUid.set(material.uid, material.id));
+    nextItems.forEach((material) => {
+      const previousId = previousIdByUid.get(material.uid);
+      if (previousId) {
+        material.id = previousId;
+      }
+    });
+  };
   /**
    * Entfernt eine Liste aus der MaterialList-Struktur.
    *
@@ -370,6 +404,7 @@ export class MaterialList {
         uid: material.uid,
         type: material.type,
         quantity: quantity,
+        id: crypto.randomUUID(),
         trace: [
           {
             menueUid: menueUid,

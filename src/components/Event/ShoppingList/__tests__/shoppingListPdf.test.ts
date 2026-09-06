@@ -55,6 +55,7 @@ function buildShoppingList(
         unit: "kg",
         item: {uid: `item-${pos}-${itemIndex}`, name: `Artikel ${pos}-${itemIndex}`},
         type: ItemType.food,
+        id: `row-${pos}-${itemIndex}`,
       })),
     };
   });

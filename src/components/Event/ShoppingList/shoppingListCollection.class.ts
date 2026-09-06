@@ -304,6 +304,11 @@ export class ShoppingListCollection {
       );
     }
 
+    // Stabile Zeilen-IDs unveränderter Positionen von der bisherigen Liste
+    // übernehmen, damit die Neuberechnung ein Diff bleibt und nicht alle
+    // Zeilen austauscht.
+    ShoppingList.carryOverItemIds(shoppingList.list, newList);
+
     // Collection aktualisieren
     updatedCollection.lists[shoppingList.uid].trace = newTrace;
     updatedCollection.lists[shoppingList.uid].properties.generated =

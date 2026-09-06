@@ -199,6 +199,7 @@ const createEmptyMaterialListItem = (): MaterialListMaterial => ({
   quantity: 0,
   trace: [],
   manualAdd: true,
+  id: crypto.randomUUID(),
 });
 
 interface EventMaterialListPageProps {
