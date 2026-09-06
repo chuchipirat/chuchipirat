@@ -202,6 +202,31 @@ function shoppingListItemKey(item: ShoppingListItem): string {
 }
 
 /**
+ * Prüft, ob zwei Einkaufslisten inhaltlich gleich sind (persistierte Felder je
+ * Position). Dient dazu, ein Realtime-Echo zu verwerfen, das nichts Neues
+ * bringt — dann muss der State nicht ersetzt und die Liste nicht neu gerendert
+ * werden.
+ */
+function shoppingListsAreEquivalent(
+  a: ShoppingList | null,
+  b: ShoppingList | null,
+): boolean {
+  if (!a || !b) return false;
+  const signature = (list: ShoppingList): string =>
+    Object.values(list.list)
+      .flatMap((department) =>
+        department.items.map(
+          (item) =>
+            `${item.id}|${item.quantity}|${item.checked ? 1 : 0}|${item.unit}|` +
+            `${item.item.uid}|${item.item.name}`,
+        ),
+      )
+      .sort()
+      .join("\n");
+  return signature(a) === signature(b);
+}
+
+/**
  * Vergleicht zwei ShoppingLists und liefert die IDs der Items zurück,
  * die sich geändert haben oder neu hinzugekommen sind.
  *
@@ -2167,6 +2192,18 @@ const EventPage = () => {
                 items,
                 objectUid as string,
               );
+
+              // Bringt das Echo gegenüber dem letzten Stand nichts Neues
+              // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
+              // dispatchen — spart einen vollständigen Re-Render der Liste.
+              if (
+                shoppingListsAreEquivalent(
+                  shoppingListRef.current,
+                  newShoppingList,
+                )
+              ) {
+                return;
+              }
 
               // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
               // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".

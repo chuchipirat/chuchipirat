@@ -718,7 +718,7 @@ const EventShoppingListList = React.memo(
     );
 
     const prepareDepartmentItemsForDisplay = React.useCallback(
-      (items: ShoppingListItem[]) => {
+      (items: ShoppingListItem[], departmentKey: string) => {
         const sortedList = [...items].sort((a, b) => {
           if (!a.item.name && !b.item.name) return 0;
           if (!a.item.name) return 1;
@@ -726,15 +726,20 @@ const EventShoppingListList = React.memo(
           return a.item.name.localeCompare(b.item.name);
         });
 
-        let templateRowUid = "";
+        // Stabile ID/UID der Vorlagen-Zeile pro Abteilung — sonst würde die
+        // leere „neuer Artikel"-Zeile bei jedem Re-Render neu gemountet und ein
+        // gerade darin getippter Wert / der Fokus ginge verloren. Ohne
+        // Unterstriche, da Row-Identifier per `split("_")` geparst werden.
+        const templateRowUid = "tmpl-row-" + departmentKey;
 
         if (shoppingListModus === ListMode.VIEW) {
-          return {items: sortedList, templateRowUid};
+          return {items: sortedList, templateRowUid: ""};
         }
 
         const newItem = ShoppingList.createEmptyListItem();
         newItem.manualAdd = true;
-        templateRowUid = newItem.item.uid;
+        newItem.id = templateRowUid;
+        newItem.item.uid = templateRowUid;
 
         if (
           sortedList.length === 0 ||
@@ -766,6 +771,7 @@ const EventShoppingListList = React.memo(
         ([departmentKey, department]) => {
           result[departmentKey] = prepareDepartmentItemsForDisplay(
             department.items,
+            departmentKey,
           );
         },
       );

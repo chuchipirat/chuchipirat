@@ -196,7 +196,8 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
-  test("zählt saveInProgressRef synchron hoch und nach dem Save sofort wieder auf 0 (kein Timer)", async () => {
+  test("hält saveInProgressRef während des Saves + kurzer Nachlaufzeit oben, danach 0", async () => {
+    jest.useFakeTimers();
     const deferred = defer();
     const saveListItems = jest.fn().mockReturnValue(deferred.promise);
     const {result, saveInProgressRef} = renderHandlers({saveListItems});
@@ -218,11 +219,18 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
       await clickPromise;
     });
 
-    // Sofort nach dem Settle wieder 0 — beweist, dass das setTimeout(500) weg ist
+    // Nach dem Settle noch oben (Nachlauf-Fenster für WAL-Echos)
+    expect(saveInProgressRef.current).toBe(1);
+
+    act(() => {
+      jest.advanceTimersByTime(400);
+    });
     expect(saveInProgressRef.current).toBe(0);
+    jest.useRealTimers();
   });
 
   test("dekrementiert den Zähler auch bei fehlgeschlagenem Save", async () => {
+    jest.useFakeTimers();
     const saveListItems = jest.fn().mockRejectedValue(new Error("boom"));
     const {result, saveInProgressRef} = renderHandlers({saveListItems});
 
@@ -234,7 +242,11 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
       } as never);
     });
 
+    act(() => {
+      jest.advanceTimersByTime(400);
+    });
     expect(saveInProgressRef.current).toBe(0);
     expect(Sentry.captureException).toHaveBeenCalled();
+    jest.useRealTimers();
   });
 });

@@ -222,7 +222,12 @@ export function useMaterialListHandlers({
         Sentry.captureException(error);
         onDispatchError(error instanceof Error ? error : new Error(String(error)));
       } finally {
-        saveInProgressRef.current = false;
+        // Kurzes Nachlauf-Fenster: die WAL-Events des eigenen Saves treffen
+        // asynchron ein und würden sonst einen vollständigen Reload + Re-Render
+        // auslösen.
+        setTimeout(() => {
+          saveInProgressRef.current = false;
+        }, 400);
       }
     },
     [database, saveInProgressRef, materials, getPersistedItemIds, onDispatchError],

@@ -471,10 +471,13 @@ const useShoppingListHandlers = ({
    * Speichert den gewünschten Voll-Zustand der Positionen einer Liste über die
    * Diff-RPC (`save_shopping_list_items`).
    *
-   * Der `saveInProgressRef`-Zähler wird synchron hoch- und im `finally` wieder
-   * heruntergezählt: das eigene Realtime-Echo trifft erst nach dem `await` ein,
-   * sieht den Zähler wieder auf 0 und übernimmt den Stand dann als regulärer
-   * Reconcile — inklusive paralleler Änderungen anderer Köch:innen.
+   * Der `saveInProgressRef`-Zähler wird synchron hochgezählt und erst mit
+   * kurzer Verzögerung nach dem Save wieder heruntergezählt: die WAL-Events des
+   * eigenen Saves treffen asynchron ein (typisch < 300 ms). Innerhalb dieses
+   * Fensters ignoriert die Realtime-Subscription in `event.tsx` die Echos —
+   * der optimistische lokale Stand ist bereits korrekt, ein voller Reload +
+   * Re-Render pro Tastendruck wäre reine Verschwendung und würde ausserdem den
+   * Fokus stören. Änderungen anderer Köch:innen kommen danach ganz normal an.
    */
   const persistListItems = React.useCallback(
     async (listId: string, list: ShoppingList) => {
@@ -488,7 +491,9 @@ const useShoppingListHandlers = ({
           rows.map((row) => row.id).filter((id): id is string => Boolean(id)),
         );
       } finally {
-        saveInProgressRef.current -= 1;
+        setTimeout(() => {
+          saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+        }, 400);
       }
     },
     [database, departments, saveInProgressRef],
