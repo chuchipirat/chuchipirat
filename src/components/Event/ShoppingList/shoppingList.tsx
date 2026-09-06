@@ -819,16 +819,13 @@ const EventShoppingListList = React.memo(
                 >
                   {departmentDisplayData.items.map((item) => (
                     <ListItem
-                      key={
-                        "shoppingListItem_" + item.item.uid + "_" + item.unit
-                      }
+                      key={"shoppingListItem_" + item.id}
                       sx={{
                         ...(shoppingListModus === ListMode.VIEW
                           ? viewModeItemSx
                           : classes.eventListItem),
-                        ...(highlightedItemKeys.has(
-                          item.item.name + "_" + item.unit,
-                        ) && classes.remoteChangeGlow),
+                        ...(highlightedItemKeys.has(item.id) &&
+                          classes.remoteChangeGlow),
                       }}
                     >
                       <ListItemIcon

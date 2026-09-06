@@ -194,21 +194,20 @@ function getChangedMenueUids(
 }
 
 /**
- * Stabiler Vergleichs-Key für ein Shopping-List-Item.
- * Verwendet den Artikelnamen statt der UID, da Freitext-Items bei
- * jedem delete-all + re-insert eine neue Supabase-UUID erhalten.
+ * Stabiler Vergleichs-Key für ein Shopping-List-Item — die client-generierte
+ * Zeilen-ID, die über Speichervorgänge und Realtime hinweg konstant bleibt.
  */
 function shoppingListItemKey(item: ShoppingListItem): string {
-  return item.item.name + "_" + item.unit;
+  return item.id;
 }
 
 /**
- * Vergleicht zwei ShoppingLists und liefert die Keys der Items zurück,
+ * Vergleicht zwei ShoppingLists und liefert die IDs der Items zurück,
  * die sich geändert haben oder neu hinzugekommen sind.
  *
  * @param oldList - Bisherige Einkaufsliste (oder null)
  * @param newList - Neu geladene Einkaufsliste
- * @returns Set von geänderten Item-Keys (`name_unit`)
+ * @returns Set von geänderten Item-IDs
  */
 function getChangedShoppingListItemKeys(
   oldList: ShoppingList | null,
@@ -2142,27 +2141,14 @@ const EventPage = () => {
                 objectUid as string,
               );
 
-              // Leere Liste ignorieren — entsteht kurzzeitig beim
-              // delete-all + re-insert in saveListItems(). Würde sonst
-              // den Ref auf leer setzen und beim INSERT alles highlighten.
-              const newItemCount = Object.values(newShoppingList.list).reduce(
-                (sum, dept) => sum + dept.items.length,
-                0,
-              );
-              const oldItemCount = shoppingListRef.current
-                ? Object.values(shoppingListRef.current.list).reduce(
-                    (sum, dept) => sum + dept.items.length,
-                    0,
-                  )
-                : 0;
+              // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr —
+              // ein leerer Snapshot bedeutet jetzt „die Liste ist wirklich
+              // leer" und muss propagieren. Der frühere newItemCount-Guard
+              // entfällt daher.
 
-              if (newItemCount === 0 && oldItemCount > 0) {
-                return;
-              }
-
-              // Highlighting nur für Änderungen anderer Benutzer —
+              // Highlighting nur für Änderungen anderer Köch:innen —
               // eigene Saves setzen shoppingListSaveInProgress.
-              if (!shoppingListSaveInProgress.current && newItemCount > 0) {
+              if (!shoppingListSaveInProgress.current) {
                 const changedKeys = getChangedShoppingListItemKeys(
                   shoppingListRef.current,
                   newShoppingList,
