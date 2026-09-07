@@ -501,7 +501,8 @@ const ConvertItemPage = () => {
       const result = await database.adminOps.convertMaterialToProduct(
         state.material.uid,
         state.productProperty.department.uid || undefined,
-        state.productProperty.unit.key || undefined
+        state.productProperty.unit.key || undefined,
+        state.productProperty.dietProperties
       );
 
       dispatch({
