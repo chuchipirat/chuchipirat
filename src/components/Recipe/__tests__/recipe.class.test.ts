@@ -522,6 +522,71 @@ describe("Recipe.preparesave()", () => {
       Recipe.prepareSave({recipe: recipeMock, products: productsMock})
     ).toThrow(TEXT_ERROR_PORTIONS_NEGATIV);
   });
+
+  test("stürzt nicht ab bei order/entries-Desync (CHUCHIPIRAT-H5)", () => {
+    const recipeMock = structuredClone(recipe);
+    const productsMock = structuredClone(products);
+
+    // Verwaister order-Eintrag ohne entries-Pendant (in-place-Mutation im
+    // Editor kann das erzeugen).
+    recipeMock.ingredients.order.push("orphan-ingredient-uid");
+    recipeMock.preparationSteps.order.push("orphan-step-uid");
+    recipeMock.materials.order.push("orphan-material-uid");
+
+    const prepared = Recipe.prepareSave({
+      recipe: recipeMock,
+      products: productsMock,
+    });
+
+    expect(prepared.ingredients.order).not.toContain("orphan-ingredient-uid");
+    expect(prepared.preparationSteps.order).not.toContain("orphan-step-uid");
+    expect(prepared.materials.order).not.toContain("orphan-material-uid");
+  });
+});
+
+describe("Recipe.repairPositionStructure()", () => {
+  test("entfernt verwaiste order-Einträge", () => {
+    const structure = {
+      order: ["a", "ghost", "b"],
+      entries: {
+        a: {uid: "a", posType: PositionType.ingredient, product: {uid: "p1", name: "Apfel"}},
+        b: {uid: "b", posType: PositionType.ingredient, product: {uid: "p2", name: "Birne"}},
+      },
+    } as never;
+
+    const repaired = Recipe.repairPositionStructure(structure);
+
+    expect(repaired.order).toEqual(["a", "b"]);
+    expect(Object.keys(repaired.entries).sort()).toEqual(["a", "b"]);
+  });
+
+  test("verwirft entries ohne order-Eintrag und Duplikate in order", () => {
+    const structure = {
+      order: ["a", "a"],
+      entries: {
+        a: {uid: "a", posType: PositionType.ingredient, product: {uid: "p1", name: "Apfel"}},
+        detached: {uid: "detached", posType: PositionType.ingredient, product: {uid: "", name: ""}},
+      },
+    } as never;
+
+    const repaired = Recipe.repairPositionStructure(structure);
+
+    expect(repaired.order).toEqual(["a"]);
+    expect(Object.keys(repaired.entries)).toEqual(["a"]);
+  });
+
+  test("füllt fehlendes product bei einer Zutat auf (CHUCHIPIRAT-H6)", () => {
+    const structure = {
+      order: ["a"],
+      entries: {
+        a: {uid: "a", posType: PositionType.ingredient},
+      },
+    } as never;
+
+    const repaired = Recipe.repairPositionStructure(structure);
+
+    expect(repaired.entries["a"]).toMatchObject({product: {uid: "", name: ""}});
+  });
 });
 /* =====================================================================
 // Diät Eigenschaften bestimmen
