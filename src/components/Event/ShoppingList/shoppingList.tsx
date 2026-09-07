@@ -725,12 +725,7 @@ const EventShoppingListList = React.memo(
         departmentKey: string,
         templateRowUid: string,
       ) => {
-        const sortedList = [...items].sort((a, b) => {
-          if (!a.item.name && !b.item.name) return 0;
-          if (!a.item.name) return 1;
-          if (!b.item.name) return -1;
-          return a.item.name.localeCompare(b.item.name);
-        });
+        const sortedList = [...items].sort(ShoppingList.compareItemsByName);
 
         if (shoppingListModus === ListMode.VIEW) {
           return {items: sortedList, templateRowUid: ""};

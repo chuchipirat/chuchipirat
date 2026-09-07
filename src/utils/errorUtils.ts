@@ -141,6 +141,25 @@ export function isForeignKeyViolationError(error: unknown): boolean {
 }
 
 /**
+ * Erkennt Fehler, die daher rühren, dass ein DB-Aufruf ohne gültige
+ * Supabase-Sitzung ausgeführt wurde:
+ * - `42501` — „permission denied for … / row-level security policy" (fehlender
+ *   GRANT bzw. RLS-Verletzung, weil die Rolle `anon` statt `authenticated` ist)
+ * - `PGRST301` — abgelaufener JWT
+ *
+ * Typisch, wenn ein `[authUser]`-abhängiger Hintergrund-Fetch feuert, während
+ * die Sitzung gerade wegfällt (Sign-out, abgelaufener Cache auf `/signin`).
+ * Erwartetes, selbstheilendes Verhalten — dem Nutzer ggf. als Hinweis zeigen,
+ * aber nicht an Sentry melden.
+ *
+ * @param error - Der geworfene Wert.
+ * @returns `true`, wenn der Fehler eine fehlende/abgelaufene Sitzung ist.
+ */
+export function isMissingSessionError(error: unknown): boolean {
+  return isRlsViolationError(error) || isJwtExpiredError(error);
+}
+
+/**
  * Normalisiert einen beliebigen geworfenen Wert in eine echte `Error`-Instanz.
  *
  * `Error`-Instanzen werden unverändert zurückgegeben. Objektartige Werte (z.B.

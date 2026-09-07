@@ -360,12 +360,82 @@ export default class Recipe {
     const newOrder: string[] = [];
 
     for (const oldUid of structure.order) {
+      const source = structure.entries[oldUid];
+      // Verwaister order-Eintrag ohne entries-Pendant — überspringen, sonst
+      // entstünde ein Eintrag mit nur `uid` (ohne posType/product) → Absturz.
+      if (!source) {
+        continue;
+      }
       const newUid = crypto.randomUUID();
-      newEntries[newUid] = {...structure.entries[oldUid], uid: newUid};
+      newEntries[newUid] = {...source, uid: newUid};
       newOrder.push(newUid);
     }
 
     return {entries: newEntries, order: newOrder};
+  }
+
+  /* =====================================================================
+  // Positions-Struktur reparieren
+  // ===================================================================== */
+  /**
+   * Repariert eine `RecipeObjectStructure` gegen `order`/`entries`-Desync.
+   *
+   * Der Rezept-Editor-Reducer kopiert `order`/`entries` teilweise nur flach und
+   * mutiert sie in-place (siehe `tech-debt.md`). Bei schnell aufeinander
+   * folgenden oder unterbrochenen Aktionen (Tippen + Drag&Drop, Varianten mit
+   * `regenerateEntryUids`) können die beiden auseinanderlaufen — ein
+   * `order`-Eintrag ohne passenden `entries`-Eintrag oder ein Eintrag ohne
+   * Pflicht-Unterobjekt (`product` bei Zutaten) hat mehrfach zu Abstürzen
+   * geführt (CHUCHIPIRAT-G3/H0/H5/H6).
+   *
+   * Diese Funktion normalisiert die Struktur:
+   * - verwaiste `order`-Einträge (ohne `entries`-Pendant) werden entfernt,
+   * - doppelte `order`-Einträge werden entfernt,
+   * - `entries`-Einträge, die nicht (mehr) in `order` stehen, werden verworfen,
+   * - fehlende `product`/`material`-Unterobjekte werden aufgefüllt.
+   *
+   * @param structure - Die möglicherweise desynchronisierte Struktur.
+   * @returns Eine neue, in sich konsistente Struktur.
+   */
+  static repairPositionStructure<
+    T extends {uid: string; posType?: PositionType},
+  >(
+    structure: RecipeObjectStructure<T>,
+    kind: "ingredients" | "preparationSteps" | "materials" = "ingredients",
+  ): RecipeObjectStructure<T> {
+    const entries: {[key: string]: T} = {};
+    const order: string[] = [];
+    const seen = new Set<string>();
+
+    for (const uid of structure.order) {
+      const entry = structure.entries[uid];
+      if (!entry || seen.has(uid)) {
+        continue;
+      }
+      seen.add(uid);
+
+      const repaired = {...entry} as T & {
+        product?: IngredientProduct;
+        material?: RecipeProduct;
+        step?: string;
+      };
+      const isSection = repaired.posType === PositionType.section;
+
+      if (!isSection && kind === "ingredients" && !repaired.product) {
+        repaired.product = {uid: "", name: ""};
+      }
+      if (!isSection && kind === "materials" && !repaired.material) {
+        repaired.material = {uid: "", name: ""};
+      }
+      if (!isSection && kind === "preparationSteps" && repaired.step == null) {
+        repaired.step = "";
+      }
+
+      entries[uid] = repaired as T;
+      order.push(uid);
+    }
+
+    return {entries, order};
   }
 
   /* =====================================================================
@@ -552,13 +622,16 @@ export default class Recipe {
     if (recipe.ingredients.order.length == 0) {
       throw new FieldValidationError(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
     } else if (recipe.ingredients.order.length == 1) {
-      let lastEntry = recipe.ingredients.entries[recipe.ingredients.order[0]];
+      const lastEntry = recipe.ingredients.entries[
+        recipe.ingredients.order[0]
+      ] as Ingredient | Section | undefined;
 
-      if (lastEntry.posType == PositionType.section) {
-        throw new FieldValidationError(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
-      }
-      lastEntry = lastEntry as Ingredient;
-      if (lastEntry.product.uid == "") {
+      if (
+        !lastEntry ||
+        lastEntry.posType == PositionType.section ||
+        (lastEntry as Ingredient).product?.uid == "" ||
+        !(lastEntry as Ingredient).product
+      ) {
         throw new FieldValidationError(TEXT.ERROR_NO_INGREDIENTS_GIVEN);
       }
     }
@@ -599,6 +672,23 @@ export default class Recipe {
    * @throws {FieldValidationError} Wenn die Validierung fehlschlägt.
    */
   static prepareSave({recipe, products}: PrepareSave) {
+    // Zuerst gegen order/entries-Desync reparieren (siehe
+    // `repairPositionStructure`) — sonst stürzen die folgenden Bereinigungs-
+    // und Validierungsschritte bei einem verwaisten order-Eintrag ab
+    // (CHUCHIPIRAT-H5).
+    recipe.ingredients = Recipe.repairPositionStructure(
+      recipe.ingredients,
+      "ingredients",
+    );
+    recipe.preparationSteps = Recipe.repairPositionStructure(
+      recipe.preparationSteps,
+      "preparationSteps",
+    );
+    recipe.materials = Recipe.repairPositionStructure(
+      recipe.materials,
+      "materials",
+    );
+
     // Leere Positionen entfernen
     if (Object.keys(recipe.ingredients.entries).length > 0) {
       recipe.ingredients = Recipe.deleteEmptyIngredients(recipe.ingredients);
@@ -754,14 +844,21 @@ export default class Recipe {
   ) {
     const ingredientUids = [...ingredients.order];
     ingredientUids.forEach((ingredientUid) => {
-      if (
-        ingredients.entries[ingredientUid].posType == PositionType.ingredient
-      ) {
-        const ingredient = ingredients.entries[ingredientUid] as Ingredient;
+      const entry = ingredients.entries[ingredientUid];
+      // Verwaister order-Eintrag ohne entries-Pendant — aus order entfernen
+      // (CHUCHIPIRAT-H5).
+      if (!entry) {
+        ingredients.order = ingredients.order.filter(
+          (orderUid) => orderUid !== ingredientUid,
+        );
+        return;
+      }
+      if (entry.posType == PositionType.ingredient) {
+        const ingredient = entry as Ingredient;
         if (
           !ingredient.quantity &&
           !ingredient.unit &&
-          !ingredient.product.name
+          !ingredient.product?.name
         ) {
           delete ingredients.entries[ingredientUid];
           ingredients.order = ingredients.order.filter(
@@ -789,13 +886,15 @@ export default class Recipe {
     const cleanedPreparationSteps = structuredClone(preparationSteps);
 
     preparationStepUids.forEach((preparationStepUid) => {
-      if (
-        cleanedPreparationSteps.entries[preparationStepUid].posType ==
-        PositionType.preparationStep
-      ) {
-        const preparationStep = cleanedPreparationSteps.entries[
-          preparationStepUid
-        ] as PreparationStep;
+      const entry = cleanedPreparationSteps.entries[preparationStepUid];
+      if (!entry) {
+        cleanedPreparationSteps.order = cleanedPreparationSteps.order.filter(
+          (orderUid) => orderUid !== preparationStepUid,
+        );
+        return;
+      }
+      if (entry.posType == PositionType.preparationStep) {
+        const preparationStep = entry as PreparationStep;
         if (preparationStep.step == "") {
           delete cleanedPreparationSteps.entries[preparationStepUid];
           cleanedPreparationSteps.order = cleanedPreparationSteps.order.filter(
@@ -821,7 +920,8 @@ export default class Recipe {
   ) {
     const materialUids = [...materials.order];
     materialUids.forEach((materialUid) => {
-      if (!materials.entries[materialUid].material.name) {
+      const entry = materials.entries[materialUid];
+      if (!entry || !entry.material?.name) {
         delete materials.entries[materialUid];
         materials.order = materials.order.filter(
           (orderUid) => orderUid !== materialUid,
@@ -1170,6 +1270,10 @@ export default class Recipe {
       }
       recipe.ingredients.order.push(uid);
     }
+    recipe.ingredients = Recipe.repairPositionStructure(
+      recipe.ingredients,
+      "ingredients",
+    );
 
     // Zubereitungsschritte: flaches Array → RecipeObjectStructure
     recipe.preparationSteps = {entries: {}, order: []};
@@ -1192,6 +1296,10 @@ export default class Recipe {
       }
       recipe.preparationSteps.order.push(uid);
     }
+    recipe.preparationSteps = Recipe.repairPositionStructure(
+      recipe.preparationSteps,
+      "preparationSteps",
+    );
 
     // Materialien: flaches Array → RecipeObjectStructure
     recipe.materials = {entries: {}, order: []};
@@ -1206,6 +1314,10 @@ export default class Recipe {
       } as RecipeMaterialPosition;
       recipe.materials.order.push(uid);
     }
+    recipe.materials = Recipe.repairPositionStructure(
+      recipe.materials,
+      "materials",
+    );
 
     return recipe;
   }
@@ -1233,8 +1345,13 @@ export default class Recipe {
     let sortOrder = 0;
 
     for (const uid of recipe.ingredients.order) {
-      sortOrder += 10;
       const position = recipe.ingredients.entries[uid];
+      // Verwaister order-Eintrag — überspringen statt abzustürzen. Sollte nach
+      // `repairPositionStructure` in `prepareSave` nicht mehr vorkommen.
+      if (!position) {
+        continue;
+      }
+      sortOrder += 10;
 
       if (position.posType === PositionType.section) {
         const section = position as Section;
@@ -1288,8 +1405,11 @@ export default class Recipe {
     let sortOrder = 0;
 
     for (const uid of recipe.preparationSteps.order) {
-      sortOrder += 10;
       const position = recipe.preparationSteps.entries[uid];
+      if (!position) {
+        continue;
+      }
+      sortOrder += 10;
 
       if (position.posType === PositionType.section) {
         const section = position as Section;
@@ -1335,13 +1455,16 @@ export default class Recipe {
     let sortOrder = 0;
 
     for (const uid of recipe.materials.order) {
-      sortOrder += 10;
       const material = recipe.materials.entries[uid];
+      if (!material) {
+        continue;
+      }
+      sortOrder += 10;
       rows.push({
         uid,
         recipeId,
         sortOrder,
-        materialId: material.material.uid || null,
+        materialId: material.material?.uid || null,
         quantity: material.quantity,
       });
     }

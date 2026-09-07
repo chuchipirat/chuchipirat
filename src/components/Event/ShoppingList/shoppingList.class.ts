@@ -713,6 +713,27 @@ export class ShoppingList {
   };
 
   /**
+   * Vergleichsfunktion, die Positionen einer Abteilung alphabetisch nach
+   * Artikelnamen sortiert — leere Namen ans Ende. Wird sowohl für die
+   * UI-Anzeige (`prepareDepartmentItemsForDisplay`) als auch für den
+   * PDF-Export (`formatShoppingList`) verwendet, damit beide dieselbe
+   * Reihenfolge zeigen.
+   *
+   * @param itemA Erste Position.
+   * @param itemB Zweite Position.
+   * @returns Negativ, wenn `itemA` vor `itemB` einzuordnen ist.
+   */
+  static compareItemsByName = (
+    itemA: ShoppingListItem,
+    itemB: ShoppingListItem,
+  ): number => {
+    if (!itemA.item.name && !itemB.item.name) return 0;
+    if (!itemA.item.name) return 1;
+    if (!itemB.item.name) return -1;
+    return itemA.item.name.localeCompare(itemB.item.name);
+  };
+
+  /**
    * Erstellt ein leeres Listenelement für den Edit-Modus.
    */
   static createEmptyListItem = (): ShoppingListItem => ({

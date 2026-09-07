@@ -79,7 +79,12 @@ const ProductAutocomplete = ({
     <Autocomplete
       id={"product_" + componentKey}
       key={"product_" + componentKey}
-      value={product.name}
+      // `product` kann bei einem desynchronisierten Rezept-Editor-State
+      // (order-Eintrag ohne vollständigen entries-Eintrag) undefined sein —
+      // hier defensiv absichern statt die ganze Seite abstürzen zu lassen
+      // (CHUCHIPIRAT-H6). Der eigentliche Fix liegt in
+      // `Recipe.repairPositionStructure`.
+      value={product?.name ?? ""}
       onChange={(event, newValue, reason) => {
         onChange(
           event as unknown as React.ChangeEvent<HTMLInputElement>,
