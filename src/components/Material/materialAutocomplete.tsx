@@ -81,7 +81,10 @@ const MaterialAutocomplete = ({
     <Autocomplete
       id={componentKey ? "material_" + componentKey : "material"}
       key={componentKey ? "material_" + componentKey : "material"}
-      value={material?.name}
+      // `material` kann bei einem desynchronisierten Rezept-Editor-State
+      // undefined sein (Analogie zu CHUCHIPIRAT-H6 im ProductAutocomplete) —
+      // konsistent auf leeren String absichern.
+      value={material?.name ?? ""}
       onChange={(event, newValue, reason) =>
         onChange(
           event as unknown as React.ChangeEvent<HTMLInputElement>,

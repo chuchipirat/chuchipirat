@@ -99,6 +99,7 @@ import {WhereUsedResultPanel} from "../Admin/whereUsedResultPanel";
 
 import AuthUser from "../Session/authUser.class";
 import {Material, MaterialType} from "./material.types";
+import {DietProperties} from "../Product/product.types";
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
 import {detectMaterialIssues, MaterialIssue} from "./materialQaUtils";
@@ -602,6 +603,7 @@ const MaterialPage = () => {
     material: Material,
     departmentId?: string,
     shoppingUnit?: string,
+    dietProperties?: DietProperties,
   ) => {
     setConvertDialogOpen(false);
     try {
@@ -609,6 +611,7 @@ const MaterialPage = () => {
         material.uid,
         departmentId,
         shoppingUnit,
+        dietProperties,
       );
       dispatch({
         type: ReducerActions.MATERIAL_CONVERTED_TO_PRODUCT,

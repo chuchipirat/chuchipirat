@@ -102,6 +102,38 @@ describe("formatShoppingList", () => {
     expect(itemCount).toBe(5);
   });
 
+  test("sortiert die Positionen einer Abteilung alphabetisch (wie die UI)", () => {
+    const shoppingList = {
+      uid: "list-1",
+      list: {
+        0: {
+          departmentUid: "dept-0",
+          departmentName: "Früchte",
+          items: [
+            {checked: false, quantity: 1, unit: "kg", item: {uid: "i3", name: "Zitrone"}, type: ItemType.food, id: "r3"},
+            {checked: false, quantity: 1, unit: "kg", item: {uid: "i1", name: "Apfel"}, type: ItemType.food, id: "r1"},
+            {checked: false, quantity: 1, unit: "kg", item: {uid: "i0", name: ""}, type: ItemType.none, id: "r0"},
+            {checked: false, quantity: 1, unit: "kg", item: {uid: "i2", name: "Banane"}, type: ItemType.food, id: "r2"},
+          ],
+        },
+      },
+    } as unknown as ShoppingList;
+
+    const pages = formatShoppingList(shoppingList);
+    // Lesereihenfolge = erst die linke Spalte von oben nach unten, dann die
+    // rechte Spalte.
+    const orderedEntries = pages.flatMap((page) => [
+      ...page.list.map((line) => line.left),
+      ...page.list.map((line) => line.right),
+    ]);
+    const itemNames = orderedEntries
+      .filter((entry) => entry?.type === LineType.ITEM)
+      .map((entry) => (entry as {name: string}).name);
+
+    // Alphabetisch, leerer Name zuletzt.
+    expect(itemNames).toEqual(["Apfel", "Banane", "Zitrone", ""]);
+  });
+
   test("eine Abteilungsüberschrift ist nie der letzte Eintrag einer Seite (Items werden immer direkt danach geschrieben)", () => {
     // Mehrere kleine Abteilungen hintereinander — prüft, dass die
     // Mindestgrösse von 2 Zeilen auch für spätere (Rest-)Seiten gilt,

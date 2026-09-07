@@ -1,6 +1,7 @@
 import {
   isForeignKeyViolationError,
   isJwtExpiredError,
+  isMissingSessionError,
   isRlsViolationError,
   isTransientNetworkError,
   toError,
@@ -252,5 +253,36 @@ describe("isForeignKeyViolationError", () => {
       false,
     );
     expect(isForeignKeyViolationError(null)).toBe(false);
+  });
+});
+
+/* ===================================================================
+// ======================== isMissingSessionError ====================
+// =================================================================== */
+
+describe("isMissingSessionError", () => {
+  test("erkennt 'permission denied for view' (42501, CHUCHIPIRAT-H4)", () => {
+    expect(
+      isMissingSessionError({
+        code: "42501",
+        message: "permission denied for view feeds_view",
+      }),
+    ).toBe(true);
+  });
+
+  test("erkennt eine RLS-Verletzung und einen abgelaufenen JWT", () => {
+    expect(
+      isMissingSessionError({code: "42501", message: "row-level security"}),
+    ).toBe(true);
+    expect(isMissingSessionError({code: "PGRST301"})).toBe(true);
+    expect(isMissingSessionError(new Error("JWT expired"))).toBe(true);
+  });
+
+  test("liefert false für Netzfehler und andere Postgres-Fehler", () => {
+    expect(isMissingSessionError(new Error("Failed to fetch"))).toBe(false);
+    expect(
+      isMissingSessionError({code: "23505", message: "duplicate key"}),
+    ).toBe(false);
+    expect(isMissingSessionError(null)).toBe(false);
   });
 });
