@@ -1,0 +1,39 @@
+{
+  // ── SQL: nur Casing normalisieren (Keywords GROSS, Datentypen klein) ──────
+  // Regel-Allowlist in .sqlfluff. `sqlfluff` muss auf dem PATH sein
+  // (`brew install sqlfluff`).
+  //
+  //  1. LINT (Squiggles): Extension "SQLFluff" (sqlfluff.vscode-sqlfluff).
+  //  2. FIX beim Speichern: "Run on Save" (emeraldwalk.RunOnSave) ruft
+  //     `sqlfluff fix` auf die gespeicherte Datei — respektiert die
+  //     .sqlfluff-Allowlist (nur capitalisation), reflowt also nichts.
+  //
+  //  WICHTIG: Der native Formatter der SQLFluff-Extension wird bewusst
+  //  abgeschaltet (`sqlfluff.format.enabled: false`) und formatOnSave für
+  //  [sql] im Workspace deaktiviert. Grund: der Extension-Formatter ignoriert
+  //  die .sqlfluff-Allowlist und bricht den Baseline-Layout-Stil um
+  //  (globales "editor.formatOnSave": true + [sql]-defaultFormatter in den
+  //  User-Settings würde ihn sonst bei jedem Speichern auslösen).
+
+  "sqlfluff.dialect": "postgres",
+  "sqlfluff.linter.run": "onType",
+  "sqlfluff.format.enabled": false,
+
+  // Native Formatter-Kette für SQL im Workspace hart deaktivieren
+  // (überschreibt globales editor.formatOnSave / [sql]-defaultFormatter).
+  "[sql]": {
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false
+  },
+
+  // Fix-on-Save über RunOnSave (nur Migrations/Scripts), casing-only.
+  "emeraldwalk.runonsave": {
+    "commands": [
+      {
+        "match": "supabase/(migrations|scripts)/.*\\.sql$",
+        "cmd": "sqlfluff fix \"${file}\" || true"
+      }
+    ]
+  }
+}

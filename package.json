@@ -50,6 +50,8 @@
     "preview": "vite preview",
     "analyze": "source-map-explorer 'build/static/js/*.js'",
     "lint": "eslint --ext .ts,.tsx .",
+    "lint:sql": "sqlfluff lint supabase/migrations",
+    "format:sql": "sqlfluff fix supabase/migrations",
     "test": "jest --watch --coverage",
     "test:coverage": "jest --coverage"
   },
