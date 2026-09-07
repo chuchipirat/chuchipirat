@@ -425,12 +425,17 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
         products: tempProducts,
       };
     case ReducerActions.ON_UPDATE_LIST:
-      // Zutaten, Zubereitungsschritte oder Material updaten
+      // Zutaten, Zubereitungsschritte oder Material updaten. `value` stammt aus
+      // `onPostionMoreContextMenuClick`, das `order`/`entries` teilweise
+      // in-place mutiert — vor dem Übernehmen gegen Desync reparieren
+      // (CHUCHIPIRAT-H5/H6).
       return {
         ...state,
         recipe: {
           ...state.recipe,
-          [action.payload.fieldName]: action.payload.value,
+          [action.payload.fieldName]: Recipe.repairPositionStructure(
+            action.payload.value as RecipeObjectStructure<Ingredient | Section>,
+          ),
         },
       };
     case ReducerActions.ON_PREPARATIONSTEP_CHANGE:
@@ -640,10 +645,10 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
         ...state,
         recipe: {
           ...state.recipe,
-          [action.payload.field]: {
+          [action.payload.field]: Recipe.repairPositionStructure({
             ...state.recipe[action.payload.field],
             order: action.payload.value,
-          },
+          } as RecipeObjectStructure<Ingredient | Section>),
         },
       };
     case ReducerActions.GENERIC_ERROR:
