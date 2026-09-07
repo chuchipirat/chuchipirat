@@ -583,9 +583,35 @@ describe("Recipe.repairPositionStructure()", () => {
       },
     } as never;
 
-    const repaired = Recipe.repairPositionStructure(structure);
+    const repaired = Recipe.repairPositionStructure(structure, "ingredients");
 
     expect(repaired.entries["a"]).toMatchObject({product: {uid: "", name: ""}});
+  });
+
+  test("füllt fehlendes material bei einer Materialposition auf", () => {
+    const structure = {
+      order: ["m"],
+      entries: {m: {uid: "m", quantity: 0}},
+    } as never;
+
+    const repaired = Recipe.repairPositionStructure(structure, "materials");
+
+    expect(repaired.entries["m"]).toMatchObject({material: {uid: "", name: ""}});
+  });
+
+  test("lässt Abschnitte unangetastet", () => {
+    const structure = {
+      order: ["s"],
+      entries: {s: {uid: "s", posType: PositionType.section, name: "Teig"}},
+    } as never;
+
+    const repaired = Recipe.repairPositionStructure(structure, "ingredients");
+
+    expect(repaired.entries["s"]).toEqual({
+      uid: "s",
+      posType: PositionType.section,
+      name: "Teig",
+    });
   });
 });
 /* =====================================================================

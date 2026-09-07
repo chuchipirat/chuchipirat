@@ -399,7 +399,10 @@ export default class Recipe {
    */
   static repairPositionStructure<
     T extends {uid: string; posType?: PositionType},
-  >(structure: RecipeObjectStructure<T>): RecipeObjectStructure<T> {
+  >(
+    structure: RecipeObjectStructure<T>,
+    kind: "ingredients" | "preparationSteps" | "materials" = "ingredients",
+  ): RecipeObjectStructure<T> {
     const entries: {[key: string]: T} = {};
     const order: string[] = [];
     const seen = new Set<string>();
@@ -414,12 +417,18 @@ export default class Recipe {
       const repaired = {...entry} as T & {
         product?: IngredientProduct;
         material?: RecipeProduct;
+        step?: string;
       };
-      if (repaired.posType === PositionType.ingredient && !repaired.product) {
+      const isSection = repaired.posType === PositionType.section;
+
+      if (!isSection && kind === "ingredients" && !repaired.product) {
         repaired.product = {uid: "", name: ""};
       }
-      if ("material" in repaired && !repaired.material) {
+      if (!isSection && kind === "materials" && !repaired.material) {
         repaired.material = {uid: "", name: ""};
+      }
+      if (!isSection && kind === "preparationSteps" && repaired.step == null) {
+        repaired.step = "";
       }
 
       entries[uid] = repaired as T;
@@ -667,11 +676,18 @@ export default class Recipe {
     // `repairPositionStructure`) — sonst stürzen die folgenden Bereinigungs-
     // und Validierungsschritte bei einem verwaisten order-Eintrag ab
     // (CHUCHIPIRAT-H5).
-    recipe.ingredients = Recipe.repairPositionStructure(recipe.ingredients);
+    recipe.ingredients = Recipe.repairPositionStructure(
+      recipe.ingredients,
+      "ingredients",
+    );
     recipe.preparationSteps = Recipe.repairPositionStructure(
       recipe.preparationSteps,
+      "preparationSteps",
     );
-    recipe.materials = Recipe.repairPositionStructure(recipe.materials);
+    recipe.materials = Recipe.repairPositionStructure(
+      recipe.materials,
+      "materials",
+    );
 
     // Leere Positionen entfernen
     if (Object.keys(recipe.ingredients.entries).length > 0) {
@@ -1254,7 +1270,10 @@ export default class Recipe {
       }
       recipe.ingredients.order.push(uid);
     }
-    recipe.ingredients = Recipe.repairPositionStructure(recipe.ingredients);
+    recipe.ingredients = Recipe.repairPositionStructure(
+      recipe.ingredients,
+      "ingredients",
+    );
 
     // Zubereitungsschritte: flaches Array → RecipeObjectStructure
     recipe.preparationSteps = {entries: {}, order: []};
@@ -1279,6 +1298,7 @@ export default class Recipe {
     }
     recipe.preparationSteps = Recipe.repairPositionStructure(
       recipe.preparationSteps,
+      "preparationSteps",
     );
 
     // Materialien: flaches Array → RecipeObjectStructure
@@ -1294,7 +1314,10 @@ export default class Recipe {
       } as RecipeMaterialPosition;
       recipe.materials.order.push(uid);
     }
-    recipe.materials = Recipe.repairPositionStructure(recipe.materials);
+    recipe.materials = Recipe.repairPositionStructure(
+      recipe.materials,
+      "materials",
+    );
 
     return recipe;
   }

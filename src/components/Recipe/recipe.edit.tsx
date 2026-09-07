@@ -435,6 +435,10 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
           ...state.recipe,
           [action.payload.fieldName]: Recipe.repairPositionStructure(
             action.payload.value as RecipeObjectStructure<Ingredient | Section>,
+            action.payload.fieldName as
+              | "ingredients"
+              | "preparationSteps"
+              | "materials",
           ),
         },
       };
@@ -645,10 +649,16 @@ const recipesReducer = (state: State, action: DispatchAction): State => {
         ...state,
         recipe: {
           ...state.recipe,
-          [action.payload.field]: Recipe.repairPositionStructure({
-            ...state.recipe[action.payload.field],
-            order: action.payload.value,
-          } as RecipeObjectStructure<Ingredient | Section>),
+          [action.payload.field]: Recipe.repairPositionStructure(
+            {
+              ...state.recipe[action.payload.field],
+              order: action.payload.value,
+            } as RecipeObjectStructure<Ingredient | Section>,
+            action.payload.field as
+              | "ingredients"
+              | "preparationSteps"
+              | "materials",
+          ),
         },
       };
     case ReducerActions.GENERIC_ERROR:
