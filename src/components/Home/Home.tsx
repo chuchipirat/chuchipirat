@@ -80,7 +80,11 @@ import {
   EventCardReadinessItem,
 } from "../Event/Event/eventCard";
 import {getEventWeatherRange, WeatherForecastDay} from "./openMeteo";
-import {isTransientNetworkError, toError} from "../../utils/errorUtils";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../utils/errorUtils";
 import {MealTypeCutoffDomain} from "../Database/Repository/MenuplanRepository";
 import {RecipeDomain} from "../Database/Repository/RecipeRepository";
 import {MenuplanData, PortionPlan} from "../Event/Menuplan/menuplan.types";
@@ -189,7 +193,10 @@ export const HomePage = () => {
       .catch((error) => {
         // Vorübergehende Netzfehler (z.B. Mobilgerät kurz offline) sind
         // erwartbar — dem Nutzer trotzdem anzeigen, aber nicht an Sentry melden.
-        if (!isTransientNetworkError(error)) {
+        if (
+          !isTransientNetworkError(error) &&
+          !isMissingSessionError(error)
+        ) {
           Sentry.captureException(toError(error));
         }
         dispatch({
@@ -217,7 +224,10 @@ export const HomePage = () => {
         });
       })
       .catch((error) => {
-        if (!isTransientNetworkError(error)) {
+        if (
+          !isTransientNetworkError(error) &&
+          !isMissingSessionError(error)
+        ) {
           Sentry.captureException(toError(error));
         }
         dispatch({
@@ -241,7 +251,10 @@ export const HomePage = () => {
         });
       })
       .catch((error) => {
-        if (!isTransientNetworkError(error)) {
+        if (
+          !isTransientNetworkError(error) &&
+          !isMissingSessionError(error)
+        ) {
           Sentry.captureException(toError(error));
         }
         dispatch({
@@ -265,7 +278,10 @@ export const HomePage = () => {
         });
       })
       .catch((error) => {
-        if (!isTransientNetworkError(error)) {
+        if (
+          !isTransientNetworkError(error) &&
+          !isMissingSessionError(error)
+        ) {
           Sentry.captureException(toError(error));
         }
         dispatch({
@@ -294,7 +310,10 @@ export const HomePage = () => {
         // Systemmeldungen sind rein informativ (Banner) — kein Fehlerzustand
         // in der UI, daher wie ein Hintergrund-Poll behandelt: transiente
         // Netzfehler verschlucken, echte Fehler melden.
-        if (!isTransientNetworkError(error)) {
+        if (
+          !isTransientNetworkError(error) &&
+          !isMissingSessionError(error)
+        ) {
           Sentry.captureException(toError(error));
         }
       });
