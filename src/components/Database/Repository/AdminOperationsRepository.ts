@@ -11,6 +11,7 @@
 import {SupabaseClient} from "@supabase/supabase-js";
 import {supabase} from "../supabaseClient";
 import {SimilarProductPair} from "./ProductRepository";
+import {ALLERGEN_TO_DB, DIET_TO_DB} from "../../../constants/enumMappings";
 
 /* ===================================================================
 // ======================== Ergebnis-Typen ===========================
@@ -186,18 +187,29 @@ export class AdminOperationsRepository {
    * @param materialId ID des zu konvertierenden Materials.
    * @param departmentId Abteilung für das neue Produkt.
    * @param shoppingUnit Einkaufseinheit für das neue Produkt.
+   * @param dietProperties Diät (numerisch) und Allergene (numerisch) für das
+   *   neue Produkt. Wird in die DB-ENUM-Werte übersetzt. Ohne Angabe: `meat`,
+   *   keine Allergene (RPC-Default).
    * @returns Neue Produkt-ID und Anzahl betroffener Zeilen.
    * @throws {Error} Wenn das RPC fehlschlägt.
    */
   async convertMaterialToProduct(
     materialId: string,
     departmentId?: string,
-    shoppingUnit?: string
+    shoppingUnit?: string,
+    dietProperties?: {allergens: number[]; diet: number}
   ): Promise<ConvertMaterialToProductResult> {
     const {data, error} = await this.client.rpc("convert_material_to_product", {
       material_id_param: materialId,
       department_id_param: departmentId ?? null,
       shopping_unit_param: shoppingUnit ?? null,
+      // Numerische Frontend-Enums → DB-ENUM-Strings (analog ProductRepository).
+      diet_param: DIET_TO_DB[dietProperties?.diet ?? 1] ?? "meat",
+      allergens_param: (dietProperties?.allergens ?? [])
+        // Allergen.None (0) ist kein Allergen.
+        .filter((allergen) => allergen !== 0)
+        .map((allergen) => ALLERGEN_TO_DB[allergen])
+        .filter((allergen): allergen is string => Boolean(allergen)),
     });
     if (error) throw new Error(error.message);
     return data as ConvertMaterialToProductResult;

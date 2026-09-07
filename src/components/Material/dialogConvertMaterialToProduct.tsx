@@ -60,6 +60,7 @@ interface DialogConvertMaterialToProductProps {
     material: Material,
     departmentId?: string,
     shoppingUnit?: string,
+    dietProperties?: DietProperties,
   ) => void;
 }
 
@@ -169,6 +170,7 @@ export const DialogConvertMaterialToProduct = ({
       material,
       selectedDepartment.uid || undefined,
       selectedUnit.key || undefined,
+      dietProperties,
     );
   };
 
