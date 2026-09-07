@@ -98,10 +98,16 @@ export function formatShoppingList(
   const pages: FormattedShoppingListPage[] = [];
   let actualPage = 0;
 
-  // Leere Abteilungen herausfiltern
-  const departments = Object.values(shoppingList.list).filter(
-    (dept) => dept.items.length > 0,
-  );
+  // Leere Abteilungen herausfiltern und die Positionen jeder Abteilung
+  // alphabetisch sortieren — gleiche Reihenfolge wie in der UI
+  // (`prepareDepartmentItemsForDisplay`). Ohne die Sortierung erschien der
+  // PDF-Export in Generierungs-/Einfüge-Reihenfolge.
+  const departments = Object.values(shoppingList.list)
+    .filter((dept) => dept.items.length > 0)
+    .map((dept) => ({
+      ...dept,
+      items: [...dept.items].sort(ShoppingList.compareItemsByName),
+    }));
   const noDepartments = departments.length;
   const noItems = departments.reduce(
     (sum, dept) => sum + dept.items.length,
