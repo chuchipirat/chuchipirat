@@ -23,6 +23,8 @@ import {MenuplanRepository} from "./Repository/MenuplanRepository";
 import {UsedRecipeListRepository} from "./Repository/UsedRecipeListRepository";
 import {ShoppingListRepository} from "./Repository/ShoppingListRepository";
 import {MaterialListRepository} from "./Repository/MaterialListRepository";
+import {ExpenseRepository} from "./Repository/ExpenseRepository";
+import {BudgetRepository} from "./Repository/BudgetRepository";
 import {RequestRepository} from "./Repository/RequestRepository";
 import {RequestCommentRepository} from "./Repository/RequestCommentRepository";
 import {FeedRepository} from "./Repository/FeedRepository";
@@ -67,6 +69,8 @@ import {MailLogRepository} from "./Repository/MailLogRepository";
  * @property usedRecipeLists - Repository für benannte Rezeptlisten eines Events
  * @property shoppingLists - Repository für Einkaufslisten eines Events
  * @property materialLists - Repository für Materiallisten eines Events
+ * @property expenses - Repository für Ausgaben eines Events
+ * @property budgets - Repository für Budgets eines Events
  * @property requests - Repository für Anträge (Rezept-Veröffentlichung, Fehlermeldungen)
  * @property requestComments - Repository für Antrags-Kommentare
  * @property feeds - Repository für Feed-Einträge (Aktivitätsübersicht)
@@ -99,6 +103,8 @@ export class DatabaseService {
   usedRecipeLists: UsedRecipeListRepository;
   shoppingLists: ShoppingListRepository;
   materialLists: MaterialListRepository;
+  expenses: ExpenseRepository;
+  budgets: BudgetRepository;
   requests: RequestRepository;
   requestComments: RequestCommentRepository;
   feeds: FeedRepository;
@@ -133,6 +139,8 @@ export class DatabaseService {
     this.usedRecipeLists = new UsedRecipeListRepository();
     this.shoppingLists = new ShoppingListRepository();
     this.materialLists = new MaterialListRepository();
+    this.expenses = new ExpenseRepository();
+    this.budgets = new BudgetRepository();
     this.requests = new RequestRepository();
     this.requestComments = new RequestCommentRepository();
     this.feeds = new FeedRepository();
@@ -141,7 +149,10 @@ export class DatabaseService {
     this.adminOps = new AdminOperationsRepository();
     this.cronJobLog = new CronJobLogRepository();
     this.mailLog = new MailLogRepository();
-    this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
+    this.storage = {
+      users: new UserStorageRepository(),
+      events: new EventStorageRepository(),
+    };
   }
 }
 

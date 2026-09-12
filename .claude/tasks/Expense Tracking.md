@@ -22,13 +22,46 @@ dann gemachten Erfahrungen aus den Reviews davor).
 
 - **Ein Branch** für das gesamte Feature: `feature/86-event-billing` (von `develop`).
 - Pro Paket: Nutzer implementiert, verifiziert selbst zuerst (`npm run typecheck`,
-  `npm run test -- --filter "..."`, `npm run lint`), committet, meldet "Paket X.Y fertig".
-- Ich lese `git diff` seit dem letzten reviewten Stand, gebe Feedback in vier Kategorien:
-  Architektur/Pattern-Treue, Namensgebung/Clean Code, Testabdeckung, übersehene Edge Cases.
-  Feedback ist ehrlich — auch wenn's unbequem ist, das ist der Zweck der Übung.
+  `npm run test -- --filter "..."`, `npm run lint`) und geht die **Pre-Commit-Checkliste**
+  unten durch — **noch nicht committen**, meldet "Paket X.Y fertig, ungecommittet".
+- Ich lese den Working-Tree-Diff (`git status` + `git diff` gegen den letzten committeten
+  Stand), gebe Feedback in vier Kategorien: Architektur/Pattern-Treue, Namensgebung/Clean
+  Code, Testabdeckung, übersehene Edge Cases. Feedback ist ehrlich — auch wenn's unbequem
+  ist, das ist der Zweck der Übung.
+- Nutzer wendet die Muss-Fixes an, ich prüfe die Fixes kurz (nicht das ganze Paket neu).
+  **Erst danach committen.** Grund: Review vor dem Commit heisst ein Commit pro Paket statt
+  "Fix Review Findings"-Nachträgen — sauberere Historie, kein Nacharbeiten an bereits
+  committeten Ständen.
 - Nach jedem Epic: kurzer Rückblick + Verfeinerung der Pakete des nächsten Epics.
 - Ein finaler PR gegen `develop` am Ende des gesamten Features (nicht pro Paket/Epic) — kann bei
   Bedarf revidiert werden, falls der Nutzer lieber früher einen (Draft-)PR öffnen möchte.
+
+### Pre-Commit-Checkliste (vor jedem "Paket X.Y fertig")
+
+Allgemein, jedes Paket:
+- [ ] `npm run typecheck`, `npm run lint`, `npm run test -- --filter "..."` grün
+- [ ] `git status` durchgesehen — nur Dateien drin, die zum Paket gehören (kein
+  Formatter-Grundrauschen in unbeteiligten Dateien, kein Leftover aus einem anderen Paket)
+- [ ] Neue/geänderte Dateinamen == Hauptexport (z.B. `ExpenseRepository.test.ts`, nicht
+  `ExpesesRepository.test.ts`)
+- [ ] JSDoc/TSDoc `@example`-Zeilen zeigen echte, existierende Methodennamen
+
+Bei neuen Repositories/Domain-Typen (Paket-Typ "Repository-Skelett"):
+- [ ] Repository in `DatabaseService.ts` registriert (Import + Feld + Konstruktor-Zeile) —
+  sonst ist `database.<name>` aus der UI nicht erreichbar, fällt aber weder bei `tsc` noch
+  im Repo-Test selbst auf
+- [ ] Cache-Konfiguration in `sessionStorageHandler.class.ts` ergänzt, passend zur
+  Event-Bindung (`excludeFromCaching: true` bei Multi-User/Event-Daten)
+- [ ] Jede `date`-Spalte (Postgres-Typ `date`, nicht `timestamptz`) läuft durch
+  `formatLocalDate()`/`parseLocalDate()` aus `dateUtils.ts` — nie `Date` roh durchreichen,
+  nie `.toISOString().split("T")[0]` (CET/CEST-Tagesverschiebung, siehe CLAUDE.md)
+- [ ] `orderBy`/`filters`/`.eq(...)`-Feldnamen sind **DB-Spaltennamen** (snake_case), nicht
+  Domain-Feldnamen — Verwechslung fällt bei `tsc` nicht auf, nur zur Laufzeit
+- [ ] Domain-Typen (`*.types.ts`) importieren keine Domain-**Klassen** (z.B. `Event`) nur für
+  einen Feldtyp — führt zu unnötiger Kopplung/Zirkelimport-Risiko; einfache Typen
+  (`string`, `string | null`) verwenden, wie `donation.types.ts` es vormacht
+- [ ] Nullability der Domain-Felder stimmt mit der Tabellendefinition überein (`NOT NULL`
+  in Postgres → nicht `| null` im Domain-Typ)
 
 ## Architektur-Entscheidungen (vorab getroffen, mit Begründung)
 
