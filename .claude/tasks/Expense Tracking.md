@@ -39,29 +39,31 @@ dann gemachten Erfahrungen aus den Reviews davor).
 ### Pre-Commit-Checkliste (vor jedem "Paket X.Y fertig")
 
 Allgemein, jedes Paket:
+
 - [ ] `npm run typecheck`, `npm run lint`, `npm run test -- --filter "..."` grün
 - [ ] `git status` durchgesehen — nur Dateien drin, die zum Paket gehören (kein
-  Formatter-Grundrauschen in unbeteiligten Dateien, kein Leftover aus einem anderen Paket)
+      Formatter-Grundrauschen in unbeteiligten Dateien, kein Leftover aus einem anderen Paket)
 - [ ] Neue/geänderte Dateinamen == Hauptexport (z.B. `ExpenseRepository.test.ts`, nicht
-  `ExpesesRepository.test.ts`)
+      `ExpesesRepository.test.ts`)
 - [ ] JSDoc/TSDoc `@example`-Zeilen zeigen echte, existierende Methodennamen
 
 Bei neuen Repositories/Domain-Typen (Paket-Typ "Repository-Skelett"):
+
 - [ ] Repository in `DatabaseService.ts` registriert (Import + Feld + Konstruktor-Zeile) —
-  sonst ist `database.<name>` aus der UI nicht erreichbar, fällt aber weder bei `tsc` noch
-  im Repo-Test selbst auf
+      sonst ist `database.<name>` aus der UI nicht erreichbar, fällt aber weder bei `tsc` noch
+      im Repo-Test selbst auf
 - [ ] Cache-Konfiguration in `sessionStorageHandler.class.ts` ergänzt, passend zur
-  Event-Bindung (`excludeFromCaching: true` bei Multi-User/Event-Daten)
+      Event-Bindung (`excludeFromCaching: true` bei Multi-User/Event-Daten)
 - [ ] Jede `date`-Spalte (Postgres-Typ `date`, nicht `timestamptz`) läuft durch
-  `formatLocalDate()`/`parseLocalDate()` aus `dateUtils.ts` — nie `Date` roh durchreichen,
-  nie `.toISOString().split("T")[0]` (CET/CEST-Tagesverschiebung, siehe CLAUDE.md)
+      `formatLocalDate()`/`parseLocalDate()` aus `dateUtils.ts` — nie `Date` roh durchreichen,
+      nie `.toISOString().split("T")[0]` (CET/CEST-Tagesverschiebung, siehe CLAUDE.md)
 - [ ] `orderBy`/`filters`/`.eq(...)`-Feldnamen sind **DB-Spaltennamen** (snake_case), nicht
-  Domain-Feldnamen — Verwechslung fällt bei `tsc` nicht auf, nur zur Laufzeit
+      Domain-Feldnamen — Verwechslung fällt bei `tsc` nicht auf, nur zur Laufzeit
 - [ ] Domain-Typen (`*.types.ts`) importieren keine Domain-**Klassen** (z.B. `Event`) nur für
-  einen Feldtyp — führt zu unnötiger Kopplung/Zirkelimport-Risiko; einfache Typen
-  (`string`, `string | null`) verwenden, wie `donation.types.ts` es vormacht
+      einen Feldtyp — führt zu unnötiger Kopplung/Zirkelimport-Risiko; einfache Typen
+      (`string`, `string | null`) verwenden, wie `donation.types.ts` es vormacht
 - [ ] Nullability der Domain-Felder stimmt mit der Tabellendefinition überein (`NOT NULL`
-  in Postgres → nicht `| null` im Domain-Typ)
+      in Postgres → nicht `| null` im Domain-Typ)
 
 ## Architektur-Entscheidungen (vorab getroffen, mit Begründung)
 
@@ -153,7 +155,7 @@ not null` (FK `events(id) on delete cascade`), `name text not null`, `budget_typ
 - **SQL-Formatter-Wechsel**: `prettier-plugin-sql` entfernt (brach den Baseline-Stil um),
   ersatzweise `sqlfluff` + `.sqlfluff` (nur Casing: Keywords GROSS, Datentypen klein).
 
-**Paket 0.3 — Migration: `event_expenses`**
+**Paket 0.3 — Migration: `event_expenses`** ✅ erledigt
 
 - Neue Migration, self-contained:
   - `CREATE TYPE public.expense_payee_type AS ENUM ('existing_user', 'new_person',
@@ -173,7 +175,7 @@ null default 'CHF'`, `label text not null`, `comment text`, `payee_type` (Enum, 
 - **Verifikation**: wie 0.2 transaktional gegen die laufende `-test`-DB (behält Daten), plus
   Insert-Test mit allen drei `payee_type`-Varianten um die Constraint-Kombinationen zu prüfen.
 
-**Paket 0.4 — Repository-Skelette + Domain-Typen**
+**Paket 0.4 — Repository-Skelette + Domain-Typen** ✅ erledigt
 
 - `src/components/Event/Accounting/budget.types.ts`, `expense.types.ts` — `BudgetDomain`,
   `BudgetRow`, `ExpenseDomain`, `ExpenseRow` (Vorbild: `donation.types.ts`-Struktur/TSDoc-Stil).
@@ -185,7 +187,7 @@ null default 'CHF'`, `label text not null`, `comment text`, `payee_type` (Enum, 
   registriert ist).
 - Unit-Tests für `toRow`/`toDomain`-Mapping beider Repositories.
 
-**Paket 0.5 — Tab-Shell in `event.tsx`**
+**Paket 0.5 — Tab-Shell in `event.tsx`** ✅ erledigt
 
 - `EventTabs`-Enum um `accounting` erweitern, `TAB_QUERY_PARAM_MAP`/`TAB_TO_QUERY_PARAM`
   ergänzen (`?tab=abrechnung`), neuer `<Tab label={TEXT_ACCOUNTING} {...tabProps(6)} />`,
@@ -208,7 +210,7 @@ null default 'CHF'`, `label text not null`, `comment text`, `payee_type` (Enum, 
 Ziel: Köch:innen können Budgets anlegen, bearbeiten, löschen; "Küche"-Default entsteht
 automatisch; Pro-Person/Tag-Budgets rechnen sich live nach.
 
-**Paket 1.1 — `budget.class.ts` (reine Domain-Logik)**
+**Paket 1.1 — `budget.class.ts` (reine Domain-Logik)** ✅ erledigt
 
 - `src/components/Event/Accounting/budget.class.ts`: statische Methoden, keine DB-Imports.
   `computePerPersonPerDayAmount(participantCount, dayCount, amountPerPersonPerDay): number`,
@@ -217,11 +219,28 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
   `shoppingList.class.ts`).
 - Unit-Tests: Berechnung, Default-Budget-Shape, Validierungsfehler.
 
-**Paket 1.2 — Default-Budget bei Event-Erstellung**
+**Paket 1.2 — Default-Budget bei Erst-Freischaltung (nicht bei Event-Erstellung)**
 
-- Fundstelle: wo aktuell die Standard-Gruppenkonfiguration beim Anlegen eines Events erzeugt
-  wird (Event-Erstellungs-Flow) — dort einen `BudgetRepository.create(Budget.createDefaultKitchenBudget(...))`-Aufruf ergänzen.
-- Test: Event-Erstellungsflow-Test erweitern/prüfen, dass ein "Küche"-Budget entsteht.
+- **Entscheidung (revidiert):** Ursprünglich war geplant, das Default-"Küche"-Budget beim
+  Event-Erstellungs-Flow anzulegen (analog zur Standard-Gruppenkonfiguration). Verworfen,
+  weil Abrechnung — anders als Gruppenkonfiguration/Menüplan/Einkaufsliste — eine
+  spendenbasiert freigeschaltete Zusatzfunktion ist (Architektur-Entscheidung oben): die
+  meisten Events werden sie nie aktivieren. Ein `event_budgets`-Eintrag soll nur für Events
+  existieren, die die Funktion tatsächlich nutzen — sonst suggeriert die blosse Existenz der
+  Zeile Nutzung, die nie stattgefunden hat. Kein neuer DB-Mechanismus nötig (bleibt konsistent
+  mit "kein neuer DB-Sicherheitsmechanismus für die Spenden-Freischaltung"), rein App-Schicht.
+- **Umsetzung:** In `expenseTracking.tsx`, im bestehenden Effekt, der `hasDonation` ermittelt
+  (0.5) — sobald `hasDonation` erstmals `true` wird: `BudgetRepository.getBudgetsForEvent(eventId)`
+  aufrufen; ist das Ergebnis leer, `BudgetRepository.createBudget(Budget.createDefaultKitchenBudget(eventId), authUser)`
+  aufrufen. Kein neuer Fund-Ort im Event-Erstellungs-Flow nötig.
+- **Bekannter, akzeptierter Race:** Öffnen zwei Köch:innen den Abrechnung-Tab nahezu
+  gleichzeitig direkt nach Spendenbestätigung, können beide "keine Budgets" sehen und je ein
+  Default-Budget anlegen → doppeltes "Küche"-Budget. Harmlos (kein Datenverlust, keine
+  Sicherheitslücke), über den Lösch-Dialog aus 1.5 behebbar — bewusst nicht durch Lock/Trigger
+  abgesichert, das wäre unverhältnismässig für diesen Fall. Kurzer Kommentar im Code dazu.
+- Test: `expenseTracking.test.tsx` erweitern — beim Übergang `hasDonation: false → true` wird
+  `createBudget` genau einmal mit `Budget.createDefaultKitchenBudget(eventId)` aufgerufen, wenn
+  `getBudgetsForEvent` leer zurückgibt; bleibt aus, wenn bereits Budgets vorhanden sind.
 
 **Paket 1.3 — Budgets-Liste + Anlage-Dialog**
 
@@ -237,8 +256,8 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
     `per_person_per_day` ist `null`/`0` vor der ersten Berechnung gültig,
     siehe `createDefaultKitchenBudget`)
   - unbekannter/leerer `budgetType`
-  Dialog ruft die Validierung vor dem Speichern auf und zeigt die Fehler pro Feld
-  (Vorbild: wie der Rezept-Editor `FieldValidationError.formValidation` konsumiert).
+    Dialog ruft die Validierung vor dem Speichern auf und zeigt die Fehler pro Feld
+    (Vorbild: wie der Rezept-Editor `FieldValidationError.formValidation` konsumiert).
 - Unit-Tests für `Budget.validate(...)` (gültiger Fall + je ein Fehlerfall pro obiger Regel).
 
 **Paket 1.4 — Live-Neuberechnung**
