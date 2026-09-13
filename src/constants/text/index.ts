@@ -23,3 +23,4 @@ export * from "./shared";
 export * from "./mappings";
 export * from "./errors";
 export * from "./donations";
+export * from "./expenseTracking";

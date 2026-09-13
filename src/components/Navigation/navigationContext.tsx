@@ -15,6 +15,7 @@ export enum NavigationObject {
   usedRecipes = "usedRecipes",
   shoppingList = "shoppingList",
   materialList = "materialList",
+  expenseTracking = "expenseTracking",
   eventSettings = "eventSettings",
 }
 
