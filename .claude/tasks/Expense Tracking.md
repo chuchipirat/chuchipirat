@@ -225,9 +225,21 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
 
 **Paket 1.3 — Budgets-Liste + Anlage-Dialog**
 
-- UI in `accounting.tsx` (ersetzt Platzhalter aus 0.5, sobald `hasVerifiedDonation === true`):
+- UI in `expenseTracking.tsx` (ersetzt Platzhalter aus 0.5, sobald `hasVerifiedDonation === true`):
   Liste/Cards der Budgets, "+ Budget"-Dialog (Name, Typ-Auswahl, Betrag/Währung).
   Struktur/Stil an `shoppingList.tsx`'s Listenkopf anlehnen.
+- **Validierung in `budget.class.ts` ergänzen** (aus 1.1 zurückgestellt, da es bis hierhin
+  keinen Aufrufer mit echten Nutzereingaben gab): `Budget.validate(...)`
+  (oder analog zu `recipe.class.ts`s `checkRecipeData` benannt) wirft
+  `FieldValidationError` (Vorbild `shoppingList.class.ts`/`recipe.class.ts`) für:
+  - leerer/nur-Whitespace-Name
+  - `amountInCents` bei `budgetType: fixed_amount` negativ oder 0 (bei
+    `per_person_per_day` ist `null`/`0` vor der ersten Berechnung gültig,
+    siehe `createDefaultKitchenBudget`)
+  - unbekannter/leerer `budgetType`
+  Dialog ruft die Validierung vor dem Speichern auf und zeigt die Fehler pro Feld
+  (Vorbild: wie der Rezept-Editor `FieldValidationError.formValidation` konsumiert).
+- Unit-Tests für `Budget.validate(...)` (gültiger Fall + je ein Fehlerfall pro obiger Regel).
 
 **Paket 1.4 — Live-Neuberechnung**
 
