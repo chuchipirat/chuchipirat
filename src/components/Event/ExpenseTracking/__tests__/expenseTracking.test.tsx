@@ -15,6 +15,10 @@ import "@testing-library/jest-dom";
 
 import {EventExpenseTrackingPage} from "../expenseTracking";
 import {getHelpPageUrl} from "../../../Navigation/helpCenter";
+import {AuthUserContext} from "../../../Session/authUserContext";
+import AuthUser from "../../../Session/authUser.class";
+import {Budget} from "../budget.class";
+import {BudgetType} from "../budget.types";
 
 /** Testdaten: Ein Event mit einem Koch und einer Datumsperiode. */
 const mockEvent = {
@@ -42,10 +46,14 @@ const mockEvent = {
 };
 
 const mockDatabase = {
-  donations: {
-    getEventDonations: jest.fn().mockResolvedValue([]),
+  donations: {getEventDonations: jest.fn().mockResolvedValue([])},
+  budgets: {
+    getBudgetsForEvent: jest.fn().mockResolvedValue([]),
+    createBudget: jest.fn(),
   },
 } as any;
+const mockAuthUser = new AuthUser();
+mockAuthUser.uid = "auth-uid-1";
 
 /**
  * Rendert die EventExpenseTracking mit Standard-Props.
@@ -62,7 +70,11 @@ const renderEventExpenseTrackingPage = (
     database: mockDatabase,
   };
 
-  return render(<EventExpenseTrackingPage {...defaultProps} {...overrides} />);
+  return render(
+    <AuthUserContext.Provider value={mockAuthUser}>
+      <EventExpenseTrackingPage {...defaultProps} {...overrides} />
+    </AuthUserContext.Provider>,
+  );
 };
 
 beforeEach(() => {
@@ -106,5 +118,47 @@ describe("EventExpenseTrackingPage", () => {
     ); // nie resolven
     renderEventExpenseTrackingPage();
     expect(screen.getByTestId("expense-tracking-loading")).toBeInTheDocument();
+  });
+
+  test("Budget wird geladen, wenn Spende erfolgt", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    const existingBudget = {
+      id: "budget-001",
+      eventId: mockEvent.uid,
+      name: "Küche",
+      budgetType: BudgetType.FIXED_AMOUNT,
+      amountInCents: 50000,
+      currency: "CHF",
+    };
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      existingBudget,
+    ]);
+
+    renderEventExpenseTrackingPage();
+
+    expect(
+      await screen.findByText(existingBudget.budgetType),
+    ).toBeInTheDocument();
+    expect(mockDatabase.budgets.createBudget).not.toHaveBeenCalled();
+  });
+
+  test("Neues Budget wird erstellt, wenn noch keines Vorhanden", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([]);
+    const defaultBudget = Budget.createDefaultKitchenBudget(mockEvent.uid);
+    mockDatabase.budgets.createBudget.mockResolvedValueOnce({
+      id: "new-budget-001",
+      value: {...defaultBudget, id: "new-budget-001"},
+    });
+
+    renderEventExpenseTrackingPage();
+
+    expect(
+      await screen.findByText(defaultBudget.budgetType),
+    ).toBeInTheDocument();
+    expect(mockDatabase.budgets.createBudget).toHaveBeenCalledWith(
+      defaultBudget,
+      mockAuthUser,
+    );
   });
 });
