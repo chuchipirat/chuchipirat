@@ -83,6 +83,29 @@ export class ExpenseRepository extends BaseRepository<
       orderBy: {field: "expense_date", direction: "asc"},
     });
   }
+  /**
+   * Liefert die Summe aller Ausgaben pro Budget fuer ein Event.
+   *
+   * @param eventId - Event-ID.
+   * @returns Map von budgetId zu Summe in Rappen.
+   */
+  async getSpentAmountsByBudget(
+    eventId: string,
+  ): Promise<Record<string, number>> {
+    const {data, error} = await this.client
+      .from("event_expenses")
+      .select("budget_id, amount_in_cents")
+      .eq("event_id", eventId);
+
+    if (error) throw error;
+    data ?? [];
+
+    return data.reduce<Record<string, number>>((sums, row) => {
+      sums[row.budget_id] = (sums[row.budget_id] ?? 0) + row.amount_in_cents;
+      return sums;
+    }, {});
+  }
+
   /* =====================================================================
   // Schreiboperationen 
   // ===================================================================== */
