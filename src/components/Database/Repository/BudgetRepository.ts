@@ -53,6 +53,7 @@ export class BudgetRepository extends BaseRepository<BudgetDomain, BudgetRow> {
       budget_type: domain.budgetType,
       amount_in_cents: domain.amountInCents,
       currency: domain.currency,
+      icon: domain.icon,
     };
   }
   toDomain(row: BudgetRow): BudgetDomain {
@@ -63,6 +64,7 @@ export class BudgetRepository extends BaseRepository<BudgetDomain, BudgetRow> {
       budgetType: row.budget_type,
       amountInCents: row.amount_in_cents,
       currency: row.currency,
+      icon: row.icon,
     };
   }
   /* =====================================================================

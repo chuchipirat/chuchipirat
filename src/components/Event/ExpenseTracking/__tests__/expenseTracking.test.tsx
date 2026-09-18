@@ -10,15 +10,16 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen} from "@testing-library/react";
+import {fireEvent, render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import {EventExpenseTrackingPage} from "../expenseTracking";
+import {CreateBudgetDialog, EventExpenseTrackingPage} from "../expenseTracking";
 import {getHelpPageUrl} from "../../../Navigation/helpCenter";
 import {AuthUserContext} from "../../../Session/authUserContext";
 import AuthUser from "../../../Session/authUser.class";
 import {Budget} from "../budget.class";
-import {BudgetType} from "../budget.types";
+import {BudgetType, BudgetIcon} from "../budget.types";
+import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 
 /** Testdaten: Ein Event mit einem Koch und einer Datumsperiode. */
 const mockEvent = {
@@ -44,12 +45,18 @@ const mockEvent = {
   ],
   pictureSrc: "",
 };
+const mockGroupConfiguration = {
+  totalPortions: 10,
+};
 
 const mockDatabase = {
   donations: {getEventDonations: jest.fn().mockResolvedValue([])},
   budgets: {
     getBudgetsForEvent: jest.fn().mockResolvedValue([]),
     createBudget: jest.fn(),
+  },
+  expenses: {
+    getSpentAmountsByBudget: jest.fn().mockResolvedValue({}),
   },
 } as any;
 const mockAuthUser = new AuthUser();
@@ -67,6 +74,7 @@ const renderEventExpenseTrackingPage = (
 ) => {
   const defaultProps = {
     event: mockEvent as any,
+    groupConfiguration: mockGroupConfiguration as EventGroupConfiguration,
     database: mockDatabase,
   };
 
@@ -129,6 +137,7 @@ describe("EventExpenseTrackingPage", () => {
       budgetType: BudgetType.FIXED_AMOUNT,
       amountInCents: 50000,
       currency: "CHF",
+      icon: BudgetIcon.KITCHEN,
     };
     mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
       existingBudget,
@@ -136,9 +145,7 @@ describe("EventExpenseTrackingPage", () => {
 
     renderEventExpenseTrackingPage();
 
-    expect(
-      await screen.findByText(existingBudget.budgetType),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId(existingBudget.id)).toBeInTheDocument();
     expect(mockDatabase.budgets.createBudget).not.toHaveBeenCalled();
   });
 
@@ -153,12 +160,45 @@ describe("EventExpenseTrackingPage", () => {
 
     renderEventExpenseTrackingPage();
 
-    expect(
-      await screen.findByText(defaultBudget.budgetType),
-    ).toBeInTheDocument();
+    expect(await screen.findByTestId("new-budget-001")).toBeInTheDocument();
     expect(mockDatabase.budgets.createBudget).toHaveBeenCalledWith(
       defaultBudget,
       mockAuthUser,
+    );
+  });
+
+  test("zeigt Validierungsfehler bei leerem Formular", () => {
+    const onCreate = jest.fn();
+    render(<CreateBudgetDialog open onClose={jest.fn()} onCreate={onCreate} />);
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    // TEXT_SAVE
+    expect(screen.getByText("Bitte einen Namen angeben.")).toBeInTheDocument();
+    expect(
+      screen.getByText("Bitte einen gültigen Betrag angeben"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Bitte ein Icon auswählen")).toBeInTheDocument();
+    expect(onCreate).not.toHaveBeenCalled();
+  });
+
+  test("ruft onCreate mit den eingegebenen Werten auf, wenn gültig", () => {
+    const onCreate = jest.fn();
+    render(<CreateBudgetDialog open onClose={jest.fn()} onCreate={onCreate} />);
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: {value: "Transport"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {target: {value: "150"}});
+    fireEvent.click(screen.getByLabelText("transport")); // icon aria-label = iconOption value
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "Transport",
+        amount: "150",
+        icon: "transport",
+      }),
     );
   });
 });
