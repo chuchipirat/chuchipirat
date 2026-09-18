@@ -62,6 +62,7 @@ const mockDatabase = {
 // =================================================================== */
 import {
   AuthUserContext,
+  AuthUserProvider,
   useAuthUser,
   AuthorizationGuard,
   isValidCachedAuthUser,
@@ -69,6 +70,7 @@ import {
 import {GlobalSettingsContext} from "../globalSettingsContext";
 import AuthUser from "../../Session/authUser.class";
 import {Role} from "../../../constants/roles";
+import * as Sentry from "@sentry/react";
 
 /* ===================================================================
 // ======================== Hilfs-Funktionen ==========================
@@ -314,5 +316,100 @@ describe("isValidCachedAuthUser", () => {
     expect(isValidCachedAuthUser(null)).toBe(false);
     expect(isValidCachedAuthUser("string")).toBe(false);
     expect(isValidCachedAuthUser(undefined)).toBe(false);
+  });
+});
+
+/* ===================================================================
+// ======================== AuthUserProvider =========================
+// =================================================================== */
+
+/**
+ * Regressionstests für CHUCHIPIRAT-HD: der findOwnProfile()-Aufruf im
+ * SIGNED_IN-Zweig des onAuthStateChange-Listeners meldete jeden Fehler
+ * unbedingt an Sentry, auch erwartbare vorübergehende Netzfehler/
+ * abgelaufene Sitzungen (z.B. direkt nach dem Signup auf Mobilgeräten).
+ */
+describe("AuthUserProvider — findOwnProfile-Fehlerbehandlung", () => {
+  const mockFindOwnProfile = jest.fn();
+  let authStateChangeCallback:
+    | ((event: string, session: {user: {id: string; email_confirmed_at: string}} | null) => void)
+    | null = null;
+
+  beforeEach(() => {
+    localStorage.clear();
+    authStateChangeCallback = null;
+    mockDatabase.auth.onAuthStateChange = jest.fn((callback) => {
+      authStateChangeCallback = callback;
+      return () => {};
+    });
+    (mockDatabase.users as {findOwnProfile: jest.Mock}).findOwnProfile =
+      mockFindOwnProfile;
+  });
+
+  /** Simuliert ein SIGNED_IN-Event und wartet, bis der setTimeout(0)-Aufruf durchgelaufen ist. */
+  const triggerSignedIn = async () => {
+    authStateChangeCallback?.("SIGNED_IN", {
+      user: {id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301", email_confirmed_at: "2026-01-01"},
+    });
+    // setTimeout(..., 0) im Listener abwarten
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  };
+
+  test("meldet einen abgelaufenen JWT nicht an Sentry", async () => {
+    mockFindOwnProfile.mockRejectedValue({
+      code: "PGRST303",
+      details: null,
+      hint: null,
+      message: "JWT expired",
+    });
+
+    render(
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserProvider>
+          <div />
+        </AuthUserProvider>
+      </DatabaseContext.Provider>,
+    );
+
+    await triggerSignedIn();
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet einen vorübergehenden Netzfehler nicht an Sentry", async () => {
+    mockFindOwnProfile.mockRejectedValue(new TypeError("Failed to fetch"));
+
+    render(
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserProvider>
+          <div />
+        </AuthUserProvider>
+      </DatabaseContext.Provider>,
+    );
+
+    await triggerSignedIn();
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet einen unerwarteten Fehler weiterhin an Sentry", async () => {
+    mockFindOwnProfile.mockRejectedValue({
+      code: "23505",
+      details: null,
+      hint: null,
+      message: "duplicate key value violates unique constraint",
+    });
+
+    render(
+      <DatabaseContext.Provider value={mockDatabase}>
+        <AuthUserProvider>
+          <div />
+        </AuthUserProvider>
+      </DatabaseContext.Provider>,
+    );
+
+    await triggerSignedIn();
+
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
   });
 });

@@ -78,6 +78,21 @@ describe("postActivityFeed", () => {
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
+  test("verschluckt einen abgelaufenen JWT (CHUCHIPIRAT-HG)", async () => {
+    const insertFeed = jest.fn().mockRejectedValue({
+      code: "PGRST303",
+      details: null,
+      hint: null,
+      message: "JWT expired",
+    });
+    const database = createDatabaseMock(insertFeed);
+
+    postActivityFeed({database, feed: baseFeed, authUser, context: "Test"});
+    await flush();
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
   test("meldet einen echten Fehler genau einmal, normalisiert und mit Kontext", async () => {
     const supabaseError = {
       code: "23505",

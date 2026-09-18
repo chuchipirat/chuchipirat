@@ -38,6 +38,7 @@ import {AlertMessage} from "../Shared/AlertMessage";
 
 import {useDatabase} from "../Database/DatabaseContext";
 import {useAuthUser} from "../Session/authUserContext";
+import {isMissingSessionError, isTransientNetworkError, toError} from "../../utils/errorUtils";
 import {
   HOME as ROUTE_HOME,
   SIGN_IN as ROUTE_SIGN_IN,
@@ -230,14 +231,24 @@ const SignUpPage = () => {
   // Einstellungen holen
   // ------------------------------------------ */
   React.useEffect(() => {
-    database.globalSettings.getSettings().then((result) => {
-      if (result) {
-        dispatch({
-          type: ReducerActions.SET_SIGN_UP_ALLOWED,
-          payload: result,
-        });
-      }
-    });
+    database.globalSettings
+      .getSettings()
+      .then((result) => {
+        if (result) {
+          dispatch({
+            type: ReducerActions.SET_SIGN_UP_ALLOWED,
+            payload: result,
+          });
+        }
+      })
+      .catch((error) => {
+        // Vorübergehende Netzfehler und abgelaufene Sitzungen sind
+        // erwartbar — der Registrierungs-Status bleibt dann einfach beim
+        // Default, kein App-Fehler.
+        if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+          Sentry.captureException(toError(error));
+        }
+      });
   }, []);
   /* ------------------------------------------
   // Feld-Aenderungen

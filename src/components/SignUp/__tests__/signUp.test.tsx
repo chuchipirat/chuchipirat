@@ -8,6 +8,8 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation} from "react-router";
 
+import * as Sentry from "@sentry/react";
+
 import {
   SignUpPage,
   SignUpLink,
@@ -240,6 +242,44 @@ describe("SignUpPage", () => {
       expect(
         screen.getByRole("heading", {name: /account erstellen/i}),
       ).toBeInTheDocument();
+    });
+  });
+
+  /**
+   * Regression CHUCHIPIRAT-FV: der initiale getSettings()-Aufruf hatte nur
+   * ein `.then()` ohne `.catch()` — schlug er fehl, landete die Promise-
+   * Ablehnung ungefangen als "UnhandledRejection" in Sentry.
+   */
+  describe("getSettings() beim Mount — Fehlerbehandlung", () => {
+    test("verschluckt einen abgelaufenen JWT ohne Absturz und meldet nicht an Sentry", async () => {
+      mockGetSettings.mockRejectedValueOnce({
+        code: "PGRST303",
+        details: null,
+        hint: null,
+        message: "JWT expired",
+      });
+
+      renderSignUpPage();
+
+      await waitFor(() => {
+        expect(mockGetSettings).toHaveBeenCalledTimes(1);
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    test("meldet einen unerwarteten Fehler weiterhin an Sentry", async () => {
+      mockGetSettings.mockRejectedValueOnce({
+        code: "23505",
+        details: null,
+        hint: null,
+        message: "duplicate key value violates unique constraint",
+      });
+
+      renderSignUpPage();
+
+      await waitFor(() => {
+        expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+      });
     });
   });
 

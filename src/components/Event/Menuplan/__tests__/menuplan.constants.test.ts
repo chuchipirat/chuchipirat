@@ -12,6 +12,8 @@ import {
   MenuplanDragDropTypes,
   getOrderListNameFromDragAndDropTypes,
   generatePlanedPortionsText,
+  getDietDisplayName,
+  getIntoleranceDisplayName,
 } from "../menuplan.constants";
 import {
   MenueListOrderTypes,
@@ -108,6 +110,50 @@ describe("getOrderListNameFromDragAndDropTypes", () => {
   });
 });
 
+
+/**
+ * Testet die Lookup-Hilfsfunktionen für Diät-/Intoleranz-Namen.
+ * Regressionstest für CHUCHIPIRAT-HJ: ein Portionsplan-Eintrag kann auf eine
+ * UID verweisen, die zwischenzeitlich aus der GroupConfiguration gelöscht
+ * wurde — der Lookup darf dann nicht crashen.
+ */
+describe("getDietDisplayName", () => {
+  let groupConfiguration: EventGroupConfiguration;
+
+  beforeEach(() => {
+    groupConfiguration = createGroupConfiguration();
+  });
+
+  it("gibt den Diät-Namen für eine existierende UID zurück", () => {
+    expect(getDietDisplayName(groupConfiguration, "diet-1")).toBe("Fleisch");
+  });
+
+  it("gibt einen Fallback-Text für eine gelöschte Diät-UID zurück (CHUCHIPIRAT-HJ)", () => {
+    expect(getDietDisplayName(groupConfiguration, "diet-gelöscht")).toBe(
+      "Diät gelöscht",
+    );
+  });
+});
+
+describe("getIntoleranceDisplayName", () => {
+  let groupConfiguration: EventGroupConfiguration;
+
+  beforeEach(() => {
+    groupConfiguration = createGroupConfiguration();
+  });
+
+  it("gibt den Intoleranz-Namen für eine existierende UID zurück", () => {
+    expect(getIntoleranceDisplayName(groupConfiguration, "intol-1")).toBe(
+      "Laktose",
+    );
+  });
+
+  it("gibt einen Fallback-Text für eine gelöschte Intoleranz-UID zurück (CHUCHIPIRAT-HJ)", () => {
+    expect(
+      getIntoleranceDisplayName(groupConfiguration, "intol-gelöscht"),
+    ).toBe("Intoleranz gelöscht");
+  });
+});
 
 /** Testet die Generierung von Portionsplan-Texten für die UI-Anzeige. */
 describe("generatePlanedPortionsText", () => {
@@ -490,6 +536,55 @@ describe("generatePlanedPortionsText", () => {
     const text = renderToText(result);
     // Faktor 0 != 1, also wird er angezeigt
     expect(text).toContain("0 ×");
+  });
+
+  /**
+   * Regressionstest für CHUCHIPIRAT-HJ: eine im Portionsplan referenzierte
+   * Diät, die zwischenzeitlich aus der GroupConfiguration gelöscht wurde,
+   * darf das Rendering nicht crashen lassen.
+   */
+  it("crasht nicht bei einer gelöschten Diät-UID und zeigt den Fallback-Text", () => {
+    const portionPlan: PortionPlan[] = [
+      {
+        diet: "diet-gelöscht",
+        intolerance: PlanedIntolerances.ALL,
+        factor: 1,
+        totalPortions: 4,
+      },
+    ];
+
+    const result = generatePlanedPortionsText({
+      uid: "test-uid",
+      portionPlan,
+      groupConfiguration,
+    });
+
+    const text = renderToText(result);
+    expect(text).toContain("Diät gelöscht");
+  });
+
+  /**
+   * Regressionstest für CHUCHIPIRAT-HJ: analog für eine gelöschte
+   * Intoleranz-UID.
+   */
+  it("crasht nicht bei einer gelöschten Intoleranz-UID und zeigt den Fallback-Text", () => {
+    const portionPlan: PortionPlan[] = [
+      {
+        diet: PlanedDiet.ALL,
+        intolerance: "intol-gelöscht",
+        factor: 1,
+        totalPortions: 4,
+      },
+    ];
+
+    const result = generatePlanedPortionsText({
+      uid: "test-uid",
+      portionPlan,
+      groupConfiguration,
+    });
+
+    const text = renderToText(result);
+    expect(text).toContain("Intoleranz gelöscht");
   });
 
   /** Portionszahl 0 zeigt Plural ("Portionen") an. */

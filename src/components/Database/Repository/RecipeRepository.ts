@@ -411,6 +411,29 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   }
 
   /**
+   * Lädt mehrere Rezepte anhand ihrer IDs in einer einzigen Abfrage.
+   *
+   * Ersetzt N einzelne `getRecipe()`-Aufrufe (N+1-Anfragemuster, z.B. beim
+   * Auflösen der Rezeptbilder für die heutigen Mahlzeiten auf der Startseite)
+   * durch eine `id IN (...)`-Abfrage.
+   *
+   * @param recipeIds - Die IDs der zu ladenden Rezepte (Duplikate erlaubt).
+   * @returns Map von Rezept-ID auf Rezept — IDs ohne Treffer fehlen in der Map.
+   */
+  async getRecipesByIds(
+    recipeIds: string[],
+  ): Promise<Map<string, RecipeDomain>> {
+    const uniqueRecipeIds = Array.from(new Set(recipeIds));
+    if (uniqueRecipeIds.length === 0) return new Map();
+
+    const recipes = await this.findMany({
+      filters: [{field: "id", operator: "in", value: uniqueRecipeIds}],
+    });
+
+    return new Map(recipes.map((recipe) => [recipe.uid, recipe]));
+  }
+
+  /**
    * Lädt alle öffentlichen Rezepte.
    *
    * @returns Array der öffentlichen Rezepte, sortiert nach Name

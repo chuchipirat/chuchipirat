@@ -110,6 +110,11 @@ import {
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
 import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../../utils/errorUtils";
+import {
   DialogType,
   SingleTextInputResult,
   useCustomDialog,
@@ -819,15 +824,20 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.GENERIC_ERROR:
       // Allgemeiner Fehler — FieldValidationError ist ein Nutzer-Hinweis
-      // (z.B. ungültiger/veralteter Event-Link), wird angezeigt, aber nicht
-      // an Sentry gemeldet.
-      if (!(action.payload instanceof FieldValidationError)) {
-        Sentry.captureException(action.payload);
+      // (z.B. ungültiger/veralteter Event-Link), vorübergehende Netzfehler
+      // und abgelaufene Sitzungen sind erwartbar — alle drei werden
+      // angezeigt, aber nicht an Sentry gemeldet.
+      if (
+        !(action.payload instanceof FieldValidationError) &&
+        !isTransientNetworkError(action.payload) &&
+        !isMissingSessionError(action.payload)
+      ) {
+        Sentry.captureException(toError(action.payload));
       }
       return {
         ...state,
         isLoading: false,
-        error: action.payload as Error,
+        error: toError(action.payload),
       };
     default: {
       const _exhaustiveCheck: never = action;
@@ -2554,4 +2564,4 @@ const EventPage = () => {
   );
 };
 
-export {EventPage};
+export {EventPage, eventReducer, ReducerActions, INITITIAL_STATE};

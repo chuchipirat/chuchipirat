@@ -281,6 +281,14 @@ export class EventRepository extends BaseRepository<EventDomain, EventRow> {
    * @returns Das vollständige EventDomain oder null, falls nicht gefunden
    */
   async getEvent(eventId: string): Promise<EventDomain | null> {
+    // Aus einem veralteten Link/Cache kann eine Firebase-UID durchsickern
+    // (z.B. CHUCHIPIRAT-BF: /event/5btHRZmxzTAVJOWPXRmH). Eine ungültige ID
+    // an .eq() würde Postgres "invalid input syntax for type uuid" (22P02)
+    // werfen statt "nicht gefunden" zurückzugeben.
+    if (!isUuid(eventId)) {
+      return null;
+    }
+
     // Event-Kopfdaten, Köche (mit Profil via RPC) und Zeitscheiben parallel laden
     const [eventResult, cooksResult, datesResult] = await Promise.all([
       this.client.from("events").select("*").eq("id", eventId).single(),

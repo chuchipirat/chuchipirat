@@ -47,7 +47,11 @@ import {
 import {useDatabase} from "../../Database/DatabaseContext";
 import {FeedType} from "../../Shared/feed.class";
 import {postActivityFeed} from "../../Shared/feedActivity";
-import {isRlsViolationError, toError} from "../../../utils/errorUtils";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../../utils/errorUtils";
 
 import {
   NavigationValuesContext,
@@ -451,11 +455,13 @@ const CreateEventPage = () => {
               context: "Koch zum Anlass hinzugefügt",
             });
           })
-          .catch((error) =>
-            Sentry.captureException(error, {
-              extra: {context: "Koch für Feed-Eintrag laden"},
-            }),
-          );
+          .catch((error) => {
+            if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+              Sentry.captureException(toError(error), {
+                extra: {context: "Koch für Feed-Eintrag laden"},
+              });
+            }
+          });
       }
     }
 
@@ -490,18 +496,21 @@ const CreateEventPage = () => {
       await saveEvent(value);
       setActiveStep(WizardSteps.completion);
     } catch (error) {
-      if (isRlsViolationError(error)) {
-        // RLS-Verletzung beim Event-INSERT = Sitzung fehlt/abgelaufen
-        // (Policy prüft nur auth.uid() IS NOT NULL). Nutzer-Hinweis, kein Bug.
+      if (isMissingSessionError(error)) {
+        // RLS-Verletzung oder abgelaufener JWT beim Event-INSERT = Sitzung
+        // fehlt/abgelaufen (Policy prüft nur auth.uid() IS NOT NULL).
+        // Nutzer-Hinweis, kein Bug.
         Sentry.addBreadcrumb({
           category: "auth",
-          message: "Event-Erstellung abgebrochen — Sitzung vermutlich abgelaufen (RLS)",
+          message: "Event-Erstellung abgebrochen — Sitzung vermutlich abgelaufen",
           level: "warning",
         });
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: new Error(TEXT_ERROR_SESSION_EXPIRED),
         });
+      } else if (isTransientNetworkError(error)) {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: toError(error)});
       } else {
         Sentry.captureException(toError(error));
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: toError(error)});

@@ -2,15 +2,16 @@
 
 ## Branch-Strategie
 
-| Branch      | Deploy-Ziel    | Direkter Commit?           |
-| ----------- | -------------- | -------------------------- |
-| `main`      | **Production** | ❌ Nie                     |
-| `develop`   | **Test**       | ✅ Nur triviale Änderungen |
-| `feature/*` | –              | ✅                         |
-| `fix/*`     | –              | ✅                         |
-| `hotfix/*`  | –              | ✅                         |
-| `chore/*`   | –              | ✅                         |
-| `docs/*`    | –              | ✅                         |
+| Branch      | Deploy-Ziel    | Direkter Commit?                                |
+| ----------- | -------------- | ----------------------------------------------- |
+| `main`      | **Production** | ❌ Nie                                          |
+| `develop`   | **Test**       | ✅ Nur triviale Änderungen                      |
+| `feature/*` | –              | ✅                                              |
+| `fix/*`     | –              | ✅                                              |
+| `release/*` | –              | ✅ Sammel-Branch für mehrere Fixes, siehe unten |
+| `hotfix/*`  | –              | ✅                                              |
+| `chore/*`   | –              | ✅                                              |
+| `docs/*`    | –              | ✅                                              |
 
 **Regel:** `main` ist heilig. Kein direkter Commit – ausnahmslos. Triviale Änderungen (Tippfehler, Config, Dependencies) dürfen direkt auf `develop`.
 
@@ -39,7 +40,25 @@ develop → feature/* oder fix/* → Commits → PR → develop
 3. Pull Request auf `develop` öffnen
 4. Merge → Branch löschen
 
-### Release
+### Release-Batch (mehrere Fixes gesammelt, z.B. Sentry-Aufräumsession)
+
+Für ein Bündel mehrerer kleiner, unabhängiger Fixes, die gemeinsam versioniert, auf TEST validiert und erst danach nach PROD befördert werden sollen (z.B. eine Sitzung, in der 15-20 Sentry-Issues nacheinander behoben werden — siehe `sentry-bugfix-workflow.md`):
+
+```
+main → release/x.y.z (mehrere Fixes + Version-Bump) → PR → develop (TEST-Validierung) → [später] Release-Batch (PROD-Promotion) unten
+```
+
+1. `git checkout -b release/x.y.z` (von **`main`**, NICHT `develop`) — damit unfertige Feature-Arbeit auf `develop` den Release nicht verzögert oder verschmutzt
+2. Jeden Fix einzeln committen (ein Commit pro behobenem Bug/Issue, mit Begründung im Body — nicht alles in einen Riesencommit)
+3. Versions-Bump als letzten Commit: `npm version x.y.z --no-git-tag-version`, dann `package.json` + `package-lock.json` committen (`chore: Version auf x.y.z`)
+4. `git push -u origin release/x.y.z`
+5. PR von `release/x.y.z` nach `develop` öffnen (Titel: `Release/x.y.z`) → automatischer TEST-Deploy validiert den gesamten Batch auf einmal
+6. Release Notes für den Helpcenter erstellen (siehe `release-notes.md`) — eigene, **nicht committete** Datei zum Copy-Paste
+7. Nach erfolgreicher Validierung auf TEST: Release-Batch (PROD-Promotion) unten, um `develop` nach `main` zu befördern
+
+Bei nur **einem** kleinen, ungeplanten Fix lohnt sich der Release-Branch nicht — dann normal `fix/*` direkt auf `develop` (siehe oben).
+
+### Release-Batch (PROD-Promotion)
 
 ```
 develop → PR → main → GitHub Release Tag → Deploy PROD
@@ -47,8 +66,11 @@ develop → PR → main → GitHub Release Tag → Deploy PROD
 
 1. PR von `develop` nach `main` (Titel: `Release v1.x.0`)
 2. Changelog im PR-Body
-3. Nach Merge: GitHub Release mit Tag `v1.x.0` erstellen
-4. Webhook triggert automatisch PROD-Deploy
+3. Beim Merge (**„Create a merge commit"**, nicht Squash): GitHub übernimmt den PR-Body **nicht** automatisch in die Merge-Commit-Message — Changelog aus dem PR-Body vor dem Bestätigen in die „Extended description" einfügen. Macht die Git-History von `main` selbst-dokumentierend (`git log --first-parent main` liest sich dann wie ein Changelog, ohne für jeden Release die PR aufsuchen zu müssen).
+4. Nach Merge: GitHub Release mit Tag `v1.x.0` erstellen (Beschreibung kann derselbe Changelog-Text sein — keine zweite Formulierung nötig)
+5. Webhook triggert automatisch PROD-Deploy
+
+> Merge-Commit-Message ist ein Snapshot zum Merge-Zeitpunkt — wird der PR-Body danach noch korrigiert, zieht das nicht nach. Für Details/Korrekturen bleibt die PR selbst die Quelle der Wahrheit.
 
 ### Hotfix (kritischer Bug in Production)
 
@@ -119,10 +141,17 @@ Was muss ich tun?
 ├── Triviale Änderung (Tippfehler, Config, Dependency)?
 │   └── Direkt auf develop committen
 │
-├── Neues Feature oder geplanter Bugfix?
+├── Neues Feature oder ein einzelner geplanter Bugfix?
 │   └── Branch feature/* oder fix/* von develop
 │       └── PR auf develop
 │           └── Release: PR develop → main + GitHub Release Tag
+│
+├── Mehrere unabhängige Fixes gesammelt (z.B. Sentry-Aufräumsession)?
+│   └── Branch release/x.y.z von main (!)
+│       └── Ein Commit pro Fix + Versions-Bump
+│           └── PR auf develop (TEST-Validierung des ganzen Batches)
+│               └── Release Notes erstellen (release-notes.md)
+│                   └── Später: PR develop → main + GitHub Release Tag
 │
 └── Kritischer Bug in Production?
     └── Branch hotfix/* von main (!)

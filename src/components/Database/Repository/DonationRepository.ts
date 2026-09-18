@@ -26,6 +26,7 @@ import {
   COUNTABLE_DONATION_STATUSES,
 } from "../../Donate/donation.types";
 import {isUuid} from "../../../utils/uuid";
+import {isMissingSessionError, isTransientNetworkError} from "../../../utils/errorUtils";
 
 /* =====================================================================
 // DonationRepository
@@ -164,7 +165,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
       if (error) throw error;
       return (data ?? []).map((row) => this.toDomain(row as unknown as DonationRow));
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -188,7 +191,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
       if (error) throw error;
       return (data ?? []).map((row) => this.toDomain(row as unknown as DonationRow));
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -240,7 +245,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
 
       return rows.map((row) => this.toDomain(row));
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -267,7 +274,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         donationCount: Number(row?.donation_count ?? 0),
       };
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -295,7 +304,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
 
       if (error) throw error;
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -331,7 +342,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         details: row.details ?? "",
       }));
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -370,7 +383,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
         details: row.details ?? "",
       };
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -395,7 +410,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
 
       if (error) throw error;
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
@@ -414,7 +431,9 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
 
       if (error) throw error;
     } catch (error) {
-      Sentry.captureException(error);
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
       throw error;
     }
   }
