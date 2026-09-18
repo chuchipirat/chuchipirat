@@ -127,6 +127,8 @@ For deeper context, see `.claude/docs/`:
 | `refactoring-guidelines.md` | Refactoring code (naming, functions, performance, React patterns) |
 | `security-guidelines.md`    | Forms, auth flows, file uploads, RLS, input validation            |
 | `git-workflow.md`           | Creating, Branches, Working with Git and commintg                 |
+| `sentry-bugfix-workflow.md` | Triaging and fixing Sentry-reported issues (noise vs. real bugs)  |
+| `release-notes.md`          | Writing user-facing Helpcenter release notes for a release batch  |
 
 ## Commands
 
