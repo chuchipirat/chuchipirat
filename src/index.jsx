@@ -57,6 +57,20 @@ Sentry.init({
     // Reload selbst geheilt, kein App-Fehler.
     ...CHUNK_LOAD_ERROR_PATTERNS,
   ],
+  // Fehler, deren Stacktrace komplett aus einer Browser-Extension stammt
+  // (z.B. "UnavailableError" aus der PayPal-Honey-Safari-Extension,
+  // CHUCHIPIRAT-HA), statt aus unserem eigenen Code herauswerfen. Filterung
+  // per URL statt per Fehlermeldung, da jede Extension eigene, generische
+  // Fehlertexte wirft ("UnavailableError", "Extension context invalidated"
+  // etc.) — ein Abgleich der Herkunfts-URL ist robuster als eine Liste aller
+  // möglichen Meldungen.
+  denyUrls: [
+    /^chrome-extension:\/\//i,
+    /^moz-extension:\/\//i,
+    /^safari-extension:\/\//i,
+    /^safari-web-extension:\/\//i,
+    /\.appex\//i, // native Safari App Extensions (macOS), z.B. .../Extension.appex/...
+  ],
   tracesSampleRate: 1.0,
   tracePropagationTargets: ["localhost", /^https:\/\/chuchipirat\.ch/],
   replaysSessionSampleRate: 0.1,
