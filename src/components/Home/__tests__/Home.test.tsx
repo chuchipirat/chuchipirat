@@ -112,7 +112,7 @@ const mockGetShoppingListsForEvent = jest.fn();
 const mockGetMaterialListsForEvent = jest.fn();
 const mockGetGroupConfig = jest.fn();
 const mockGroupConfigDomainToUi = jest.fn();
-const mockGetRecipe = jest.fn();
+const mockGetRecipesByIds = jest.fn();
 
 /** Mock-DatabaseService */
 const mockDatabase = {
@@ -138,7 +138,7 @@ const mockDatabase = {
     groupConfigDomainToUi: mockGroupConfigDomainToUi,
   },
   recipes: {
-    getRecipe: mockGetRecipe,
+    getRecipesByIds: mockGetRecipesByIds,
   },
   usedRecipeLists: {
     getListsForEvent: mockGetUsedRecipeListsForEvent,
@@ -266,7 +266,7 @@ beforeEach(() => {
   mockGetMaterialListsForEvent.mockResolvedValue([]);
   mockGetGroupConfig.mockResolvedValue({diets: [], intolerances: [], portions: []});
   mockGroupConfigDomainToUi.mockReturnValue(new EventGroupConfiguration());
-  mockGetRecipe.mockResolvedValue(null);
+  mockGetRecipesByIds.mockResolvedValue(new Map());
 });
 
 describe("HomePage", () => {
