@@ -123,7 +123,10 @@ import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
-import {trackEvent, trackVirtualPageview} from "../../Analytics/analyticsService";
+import {
+  trackEvent,
+  trackVirtualPageview,
+} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
@@ -987,7 +990,8 @@ const EventPage = () => {
   const materialListRef = React.useRef<MaterialList | null>(null);
   const getMaterialListPersistedItemIds = React.useCallback(
     (listId: string): string[] =>
-      materialListRef.current?.lists[listId]?.items.map((item) => item.id) ?? [],
+      materialListRef.current?.lists[listId]?.items.map((item) => item.id) ??
+      [],
     [],
   );
   // Unsubscribe der aktuell aktiven Items-Subscription. Synchron gesetzt/
@@ -1062,7 +1066,9 @@ const EventPage = () => {
             // (ungültiger/veralteter Link, entferntes Event) — kein Bug.
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
-              payload: new FieldValidationError(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
+              payload: new FieldValidationError(
+                TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS,
+              ),
             });
           }
         })
@@ -2192,80 +2198,84 @@ const EventPage = () => {
 
         // Realtime-Subscription für Item-Änderungen
         {
-          const {unsubscribe, reconnect} = database.shoppingLists.subscribeToListItems(
-            objectUid as string,
-            (items) => {
-              // Läuft gerade ein eigener Save, wird das Echo komplett ignoriert
-              // (analog Material-Liste). Der Zähler geht erst nach dem `await`
-              // in persistListItems wieder auf 0 — das dann eintreffende Echo
-              // aktualisiert den State als regulärer Reconcile und zieht dabei
-              // auch parallele Änderungen anderer Köch:innen nach.
-              if (shoppingListSaveInProgress.current > 0) {
-                return;
-              }
-
-              const newShoppingList = itemsDomainToShoppingList(
-                items,
-                objectUid as string,
-              );
-
-              // Bringt das Echo gegenüber dem letzten Stand nichts Neues
-              // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
-              // dispatchen — spart einen vollständigen Re-Render der Liste.
-              if (
-                shoppingListsAreEquivalent(
-                  shoppingListRef.current,
-                  newShoppingList,
-                )
-              ) {
-                return;
-              }
-
-              // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
-              // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
-              // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
-              const newItemCount = Object.values(newShoppingList.list).reduce(
-                (sum, dept) => sum + dept.items.length,
-                0,
-              );
-
-              // Highlighting für Änderungen anderer Köch:innen.
-              if (newItemCount > 0) {
-                const changedKeys = getChangedShoppingListItemKeys(
-                  shoppingListRef.current,
-                  newShoppingList,
-                );
-                if (changedKeys.size > 0) {
-                  setHighlightedShoppingItemKeys(changedKeys);
-                  if (shoppingHighlightTimeoutRef.current)
-                    clearTimeout(shoppingHighlightTimeoutRef.current);
-                  shoppingHighlightTimeoutRef.current = setTimeout(
-                    () => setHighlightedShoppingItemKeys(new Set()),
-                    2000,
-                  );
+          const {unsubscribe, reconnect} =
+            database.shoppingLists.subscribeToListItems(
+              objectUid as string,
+              (items) => {
+                // Läuft gerade ein eigener Save, wird das Echo komplett ignoriert
+                // (analog Material-Liste). Der Zähler geht erst nach dem `await`
+                // in persistListItems wieder auf 0 — das dann eintreffende Echo
+                // aktualisiert den State als regulärer Reconcile und zieht dabei
+                // auch parallele Änderungen anderer Köch:innen nach.
+                if (shoppingListSaveInProgress.current > 0) {
+                  return;
                 }
-              }
 
-              // Ref sofort aktualisieren, damit der nächste Realtime-Callback
-              // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
-              // asynchronen useEffect-Zyklus zu warten. `newShoppingList` geht
-              // in den Ref (unveränderliche DB-Wahrheit); der Reducer bekommt
-              // eine eigene Instanz, die die Handler optimistisch mutieren
-              // dürfen, ohne den Ref zu verunreinigen.
-              shoppingListRef.current = newShoppingList;
+                const newShoppingList = itemsDomainToShoppingList(
+                  items,
+                  objectUid as string,
+                );
 
-              dispatch({
-                type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
-                payload: itemsDomainToShoppingList(items, objectUid as string),
-              });
-            },
-            (error) => {
-              Sentry.captureException(error, {
-                extra: {context: "Realtime shopping list items subscription"},
-              });
-            },
-            (status) => realtime.setStatus("shoppinglistitems", status),
-          );
+                // Bringt das Echo gegenüber dem letzten Stand nichts Neues
+                // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
+                // dispatchen — spart einen vollständigen Re-Render der Liste.
+                if (
+                  shoppingListsAreEquivalent(
+                    shoppingListRef.current,
+                    newShoppingList,
+                  )
+                ) {
+                  return;
+                }
+
+                // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
+                // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
+                // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
+                const newItemCount = Object.values(newShoppingList.list).reduce(
+                  (sum, dept) => sum + dept.items.length,
+                  0,
+                );
+
+                // Highlighting für Änderungen anderer Köch:innen.
+                if (newItemCount > 0) {
+                  const changedKeys = getChangedShoppingListItemKeys(
+                    shoppingListRef.current,
+                    newShoppingList,
+                  );
+                  if (changedKeys.size > 0) {
+                    setHighlightedShoppingItemKeys(changedKeys);
+                    if (shoppingHighlightTimeoutRef.current)
+                      clearTimeout(shoppingHighlightTimeoutRef.current);
+                    shoppingHighlightTimeoutRef.current = setTimeout(
+                      () => setHighlightedShoppingItemKeys(new Set()),
+                      2000,
+                    );
+                  }
+                }
+
+                // Ref sofort aktualisieren, damit der nächste Realtime-Callback
+                // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
+                // asynchronen useEffect-Zyklus zu warten. `newShoppingList` geht
+                // in den Ref (unveränderliche DB-Wahrheit); der Reducer bekommt
+                // eine eigene Instanz, die die Handler optimistisch mutieren
+                // dürfen, ohne den Ref zu verunreinigen.
+                shoppingListRef.current = newShoppingList;
+
+                dispatch({
+                  type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
+                  payload: itemsDomainToShoppingList(
+                    items,
+                    objectUid as string,
+                  ),
+                });
+              },
+              (error) => {
+                Sentry.captureException(error, {
+                  extra: {context: "Realtime shopping list items subscription"},
+                });
+              },
+              (status) => realtime.setStatus("shoppinglistitems", status),
+            );
           realtime.register("shoppinglistitems", reconnect);
           shoppingListItemsUnsubRef.current = unsubscribe;
           dispatch({
@@ -2493,6 +2503,7 @@ const EventPage = () => {
             <Container>
               <EventExpenseTrackingPage
                 event={state.event}
+                groupConfiguration={state.groupConfig}
                 database={database}
               />
             </Container>

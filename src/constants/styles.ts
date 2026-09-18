@@ -2,6 +2,8 @@ import {alpha} from "@mui/system/colorManipulator";
 import {useTheme} from "@mui/material/styles";
 import {Utils} from "../components/Shared/utils.class";
 
+import {getExpenseTrackingStyles} from "./styles/expenseTracking.styles";
+
 /**
  * Zentrale MUI-Styles für die gesamte App.
  *
@@ -634,6 +636,10 @@ const useCustomStyles = () => {
       },
       animation: "remoteChangeGlow 2s ease-out",
     },
+    /* ------------------------------------------
+    // Abrechnung / Ausgaben (ausgelagert)
+    // ------------------------------------------ */
+    ...getExpenseTrackingStyles(theme),
   };
 };
 
