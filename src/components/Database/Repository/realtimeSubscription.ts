@@ -8,6 +8,13 @@
  * nicht als Fehler gemeldet werden — stattdessen wird mit exponentiellem
  * Backoff neu verbunden. Erst wenn der Reconnect `maxRetries` Mal scheitert,
  * gilt die Verbindung als dauerhaft verloren.
+ *
+ * Zusätzlich löst ein Tab-Wechsel zurück in den Vordergrund (`visibilitychange`)
+ * oder ein wiederhergestelltes Netz (`online`) sofort einen frischen Reconnect
+ * mit vollem Retry-Budget aus, sofern ein Verbindungsproblem vorliegt — sonst
+ * bliebe die Verbindung nach einem längeren Hintergrund-/Standby-Fenster (in
+ * dem der Backoff-Zyklus bereits erschöpft ist) bis zum manuellen Klick auf
+ * "Erneut versuchen" tot, obwohl das Netz längst wieder da ist.
  */
 import * as Sentry from "@sentry/react";
 import {SupabaseClient} from "@supabase/supabase-js";
@@ -229,9 +236,55 @@ export function subscribeWithRetry({
 
   connect();
 
+  const forceReconnect = () => {
+    if (cancelled) return;
+
+    if (retryTimer !== null) {
+      clearTimeout(retryTimer);
+      retryTimer = null;
+    }
+    if (activeChannel) {
+      client.removeChannel(activeChannel);
+      activeChannel = null;
+    }
+
+    // Sofortige, optimistische Rückmeldung — der eigentliche Connect
+    // braucht noch einen Moment.
+    retryCount = 0;
+    lastReportedStatus = "reconnecting";
+    onStatusChange?.("reconnecting");
+    connect();
+  };
+
+  /**
+   * Ein Tab im Hintergrund (App-Wechsel, Minimieren) oder ein Laptop im
+   * Standby lässt die WebSocket-Verbindung abbrechen — der Backoff-Zyklus
+   * läuft währenddessen ungebremst (oder komplett gedrosselt) weiter und ist
+   * oft schon erschöpft ("failed"), bevor die Seite wieder sichtbar wird.
+   * Ohne diesen Listener bliebe die Verbindung dann bis zum manuellen Klick
+   * auf "Erneut versuchen" tot, obwohl das Netz längst wieder da ist —
+   * genau das erzeugt CHUCHIPIRAT-GV. Nur auslösen, wenn tatsächlich ein
+   * Problem vorliegt (lastReportedStatus !== null), damit ein normaler
+   * Tab-Wechsel bei bestehender Verbindung keinen unnötigen Reconnect auslöst.
+   */
+  const onVisible = () => {
+    if (document.visibilityState === "visible" && lastReportedStatus !== null) {
+      forceReconnect();
+    }
+  };
+  const onOnline = () => {
+    if (lastReportedStatus !== null) {
+      forceReconnect();
+    }
+  };
+  document.addEventListener("visibilitychange", onVisible);
+  window.addEventListener("online", onOnline);
+
   return {
     unsubscribe: () => {
       cancelled = true;
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
       if (retryTimer !== null) {
         clearTimeout(retryTimer);
         retryTimer = null;
@@ -241,24 +294,6 @@ export function subscribeWithRetry({
         activeChannel = null;
       }
     },
-    reconnect: () => {
-      if (cancelled) return;
-
-      if (retryTimer !== null) {
-        clearTimeout(retryTimer);
-        retryTimer = null;
-      }
-      if (activeChannel) {
-        client.removeChannel(activeChannel);
-        activeChannel = null;
-      }
-
-      // Sofortige, optimistische Rückmeldung — der eigentliche Connect
-      // braucht noch einen Moment.
-      retryCount = 0;
-      lastReportedStatus = "reconnecting";
-      onStatusChange?.("reconnecting");
-      connect();
-    },
+    reconnect: forceReconnect,
   };
 }
