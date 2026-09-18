@@ -22,13 +22,42 @@ import {LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/de";
 
+/**
+ * Hostnamen, für die HTTP-Requests als `http.client`-Performance-Spans erfasst
+ * werden sollen: unsere eigene Domain (Frontend + Supabase-API, alle
+ * Subdomains — PROD/TEST) sowie `localhost` für die lokale Entwicklung.
+ */
+const TRACED_REQUEST_HOSTNAME_PATTERN = /(^|\.)chuchipirat\.ch$|^localhost$/;
+
+/**
+ * Entscheidet, ob für einen ausgehenden Request ein Performance-Span erfasst
+ * wird. Ohne diese Einschränkung instrumentiert `browserTracingIntegration`
+ * jeden `fetch`/`XHR`-Aufruf auf der Seite — auch solche, die gar nicht aus
+ * unserem Code stammen (z.B. eine Browser-Extension, die im Hintergrund eine
+ * eigene Firebase-Remote-Config abruft, CHUCHIPIRAT-B6). Sentrys
+ * Performance-Heuristik meldet einen fehlgeschlagenen Drittanbieter-Request
+ * dann fälschlich als App-Problem.
+ *
+ * @param url - Die (ggf. relative) URL des ausgehenden Requests.
+ * @returns `true`, wenn der Host zu unserer eigenen Infrastruktur gehört.
+ */
+const shouldCreateSpanForRequest = (url) => {
+  try {
+    return TRACED_REQUEST_HOSTNAME_PATTERN.test(
+      new URL(url, window.location.origin).hostname,
+    );
+  } catch {
+    return false;
+  }
+};
+
 Sentry.init({
   dsn: import.meta.env.VITE_SENTRY_DSN,
   enabled: !Utils.isDevEnvironment(),
   environment: import.meta.env.VITE_ENVIRONMENT,
   release: packageJson.version,
   integrations: [
-    Sentry.browserTracingIntegration(),
+    Sentry.browserTracingIntegration({shouldCreateSpanForRequest}),
     Sentry.replayIntegration({
       // Alle Eingaben sichtbar lassen (keine sensiblen Daten in der App),
       // nur Passwortfelder werden explizit maskiert via CSS-Selektor.
