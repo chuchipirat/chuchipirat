@@ -66,8 +66,11 @@ develop → PR → main → GitHub Release Tag → Deploy PROD
 
 1. PR von `develop` nach `main` (Titel: `Release v1.x.0`)
 2. Changelog im PR-Body
-3. Nach Merge: GitHub Release mit Tag `v1.x.0` erstellen
-4. Webhook triggert automatisch PROD-Deploy
+3. Beim Merge (**„Create a merge commit"**, nicht Squash): GitHub übernimmt den PR-Body **nicht** automatisch in die Merge-Commit-Message — Changelog aus dem PR-Body vor dem Bestätigen in die „Extended description" einfügen. Macht die Git-History von `main` selbst-dokumentierend (`git log --first-parent main` liest sich dann wie ein Changelog, ohne für jeden Release die PR aufsuchen zu müssen).
+4. Nach Merge: GitHub Release mit Tag `v1.x.0` erstellen (Beschreibung kann derselbe Changelog-Text sein — keine zweite Formulierung nötig)
+5. Webhook triggert automatisch PROD-Deploy
+
+> Merge-Commit-Message ist ein Snapshot zum Merge-Zeitpunkt — wird der PR-Body danach noch korrigiert, zieht das nicht nach. Für Details/Korrekturen bleibt die PR selbst die Quelle der Wahrheit.
 
 ### Hotfix (kritischer Bug in Production)
 
