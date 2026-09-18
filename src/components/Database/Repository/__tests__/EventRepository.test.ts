@@ -391,3 +391,20 @@ describe("EventRepository.getAllEventsForUser", () => {
     expect(queryMock.order).not.toHaveBeenCalled();
   });
 });
+
+/* =====================================================================
+// getEvent()
+// ===================================================================== */
+describe("EventRepository.getEvent", () => {
+  test("gibt null zurueck statt mit einer Firebase-UID zu queryen (CHUCHIPIRAT-BF)", async () => {
+    const {client, queryMock} = createSupabaseMock();
+
+    const repo = new EventRepository(client as any);
+    const event = await repo.getEvent("5btHRZmxzTAVJOWPXRmH");
+
+    expect(event).toBeNull();
+    expect(client.from).not.toHaveBeenCalled();
+    expect(client.rpc).not.toHaveBeenCalled();
+    expect(queryMock.eq).not.toHaveBeenCalled();
+  });
+});

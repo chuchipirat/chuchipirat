@@ -79,6 +79,7 @@ import {LocalStorageKey} from "../../constants/localStorage";
 import {DonationDomain, COUNTABLE_DONATION_STATUSES} from "../Donate/donation.types";
 import {DonationReceiptPdf} from "../Donate/DonationReceiptPdf";
 import {generateAndDownloadPdf} from "../Shared/pdfUtils";
+import {isMissingSessionError, isTransientNetworkError, toError} from "../../utils/errorUtils";
 
 import {
   IconButton,
@@ -297,10 +298,15 @@ const UserProfilePage = () => {
         });
       })
       .catch((error) => {
-        Sentry.captureException(error);
+        // Vorübergehende Netzfehler und abgelaufene Sitzungen sind erwartbar
+        // (z.B. Tab im Hintergrund, Laptop im Standby) — dem Nutzer trotzdem
+        // anzeigen, aber nicht an Sentry melden.
+        if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+          Sentry.captureException(toError(error));
+        }
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
-          payload: error,
+          payload: toError(error),
         });
       });
   }, [authUser?.uid]);
@@ -314,7 +320,11 @@ const UserProfilePage = () => {
       .then((result) => setDonations(
         result.filter((donation) => COUNTABLE_DONATION_STATUSES.includes(donation.status)),
       ))
-      .catch((error) => Sentry.captureException(error));
+      .catch((error) => {
+        if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+          Sentry.captureException(toError(error));
+        }
+      });
   }, [authUser?.uid]);
   /* ------------------------------------------
   // Änderungsmodus aktivieren

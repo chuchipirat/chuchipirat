@@ -169,6 +169,10 @@ import {
   PlanedIntolerances,
   MealRecipe,
 } from "../Event/Menuplan/menuplan.types";
+import {
+  getDietDisplayName,
+  getIntoleranceDisplayName,
+} from "../Event/Menuplan/menuplan.constants";
 import {EventGroupConfiguration} from "../Event/GroupConfiguration/groupConfiguration.class";
 import {DialogType, useCustomDialog} from "../Shared/customDialogContext";
 import {
@@ -1693,19 +1697,19 @@ export const MealPlanPanel = ({
                           ? TEXT_ALL
                           : singleMealPlan.diet == PlanedDiet.FIX
                             ? ""
-                            : groupConfiguration.diets.entries[
-                                singleMealPlan.diet
-                              ].name
+                            : getDietDisplayName(
+                                groupConfiguration,
+                                singleMealPlan.diet,
+                              )
                       }${
                         singleMealPlan.intolerance == PlanedIntolerances.ALL
                           ? ""
                           : singleMealPlan.intolerance == PlanedIntolerances.FIX
                             ? ""
-                            : `, ${
-                                groupConfiguration.intolerances.entries[
-                                  singleMealPlan.intolerance
-                                ].name
-                              }`
+                            : `, ${getIntoleranceDisplayName(
+                                groupConfiguration,
+                                singleMealPlan.intolerance,
+                              )}`
                       } (${singleMealPlan.totalPortions} ${
                         singleMealPlan.totalPortions == 1
                           ? TEXT_PORTION

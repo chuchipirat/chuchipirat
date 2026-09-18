@@ -23,6 +23,8 @@ import {
   FIX_PORTIONS as TEXT_FIX_PORTIONS,
   PORTIONS as TEXT_PORTIONS,
   PORTION as TEXT_PORTION,
+  DIET_DELETED as TEXT_DIET_DELETED,
+  INTOLERANCE_DELETED as TEXT_INTOLERANCE_DELETED,
 } from "../../../constants/text";
 
 
@@ -159,6 +161,42 @@ export const getOrderListNameFromDragAndDropTypes = (
 
 
 /**
+ * Liefert den Anzeigenamen einer Diät aus der Gruppen-Konfiguration.
+ *
+ * Ein Portionsplan-Eintrag speichert nur die Diät-UID. Wird die Diät später
+ * aus der Gruppen-Konfiguration gelöscht (`EventGroupConfiguration.deleteDiet`),
+ * bleiben ältere Portionsplan-Einträge mit dieser UID bestehen — der direkte
+ * Lookup würde dann `undefined` liefern und beim Zugriff auf `.name` crashen.
+ *
+ * @param groupConfiguration - Gruppen-Konfiguration des Events.
+ * @param dietUid - UID der Diät aus dem Portionsplan-Eintrag.
+ * @returns Name der Diät, oder ein Fallback-Text, falls sie nicht mehr existiert.
+ */
+export const getDietDisplayName = (
+  groupConfiguration: EventGroupConfiguration,
+  dietUid: string,
+): string =>
+  groupConfiguration.diets.entries[dietUid]?.name ?? TEXT_DIET_DELETED;
+
+/**
+ * Liefert den Anzeigenamen einer Intoleranz aus der Gruppen-Konfiguration.
+ *
+ * Analog zu {@link getDietDisplayName}: schützt vor einem Crash, wenn die
+ * referenzierte Intoleranz zwischenzeitlich aus der Gruppen-Konfiguration
+ * gelöscht wurde.
+ *
+ * @param groupConfiguration - Gruppen-Konfiguration des Events.
+ * @param intoleranceUid - UID der Intoleranz aus dem Portionsplan-Eintrag.
+ * @returns Name der Intoleranz, oder ein Fallback-Text, falls sie nicht mehr existiert.
+ */
+export const getIntoleranceDisplayName = (
+  groupConfiguration: EventGroupConfiguration,
+  intoleranceUid: string,
+): string =>
+  groupConfiguration.intolerances.entries[intoleranceUid]?.name ??
+  TEXT_INTOLERANCE_DELETED;
+
+/**
  * Props für die Generierung des Portionsplan-Textes.
  *
  * @param uid - UID des Objekts (für React-Keys)
@@ -190,15 +228,13 @@ export const generatePlanedPortionsText = ({
           ? TEXT_ALL
           : plan.diet == PlanedDiet.FIX
             ? TEXT_FIX_PORTIONS
-            : groupConfiguration.diets.entries[plan.diet].name
+            : getDietDisplayName(groupConfiguration, plan.diet)
       }${
         plan.intolerance == PlanedIntolerances.ALL
           ? ""
           : plan.intolerance == PlanedIntolerances.FIX
             ? ""
-            : `, ${
-                groupConfiguration.intolerances.entries[plan.intolerance].name
-              }`
+            : `, ${getIntoleranceDisplayName(groupConfiguration, plan.intolerance)}`
       } (${plan.totalPortions.toFixed(1)} ${
         plan.totalPortions == 1 ? TEXT_PORTION : TEXT_PORTIONS
       })`}

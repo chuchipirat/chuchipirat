@@ -214,6 +214,70 @@ describe("RecipeRepository", () => {
   });
 
   /* ------------------------------------------
+  // getRecipesByIds()
+  // ------------------------------------------ */
+  describe("getRecipesByIds()", () => {
+    test("Lädt mehrere Rezepte mit einer einzigen id-IN-Abfrage (CHUCHIPIRAT-H9)", async () => {
+      const secondRow: RecipeRow = {...testRow, id: "recipe-uuid-002", name: "Risotto"};
+      supabaseMock.queryMock.in = jest
+        .fn()
+        .mockResolvedValue({data: [testRow, secondRow], error: null});
+
+      const result = await repo.getRecipesByIds([
+        "recipe-uuid-001",
+        "recipe-uuid-002",
+      ]);
+
+      // Genau eine Anfrage statt einer pro ID
+      expect(supabaseMock.client.from).toHaveBeenCalledTimes(1);
+      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("id", [
+        "recipe-uuid-001",
+        "recipe-uuid-002",
+      ]);
+      expect(result.size).toBe(2);
+      expect(result.get("recipe-uuid-001")?.name).toBe("Spaghetti Bolognese");
+      expect(result.get("recipe-uuid-002")?.name).toBe("Risotto");
+    });
+
+    test("dedupliziert IDs vor der Abfrage", async () => {
+      supabaseMock.queryMock.in = jest
+        .fn()
+        .mockResolvedValue({data: [testRow], error: null});
+
+      await repo.getRecipesByIds([
+        "recipe-uuid-001",
+        "recipe-uuid-001",
+        "recipe-uuid-001",
+      ]);
+
+      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("id", [
+        "recipe-uuid-001",
+      ]);
+    });
+
+    test("stellt keine Anfrage bei leerem Array", async () => {
+      const result = await repo.getRecipesByIds([]);
+
+      expect(supabaseMock.client.from).not.toHaveBeenCalled();
+      expect(result.size).toBe(0);
+    });
+
+    test("IDs ohne Treffer fehlen in der Map, statt zu crashen", async () => {
+      supabaseMock.queryMock.in = jest
+        .fn()
+        .mockResolvedValue({data: [testRow], error: null});
+
+      const result = await repo.getRecipesByIds([
+        "recipe-uuid-001",
+        "recipe-uuid-geloescht",
+      ]);
+
+      expect(result.size).toBe(1);
+      expect(result.has("recipe-uuid-geloescht")).toBe(false);
+    });
+  });
+
+  /* ------------------------------------------
   // getAllPublicRecipes()
   // ------------------------------------------ */
   describe("getAllPublicRecipes()", () => {

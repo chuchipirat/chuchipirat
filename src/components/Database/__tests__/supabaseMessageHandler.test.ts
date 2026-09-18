@@ -152,6 +152,30 @@ describe("SupabaseMessageHandler", () => {
     });
   });
 
+  describe("translateMessage — Abgelaufene/fehlende Sitzung", () => {
+    // Regression CHUCHIPIRAT-HG/-FX/-HM/-HH: ohne Übersetzung landete die
+    // rohe englische Meldung "JWT expired" in der UI.
+    test("Übersetzt 'JWT expired' in einen Sitzungs-Hinweis mit Reload-Aufforderung", () => {
+      const error = {message: "JWT expired"};
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(SUPABASE_MESSAGES["JWT expired"]);
+      expect(result).toMatch(/Sitzung/);
+      expect(result).toMatch(/Seite neu/);
+    });
+
+    test("Übersetzt eine RLS-Verletzung (variabler Tabellenname) in denselben Sitzungs-Hinweis", () => {
+      const error = {
+        message: 'new row violates row-level security policy for table "events"',
+      };
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(SUPABASE_MESSAGES["JWT expired"]);
+    });
+  });
+
   describe("translateMessage — Unbekannte Fehler", () => {
     test("Gibt die originale Nachricht zurück bei unbekannter Meldung", () => {
       const error = {message: "Some unknown Supabase error"};

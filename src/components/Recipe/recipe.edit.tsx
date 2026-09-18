@@ -102,6 +102,7 @@ import {Utils} from "../Shared/utils.class";
 import Department from "../Department/department.class";
 import {AlertMessage} from "../Shared/AlertMessage";
 import {FieldValidationError} from "../Shared/fieldValidation.error.class";
+import {isMissingSessionError, isTransientNetworkError, toError} from "../../utils/errorUtils";
 
 import {ImageRepository} from "../../constants/imageRepository";
 import * as TEXT from "../../constants/text";
@@ -924,12 +925,14 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {
-            extra: {context: "RecipeEdit – Einheiten laden"},
-          });
+          if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+            Sentry.captureException(toError(error), {
+              extra: {context: "RecipeEdit – Einheiten laden"},
+            });
+          }
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
-            payload: error,
+            payload: toError(error),
           });
         });
     }
@@ -947,12 +950,14 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {
-            extra: {context: "RecipeEdit – Produkte laden"},
-          });
+          if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+            Sentry.captureException(toError(error), {
+              extra: {context: "RecipeEdit – Produkte laden"},
+            });
+          }
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
-            payload: error,
+            payload: toError(error),
           });
         });
     }
@@ -970,12 +975,14 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {
-            extra: {context: "RecipeEdit – Abteilungen laden"},
-          });
+          if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+            Sentry.captureException(toError(error), {
+              extra: {context: "RecipeEdit – Abteilungen laden"},
+            });
+          }
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
-            payload: error,
+            payload: toError(error),
           });
         });
     }
@@ -993,12 +1000,14 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {
-            extra: {context: "RecipeEdit – Materialien laden"},
-          });
+          if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+            Sentry.captureException(toError(error), {
+              extra: {context: "RecipeEdit – Materialien laden"},
+            });
+          }
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
-            payload: error,
+            payload: toError(error),
           });
         });
     }
@@ -1015,12 +1024,14 @@ const RecipeEdit = ({
           });
         })
         .catch((error) => {
-          Sentry.captureException(error, {
-            extra: {context: "RecipeEdit – Öffentliche Rezepte laden"},
-          });
+          if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+            Sentry.captureException(toError(error), {
+              extra: {context: "RecipeEdit – Öffentliche Rezepte laden"},
+            });
+          }
           dispatch({
             type: ReducerActions.GENERIC_ERROR,
-            payload: error,
+            payload: toError(error),
           });
         });
     }

@@ -26,6 +26,7 @@ import {PageTitle} from "../Shared/pageTitle";
 import {SignUpLink} from "../SignUp/signUp";
 import {AlertMessage} from "../Shared/AlertMessage";
 import {ForgotPasswordLink} from "../AuthServiceHandler/passwordReset";
+import {isMissingSessionError, isTransientNetworkError, toError} from "../../utils/errorUtils";
 
 import {
   COME_IN as TEXT_COME_IN,
@@ -203,12 +204,22 @@ const SignInPage = () => {
   // Einstellungen holen
   // ------------------------------------------ */
   React.useEffect(() => {
-    database.globalSettings.getSettings().then((result) => {
-      dispatch({
-        type: ReducerActions.SET_MAINTENANCE_MODE,
-        payload: {value: result?.maintenanceMode ?? false},
+    database.globalSettings
+      .getSettings()
+      .then((result) => {
+        dispatch({
+          type: ReducerActions.SET_MAINTENANCE_MODE,
+          payload: {value: result?.maintenanceMode ?? false},
+        });
+      })
+      .catch((error) => {
+        // Vorübergehende Netzfehler und abgelaufene Sitzungen sind
+        // erwartbar — der Wartungsmodus-Status bleibt dann einfach beim
+        // Default (false), kein App-Fehler.
+        if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+          Sentry.captureException(toError(error));
+        }
       });
-    });
   }, []);
 
   /* ------------------------------------------
@@ -277,9 +288,14 @@ const SignInPage = () => {
           );
         }
       } catch (profileError) {
-        Sentry.captureException(profileError, {
-          extra: {context: "SignIn - Profil laden / Login registrieren"},
-        });
+        if (
+          !isTransientNetworkError(profileError) &&
+          !isMissingSessionError(profileError)
+        ) {
+          Sentry.captureException(toError(profileError), {
+            extra: {context: "SignIn - Profil laden / Login registrieren"},
+          });
+        }
       }
 
       // Wartungsmodus-Flag frisch abfragen statt den beim Seitenaufruf im
@@ -297,9 +313,14 @@ const SignInPage = () => {
         const settings = await database.globalSettings.getSettings();
         maintenanceModeNow = settings?.maintenanceMode ?? false;
       } catch (settingsError) {
-        Sentry.captureException(settingsError, {
-          extra: {context: "SignIn - Wartungsmodus-Status prüfen"},
-        });
+        if (
+          !isTransientNetworkError(settingsError) &&
+          !isMissingSessionError(settingsError)
+        ) {
+          Sentry.captureException(toError(settingsError), {
+            extra: {context: "SignIn - Wartungsmodus-Status prüfen"},
+          });
+        }
       }
 
       // Im Wartungsmodus dürfen sich nur Admins tatsächlich anmelden —

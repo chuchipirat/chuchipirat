@@ -15,6 +15,7 @@ import {
 import {Utils} from "../Shared/utils.class";
 import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 import {User} from "./user.class";
+import {isMissingSessionError, isTransientNetworkError, toError} from "../../utils/errorUtils";
 
 import {
   GIVE_VALID_EMAIL as TEXT_GIVE_VALID_EMAIL,
@@ -112,7 +113,12 @@ const DialogAddUser = ({
             setInfoBox({visible: true, text: error.message});
             return;
           }
-          Sentry.captureException(error);
+          // Vorübergehende Netzfehler und abgelaufene Sitzungen sind
+          // erwartbar — dem Nutzer trotzdem anzeigen, aber nicht an Sentry
+          // melden.
+          if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+            Sentry.captureException(toError(error));
+          }
           setInfoBox({visible: true, text: TEXT_ERROR_GENERIC});
         });
     } else {
