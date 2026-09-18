@@ -1,4 +1,7 @@
-import {SUPABASE_MESSAGES as TEXT_SUPABASE_MESSAGES} from "../../constants/text";
+import {
+  SUPABASE_MESSAGES as TEXT_SUPABASE_MESSAGES,
+  ERROR_SESSION_EXPIRED as TEXT_ERROR_SESSION_EXPIRED,
+} from "../../constants/text";
 
 /**
  * Übersetzt Fehlermeldungen von Supabase (Auth und Postgres/PostgREST) ins Deutsche.
@@ -41,6 +44,14 @@ const SUPABASE_MESSAGE_PATTERNS: {
     pattern: /^update or delete on table "[^"]+" violates foreign key constraint "[^"]+" on table "[^"]+"\.?$/,
     translate: () =>
       "Dieses Element kann nicht gelöscht werden, da es noch in einem Menüplan verwendet wird.",
+  },
+  // RLS-Verletzung ("new row violates row-level security policy for table
+  // ...") in einer authentifizierten Client-App bedeutet praktisch immer:
+  // Sitzung fehlt/abgelaufen (Policies prüfen nur auth.uid() IS NOT NULL).
+  // Tabellenname ist variabel, daher Pattern statt exaktem Match.
+  {
+    pattern: /row-level security policy/i,
+    translate: () => TEXT_ERROR_SESSION_EXPIRED,
   },
 ];
 
