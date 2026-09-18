@@ -17,6 +17,7 @@ import DatabaseService from "./components/Database/DatabaseService";
 import {ErrorPage} from "./components/500/500";
 import {Utils} from "./components/Shared/utils.class";
 import {initAnalytics} from "./components/Analytics/analyticsService";
+import {CHUNK_LOAD_ERROR_PATTERNS, isChunkLoadError} from "./utils/errorUtils";
 import {LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/de";
@@ -51,6 +52,10 @@ Sentry.init({
     // Hintergrund-Tab / Crawler) ihn hält. Transient, der Client verbindet
     // sich anschliessend selbst neu — kein App-Fehler.
     /Navigator LockManager lock .* timed out/,
+    // Fehlgeschlagener Chunk-Import nach einem Deployment (alter Tab verweist
+    // noch auf gelöschte JS-Dateien mit altem Content-Hash) — wird unten per
+    // Reload selbst geheilt, kein App-Fehler.
+    ...CHUNK_LOAD_ERROR_PATTERNS,
   ],
   tracesSampleRate: 1.0,
   tracePropagationTargets: ["localhost", /^https:\/\/chuchipirat\.ch/],
@@ -62,10 +67,30 @@ Sentry.init({
 // Umami Analytics initialisieren (cookie-freies, datenschutzkonformes Tracking)
 initAnalytics();
 
+const CHUNK_RELOAD_ATTEMPTED_KEY = "chunkReloadAttempted";
+
+/**
+ * Lädt die Seite einmalig neu, wenn ein dynamischer Chunk-Import fehlschlägt
+ * (veralteter Tab nach einem Deployment). Ein `sessionStorage`-Flag
+ * verhindert eine Neulade-Schleife, falls der Fehler bestehen bleibt.
+ *
+ * @param error - Der von der ErrorBoundary gefangene Fehler.
+ */
+const handleErrorBoundaryError = (error) => {
+  if (!isChunkLoadError(error)) return;
+  if (sessionStorage.getItem(CHUNK_RELOAD_ATTEMPTED_KEY)) return;
+
+  sessionStorage.setItem(CHUNK_RELOAD_ATTEMPTED_KEY, "true");
+  window.location.reload();
+};
+
 const root = createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <Sentry.ErrorBoundary fallback={<ErrorPage />}>
+    <Sentry.ErrorBoundary
+      fallback={<ErrorPage />}
+      onError={handleErrorBoundaryError}
+    >
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de">
         <DatabaseContext.Provider value={new DatabaseService()}>
           <GlobalSettingsProvider>

@@ -124,6 +124,34 @@ export function isJwtExpiredError(error: unknown): boolean {
 }
 
 /**
+ * Nachrichten-Fragmente eines fehlgeschlagenen dynamischen Chunk-Imports
+ * (`import()` von `React.lazy`). Jeder Browser formuliert das anders.
+ */
+export const CHUNK_LOAD_ERROR_PATTERNS: readonly RegExp[] = [
+  /importing a module script failed/i, // Safari
+  /failed to fetch dynamically imported module/i, // Chrome/Edge
+  /error loading dynamically imported module/i, // Firefox
+];
+
+/**
+ * Erkennt einen fehlgeschlagenen dynamischen Chunk-Import (`React.lazy`).
+ *
+ * Tritt typischerweise auf, wenn ein Tab nach einem neuen Deployment offen
+ * bleibt: Der alte, im Browser geladene `index.html` verweist noch auf
+ * JS-Chunk-Dateien mit Content-Hash, die auf dem Server durch das neue
+ * Deployment bereits ersetzt/gelöscht wurden. Ein einmaliges Neuladen der
+ * Seite holt die aktuelle Version — kein Code-Bug, daher kein Sentry-Report.
+ *
+ * @param error - Der geworfene Wert.
+ * @returns `true`, wenn es sich um einen fehlgeschlagenen Chunk-Import handelt.
+ */
+export function isChunkLoadError(error: unknown): boolean {
+  const text = extractErrorText(error);
+  if (!text) return false;
+  return CHUNK_LOAD_ERROR_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+/**
  * Erkennt eine Postgres-FK-Verletzung (`23503`) — z.B. der Versuch, ein
  * Produkt/Material/Rezept zu löschen, das noch per `ON DELETE RESTRICT` in
  * einem Menüplan referenziert wird. Die Where-Used-Prüfung vor dem Löschen

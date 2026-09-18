@@ -1,4 +1,5 @@
 import {
+  isChunkLoadError,
   isForeignKeyViolationError,
   isJwtExpiredError,
   isMissingSessionError,
@@ -284,5 +285,41 @@ describe("isMissingSessionError", () => {
       isMissingSessionError({code: "23505", message: "duplicate key"}),
     ).toBe(false);
     expect(isMissingSessionError(null)).toBe(false);
+  });
+});
+
+/* ===================================================================
+// ======================== isChunkLoadError =========================
+// =================================================================== */
+
+describe("isChunkLoadError", () => {
+  test("erkennt die Safari-Meldung (CHUCHIPIRAT-HK)", () => {
+    expect(
+      isChunkLoadError(new TypeError("Importing a module script failed.")),
+    ).toBe(true);
+  });
+
+  test("erkennt die Chrome/Edge-Meldung", () => {
+    expect(
+      isChunkLoadError(
+        new TypeError(
+          "Failed to fetch dynamically imported module: https://chuchipirat.ch/assets/recipe-abc123.js",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  test("erkennt die Firefox-Meldung", () => {
+    expect(
+      isChunkLoadError(
+        new TypeError("error loading dynamically imported module"),
+      ),
+    ).toBe(true);
+  });
+
+  test("liefert false für andere Fehler", () => {
+    expect(isChunkLoadError(new Error("Failed to fetch"))).toBe(false);
+    expect(isChunkLoadError(new Error("boom"))).toBe(false);
+    expect(isChunkLoadError(null)).toBe(false);
   });
 });
