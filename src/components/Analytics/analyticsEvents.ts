@@ -57,6 +57,9 @@ export const AnalyticsEvent = {
   MATERIAL_LIST_REFRESHED: "material_list_refreshed",
   MATERIAL_LIST_DELETED: "material_list_deleted",
 
+  // ── Expense Tracking ──
+  BUDGET_CREATED: "budget_created",
+
   // ── Masterdata ──
   PRODUCT_CREATED: "product_created",
   PRODUCT_DELETED: "product_deleted",

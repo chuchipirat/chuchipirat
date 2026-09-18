@@ -8,6 +8,7 @@
 import {BudgetRepository} from "../BudgetRepository";
 import {
   BudgetDomain,
+  BudgetIcon,
   BudgetRow,
   BudgetType,
 } from "../../../Event/ExpenseTracking/budget.types";
@@ -42,6 +43,7 @@ const testRow: BudgetRow = {
   budget_type: BudgetType.FIXED_AMOUNT,
   amount_in_cents: 10000,
   currency: "CHF",
+  icon: BudgetIcon.KITCHEN,
 };
 
 const testDomain: BudgetDomain = {
@@ -51,6 +53,7 @@ const testDomain: BudgetDomain = {
   budgetType: BudgetType.FIXED_AMOUNT,
   amountInCents: 10000,
   currency: "CHF",
+  icon: BudgetIcon.KITCHEN,
 };
 
 const authUser = {uid: "auth-uuid-123"} as AuthUser;

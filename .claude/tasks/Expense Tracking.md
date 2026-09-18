@@ -219,7 +219,7 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
   `shoppingList.class.ts`).
 - Unit-Tests: Berechnung, Default-Budget-Shape, Validierungsfehler.
 
-**Paket 1.2 — Default-Budget bei Erst-Freischaltung (nicht bei Event-Erstellung)**
+**Paket 1.2 — Default-Budget bei Erst-Freischaltung (nicht bei Event-Erstellung)** ✅ erledigt
 
 - **Entscheidung (revidiert):** Ursprünglich war geplant, das Default-"Küche"-Budget beim
   Event-Erstellungs-Flow anzulegen (analog zur Standard-Gruppenkonfiguration). Verworfen,
@@ -242,7 +242,7 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
   `createBudget` genau einmal mit `Budget.createDefaultKitchenBudget(eventId)` aufgerufen, wenn
   `getBudgetsForEvent` leer zurückgibt; bleibt aus, wenn bereits Budgets vorhanden sind.
 
-**Paket 1.3 — Budgets-Liste + Anlage-Dialog**
+**Paket 1.3 — Budgets-Liste + Anlage-Dialog** ✅ erledigt
 
 - UI in `expenseTracking.tsx` (ersetzt Platzhalter aus 0.5, sobald `hasVerifiedDonation === true`):
   Liste/Cards der Budgets, "+ Budget"-Dialog (Name, Typ-Auswahl, Betrag/Währung).
@@ -260,11 +260,33 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
     (Vorbild: wie der Rezept-Editor `FieldValidationError.formValidation` konsumiert).
 - Unit-Tests für `Budget.validate(...)` (gültiger Fall + je ein Fehlerfall pro obiger Regel).
 
-**Paket 1.4 — Live-Neuberechnung**
+**Paket 1.4 — Live-Darstellung des Sollbetrags** (überarbeitet, siehe unten)
 
-- Hook/Effect, der bei Änderung von Teilnehmerzahl (Gruppenkonfiguration) oder Lagerdauer
-  (Menüplan-Tage) alle `per_person_per_day`-Budgets neu berechnet und speichert. Plus Aktion
-  "Auf Fixbetrag umstellen" (setzt `budget_type = fixed_amount`, behält aktuellen Betrag).
+- **Entscheidung (revidiert):** Ursprünglich geplant als Hook/Effect, der bei Änderung von
+  Teilnehmerzahl oder Lagerdauer alle `per_person_per_day`-Budgets neu berechnet **und
+  speichert** (persistierter, abgeleiteter Totalbetrag). Verworfen — in Paket 1.3 wurde
+  `amountInCents` bei `per_person_per_day`-Budgets stattdessen als **Ansatz pro Person & Tag**
+  (Rate) definiert, und `Budget.getTargetAmountInCents(budget, participantCount, dayCount)`
+  berechnet den Sollbetrag bereits **live bei jedem Render** aus dieser Rate — kein Speichern
+  eines abgeleiteten Totals nötig, kein Risiko eines veralteten persistierten Werts bei
+  gleichzeitiger Bearbeitung von Gruppenkonfiguration und Budgets durch zwei Köch:innen.
+  Tradeoff, den diese Entscheidung bewusst in Kauf nimmt: jede zukünftige Stelle, die einen
+  `per_person_per_day`-Betrag anzeigt oder exportiert (PDF/CSV in späteren Epics), muss
+  `getTargetAmountInCents` verwenden statt `amountInCents` direkt zu lesen — sonst wird die
+  Rate fälschlich als Totalbetrag dargestellt.
+- **Verbleibender Umfang für 1.4:**
+  - Sicherstellen, dass `BudgetCard`/die Übersicht bei Änderung von Teilnehmerzahl
+    (Gruppenkonfiguration) oder Lagerdauer (Menüplan-Tage) automatisch neu rendert — prüfen,
+    ob `event.tsx`s bereits vorhandener `groupConfig`-State und `event.numberOfDays` bei
+    solchen Änderungen bereits aktualisiert werden und über die bestehenden Props
+    (`groupConfiguration`, `event`) natürlich durchgereicht werden, oder ob dafür noch eine
+    gezielte Prop-Weiterleitung/ein Re-Render-Trigger fehlt.
+  - Aktion **"Auf Fixbetrag umstellen"**: setzt `budgetType = fixed_amount`, übernimmt den
+    zuletzt live berechneten Zielbetrag (`getTargetAmountInCents(...)`, nicht die rohe Rate)
+    als neuen, jetzt persistierten Fixbetrag — das ist der einzige Moment, in dem der
+    live-berechnete Wert tatsächlich geschrieben wird.
+  - Unit-Test für die Umstellungs-Aktion: Rate + Teilnehmerzahl + Tage → korrekter
+    Fixbetrag nach der Umstellung.
 
 **Paket 1.5 — Bearbeiten/Löschen + Realtime**
 

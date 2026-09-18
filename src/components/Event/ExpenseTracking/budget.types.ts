@@ -9,6 +9,20 @@ export enum BudgetType {
   FIXED_AMOUNT = "fixed_amount",
   PER_PERSON_PER_DAY = "per_person_per_day",
 }
+export enum BudgetIcon {
+  KITCHEN = "kitchen",
+  GROCERIES = "groceries",
+  BEVERAGES = "beverages",
+  KIOSK = "kiosk",
+  THEME = "theme",
+  MATERIAL = "material",
+  TRANSPORT = "transport",
+  ACCOMMODATION = "accommodation",
+  ACTIVITIES = "activities",
+  SAFETY = "safety",
+  CLEANING = "cleaning",
+  OTHER = "other",
+}
 /* =====================================================================
 // Domain-Modelle (camelCase, werden in der App verwendet)
 // ===================================================================== */
@@ -31,7 +45,28 @@ export type BudgetDomain = {
   budgetType: BudgetType;
   amountInCents: number | null;
   currency: string;
+  icon: BudgetIcon;
 };
+/* =====================================================================
+// View-Modelle -> mit Informationen für das UI
+// ===================================================================== */
+
+/**
+ * View Model
+ * *
+ * @param budget - Informationen des Budgets
+ * @param targetAmountInCents - absoluter Budgetbetrag
+ * @param spentAmountInCents - bereits ausgegebener Betrag
+ *@param percentage - prozentuale Ausnutzung des Budgets;
+ */
+
+export type BudgetWithProgress = {
+  budget: BudgetDomain;
+  targetAmountInCents: number;
+  spentAmountInCents: number;
+  percentage: number;
+};
+
 /* =====================================================================
 // DB-Zeilentyp (snake_case, entspricht Postgres-Spalten)
 // ===================================================================== */
@@ -47,4 +82,5 @@ export type BudgetRow = {
   budget_type: BudgetType;
   amount_in_cents: number | null;
   currency: string;
+  icon: BudgetIcon;
 };
