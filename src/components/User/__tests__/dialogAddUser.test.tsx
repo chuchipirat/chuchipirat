@@ -157,6 +157,24 @@ describe("DialogAddUser", () => {
     expect(mockCaptureException).not.toHaveBeenCalled();
   });
 
+  it("zeigt eine Fehlermeldung bei abgelaufenem JWT und meldet nicht an Sentry (CHUCHIPIRAT-HH)", async () => {
+    mockIsEmail.mockReturnValue(true);
+    mockGetUidByEmail.mockRejectedValue({
+      code: "PGRST303",
+      details: null,
+      hint: null,
+      message: "JWT expired",
+    });
+    renderDialog();
+
+    const emailInput = screen.getByLabelText(/e-mail/i);
+    await userEvent.type(emailInput, "session@example.com");
+    await userEvent.click(screen.getByRole("button", {name: /hinzufügen/i}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
   it("ruft handleClose beim Abbrechen auf", async () => {
     const {props} = renderDialog();
 
