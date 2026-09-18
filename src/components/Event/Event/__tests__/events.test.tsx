@@ -194,6 +194,21 @@ describe("EventsPage", () => {
     expect(mockCaptureException).not.toHaveBeenCalled();
   });
 
+  test("zeigt Fehlermeldung bei abgelaufenem JWT, meldet aber NICHT an Sentry (CHUCHIPIRAT-HG)", async () => {
+    mockGetAllEventsForUser.mockRejectedValue({
+      code: "PGRST303",
+      details: null,
+      hint: null,
+      message: "JWT expired",
+    });
+    renderEventsPage();
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(mockCaptureException).not.toHaveBeenCalled();
+  });
+
   test("zeigt Seitentitel 'Anlässe'", async () => {
     renderEventsPage();
 

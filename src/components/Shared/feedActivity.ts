@@ -11,7 +11,11 @@ import * as Sentry from "@sentry/react";
 import type {DatabaseService} from "../Database/DatabaseService";
 import type {CreateFeedParams} from "../Database/Repository/FeedRepository";
 import type {AuthUser} from "../Session/authUser.class";
-import {isTransientNetworkError, toError} from "../../utils/errorUtils";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../utils/errorUtils";
 
 /**
  * Parameter für {@link postActivityFeed}.
@@ -32,9 +36,9 @@ export type PostActivityFeedParams = {
 /**
  * Erstellt einen Aktivitäts-Feed-Eintrag ohne den Aufrufer zu blockieren.
  *
- * Vorübergehende Netzfehler werden verschluckt (der Eintrag ist verzichtbar),
- * alle übrigen Fehler als normalisierter `Error` mit Kontext an Sentry
- * gemeldet — genau einmal, auf Level `warning`.
+ * Vorübergehende Netzfehler und abgelaufene Sitzungen werden verschluckt
+ * (der Eintrag ist verzichtbar), alle übrigen Fehler als normalisierter
+ * `Error` mit Kontext an Sentry gemeldet — genau einmal, auf Level `warning`.
  *
  * @param params - Siehe {@link PostActivityFeedParams}.
  * @returns Nichts — der Aufruf ist bewusst „fire-and-forget".
@@ -53,7 +57,7 @@ export function postActivityFeed({
   context,
 }: PostActivityFeedParams): void {
   database.feeds.insertFeed(feed, authUser).catch((error: unknown) => {
-    if (isTransientNetworkError(error)) return;
+    if (isTransientNetworkError(error) || isMissingSessionError(error)) return;
     Sentry.captureException(toError(error), {
       level: "warning",
       extra: {context: `Aktivitäts-Feed: ${context}`},
