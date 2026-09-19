@@ -11,10 +11,13 @@
  *     recipientType: string,    // 'email', 'uid', 'role'
  *     subject: string,
  *     body: string,             // HTML-Body
- *     title?: string,
+ *     title?: string,           // leer = keine Überschrift im Mail
  *     subtitle?: string,
  *     buttonText?: string,
  *     buttonLink?: string,
+ *     includeUnsubscribe?: boolean, // false = ohne Abmelde-Footer (Standard: true).
+ *                                   // Nur für 'email'/'uid' erlaubt; ohne Footer
+ *                                   // werden auch abgemeldete Nutzer:innen erreicht.
  *   }
  *
  * Erfordert Authentifizierung: Nur Admins dürfen diese Funktion aufrufen.
@@ -43,6 +46,11 @@ import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 import {fetchAllRows} from "../_shared/fetchAllRows.ts";
 import {personalize} from "../_shared/personalize.ts";
+import {
+  UNSUBSCRIBE_BLOCK,
+  buildTitleBlock,
+  resolveUnsubscribePolicy,
+} from "../_shared/mailConsoleOptions.ts";
 
 /** Empfänger mit den Nutzer-Daten für die Personalisierung ({{firstName}} etc.). */
 interface ResolvedRecipient {
@@ -86,6 +94,11 @@ type SendMailPayload = {
   buttonLink?: string;
   /** Vorschautext für die Posteingang-Vorschau (unsichtbar im Mail-Body). */
   preheaderText?: string;
+  /**
+   * Abmelde-Footer anhängen (Standard: true). `false` nur für einzelne
+   * Empfänger (`email`/`uid`), siehe resolveUnsubscribePolicy().
+   */
+  includeUnsubscribe?: boolean;
   /** Erzwingt einen bestimmten Transport (nur Mail-Konsole, DEV/TEST). */
   forceTransport?: "brevo" | "smtp";
 };
@@ -151,6 +164,7 @@ serve(async (req: Request) => {
       buttonText,
       buttonLink,
       preheaderText,
+      includeUnsubscribe: requestedIncludeUnsubscribe,
       forceTransport,
     } = payload;
 
@@ -164,6 +178,18 @@ serve(async (req: Request) => {
     if (!body) {
       return errorResponse("send-mail", "Kein E-Mail-Text angegeben", 400, true);
     }
+
+    // Abmelde-Footer und Berücksichtigung der Newsletter-Abmeldung hängen
+    // zusammen: Ohne Footer ist es eine Direktnachricht (nur an einzelne
+    // Empfänger erlaubt), die auch Abgemeldete erreichen darf.
+    const unsubscribePolicy = resolveUnsubscribePolicy(
+      requestedIncludeUnsubscribe,
+      recipientType,
+    );
+    if (!unsubscribePolicy.ok) {
+      return errorResponse("send-mail", unsubscribePolicy.error, 400, true);
+    }
+    const {includeUnsubscribe, respectOptOut} = unsubscribePolicy;
 
     // E-Mail-Konfiguration laden
     const emailEnv = readEmailEnv();
@@ -203,8 +229,8 @@ serve(async (req: Request) => {
     }
 
     // HTML-E-Mail via shared Template zusammenbauen
-    const titleText = title || subject;
-    const titleBlock = `<h1 style="margin: 0 0 8px; font-size: 22px; color: #212121;">${escapeHtml(titleText)}</h1>`;
+    // Ohne Titel entfällt die Überschrift (der Betreff wird nicht wiederholt).
+    const titleBlock = buildTitleBlock(title);
     const subtitleBlock = subtitle
       ? `<p style="margin: 0 0 16px; font-size: 14px; color: #757575;">${escapeHtml(subtitle)}</p>`
       : "";
@@ -227,11 +253,9 @@ serve(async (req: Request) => {
     // Personalisieren pro Empfänger ersetzt (siehe bulkRecipients unten),
     // da der Link die individuelle UID enthält. Nur bei admin-console
     // gesetzt — andere Mail-Typen (welcome, request-* etc.) bekommen keinen
-    // Abmelde-Block, siehe templateRenderer.ts.
-    const unsubscribeBlock = `<p style="margin: 16px 0 0; font-size: 12px; color: #9e9e9e; line-height: 1.5;">
-                Du möchtest keine Newsletter mehr erhalten?
-                <a href="{{unsubscribeLink}}" style="color: #9e9e9e;">Hier abmelden</a>.
-              </p>`;
+    // Abmelde-Block, siehe templateRenderer.ts. Bei Direktnachrichten ohne
+    // Footer bleibt der Block leer (der Renderer defaultet auf "").
+    const unsubscribeBlock = includeUnsubscribe ? UNSUBSCRIBE_BLOCK : "";
 
     const htmlContent = renderEmailTemplate(
       "admin-console",
@@ -247,7 +271,10 @@ serve(async (req: Request) => {
     // fetchAllRows paginiert für Konsistenz mit dem Rollen-Pfad unten, auch
     // wenn ein Admin praktisch nie >1000 UIDs von Hand einträgt.
     // Newsletter-Abmeldungen (newsletter_opt_out) werden bei allen drei
-    // Empfänger-Pfaden konsequent herausgefiltert.
+    // Empfänger-Pfaden herausgefiltert — ausser bei einer Direktnachricht
+    // ohne Abmelde-Footer (respectOptOut === false, nie bei Rollen).
+    const isAllowedRecipient = (user: UserPersonalizationRow): boolean =>
+      !respectOptOut || !user.newsletter_opt_out;
     let resolvedRecipients: ResolvedRecipient[] = recipients.map((email) => ({
       id: "", email, firstName: "", lastName: "", displayName: "",
     }));
@@ -257,7 +284,7 @@ serve(async (req: Request) => {
         (query) => query.in("id", recipients).not("email", "is", null),
       );
       resolvedRecipients = users
-        .filter((user) => !user.newsletter_opt_out)
+        .filter(isAllowedRecipient)
         .map(toResolvedRecipient);
     }
 
@@ -273,7 +300,7 @@ serve(async (req: Request) => {
       );
       resolvedRecipients = users
         .filter((user) => roles.some((role: string) => user.roles?.includes(role)))
-        .filter((user) => !user.newsletter_opt_out)
+        .filter(isAllowedRecipient)
         .map(toResolvedRecipient);
     }
 
@@ -289,11 +316,13 @@ serve(async (req: Request) => {
       // dürften sonst über den "unbekannte Adresse"-Fallback unten trotzdem
       // wieder reinrutschen (kein Treffer in userByEmail != nicht abgemeldet).
       const optedOutEmails = new Set(
-        users.filter((user) => user.newsletter_opt_out).map((user) => user.email),
+        users
+          .filter((user) => !isAllowedRecipient(user))
+          .map((user) => user.email),
       );
       const userByEmail = new Map(
         users
-          .filter((user) => !user.newsletter_opt_out)
+          .filter(isAllowedRecipient)
           .map((user) => [user.email, toResolvedRecipient(user)]),
       );
       resolvedRecipients = recipients
@@ -359,6 +388,9 @@ serve(async (req: Request) => {
         resolvedCount: resolvedRecipients.length,
         originalRecipients: recipients,
         transport: transportInfo,
+        // Nachvollziehbar, wenn eine Direktnachricht Abgemeldete erreichen durfte
+        includeUnsubscribe,
+        optOutFilterSkipped: !respectOptOut,
       },
     });
 
