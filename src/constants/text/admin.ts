@@ -88,6 +88,13 @@ export const MAIL_TRANSPORT_HELP =
 export const SEND = "Senden";
 export const MAIL_SEND_REQUIRES_TEST =
   "Sende zuerst eine Testmail an dich selbst, um die Mail zu prüfen.";
+export const MAIL_INCLUDE_UNSUBSCRIBE = "Abmelde-Footer anhängen";
+export const MAIL_INCLUDE_UNSUBSCRIBE_HELPER =
+  "Newsletter-Abmeldelink am Ende der Mail. Bei einem Versand an eine Rolle immer aktiv, nur für einzelne E-Mail-Adressen oder User-UIDs abschaltbar (z.B. für Direktnachrichten).";
+export const MAIL_UNSUBSCRIBE_OFF_WARNING =
+  "Ohne Footer werden auch Personen angeschrieben, die den Newsletter abbestellt haben.";
+export const MAIL_UNSUBSCRIBE_PREVIEW =
+  "Du möchtest keine Newsletter mehr erhalten? Hier abmelden.";
 export const TIMESTAMP = "Timestamp";
 export const MAILS = "E-Mails";
 
