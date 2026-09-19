@@ -186,6 +186,9 @@ export const getMatchingHelpPage = ({
           case ROUTES.SYSTEM_CRON_JOBS:
             page = "cron_jobs";
             break;
+          case ROUTES.SYSTEM_DEPLOY_READINESS:
+            page = "deploy_readiness";
+            break;
           default:
             page = "system";
         }

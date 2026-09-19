@@ -3,7 +3,8 @@
  *
  * Kapselt die Postgres-RPC-Aufrufe für Zusammenführen (Merge),
  * Konvertierung und Verwendungsnachweis (Where-Used) von Produkten
- * und Materialien.
+ * und Materialien sowie die Deploy-Check-Abfragen (laufende Lager,
+ * letzte Aktivität).
  *
  * @example
  * const result = await adminOps.mergeProducts("source-id", "target-id");
@@ -12,6 +13,7 @@ import {SupabaseClient} from "@supabase/supabase-js";
 import {supabase} from "../supabaseClient";
 import {SimilarProductPair} from "./ProductRepository";
 import {ALLERGEN_TO_DB, DIET_TO_DB} from "../../../constants/enumMappings";
+import {parseLocalDate} from "../../../utils/dateUtils";
 
 /* ===================================================================
 // ======================== Ergebnis-Typen ===========================
@@ -98,6 +100,64 @@ export type WhereUsedEntry = {
   context: string;
   /** ID der Einkaufsliste — nur bei `event_shopping_list_items`-Einträgen vorhanden. */
   list_id?: string;
+};
+
+/**
+ * Lager, das heute in einem seiner Zeitfenster liegt.
+ *
+ * @param eventId ID des Anlasses.
+ * @param name Name des Anlasses.
+ * @param location Ort des Anlasses.
+ * @param dateFrom Beginn des heute aktiven Zeitfensters.
+ * @param dateTo Ende des heute aktiven Zeitfensters.
+ */
+export type RunningEventDomain = {
+  eventId: string;
+  name: string;
+  location: string;
+  dateFrom: Date;
+  dateTo: Date;
+};
+
+/** Bereiche, in denen Aktivität erfasst wird. */
+export type ActivityArea = "event" | "recipe" | "masterdata" | "request";
+
+/**
+ * Jüngster Schreibzugriff einer Person auf ein Objekt.
+ *
+ * @param userId ID der Person; `null` bei Systemprozessen (Cron, Migration).
+ * @param userName Anzeigename der Person, «System» wenn unbekannt.
+ * @param area Bereich der Änderung.
+ * @param objectId ID des geänderten Objekts (Anlass, Rezept, ...).
+ * @param objectName Anzeigename des Objekts.
+ * @param lastActivityAt Zeitpunkt der letzten Änderung.
+ */
+export type RecentActivityDomain = {
+  userId: string | null;
+  userName: string;
+  area: ActivityArea;
+  objectId: string;
+  objectName: string;
+  lastActivityAt: Date;
+};
+
+/** Rohzeile von `admin_get_running_events()`. */
+type RunningEventRow = {
+  event_id: string;
+  name: string;
+  location: string;
+  date_from: string;
+  date_to: string;
+};
+
+/** Rohzeile von `admin_get_recent_activity()`. */
+type RecentActivityRow = {
+  user_id: string | null;
+  user_name: string;
+  area: ActivityArea;
+  object_id: string;
+  object_name: string;
+  last_activity_at: string;
 };
 
 /* ===================================================================
@@ -285,6 +345,52 @@ export class AdminOperationsRepository {
       .eq("product_a_id", normalizedA)
       .eq("product_b_id", normalizedB);
     if (error) throw new Error(error.message);
+  }
+
+  /**
+   * Liefert alle Lager, bei denen heute (Schweizer Datum) in einem
+   * Zeitfenster liegt. Nur für Admins — sonst leeres Ergebnis.
+   *
+   * @returns Laufende Lager mit dem heute aktiven Zeitfenster.
+   * @throws {Error} Wenn das RPC fehlschlägt.
+   */
+  async getRunningEvents(): Promise<RunningEventDomain[]> {
+    const {data, error} = await this.client.rpc("admin_get_running_events");
+    if (error) throw new Error(error.message);
+    return ((data as RunningEventRow[]) ?? []).map((row) => ({
+      eventId: row.event_id,
+      name: row.name,
+      location: row.location,
+      // Postgres-`date` lokal parsen, sonst rutscht der Tag in CET/CEST
+      dateFrom: parseLocalDate(row.date_from),
+      dateTo: parseLocalDate(row.date_to),
+    }));
+  }
+
+  /**
+   * Liefert die jüngsten Schreibzugriffe über alle Anlässe, Rezepte und
+   * Stammdaten hinweg — pro Person und Objekt die letzte Änderung.
+   * Nur für Admins — sonst leeres Ergebnis.
+   *
+   * @param sinceMinutes Zeitfenster in Minuten (DB begrenzt auf 1..10080).
+   * @returns Aktivitäten, neueste zuerst.
+   * @throws {Error} Wenn das RPC fehlschlägt.
+   */
+  async getRecentActivity(
+    sinceMinutes: number = 1440,
+  ): Promise<RecentActivityDomain[]> {
+    const {data, error} = await this.client.rpc("admin_get_recent_activity", {
+      p_since_minutes: sinceMinutes,
+    });
+    if (error) throw new Error(error.message);
+    return ((data as RecentActivityRow[]) ?? []).map((row) => ({
+      userId: row.user_id,
+      userName: row.user_name,
+      area: row.area,
+      objectId: row.object_id,
+      objectName: row.object_name,
+      lastActivityAt: new Date(row.last_activity_at),
+    }));
   }
 
   async whereUsed(
