@@ -139,6 +139,21 @@ export const CRON_JOBS_DETAILS_TITLE = "Job-Details";
 export const CRON_JOBS_NO_DETAILS = "Keine Details vorhanden";
 export const DATA_INTEGRITY = "Datenintegrität";
 export const DATA_INTEGRITY_DESCRIPTION = "Prüfung der Datenkonsistenz";
+export const DATA_INTEGRITY_EVENTS_WITHOUT_COOKS = "Events ohne Köch:innen";
+export const DATA_INTEGRITY_EVENTS_WITHOUT_COOKS_DESCRIPTION =
+  "Anlässe, bei denen niemand als Koch oder Köchin eingetragen ist";
+export const DATA_INTEGRITY_EVENT_DELETE_WARNING =
+  "Der Anlass wird mit allem, was dazugehört (Menüplan, Listen, Köch:innen), unwiderruflich gelöscht.";
+export const DATA_INTEGRITY_EVENT_EMPTY = "Leer";
+export const DATA_INTEGRITY_EVENT_HAS_DATA = "Enthält Daten";
+export const DATA_INTEGRITY_BULK_EMPTY_LABEL = (count: number) =>
+  `${count} leere löschen`;
+export const DATA_INTEGRITY_BULK_EMPTY_CONFIRM = (count: number) =>
+  `Sollen wirklich ${count} leere Anlässe gelöscht werden? Anlässe mit Inhalt bleiben bestehen. Diese Aktion kann nicht rückgängig gemacht werden.`;
+export const DATA_INTEGRITY_BULK_SKIPPED_HINT = (count: number) =>
+  `Anlässe mit Inhalt (${count}) werden nicht mitgelöscht. Lösche sie einzeln, nachdem du den Inhalt geprüft hast.`;
+export const DATA_INTEGRITY_NOT_DELETED =
+  "Nicht gelöscht: Der Eintrag hat sich inzwischen verändert und erfüllt die Bedingung nicht mehr. Die Prüfung wurde neu ausgeführt.";
 export const SENTRY_DASHBOARD = "Sentry Dashboard";
 export const SUPABASE_DASHBOARD = "Supabase Dashboard";
 export const PAYMENT_PROVIDER_DASHBOARD = "Zahls.ch Dashboard";

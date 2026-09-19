@@ -51,6 +51,9 @@ import {
   EMAIL as TEXT_EMAIL,
   MEMBER_SINCE as TEXT_MEMBER_SINCE,
   ERROR_GENERIC as TEXT_ERROR_GENERIC,
+  DATA_INTEGRITY_EVENTS_WITHOUT_COOKS as TEXT_EVENTS_WITHOUT_COOKS,
+  DATA_INTEGRITY_EVENTS_WITHOUT_COOKS_DESCRIPTION as TEXT_EVENTS_WITHOUT_COOKS_DESCRIPTION,
+  DATA_INTEGRITY_NOT_DELETED as TEXT_NOT_DELETED,
 } from "../../../constants/text";
 
 import {PageTitle} from "../../Shared/pageTitle";
@@ -74,6 +77,15 @@ import {RecipeDrawer} from "../../Recipe/RecipeDrawer";
 import Recipe from "../../Recipe/recipe.class";
 import {ImageRepository} from "../../../constants/imageRepository";
 import {getImageUrl, ImageSize} from "../../Shared/imageUrl";
+import {
+  Anomaly,
+  BulkDeleteMode,
+  EVENT_CLEANUP_OPTIONS,
+  SingleDeleteMode,
+  buildCleanupParams,
+  buildSingleDeleteMessage,
+  getBulkDeletableAnomalies,
+} from "./dataIntegrityUtils";
 
 /* ===================================================================
 // ======================== Prüfungs-Definition ======================
@@ -97,6 +109,12 @@ type IntegrityCheck = {
   cleanupRpcName?: string;
   /** Wenn gesetzt, wird ein Info-Icon für Detail-Dialoge angezeigt. */
   detailType?: "recipe" | "user";
+  /** Zusatzzeile pro Eintrag (z.B. Inhalt eines Anlasses). */
+  describeAnomaly?: (anomaly: Anomaly) => string;
+  /** Wenn gesetzt, erfasst «Alle löschen» nur einen Teil der Einträge. */
+  bulkDelete?: BulkDeleteMode;
+  /** Zusatzparameter und Hinweis beim Löschen eines einzelnen Eintrags. */
+  singleDelete?: SingleDeleteMode;
 };
 
 /** Alle verfügbaren Prüfungen. */
@@ -124,6 +142,18 @@ const CHECKS: IntegrityCheck[] = [
     rpcName: "check_events_without_dates",
     idField: "event_id",
     nameField: "event_name",
+    cleanupRpcName: "cleanup_events_without_dates",
+    ...EVENT_CLEANUP_OPTIONS,
+  },
+  {
+    key: "eventsWithoutCooks",
+    label: TEXT_EVENTS_WITHOUT_COOKS,
+    description: TEXT_EVENTS_WITHOUT_COOKS_DESCRIPTION,
+    rpcName: "check_events_without_cooks",
+    idField: "event_id",
+    nameField: "event_name",
+    cleanupRpcName: "cleanup_events_without_cooks",
+    ...EVENT_CLEANUP_OPTIONS,
   },
   {
     key: "unusedProducts",
@@ -182,6 +212,65 @@ const CHECKS: IntegrityCheck[] = [
     nameField: "display_name",
   },
 ];
+
+/* ===================================================================
+// ======================== Sammel-Löschen ============================
+// =================================================================== */
+
+type BulkDeleteControlsProps = {
+  check: IntegrityCheck;
+  anomalies: Anomaly[];
+  isRunning: boolean;
+  onConfirm: (check: IntegrityCheck, count: number) => void;
+};
+
+/**
+ * «Alle löschen»-Button einer Prüfung. Hat die Prüfung eine Sammel-Regel
+ * (z.B. nur leere Anlässe), zählt und löscht der Button nur die passenden
+ * Einträge und weist auf die übersprungenen hin.
+ *
+ * @param check Prüfung mit Cleanup-RPC.
+ * @param anomalies Alle gemeldeten Auffälligkeiten der Prüfung.
+ * @param isRunning `true`, solange ein Cleanup läuft.
+ * @param onConfirm Öffnet den Bestätigungsdialog mit der Anzahl löschbarer Einträge.
+ */
+const BulkDeleteControls = ({
+  check,
+  anomalies,
+  isRunning,
+  onConfirm,
+}: BulkDeleteControlsProps) => {
+  const deletableCount = getBulkDeletableAnomalies(
+    anomalies,
+    check.bulkDelete,
+  ).length;
+  const skippedCount = anomalies.length - deletableCount;
+
+  return (
+    <>
+      <Divider sx={{my: 1}} />
+      <Button
+        variant="outlined"
+        color="error"
+        size="small"
+        startIcon={
+          isRunning ? <CircularProgress size={16} /> : <DeleteSweepIcon />
+        }
+        disabled={isRunning || deletableCount === 0}
+        onClick={() => onConfirm(check, deletableCount)}
+      >
+        {check.bulkDelete
+          ? check.bulkDelete.buttonLabel(deletableCount)
+          : `Alle ${deletableCount} löschen`}
+      </Button>
+      {check.bulkDelete && skippedCount > 0 && (
+        <Typography variant="caption" color="text.secondary" display="block">
+          {check.bulkDelete.skippedHint(skippedCount)}
+        </Typography>
+      )}
+    </>
+  );
+};
 
 /* ===================================================================
 // ======================== State / Reducer ===========================
@@ -294,6 +383,8 @@ const integrityReducer = (state: State, action: DispatchAction): State => {
           [action.payload]: {
             ...state.results[action.payload],
             cleanupStatus: "running",
+            // Ein früherer Fehler gilt für den neuen Versuch nicht mehr
+            cleanupError: undefined,
           },
         },
       };
@@ -332,6 +423,7 @@ const integrityReducer = (state: State, action: DispatchAction): State => {
             anomalies: current.anomalies.filter(
               (anomaly) => String(anomaly[idField]) !== idValue,
             ),
+            cleanupError: undefined,
           },
         },
       };
@@ -572,10 +664,27 @@ const DataIntegrityPage = () => {
     async (check: IntegrityCheck, itemId: string) => {
       if (!check.cleanupRpcName || !check.idField) return;
       try {
-        const {error} = await supabase.rpc(check.cleanupRpcName, {
-          [`${check.idField.replace("_id", "")}_ids`]: [itemId],
-        });
+        const {data, error} = await supabase.rpc(
+          check.cleanupRpcName,
+          buildCleanupParams(
+            check.idField,
+            [itemId],
+            check.singleDelete?.params,
+          ),
+        );
         if (error) throw new Error(error.message);
+        // Die RPC prüft das Kriterium erneut und meldet die Anzahl gelöschter
+        // Einträge. 0 = der Eintrag hat sich inzwischen verändert (z.B. hat
+        // der Anlass eine Zeitscheibe bekommen): nicht als gelöscht anzeigen.
+        if (data === 0) {
+          // Erst neu prüfen (das setzt den Prüfungsstatus zurück), dann melden
+          await runCheck(check);
+          dispatch({
+            type: ReducerActions.CLEANUP_ERROR,
+            payload: {key: check.key, error: TEXT_NOT_DELETED},
+          });
+          return;
+        }
         dispatch({
           type: ReducerActions.REMOVE_ANOMALY,
           payload: {key: check.key, idField: check.idField, idValue: itemId},
@@ -592,7 +701,7 @@ const DataIntegrityPage = () => {
         });
       }
     },
-    [],
+    [runCheck],
   );
 
   /**
@@ -602,15 +711,20 @@ const DataIntegrityPage = () => {
   const cleanupAll = useCallback(
     async (check: IntegrityCheck) => {
       if (!check.cleanupRpcName || !check.idField) return;
-      const anomalies = state.results[check.key]?.anomalies ?? [];
+      // Bei Prüfungen mit Sammel-Regel (z.B. nur leere Anlässe) nur diese senden
+      const anomalies = getBulkDeletableAnomalies(
+        state.results[check.key]?.anomalies ?? [],
+        check.bulkDelete,
+      );
       if (anomalies.length === 0) return;
 
       dispatch({type: ReducerActions.CLEANUP_START, payload: check.key});
       try {
         const ids = anomalies.map((anomaly) => String(anomaly[check.idField!]));
-        const {error} = await supabase.rpc(check.cleanupRpcName, {
-          [`${check.idField.replace("_id", "")}_ids`]: ids,
-        });
+        const {error} = await supabase.rpc(
+          check.cleanupRpcName,
+          buildCleanupParams(check.idField, ids),
+        );
         if (error) throw new Error(error.message);
         dispatch({type: ReducerActions.CLEANUP_SUCCESS, payload: check.key});
         // Prüfung erneut ausführen, um aktualisierte Ergebnisse zu holen
@@ -673,11 +787,21 @@ const DataIntegrityPage = () => {
 
   /** Bestätigungs-Dialog für Einzellöschung öffnen. */
   const confirmDeleteSingle = useCallback(
-    (check: IntegrityCheck, itemId: string, itemName: string) => {
+    (
+      check: IntegrityCheck,
+      itemId: string,
+      itemName: string,
+      description?: string,
+    ) => {
       setConfirmDialog({
         open: true,
         title: "Eintrag löschen",
-        message: `Soll "${itemName}" (${itemId}) wirklich gelöscht werden?`,
+        message: buildSingleDeleteMessage(
+          itemName,
+          itemId,
+          description,
+          check.singleDelete?.warning,
+        ),
         onConfirm: () => {
           setConfirmDialog(CONFIRM_DIALOG_INITIAL);
           deleteSingleItem(check, itemId);
@@ -693,7 +817,9 @@ const DataIntegrityPage = () => {
       setConfirmDialog({
         open: true,
         title: "Alle löschen",
-        message: `Sollen wirklich alle ${count} Einträge gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.`,
+        message:
+          check.bulkDelete?.confirmMessage(count) ??
+          `Sollen wirklich alle ${count} Einträge gelöscht werden? Diese Aktion kann nicht rückgängig gemacht werden.`,
         onConfirm: () => {
           setConfirmDialog(CONFIRM_DIALOG_INITIAL);
           cleanupAll(check);
@@ -827,6 +953,8 @@ const DataIntegrityPage = () => {
                                 const itemName = check.nameField
                                   ? String(anomaly[check.nameField])
                                   : JSON.stringify(anomaly, null, 0);
+                                const itemDescription =
+                                  check.describeAnomaly?.(anomaly);
 
                                 return (
                                   <ListItem
@@ -864,6 +992,7 @@ const DataIntegrityPage = () => {
                                                   check,
                                                   itemId,
                                                   itemName,
+                                                  itemDescription,
                                                 )
                                               }
                                             >
@@ -877,7 +1006,21 @@ const DataIntegrityPage = () => {
                                     <ListItemText
                                       primary={itemName}
                                       secondary={
-                                        check.idField ? itemId : undefined
+                                        itemDescription ? (
+                                          <>
+                                            <Typography
+                                              component="span"
+                                              variant="caption"
+                                              color="text.secondary"
+                                              display="block"
+                                            >
+                                              {itemDescription}
+                                            </Typography>
+                                            {check.idField && itemId}
+                                          </>
+                                        ) : check.idField ? (
+                                          itemId
+                                        ) : undefined
                                       }
                                       slotProps={{
                                         primary: {sx: {fontSize: "0.875rem"}},
@@ -903,30 +1046,12 @@ const DataIntegrityPage = () => {
                             )}
                           </List>
                           {check.cleanupRpcName && (
-                            <>
-                              <Divider sx={{my: 1}} />
-                              <Button
-                                variant="outlined"
-                                color="error"
-                                size="small"
-                                startIcon={
-                                  result.cleanupStatus === "running" ? (
-                                    <CircularProgress size={16} />
-                                  ) : (
-                                    <DeleteSweepIcon />
-                                  )
-                                }
-                                disabled={result.cleanupStatus === "running"}
-                                onClick={() =>
-                                  confirmCleanupAll(
-                                    check,
-                                    result.anomalies.length,
-                                  )
-                                }
-                              >
-                                Alle {result.anomalies.length} löschen
-                              </Button>
-                            </>
+                            <BulkDeleteControls
+                              check={check}
+                              anomalies={result.anomalies}
+                              isRunning={result.cleanupStatus === "running"}
+                              onConfirm={confirmCleanupAll}
+                            />
                           )}
                         </>
                       )}
