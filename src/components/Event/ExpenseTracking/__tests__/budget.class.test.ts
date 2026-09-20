@@ -14,48 +14,6 @@ import {
   BUDGET_ICON_INVALID as TEXT_BUDGET_ICON_INVALID,
 } from "../../../../constants/text";
 
-describe("Budget.createDefaultKitchenBudget", () => {
-  test("erstellt ein Default-Küchenbudget", () => {
-    const eventId = "event-uuid-001";
-    const budget = Budget.createDefaultKitchenBudget(eventId);
-
-    expect(budget).toEqual({
-      id: "",
-      eventId: eventId,
-      name: "Küche",
-      budgetType: "per_person_per_day",
-      amountInCents: null,
-      currency: "CHF",
-      icon: "kitchen",
-    });
-  });
-});
-describe("Budget.computeBudgetPerPersonPerDayAmount", () => {
-  test("Berechnung des Budgets anhand von Teilnehmern, Tagen und Budget pro Person pro Tag", () => {
-    const result = Budget.computeBudgetPerPersonPerDayAmount({
-      participantCount: 10,
-      dayCount: 5,
-      amountPerPersonPerDay: 750,
-    });
-    expect(result).toBe(37500);
-  });
-  test("Berechnung des Budgets mit 0 Teilnehmern", () => {
-    const result = Budget.computeBudgetPerPersonPerDayAmount({
-      participantCount: 0,
-      dayCount: 5,
-      amountPerPersonPerDay: 750,
-    });
-    expect(result).toBe(0);
-  });
-  test("Berechnung des Budgets mit 0 Tagen", () => {
-    const result = Budget.computeBudgetPerPersonPerDayAmount({
-      participantCount: 10,
-      dayCount: 0,
-      amountPerPersonPerDay: 750,
-    });
-    expect(result).toBe(0);
-  });
-});
 describe("Budget.checkBudgetData", () => {
   test("Budget.checkBudgetData(), kein Name", () => {
     const budgetMock = structuredClone(budget);

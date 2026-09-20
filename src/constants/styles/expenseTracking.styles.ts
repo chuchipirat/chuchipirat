@@ -1,6 +1,13 @@
 import {Theme} from "@mui/material/styles";
 import {alpha} from "@mui/system/colorManipulator";
 
+/**
+ * Styles der Abrechnungsseite (Budget-Karten, Fortschritt, Dialog-Formular).
+ * Ausgelagert aus `styles.ts` und dort in `useCustomStyles()` eingehängt.
+ *
+ * @param theme - Das aktive MUI-Theme.
+ * @returns Style-Objekte für die `sx`-Prop.
+ */
 export const getExpenseTrackingStyles = (theme: Theme) => ({
   budgetCard: {
     position: "relative",
