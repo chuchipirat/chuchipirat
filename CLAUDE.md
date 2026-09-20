@@ -22,10 +22,10 @@ The app is used on **desktop/tablet** during camp preparation and on **mobile** 
 ## Development Workflow
 
 1. Make changes
-2. Typecheck: `npm run typecheck`
-3. Run tests: `npm run test -- --filter "test name"`
+2. Typecheck: `npx tsc --noEmit`
+3. Run tests: `npx jest <pattern> --watchAll=false` (`npm run test` starts watch mode and has no `--filter`)
 4. Lint: `npm run lint`
-5. Before PR: `npm run lint && npm run test`
+5. Before PR: `npm run lint && npx tsc --noEmit && npx jest --watchAll=false`
 
 ## Environments
 
@@ -73,38 +73,11 @@ Three environments: **DEV / TEST / PROD**.
 - Branch naming: `feature/`, `fix/`, `refactor/`, `migration/`, `chore/`
 - Commit messages: conventional commits (feat, fix, refactor, docs, chore)
 - One logical change per commit
-- Always rebase on main before PR
+- Always rebase on `develop` before PR (`main` only receives release PRs from `develop`, see `.claude/docs/git-workflow.md`)
 
 ## Database Migrations
 
-### Baseline Structure
-
-The database schema is defined in 7 baseline files organized by object type:
-
-| File                                  | Contains                                              |
-| ------------------------------------- | ----------------------------------------------------- |
-| `20260401000001_extensions_enums.sql` | Extensions, ENUMs, sequences                          |
-| `20260401000002_tables.sql`           | All tables with FKs, constraints, RLS enabled         |
-| `20260401000003_functions.sql`        | All functions (trigger, RLS helper, API, admin)       |
-| `20260401000004_views.sql`            | All views                                             |
-| `20260401000005_triggers.sql`         | All triggers                                          |
-| `20260401000006_rls_policies.sql`     | All RLS policies                                      |
-| `20260401000007_grants_indexes.sql`   | Grants, default privileges, indexes, storage policies |
-
-Within each file, objects are grouped by domain (users, masterdata, recipes, events, etc.) using comment section headers.
-
-### Adding New Migrations
-
-- **New changes** after the baseline go into individual timestamped migration files (e.g. `20260405000001_add_foo_column.sql`)
-- **Never modify baseline files** once deployed to any environment
-- Each migration file should be self-contained (include table changes + related RLS + grants + indexes)
-- Follow the existing pattern: `YYYYMMDDNNNNNN_descriptive_name.sql`
-
-### Running Locally
-
-- `supabase db reset` (via CLI) or `docker compose down -v && docker compose up` to rebuild from scratch
-- Migrations must run as `supabase_admin` (the Supabase CLI default)
-- `postgres` is NOT a superuser in Supabase — never test migrations manually as `postgres`
+Details (baseline files, adding new migrations, running locally) live in `supabase/CLAUDE.md` and `.claude/docs/database-and-supabase.md`. Never modify baseline files or already-applied migrations.
 
 ## Verification
 
