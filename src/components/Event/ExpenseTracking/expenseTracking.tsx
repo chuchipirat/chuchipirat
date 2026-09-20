@@ -140,12 +140,16 @@ enum ReducerActions {
 type State = {
   isError: boolean;
   error: Error | null;
-  budgetsWithProgress: BudgetWithProgress[] | null;
+  budgets: BudgetDomain[] | null;
+  spentAmounts: Record<string, number> | null;
   snackbar: SnackbarState;
 };
 type DispatchAction =
-  | {type: ReducerActions.BUDGETS_FETCH_SUCCESS; payload: BudgetWithProgress[]}
-  | {type: ReducerActions.BUDGET_CREATED; payload: BudgetWithProgress}
+  | {
+      type: ReducerActions.BUDGETS_FETCH_SUCCESS;
+      payload: {budgets: BudgetDomain[]; spentAmounts: Record<string, number>};
+    }
+  | {type: ReducerActions.BUDGET_CREATED; payload: BudgetDomain}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error}
   // | {
   //     type: ReducerActions.SNACKBAR_SHOW;
@@ -153,7 +157,8 @@ type DispatchAction =
   //   }
   | {type: ReducerActions.SNACKBAR_CLOSE};
 const initialState: State = {
-  budgetsWithProgress: null,
+  budgets: null,
+  spentAmounts: null,
   isError: false,
   error: null,
   snackbar: {open: false, severity: "success", message: ""},
@@ -167,16 +172,16 @@ const expenseTrackingReducer = (
     case ReducerActions.BUDGETS_FETCH_SUCCESS:
       return {
         ...state,
-        budgetsWithProgress: action.payload,
+        budgets: action.payload.budgets,
+        spentAmounts: action.payload.spentAmounts,
       };
     case ReducerActions.BUDGET_CREATED:
       return {
         ...state,
-        budgetsWithProgress:
-          state.budgetsWithProgress?.length == 0 ||
-          state.budgetsWithProgress == null
+        budgets:
+          state.budgets?.length == 0 || state.budgets == null
             ? [action.payload]
-            : state.budgetsWithProgress?.concat(action.payload),
+            : state.budgets?.concat(action.payload),
         snackbar: {open: true, severity: "success", message: TEXT_BUDGET_SAVED},
         isError: false,
         error: null,
@@ -187,16 +192,6 @@ const expenseTrackingReducer = (
         isError: true,
         error: action.payload as Error,
       };
-    // case ReducerActions.SNACKBAR_SHOW:
-    //   return {
-    //     ...state,
-    //     isLoading: false,
-    //     snackbar: {
-    //       severity: action.payload.severity,
-    //       message: action.payload.message,
-    //       open: true,
-    //     },
-    //   };
     case ReducerActions.SNACKBAR_CLOSE:
       return {
         ...state,
@@ -269,7 +264,6 @@ const EventExpenseTrackingPage = ({
     if (!event.uid || hasDonation !== true || !authUser) return;
 
     (async () => {
-      const budgetsWithProgress: BudgetWithProgress[] = [];
       try {
         let budgets = await database.budgets.getBudgetsForEvent(event.uid);
         if (budgets.length === 0) {
@@ -284,27 +278,9 @@ const EventExpenseTrackingPage = ({
         const spentAmounts = await database.expenses.getSpentAmountsByBudget(
           event.uid,
         );
-        budgets.forEach((budget) => {
-          const targetAmountInCents = Budget.getTargetAmountInCents(
-            budget,
-            groupConfiguration.totalPortions,
-            event.numberOfDays,
-          );
-          const spentAmountInCents = spentAmounts[budget.id] ?? 0;
-
-          budgetsWithProgress.push({
-            budget: budget,
-            targetAmountInCents: targetAmountInCents,
-            spentAmountInCents: spentAmountInCents,
-            percentage:
-              targetAmountInCents > 0
-                ? Math.round((spentAmountInCents / targetAmountInCents) * 100)
-                : 0,
-          });
-        });
         dispatch({
           type: ReducerActions.BUDGETS_FETCH_SUCCESS,
-          payload: budgetsWithProgress,
+          payload: {budgets: budgets, spentAmounts: spentAmounts},
         });
       } catch (error) {
         if (!isTransientNetworkError(error)) {
@@ -316,6 +292,36 @@ const EventExpenseTrackingPage = ({
       }
     })();
   }, [hasDonation, event.uid, authUser]);
+  /* ------------------------------------------
+  // Total Budget und Ausschöpfung berechnent
+  // ------------------------------------------ */
+  const budgetsWithProgress = React.useMemo<BudgetWithProgress[]>(() => {
+    if (!state.budgets) return [];
+    const spentAmounts = state.spentAmounts ?? {};
+    return state.budgets.map((budget) => {
+      const targetAmountInCents = Budget.getTargetAmountInCents(
+        budget,
+        groupConfiguration.totalPortions,
+        event.numberOfDays,
+      );
+      const spentAmountInCents = spentAmounts[budget.id] ?? 0;
+      return {
+        budget,
+        targetAmountInCents,
+        spentAmountInCents,
+        percentage:
+          targetAmountInCents > 0
+            ? Math.round((spentAmountInCents / targetAmountInCents) * 100)
+            : 0,
+      };
+    });
+  }, [
+    state.budgets,
+    state.spentAmounts,
+    groupConfiguration,
+    event.numberOfDays,
+  ]);
+
   /* ------------------------------------------
   // Navigation-Handler
   // ------------------------------------------ */
@@ -373,20 +379,9 @@ const EventExpenseTrackingPage = ({
     database.budgets.createBudget(budget, authUser!).then((budget) => {
       trackEvent(AnalyticsEvent.BUDGET_CREATED);
 
-      const budgetWithProgress: BudgetWithProgress = {
-        budget: budget.value,
-        targetAmountInCents: Budget.getTargetAmountInCents(
-          budget.value,
-          groupConfiguration.totalPortions,
-          event.numberOfDays,
-        ),
-        spentAmountInCents: 0,
-        percentage: 0,
-      };
-
       dispatch({
         type: ReducerActions.BUDGET_CREATED,
-        payload: budgetWithProgress,
+        payload: budget.value,
       });
     });
   };
@@ -487,7 +482,7 @@ const EventExpenseTrackingPage = ({
             </Box>
 
             <Grid container spacing={2}>
-              {state.budgetsWithProgress?.map((budget) => (
+              {budgetsWithProgress?.map((budget) => (
                 <Grid
                   key={`budgeCardGrid_${budget.budget.id}`}
                   size={{xs: 12, md: 4}}
