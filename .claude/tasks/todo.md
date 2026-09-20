@@ -1,3 +1,30 @@
+# Datenintegrität: Events löschbar, Events ohne Köch:innen, Admin-Guards (Branch `feature/data-integrity-events`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Migration `20260919000001_data_integrity_events.sql`: Helfer `event_integrity_details()`, `check_events_without_cooks()`, `cleanup_events_without_dates/-cooks()`, Admin-Guard für alle sechs ungeschützten `check_*`
+- [x] Seite: Inhalt pro Anlass, Einzellöschen (`only_empty=false`), «N leere löschen», «Nicht gelöscht»-Meldung, Fehler wird zurückgesetzt
+- [x] Tests: `dataIntegrityUtils`, Seite (11 Fälle), SQL-Transaktionstest (28 Fälle) mit Rollback; Mutationscheck `isEmptyEvent`/`only_empty`
+- [x] Helpcenter: `data_integrity.md` neu geschrieben (war veraltet), Release-Notes-Eintrag (uncommittet)
+- [x] Migration `20260919000002_data_integrity_recipe_references.sql`: `check_recipe_ingredients_without_product()`, `check_recipe_materials_without_material()` (eine Zeile pro Rezept, nur Anzeige)
+- [x] Seite: zwei neue Prüfungen, Zeilenaktion «Rezept öffnen» (kein Detail-Dialog: nur lesend, sein Löschen gehört zu «Rezepte ohne Event»)
+- [x] Tech-Debt: Anlass atomar anlegen (konkrete Lösung), Löschen verwendeter Produkte, Editor speichert Zutaten ohne Produkt
+- [ ] Manuelle Browser-Prüfung Desktop + Mobile (Chrome-Extension war nicht verbunden)
+- [ ] Nach dem PROD-Deploy: Prüfung «Events ohne Zeitscheiben» **nur lesend** starten, Inhalt der Anlässe ansehen, dann löschen
+
+## Review
+
+- SQL lokal (`supabase-db-test`, als `supabase_admin` wie im Deploy-Workflow) in Rollback-Transaktion geprüft: Inhalt/`is_empty` korrekt, Bulk löscht nur leere, Einzellöschen auch mit Inhalt, Anlass mit inzwischen ergänzter Zeitscheibe wird nicht gelöscht, Kaskade vollständig, Spende bleibt mit `event_id = NULL`, alle 15 Funktionen lehnen Nicht-Admins ab, Helfer nicht direkt aufrufbar.
+- Regression: alle neun Prüfungen liefern für Admins vor/nach der Migration identische Ergebnisse (Vergleich der Ausgabe).
+- Beim Testen gefundener eigener Fehler: «Nicht gelöscht»-Meldung wurde vom anschliessenden `CHECK_START` überschrieben. Behoben (erst neu prüfen, dann melden), Test deckt es ab.
+- Migration muss als `supabase_admin` laufen (Besitzer der `check_*`-Funktionen; `postgres` darf sie nicht ersetzen), der Deploy-Workflow tut das bereits.
+- Rezept-Prüfungen: SQL in Rollback-Transaktion (13 Fälle, inkl. Ursache nachgestellt: Produkt in Rezept verwenden, löschen → Zutat erscheint), Abschnittszeilen ohne Produkt werden nicht gemeldet. Lokal: 1 Zutat, 5 Materialien in 5 Rezepten, alle vom 23.04.2026 (Datenmigration).
+- Beim Prüfen gefunden: Der Editor speichert Zutaten mit Menge ohne Produkt (`deleteEmptyIngredients`), «ohne Produkt» heisst also nicht zwingend «Produkt gelöscht» (Prüfung deshalb neutral benannt). Private Rezepte kann laut `recipe.view.tsx` nur der Ersteller bearbeiten, die Zeile weist darauf hin.
+- Nachgewiesen (Rollback-Transaktion): Produkt in Einkaufslisten-Position lässt sich nicht löschen (`chk_item_source`), Produkt nur in Rezept schon. Einkaufslisten-`TypeError` ist nur per Code-Lektüre belegt (`addTraceEntry`, nicht ausgeführt).
+- Tech-Debt: nicht atomares Anlegen von Anlässen (Ursache der Waisen), Storage-/Feed-Waisen beim Löschen, `check_duplicate_emails` liefert `NULL`.
+
+---
+
 # Track A — Einkaufs-/Materialliste: stabile Row-IDs + Diff-Persistenz
 
 Branch: `refactor/shopping-list-surgical-writes` von `develop`
