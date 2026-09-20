@@ -181,6 +181,7 @@ const listReducer = (state: State, action: Action): State => {
  * @param searchSettings Aktuelle Sucheinstellungen (inkl. noch nicht abgeschickter Eingabe).
  * @param userId Auth-UID der angemeldeten Person.
  * @param eventUid Anlass, dessen Varianten mitgeliefert werden (nur Rezept-Schublade).
+ * @param enabled Ob geladen wird. Die Rezept-Schublade ist immer eingehängt, lädt aber erst beim ersten Öffnen.
  * @param useCache Ob der Stand im sessionStorage gemerkt wird (nur Rezeptseite).
  * @param restoredCache Aus dem sessionStorage wiederhergestellter Stand.
  * @param pageSize Karten pro Seite.
@@ -190,6 +191,7 @@ type UseRecipeListParams = {
   searchSettings: SearchSettings;
   userId: string;
   eventUid?: string;
+  enabled?: boolean;
   useCache?: boolean;
   restoredCache?: RecipeListCacheEntry | null;
   pageSize?: number;
@@ -268,6 +270,7 @@ export const useRecipeList = ({
   searchSettings,
   userId,
   eventUid,
+  enabled = true,
   useCache = false,
   restoredCache = null,
   pageSize = RECIPE_LIST_PAGE_SIZE,
@@ -322,7 +325,7 @@ export const useRecipeList = ({
   // Erste Seite laden, sobald die Abfrage (nach Pause) feststeht
   // ------------------------------------------ */
   React.useEffect(() => {
-    if (stateRef.current.lists[fetchKey]) return;
+    if (!enabled || stateRef.current.lists[fetchKey]) return;
 
     const controller = new AbortController();
     dispatch({type: "FIRST_START", key: fetchKey});
@@ -343,7 +346,7 @@ export const useRecipeList = ({
         });
       });
     return () => controller.abort();
-  }, [fetchKey, reloadToken, database, pageSize]);
+  }, [fetchKey, reloadToken, enabled, database, pageSize]);
 
   /* ------------------------------------------
   // Weitere Seite laden

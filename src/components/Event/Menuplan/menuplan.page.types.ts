@@ -49,7 +49,6 @@ export type OnMenuplanUpdate = Partial<MenuplanData>;
  *
  * @param menuplan - Aktueller Menüplan
  * @param recipes - Geladene Rezepte (Key-Value)
- * @param recipeList - Liste kurzer Rezepteinträge für die Suche
  * @param groupConfiguration - Gruppen-Konfiguration des Events
  * @param event - Event-Objekt
  * @param units - Verfügbare Einheiten
@@ -65,7 +64,6 @@ export type OnMenuplanUpdate = Partial<MenuplanData>;
 export interface MenuplanPageProps {
   menuplan: MenuplanData;
   recipes: Recipes;
-  recipeList: RecipeShort[];
   groupConfiguration: EventGroupConfiguration;
   event: EventClass;
   units: Unit[];

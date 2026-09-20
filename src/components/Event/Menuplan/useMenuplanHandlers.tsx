@@ -99,7 +99,6 @@ import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
  * @param groupConfiguration - Gruppen-Konfiguration des Events.
  * @param event - Event-Objekt.
  * @param recipes - Geladene Rezepte (Key-Value-Map).
- * @param recipeList - Liste kurzer Rezepteinträge für die Suche.
  * @param authUser - Authentifizierter Benutzer.
  * @param units - Verfügbare Einheiten.
  * @param products - Verfügbare Produkte.
@@ -121,7 +120,6 @@ export interface UseMenuplanHandlersParams {
   groupConfiguration: EventGroupConfiguration;
   event: EventClass;
   recipes: Recipes;
-  recipeList: RecipeShort[];
   authUser: AuthUser;
   units: Unit[];
   products: Product[];
@@ -250,7 +248,6 @@ export function useMenuplanHandlers({
   groupConfiguration: _groupConfiguration,
   event,
   recipes,
-  recipeList,
   authUser,
   units,
   products,
@@ -271,6 +268,7 @@ export function useMenuplanHandlers({
     recipeSearchDrawerData,
     setRecipeSearchDrawerData,
     setRecipeSearchResetKey,
+    setRecipeSearchReloadKey,
     recipeDrawerData,
     setRecipeDrawerData,
     dialogSelectMenueData,
@@ -294,7 +292,6 @@ export function useMenuplanHandlers({
     menuplan,
     menuplanSettings,
     recipes,
-    recipeList,
     units,
     products,
     materials,
@@ -319,7 +316,6 @@ export function useMenuplanHandlers({
     menuplan,
     menuplanSettings,
     recipes,
-    recipeList,
     units,
     products,
     materials,
@@ -502,16 +498,13 @@ export function useMenuplanHandlers({
   // Drawer-Handling
   // ------------------------------------------ */
   const onAddRecipe = useCallback((menue: Menue) => {
-    const {recipeSearchDrawerData, recipeList, fetchMissingData} = ctx.current;
+    const {recipeSearchDrawerData} = ctx.current;
+    // Die Rezeptliste lädt die Suche selbst (seitenweise), sobald der Drawer offen ist
     setRecipeSearchDrawerData({
       ...recipeSearchDrawerData,
       open: true,
-      isLoadingData: recipeList.length == 0 ? true : false,
       menue: menue,
     });
-    if (recipeList.length == 0) {
-      fetchMissingData({type: FetchMissingDataType.RECIPES});
-    }
   }, []);
   const onRecipeSearchDrawerClose = useCallback(() => {
     const {recipeSearchDrawerData} = ctx.current;
@@ -688,6 +681,8 @@ export function useMenuplanHandlers({
       });
     }
     onRecipeUpdateSuper(recipe);
+    // Rezeptliste im Such-Drawer neu laden (neues/geändertes Rezept), Suche bleibt
+    setRecipeSearchReloadKey((prev) => prev + 1);
   }, []);
   const onNewRecipe = useCallback(() => {
     // Neues Rezept anlegen

@@ -87,6 +87,7 @@ const settingsWith = (overrides: Partial<SearchSettings> = {}): SearchSettings =
 
 type HookProps = {
   searchSettings: SearchSettings;
+  enabled?: boolean;
   useCache?: boolean;
   restoredCache?: RecipeListCacheEntry | null;
 };
@@ -178,6 +179,35 @@ describe("useRecipeList — erste Seite", () => {
 
     expect(mockListRecipeShorts).toHaveBeenCalledTimes(2);
     expect(result.current.error).toBeNull();
+    expect(result.current.recipes).toHaveLength(1);
+  });
+});
+
+describe("useRecipeList — enabled", () => {
+  test("lädt nichts, solange enabled=false (Schublade geschlossen), und startet beim Aktivieren", async () => {
+    mockListRecipeShorts.mockResolvedValue(createPage([1, 2], {total: 2}));
+    const {result, rerender} = renderList({searchSettings: settingsWith(), enabled: false});
+    await flush();
+    expect(mockListRecipeShorts).not.toHaveBeenCalled();
+    expect(result.current.recipes).toEqual([]);
+
+    rerender({searchSettings: settingsWith(), enabled: true});
+    await flush();
+
+    expect(mockListRecipeShorts).toHaveBeenCalledTimes(1);
+    expect(result.current.recipes).toHaveLength(2);
+  });
+
+  test("schliessen und wieder öffnen lädt nicht erneut", async () => {
+    mockListRecipeShorts.mockResolvedValue(createPage([1], {total: 1}));
+    const {result, rerender} = renderList({searchSettings: settingsWith(), enabled: true});
+    await flush();
+
+    rerender({searchSettings: settingsWith(), enabled: false});
+    rerender({searchSettings: settingsWith(), enabled: true});
+    await flush();
+
+    expect(mockListRecipeShorts).toHaveBeenCalledTimes(1);
     expect(result.current.recipes).toHaveLength(1);
   });
 });
