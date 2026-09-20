@@ -78,3 +78,27 @@ Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
 - Ausgelassen: Der Client-Pfad (`supabase.functions.invoke` aus dem Browser) ist nur per Komponententest mit Mock geprüft.
 - Helpcenter: `docs/admin/mailconsole.md` hatte kaputten Front matter (`:**` statt `---`, TOC fehlte) — mit repariert.
 - Tech-Debt: doppelte `mail_log`-Zeilen pro Versand (Client + Edge Function).
+
+---
+
+# Deploy-Check-Seite (Branch `feature/deploy-readiness-page`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Migration `20260918000002_admin_deploy_readiness.sql` (`admin_get_running_events`, `admin_get_recent_activity`)
+- [x] `AdminOperationsRepository`: `getRunningEvents()`, `getRecentActivity()` + Domain-Typen
+- [x] Seite `Admin/DeployReadiness/deployReadiness.tsx` + `deployReadinessUtils.ts`
+- [x] Route `SYSTEM_DEPLOY_READINESS`, `routeConfig` (Guard `isAdmin`), Kachel in `system.tsx`, Texte
+- [x] Tests: Utils, Seite, Repository, System-Kachel (Admin sichtbar, CommunityLeader nicht)
+- [ ] Manuelle Browser-Prüfung Desktop + Mobile (Chrome-Extension war nicht verbunden)
+
+## Review
+
+- SQL in Rollback-Transaktion gegen `supabase-db-test` geprüft: Admin sieht Daten,
+  Nicht-Admin bekommt leere Ergebnisse; Zeitzonen-Grenze (Ende = heute → läuft,
+  Ende = gestern → läuft nicht) korrekt. Migration danach real angewendet.
+- Helpcenter-Mapping `admin/deploy_readiness` in `helpCenter.ts` + Test ergänzt.
+  Die Hilfeseite selbst muss im Helpcenter-Projekt (help.chuchipirat.ch) noch
+  angelegt werden — Quelle liegt nicht in diesem Repo.
+- `npm run typecheck` existiert nicht (CLAUDE.md nennt es); stattdessen `npx tsc --noEmit`.
+- Grenzen: Löschungen und reine Lesezugriffe sind nicht sichtbar.

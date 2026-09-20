@@ -32,6 +32,7 @@ export const SYSTEM_SYSTEM_MESSAGE_EDIT = "/system/systemmessage/:id";
 export const SYSTEM_ACTIVATE_SUPPORT_USER = "/system/activatesupportuser";
 export const SYSTEM_CRON_JOBS = "/system/cronjobs";
 export const SYSTEM_DATA_INTEGRITY = "/system/dataintegrity";
+export const SYSTEM_DEPLOY_READINESS = "/system/deployreadiness";
 
 export const SYSTEM_OVERVIEW_RECIPES = "/system/overview/recipes";
 export const SYSTEM_OVERVIEW_EVENTS = "/system/overview/events";

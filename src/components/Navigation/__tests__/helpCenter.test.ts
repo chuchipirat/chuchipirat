@@ -204,6 +204,14 @@ describe("getMatchingHelpPage()", () => {
       expectHelpPage(ROUTES.SYSTEM_SYSTEM_MESSAGES, "admin", "system_message");
     });
 
+    test("Deploy-Check gibt admin/deploy_readiness zurück", () => {
+      expectHelpPage(
+        ROUTES.SYSTEM_DEPLOY_READINESS,
+        "admin",
+        "deploy_readiness",
+      );
+    });
+
     test("Unbekannter System-Subpfad gibt admin/system zurück", () => {
       expectHelpPage("/system/unknown/subpath", "admin", "system");
     });

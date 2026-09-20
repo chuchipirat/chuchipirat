@@ -21,7 +21,7 @@ Wie am Ende eines Release-Batches (siehe `git-workflow.md` → „Release-Batch"
 
 ## Format (verifiziert gegen den echten Helpcenter-Changelog)
 
-Der Helpcenter führt **einen fortlaufenden Changelog** (mehrere Versionen in einer Datei, neueste zuerst, durch `---` getrennt). Wir liefern trotzdem nur den **Ausschnitt für die aktuelle Version** — der Nutzer fügt ihn selbst oben in seine Datei ein.
+Der Helpcenter führt **einen fortlaufenden Changelog** (mehrere Versionen in einer Datei, neueste zuerst, durch `---` getrennt). Wir liefern trotzdem nur den **Ausschnitt für die aktuelle Version** — der Nutzer fügt ihn selbst oben in seine Datei ein (`docs/others/release_notes.md` im Helpcenter-Repo `~/Developer/chuchipirat-helpcenter`, siehe `CLAUDE.md` → „Helpcenter").
 
 ```markdown
 ## x.y.z — DD.MM.YYYY
