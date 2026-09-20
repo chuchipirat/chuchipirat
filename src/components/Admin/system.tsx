@@ -36,6 +36,7 @@ import {
   Feedback as FeedbackIcon,
   People as PeopleIcon,
   Schedule as ScheduleIcon,
+  RocketLaunch as RocketLaunchIcon,
   HealthAndSafety as HealthAndSafetyIcon,
   OpenInNew as OpenInNewIcon,
   BugReport as BugReportIcon,
@@ -75,6 +76,8 @@ import {
   OVERVIEW_MAILBOX_DESCRIPTION as TEXT_OVERVIEW_MAILBOX_DESCRIPTION,
   CRON_JOBS as TEXT_CRON_JOBS,
   CRON_JOBS_DESCRIPTION as TEXT_CRON_JOBS_DESCRIPTION,
+  DEPLOY_READINESS as TEXT_DEPLOY_READINESS,
+  DEPLOY_READINESS_DESCRIPTION as TEXT_DEPLOY_READINESS_DESCRIPTION,
   DATA_INTEGRITY as TEXT_DATA_INTEGRITY,
   DATA_INTEGRITY_DESCRIPTION as TEXT_DATA_INTEGRITY_DESCRIPTION,
   DONATIONS_OVERVIEW as TEXT_DONATIONS_OVERVIEW,
@@ -104,6 +107,7 @@ import {
   SYSTEM_SYSTEM_MESSAGES as ROUTE_SYSTEM_SYSTEM_MESSAGES,
   SYSTEM_OVERVIEW_USERS as ROUTE_SYSTEM_OVERVIEW_USERS,
   SYSTEM_CRON_JOBS as ROUTE_SYSTEM_CRON_JOBS,
+  SYSTEM_DEPLOY_READINESS as ROUTE_SYSTEM_DEPLOY_READINESS,
   SYSTEM_DATA_INTEGRITY as ROUTE_SYSTEM_DATA_INTEGRITY,
   SYSTEM_OVERVIEW_DONATIONS as ROUTE_SYSTEM_OVERVIEW_DONATIONS,
   SYSTEM_DONATION_GOALS as ROUTE_SYSTEM_DONATION_GOALS,
@@ -383,6 +387,16 @@ const SystemPage = () => {
                   icon={<ScheduleIcon />}
                   action={goToDestination}
                   routeDestination={ROUTE_SYSTEM_CRON_JOBS}
+                />
+              </Grid>
+              <Grid size={{xs: 12, sm: 6, md: 4}}>
+                <AdminTile
+                  id="deployReadiness"
+                  text={TEXT_DEPLOY_READINESS}
+                  description={TEXT_DEPLOY_READINESS_DESCRIPTION}
+                  icon={<RocketLaunchIcon />}
+                  action={goToDestination}
+                  routeDestination={ROUTE_SYSTEM_DEPLOY_READINESS}
                 />
               </Grid>
             </>

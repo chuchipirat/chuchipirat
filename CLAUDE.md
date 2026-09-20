@@ -130,6 +130,16 @@ For deeper context, see `.claude/docs/`:
 | `sentry-bugfix-workflow.md` | Triaging and fixing Sentry-reported issues (noise vs. real bugs)  |
 | `release-notes.md`          | Writing user-facing Helpcenter release notes for a release batch  |
 
+## Helpcenter
+
+The user-facing documentation lives in a **separate repo**, not in this one: `~/Developer/chuchipirat-helpcenter` (Jekyll + Just the Docs, GitHub `chuchipirat/chuchipirat.github.io`, published as `help.chuchipirat.ch` on push to `main`). Its own `CLAUDE.md` holds the writing conventions (German, "du", page structure, callouts) — read it before writing a page.
+
+- Pages: `docs/<subdirectory>/<page>.md` (e.g. `docs/admin/cron_jobs.md`). Images next to them in `images/`.
+- App → page mapping: `src/components/Navigation/helpCenter.ts` (`getMatchingHelpPage`, URL = `HELPCENTER_URL/docs/<subdirectory>/<page>`). The `page` name in the mapping must equal the markdown file name.
+- New page or feature: add the route mapping + test here **and** the markdown page there. For admin pages also list it in `docs/admin/system.md` (permissions table + link).
+- Changelog: `docs/others/release_notes.md` (see `.claude/docs/release-notes.md`).
+- The helpcenter repo may have uncommitted work of the user — never touch files you did not change, and never commit there without being asked.
+
 ## Commands
 
 Reusable workflows live in `.claude/commands/`. Check there before building new ones.

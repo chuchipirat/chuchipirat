@@ -21,6 +21,33 @@ Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
 
 ---
 
+# Datenintegrität: Events löschbar, Events ohne Köch:innen, Admin-Guards (Branch `feature/data-integrity-events`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Migration `20260919000001_data_integrity_events.sql`: Helfer `event_integrity_details()`, `check_events_without_cooks()`, `cleanup_events_without_dates/-cooks()`, Admin-Guard für alle sechs ungeschützten `check_*`
+- [x] Seite: Inhalt pro Anlass, Einzellöschen (`only_empty=false`), «N leere löschen», «Nicht gelöscht»-Meldung, Fehler wird zurückgesetzt
+- [x] Tests: `dataIntegrityUtils`, Seite (11 Fälle), SQL-Transaktionstest (28 Fälle) mit Rollback; Mutationscheck `isEmptyEvent`/`only_empty`
+- [x] Helpcenter: `data_integrity.md` neu geschrieben (war veraltet), Release-Notes-Eintrag (uncommittet)
+- [x] Migration `20260919000002_data_integrity_recipe_references.sql`: `check_recipe_ingredients_without_product()`, `check_recipe_materials_without_material()` (eine Zeile pro Rezept, nur Anzeige)
+- [x] Seite: zwei neue Prüfungen, Zeilenaktion «Rezept öffnen» (kein Detail-Dialog: nur lesend, sein Löschen gehört zu «Rezepte ohne Event»)
+- [x] Tech-Debt: Anlass atomar anlegen (konkrete Lösung), Löschen verwendeter Produkte, Editor speichert Zutaten ohne Produkt
+- [ ] Manuelle Browser-Prüfung Desktop + Mobile (Chrome-Extension war nicht verbunden)
+- [ ] Nach dem PROD-Deploy: Prüfung «Events ohne Zeitscheiben» **nur lesend** starten, Inhalt der Anlässe ansehen, dann löschen
+
+## Review
+
+- SQL lokal (`supabase-db-test`, als `supabase_admin` wie im Deploy-Workflow) in Rollback-Transaktion geprüft: Inhalt/`is_empty` korrekt, Bulk löscht nur leere, Einzellöschen auch mit Inhalt, Anlass mit inzwischen ergänzter Zeitscheibe wird nicht gelöscht, Kaskade vollständig, Spende bleibt mit `event_id = NULL`, alle 15 Funktionen lehnen Nicht-Admins ab, Helfer nicht direkt aufrufbar.
+- Regression: alle neun Prüfungen liefern für Admins vor/nach der Migration identische Ergebnisse (Vergleich der Ausgabe).
+- Beim Testen gefundener eigener Fehler: «Nicht gelöscht»-Meldung wurde vom anschliessenden `CHECK_START` überschrieben. Behoben (erst neu prüfen, dann melden), Test deckt es ab.
+- Migration muss als `supabase_admin` laufen (Besitzer der `check_*`-Funktionen; `postgres` darf sie nicht ersetzen), der Deploy-Workflow tut das bereits.
+- Rezept-Prüfungen: SQL in Rollback-Transaktion (13 Fälle, inkl. Ursache nachgestellt: Produkt in Rezept verwenden, löschen → Zutat erscheint), Abschnittszeilen ohne Produkt werden nicht gemeldet. Lokal: 1 Zutat, 5 Materialien in 5 Rezepten, alle vom 23.04.2026 (Datenmigration).
+- Beim Prüfen gefunden: Der Editor speichert Zutaten mit Menge ohne Produkt (`deleteEmptyIngredients`), «ohne Produkt» heisst also nicht zwingend «Produkt gelöscht» (Prüfung deshalb neutral benannt). Private Rezepte kann laut `recipe.view.tsx` nur der Ersteller bearbeiten, die Zeile weist darauf hin.
+- Nachgewiesen (Rollback-Transaktion): Produkt in Einkaufslisten-Position lässt sich nicht löschen (`chk_item_source`), Produkt nur in Rezept schon. Einkaufslisten-`TypeError` ist nur per Code-Lektüre belegt (`addTraceEntry`, nicht ausgeführt).
+- Tech-Debt: nicht atomares Anlegen von Anlässen (Ursache der Waisen), Storage-/Feed-Waisen beim Löschen, `check_duplicate_emails` liefert `NULL`.
+
+---
+
 # Track A — Einkaufs-/Materialliste: stabile Row-IDs + Diff-Persistenz
 
 Branch: `refactor/shopping-list-surgical-writes` von `develop`
@@ -79,3 +106,49 @@ Alle 8 Schritte umgesetzt. Kernpunkte:
   `shoppingListToInsertRows` als Sicherheitsnetz + Single-Flight in
   `persistListItems`.
 - [ ] Manuelle DEV-Verifikation durch User ausstehend.
+
+---
+
+# Mail-Konsole: Abmelde-Footer wählbar, Titel optional (Branch `feature/mailconsole-optional-footer`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Edge Function `send-mail`: `includeUnsubscribe`, leerer Titel → keine H1, Opt-out-Filter nur mit Footer aktiv (`_shared/mailConsoleOptions.ts`)
+- [x] Schutzregel: ohne Footer nur für `email`/`uid`, Rolle → 400 (Server) und Checkbox gesperrt (UI)
+- [x] Frontend: Checkbox, Warnhinweis, Vorschau, Entwurf (alte Entwürfe → Footer an), Titel nicht mehr Pflicht
+- [x] Tests: `_shared`-Modul, `mailConsoleUtils`, `mailConsole` (Komponente); Mutationscheck der Rollen-Regel
+- [x] Helpcenter: `mailconsole.md` + Release-Notes-Eintrag (nicht committet)
+- [ ] Manuelle Browser-Prüfung Desktop + Mobile (Chrome-Extension war nicht verbunden)
+
+## Review
+
+- E2E lokal (`-test`-Stack, MailPit, lokal signierter Admin-JWT): Standard mit Footer + H1; ohne Footer + leerer Titel ohne beides;
+  abgemeldeter Nutzer wird mit Footer gefiltert (400), ohne Footer erreicht (uid und email); Rolle ohne Footer → 400;
+  `mail_log.details` enthält `includeUnsubscribe`/`optOutFilterSkipped`. Testdaten und Opt-out-Flag wurden zurückgesetzt.
+- Ausgelassen: Der Client-Pfad (`supabase.functions.invoke` aus dem Browser) ist nur per Komponententest mit Mock geprüft.
+- Helpcenter: `docs/admin/mailconsole.md` hatte kaputten Front matter (`:**` statt `---`, TOC fehlte) — mit repariert.
+- Tech-Debt: doppelte `mail_log`-Zeilen pro Versand (Client + Edge Function).
+
+---
+
+# Deploy-Check-Seite (Branch `feature/deploy-readiness-page`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Migration `20260918000002_admin_deploy_readiness.sql` (`admin_get_running_events`, `admin_get_recent_activity`)
+- [x] `AdminOperationsRepository`: `getRunningEvents()`, `getRecentActivity()` + Domain-Typen
+- [x] Seite `Admin/DeployReadiness/deployReadiness.tsx` + `deployReadinessUtils.ts`
+- [x] Route `SYSTEM_DEPLOY_READINESS`, `routeConfig` (Guard `isAdmin`), Kachel in `system.tsx`, Texte
+- [x] Tests: Utils, Seite, Repository, System-Kachel (Admin sichtbar, CommunityLeader nicht)
+- [ ] Manuelle Browser-Prüfung Desktop + Mobile (Chrome-Extension war nicht verbunden)
+
+## Review
+
+- SQL in Rollback-Transaktion gegen `supabase-db-test` geprüft: Admin sieht Daten,
+  Nicht-Admin bekommt leere Ergebnisse; Zeitzonen-Grenze (Ende = heute → läuft,
+  Ende = gestern → läuft nicht) korrekt. Migration danach real angewendet.
+- Helpcenter-Mapping `admin/deploy_readiness` in `helpCenter.ts` + Test ergänzt.
+  Die Hilfeseite selbst muss im Helpcenter-Projekt (help.chuchipirat.ch) noch
+  angelegt werden — Quelle liegt nicht in diesem Repo.
+- `npm run typecheck` existiert nicht (CLAUDE.md nennt es); stattdessen `npx tsc --noEmit`.
+- Grenzen: Löschungen und reine Lesezugriffe sind nicht sichtbar.

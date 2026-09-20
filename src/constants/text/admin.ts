@@ -88,6 +88,13 @@ export const MAIL_TRANSPORT_HELP =
 export const SEND = "Senden";
 export const MAIL_SEND_REQUIRES_TEST =
   "Sende zuerst eine Testmail an dich selbst, um die Mail zu prüfen.";
+export const MAIL_INCLUDE_UNSUBSCRIBE = "Abmelde-Footer anhängen";
+export const MAIL_INCLUDE_UNSUBSCRIBE_HELPER =
+  "Newsletter-Abmeldelink am Ende der Mail. Bei einem Versand an eine Rolle immer aktiv, nur für einzelne E-Mail-Adressen oder User-UIDs abschaltbar (z.B. für Direktnachrichten).";
+export const MAIL_UNSUBSCRIBE_OFF_WARNING =
+  "Ohne Footer werden auch Personen angeschrieben, die den Newsletter abbestellt haben.";
+export const MAIL_UNSUBSCRIBE_PREVIEW =
+  "Du möchtest keine Newsletter mehr erhalten? Hier abmelden.";
 export const TIMESTAMP = "Timestamp";
 export const MAILS = "E-Mails";
 
@@ -137,8 +144,68 @@ export const CRON_JOBS_TRIGGER_SUCCESS = "Job wurde ausgelöst";
 export const CRON_JOBS_TRIGGER_ERROR = "Job konnte nicht ausgelöst werden";
 export const CRON_JOBS_DETAILS_TITLE = "Job-Details";
 export const CRON_JOBS_NO_DETAILS = "Keine Details vorhanden";
+
+// Deploy-Check
+export const DEPLOY_READINESS = "Deploy-Check";
+export const DEPLOY_READINESS_DESCRIPTION =
+  "Laufende Lager und letzte Aktivität vor einem Deploy prüfen";
+export const DEPLOY_READINESS_RUNNING_EVENTS = "Laufende Lager";
+export const DEPLOY_READINESS_RUNNING_EVENTS_TODAY = "Lager heute";
+export const DEPLOY_READINESS_NO_RUNNING_EVENTS =
+  "Heute läuft kein Lager.";
+export const DEPLOY_READINESS_RECENT_ACTIVITY = "Letzte Aktivität (24 h)";
+export const DEPLOY_READINESS_ACTIVE_NOW = "Aktiv in den letzten 15 Minuten";
+export const DEPLOY_READINESS_NO_ACTIVITY =
+  "In den letzten 24 Stunden wurde nichts geändert.";
+export const DEPLOY_READINESS_REFRESH = "Aktualisieren";
+export const DEPLOY_READINESS_LAST_REFRESH = "Zuletzt aktualisiert";
+export const DEPLOY_READINESS_HINT =
+  "Sichtbar sind nur Änderungen (inkl. Anlegen). Wer nur liest, sowie gelöschte Daten erscheinen hier nicht.";
+export const DEPLOY_READINESS_COLUMN_PERSON = "Person";
+export const DEPLOY_READINESS_COLUMN_AREA = "Bereich";
+export const DEPLOY_READINESS_COLUMN_OBJECT = "Objekt";
+export const DEPLOY_READINESS_COLUMN_LAST_ACTIVITY = "Letzte Änderung";
+export const DEPLOY_READINESS_AREA_EVENT = "Anlass";
+export const DEPLOY_READINESS_AREA_RECIPE = "Rezept";
+export const DEPLOY_READINESS_AREA_MASTERDATA = "Stammdaten";
+export const DEPLOY_READINESS_AREA_REQUEST = "Anfrage";
 export const DATA_INTEGRITY = "Datenintegrität";
 export const DATA_INTEGRITY_DESCRIPTION = "Prüfung der Datenkonsistenz";
+export const DATA_INTEGRITY_EVENTS_WITHOUT_COOKS = "Events ohne Köch:innen";
+export const DATA_INTEGRITY_EVENTS_WITHOUT_COOKS_DESCRIPTION =
+  "Anlässe, bei denen niemand als Koch oder Köchin eingetragen ist";
+export const DATA_INTEGRITY_EVENT_DELETE_WARNING =
+  "Der Anlass wird mit allem, was dazugehört (Menüplan, Listen, Köch:innen), unwiderruflich gelöscht.";
+export const DATA_INTEGRITY_EVENT_EMPTY = "Leer";
+export const DATA_INTEGRITY_EVENT_HAS_DATA = "Enthält Daten";
+export const DATA_INTEGRITY_BULK_EMPTY_LABEL = (count: number) =>
+  `${count} leere löschen`;
+export const DATA_INTEGRITY_BULK_EMPTY_CONFIRM = (count: number) =>
+  `Sollen wirklich ${count} leere Anlässe gelöscht werden? Anlässe mit Inhalt bleiben bestehen. Diese Aktion kann nicht rückgängig gemacht werden.`;
+export const DATA_INTEGRITY_BULK_SKIPPED_HINT = (count: number) =>
+  `Anlässe mit Inhalt (${count}) werden nicht mitgelöscht. Lösche sie einzeln, nachdem du den Inhalt geprüft hast.`;
+export const DATA_INTEGRITY_RECIPE_INGREDIENTS_WITHOUT_PRODUCT =
+  "Rezept-Zutaten ohne Produkt";
+export const DATA_INTEGRITY_RECIPE_INGREDIENTS_WITHOUT_PRODUCT_DESCRIPTION =
+  "Rezepte mit Zutaten, denen kein Produkt zugeordnet ist (Produkt gelöscht oder nie gewählt)";
+export const DATA_INTEGRITY_RECIPE_MATERIALS_WITHOUT_MATERIAL =
+  "Rezept-Materialien ohne Material";
+export const DATA_INTEGRITY_RECIPE_MATERIALS_WITHOUT_MATERIAL_DESCRIPTION =
+  "Rezepte mit Materialpositionen, denen kein Material zugeordnet ist (Material gelöscht oder leere Zeile)";
+export const DATA_INTEGRITY_OPEN_RECIPE = "Rezept öffnen";
+export const DATA_INTEGRITY_RECIPE_TYPE_PUBLIC = "Öffentlich";
+export const DATA_INTEGRITY_RECIPE_TYPE_PRIVATE =
+  "Privat (nur der Ersteller kann bearbeiten)";
+export const DATA_INTEGRITY_RECIPE_TYPE_VARIANT = "Variante";
+export const DATA_INTEGRITY_INGREDIENTS_WITHOUT_PRODUCT_COUNT = (
+  count: number,
+) => `${count} ${count === 1 ? "Zutat" : "Zutaten"} ohne Produkt`;
+export const DATA_INTEGRITY_MATERIALS_WITHOUT_MATERIAL_COUNT = (
+  count: number,
+) =>
+  `${count} ${count === 1 ? "Materialposition" : "Materialpositionen"} ohne Material`;
+export const DATA_INTEGRITY_NOT_DELETED =
+  "Nicht gelöscht: Der Eintrag hat sich inzwischen verändert und erfüllt die Bedingung nicht mehr. Die Prüfung wurde neu ausgeführt.";
 export const SENTRY_DASHBOARD = "Sentry Dashboard";
 export const SUPABASE_DASHBOARD = "Supabase Dashboard";
 export const PAYMENT_PROVIDER_DASHBOARD = "Zahls.ch Dashboard";
