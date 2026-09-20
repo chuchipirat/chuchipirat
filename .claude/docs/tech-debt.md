@@ -198,6 +198,21 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   **Offener Rest:** `state.shoppingList.unsubscribe` / `SHOPPINGLIST_FETCH_SUCCESS_LISTENER` (durch `shoppingListItemsUnsubRef` abgelöst, aber noch als toter State im Reducer); `createList` weiterhin direkter Insert; Debounce für rapide Saves (Diff-RPC macht jeden Call billig — nur bei Bedarf).
   **Priorität:** tief (nur noch Restcleanup) · **Komplexität:** klein
 
+- **Antworten der API sind vermutlich unkomprimiert** — Weder nginx (`infra/app/`), Kong (`supabase/volumes/api/kong.yml`) noch die Compose-Dateien schalten gzip ein, PostgREST komprimiert selbst nicht. Ob PROD komprimiert, hängt vom Proxy vor der API ab (nicht im Repo) und ist unbekannt. Lokal gemessen: 5.9-fach kleinere JSON-Antworten; die Rezeptliste von 570 Rezepten wäre statt 272 KB nur 23 KB gross. Vor dem Umsetzen im Browser prüfen: DevTools → Network → Header `Content-Encoding` der Anfrage `recipes`. Betrifft alle Listen (Produkte, Materialien, Events …), nicht nur Rezepte.
+  **Priorität:** mittel · **Komplexität:** klein
+
+- **Rezeptlisten-Cache wird nach Bearbeiten/Bewerten nicht invalidiert** (`src/components/Recipe/recipeListCache.ts`, wird nur bei «Neues Rezept» und nach dem Löschen geleert) — Öffnet man ein Rezept, bewertet oder ändert es und geht zurück, zeigt die wiederhergestellte Liste bis zu 5 Minuten den alten Namen, das alte Bild bzw. die alte Bewertung. Lösung: `clearRecipeListCache()` beim Speichern/Bewerten eines Rezepts aufrufen oder die Karte des geänderten Rezepts beim Zurückkehren einzeln aktualisieren.
+  **Priorität:** tief · **Komplexität:** klein
+
+- **Ungenutzte «lade alle Rezepte»-Methoden** (`RecipeRepository.getAllPublicRecipeShorts`, `getPrivateRecipeShortsForUser`, `getVariantShortsForEvent`) — Seit der seitenweisen Rezeptliste ruft sie im Produktivcode niemand mehr auf (`getAllRecipeShorts` nutzt weiterhin der Verwendungsnachweis im Admin, dafür bleibt `fetchAllRecipeShortRows`). Entfernen samt Tests.
+  **Priorität:** tief · **Komplexität:** klein
+
+- **Rezeptsuche findet nur Name, Variantenname und Tags** — Eine Suche nach Zutaten (Rezepte mit Zucchini) oder nach dem Ersteller gibt es nicht. Machbar mit einem RPC über `recipe_ingredients` → `products` (Trigram) bzw. `user_profiles`; der Suchtext-Index (`recipe_search_text`, Migration `20260920000001`) deckt das nicht ab.
+  **Priorität:** tief · **Komplexität:** mittel
+
+- **CORS-Preflight wird nicht zwischengespeichert (`Access-Control-Max-Age` fehlt)** (`supabase/volumes/api/kong.yml`, Plugin `cors` ohne `config.max_age`) — Jeder API-Aufruf mit `apikey`/`Authorization`-Header löst im Browser zuerst eine `OPTIONS`-Anfrage aus. Ohne `max_age` gilt der Browser-Standard (Chrome/Brave: 5 Sekunden), fast jede Anfrage kostet also zwei Round-Trips. Auf schlechter Verbindung verdoppelt das die Latenz aller Aufrufe, bei der seitenweisen Rezeptliste (mehrere kleine Anfragen beim Scrollen) besonders. Lösung: `max_age` (z.B. 3600) im Kong-`cors`-Plugin setzen. Im Browser beobachtet: jede `POST /rest/v1/rpc/list_recipe_shorts` hat eine `OPTIONS`-Anfrage davor. Betrifft PROD-Infrastruktur, Deploy der Kong-Konfiguration nötig.
+  **Priorität:** mittel · **Komplexität:** klein
+
 - **Anlass atomar anlegen und Zeitscheiben atomar ersetzen (Ursache der Anlässe ohne Zeitscheibe)** — Die Datenintegritätsseite findet und löscht solche Anlässe seit der Migration `20260919000001`, die Ursache bleibt und erzeugt weiter Waisen.
   **Ist-Zustand:** `createNewEvent.tsx` `saveEvent()` (~l.353–437) besteht aus 7 getrennten Requests: `createEvent` → `addCook` (Ersteller) → `addCook` (weitere) → `saveDates` → Bild-Upload + `updateEvent` → `saveGroupConfig` → `initializeMenuplan`. Bricht es dazwischen ab (Verbindung, geschlossener Tab, RLS-Fehler), bleibt ein halber Anlass zurück: ohne Zeitscheibe, ohne Koch (für normale Nutzer:innen dann unsichtbar), ohne Gruppenkonfiguration oder ohne Menüplan-Tracking. `EventRepository.saveDates()` (~l.532–556, auch von `event.tsx:1718` beim Bearbeiten aufgerufen) löscht erst alle Zeitscheiben und fügt dann neu ein und akzeptiert eine leere Liste still.
   **Lösung:**

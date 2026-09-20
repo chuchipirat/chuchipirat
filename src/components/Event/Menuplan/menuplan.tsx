@@ -46,7 +46,6 @@ const MenuplanPage = ({
   groupConfiguration,
   event,
   recipes,
-  recipeList,
   authUser,
   units,
   products,
@@ -75,8 +74,8 @@ const MenuplanPage = ({
   const {
     recipeSearchDrawerData,
     recipeSearchResetKey,
+    recipeSearchReloadKey,
     recipeDrawerData,
-    setRecipeSearchDrawerData,
     setRecipeDrawerData,
     dialogSelectMenueData,
     setDialogSelectMenueData: _setDialogSelectMenueData,
@@ -137,13 +136,6 @@ const MenuplanPage = ({
   /* ------------------------------------------
   // Initiale-Einstellungen vornehmen
   // ------------------------------------------ */
-  if (recipeSearchDrawerData.isLoadingData && recipeList.length > 0) {
-    // Loading-Anzeige der Rezepte wieder abstellen
-    setRecipeSearchDrawerData({
-      ...recipeSearchDrawerData,
-      isLoadingData: false,
-    });
-  }
   if (recipeDrawerData.isLoadingData) {
     if (!recipeDrawerData.recipe.name) {
       // Aktualisierte Werte setzen // es wurden erst die Infos aus der
@@ -191,7 +183,6 @@ const MenuplanPage = ({
     groupConfiguration,
     event,
     recipes,
-    recipeList,
     authUser,
     units,
     products,
@@ -308,7 +299,8 @@ const MenuplanPage = ({
       {/* Rezept-Übersicht Drawer */}
       <RecipeSearchDrawer
         drawerSettings={recipeSearchDrawerData}
-        recipes={recipeList}
+        eventUid={event.uid}
+        reloadToken={recipeSearchReloadKey}
         onClose={handlers.onRecipeSearchDrawerClose}
         onRecipeCardClick={handlers.onRecipeCardClick}
         onRecipeSelection={handlers.onRecipeSelection}

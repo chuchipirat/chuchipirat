@@ -38,6 +38,23 @@ describe("useMenuplanDialogs – Initialwerte", () => {
     expect(result.current.recipeSearchResetKey).toBe(0);
   });
 
+  it("sollte recipeSearchReloadKey mit 0 initialisieren", () => {
+    const {result} = renderHook(() => useMenuplanDialogs());
+
+    expect(result.current.recipeSearchReloadKey).toBe(0);
+  });
+
+  it("sollte recipeSearchReloadKey unabhängig vom Reset-Zähler inkrementieren", () => {
+    const {result} = renderHook(() => useMenuplanDialogs());
+
+    act(() => {
+      result.current.setRecipeSearchReloadKey((prev) => prev + 1);
+    });
+
+    expect(result.current.recipeSearchReloadKey).toBe(1);
+    expect(result.current.recipeSearchResetKey).toBe(0);
+  });
+
   it("sollte recipeDrawerData mit gemockten RECIPE_DRAWER_DATA_INITIAL_VALUES initialisieren", () => {
     const {result} = renderHook(() => useMenuplanDialogs());
 

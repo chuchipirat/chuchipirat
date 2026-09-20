@@ -1,3 +1,26 @@
+# Rezeptliste seitenweise (Branch `feature/recipe-list-paging`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Migration `20260920000001_recipe_list_search.sql`: `unaccent`, Trigram-Index, RPC `list_recipe_shorts()` (Sichtbarkeit, Filter, Suche, Keyset, Gesamtzahl auf Seite 1)
+- [x] Repository `listRecipeShorts()` / `getPublicRecipeNames()`, Hook `useRecipeList`, Cache, Hilfsfunktionen
+- [x] Rezeptseite und Menüplan-Schublade umgebaut, `recipeList` aus dem Event-State entfernt, Duplikat-Prüfung schlank
+- [x] Tests (Utils, Cache, Hook, RecipeSearch/RecipesPage, Repository), SQL 44 Fälle, Mutationschecks
+- [x] Browser-Prüfung lokal (Brave, Claude-Erweiterung) mit 570 temporären Rezepten: siehe Review
+- [ ] Prüfung auf TEST nach dem Merge nach `develop`, Handy mit gedrosselter Verbindung (Slow 3G)
+- [ ] `Content-Encoding` der API-Antwort in PROD prüfen (DevTools), siehe Tech-Debt
+- [ ] Release-Version entscheiden (2.0.6 oder eigenes Release), Release-Note-Text schreiben
+
+## Review
+
+- Browser (lokal, 599 sichtbare Rezepte): Seite lädt mit **einer** Anfrage (`list_recipe_shorts`), 24 Karten, «599 Rezepte» exakt; Scrollen lädt 24 → 48 → 72 → 96 nach; Suche «hornli» findet «Hörnli» («58+» sofort, «58» nach der DB-Antwort, entspricht SQL); Filter Vegan 201, ohne Gluten 493, nur meine 145 (alle wie SQL); Zurück aus einem Rezept stellt Suche, 57 Karten und Scroll 3000 wieder her, ohne neue Anfrage; Schublade lädt erst beim Öffnen, Anlass Pfila zeigt 606 (599 + 7 Varianten), Filter «Variante» 7, Suche «counter» findet die Variante über den Variantennamen; FAB öffnet den Menü-Dialog; Mobil (420 px) einspaltig, Nachladen funktioniert.
+- **Testumgebung:** Der Automations-Tab war `hidden` (Browser pausiert `requestAnimationFrame` und Beobachter). Für die Scroll-Wiederherstellung wurde `requestAnimationFrame` im Test per JS ersetzt, sonst nichts.
+- **Nicht im Browser geprüft:** Fehlerzustand/«Erneut versuchen» (nur Unit-Tests), Rezept in der Schublade anlegen (Reload-Zähler, nur Unit-Test), langsame Verbindung (kein Throttling-Werkzeug), Firefox/Safari.
+- Gefunden: `OPTIONS`-Preflight vor jeder Anfrage (kein `Access-Control-Max-Age`), siehe Tech-Debt.
+- Messung lokal (570 Rezepte): alt 2 Anfragen / 272 KB roh (23 KB gzip), neu 1 Anfrage / 13 KB für die ersten 24 Karten.
+
+---
+
 # Datenintegrität: Events löschbar, Events ohne Köch:innen, Admin-Guards (Branch `feature/data-integrity-events`)
 
 Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
