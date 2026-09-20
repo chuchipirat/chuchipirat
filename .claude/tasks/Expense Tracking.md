@@ -260,7 +260,7 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
     (Vorbild: wie der Rezept-Editor `FieldValidationError.formValidation` konsumiert).
 - Unit-Tests für `Budget.validate(...)` (gültiger Fall + je ein Fehlerfall pro obiger Regel).
 
-**Paket 1.4 — Live-Darstellung des Sollbetrags** (überarbeitet, siehe unten)
+**Paket 1.4 — Live-Darstellung des Sollbetrags** ✅ erledigt
 
 - **Entscheidung (revidiert):** Ursprünglich geplant als Hook/Effect, der bei Änderung von
   Teilnehmerzahl oder Lagerdauer alle `per_person_per_day`-Budgets neu berechnet **und
@@ -276,17 +276,23 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
   Rate fälschlich als Totalbetrag dargestellt.
 - **Verbleibender Umfang für 1.4:**
   - Sicherstellen, dass `BudgetCard`/die Übersicht bei Änderung von Teilnehmerzahl
-    (Gruppenkonfiguration) oder Lagerdauer (Menüplan-Tage) automatisch neu rendert — prüfen,
-    ob `event.tsx`s bereits vorhandener `groupConfig`-State und `event.numberOfDays` bei
-    solchen Änderungen bereits aktualisiert werden und über die bestehenden Props
-    (`groupConfiguration`, `event`) natürlich durchgereicht werden, oder ob dafür noch eine
-    gezielte Prop-Weiterleitung/ein Re-Render-Trigger fehlt.
-  - Aktion **"Auf Fixbetrag umstellen"**: setzt `budgetType = fixed_amount`, übernimmt den
-    zuletzt live berechneten Zielbetrag (`getTargetAmountInCents(...)`, nicht die rohe Rate)
-    als neuen, jetzt persistierten Fixbetrag — das ist der einzige Moment, in dem der
-    live-berechnete Wert tatsächlich geschrieben wird.
-  - Unit-Test für die Umstellungs-Aktion: Rate + Teilnehmerzahl + Tage → korrekter
-    Fixbetrag nach der Umstellung.
+    (Gruppenkonfiguration) oder Lagerdauer (Menüplan-Tage) automatisch neu rendert.
+    `groupConfiguration` ist über `event.tsx`s bestehende `eventGroupConfig`-Realtime-
+    Subscription bereits live — der fehlende Teil war, dass `targetAmountInCents`/
+    `percentage` einmalig im Fetch-Effect berechnet und in `state.budgetsWithProgress`
+    eingefroren wurden, statt live abgeleitet zu werden. Umgesetzt: Fetch-Effect speichert
+    nur noch die DB-Rohdaten (`state.budgets`, `state.spentAmounts`), ein separates
+    `useMemo` (abhängig von `state.budgets`, `state.spentAmounts`, `groupConfiguration`,
+    `event.numberOfDays`) leitet `budgetsWithProgress` bei jedem Render neu ab — kein
+    Re-Fetch, keine neue Subscription nötig.
+  - **Gestrichen: Aktion "Auf Fixbetrag umstellen".** Wäre eine reine Komfort-Automatisierung
+    gewesen (übernimmt den aktuell live berechneten Zielbetrag als neuen Fixbetrag), aber
+    Paket 1.5s Bearbeiten-Dialog deckt denselben Anwendungsfall bereits vollständig ab: eine
+    Köchin öffnet ein `per_person_per_day`-Budget zum Bearbeiten, wechselt den Typ auf
+    Fixbetrag und trägt einen Betrag ein (z.B. den aktuell angezeigten Zielbetrag von der
+    Karte abgelesen, oder einen beliebigen anderen) — strikt allgemeiner als die gestrichene
+    Aktion, kein separater Button/Bestätigungsdialog/Update-Pfad nötig. YAGNI: kein
+    identifizierter Anwendungsfall, der über den generischen Bearbeiten-Flow hinausgeht.
 
 **Paket 1.5 — Bearbeiten/Löschen + Realtime**
 
