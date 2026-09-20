@@ -88,6 +88,13 @@ export const MAIL_TRANSPORT_HELP =
 export const SEND = "Senden";
 export const MAIL_SEND_REQUIRES_TEST =
   "Sende zuerst eine Testmail an dich selbst, um die Mail zu prüfen.";
+export const MAIL_INCLUDE_UNSUBSCRIBE = "Abmelde-Footer anhängen";
+export const MAIL_INCLUDE_UNSUBSCRIBE_HELPER =
+  "Newsletter-Abmeldelink am Ende der Mail. Bei einem Versand an eine Rolle immer aktiv, nur für einzelne E-Mail-Adressen oder User-UIDs abschaltbar (z.B. für Direktnachrichten).";
+export const MAIL_UNSUBSCRIBE_OFF_WARNING =
+  "Ohne Footer werden auch Personen angeschrieben, die den Newsletter abbestellt haben.";
+export const MAIL_UNSUBSCRIBE_PREVIEW =
+  "Du möchtest keine Newsletter mehr erhalten? Hier abmelden.";
 export const TIMESTAMP = "Timestamp";
 export const MAILS = "E-Mails";
 
@@ -137,6 +144,31 @@ export const CRON_JOBS_TRIGGER_SUCCESS = "Job wurde ausgelöst";
 export const CRON_JOBS_TRIGGER_ERROR = "Job konnte nicht ausgelöst werden";
 export const CRON_JOBS_DETAILS_TITLE = "Job-Details";
 export const CRON_JOBS_NO_DETAILS = "Keine Details vorhanden";
+
+// Deploy-Check
+export const DEPLOY_READINESS = "Deploy-Check";
+export const DEPLOY_READINESS_DESCRIPTION =
+  "Laufende Lager und letzte Aktivität vor einem Deploy prüfen";
+export const DEPLOY_READINESS_RUNNING_EVENTS = "Laufende Lager";
+export const DEPLOY_READINESS_RUNNING_EVENTS_TODAY = "Lager heute";
+export const DEPLOY_READINESS_NO_RUNNING_EVENTS =
+  "Heute läuft kein Lager.";
+export const DEPLOY_READINESS_RECENT_ACTIVITY = "Letzte Aktivität (24 h)";
+export const DEPLOY_READINESS_ACTIVE_NOW = "Aktiv in den letzten 15 Minuten";
+export const DEPLOY_READINESS_NO_ACTIVITY =
+  "In den letzten 24 Stunden wurde nichts geändert.";
+export const DEPLOY_READINESS_REFRESH = "Aktualisieren";
+export const DEPLOY_READINESS_LAST_REFRESH = "Zuletzt aktualisiert";
+export const DEPLOY_READINESS_HINT =
+  "Sichtbar sind nur Änderungen (inkl. Anlegen). Wer nur liest, sowie gelöschte Daten erscheinen hier nicht.";
+export const DEPLOY_READINESS_COLUMN_PERSON = "Person";
+export const DEPLOY_READINESS_COLUMN_AREA = "Bereich";
+export const DEPLOY_READINESS_COLUMN_OBJECT = "Objekt";
+export const DEPLOY_READINESS_COLUMN_LAST_ACTIVITY = "Letzte Änderung";
+export const DEPLOY_READINESS_AREA_EVENT = "Anlass";
+export const DEPLOY_READINESS_AREA_RECIPE = "Rezept";
+export const DEPLOY_READINESS_AREA_MASTERDATA = "Stammdaten";
+export const DEPLOY_READINESS_AREA_REQUEST = "Anfrage";
 export const DATA_INTEGRITY = "Datenintegrität";
 export const DATA_INTEGRITY_DESCRIPTION = "Prüfung der Datenkonsistenz";
 export const DATA_INTEGRITY_EVENTS_WITHOUT_COOKS = "Events ohne Köch:innen";

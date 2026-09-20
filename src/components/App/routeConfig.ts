@@ -111,6 +111,9 @@ const DataIntegrity = lazy(
   () => import("../Admin/DataIntegrity/dataIntegrity")
 );
 const CronJobs = lazy(() => import("../Admin/CronJobs/cronJobs"));
+const DeployReadiness = lazy(
+  () => import("../Admin/DeployReadiness/deployReadiness"),
+);
 const DonationGoals = lazy(() =>
   import("../Admin/DonationGoals/donationGoals").then((module) => ({default: module.DonationGoalsPage}))
 );
@@ -493,6 +496,12 @@ const routeConfig: RouteDefinition[] = [
   {
     path: ROUTES.SYSTEM_CRON_JOBS,
     component: CronJobs,
+    guard: isAdmin,
+    layout: {showGoBackFab: true, showFooter: true},
+  },
+  {
+    path: ROUTES.SYSTEM_DEPLOY_READINESS,
+    component: DeployReadiness,
     guard: isAdmin,
     layout: {showGoBackFab: true, showFooter: true},
   },

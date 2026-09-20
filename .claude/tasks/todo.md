@@ -83,3 +83,49 @@ Alle 8 Schritte umgesetzt. Kernpunkte:
   `shoppingListToInsertRows` als Sicherheitsnetz + Single-Flight in
   `persistListItems`.
 - [ ] Manuelle DEV-Verifikation durch User ausstehend.
+
+---
+
+# Mail-Konsole: Abmelde-Footer wählbar, Titel optional (Branch `feature/mailconsole-optional-footer`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Edge Function `send-mail`: `includeUnsubscribe`, leerer Titel → keine H1, Opt-out-Filter nur mit Footer aktiv (`_shared/mailConsoleOptions.ts`)
+- [x] Schutzregel: ohne Footer nur für `email`/`uid`, Rolle → 400 (Server) und Checkbox gesperrt (UI)
+- [x] Frontend: Checkbox, Warnhinweis, Vorschau, Entwurf (alte Entwürfe → Footer an), Titel nicht mehr Pflicht
+- [x] Tests: `_shared`-Modul, `mailConsoleUtils`, `mailConsole` (Komponente); Mutationscheck der Rollen-Regel
+- [x] Helpcenter: `mailconsole.md` + Release-Notes-Eintrag (nicht committet)
+- [ ] Manuelle Browser-Prüfung Desktop + Mobile (Chrome-Extension war nicht verbunden)
+
+## Review
+
+- E2E lokal (`-test`-Stack, MailPit, lokal signierter Admin-JWT): Standard mit Footer + H1; ohne Footer + leerer Titel ohne beides;
+  abgemeldeter Nutzer wird mit Footer gefiltert (400), ohne Footer erreicht (uid und email); Rolle ohne Footer → 400;
+  `mail_log.details` enthält `includeUnsubscribe`/`optOutFilterSkipped`. Testdaten und Opt-out-Flag wurden zurückgesetzt.
+- Ausgelassen: Der Client-Pfad (`supabase.functions.invoke` aus dem Browser) ist nur per Komponententest mit Mock geprüft.
+- Helpcenter: `docs/admin/mailconsole.md` hatte kaputten Front matter (`:**` statt `---`, TOC fehlte) — mit repariert.
+- Tech-Debt: doppelte `mail_log`-Zeilen pro Versand (Client + Edge Function).
+
+---
+
+# Deploy-Check-Seite (Branch `feature/deploy-readiness-page`)
+
+Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
+
+- [x] Migration `20260918000002_admin_deploy_readiness.sql` (`admin_get_running_events`, `admin_get_recent_activity`)
+- [x] `AdminOperationsRepository`: `getRunningEvents()`, `getRecentActivity()` + Domain-Typen
+- [x] Seite `Admin/DeployReadiness/deployReadiness.tsx` + `deployReadinessUtils.ts`
+- [x] Route `SYSTEM_DEPLOY_READINESS`, `routeConfig` (Guard `isAdmin`), Kachel in `system.tsx`, Texte
+- [x] Tests: Utils, Seite, Repository, System-Kachel (Admin sichtbar, CommunityLeader nicht)
+- [ ] Manuelle Browser-Prüfung Desktop + Mobile (Chrome-Extension war nicht verbunden)
+
+## Review
+
+- SQL in Rollback-Transaktion gegen `supabase-db-test` geprüft: Admin sieht Daten,
+  Nicht-Admin bekommt leere Ergebnisse; Zeitzonen-Grenze (Ende = heute → läuft,
+  Ende = gestern → läuft nicht) korrekt. Migration danach real angewendet.
+- Helpcenter-Mapping `admin/deploy_readiness` in `helpCenter.ts` + Test ergänzt.
+  Die Hilfeseite selbst muss im Helpcenter-Projekt (help.chuchipirat.ch) noch
+  angelegt werden — Quelle liegt nicht in diesem Repo.
+- `npm run typecheck` existiert nicht (CLAUDE.md nennt es); stattdessen `npx tsc --noEmit`.
+- Grenzen: Löschungen und reine Lesezugriffe sind nicht sichtbar.
