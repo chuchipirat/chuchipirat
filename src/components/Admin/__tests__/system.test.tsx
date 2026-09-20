@@ -119,6 +119,14 @@ describe("SystemPage", () => {
       expect(screen.getByText("Users")).toBeInTheDocument();
       expect(screen.getByText("Mailbox")).toBeInTheDocument();
       expect(screen.getByText("Cron Jobs")).toBeInTheDocument();
+      expect(screen.getByText("Deploy-Check")).toBeInTheDocument();
+    });
+
+    test("Deploy-Check-Kachel navigiert zur Deploy-Check-Seite", async () => {
+      renderSystemPage();
+      const user = userEvent.setup();
+      await user.click(screen.getByText("Deploy-Check").closest("button")!);
+      expect(mockNavigate).toHaveBeenCalledWith("/system/deployreadiness");
     });
 
     test("Zeigt externe Link-Kacheln an", () => {
@@ -179,6 +187,7 @@ describe("SystemPage", () => {
       expect(screen.queryByText("Users")).not.toBeInTheDocument();
       expect(screen.queryByText("Mailbox")).not.toBeInTheDocument();
       expect(screen.queryByText("Cron Jobs")).not.toBeInTheDocument();
+      expect(screen.queryByText("Deploy-Check")).not.toBeInTheDocument();
       expect(screen.queryByText("Sentry Dashboard")).not.toBeInTheDocument();
       expect(screen.queryByText("Supabase Dashboard")).not.toBeInTheDocument();
     });
