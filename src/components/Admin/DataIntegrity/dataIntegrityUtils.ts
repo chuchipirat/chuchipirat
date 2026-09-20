@@ -11,6 +11,11 @@ import {
   DATA_INTEGRITY_EVENT_DELETE_WARNING as TEXT_EVENT_DELETE_WARNING,
   DATA_INTEGRITY_EVENT_EMPTY as TEXT_EVENT_EMPTY,
   DATA_INTEGRITY_EVENT_HAS_DATA as TEXT_EVENT_HAS_DATA,
+  DATA_INTEGRITY_INGREDIENTS_WITHOUT_PRODUCT_COUNT as TEXT_INGREDIENTS_WITHOUT_PRODUCT_COUNT,
+  DATA_INTEGRITY_MATERIALS_WITHOUT_MATERIAL_COUNT as TEXT_MATERIALS_WITHOUT_MATERIAL_COUNT,
+  DATA_INTEGRITY_RECIPE_TYPE_PRIVATE as TEXT_RECIPE_TYPE_PRIVATE,
+  DATA_INTEGRITY_RECIPE_TYPE_PUBLIC as TEXT_RECIPE_TYPE_PUBLIC,
+  DATA_INTEGRITY_RECIPE_TYPE_VARIANT as TEXT_RECIPE_TYPE_VARIANT,
 } from "../../../constants/text";
 
 /** Eine von einer Prüf-RPC gemeldete Auffälligkeit (JSON-Objekt). */
@@ -101,6 +106,103 @@ export const describeEventAnomaly = (anomaly: Anomaly): string => {
     `Listen ${toCount(anomaly.list_count)}`,
     `Spenden ${toCount(anomaly.donation_count)}`,
   );
+  return parts.join(" · ");
+};
+
+/** Art der fehlenden Referenz eines Rezepts. */
+export type BrokenRecipeKind = "ingredient" | "material";
+
+/** Höchstzahl der einzeln aufgeführten Zeilen pro Rezept. */
+const MAX_LISTED_ROWS = 5;
+
+/** Anzeigetexte je Rezepttyp. */
+const RECIPE_TYPE_LABELS: Record<string, string> = {
+  public: TEXT_RECIPE_TYPE_PUBLIC,
+  private: TEXT_RECIPE_TYPE_PRIVATE,
+  variant: TEXT_RECIPE_TYPE_VARIANT,
+};
+
+const quantityFormat = new Intl.NumberFormat("de-CH", {
+  maximumFractionDigits: 2,
+});
+
+/** Liest die Liste der betroffenen Zeilen; alles andere als ein Array gilt als leer. */
+const toBrokenRows = (value: unknown): Record<string, unknown>[] =>
+  Array.isArray(value)
+    ? value.filter(
+        (row): row is Record<string, unknown> =>
+          typeof row === "object" && row !== null,
+      )
+    : [];
+
+/** Beschreibt eine Zutat ohne Produkt, z.B. «500 Bund (frisch)». */
+const describeIngredientRow = (row: Record<string, unknown>): string => {
+  const quantity = quantityFormat.format(toCount(row.quantity));
+  const unit = typeof row.unit === "string" ? row.unit : "";
+  const detail =
+    typeof row.detail === "string" && row.detail ? ` (${row.detail})` : "";
+  return `${quantity} ${unit}`.trim() + detail;
+};
+
+/**
+ * Beschreibt die betroffenen Zeilen. Bei Materialien ist nur die Menge
+ * bekannt; Zeilen ohne Menge sind leere Zeilen und werden nicht aufgelistet.
+ */
+const describeBrokenRows = (
+  rows: Record<string, unknown>[],
+  kind: BrokenRecipeKind,
+): string | null => {
+  const described =
+    kind === "ingredient"
+      ? rows.map(describeIngredientRow)
+      : rows
+          .filter((row) => toCount(row.quantity) > 0)
+          .map((row) => `Menge ${quantityFormat.format(toCount(row.quantity))}`);
+  if (described.length === 0) return null;
+  const listed = described.slice(0, MAX_LISTED_ROWS).join(", ");
+  return described.length > MAX_LISTED_ROWS ? `${listed}, …` : listed;
+};
+
+/**
+ * Beschreibt ein Rezept mit Zutaten ohne Produkt bzw. Materialien ohne
+ * Material in einer Zeile: Rezepttyp, Ersteller, Anzahl und betroffene Zeilen.
+ *
+ * Bei privaten Rezepten steht der Hinweis, dass nur der Ersteller sie
+ * bearbeiten kann — der Admin muss dann die Person kontaktieren.
+ *
+ * @param anomaly Auffälligkeit aus `check_recipe_ingredients_without_product`
+ *   bzw. `check_recipe_materials_without_material`.
+ * @param kind Ob es um Zutaten oder Materialien geht.
+ * @returns Zeile wie «Öffentlich · von Anna · 2 Zutaten ohne Produkt: 500 Bund (frisch), 2».
+ * @example
+ * describeBrokenRecipeAnomaly({recipe_type: "public", broken_count: 1, broken_rows: [{quantity: 2}]}, "ingredient")
+ * // "Öffentlich · 1 Zutat ohne Produkt: 2"
+ */
+export const describeBrokenRecipeAnomaly = (
+  anomaly: Anomaly,
+  kind: BrokenRecipeKind,
+): string => {
+  const parts: string[] = [];
+
+  const typeLabel =
+    typeof anomaly.recipe_type === "string"
+      ? RECIPE_TYPE_LABELS[anomaly.recipe_type]
+      : undefined;
+  if (typeLabel) parts.push(typeLabel);
+
+  if (typeof anomaly.created_by_name === "string" && anomaly.created_by_name) {
+    parts.push(`von ${anomaly.created_by_name}`);
+  }
+
+  const rows = toBrokenRows(anomaly.broken_rows);
+  const count = anomaly.broken_count === undefined ? rows.length : toCount(anomaly.broken_count);
+  const countText =
+    kind === "ingredient"
+      ? TEXT_INGREDIENTS_WITHOUT_PRODUCT_COUNT(count)
+      : TEXT_MATERIALS_WITHOUT_MATERIAL_COUNT(count);
+  const rowsText = describeBrokenRows(rows, kind);
+  parts.push(rowsText ? `${countText}: ${rowsText}` : countText);
+
   return parts.join(" · ");
 };
 

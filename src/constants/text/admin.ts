@@ -152,6 +152,26 @@ export const DATA_INTEGRITY_BULK_EMPTY_CONFIRM = (count: number) =>
   `Sollen wirklich ${count} leere Anlässe gelöscht werden? Anlässe mit Inhalt bleiben bestehen. Diese Aktion kann nicht rückgängig gemacht werden.`;
 export const DATA_INTEGRITY_BULK_SKIPPED_HINT = (count: number) =>
   `Anlässe mit Inhalt (${count}) werden nicht mitgelöscht. Lösche sie einzeln, nachdem du den Inhalt geprüft hast.`;
+export const DATA_INTEGRITY_RECIPE_INGREDIENTS_WITHOUT_PRODUCT =
+  "Rezept-Zutaten ohne Produkt";
+export const DATA_INTEGRITY_RECIPE_INGREDIENTS_WITHOUT_PRODUCT_DESCRIPTION =
+  "Rezepte mit Zutaten, denen kein Produkt zugeordnet ist (Produkt gelöscht oder nie gewählt)";
+export const DATA_INTEGRITY_RECIPE_MATERIALS_WITHOUT_MATERIAL =
+  "Rezept-Materialien ohne Material";
+export const DATA_INTEGRITY_RECIPE_MATERIALS_WITHOUT_MATERIAL_DESCRIPTION =
+  "Rezepte mit Materialpositionen, denen kein Material zugeordnet ist (Material gelöscht oder leere Zeile)";
+export const DATA_INTEGRITY_OPEN_RECIPE = "Rezept öffnen";
+export const DATA_INTEGRITY_RECIPE_TYPE_PUBLIC = "Öffentlich";
+export const DATA_INTEGRITY_RECIPE_TYPE_PRIVATE =
+  "Privat (nur der Ersteller kann bearbeiten)";
+export const DATA_INTEGRITY_RECIPE_TYPE_VARIANT = "Variante";
+export const DATA_INTEGRITY_INGREDIENTS_WITHOUT_PRODUCT_COUNT = (
+  count: number,
+) => `${count} ${count === 1 ? "Zutat" : "Zutaten"} ohne Produkt`;
+export const DATA_INTEGRITY_MATERIALS_WITHOUT_MATERIAL_COUNT = (
+  count: number,
+) =>
+  `${count} ${count === 1 ? "Materialposition" : "Materialpositionen"} ohne Material`;
 export const DATA_INTEGRITY_NOT_DELETED =
   "Nicht gelöscht: Der Eintrag hat sich inzwischen verändert und erfüllt die Bedingung nicht mehr. Die Prüfung wurde neu ausgeführt.";
 export const SENTRY_DASHBOARD = "Sentry Dashboard";

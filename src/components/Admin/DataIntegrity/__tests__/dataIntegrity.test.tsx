@@ -18,6 +18,7 @@ import {MemoryRouter} from "react-router";
 import DataIntegrityPage from "../dataIntegrity";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 import {DatabaseService} from "../../../Database/DatabaseService";
+import {Action} from "../../../../constants/actions";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================
@@ -34,6 +35,12 @@ jest.mock("../../../Session/authUserContext", () => ({
 }));
 
 jest.mock("@sentry/react", () => ({captureException: jest.fn()}));
+
+const mockNavigate = jest.fn();
+jest.mock("react-router", () => ({
+  ...jest.requireActual("react-router"),
+  useNavigate: () => mockNavigate,
+}));
 
 /** Schwere Detail-Komponenten sind für diese Tests nicht relevant. */
 jest.mock("../../Overview/overviewRecipes", () => ({
@@ -318,5 +325,89 @@ describe("DataIntegrityPage — bestehende Prüfungen bleiben unverändert", () 
       "cleanup_unused_products",
       {product_ids: ["p1"]},
     ]);
+  });
+});
+
+describe("DataIntegrityPage — Rezepte ohne Produkt/Material", () => {
+  const BROKEN_INGREDIENT_RECIPE = {
+    recipe_id: "recipe-1",
+    recipe_name: "Spätzli",
+    recipe_type: "public",
+    created_by_name: "Anna",
+    broken_count: 2,
+    broken_rows: [
+      {quantity: 500, unit: "g", detail: "frisch"},
+      {quantity: 2, unit: null, detail: ""},
+    ],
+  };
+  const BROKEN_MATERIAL_RECIPE = {
+    recipe_id: "recipe-2",
+    recipe_name: "Hörnli",
+    recipe_type: "variant",
+    created_by_name: null,
+    broken_count: 1,
+    broken_rows: [{quantity: 0}],
+  };
+
+  test("zeigt pro Rezept Typ, Ersteller, Anzahl und betroffene Zeilen", async () => {
+    setupRpc({check_recipe_ingredients_without_product: [BROKEN_INGREDIENT_RECIPE]});
+    renderPage();
+    await runCheck(userEvent.setup(), "Rezept-Zutaten ohne Produkt");
+
+    expect(await screen.findByText("Spätzli")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Öffentlich · von Anna · 2 Zutaten ohne Produkt: 500 g (frisch), 2",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("«Rezept öffnen» springt zur Rezeptseite", async () => {
+    setupRpc({check_recipe_ingredients_without_product: [BROKEN_INGREDIENT_RECIPE]});
+    renderPage();
+    const user = userEvent.setup();
+    await runCheck(user, "Rezept-Zutaten ohne Produkt");
+    await screen.findByText("Spätzli");
+
+    await user.click(screen.getByRole("button", {name: "Rezept öffnen"}));
+
+    expect(mockNavigate).toHaveBeenCalledWith("/recipe/recipe-1", {
+      state: {action: Action.VIEW},
+    });
+  });
+
+  test("nur Anzeige: kein Löschen, kein «Alle löschen», kein Detail-Dialog", async () => {
+    setupRpc({check_recipe_ingredients_without_product: [BROKEN_INGREDIENT_RECIPE]});
+    renderPage();
+    await runCheck(userEvent.setup(), "Rezept-Zutaten ohne Produkt");
+    await screen.findByText("Spätzli");
+
+    expect(screen.queryByRole("button", {name: "Löschen"})).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", {name: /löschen/i})).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {name: "Details anzeigen"}),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Materialien-Prüfung ruft die passende RPC auf und beschreibt leere Zeilen", async () => {
+    setupRpc({check_recipe_materials_without_material: [BROKEN_MATERIAL_RECIPE]});
+    renderPage();
+    await runCheck(userEvent.setup(), "Rezept-Materialien ohne Material");
+
+    expect(
+      await screen.findByText("Variante · 1 Materialposition ohne Material"),
+    ).toBeInTheDocument();
+    expect(mockRpc).toHaveBeenCalledWith("check_recipe_materials_without_material");
+  });
+
+  test("andere Prüfungen zeigen kein «Rezept öffnen»", async () => {
+    setupRpc({check_unused_products: [{product_id: "p1", product_name: "Apfel"}]});
+    renderPage();
+    await runCheck(userEvent.setup(), "Unbenutzte Produkte");
+    await screen.findByText("Apfel");
+
+    expect(
+      screen.queryByRole("button", {name: "Rezept öffnen"}),
+    ).not.toBeInTheDocument();
   });
 });

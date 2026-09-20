@@ -5,6 +5,7 @@ import {
   EVENT_CLEANUP_OPTIONS,
   buildCleanupParams,
   buildSingleDeleteMessage,
+  describeBrokenRecipeAnomaly,
   describeEventAnomaly,
   getBulkDeletableAnomalies,
   isEmptyEvent,
@@ -140,5 +141,115 @@ describe("EVENT_CLEANUP_OPTIONS", () => {
     expect(EVENT_CLEANUP_OPTIONS.bulkDelete.buttonLabel(3)).toBe(
       "3 leere löschen",
     );
+  });
+});
+
+describe("describeBrokenRecipeAnomaly", () => {
+  const ingredientAnomaly = {
+    recipe_type: "public",
+    created_by_name: "Anna",
+    broken_count: 2,
+    broken_rows: [
+      {quantity: 500, unit: "Bund", detail: "frisch"},
+      {quantity: 2, unit: null, detail: ""},
+    ],
+  };
+
+  test("Zutaten: Typ, Ersteller, Anzahl und betroffene Zeilen", () => {
+    expect(describeBrokenRecipeAnomaly(ingredientAnomaly, "ingredient")).toBe(
+      "Öffentlich · von Anna · 2 Zutaten ohne Produkt: 500 Bund (frisch), 2",
+    );
+  });
+
+  test("Einzahl bei einer Zutat", () => {
+    expect(
+      describeBrokenRecipeAnomaly(
+        {
+          recipe_type: "public",
+          broken_count: 1,
+          broken_rows: [{quantity: 1.5, unit: "kg", detail: ""}],
+        },
+        "ingredient",
+      ),
+    ).toBe("Öffentlich · 1 Zutat ohne Produkt: 1.5 kg");
+  });
+
+  test("private Rezepte weisen darauf hin, dass nur der Ersteller sie bearbeiten kann", () => {
+    expect(
+      describeBrokenRecipeAnomaly(
+        {...ingredientAnomaly, recipe_type: "private"},
+        "ingredient",
+      ),
+    ).toMatch(/^Privat \(nur der Ersteller kann bearbeiten\) · von Anna/);
+  });
+
+  test("Variante ohne Ersteller", () => {
+    expect(
+      describeBrokenRecipeAnomaly(
+        {...ingredientAnomaly, recipe_type: "variant", created_by_name: null},
+        "ingredient",
+      ),
+    ).toMatch(/^Variante · 2 Zutaten/);
+  });
+
+  test("listet höchstens 5 Zeilen und deutet den Rest mit … an", () => {
+    const rows = Array.from({length: 7}, (_, index) => ({
+      quantity: index + 1,
+      unit: null,
+      detail: "",
+    }));
+    const text = describeBrokenRecipeAnomaly(
+      {recipe_type: "public", broken_count: 7, broken_rows: rows},
+      "ingredient",
+    );
+    expect(text).toContain("7 Zutaten ohne Produkt: 1, 2, 3, 4, 5, …");
+    expect(text).not.toContain("6,");
+  });
+
+  test("Materialien: Zeilen ohne Menge sind leere Zeilen und werden nicht aufgelistet", () => {
+    expect(
+      describeBrokenRecipeAnomaly(
+        {
+          recipe_type: "variant",
+          broken_count: 1,
+          broken_rows: [{quantity: 0}],
+        },
+        "material",
+      ),
+    ).toBe("Variante · 1 Materialposition ohne Material");
+  });
+
+  test("Materialien mit Menge zeigen die Menge", () => {
+    expect(
+      describeBrokenRecipeAnomaly(
+        {
+          recipe_type: "public",
+          broken_count: 2,
+          broken_rows: [{quantity: 2}, {quantity: 0}],
+        },
+        "material",
+      ),
+    ).toBe("Öffentlich · 2 Materialpositionen ohne Material: Menge 2");
+  });
+
+  test("fehlende Felder führen nicht zu Abstürzen", () => {
+    expect(describeBrokenRecipeAnomaly({}, "ingredient")).toBe(
+      "0 Zutaten ohne Produkt",
+    );
+    expect(
+      describeBrokenRecipeAnomaly(
+        {recipe_type: "unbekannt", broken_rows: "kein Array"},
+        "material",
+      ),
+    ).toBe("0 Materialpositionen ohne Material");
+  });
+
+  test("ohne broken_count wird die Anzahl der Zeilen genommen", () => {
+    expect(
+      describeBrokenRecipeAnomaly(
+        {broken_rows: [{quantity: 1, unit: null, detail: ""}]},
+        "ingredient",
+      ),
+    ).toBe("1 Zutat ohne Produkt: 1");
   });
 });

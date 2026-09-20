@@ -6,6 +6,7 @@
  * mit optionalen Detail-Dialogen und Cleanup-Aktionen.
  */
 import React, {useCallback, useReducer, useState} from "react";
+import {useNavigate} from "react-router";
 import * as Sentry from "@sentry/react";
 
 import {
@@ -40,6 +41,7 @@ import {
   Info as InfoIcon,
   Delete as DeleteIcon,
   DeleteSweep as DeleteSweepIcon,
+  OpenInNew as OpenInNewIcon,
 } from "@mui/icons-material";
 
 import {
@@ -54,7 +56,14 @@ import {
   DATA_INTEGRITY_EVENTS_WITHOUT_COOKS as TEXT_EVENTS_WITHOUT_COOKS,
   DATA_INTEGRITY_EVENTS_WITHOUT_COOKS_DESCRIPTION as TEXT_EVENTS_WITHOUT_COOKS_DESCRIPTION,
   DATA_INTEGRITY_NOT_DELETED as TEXT_NOT_DELETED,
+  DATA_INTEGRITY_RECIPE_INGREDIENTS_WITHOUT_PRODUCT as TEXT_RECIPE_INGREDIENTS_WITHOUT_PRODUCT,
+  DATA_INTEGRITY_RECIPE_INGREDIENTS_WITHOUT_PRODUCT_DESCRIPTION as TEXT_RECIPE_INGREDIENTS_WITHOUT_PRODUCT_DESCRIPTION,
+  DATA_INTEGRITY_RECIPE_MATERIALS_WITHOUT_MATERIAL as TEXT_RECIPE_MATERIALS_WITHOUT_MATERIAL,
+  DATA_INTEGRITY_RECIPE_MATERIALS_WITHOUT_MATERIAL_DESCRIPTION as TEXT_RECIPE_MATERIALS_WITHOUT_MATERIAL_DESCRIPTION,
+  DATA_INTEGRITY_OPEN_RECIPE as TEXT_OPEN_RECIPE,
 } from "../../../constants/text";
+import {RECIPE as ROUTE_RECIPE} from "../../../constants/routes";
+import {Action} from "../../../constants/actions";
 
 import {PageTitle} from "../../Shared/pageTitle";
 import {FormListItem} from "../../Shared/formListItem";
@@ -84,6 +93,7 @@ import {
   SingleDeleteMode,
   buildCleanupParams,
   buildSingleDeleteMessage,
+  describeBrokenRecipeAnomaly,
   getBulkDeletableAnomalies,
 } from "./dataIntegrityUtils";
 
@@ -115,6 +125,8 @@ type IntegrityCheck = {
   bulkDelete?: BulkDeleteMode;
   /** Zusatzparameter und Hinweis beim Löschen eines einzelnen Eintrags. */
   singleDelete?: SingleDeleteMode;
+  /** Wenn gesetzt, öffnet ein Icon den Eintrag in der App (`<route>/<id>`). */
+  openInApp?: {route: string; tooltip: string};
 };
 
 /** Alle verfügbaren Prüfungen. */
@@ -185,6 +197,30 @@ const CHECKS: IntegrityCheck[] = [
     nameField: "recipe_name",
     cleanupRpcName: "cleanup_recipes_without_events",
     detailType: "recipe",
+  },
+  {
+    key: "recipeIngredientsWithoutProduct",
+    label: TEXT_RECIPE_INGREDIENTS_WITHOUT_PRODUCT,
+    description: TEXT_RECIPE_INGREDIENTS_WITHOUT_PRODUCT_DESCRIPTION,
+    rpcName: "check_recipe_ingredients_without_product",
+    idField: "recipe_id",
+    nameField: "recipe_name",
+    describeAnomaly: (anomaly) =>
+      describeBrokenRecipeAnomaly(anomaly, "ingredient"),
+    // Bewusst kein detailType "recipe": Der Detail-Dialog ist nur lesend und
+    // sein Löschen-Knopf gehört zur Prüfung «Rezepte ohne Event».
+    openInApp: {route: ROUTE_RECIPE, tooltip: TEXT_OPEN_RECIPE},
+  },
+  {
+    key: "recipeMaterialsWithoutMaterial",
+    label: TEXT_RECIPE_MATERIALS_WITHOUT_MATERIAL,
+    description: TEXT_RECIPE_MATERIALS_WITHOUT_MATERIAL_DESCRIPTION,
+    rpcName: "check_recipe_materials_without_material",
+    idField: "recipe_id",
+    nameField: "recipe_name",
+    describeAnomaly: (anomaly) =>
+      describeBrokenRecipeAnomaly(anomaly, "material"),
+    openInApp: {route: ROUTE_RECIPE, tooltip: TEXT_OPEN_RECIPE},
   },
   {
     key: "usersWithoutEvents",
@@ -601,6 +637,7 @@ const DataIntegrityPage = () => {
   const classes = useCustomStyles();
   const database = useDatabase();
   const authUser = useAuthUser();
+  const navigate = useNavigate();
   const [state, dispatch] = useReducer(integrityReducer, initialState);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(
     CONFIRM_DIALOG_INITIAL,
@@ -961,6 +998,22 @@ const DataIntegrityPage = () => {
                                     key={itemId}
                                     secondaryAction={
                                       <Stack direction="row" spacing={0.5}>
+                                        {check.openInApp && (
+                                          <Tooltip title={check.openInApp.tooltip}>
+                                            <IconButton
+                                              edge="end"
+                                              size="small"
+                                              onClick={() =>
+                                                navigate(
+                                                  `${check.openInApp!.route}/${itemId}`,
+                                                  {state: {action: Action.VIEW}},
+                                                )
+                                              }
+                                            >
+                                              <OpenInNewIcon fontSize="small" />
+                                            </IconButton>
+                                          </Tooltip>
+                                        )}
                                         {check.detailType && (
                                           <Tooltip title="Details anzeigen">
                                             <IconButton
