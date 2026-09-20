@@ -219,28 +219,30 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
   `shoppingList.class.ts`).
 - Unit-Tests: Berechnung, Default-Budget-Shape, Validierungsfehler.
 
-**Paket 1.2 — Default-Budget bei Erst-Freischaltung (nicht bei Event-Erstellung)** ✅ erledigt
+**Paket 1.2 — Kein automatisches Default-Budget (Ansatz zweimal revidiert)** ✅ erledigt
 
-- **Entscheidung (revidiert):** Ursprünglich war geplant, das Default-"Küche"-Budget beim
-  Event-Erstellungs-Flow anzulegen (analog zur Standard-Gruppenkonfiguration). Verworfen,
-  weil Abrechnung — anders als Gruppenkonfiguration/Menüplan/Einkaufsliste — eine
-  spendenbasiert freigeschaltete Zusatzfunktion ist (Architektur-Entscheidung oben): die
-  meisten Events werden sie nie aktivieren. Ein `event_budgets`-Eintrag soll nur für Events
-  existieren, die die Funktion tatsächlich nutzen — sonst suggeriert die blosse Existenz der
-  Zeile Nutzung, die nie stattgefunden hat. Kein neuer DB-Mechanismus nötig (bleibt konsistent
-  mit "kein neuer DB-Sicherheitsmechanismus für die Spenden-Freischaltung"), rein App-Schicht.
-- **Umsetzung:** In `expenseTracking.tsx`, im bestehenden Effekt, der `hasDonation` ermittelt
-  (0.5) — sobald `hasDonation` erstmals `true` wird: `BudgetRepository.getBudgetsForEvent(eventId)`
-  aufrufen; ist das Ergebnis leer, `BudgetRepository.createBudget(Budget.createDefaultKitchenBudget(eventId), authUser)`
-  aufrufen. Kein neuer Fund-Ort im Event-Erstellungs-Flow nötig.
-- **Bekannter, akzeptierter Race:** Öffnen zwei Köch:innen den Abrechnung-Tab nahezu
-  gleichzeitig direkt nach Spendenbestätigung, können beide "keine Budgets" sehen und je ein
-  Default-Budget anlegen → doppeltes "Küche"-Budget. Harmlos (kein Datenverlust, keine
-  Sicherheitslücke), über den Lösch-Dialog aus 1.5 behebbar — bewusst nicht durch Lock/Trigger
-  abgesichert, das wäre unverhältnismässig für diesen Fall. Kurzer Kommentar im Code dazu.
-- Test: `expenseTracking.test.tsx` erweitern — beim Übergang `hasDonation: false → true` wird
-  `createBudget` genau einmal mit `Budget.createDefaultKitchenBudget(eventId)` aufgerufen, wenn
-  `getBudgetsForEvent` leer zurückgibt; bleibt aus, wenn bereits Budgets vorhanden sind.
+- **Entscheidungsverlauf:**
+  1. _Ursprünglich:_ Default-"Küche"-Budget beim Event-Erstellungs-Flow anlegen (analog zur
+     Standard-Gruppenkonfiguration). Verworfen, weil Abrechnung — anders als Gruppenkonfiguration/
+     Menüplan/Einkaufsliste — eine spendenbasiert freigeschaltete Zusatzfunktion ist: die meisten
+     Events aktivieren sie nie, und eine `event_budgets`-Zeile würde Nutzung suggerieren, die nie
+     stattgefunden hat.
+  2. _Danach:_ lazy beim ersten Freischalten anlegen (`getBudgetsForEvent` leer →
+     `createBudget(Budget.createDefaultKitchenBudget(eventId))`). Umgesetzt und verworfen: dieser
+     Ansatz hatte einen bekannten Race (zwei Köch:innen schalten gleichzeitig frei → doppeltes
+     "Küche"-Budget) und passte nicht zur Realtime-Anbindung aus 1.5, weil der Erstlade-Effekt
+     danach nur noch lesen darf (ein Realtime-Reload, der bei leerer Liste ein Budget anlegt,
+     würde nach dem Löschen des letzten Budgets in allen Sessions sofort ein neues erzeugen).
+  3. _Final:_ **kein automatisches Budget.** Die Übersicht zeigt bei leerer Liste nur die
+     "Neues Budget"-Karte (`AddBudgetCard`) — derselbe Leerzustand wie bei einer Einkaufsliste,
+     die noch nie angelegt wurde. Der Lade-Effekt in `expenseTracking.tsx` ist rein lesend
+     (`loadBudgets`), Erstlade + Realtime + Reload nach Verbindungsabbruch teilen sich dieselbe
+     Funktion.
+- **Aufgeräumt:** `Budget.createDefaultKitchenBudget` inkl. Tests entfernt. Die Migration
+  `20260918000001_add_budget_icon.sql` setzt beim Backfill bestehender Zeilen mit dem Namen
+  "Küche" das Icon `kitchen` — bleibt bestehen, ist für neue Daten harmlos.
+- **Kein Test mehr für Auto-Anlage.** Stattdessen (siehe 1.5): leere Liste zeigt nur die
+  "Neues Budget"-Karte, und der Realtime-Reload legt nie ein Budget an.
 
 **Paket 1.3 — Budgets-Liste + Anlage-Dialog** ✅ erledigt
 
@@ -294,7 +296,7 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
     Aktion, kein separater Button/Bestätigungsdialog/Update-Pfad nötig. YAGNI: kein
     identifizierter Anwendungsfall, der über den generischen Bearbeiten-Flow hinausgeht.
 
-**Paket 1.5 — Bearbeiten/Löschen + Realtime**
+**Paket 1.5 — Bearbeiten/Löschen + Realtime** ✅ erledigt
 
 - Edit-/Delete-Dialoge; `BudgetRepository.subscribeToBudgets(eventId, ...)` nach dem
   `subscribeWithRetry`-Muster inkl. `onStatusChange`, Einbindung in

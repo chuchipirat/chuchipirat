@@ -66,7 +66,7 @@ export const BUDGET_TARGET_AMOUNT = (
 /** Hinweistext, wenn fuer ein Fixbetrag-Budget noch kein Betrag hinterlegt ist. */
 export const BUDGET_TARGET_AMOUNT_MISSING = "Kein Betrag festgelegt";
 export const NEW_BUDGET = "Neues Budget";
-
+export const BUDGET = "Budget";
 export const EXPENSE_TRACKING_OVERVIEW = "Übersicht";
 export const EXPENSE_TRACKING_EXPENSES = "Ausgaben";
 export const BUDGET_NAME = "Name";
@@ -79,8 +79,16 @@ export const PLEASE_PROVIDE_ICON = "Bitte ein Icon auswählen";
 export const BUDGET_TYPE = "Typ";
 export const PROVIDE_BUDGET_TYPE = "Bitte Budget-Typ wählen";
 export const BUDGET_SAVED = "Budget wurde gespeichert.";
+export const BUDGET_UPDATED = "Budget wurde angepasst.";
+export const BUDGET_DELETED = "Budget wurde gelöscht.";
 export const BUDGET_ICON_INVALID = "Das gewählte Icon ist nicht gültig";
-
+export const DELETE_BUDGET_DIALOG = (budgetName: string): string =>
+  `Budget «${budgetName}» löschen?`;
+export const DELETE_BUDGET_SIMPLE =
+  "Diese Aktion kann nicht rückgängig gemacht werden.";
+export const BUDGET_CANT_BE_DELETED = "Budget kann nicht gelöscht werden";
+export const BUDGET_HAS_EXPENSES =
+  "Dieses Budget hat noch Ausgaben und kann nicht gelöscht werden";
 export const SPENT_AMOUNT = (amountInCents: number, currency: string): string =>
   formatAmountFromCents(amountInCents, currency);
 

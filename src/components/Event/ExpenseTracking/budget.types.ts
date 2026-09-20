@@ -9,6 +9,11 @@ export enum BudgetType {
   FIXED_AMOUNT = "fixed_amount",
   PER_PERSON_PER_DAY = "per_person_per_day",
 }
+/**
+ * BudgetIcon — Symbol zur visuellen Unterscheidung der Budgets. String-Werte
+ * entsprechen dem PostgreSQL-ENUM `budget_icon`; die zugehörigen MUI-Icons
+ * stehen in `BUDGET_ICON_MAP` (`expenseTracking.tsx`).
+ */
 export enum BudgetIcon {
   KITCHEN = "kitchen",
   GROCERIES = "groceries",

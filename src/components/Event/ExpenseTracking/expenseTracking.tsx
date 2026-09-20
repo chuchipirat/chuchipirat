@@ -62,14 +62,27 @@ import {
   BUDGET_SAVED as TEXT_BUDGET_SAVED,
   SPENT_AMOUNT as TEXT_SPENT_AMOUNT,
   OF_LIMIT as TEXT_OF_LIMIT,
+  BUDGET as TEXT_BUDGET,
+  BUDGET_UPDATED as TEXT_BUDGET_UPDATED,
+  BUDGET_DELETED as TEXT_BUDGET_DELETED,
+  DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
+  DELETE_BUDGET_SIMPLE as TEXT_DELETE_BUDGET_SIMPLE,
+  BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
+  BUDGET_CANT_BE_DELETED as TEXT_BUDGET_CANT_BE_DELETED,
 } from "../../../constants/text/expenseTracking";
 import {
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
   CANCEL as TEXT_CANCEL,
   SAVE as TEXT_SAVE,
+  DELETE as TEXT_DELETE,
+  OK as TEXT_OK,
 } from "../../../constants/text";
 
-import {isTransientNetworkError} from "../../../utils/errorUtils";
+import {
+  isForeignKeyViolationError,
+  isTransientNetworkError,
+  toError,
+} from "../../../utils/errorUtils";
 import {DonationForm} from "../../Donate/DonationForm";
 import {useCustomStyles} from "../../../constants/styles";
 import {getHelpPageUrl} from "../../Navigation/helpCenter";
@@ -105,6 +118,8 @@ import {
   StorefrontOutlined,
   AddOutlined,
 } from "@mui/icons-material";
+import DeleteIcon from "@mui/icons-material/Delete";
+
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {trackEvent} from "../../Analytics/analyticsService";
 import {
@@ -113,8 +128,18 @@ import {
 } from "../../Shared/utils/currencyUtils";
 import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
+import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
+import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
+import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
+
+/** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
 
+/**
+ * Ordnet jedem {@link BudgetIcon} die passende MUI-Icon-Komponente zu.
+ * Als `Record` typisiert, damit der Compiler eine fehlende Zuordnung meldet,
+ * sobald dem Enum (und der DB) ein neues Icon hinzugefügt wird.
+ */
 export const BUDGET_ICON_MAP: Record<BudgetIcon, React.ElementType> = {
   [BudgetIcon.KITCHEN]: RestaurantOutlined,
   [BudgetIcon.GROCERIES]: LocalGroceryStoreOutlined,
@@ -130,13 +155,25 @@ export const BUDGET_ICON_MAP: Record<BudgetIcon, React.ElementType> = {
   [BudgetIcon.OTHER]: CategoryOutlined,
 };
 
+/** Aktionen, die der Reducer der Abrechnungsseite verarbeitet. */
 enum ReducerActions {
   BUDGETS_FETCH_SUCCESS,
   BUDGET_CREATED,
+  BUDGET_UPDATED,
+  BUDGET_DELETED,
   GENERIC_ERROR,
   // SNACKBAR_SHOW,
   SNACKBAR_CLOSE,
 }
+/**
+ * State der Abrechnungsseite.
+ *
+ * @param isError - `true`, solange ein Fehler oder Validierungshinweis angezeigt wird.
+ * @param error - Anzuzeigender Fehler (nur gesetzt, wenn `isError` `true` ist).
+ * @param budgets - Budgets des Events; `null`, solange noch nicht geladen.
+ * @param spentAmounts - Summe der Ausgaben je Budget-ID in Rappen; `null` vor dem Laden.
+ * @param snackbar - Zustand der Rückmeldung nach erfolgreichem Speichern/Löschen.
+ */
 type State = {
   isError: boolean;
   error: Error | null;
@@ -144,18 +181,26 @@ type State = {
   spentAmounts: Record<string, number> | null;
   snackbar: SnackbarState;
 };
+/**
+ * Alle Aktionen des Reducers mit ihrem jeweiligen Payload.
+ * `BUDGET_DELETED` trägt das ganze Budget (statt nur der ID), damit der
+ * Reducer bei Bedarf auf dessen Felder zugreifen kann.
+ */
 type DispatchAction =
   | {
       type: ReducerActions.BUDGETS_FETCH_SUCCESS;
       payload: {budgets: BudgetDomain[]; spentAmounts: Record<string, number>};
     }
   | {type: ReducerActions.BUDGET_CREATED; payload: BudgetDomain}
+  | {type: ReducerActions.BUDGET_UPDATED; payload: BudgetDomain}
+  | {type: ReducerActions.BUDGET_DELETED; payload: BudgetDomain}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error}
   // | {
   //     type: ReducerActions.SNACKBAR_SHOW;
   //     payload: {severity: AlertColor; message: string};
   //   }
   | {type: ReducerActions.SNACKBAR_CLOSE};
+/** Ausgangszustand: noch nichts geladen, kein Fehler, Snackbar geschlossen. */
 const initialState: State = {
   budgets: null,
   spentAmounts: null,
@@ -164,6 +209,16 @@ const initialState: State = {
   snackbar: {open: false, severity: "success", message: ""},
 };
 
+/**
+ * Reducer der Abrechnungsseite. Jede erfolgreiche Aktion setzt `isError`
+ * zurück, damit ein vorübergehender Fehler (z.B. Netzwerk) nicht stehen
+ * bleibt, sobald die Daten wieder erfolgreich geladen oder gespeichert wurden.
+ *
+ * @param state - Bisheriger State.
+ * @param action - Auszuführende Aktion.
+ * @returns Neuer State.
+ * @throws {Error} Bei einer unbekannten Aktion (Exhaustive-Check).
+ */
 const expenseTrackingReducer = (
   state: State,
   action: DispatchAction,
@@ -174,6 +229,8 @@ const expenseTrackingReducer = (
         ...state,
         budgets: action.payload.budgets,
         spentAmounts: action.payload.spentAmounts,
+        isError: false,
+        error: null,
       };
     case ReducerActions.BUDGET_CREATED:
       return {
@@ -186,6 +243,38 @@ const expenseTrackingReducer = (
         isError: false,
         error: null,
       };
+    case ReducerActions.BUDGET_UPDATED: {
+      const updatedBudgets = (state.budgets ?? []).map((budget) =>
+        budget.id === action.payload.id ? action.payload : budget,
+      );
+      return {
+        ...state,
+        budgets: updatedBudgets,
+        snackbar: {
+          open: true,
+          severity: "success",
+          message: TEXT_BUDGET_UPDATED,
+        },
+        isError: false,
+        error: null,
+      };
+    }
+    case ReducerActions.BUDGET_DELETED: {
+      const updatedBudgets = (state.budgets ?? []).filter(
+        (budget) => budget.id !== action.payload.id,
+      );
+      return {
+        ...state,
+        budgets: updatedBudgets,
+        snackbar: {
+          open: true,
+          severity: "success",
+          message: TEXT_BUDGET_DELETED,
+        },
+        isError: false,
+        error: null,
+      };
+    }
     case ReducerActions.GENERIC_ERROR:
       return {
         ...state,
@@ -200,6 +289,8 @@ const expenseTrackingReducer = (
           message: "",
           open: false,
         },
+        isError: false,
+        error: null,
       };
     default: {
       const _exhaustiveCheck: never = action;
@@ -218,6 +309,17 @@ interface EventExpenseTrackingPageProps {
   database: DatabaseService;
 }
 
+/**
+ * Abrechnungsseite eines Events (Tab «Abrechnung»).
+ *
+ * Ohne bestätigte Spende für den Anlass wird eine Freischaltungs-Ansicht mit
+ * Spendenformular gezeigt. Mit Spende erscheinen die Budgets als Karten
+ * (inkl. Fortschritt gegenüber den Ausgaben), die live über Supabase Realtime
+ * aktuell gehalten werden. Budgets werden über einen Dialog angelegt,
+ * bearbeitet und gelöscht.
+ *
+ * @param props - Siehe {@link EventExpenseTrackingPageProps}.
+ */
 const EventExpenseTrackingPage = ({
   event,
   groupConfiguration,
@@ -231,12 +333,120 @@ const EventExpenseTrackingPage = ({
     initialState,
   );
   const [view, setView] = React.useState<ExpenseTrackingView>("overview");
-  const [isCreateBudgetDialogOpen, setIsCreateBudgetDialogOpen] =
-    React.useState<boolean>(false);
+  const [budgetDetailDialogProperties, setBudgetDetailDialogProperties] =
+    React.useState<{budget: BudgetDomain | null; open: boolean}>({
+      budget: null,
+      open: false,
+    });
+  const realtime = useRealtimeConnectionStatus();
 
   const classes = useCustomStyles();
   const authUser = useAuthUser();
+  const {customDialog} = useCustomDialog();
+  /* ------------------------------------------
+  // Error Handling
+  // ------------------------------------------ */
+  /**
+   * Zentrale Fehlerbehandlung: zeigt den Fehler oben auf der Seite an und
+   * meldet ihn an Sentry. Nutzerhinweise (`FieldValidationError`) und
+   * vorübergehende Netzwerkfehler werden bewusst nicht gemeldet.
+   *
+   * @param error - Der aufgetretene Fehler.
+   * @param context - Kurzbeschreibung der Aktion für den Sentry-Kontext.
+   */
+  const handleError = React.useCallback((error: unknown, context: string) => {
+    const isUserHint = error instanceof FieldValidationError;
+    if (!isTransientNetworkError(error) && !isUserHint) {
+      Sentry.captureException(error, {extra: {context}});
+    }
+    dispatch({type: ReducerActions.GENERIC_ERROR, payload: toError(error)});
+  }, []);
 
+  /* ------------------------------------------
+  // Budget für dieses Event laden
+  // ------------------------------------------ */
+  /**
+   * Liest Budgets und die bisher ausgegebenen Beträge je Budget. Rein
+   * lesend — legt nie ein Budget an, damit es auch aus dem Realtime-Reload
+   * gefahrlos aufgerufen werden kann.
+   *
+   * @returns Budgets des Events und Ausgabensummen je Budget-ID.
+   */
+  const fetchBudgets = React.useCallback(async () => {
+    const budgets = await database.budgets.getBudgetsForEvent(event.uid);
+    const spentAmounts = await database.expenses.getSpentAmountsByBudget(
+      event.uid,
+    );
+    return {budgets, spentAmounts};
+  }, [database, event.uid]);
+
+  /**
+   * Lädt die Budgets und schreibt sie in den State. Fehler werden über
+   * {@link handleError} angezeigt und gemeldet. Wird für das Erstladen, bei
+   * jeder Realtime-Änderung und nach einem Verbindungsabbruch verwendet.
+   */
+  const loadBudgets = React.useCallback(async () => {
+    try {
+      const {budgets, spentAmounts} = await fetchBudgets();
+      dispatch({
+        type: ReducerActions.BUDGETS_FETCH_SUCCESS,
+        payload: {budgets, spentAmounts},
+      });
+    } catch (error) {
+      handleError(error, "Budgets laden");
+    }
+  }, [fetchBudgets, handleError]);
+
+  /* ------------------------------------------
+  // Realtime-Subscription für Budgets
+  // ------------------------------------------ */
+  // Erstladen: Die Realtime-Subscription meldet nur Änderungen (auch beim
+  // ersten Verbindungsaufbau wird `onChange` nicht aufgerufen) — der
+  // Ausgangszustand muss deshalb separat geladen werden.
+  React.useEffect(() => {
+    if (hasDonation !== true || !authUser) return;
+    void loadBudgets();
+  }, [hasDonation, authUser, loadBudgets]);
+
+  // Realtime: `onChange` liefert keinen Payload, daher wird bei jeder
+  // Änderung neu geladen. Ein eigener Save löst ebenfalls ein Echo aus — das
+  // ist harmlos, weil der Reload idempotent ist und dieselben Daten liefert.
+  // Zu `realtime` werden nur die (stabilen) Funktionen als Dependencies
+  // geführt: `useRealtimeConnectionStatus()` gibt bei jedem Render ein neues
+  // Objekt zurück, sonst würde der Channel bei jedem Render neu aufgebaut.
+  React.useEffect(() => {
+    if (!event.uid || hasDonation !== true || !authUser) return;
+
+    const {unsubscribe, reconnect} = database.budgets.subscribeToBudgets(
+      event.uid,
+      loadBudgets, // Änderung durch eine andere Sitzung
+      (error) =>
+        Sentry.captureException(error, {
+          extra: {context: "Realtime budgets subscription"},
+        }),
+      (status) => {
+        realtime.setStatus("budgets", status);
+        // Nach einem Verbindungsabbruch sind Änderungen verpasst worden, die
+        // Realtime nicht nachliefert — daher einmalig neu laden.
+        if (status === "connected") void loadBudgets();
+      },
+    );
+
+    realtime.register("budgets", reconnect);
+    return () => {
+      unsubscribe();
+      realtime.unregister("budgets");
+    };
+  }, [
+    hasDonation,
+    authUser,
+    event.uid,
+    database,
+    loadBudgets,
+    realtime.setStatus,
+    realtime.register,
+    realtime.unregister,
+  ]);
   /* ------------------------------------------
   // Spende für dieses Event laden
   // ------------------------------------------ */
@@ -258,42 +468,9 @@ const EventExpenseTrackingPage = ({
       });
   }, [event.uid]);
   /* ------------------------------------------
-  // Budget für dieses Event laden
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (!event.uid || hasDonation !== true || !authUser) return;
-
-    (async () => {
-      try {
-        let budgets = await database.budgets.getBudgetsForEvent(event.uid);
-        if (budgets.length === 0) {
-          const defaultBudget = Budget.createDefaultKitchenBudget(event.uid);
-          const newBudget = await database.budgets.createBudget(
-            defaultBudget,
-            authUser,
-          );
-          budgets = [newBudget.value];
-        }
-
-        const spentAmounts = await database.expenses.getSpentAmountsByBudget(
-          event.uid,
-        );
-        dispatch({
-          type: ReducerActions.BUDGETS_FETCH_SUCCESS,
-          payload: {budgets: budgets, spentAmounts: spentAmounts},
-        });
-      } catch (error) {
-        if (!isTransientNetworkError(error)) {
-          Sentry.captureException(error, {
-            extra: {context: "Event-Budgets laden"},
-          });
-        }
-        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
-      }
-    })();
-  }, [hasDonation, event.uid, authUser]);
-  /* ------------------------------------------
-  // Total Budget und Ausschöpfung berechnent
+  // Sollbetrag und Ausschöpfung je Budget ableiten
+  // (nicht im State speichern: Teilnehmerzahl und Lagertage ändern sich live
+  // über die Gruppenkonfiguration, der Sollbetrag muss dann mitziehen)
   // ------------------------------------------ */
   const budgetsWithProgress = React.useMemo<BudgetWithProgress[]>(() => {
     if (!state.budgets) return [];
@@ -346,11 +523,17 @@ const EventExpenseTrackingPage = ({
   /* ------------------------------------------
   // Dialog Handling
   // ------------------------------------------ */
-  const handleOpenCreateBudgetDialog = () => {
-    setIsCreateBudgetDialogOpen(true);
-  };
-  const handleCreateBudget = (budgetInput: CreateBudgetFormState) => {
-    const budget: BudgetDomain = {
+  /**
+   * Wandelt die Formulareingaben des Dialogs in ein Domain-Objekt um.
+   * Die ID bleibt leer und wird beim Anlegen von der Datenbank vergeben.
+   *
+   * @param budgetInput - Eingaben aus dem Dialog (Betrag als Text).
+   * @returns Budget mit Betrag in Rappen (`null`, falls nicht lesbar).
+   */
+  const transformInputToBudgetDomain = (
+    budgetInput: BudgetDetailDialogState,
+  ): BudgetDomain => {
+    return {
       id: "",
       eventId: event.uid,
       name: budgetInput.name,
@@ -359,30 +542,143 @@ const EventExpenseTrackingPage = ({
       currency: budgetInput.currency,
       icon: budgetInput.icon!,
     };
+  };
+  /** Öffnet den Dialog im Anlegen-Modus (ohne vorhandenes Budget). */
+  const handleOpenCreateBudgetDialog = () => {
+    setBudgetDetailDialogProperties({
+      ...budgetDetailDialogProperties,
+      budget: null,
+      open: true,
+    });
+  };
 
+  /**
+   * Validiert ein Budget vor dem Speichern und zeigt Fehler an.
+   *
+   * @param budget - Zu prüfendes Budget.
+   * @returns `true`, wenn das Budget gültig ist.
+   */
+  const checkInputdata = (budget: BudgetDomain): boolean => {
     try {
       Budget.checkBudgetData(budget);
     } catch (error) {
-      // FieldValidationError = Nutzer-Hinweis (Pflichtfeld fehlt o.ä.) —
-      // nur anzeigen, nicht an Sentry melden.
-      if (!(error instanceof FieldValidationError)) {
-        Sentry.captureException(error, {
-          extra: {context: "Budget Save – Budget validieren"},
-        });
-      }
+      handleError(error, "Validierung Budget-Input");
+      return false;
+    }
+    return true;
+  };
+
+  /**
+   * Legt ein neues Budget an. Der Dialog wird sofort geschlossen; ein
+   * Fehler erscheint oben auf der Seite.
+   *
+   * @param budgetInput - Eingaben aus dem Dialog.
+   */
+  const handleCreateBudget = async (budgetInput: BudgetDetailDialogState) => {
+    const budget = transformInputToBudgetDomain(budgetInput);
+
+    if (!checkInputdata(budget)) {
+      return;
+    }
+
+    try {
+      const newBudget = await database.budgets.createBudget(budget, authUser!);
+      trackEvent(AnalyticsEvent.BUDGET_CREATED);
       dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: error as Error,
+        type: ReducerActions.BUDGET_CREATED,
+        payload: newBudget.value,
+      });
+    } catch (error) {
+      handleError(error, "Budget erstellen");
+    }
+
+    setBudgetDetailDialogProperties({budget: null, open: false});
+  };
+  /**
+   * Speichert Änderungen an einem bestehenden Budget.
+   *
+   * @param budgetId - ID des bearbeiteten Budgets.
+   * @param budgetInput - Neue Eingaben aus dem Dialog.
+   */
+  const handleUpdateBudget = async (
+    budgetId: string,
+    budgetInput: BudgetDetailDialogState,
+  ) => {
+    const budget = {...transformInputToBudgetDomain(budgetInput), id: budgetId};
+
+    if (!checkInputdata(budget)) {
+      return;
+    }
+
+    try {
+      const updated = await database.budgets.updateBudget(budget, authUser!);
+      trackEvent(AnalyticsEvent.BUDGET_UPDATED);
+      dispatch({type: ReducerActions.BUDGET_UPDATED, payload: updated});
+    } catch (error) {
+      handleError(error, "Budget aktualisieren");
+    }
+  };
+  /**
+   * Löscht ein Budget nach Rückfrage. Budgets mit Ausgaben können nicht
+   * gelöscht werden (FK `event_expenses.budget_id` ist `ON DELETE RESTRICT`).
+   *
+   * @param budget - Das zu löschende Budget.
+   */
+  const handleDeleteBudget = async (budget: BudgetDomain) => {
+    // Vorab prüfen, damit die Nutzer:in eine klare Meldung statt eines
+    // Datenbankfehlers erhält. Zeigt der lokale Stand (noch) keine Ausgaben,
+    // sie sind aber inzwischen von jemand anderem erfasst worden, meldet die
+    // Datenbank den Fremdschlüssel-Fehler und `handleError` zeigt ihn an.
+    if (state.spentAmounts && state.spentAmounts[budget.id] > 0) {
+      await customDialog({
+        dialogType: DialogType.Confirm,
+        title: TEXT_BUDGET_CANT_BE_DELETED,
+        text: TEXT_BUDGET_HAS_EXPENSES,
+        buttonTextConfirm: TEXT_OK,
       });
       return;
     }
-    database.budgets.createBudget(budget, authUser!).then((budget) => {
-      trackEvent(AnalyticsEvent.BUDGET_CREATED);
 
-      dispatch({
-        type: ReducerActions.BUDGET_CREATED,
-        payload: budget.value,
-      });
+    const isConfirmed = await customDialog({
+      dialogType: DialogType.Confirm,
+      title: TEXT_DELETE_BUDGET_DIALOG(budget.name),
+      text: TEXT_DELETE_BUDGET_SIMPLE,
+      buttonTextCancel: TEXT_CANCEL,
+      buttonTextConfirm: TEXT_DELETE,
+    });
+    if (!isConfirmed) return;
+
+    try {
+      await database.budgets.deleteBudget(budget.id);
+      trackEvent(AnalyticsEvent.BUDGET_DELETED);
+      dispatch({type: ReducerActions.BUDGET_DELETED, payload: budget});
+    } catch (error) {
+      if (isForeignKeyViolationError(error)) {
+        handleError(
+          new FieldValidationError(TEXT_BUDGET_HAS_EXPENSES),
+          "Budget löschen",
+        );
+      } else {
+        handleError(error, "Budget löschen");
+      }
+    }
+
+    setBudgetDetailDialogProperties({budget: null, open: false});
+  };
+
+  /**
+   * Öffnet den Dialog im Bearbeiten-Modus für das angeklickte Budget.
+   *
+   * @param budgetId - ID des Budgets der angeklickten Karte.
+   */
+  const handleBudgetEditClick = (budgetId: BudgetDomain["id"]) => {
+    const budget =
+      state.budgets?.find((budget) => budget.id === budgetId) ?? null;
+
+    setBudgetDetailDialogProperties({
+      ...budgetDetailDialogProperties,
+      budget: budget,
+      open: true,
     });
   };
   /* ------------------------------------------
@@ -400,6 +696,10 @@ const EventExpenseTrackingPage = ({
   return (
     <React.Fragment>
       <Stack spacing={2}>
+        <RealtimeStatusBanner
+          status={realtime.overallStatus}
+          onRetry={realtime.retryAll}
+        />
         {state.isError && (
           <AlertMessage
             error={state.error!}
@@ -490,6 +790,7 @@ const EventExpenseTrackingPage = ({
                   <BudgetCard
                     key={`budgetCard_${budget.budget.id}`}
                     budgetWithProgress={budget}
+                    handleEditClick={handleBudgetEditClick}
                   />
                 </Grid>
               ))}
@@ -500,10 +801,18 @@ const EventExpenseTrackingPage = ({
           </Box>
         )}
       </Stack>
-      <CreateBudgetDialog
-        open={isCreateBudgetDialogOpen}
-        onClose={() => setIsCreateBudgetDialogOpen(false)}
+      <BudgetDetailDialog
+        open={budgetDetailDialogProperties.open}
+        budget={budgetDetailDialogProperties.budget}
+        onClose={() =>
+          setBudgetDetailDialogProperties({
+            ...budgetDetailDialogProperties,
+            open: false,
+          })
+        }
         onCreate={handleCreateBudget}
+        onEdit={handleUpdateBudget}
+        onDelete={handleDeleteBudget}
       />
       <CustomSnackbar
         message={state.snackbar.message}
@@ -517,13 +826,21 @@ const EventExpenseTrackingPage = ({
 /** Props für die Budget-Karte. */
 interface BudgetCardProps {
   budgetWithProgress: BudgetWithProgress;
+  handleEditClick: (budgetId: string) => void;
 }
 
-const BudgetCard = ({budgetWithProgress}: BudgetCardProps) => {
+/**
+ * Karte eines Budgets: Name, Icon, Typ, Fortschrittsbalken und Beträge.
+ * Der Balken wird bei 85 % gelb und ab 100 % rot.
+ *
+ * @param props - Siehe {@link BudgetCardProps}.
+ */
+const BudgetCard = ({budgetWithProgress, handleEditClick}: BudgetCardProps) => {
   const classes = useCustomStyles();
 
   const BudgetIconComponent = BUDGET_ICON_MAP[budgetWithProgress.budget.icon];
 
+  /** Farbe des Fortschrittsbalkens je nach Ausschöpfung des Budgets. */
   const getProgressColor = (
     percentage: number,
   ): "success" | "warning" | "error" => {
@@ -560,7 +877,7 @@ const BudgetCard = ({budgetWithProgress}: BudgetCardProps) => {
         <IconButton
           size="small"
           aria-label={TEXT_EDIT_BUDGET}
-          // onClick={handleEditClick}
+          onClick={() => handleEditClick(budgetWithProgress.budget.id)}
         >
           <EditIcon fontSize="small" />
         </IconButton>
@@ -605,13 +922,6 @@ const BudgetCard = ({budgetWithProgress}: BudgetCardProps) => {
         </Typography>
       </Box>
 
-      {/* budget.secondaryCurrencies?.map((currency) => (
-         <Box key={currency.currency} sx={classes.budgetSecondaryCurrencyRow}>
-           <Typography variant="caption" sx={classes.budgetAmountSecondary}>
-             {text.budget.secondaryCurrencyNote(currency.spent, currency.currency)}
-           </Typography>
-         </Box> */}
-
       {!isPerPersonPerDay && (
         <Box sx={classes.budgetAmountRow}>
           <Typography variant="body2" sx={classes.budgetAmountSecondary}>
@@ -628,10 +938,17 @@ const BudgetCard = ({budgetWithProgress}: BudgetCardProps) => {
   );
 };
 
+/** Props der «Neues Budget»-Karte. */
 interface AddBudgetCardProps {
   onClick: () => void;
 }
 
+/**
+ * Klickbare Karte am Ende der Budget-Liste zum Anlegen eines neuen Budgets.
+ * Dient bei leerer Liste zugleich als Leerzustand (analog Einkaufsliste).
+ *
+ * @param props - Siehe {@link AddBudgetCardProps}.
+ */
 export const AddBudgetCard: React.FC<AddBudgetCardProps> = ({onClick}) => {
   const classes = useCustomStyles();
 
@@ -639,6 +956,8 @@ export const AddBudgetCard: React.FC<AddBudgetCardProps> = ({onClick}) => {
     onClick();
   };
 
+  // Die Karte ist ein `Box` mit `role="button"` — Enter und Leertaste müssen
+  // für die Tastaturbedienung von Hand abgebildet werden.
   const handleKeyDown = (event: React.KeyboardEvent) => {
     if (event.key === "Enter" || event.key === " ") {
       event.preventDefault();
@@ -661,14 +980,26 @@ export const AddBudgetCard: React.FC<AddBudgetCardProps> = ({onClick}) => {
   );
 };
 
-type CreateBudgetFormState = {
+/**
+ * Eingabezustand des Budget-Dialogs. Der Betrag bleibt als Text, damit
+ * unvollständige Eingaben («8.», «») im Feld stehen bleiben können; die
+ * Umrechnung in Rappen erfolgt erst beim Speichern.
+ *
+ * @param name - Name des Budgets.
+ * @param budgetType - Fixbetrag oder Betrag pro Person und Tag.
+ * @param amount - Betrag als Text (Rate bei «pro Person und Tag», sonst Total).
+ * @param currency - ISO-Währungscode.
+ * @param icon - Gewähltes Icon; `null`, solange noch keines gewählt wurde.
+ */
+type BudgetDetailDialogState = {
   name: string;
   budgetType: BudgetType;
   amount: string;
   currency: string;
   icon: BudgetIcon | null;
 };
-const INITIAL_FORM_STATE: CreateBudgetFormState = {
+/** Leeres Formular für ein neues Budget. */
+const INITIAL_FORM_STATE: BudgetDetailDialogState = {
   name: "",
   budgetType: BudgetType.FIXED_AMOUNT,
   amount: "",
@@ -676,29 +1007,119 @@ const INITIAL_FORM_STATE: CreateBudgetFormState = {
   icon: null,
 };
 
-interface CreateBudgetDialogProps {
+/**
+ * Props des Budget-Dialogs.
+ *
+ * @param open - Ob der Dialog sichtbar ist.
+ * @param budget - Zu bearbeitendes Budget; `null` = neues Budget anlegen.
+ * @param onClose - Wird beim Schliessen aufgerufen.
+ * @param onCreate - Wird beim Speichern eines neuen Budgets aufgerufen.
+ * @param onEdit - Wird beim Speichern eines bestehenden Budgets aufgerufen.
+ * @param onDelete - Wird beim Klick auf «Löschen» aufgerufen (nur im Bearbeiten-Modus).
+ */
+interface BudgetDetailDialogProps {
   open: boolean;
+  budget: BudgetDomain | null;
   onClose: () => void;
-  onCreate: (budget: CreateBudgetFormState) => void;
+  onCreate: (budget: BudgetDetailDialogState) => void;
+  onEdit: (
+    budgetId: BudgetDomain["id"],
+    budget: BudgetDetailDialogState,
+  ) => void;
+  onDelete: (budget: BudgetDomain) => void;
 }
 // Schweizer Franken (Hauptwährung der App) + Euro (häufigste Fremdwährung
 // bei grenznahen Lagern) — bei Bedarf um weitere Währungen erweitern.
 const AVAILABLE_CURRENCIES = ["CHF", "EUR"];
 
-export const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({
+/**
+ * Dialog zum Anlegen und Bearbeiten eines Budgets. Ist `budget` gesetzt,
+ * werden die Felder vorbelegt und «Löschen» angeboten; sonst ist es ein leeres
+ * Anlegen-Formular. Die eigentliche Speicher-/Löschlogik liegt beim Aufrufer
+ * (über `onCreate`/`onEdit`/`onDelete`), der Dialog kennt weder Datenbank noch
+ * Rückfrage.
+ *
+ * @param props - Siehe {@link BudgetDetailDialogProps}.
+ */
+export const BudgetDetailDialog: React.FC<BudgetDetailDialogProps> = ({
   open,
+  budget,
   onClose,
   onCreate,
+  onEdit,
+  onDelete,
 }) => {
+  // Form-State erstellen
+  const budgetToFormState = (
+    budget: BudgetDomain | null,
+  ): BudgetDetailDialogState =>
+    budget
+      ? {
+          name: budget.name,
+          budgetType: budget.budgetType,
+          amount: budget.amountInCents
+            ? (budget.amountInCents / 100).toFixed(2)
+            : "",
+          currency: budget.currency,
+          icon: budget.icon,
+        }
+      : INITIAL_FORM_STATE;
+
   const classes = useCustomStyles();
   const [touched, setTouched] = React.useState(false);
-  const [formState, setFormState] =
-    useState<CreateBudgetFormState>(INITIAL_FORM_STATE);
+  const [formState, setFormState] = useState<BudgetDetailDialogState>(
+    budgetToFormState(budget),
+  );
 
+  /* ------------------------------------------
+  // Formular beim Öffnen neu befüllen: `useState` liest den Startwert nur
+  // beim ersten Rendern, der Dialog bleibt aber dauerhaft gemountet. Ohne
+  // diesen Effekt blieben Werte eines früheren Budgets stehen.
+  // ------------------------------------------ */
+  React.useEffect(() => {
+    if (!open) return;
+    setFormState(budgetToFormState(budget));
+    setTouched(false);
+  }, [open, budget]);
+  /* ------------------------------------------
+  // Dialog-Handler
+  // ------------------------------------------ */
   const handleClose = () => {
     setTouched(false);
     onClose();
   };
+
+  /** Validiert die Eingaben und meldet sie je nach Modus an `onEdit`/`onCreate`. */
+  const handleSave = () => {
+    setTouched(true);
+    if (!isValid || formState.icon == null || amountInCents == null) {
+      return;
+    }
+
+    if (budget?.id) {
+      onEdit(budget.id, formState);
+    } else {
+      onCreate(formState);
+    }
+    handleClose();
+  };
+
+  /** Meldet das Löschen an den Aufrufer, der die Rückfrage übernimmt. */
+  const handleDelete = () => {
+    if (!budget) return;
+    onDelete(budget);
+    handleClose();
+  };
+
+  const updateField = <K extends keyof BudgetDetailDialogState>(
+    field: K,
+    value: BudgetDetailDialogState[K],
+  ) => {
+    setFormState((prev) => ({...prev, [field]: value}));
+  };
+  /* ------------------------------------------
+  // UI Berechnungen
+  // ------------------------------------------ */
   const amountInCents = parseAmountToCents(formState.amount);
   const isValid =
     formState.name.trim().length > 0 &&
@@ -706,26 +1127,9 @@ export const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({
     amountInCents > 0 &&
     formState.icon != null;
 
-  const handleSave = () => {
-    setTouched(true);
-    if (!isValid || formState.icon == null || amountInCents == null) {
-      return;
-    }
-
-    onCreate(formState);
-    handleClose();
-  };
-
-  const updateField = <K extends keyof CreateBudgetFormState>(
-    field: K,
-    value: CreateBudgetFormState[K],
-  ) => {
-    setFormState((prev) => ({...prev, [field]: value}));
-  };
-
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>{TEXT_NEW_BUDGET}</DialogTitle>
+      <DialogTitle>{budget ? TEXT_BUDGET : TEXT_NEW_BUDGET}</DialogTitle>
       <DialogContent>
         <TextField
           autoFocus
@@ -822,6 +1226,20 @@ export const CreateBudgetDialog: React.FC<CreateBudgetDialogProps> = ({
         )}
       </DialogContent>
       <DialogActions>
+        {budget && (
+          <React.Fragment>
+            <Button
+              variant="outlined"
+              color="error"
+              startIcon={<DeleteIcon />}
+              onClick={handleDelete}
+            >
+              {TEXT_DELETE}
+            </Button>
+            <Box sx={{flex: 1}} />{" "}
+          </React.Fragment>
+        )}
+
         <Button variant="outlined" onClick={handleClose}>
           {TEXT_CANCEL}
         </Button>

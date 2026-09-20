@@ -59,6 +59,8 @@ export const AnalyticsEvent = {
 
   // ── Expense Tracking ──
   BUDGET_CREATED: "budget_created",
+  BUDGET_UPDATED: "budget_updated",
+  BUDGET_DELETED: "budget_deleted",
 
   // ── Masterdata ──
   PRODUCT_CREATED: "product_created",
