@@ -176,6 +176,68 @@ export interface RecipeShortDomain {
   createdBy: string;
 }
 
+/** Bereich der Rezeptliste (nach Rezepttyp). */
+export type RecipeListScope = "all" | "public" | "private" | "variant";
+
+/**
+ * Position in der Rezeptliste für das Nachladen (Keyset).
+ * Namen sind nicht eindeutig (Varianten heissen wie das Original), daher
+ * gehört die UID zum Cursor.
+ *
+ * @param name - Name des letzten geladenen Rezepts
+ * @param uid - UID des letzten geladenen Rezepts
+ */
+export type RecipeListCursor = {name: string; uid: string};
+
+/**
+ * Abfrage für eine Seite der Rezeptliste. Alle Filter gelten für alle
+ * Rezepte, nicht nur für die bereits geladenen.
+ *
+ * @param searchText - Suchtext (Name, Variantenname, Tags; ohne Akzente/Grossschreibung)
+ * @param diet - Diät (Diet-Enum); ohne Angabe kein Filter
+ * @param excludedAllergens - Allergene (Allergen-Enum), die nicht enthalten sein dürfen
+ * @param menuTypes - Menütypen (MenuType-Enum); mindestens einer muss zutreffen
+ * @param outdoorKitchen - `true` = nur für die Outdoor-Küche geeignete Rezepte
+ * @param scope - Bereich nach Rezepttyp (Standard `all`)
+ * @param onlyMine - `true` = nur selbst erstellte Rezepte (kombinierbar mit dem Bereich)
+ * @param eventUid - Anlass, dessen Varianten mitgeliefert werden (nur Rezept-Schublade)
+ * @param limit - Anzahl Rezepte pro Seite (Standard 24, höchstens 100)
+ * @param after - Cursor der vorherigen Seite; ohne Angabe die erste Seite
+ */
+export type RecipeListQuery = {
+  searchText?: string;
+  diet?: number;
+  excludedAllergens?: number[];
+  menuTypes?: number[];
+  outdoorKitchen?: boolean;
+  scope?: RecipeListScope;
+  onlyMine?: boolean;
+  eventUid?: string;
+  limit?: number;
+  after?: RecipeListCursor | null;
+};
+
+/**
+ * Eine Seite der Rezeptliste.
+ *
+ * @param recipes - Rezepte dieser Seite, nach Name und UID sortiert
+ * @param hasMore - `true`, wenn weitere Seiten folgen
+ * @param nextCursor - Cursor für die nächste Seite (`null` am Ende)
+ * @param total - Gesamtzahl der Treffer, nur auf der ersten Seite (sonst `null`)
+ */
+export type RecipeListPage = {
+  recipes: RecipeShortDomain[];
+  hasMore: boolean;
+  nextCursor: RecipeListCursor | null;
+  total: number | null;
+};
+
+/** Anzahl Rezepte pro Seite der Rezeptliste. */
+export const RECIPE_LIST_PAGE_SIZE = 24;
+
+/** Name und UID eines Rezepts (für die Duplikat-Prüfung beim Anlegen). */
+export type RecipeNameDomain = {uid: string; name: string};
+
 /** Spalten die für RecipeShortDomain aus der DB selektiert werden */
 const RECIPE_SHORT_COLUMNS =
   "id, name, source, picture_src, tags, menu_types, diet, allergens, outdoor_kitchen_suitable, avg_rating, no_ratings, no_comments, recipe_type, variant_name, created_at, created_by";
@@ -411,6 +473,29 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   }
 
   /**
+   * Lädt mehrere Rezepte anhand ihrer IDs in einer einzigen Abfrage.
+   *
+   * Ersetzt N einzelne `getRecipe()`-Aufrufe (N+1-Anfragemuster, z.B. beim
+   * Auflösen der Rezeptbilder für die heutigen Mahlzeiten auf der Startseite)
+   * durch eine `id IN (...)`-Abfrage.
+   *
+   * @param recipeIds - Die IDs der zu ladenden Rezepte (Duplikate erlaubt).
+   * @returns Map von Rezept-ID auf Rezept — IDs ohne Treffer fehlen in der Map.
+   */
+  async getRecipesByIds(
+    recipeIds: string[],
+  ): Promise<Map<string, RecipeDomain>> {
+    const uniqueRecipeIds = Array.from(new Set(recipeIds));
+    if (uniqueRecipeIds.length === 0) return new Map();
+
+    const recipes = await this.findMany({
+      filters: [{field: "id", operator: "in", value: uniqueRecipeIds}],
+    });
+
+    return new Map(recipes.map((recipe) => [recipe.uid, recipe]));
+  }
+
+  /**
    * Lädt alle öffentlichen Rezepte.
    *
    * @returns Array der öffentlichen Rezepte, sortiert nach Name
@@ -424,7 +509,9 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
 
   /**
    * Lädt alle privaten Rezepte eines Benutzers.
-   * Die RLS-Policy stellt sicher, dass nur eigene Rezepte zurückgegeben werden.
+   * Die RLS erlaubt allen angemeldeten Personen das Lesen privater Rezepte
+   * (Mitglieder eines Anlasses müssen sie lesen können, bearbeiten darf nur
+   * der Autor). «Nur eigene» stellt daher der Filter `created_by` sicher.
    *
    * @param creatorUid - Die Auth-UID des Benutzers
    * @returns Array der privaten Rezepte, sortiert nach Name
@@ -652,7 +739,8 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
 
   /**
    * Lädt alle privaten Rezepte eines Benutzers in Kurzform.
-   * Die RLS-Policy stellt sicher, dass nur eigene Rezepte zurückgegeben werden.
+   * «Nur eigene» stellt der Filter `created_by` sicher, nicht die RLS (diese
+   * erlaubt das Lesen privater Rezepte für alle angemeldeten Personen).
    *
    * @param creatorUid - Die Auth-UID des Benutzers
    * @returns Array der privaten Kurz-Rezepte, sortiert nach Name
@@ -688,6 +776,126 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
     return (data ?? []).map((row) =>
       this.rowToShortDomain(row as unknown as Record<string, unknown>),
     );
+  }
+
+  /**
+   * Baut die RPC-Parameter für `list_recipe_shorts` aus einer Abfrage.
+   * Nicht gesetzte Filter werden weggelassen (die RPC hat Standardwerte).
+   *
+   * @param query - Abfrage der Rezeptliste
+   * @returns Parameter-Objekt für `supabase.rpc`
+   */
+  private buildListParams(query: RecipeListQuery): Record<string, unknown> {
+    const params: Record<string, unknown> = {
+      p_scope: query.scope ?? "all",
+      p_limit: query.limit ?? RECIPE_LIST_PAGE_SIZE,
+    };
+    const searchText = query.searchText?.trim();
+    if (searchText) params.p_search = searchText;
+    if (query.diet !== undefined) params.p_diet = DIET_TO_DB[query.diet];
+    if (query.excludedAllergens?.length) {
+      params.p_exclude_allergens = query.excludedAllergens
+        .map((allergen) => ALLERGEN_TO_DB[allergen])
+        .filter(Boolean);
+    }
+    if (query.menuTypes?.length) {
+      params.p_menu_types = query.menuTypes
+        .map((menuType) => MENU_TYPE_TO_DB[menuType])
+        .filter(Boolean);
+    }
+    if (query.outdoorKitchen) params.p_outdoor = true;
+    if (query.onlyMine) params.p_only_mine = true;
+    if (query.eventUid) params.p_event_id = query.eventUid;
+    if (query.after) {
+      params.p_after_name = query.after.name;
+      params.p_after_id = query.after.uid;
+    }
+    return params;
+  }
+
+  /**
+   * Lädt eine Seite der Rezeptliste (Kurzform) mit Filtern und Suche in der
+   * Datenbank (RPC `list_recipe_shorts`).
+   *
+   * Sichtbar sind öffentliche Rezepte, eigene private Rezepte und — mit
+   * `eventUid` — die Varianten dieses Anlasses. Die RPC liefert eine Zeile
+   * mehr als `limit`, daran erkennt sich, ob weitere Seiten folgen.
+   *
+   * @param query - Abfrage (Suchtext, Filter, Bereich, Cursor)
+   * @param signal - Optional: bricht die Anfrage ab (veraltete Suche)
+   * @returns Seite mit Rezepten, Cursor und (nur auf Seite 1) Gesamtzahl
+   * @throws {Error} Wenn die RPC fehlschlägt
+   * @example
+   * const page = await repo.listRecipeShorts({searchText: "hornli"});
+   * const next = await repo.listRecipeShorts({after: page.nextCursor});
+   */
+  async listRecipeShorts(
+    query: RecipeListQuery,
+    signal?: AbortSignal,
+  ): Promise<RecipeListPage> {
+    const limit = query.limit ?? RECIPE_LIST_PAGE_SIZE;
+    let request = this.client.rpc(
+      "list_recipe_shorts",
+      this.buildListParams(query),
+    );
+    if (signal) request = request.abortSignal(signal);
+
+    const {data, error} = await request;
+    if (error) throw error;
+
+    const rows = (data ?? []) as Record<string, unknown>[];
+    const pageRows = rows.slice(0, limit);
+    const recipes = pageRows.map((row) => this.rowToShortDomain(row));
+    const lastRecipe = recipes[recipes.length - 1];
+    const hasMore = rows.length > limit;
+    const totalValue = rows[0]?.total_count;
+
+    return {
+      recipes,
+      hasMore,
+      nextCursor:
+        hasMore && lastRecipe
+          ? {name: lastRecipe.name, uid: lastRecipe.uid}
+          : null,
+      total:
+        query.after || totalValue === null || totalValue === undefined
+          ? null
+          : Number(totalValue),
+    };
+  }
+
+  /**
+   * Lädt Name und UID aller öffentlichen Rezepte (schlank, ca. 60 Byte pro
+   * Rezept). Dient der Duplikat-Prüfung beim Anlegen eines Rezepts, die alle
+   * öffentlichen Namen braucht, aber keine Karten-Daten.
+   *
+   * @returns Öffentliche Rezepte als `{uid, name}`, sortiert nach Name
+   */
+  async getPublicRecipeNames(): Promise<RecipeNameDomain[]> {
+    const names: RecipeNameDomain[] = [];
+    let from = 0;
+    let page: Record<string, unknown>[];
+
+    do {
+      const {data, error} = await this.client
+        .from(this.tableName)
+        .select("id, name")
+        .eq("recipe_type", "public")
+        .order("name", {ascending: true})
+        .order("id", {ascending: true})
+        .range(from, from + RecipeRepository.SHORT_PAGE_SIZE - 1);
+      if (error) throw error;
+      page = (data ?? []) as Record<string, unknown>[];
+      names.push(
+        ...page.map((row) => ({
+          uid: row.id as string,
+          name: (row.name as string) ?? "",
+        })),
+      );
+      from += RecipeRepository.SHORT_PAGE_SIZE;
+    } while (page.length === RecipeRepository.SHORT_PAGE_SIZE);
+
+    return names;
   }
 
   /* =====================================================================

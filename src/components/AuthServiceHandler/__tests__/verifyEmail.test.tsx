@@ -3,7 +3,7 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen, waitFor} from "@testing-library/react";
+import {render, screen, waitFor, act} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
@@ -165,6 +165,33 @@ describe("VerifyEmailPage", () => {
 
     // Komponente ist trotz Fehler noch gerendert
     expect(screen.getByText("Willkommen an Bord")).toBeInTheDocument();
+  });
+
+  test("meldet einen abgelaufenen JWT nicht an Sentry (CHUCHIPIRAT-HC)", async () => {
+    /**
+     * Ein abgelaufener Supabase-JWT direkt nach der E-Mail-Verifizierung
+     * (z.B. instabile Mobilverbindung) ist erwartbar und kein App-Fehler.
+     */
+    mockGetUser.mockRejectedValueOnce({
+      code: "PGRST303",
+      details: null,
+      hint: null,
+      message: "JWT expired",
+    });
+
+    renderVerifyEmailPage();
+
+    await waitFor(() => {
+      expect(mockGetUser).toHaveBeenCalled();
+    });
+    // Microtasks des rejizierten getUser()-Aufrufs abwarten, bevor geprüft
+    // wird, dass nichts gemeldet wurde.
+    await act(async () => {
+      await Promise.resolve();
+    });
+
+    expect(mockFindOwnProfile).not.toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
   test("Zeigt Countdown-Timer", () => {

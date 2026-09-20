@@ -4,6 +4,7 @@
  */
 import {MATERIAL_TYPE_CONSUMABLE, MATERIAL_TYPE_USAGE} from "./masterdata";
 import {LACTOSE, GLUTEN} from "./recipes";
+import {ERROR_SESSION_EXPIRED} from "./errors";
 
 /* =====================================================================
 // Rollen
@@ -226,6 +227,9 @@ export const SUPABASE_MESSAGES: Record<string, string> = {
   // Postgres-Fehler bei Überlauf einer numeric(p,s)-Spalte
   "numeric field overflow":
     "Die eingegebene Zahl ist zu gross für dieses Feld. Bitte gib einen kleineren Wert ein.",
+  // Abgelaufener Supabase-JWT (PGRST301/PGRST303) — selbstheilend nach einem
+  // Reload, aber ohne Übersetzung würde die rohe englische Meldung angezeigt.
+  "JWT expired": ERROR_SESSION_EXPIRED,
 };
 
 /* =====================================================================

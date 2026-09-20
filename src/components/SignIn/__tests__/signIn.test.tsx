@@ -8,6 +8,8 @@ import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation} from "react-router";
 
+import * as Sentry from "@sentry/react";
+
 import {SignInPage, AlertMaintenanceMode} from "../signIn";
 import {SignUpLink} from "../../SignUp/signUp";
 import {DatabaseContext} from "../../Database/DatabaseContext";
@@ -164,6 +166,57 @@ describe("SignInPage", () => {
       renderSignInPage();
 
       expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    });
+  });
+
+  /**
+   * Regression CHUCHIPIRAT-FV: der initiale getSettings()-Aufruf (Zustand
+   * "Wartungsmodus?") hatte nur ein `.then()` ohne `.catch()` — schlug er
+   * fehl, wurde die Promise-Ablehnung nie abgefangen und landete als
+   * "UnhandledRejection" in Sentry, statt wie jeder andere Fehlerpfad
+   * behandelt zu werden.
+   */
+  describe("getSettings() beim Mount — Fehlerbehandlung", () => {
+    test("verschluckt einen abgelaufenen JWT ohne Absturz und meldet nicht an Sentry", async () => {
+      mockGetSettings.mockRejectedValueOnce({
+        code: "PGRST303",
+        details: null,
+        hint: null,
+        message: "JWT expired",
+      });
+
+      renderSignInPage();
+
+      await waitFor(() => {
+        expect(mockGetSettings).toHaveBeenCalledTimes(1);
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    test("verschluckt einen vorübergehenden Netzfehler ohne Absturz und meldet nicht an Sentry", async () => {
+      mockGetSettings.mockRejectedValueOnce(new TypeError("Load failed"));
+
+      renderSignInPage();
+
+      await waitFor(() => {
+        expect(mockGetSettings).toHaveBeenCalledTimes(1);
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    test("meldet einen unerwarteten Fehler weiterhin an Sentry", async () => {
+      mockGetSettings.mockRejectedValueOnce({
+        code: "23505",
+        details: null,
+        hint: null,
+        message: "duplicate key value violates unique constraint",
+      });
+
+      renderSignInPage();
+
+      await waitFor(() => {
+        expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+      });
     });
   });
 

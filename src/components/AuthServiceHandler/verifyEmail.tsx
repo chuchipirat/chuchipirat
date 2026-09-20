@@ -17,6 +17,11 @@ import {supabase} from "../Database/supabaseClient";
 import {FeedType} from "../Shared/feed.class";
 import {postActivityFeed} from "../Shared/feedActivity";
 import AuthUser from "../Session/authUser.class";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../utils/errorUtils";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {Typography, Alert, AlertTitle} from "@mui/material";
@@ -82,9 +87,11 @@ export const VerifyEmailPage = () => {
             .invoke("send-welcome-email", {
               body: {user_id: user.id},
             })
-            .catch((err) =>
-              Sentry.captureException(err),
-            );
+            .catch((err) => {
+              if (!isTransientNetworkError(err) && !isMissingSessionError(err)) {
+                Sentry.captureException(toError(err));
+              }
+            });
         }
 
         // Vestaboard-Benachrichtigung (nicht kritisch)
@@ -95,7 +102,13 @@ export const VerifyEmailPage = () => {
           },
         });
       } catch (error) {
-        Sentry.captureException(error);
+        // Vorübergehende Netzfehler und abgelaufene Sitzungen sind
+        // erwartbar (z.B. direkt nach der E-Mail-Verifizierung auf einer
+        // instabilen Mobilverbindung) — kein App-Fehler, daher kein
+        // Sentry-Report.
+        if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+          Sentry.captureException(toError(error));
+        }
       }
     };
 

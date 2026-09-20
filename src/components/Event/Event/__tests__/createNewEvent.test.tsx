@@ -21,6 +21,12 @@ import {CreateEventPage} from "../createNewEvent";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 
 
+/** Mock: @sentry/react — captureException wird als noop-Spy erfasst. */
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+  addBreadcrumb: jest.fn(),
+}));
+
 /** Mock: useNavigate */
 const mockNavigate = jest.fn();
 jest.mock("react-router", () => ({
@@ -69,10 +75,17 @@ jest.mock("../eventInfo", () => ({
   EventInfoPage: () => <div data-testid="event-info-page">EventInfoPage</div>,
 }));
 
-/** Mock: EventGroupConfigurationPage (Stub) */
+/** Mock: EventGroupConfigurationPage (Stub) — ruft onConfirm.onClick per Button auf */
 jest.mock("../../GroupConfiguration/groupConfiguration", () => ({
   __esModule: true,
-  EventGroupConfigurationPage: () => <div data-testid="group-config-page">GroupConfigPage</div>,
+  EventGroupConfigurationPage: (props: any) => (
+    <div data-testid="group-config-page">
+      GroupConfigPage
+      <button onClick={(event: any) => props.onConfirm.onClick(event, {})}>
+        {props.onConfirm.buttonText}
+      </button>
+    </div>
+  ),
 }));
 
 /** Mock: DonationForm (Stub) */
@@ -148,15 +161,24 @@ jest.mock("../../../Database/Repository/EventGroupConfigRepository", () => ({
   __esModule: true,
 }));
 
-/** Mock: useDatabase */
+/** Mock: useDatabase — liefert mockDatabase, damit database.events.createEvent()
+ * (aufgerufen via useDatabase(), nicht nur via Context.Provider) im Test
+ * greifbar ist. */
 jest.mock("../../../Database/DatabaseContext", () => ({
   ...jest.requireActual("../../../Database/DatabaseContext"),
-  useDatabase: () => ({}),
+  useDatabase: () => mockDatabase,
   DatabaseContext: React.createContext({}),
 }));
 
+/** Mock: database.events.createEvent — erster Aufruf in saveEvent() */
+const mockCreateEvent = jest.fn();
+
 /** Mock-DatabaseService */
-const mockDatabase = {} as any;
+const mockDatabase = {
+  events: {
+    createEvent: mockCreateEvent,
+  },
+} as any;
 
 
 /**
@@ -229,6 +251,90 @@ describe("CreateEventPage", () => {
 
     await waitFor(() => {
       expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+  });
+});
+
+/**
+ * Regressionstests für CHUCHIPIRAT-HB: goToCompletionStep() prüfte beim
+ * Speichern des Events nur isRlsViolationError() für die "Sitzung
+ * abgelaufen"-Behandlung — ein abgelaufener JWT (ohne RLS-Verletzung) fiel
+ * in den else-Zweig und wurde unbedingt an Sentry gemeldet.
+ */
+describe("CreateEventPage — Sitzung abgelaufen beim Speichern", () => {
+  const {captureException} = jest.requireMock("@sentry/react");
+
+  beforeEach(() => {
+    // Andere Tests in dieser Datei setzen mockCheckEventData.mockImplementation(),
+    // was clearAllMocks() nicht zurücksetzt — hier explizit auf "erfolgreich" stellen,
+    // damit der Übergang zum Gruppenkonfiguration-Schritt zuverlässig funktioniert.
+    mockCheckEventData.mockImplementation(() => {});
+  });
+
+  /** Navigiert vom Info-Schritt zum Gruppenkonfiguration-Schritt. */
+  const goToGroupConfigStep = () => {
+    fireEvent.click(screen.getByText("Weiter"));
+  };
+
+  test("zeigt den Sitzungs-Hinweis und meldet einen abgelaufenen JWT NICHT an Sentry", async () => {
+    mockCreateEvent.mockRejectedValue({
+      code: "PGRST303",
+      details: null,
+      hint: null,
+      message: "JWT expired",
+    });
+
+    renderCreateEventPage();
+    goToGroupConfigStep();
+
+    const confirmButton = await screen.findByText("Weiter");
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(
+      screen.getByText(/Sitzung ist möglicherweise abgelaufen/),
+    ).toBeInTheDocument();
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  test("zeigt den Sitzungs-Hinweis und meldet eine RLS-Verletzung weiterhin NICHT an Sentry", async () => {
+    mockCreateEvent.mockRejectedValue({
+      code: "42501",
+      details: null,
+      hint: null,
+      message: 'new row violates row-level security policy for table "events"',
+    });
+
+    renderCreateEventPage();
+    goToGroupConfigStep();
+
+    const confirmButton = await screen.findByText("Weiter");
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole("alert")).toBeInTheDocument();
+    });
+    expect(captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet einen unerwarteten Fehler beim Speichern weiterhin an Sentry", async () => {
+    mockCreateEvent.mockRejectedValue({
+      code: "23505",
+      details: null,
+      hint: null,
+      message: "duplicate key value violates unique constraint",
+    });
+
+    renderCreateEventPage();
+    goToGroupConfigStep();
+
+    const confirmButton = await screen.findByText("Weiter");
+    fireEvent.click(confirmButton);
+
+    await waitFor(() => {
+      expect(captureException).toHaveBeenCalledTimes(1);
     });
   });
 });

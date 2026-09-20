@@ -124,6 +124,11 @@ export interface UseMenuplanDialogsReturn {
   /** Setter für den Reset-Zähler. */
   setRecipeSearchResetKey: React.Dispatch<React.SetStateAction<number>>;
 
+  /** Zähler, der die Rezeptliste im Drawer neu lädt (z.B. nach dem Anlegen oder Ändern eines Rezepts), ohne die Suche zurückzusetzen. */
+  recipeSearchReloadKey: number;
+  /** Setter für den Reload-Zähler. */
+  setRecipeSearchReloadKey: React.Dispatch<React.SetStateAction<number>>;
+
   /** Zustand des Rezept-Detail-Drawers. */
   recipeDrawerData: RecipeDrawerData;
   /** Setter für den Rezept-Detail-Drawer. */
@@ -189,6 +194,9 @@ export function useMenuplanDialogs(): UseMenuplanDialogsReturn {
   // Zähler zum Zurücksetzen der Suche im Rezept-Drawer nach dem Hinzufügen
   const [recipeSearchResetKey, setRecipeSearchResetKey] = useState(0);
 
+  // Zähler zum Neuladen der Rezeptliste im Drawer (Suche bleibt bestehen)
+  const [recipeSearchReloadKey, setRecipeSearchReloadKey] = useState(0);
+
   const [recipeDrawerData, setRecipeDrawerData] = useState<RecipeDrawerData>(
     RECIPE_DRAWER_DATA_INITIAL_VALUES
   );
@@ -217,6 +225,8 @@ export function useMenuplanDialogs(): UseMenuplanDialogsReturn {
     setRecipeSearchDrawerData,
     recipeSearchResetKey,
     setRecipeSearchResetKey,
+    recipeSearchReloadKey,
+    setRecipeSearchReloadKey,
     recipeDrawerData,
     setRecipeDrawerData,
     dialogSelectMenueData,

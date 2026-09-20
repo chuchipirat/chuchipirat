@@ -86,7 +86,6 @@ import {
   toError,
 } from "../../utils/errorUtils";
 import {MealTypeCutoffDomain} from "../Database/Repository/MenuplanRepository";
-import {RecipeDomain} from "../Database/Repository/RecipeRepository";
 import {MenuplanData, PortionPlan} from "../Event/Menuplan/menuplan.types";
 import {createEmptyMenuplan} from "../Event/Menuplan/menuplanService";
 import {generatePlanedPortionsText} from "../Event/Menuplan/menuplan.constants";
@@ -805,24 +804,17 @@ const HomeOngoingEventSection = React.memo(
               });
             });
 
-          const recipeEntries = await Promise.all(
-            Array.from(recipeUidsToday).map(async (recipeUid) => {
-              const recipe = await database.recipes.getRecipe(recipeUid);
-              return [recipeUid, recipe] as const;
-            }),
+          const recipesByUid = await database.recipes.getRecipesByIds(
+            Array.from(recipeUidsToday),
           );
           const recipePictures = new Map(
-            recipeEntries
-              .filter(
-                (entry): entry is [string, RecipeDomain] => entry[1] !== null,
-              )
-              .map(([uid, recipe]) => [
-                uid,
-                {
-                  pictureSrc: recipe.pictureSrc,
-                  type: recipe.recipeType as RecipeType,
-                },
-              ]),
+            Array.from(recipesByUid.entries()).map(([uid, recipe]) => [
+              uid,
+              {
+                pictureSrc: recipe.pictureSrc,
+                type: recipe.recipeType as RecipeType,
+              },
+            ]),
           );
 
           if (!cancelled) {

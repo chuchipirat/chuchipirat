@@ -14,6 +14,12 @@ export const RECIPE_NAME_CANT_BE_EMPTY =
 export const RECIPE_VARIANT_NAME_CANT_BE_EMPTY =
   "Der Name der Rezeptvariante darf nicht leer sein.";
 export const NO_RECIPE_FOUND = "Kein passendes Rezept gefunden";
+export const RECIPE_LIST_LOAD_MORE = "Mehr Rezepte laden";
+export const RECIPE_LIST_RETRY = "Erneut versuchen";
+export const RECIPE_LIST_LOAD_ERROR =
+  "Die Rezepte konnten nicht geladen werden. Prüfe deine Verbindung und versuche es erneut.";
+export const RECIPE_LIST_LOAD_MORE_ERROR =
+  "Weitere Rezepte konnten nicht geladen werden.";
 export const CREATE_A_NEW_ONE = "Erfasse ein neues!";
 export const ERROR_POS_WITHOUT_PRODUCT = (pos: number) =>
   `Das Produkt in der Position ${pos} ist unbekannt.`;

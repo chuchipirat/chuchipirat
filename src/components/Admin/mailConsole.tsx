@@ -21,6 +21,7 @@ import {
   AlertTitle,
   Backdrop,
   CardContent,
+  Checkbox,
   Chip,
   CircularProgress,
   Container,
@@ -90,6 +91,10 @@ import {
   MAIL_TRANSPORT_HELP as TEXT_MAIL_TRANSPORT_HELP,
   SEND as TEXT_SEND,
   MAIL_SEND_REQUIRES_TEST as TEXT_MAIL_SEND_REQUIRES_TEST,
+  MAIL_INCLUDE_UNSUBSCRIBE as TEXT_MAIL_INCLUDE_UNSUBSCRIBE,
+  MAIL_INCLUDE_UNSUBSCRIBE_HELPER as TEXT_MAIL_INCLUDE_UNSUBSCRIBE_HELPER,
+  MAIL_UNSUBSCRIBE_OFF_WARNING as TEXT_MAIL_UNSUBSCRIBE_OFF_WARNING,
+  MAIL_UNSUBSCRIBE_PREVIEW as TEXT_MAIL_UNSUBSCRIBE_PREVIEW,
 } from "../../constants/text";
 import {Role} from "../../constants/roles";
 import {RichTextEditor} from "../Shared/RichTextEditor";
@@ -98,6 +103,11 @@ import {CustomSnackbar,
   SnackbarState,
 } from "../Shared/customSnackbar";
 import {useCustomStyles} from "../../constants/styles";
+import {
+  buildSendMailBody,
+  getMailFormErrors,
+  normalizeIncludeUnsubscribe,
+} from "./mailConsoleUtils";
 
 /* ===================================================================
 // ======================== Typen & Reducer ==========================
@@ -161,6 +171,7 @@ enum ReducerActions {
   RECIPIENT_UPDATE_TYPE = "RECIPIENT_UPDATE_TYPE",
   RECIPIENT_UPDATE_RECIPIENTS = "RECIPIENT_UPDATE_RECIPIENTS",
   MAIL_FIELD_UPDATE = "MAIL_FIELD_UPDATE",
+  INCLUDE_UNSUBSCRIBE_UPDATE = "INCLUDE_UNSUBSCRIBE_UPDATE",
   SEND_RESULT = "SEND_RESULT",
   SENDING = "SENDING",
   SNACKBAR_CLOSE = "SNACKBAR_CLOSE",
@@ -174,6 +185,10 @@ type DispatchAction =
   | {
       type: ReducerActions.MAIL_FIELD_UPDATE;
       payload: {field: keyof MailObject; value: string};
+    }
+  | {
+      type: ReducerActions.INCLUDE_UNSUBSCRIBE_UPDATE;
+      payload: {value: boolean};
     }
   | {
       type: ReducerActions.RECIPIENT_UPDATE_TYPE;
@@ -196,6 +211,8 @@ type DispatchAction =
         mailObject: MailObject;
         recipientType: RecipientType;
         recipients: string;
+        /** Fehlt bei Entwürfen aus älteren Versionen — dann gilt `true`. */
+        includeUnsubscribe?: boolean;
       };
     }
   | {type: ReducerActions.CLEAR_DRAFT};
@@ -204,6 +221,8 @@ type State = {
   mailObject: MailObject;
   recipientType: RecipientType;
   recipients: string;
+  /** Abmelde-Footer anhängen (Standard an; bei Rollen immer an). */
+  includeUnsubscribe: boolean;
   testMailSent: boolean;
   isLoading: boolean;
   error: Error | null;
@@ -215,6 +234,7 @@ const initialState: State = {
   mailObject: createInitialMailObject(),
   recipientType: RecipientType.none,
   recipients: "",
+  includeUnsubscribe: true,
   testMailSent: false,
   isLoading: false,
   error: null,
@@ -234,15 +254,36 @@ const mailConsoleReducer = (state: State, action: DispatchAction): State => {
         testMailSent: false,
         sendResult: null,
       };
-    case ReducerActions.RECIPIENT_UPDATE_TYPE:
+    case ReducerActions.INCLUDE_UNSUBSCRIBE_UPDATE:
+      return {
+        ...state,
+        includeUnsubscribe: normalizeIncludeUnsubscribe(
+          state.recipientType,
+          action.payload.value,
+        ),
+        // Die Testmail muss den aktuellen Footer-Stand zeigen
+        testMailSent: false,
+        sendResult: null,
+      };
+    case ReducerActions.RECIPIENT_UPDATE_TYPE: {
+      // Bei einer Rolle wird der Footer erzwungen
+      const includeUnsubscribe = normalizeIncludeUnsubscribe(
+        action.payload.value,
+        state.includeUnsubscribe,
+      );
       return {
         ...state,
         recipientType: action.payload.value,
         // Empfänger löschen, falls sich die Auswahl geändert hat
         recipients:
           state.recipientType !== action.payload.value ? "" : state.recipients,
+        includeUnsubscribe,
+        // Hat sich der Footer dadurch geändert, passt die Testmail nicht mehr
+        testMailSent:
+          state.testMailSent && includeUnsubscribe === state.includeUnsubscribe,
         sendResult: null,
       };
+    }
     case ReducerActions.RECIPIENT_UPDATE_RECIPIENTS:
       return {
         ...state,
@@ -284,6 +325,10 @@ const mailConsoleReducer = (state: State, action: DispatchAction): State => {
         mailObject: action.payload.mailObject,
         recipientType: action.payload.recipientType,
         recipients: action.payload.recipients,
+        includeUnsubscribe: normalizeIncludeUnsubscribe(
+          action.payload.recipientType,
+          action.payload.includeUnsubscribe ?? true,
+        ),
         snackbar: {
           open: true,
           message: TEXT_MAIL_DRAFT_RESTORED,
@@ -325,16 +370,23 @@ const DRAFT_STORAGE_KEY = "chuchipirat_mail_draft";
  * @param mailObject Mail-Inhalte.
  * @param recipientType Gewählter Empfängertyp.
  * @param recipients Empfänger-String.
+ * @param includeUnsubscribe Abmelde-Footer anhängen.
  */
 const saveDraftToStorage = (
   mailObject: MailObject,
   recipientType: RecipientType,
   recipients: string,
+  includeUnsubscribe: boolean,
 ) => {
   try {
     localStorage.setItem(
       DRAFT_STORAGE_KEY,
-      JSON.stringify({mailObject, recipientType, recipients}),
+      JSON.stringify({
+        mailObject,
+        recipientType,
+        recipients,
+        includeUnsubscribe,
+      }),
     );
   } catch {
     // localStorage voll oder deaktiviert — ignorieren
@@ -350,6 +402,7 @@ const loadDraftFromStorage = (): {
   mailObject: MailObject;
   recipientType: RecipientType;
   recipients: string;
+  includeUnsubscribe?: boolean;
 } | null => {
   try {
     const raw = localStorage.getItem(DRAFT_STORAGE_KEY);
@@ -496,11 +549,17 @@ const MailConsolePage = () => {
           state.mailObject,
           state.recipientType,
           state.recipients,
+          state.includeUnsubscribe,
         );
       }
     }, 1000);
     return () => clearTimeout(timeout);
-  }, [state.mailObject, state.recipientType, state.recipients]);
+  }, [
+    state.mailObject,
+    state.recipientType,
+    state.recipients,
+    state.includeUnsubscribe,
+  ]);
 
   if (!authUser) {
     return null;
@@ -528,24 +587,13 @@ const MailConsolePage = () => {
 
     try {
       const {data, error} = await supabase.functions.invoke("send-mail", {
-        body: {
+        body: buildSendMailBody({
           recipients: parsedRecipients,
-          recipientType: recipientType,
-          subject: state.mailObject.subject,
-          body: state.mailObject.mailtext,
-          title: state.mailObject.title,
-          subtitle: state.mailObject.subtitle,
-          buttonText: state.mailObject.buttonText,
-          buttonLink: state.mailObject.buttonLink,
-          // Vorschautext nur senden, wenn befüllt
-          ...(state.mailObject.preheader && {
-            preheaderText: state.mailObject.preheader,
-          }),
-          // Transport-Override nur senden, wenn nicht «Auto»
-          ...(transportOverride !== "auto" && {
-            forceTransport: transportOverride,
-          }),
-        },
+          recipientType,
+          mailObject: state.mailObject,
+          includeUnsubscribe: state.includeUnsubscribe,
+          transport: transportOverride,
+        }),
       });
 
       if (error) {
@@ -617,6 +665,13 @@ const MailConsolePage = () => {
         field: event.target.id as keyof MailObject,
         value: event.target.value,
       },
+    });
+  };
+
+  const onIncludeUnsubscribeChange = (checked: boolean) => {
+    dispatch({
+      type: ReducerActions.INCLUDE_UNSUBSCRIBE_UPDATE,
+      payload: {value: checked},
     });
   };
 
@@ -752,10 +807,16 @@ const MailConsolePage = () => {
               onTemplateSelect={onTemplateSelect}
               testMailSent={state.testMailSent}
               recipientCount={recipientCount}
+              recipientType={state.recipientType}
+              includeUnsubscribe={state.includeUnsubscribe}
+              onIncludeUnsubscribeChange={onIncludeUnsubscribeChange}
             />
           </Grid>
           <Grid size={{xs: 12, lg: 6}}>
-            <Preview mailObject={state.mailObject} />
+            <Preview
+              mailObject={state.mailObject}
+              includeUnsubscribe={state.includeUnsubscribe}
+            />
           </Grid>
 
           {/* Transport-Toggle nur in DEV/TEST anzeigen */}
@@ -1020,6 +1081,9 @@ type MailEditorProps = {
   mailObject: MailObject;
   testMailSent: State["testMailSent"];
   recipientCount: number;
+  recipientType: RecipientType;
+  includeUnsubscribe: boolean;
+  onIncludeUnsubscribeChange: (checked: boolean) => void;
   onFieldChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
   onMailTextChange: (value: string) => void;
   onSendTestMail: () => void;
@@ -1031,14 +1095,18 @@ type MailEditorProps = {
 /**
  * Mail-Editor-Komponente.
  *
- * Enthält Felder für Betreff, Titel, Untertitel, Mailtext
- * (Rich-Text via ReactQuill), Button-Text und Button-Link.
+ * Enthält Felder für Betreff, Titel (optional), Untertitel, Mailtext
+ * (Rich-Text via ReactQuill), Button-Text und Button-Link sowie die Wahl,
+ * ob der Abmelde-Footer angehängt wird (bei einer Rolle immer aktiv).
  * Bietet Vorlagenauswahl und Entwurf-Verwaltung.
  */
 const MailEditor = ({
   mailObject,
   testMailSent,
   recipientCount,
+  recipientType,
+  includeUnsubscribe,
+  onIncludeUnsubscribeChange,
   onFieldChange,
   onMailTextChange,
   onSendMail,
@@ -1051,15 +1119,13 @@ const MailEditor = ({
   const [formValidation, setFormValidation] = React.useState({
     subject: false,
     mailtext: false,
-    title: false,
   });
+  // Bei einer Rolle ist der Abmelde-Footer Pflicht (Checkbox gesperrt)
+  const isUnsubscribeForced = recipientType === RecipientType.role;
 
   const onSendTestMail = () => {
-    const tempFormValidation = {...formValidation};
-    // Überprüfen der Eingabe
-    tempFormValidation.subject = !mailObject.subject;
-    tempFormValidation.mailtext = !mailObject.mailtext;
-    tempFormValidation.title = !mailObject.title;
+    // Überprüfen der Eingabe (der Titel ist optional)
+    const tempFormValidation = getMailFormErrors(mailObject);
 
     if (Object.values(tempFormValidation).some((value) => value === true)) {
       setFormValidation(tempFormValidation);
@@ -1102,8 +1168,6 @@ const MailEditor = ({
               onChange={onFieldChange}
               value={mailObject.title}
               label={TEXT_TITLE}
-              required
-              error={formValidation.title}
             />
           </Grid>
           <Grid size={12}>
@@ -1161,6 +1225,32 @@ const MailEditor = ({
               onChange={onFieldChange}
               label={TEXT_BUTTON_LINK}
             />
+          </Grid>
+          <Grid size={12}>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={includeUnsubscribe}
+                  disabled={isUnsubscribeForced}
+                  onChange={(event) =>
+                    onIncludeUnsubscribeChange(event.target.checked)
+                  }
+                />
+              }
+              label={TEXT_MAIL_INCLUDE_UNSUBSCRIBE}
+            />
+            <Typography
+              variant="caption"
+              color="text.secondary"
+              display="block"
+            >
+              {TEXT_MAIL_INCLUDE_UNSUBSCRIBE_HELPER}
+            </Typography>
+            {!includeUnsubscribe && (
+              <Alert severity="warning" sx={{mt: 1}}>
+                {TEXT_MAIL_UNSUBSCRIBE_OFF_WARNING}
+              </Alert>
+            )}
           </Grid>
         </Grid>
       </CardContent>
@@ -1305,16 +1395,18 @@ const TransportToggle = ({value, onChange}: TransportToggleProps) => {
 /** Props für die Vorschau-Komponente. */
 type PreviewProps = {
   mailObject: MailObject;
+  includeUnsubscribe: boolean;
 };
 
 /**
  * Vorschau-Komponente für die E-Mail.
  *
  * Zeigt eine Vorschau mit Titel, Untertitel,
- * bereinigtem HTML-Inhalt und optionalem Button.
+ * bereinigtem HTML-Inhalt, optionalem Button und (falls gewählt)
+ * dem Abmelde-Hinweis im Footer.
  * Das Header-Bild (Logo) ist im Template fix hinterlegt.
  */
-const Preview = ({mailObject}: PreviewProps) => {
+const Preview = ({mailObject, includeUnsubscribe}: PreviewProps) => {
   return (
     <Card>
       <CardHeader title={TEXT_PREVIEW} />
@@ -1375,6 +1467,13 @@ const Preview = ({mailObject}: PreviewProps) => {
               >
                 {mailObject.buttonText}
               </Button>
+            </Grid>
+          )}
+          {includeUnsubscribe && (
+            <Grid size={12}>
+              <Typography variant="caption" color="text.disabled">
+                {TEXT_MAIL_UNSUBSCRIBE_PREVIEW}
+              </Typography>
             </Grid>
           )}
         </Grid>

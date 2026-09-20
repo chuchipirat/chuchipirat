@@ -371,4 +371,107 @@ describe("subscribeWithRetry", () => {
       expect(channels).toHaveLength(1);
     });
   });
+
+  /**
+   * Regression CHUCHIPIRAT-GV: nach einem längeren Hintergrund-/Standby-
+   * Fenster ist der Backoff-Zyklus oft schon erschöpft ("failed"), bevor der
+   * Tab wieder sichtbar wird bzw. das Netz zurückkommt — ohne automatischen
+   * Reconnect bliebe die Verbindung bis zum manuellen Klick auf "Erneut
+   * versuchen" tot.
+   */
+  describe("Automatischer Reconnect bei Tab-Wechsel/Online", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    const setVisibility = (state: "visible" | "hidden") => {
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true,
+        value: state,
+      });
+    };
+
+    test("reconnected sofort, wenn der Tab nach einem CHANNEL_ERROR wieder sichtbar wird", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      expect(channels).toHaveLength(1); // Backoff-Timer läuft noch (1s)
+
+      setVisibility("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(channels).toHaveLength(2);
+      expect(onStatusChange).toHaveBeenLastCalledWith("reconnecting");
+    });
+
+    test("reconnected sofort aus dem 'failed'-Zustand, wenn der Tab wieder sichtbar wird", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+
+      const delays = [1000, 2000, 4000, 8000, 16000];
+      for (const delay of delays) {
+        lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+        jest.advanceTimersByTime(delay);
+      }
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      expect(onStatusChange).toHaveBeenLastCalledWith("failed");
+      const channelsBeforeVisible = channels.length;
+
+      setVisibility("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(channels).toHaveLength(channelsBeforeVisible + 1);
+      expect(onStatusChange).toHaveBeenLastCalledWith("reconnecting");
+    });
+
+    test("löst KEINEN Reconnect aus, wenn der Tab sichtbar wird, aber alles verbunden ist", () => {
+      const {client, channels} = createClientMock();
+      subscribeWithRetry(baseParams(client));
+      lastStatusCallback(channels)("SUBSCRIBED");
+
+      setVisibility("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(channels).toHaveLength(1);
+    });
+
+    test("ignoriert visibilitychange, wenn der Tab in den Hintergrund wechselt", () => {
+      const {client, channels} = createClientMock();
+      subscribeWithRetry(baseParams(client));
+
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      setVisibility("hidden");
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      expect(channels).toHaveLength(1);
+    });
+
+    test("reconnected sofort bei einem 'online'-Event nach einem CHANNEL_ERROR", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      window.dispatchEvent(new Event("online"));
+
+      expect(channels).toHaveLength(2);
+      expect(onStatusChange).toHaveBeenLastCalledWith("reconnecting");
+    });
+
+    test("Unsubscribe entfernt die visibilitychange-/online-Listener", () => {
+      const {client, channels} = createClientMock();
+      const {unsubscribe} = subscribeWithRetry(baseParams(client));
+
+      lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+      unsubscribe();
+
+      setVisibility("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("online"));
+
+      expect(channels).toHaveLength(1);
+    });
+  });
 });

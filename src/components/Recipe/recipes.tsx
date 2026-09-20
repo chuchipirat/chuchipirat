@@ -23,8 +23,7 @@ import {
   Switch,
   Fab,
   Typography,
-  Backdrop,
-  CircularProgress,
+  LinearProgress,
   SelectChangeEvent,
   SnackbarCloseReason,
   Paper,
@@ -62,12 +61,28 @@ import {
   OUTDOOR_KITCHEN_SUITABLE as TEXT_OUTDOOR_KITCHEN_SUITABLE,
   SHOW_ONLY_MY_RECIPES as TEXT_SHOW_ONLY_MY_RECIPES,
   RESET as TEXT_RESET,
+  RECIPE_LIST_LOAD_MORE as TEXT_RECIPE_LIST_LOAD_MORE,
+  RECIPE_LIST_RETRY as TEXT_RECIPE_LIST_RETRY,
+  RECIPE_LIST_LOAD_ERROR as TEXT_RECIPE_LIST_LOAD_ERROR,
+  RECIPE_LIST_LOAD_MORE_ERROR as TEXT_RECIPE_LIST_LOAD_MORE_ERROR,
 } from "../../constants/text";
 
 import {useCustomStyles} from "../../constants/styles";
 
-import {RecipeShort, createEmptyRecipeShort} from "./recipe.types";
+import {RecipeShort} from "./recipe.types";
 import {MenuType, RecipeType} from "./recipe.class";
+import {
+  INITIAL_SEARCH_SETTINGS,
+  SearchSettings,
+} from "./recipeList.types";
+import {useRecipeList} from "./useRecipeList";
+import {
+  clearRecipeListCache,
+  consumeRecipeListScrollY,
+  loadRecipeListCache,
+  saveRecipeListScrollY,
+  skipScrollToTopIfRestorable,
+} from "./recipeListCache";
 
 import {PageTitle} from "../Shared/pageTitle";
 import {SearchPanel} from "../Shared/searchPanel";
@@ -78,229 +93,43 @@ import {CustomSnackbar, SnackbarState} from "../Shared/customSnackbar";
 
 import {Lock as LockIcon, Category as CategoryIcon} from "@mui/icons-material";
 
-import {useDatabase} from "../Database/DatabaseContext";
-import type {RecipeShortDomain} from "../Database/Repository/RecipeRepository";
 import {Allergen, Diet} from "../Product/product.types";
-import {
-  STORAGE_OBJECT_PROPERTY,
-  SessionStorageHandler,
-} from "../Shared/sessionStorageHandler.class";
 import {useAuthUser} from "../Session/authUserContext";
 import AuthUser from "../Session/authUser.class";
 
-/* ===================================================================
-// ======================== Cache-Konstanten =========================
-// =================================================================== */
-
-/** SessionStorage-Schlüssel für den Rezeptlisten-Cache. */
-const RECIPE_LIST_CACHE_KEY = "recipeListCache";
-
-/** SessionStorage-Schlüssel für die gespeicherte Scroll-Position. */
-const RECIPE_LIST_SCROLL_Y_KEY = "recipeListScrollY";
-
-/** SessionStorage-Schlüssel zum Unterdrücken von ScrollToTop nach Navigation zurück. */
-const SKIP_SCROLL_TO_TOP_KEY = "skipScrollToTop";
-
-/** Cache-Gültigkeitsdauer in Millisekunden (5 Minuten). */
-const RECIPE_CACHE_TTL_MS = 300_000;
-
 /** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
 const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
-
-/**
- * Zwischengespeicherte Rezeptliste mit Zeitstempel.
- *
- * @param recipes Serialisierte Kurzrezepte (Datum als ISO-String).
- * @param timestamp Zeitpunkt der Cache-Erstellung (Epoch-Millisekunden).
- */
-type RecipeListCache = {
-  recipes: SerializedRecipeShort[];
-  timestamp: number;
-};
-
-/**
- * RecipeShort mit serialisiertem Datum (ISO-String statt Date-Objekt),
- * da sessionStorage nur JSON-kompatible Daten speichern kann.
- */
-type SerializedRecipeShort = Omit<RecipeShort, "created"> & {
-  created: {
-    date: string;
-    fromUid: string;
-    fromDisplayName: string;
-  };
-};
-
-/**
- * Serialisiert ein RecipeShort-Objekt für die Speicherung in sessionStorage.
- * Wandelt das Date-Objekt in einen ISO-String um.
- *
- * @param recipe Das zu serialisierende Kurzrezept.
- * @returns Serialisiertes Kurzrezept mit ISO-Datums-String.
- */
-const serializeRecipeShort = (
-  recipe: RecipeShort,
-): SerializedRecipeShort => ({
-  ...recipe,
-  created: {
-    ...recipe.created,
-    date: recipe.created.date.toISOString(),
-  },
-});
-
-/**
- * Deserialisiert ein aus sessionStorage geladenes RecipeShort-Objekt.
- * Wandelt den ISO-Datums-String zurück in ein Date-Objekt.
- *
- * @param serialized Das serialisierte Kurzrezept.
- * @returns RecipeShort mit korrektem Date-Objekt.
- */
-const deserializeRecipeShort = (
-  serialized: SerializedRecipeShort,
-): RecipeShort => ({
-  ...serialized,
-  created: {
-    ...serialized.created,
-    date: new Date(serialized.created.date),
-  },
-});
-
-/**
- * Speichert die Rezeptliste im sessionStorage-Cache.
- *
- * @param recipes Die zu cachenden Kurzrezepte.
- */
-const saveRecipeCache = (recipes: RecipeShort[]): void => {
-  try {
-    const cache: RecipeListCache = {
-      recipes: recipes.map(serializeRecipeShort),
-      timestamp: Date.now(),
-    };
-    sessionStorage.setItem(RECIPE_LIST_CACHE_KEY, JSON.stringify(cache));
-  } catch {
-    // sessionStorage voll oder nicht verfügbar – kein Fehler werfen
-  }
-};
-
-/**
- * Lädt die Rezeptliste aus dem sessionStorage-Cache, falls vorhanden und nicht abgelaufen.
- *
- * @returns Gecachte Rezeptliste oder `null`, wenn kein gültiger Cache vorhanden ist.
- */
-const loadRecipeCache = (): RecipeShort[] | null => {
-  try {
-    const raw = sessionStorage.getItem(RECIPE_LIST_CACHE_KEY);
-    if (!raw) return null;
-
-    const cache: RecipeListCache = JSON.parse(raw);
-    if (Date.now() - cache.timestamp > RECIPE_CACHE_TTL_MS) {
-      sessionStorage.removeItem(RECIPE_LIST_CACHE_KEY);
-      return null;
-    }
-    return cache.recipes.map(deserializeRecipeShort);
-  } catch {
-    sessionStorage.removeItem(RECIPE_LIST_CACHE_KEY);
-    return null;
-  }
-};
-
-/**
- * Invalidiert den Rezeptlisten-Cache (z.B. nach Erstellen eines neuen Rezepts).
- */
-const clearRecipeCache = (): void => {
-  sessionStorage.removeItem(RECIPE_LIST_CACHE_KEY);
-};
 
 /* ===================================================================
 // ============================ Dispatcher ===========================
 // =================================================================== */
 
-/** Aktionen für den Rezepte-Reducer. */
+/** Aktionen für den Rezepte-Reducer (nur Snackbar, die Liste lädt der Hook). */
 enum ReducerActions {
-  RECIPES_FETCH_INIT = "RECIPES_FETCH_INIT",
-  RECIPES_FETCH_SUCCESS = "RECIPES_FETCH_SUCCESS",
-  RECIPES_FETCH_ERROR = "RECIPES_FETCH_ERROR",
   SET_SNACKBAR = "SET_SNACKBAR",
   CLOSE_SNACKBAR = "CLOSE_SNACKBAR",
 }
 
-/**
- * Diskriminierte Union für Reducer-Aktionen.
- * Jede Aktion hat einen eindeutigen Typ und optional ein typsicheres Payload.
- */
+/** Diskriminierte Union für Reducer-Aktionen. */
 type DispatchAction =
-  | {type: ReducerActions.RECIPES_FETCH_INIT}
-  | {type: ReducerActions.RECIPES_FETCH_SUCCESS; payload: RecipeShort[]}
-  | {type: ReducerActions.RECIPES_FETCH_ERROR; payload: Error}
   | {type: ReducerActions.SET_SNACKBAR; payload: SnackbarState}
   | {type: ReducerActions.CLOSE_SNACKBAR};
 
 /**
  * Zustand der Rezeptseite.
  *
- * @param recipes Liste der geladenen Kurz-Rezepte.
- * @param isLoading Ob gerade Daten geladen werden.
  * @param snackbar Aktueller Snackbar-Zustand.
- * @param error Fehler beim Laden, falls vorhanden.
  */
 type State = {
-  recipes: RecipeShort[];
-  isLoading: boolean;
   snackbar: SnackbarState;
-  error: Error | null;
 };
 
 const initialState: State = {
-  recipes: [],
-  isLoading: false,
   snackbar: {} as SnackbarState,
-  error: null,
 };
 
 /**
- * Props für die Filterfunktion der Rezepte.
- *
- * @param searchSettings Aktuelle Sucheinstellungen.
- * @param recipes Liste der zu filternden Rezepte.
- */
-interface FilterRecipesProps {
-  searchSettings: SearchSettings;
-  recipes: RecipeShort[];
-}
-
-/**
- * Prüft, ob ein Rezept anhand von Name, Tags oder Variantenname zum
- * Freitext-Suchbegriff passt. Bei leerem Suchbegriff gilt jedes Rezept als
- * Treffer. Losgelöst von den übrigen Filtern (Diät, Allergene etc.), damit
- * sich ein Suchtreffer unabhängig von zusätzlich aktiven Filtern feststellen
- * lässt.
- *
- * @param recipe Zu prüfendes Rezept.
- * @param searchString Freitext-Suchbegriff.
- * @returns true, wenn das Rezept zum Suchbegriff passt.
- */
-function recipeMatchesSearchText(
-  recipe: RecipeShort,
-  searchString: string,
-): boolean {
-  if (!searchString) return true;
-
-  if (recipe.name.toLowerCase().includes(searchString.toLowerCase())) {
-    return true;
-  }
-
-  return (
-    recipe.tags.filter(
-      (tag) =>
-        tag.toLowerCase().includes(searchString.toLocaleLowerCase()) ||
-        recipe.variantName
-          ?.toLowerCase()
-          .includes(searchString.toLocaleLowerCase()),
-    ).length > 0
-  );
-}
-
-/**
- * Reducer für die Rezeptseite. Verwaltet Lade-, Fehler- und Snackbar-Zustände.
+ * Reducer für die Rezeptseite. Verwaltet den Snackbar-Zustand.
  *
  * @param state Aktueller Zustand.
  * @param action Auszuführende Aktion.
@@ -309,58 +138,18 @@ function recipeMatchesSearchText(
  */
 const recipesReducer = (state: State, action: DispatchAction): State => {
   switch (action.type) {
-    case ReducerActions.RECIPES_FETCH_INIT:
-      return {
-        ...state,
-        isLoading: true,
-      };
-    case ReducerActions.RECIPES_FETCH_SUCCESS:
-      return {
-        ...state,
-        recipes: action.payload,
-        error: null,
-        isLoading: false,
-      };
-    case ReducerActions.RECIPES_FETCH_ERROR:
-      return {
-        ...state,
-        error: action.payload,
-        isLoading: false,
-      };
     case ReducerActions.SET_SNACKBAR:
-      return {
-        ...state,
-        snackbar: action.payload,
-      };
+      return {...state, snackbar: action.payload};
     case ReducerActions.CLOSE_SNACKBAR:
       return {
         ...state,
-        snackbar: {
-          severity: "success",
-          message: "",
-          open: false,
-        },
+        snackbar: {severity: "success", message: "", open: false},
       };
     default: {
       const _exhaustive: never = action;
       throw new Error(`Unbekannter ActionType: ${JSON.stringify(_exhaustive)}`);
     }
   }
-};
-
-/**
- * Initiale Sucheinstellungen für die Rezeptsuche.
- * Wird als Ausgangszustand und beim Zurücksetzen der erweiterten Suche verwendet.
- */
-export const INITIAL_SEARCH_SETTINGS: SearchSettings = {
-  showAdvancedSearch: false,
-  searchString: "",
-  allergens: [0],
-  diet: Diet.Meat,
-  menuTypes: [],
-  recipeType: "all",
-  outdoorKitchenSuitable: false,
-  showOnlyMyRecipes: false,
 };
 
 /* ===================================================================
@@ -384,61 +173,17 @@ const MenuProps = {
 };
 
 /* ===================================================================
-// ====================== Hilfsfunktionen ============================
-// =================================================================== */
-
-/**
- * Wandelt ein RecipeShortDomain-Objekt in ein RecipeShort-Objekt um.
- * Wird benötigt, um die Supabase-Repository-Daten mit den bestehenden
- * UI-Komponenten (RecipeCard) kompatibel zu machen.
- *
- * @param domain - Das RecipeShortDomain-Objekt aus dem Supabase-Repository.
- * @returns Ein RecipeShort-Objekt für die UI.
- */
-const domainToRecipeShort = (domain: RecipeShortDomain): RecipeShort => {
-  const recipeShort = createEmptyRecipeShort();
-  recipeShort.uid = domain.uid;
-  recipeShort.name = domain.name;
-  recipeShort.source = domain.source;
-  recipeShort.pictureSrc = domain.pictureSrc;
-  recipeShort.tags = domain.tags;
-  recipeShort.linkedRecipes = [];
-  recipeShort.dietProperties = {
-    diet: domain.dietProperties.diet,
-    allergens: domain.dietProperties.allergens,
-  };
-  recipeShort.menuTypes = domain.menuTypes as RecipeShort["menuTypes"];
-  recipeShort.outdoorKitchenSuitable = domain.outdoorKitchenSuitable;
-  recipeShort.created = {
-    date: domain.createdAt,
-    fromUid: domain.createdBy,
-    fromDisplayName: "",
-  };
-  recipeShort.type = domain.recipeType as RecipeShort["type"];
-  recipeShort.rating = {avgRating: domain.avgRating, noRatings: domain.noRatings};
-  recipeShort.noComments = domain.noComments;
-  if (domain.variantName) {
-    recipeShort.variantName = domain.variantName;
-  }
-  return recipeShort;
-};
-
-/* ===================================================================
 // =============================== Page ==============================
 // =================================================================== */
-/* ===================================================================
-// =============================== Base ==============================
-// =================================================================== */
 
 /**
- * Hauptseite für die Rezeptübersicht. Lädt alle öffentlichen und privaten Rezepte
- * des angemeldeten Benutzers und zeigt sie mit Suchfunktion, erweiterten Filtern
- * und Kartenraster an.
+ * Hauptseite für die Rezeptübersicht. Zeigt die öffentlichen und die eigenen
+ * privaten Rezepte seitenweise (weitere Karten laden beim Scrollen nach) mit
+ * Suche und erweiterten Filtern in der Datenbank.
  *
  * @returns JSX-Element der Rezeptübersichtsseite.
  */
 export const RecipesPage = () => {
-  const database = useDatabase();
   const authUser = useAuthUser();
   const classes = useCustomStyles();
   const location = useLocation();
@@ -446,11 +191,15 @@ export const RecipesPage = () => {
 
   const [state, dispatch] = React.useReducer(recipesReducer, initialState);
 
+  // Nach dem Löschen eines Rezepts (Snackbar-Hinweis) den Zwischenspeicher
+  // verwerfen, bevor die Liste ihn liest (die Liste wird beim Rendern initialisiert).
+  if (location.state?.snackbar) {
+    clearRecipeListCache();
+  }
+
   // Snackbar aus dem location.state anzeigen (z.B. nach Rezept-Löschung)
   React.useEffect(() => {
     if (location.state?.snackbar && !state.snackbar.open) {
-      // Cache invalidieren, da sich die Rezeptliste geändert haben könnte
-      clearRecipeCache();
       dispatch({
         type: ReducerActions.SET_SNACKBAR,
         payload: location.state.snackbar!,
@@ -458,96 +207,20 @@ export const RecipesPage = () => {
     }
   }, [location.state]);
 
-  /** Ob die Rezepte aus dem Cache geladen wurden (für Scroll-Wiederherstellung). */
-  const loadedFromCacheRef = React.useRef(false);
-
-  // Wenn ein gespeicherter Scroll-Wert vorliegt und Cache vorhanden ist,
-  // ScrollToTop synchron unterdrücken (bevor dessen useEffect läuft)
-  if (
-    sessionStorage.getItem(RECIPE_LIST_SCROLL_Y_KEY) &&
-    sessionStorage.getItem(RECIPE_LIST_CACHE_KEY)
-  ) {
-    sessionStorage.setItem(SKIP_SCROLL_TO_TOP_KEY, "true");
-  }
-
-  /* ------------------------------------------
-  // Daten aus der DB lesen (mit Cache)
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (!authUser) {
-      return;
-    }
-
-    // Prüfen ob ein gültiger Cache vorhanden ist
-    const cached = loadRecipeCache();
-    if (cached) {
-      loadedFromCacheRef.current = true;
-      dispatch({
-        type: ReducerActions.RECIPES_FETCH_SUCCESS,
-        payload: cached,
-      });
-      return;
-    }
-
-    dispatch({type: ReducerActions.RECIPES_FETCH_INIT});
-    // Nur die für die Übersicht benötigten Spalten laden (Kurz-Abfrage)
-    Promise.all([
-      database.recipes.getAllPublicRecipeShorts(),
-      database.recipes.getPrivateRecipeShortsForUser(authUser.uid),
-    ])
-      .then(([publicRecipes, privateRecipes]) => {
-        const all = [...publicRecipes, ...privateRecipes].map(
-          domainToRecipeShort,
-        );
-        // alphabetisch sortieren
-        all.sort((a, b) => a.name.localeCompare(b.name));
-
-        // Rezepte im Cache speichern
-        saveRecipeCache(all);
-
-        dispatch({
-          type: ReducerActions.RECIPES_FETCH_SUCCESS,
-          payload: all,
-        });
-      })
-      .catch((error) => {
-        dispatch({
-          type: ReducerActions.RECIPES_FETCH_ERROR,
-          payload: error,
-        });
-      });
-  }, [authUser]);
-
-  /* ------------------------------------------
-  // Scroll-Position wiederherstellen (nur bei Cache-Treffer)
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (!loadedFromCacheRef.current || state.recipes.length === 0) {
-      return;
-    }
-    const savedScrollY = sessionStorage.getItem(RECIPE_LIST_SCROLL_Y_KEY);
-    if (savedScrollY) {
-      // Doppeltes requestAnimationFrame damit das DOM fertig gerendert ist
-      // und die ScrollToTop-Komponente bereits gelaufen ist
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          window.scrollTo({top: parseInt(savedScrollY, 10)});
-          sessionStorage.removeItem(RECIPE_LIST_SCROLL_Y_KEY);
-        });
-      });
-    }
-  }, [state.recipes]);
+  // Ist ein gespeicherter Stand samt Scroll-Wert vorhanden, ScrollToTop
+  // synchron unterdrücken (bevor dessen useEffect läuft)
+  skipScrollToTopIfRestorable();
 
   if (!authUser) {
     return null;
   }
 
   /* ------------------------------------------
- // Neues Rezept anlegen
- // ------------------------------------------ */
+  // Neues Rezept anlegen
+  // ------------------------------------------ */
   const onNewClick = () => {
-    // Cache invalidieren, damit die Liste beim Zurückkehren neu geladen wird
-    clearRecipeCache();
+    // Zwischenspeicher verwerfen, damit die Liste beim Zurückkehren neu geladen wird
+    clearRecipeListCache();
     navigate(ROUTE_RECIPE, {
       state: {action: Action.NEW},
     });
@@ -560,7 +233,7 @@ export const RecipesPage = () => {
       return;
     }
     // Scroll-Position speichern, damit sie beim Zurückkehren wiederhergestellt wird
-    sessionStorage.setItem(RECIPE_LIST_SCROLL_Y_KEY, String(window.scrollY));
+    saveRecipeListScrollY(window.scrollY);
     navigate(`${ROUTE_RECIPE}/${recipe.uid}`, {
       state: {
         action: Action.VIEW,
@@ -593,21 +266,9 @@ export const RecipesPage = () => {
       />
       {/* ===== BODY ===== */}
       <Container sx={classes.container} component="main" maxWidth="lg">
-        <Backdrop sx={classes.backdrop} open={state.isLoading}>
-          <CircularProgress color="inherit" />
-        </Backdrop>
-        {state.error && (
-          <AlertMessage
-            error={state.error}
-            severity="error"
-            messageTitle={TEXT_ALERT_TITLE_UUPS}
-          />
-        )}
         <RecipeSearch
-          recipes={state.recipes}
           onNewClick={onNewClick}
           onCardClick={onCardClick}
-          isLoading={state.isLoading}
           authUser={authUser}
         />
       </Container>
@@ -639,162 +300,110 @@ export interface OnRecipeCardClickProps {
 /**
  * Props für die RecipeSearch-Komponente.
  *
- * @param recipes Liste aller verfügbaren Rezepte.
  * @param onNewClick Callback zum Erstellen eines neuen Rezepts.
  * @param onCardClick Callback beim Klick auf eine Rezept-Karte.
  * @param onFabButtonClick Optionaler Callback für den FAB-Button auf der Karte.
  * @param embeddedMode Ob die Komponente eingebettet angezeigt wird (z.B. im Menüplan).
  * @param fabButtonIcon Optionales Icon für den FAB-Button.
- * @param error Optionaler Fehler.
- * @param isLoading Ob Daten geladen werden.
  * @param authUser Angemeldeter Benutzer.
+ * @param eventUid Anlass, dessen Varianten in der eingebetteten Suche erscheinen.
+ * @param enabled Ob geladen wird (die Schublade im Menüplan lädt erst beim Öffnen).
+ * @param reloadToken Ändert sich dieser Wert, lädt die Liste neu (z.B. nach dem Anlegen eines Rezepts).
  */
 interface RecipeSearchProps {
-  recipes: RecipeShort[];
   onNewClick: () => void;
   onCardClick: ({event, recipe}: OnRecipeCardClickProps) => void;
   onFabButtonClick?: ({event, recipe}: OnRecipeCardClickProps) => void;
   embeddedMode?: boolean;
   fabButtonIcon?: JSX.Element;
-  error?: Error | null;
-  isLoading?: boolean;
   authUser: AuthUser;
+  eventUid?: string;
+  enabled?: boolean;
+  reloadToken?: number;
 }
 
 /**
- * Sucheinstellungen für die Rezeptsuche inkl. erweiterte Filter.
+ * Ob mindestens ein Filter der erweiterten Suche aktiv ist (ohne Suchtext).
  *
- * @param showAdvancedSearch Ob die erweiterte Suche angezeigt wird.
- * @param searchString Freitextsuche.
- * @param allergens Ausgewählte Allergene zum Ausfiltern.
- * @param diet Gewählte Ernährungsform (Fleisch, Vegetarisch, Vegan).
- * @param menuTypes Ausgewählte Menütypen.
- * @param outdoorKitchenSuitable Nur Rezepte für Outdoorküche anzeigen.
- * @param recipeType Filterung nach Rezepttyp (alle, öffentlich, privat).
- * @param showOnlyMyRecipes Nur eigene Rezepte anzeigen.
+ * @param searchSettings Sucheinstellungen.
+ * @returns `true`, wenn ein Filter vom Standard abweicht.
  */
-interface SearchSettings {
-  showAdvancedSearch: boolean;
-  searchString: string;
-  allergens: Allergen[];
-  diet: Diet;
-  menuTypes: MenuType[];
-  outdoorKitchenSuitable: boolean;
-  recipeType: RecipeType | "all";
-  showOnlyMyRecipes: boolean;
-}
+const hasActiveFilters = (searchSettings: SearchSettings): boolean =>
+  searchSettings.diet !== INITIAL_SEARCH_SETTINGS.diet ||
+  !searchSettings.allergens.includes(Allergen.None) ||
+  searchSettings.menuTypes.length > 0 ||
+  searchSettings.outdoorKitchenSuitable ||
+  searchSettings.recipeType !== INITIAL_SEARCH_SETTINGS.recipeType ||
+  searchSettings.showOnlyMyRecipes;
 
 /**
- * Rezeptsuche mit Freitext, erweiterten Filtern und Ergebnisanzeige als Kartenraster.
- * Unterstützt eingebetteten Modus (z.B. im Menüplan) und persistiert
- * Sucheinstellungen im Session Storage.
+ * Rezeptsuche mit Freitext, erweiterten Filtern und Ergebnisanzeige als
+ * Kartenraster. Die Liste wächst beim Scrollen; Suche und Filter fragen die
+ * Datenbank. Unterstützt den eingebetteten Modus (z.B. im Menüplan). Auf der
+ * Rezeptseite bleiben Karten, Suche und Scroll-Position beim Öffnen eines
+ * Rezepts erhalten.
  */
 export const RecipeSearch = ({
-  recipes,
   onNewClick,
   onCardClick,
   onFabButtonClick,
   embeddedMode = false,
   fabButtonIcon,
-  isLoading = false,
   authUser,
+  eventUid,
+  enabled = true,
+  reloadToken = 0,
 }: RecipeSearchProps) => {
   const classes = useCustomStyles();
+  const [restoredCache] = React.useState(() =>
+    embeddedMode ? null : loadRecipeListCache(authUser.uid),
+  );
   const [searchSettings, setSearchSettings] = React.useState<SearchSettings>(
-    () => {
-      if (embeddedMode) return INITIAL_SEARCH_SETTINGS;
-      const stored = SessionStorageHandler.getDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
-        documentUid: "searchSettings",
-      });
-      return (stored as SearchSettings | null) ?? INITIAL_SEARCH_SETTINGS;
-    },
+    () => restoredCache?.searchSettings ?? INITIAL_SEARCH_SETTINGS,
   );
 
+  const list = useRecipeList({
+    searchSettings,
+    userId: authUser.uid,
+    eventUid,
+    enabled,
+    useCache: !embeddedMode,
+    restoredCache,
+  });
+
   /* ------------------------------------------
-  // Rezepte filtern
+  // Scroll-Position nach der Rückkehr aus einem Rezept wiederherstellen
   // ------------------------------------------ */
-  /**
-   * Filtert die Rezeptliste anhand der aktuellen Sucheinstellungen.
-   * Prüft nacheinander: Suchtext, Diät, Allergene, Menütypen,
-   * Outdoorküche, Rezepttyp und "nur eigene Rezepte".
-   *
-   * @param params Sucheinstellungen und Rezeptliste.
-   * @returns Gefilterte Rezeptliste.
-   */
-  const filterRecipes = ({searchSettings, recipes}: FilterRecipesProps) => {
-    return recipes.filter((recipe) => {
-      // Zuerst prüfen ob Text stimmt
-      if (!recipeMatchesSearchText(recipe, searchSettings.searchString)) {
-        return false;
-      }
-
-      // prüfen ob Diät passt
-      if (
-        searchSettings.diet !== Diet.Meat &&
-        recipe.dietProperties?.diet !== searchSettings.diet
-      ) {
-        return false;
-      }
-
-      // prüfen ob Allergie passt
-      if (
-        !searchSettings.allergens.includes(Allergen.None) &&
-        searchSettings.allergens.filter((allergen) =>
-          recipe.dietProperties.allergens.includes(allergen),
-        ).length > 0
-      ) {
-        return false;
-      }
-
-      // prüfen ob Menütypen passen
-      if (
-        searchSettings.menuTypes.length > 0 &&
-        searchSettings.menuTypes.filter((menuType) =>
-          recipe.menuTypes.includes(menuType),
-        ).length === 0
-      ) {
-        return false;
-      }
-
-      // prüfen ob Outdoorküche --> nur filtern wenn Schalter an
-      if (
-        searchSettings.outdoorKitchenSuitable &&
-        recipe.outdoorKitchenSuitable !== searchSettings.outdoorKitchenSuitable
-      ) {
-        return false;
-      }
-
-      // prüfen über Rezept-Typ
-      if (
-        searchSettings.recipeType !== "all" &&
-        recipe.type !== searchSettings.recipeType
-      ) {
-        return false;
-      }
-
-      if (
-        searchSettings.showOnlyMyRecipes &&
-        recipe.created.fromUid !== authUser.uid
-      ) {
-        return false;
-      }
-
-      // Das Rezept hat allen Anforderungen entsprochen
-      return true;
+  const scrollRestoredRef = React.useRef(false);
+  React.useEffect(() => {
+    if (
+      embeddedMode ||
+      scrollRestoredRef.current ||
+      !list.restoredFromCache ||
+      list.recipes.length === 0
+    ) {
+      return;
+    }
+    scrollRestoredRef.current = true;
+    const savedScrollY = consumeRecipeListScrollY();
+    if (savedScrollY === null) return;
+    // Doppeltes requestAnimationFrame damit das DOM fertig gerendert ist
+    // und die ScrollToTop-Komponente bereits gelaufen ist
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => window.scrollTo({top: savedScrollY}));
     });
-  };
+  }, [embeddedMode, list.restoredFromCache, list.recipes.length]);
 
   /* ------------------------------------------
-  // Gefilterte Rezepte — synchron aus recipes + searchSettings abgeleitet,
-  // damit beim ersten Laden kein Frame mit leerem Zwischenstand entsteht
-  // (vorher: useEffect-State, das erst einen Tick nach Eintreffen der
-  // recipes ein "keine Rezepte gefunden" aufblitzen liess).
+  // Neu laden, wenn sich das Rezeptangebot geändert hat (z.B. neues Rezept)
   // ------------------------------------------ */
-  const filteredData = React.useMemo(
-    () => filterRecipes({searchSettings, recipes}),
-    [searchSettings, recipes],
-  );
+  const previousReloadToken = React.useRef(reloadToken);
+  const {reload} = list;
+  React.useEffect(() => {
+    if (previousReloadToken.current === reloadToken) return;
+    previousReloadToken.current = reloadToken;
+    reload();
+  }, [reloadToken, reload]);
 
   /* ------------------------------------------
   // Analytics: Erfolglose Suchen tracken
@@ -803,40 +412,32 @@ export const RecipeSearch = ({
     searchSettings.searchString,
     SEARCH_ANALYTICS_DEBOUNCE_MS,
   );
-
-  /**
-   * Ob der aktuelle Freitext-Suchbegriff mindestens ein Rezept trifft —
-   * unabhängig von den übrigen Filtern. Verhindert, dass ein Treffer, der
-   * nur durch einen anderen aktiven Filter (z.B. "nur eigene Rezepte")
-   * ausgeblendet wird, fälschlicherweise als erfolglose Suche gemeldet wird.
-   */
-  const hasSearchTextMatches = React.useMemo(() => {
-    if (!searchSettings.searchString) return true;
-    return recipes.some((recipe) =>
-      recipeMatchesSearchText(recipe, searchSettings.searchString),
-    );
-  }, [recipes, searchSettings.searchString]);
-
+  const lastReportedTermRef = React.useRef("");
   React.useEffect(() => {
-    // isLoading verhindert eine Falschmeldung, solange recipes noch nicht
-    // geladen ist (z.B. ein aus dem Session Storage wiederhergestellter
-    // Suchbegriff, bevor die asynchrone Rezeptliste eingetroffen ist).
-    if (isLoading || !debouncedSearchString.trim() || hasSearchTextMatches) {
+    const term = debouncedSearchString.trim();
+    // Nur melden, wenn die Datenbank «keine Treffer» bestätigt hat und kein
+    // anderer Filter das Ergebnis leert (sonst wäre es keine erfolglose Suche).
+    if (
+      !term ||
+      term !== searchSettings.searchString.trim() ||
+      !list.hasConfirmedNoResults ||
+      hasActiveFilters(searchSettings) ||
+      lastReportedTermRef.current === term
+    ) {
       return;
     }
-
+    lastReportedTermRef.current = term;
     trackEvent(AnalyticsEvent.SEARCH_NO_RESULTS, {
       source: embeddedMode ? "recipe_drawer" : "recipe",
-      searchTerm: debouncedSearchString,
+      searchTerm: term,
     });
-  }, [debouncedSearchString, hasSearchTextMatches, embeddedMode, isLoading]);
+  }, [debouncedSearchString, list.hasConfirmedNoResults, searchSettings, embeddedMode]);
 
   /* ------------------------------------------
-  // Hilfsfunktion: Sucheinstellungen anwenden und filtern
+  // Hilfsfunktion: Sucheinstellungen anwenden
   // ------------------------------------------ */
   /**
-   * Wendet eine partielle Aktualisierung der Sucheinstellungen an
-   * und filtert die Rezeptliste entsprechend neu.
+   * Wendet eine partielle Aktualisierung der Sucheinstellungen an.
    *
    * @param update Teilweise Sucheinstellungen zum Zusammenführen.
    */
@@ -850,17 +451,10 @@ export const RecipeSearch = ({
   const onAdvancedSearchClick = () => {
     // wenn die Erweiterte Suche geschlossen wird, die Einstellungen zurücksetzen
     if (searchSettings.showAdvancedSearch) {
-      const newSettings = {
+      setSearchSettings({
         ...INITIAL_SEARCH_SETTINGS,
         searchString: searchSettings.searchString,
         showAdvancedSearch: false,
-      };
-      setSearchSettings(newSettings);
-
-      SessionStorageHandler.deleteDocument({
-        storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
-        documentUid: "searchSettings",
-        prefix: "",
       });
     } else {
       setSearchSettings({
@@ -871,17 +465,10 @@ export const RecipeSearch = ({
   };
 
   const onResetFilters = () => {
-    const newSettings = {
+    setSearchSettings({
       ...INITIAL_SEARCH_SETTINGS,
       searchString: searchSettings.searchString,
       showAdvancedSearch: true,
-    };
-    setSearchSettings(newSettings);
-
-    SessionStorageHandler.deleteDocument({
-      storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
-      documentUid: "searchSettings",
-      prefix: "",
     });
   };
 
@@ -988,17 +575,14 @@ export const RecipeSearch = ({
   /* ------------------------------------------
   // Card-Aktionen
   // ------------------------------------------ */
-  const handleCardClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    SessionStorageHandler.upsertDocument({
-      storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
-      documentUid: "searchSettings",
-      value: searchSettings,
-    });
-
-    // Neben dem Event auch recipeShort mitgeben
-    const selectedRecipe = recipes.find(
+  const findRecipeOfEvent = (event: React.MouseEvent<HTMLButtonElement>) =>
+    list.recipes.find(
       (recipe) => recipe.uid === event.currentTarget.id.split("_")[1],
     );
+
+  const handleCardClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    // Neben dem Event auch recipeShort mitgeben
+    const selectedRecipe = findRecipeOfEvent(event);
     if (!selectedRecipe) {
       return;
     }
@@ -1006,9 +590,7 @@ export const RecipeSearch = ({
   };
 
   const handleFabButtonClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    const selectedRecipe = recipes.find(
-      (recipe) => recipe.uid === event.currentTarget.id.split("_")[1],
-    );
+    const selectedRecipe = findRecipeOfEvent(event);
 
     if (!selectedRecipe || !onFabButtonClick) {
       return;
@@ -1016,16 +598,13 @@ export const RecipeSearch = ({
     onFabButtonClick({event: event, recipe: selectedRecipe});
   };
 
-  const handleNewClick = () => {
-    // Sucheinstellungen speichern
-    SessionStorageHandler.upsertDocument({
-      storageObjectProperty: STORAGE_OBJECT_PROPERTY.SEARCH_SETTINGS,
-      documentUid: "searchSettings",
-      value: searchSettings,
-    });
-
-    onNewClick();
-  };
+  /* ------------------------------------------
+  // Anzahl: exakt nach der Antwort der Datenbank, davor «n+»
+  // ------------------------------------------ */
+  const shownCount = list.total ?? list.recipes.length;
+  const countLabel = `${shownCount}${list.isProvisional ? "+" : ""} ${
+    shownCount === 1 && !list.isProvisional ? TEXT_RECIPE : TEXT_RECIPES
+  }`;
 
   return (
     <React.Fragment>
@@ -1049,9 +628,7 @@ export const RecipeSearch = ({
           </ToggleButton>
         </Grid>
         <Grid size={12}>
-          <Typography variant="subtitle2">{`${filteredData.length} ${
-            filteredData.length !== 1 ? TEXT_RECIPES : TEXT_RECIPE
-          }`}</Typography>
+          <Typography variant="subtitle2">{countLabel}</Typography>
         </Grid>
       </Grid>
 
@@ -1075,20 +652,46 @@ export const RecipeSearch = ({
             key={"new_recipe"}
             variant={"outlined"}
             color={"primary"}
-            onClick={handleNewClick}
+            onClick={onNewClick}
           >
             {TEXT_CREATE_RECIPE}
           </Button>
         </Grid>
       </Grid>
+      {list.isProvisional && list.recipes.length > 0 && !list.error && (
+        <LinearProgress sx={{mb: 2}} />
+      )}
+      {list.error && (
+        <React.Fragment>
+          <AlertMessage
+            error={list.error}
+            severity="error"
+            messageTitle={TEXT_ALERT_TITLE_UUPS}
+          />
+          <Typography align="center" sx={{my: 2}}>
+            {TEXT_RECIPE_LIST_LOAD_ERROR}
+          </Typography>
+          <Grid container justifyContent="center" sx={{mb: 2}}>
+            <Button variant="outlined" onClick={list.reload}>
+              {TEXT_RECIPE_LIST_RETRY}
+            </Button>
+          </Grid>
+        </React.Fragment>
+      )}
       <RecipeResultsGrid
-        recipes={filteredData}
-        isLoading={isLoading}
+        recipes={list.recipes}
+        isLoading={list.isProvisional && list.recipes.length === 0 && !list.error}
+        hasConfirmedNoResults={list.hasConfirmedNoResults}
         embeddedMode={embeddedMode}
         fabButtonIcon={fabButtonIcon}
         onCardClick={handleCardClick}
         onFabButtonClick={onFabButtonClick ? handleFabButtonClick : undefined}
-        onNewClick={handleNewClick}
+        onNewClick={onNewClick}
+        hasMore={list.hasMore}
+        isLoadingMore={list.isLoadingMore}
+        loadMoreError={list.loadMoreError}
+        onLoadMore={list.loadMore}
+        sentinelRef={list.sentinelRef}
       />
     </React.Fragment>
   );
@@ -1349,68 +952,100 @@ const RecipeFilterPanel = ({
 /**
  * Props für das Ergebnisraster der Rezeptsuche.
  *
- * @param recipes Gefilterte Rezeptliste zur Anzeige.
- * @param isLoading Ob gerade geladen wird (zeigt Skeleton-Karten).
+ * @param recipes Anzuzeigende Rezepte.
+ * @param isLoading Ob noch nichts anzuzeigen ist und geladen wird (zeigt Skeleton-Karten).
+ * @param hasConfirmedNoResults Ob die Datenbank «keine Treffer» bestätigt hat.
  * @param embeddedMode Ob die Komponente eingebettet angezeigt wird.
  * @param fabButtonIcon Optionales Icon für den FAB-Button auf jeder Karte.
  * @param onCardClick Callback beim Klick auf eine Rezept-Karte.
  * @param onFabButtonClick Optionaler Callback für den FAB-Button.
  * @param onNewClick Callback zum Erstellen eines neuen Rezepts.
+ * @param hasMore Ob weitere Rezepte nachgeladen werden können.
+ * @param isLoadingMore Ob gerade weitere Rezepte geladen werden.
+ * @param loadMoreError Fehler beim Nachladen.
+ * @param onLoadMore Lädt weitere Rezepte (auch als erneuter Versuch).
+ * @param sentinelRef Ref für das Element am Listenende (löst das automatische Nachladen aus).
  */
 interface RecipeResultsGridProps {
   recipes: RecipeShort[];
   isLoading: boolean;
+  hasConfirmedNoResults: boolean;
   embeddedMode: boolean;
   fabButtonIcon?: JSX.Element;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onFabButtonClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onNewClick: () => void;
+  hasMore: boolean;
+  isLoadingMore: boolean;
+  loadMoreError: Error | null;
+  onLoadMore: () => void;
+  sentinelRef: (node: Element | null) => void;
 }
 
+/** Breite einer Karte im Raster (abhängig vom Bildschirm und vom eingebetteten Modus). */
+const getCardGridSize = (embeddedMode: boolean) => ({
+  xs: 12,
+  sm: embeddedMode ? 6 : 4,
+  md: embeddedMode ? 4 : 3,
+  lg: embeddedMode ? 4 : 3,
+  xl: embeddedMode ? 3 : 2,
+});
+
+/** Skeleton-Karten als Platzhalter (erstes Laden und beim Nachladen). */
+const LoadingCards = ({count, embeddedMode}: {count: number; embeddedMode: boolean}) => (
+  <React.Fragment>
+    {Array.from({length: count}, (_, index) => (
+      <Grid
+        size={{
+          xs: 12,
+          sm: embeddedMode ? 12 : 6,
+          md: embeddedMode ? 6 : 4,
+          lg: embeddedMode ? 4 : 3,
+        }}
+        key={"recipeLoadingCardGrid_" + index}
+      >
+        <RecipeCardLoading key={"recipeLoadingCard_" + index} />
+      </Grid>
+    ))}
+  </React.Fragment>
+);
+
 /**
- * Zeigt die Rezepte als Kartenraster an. Während des Ladens werden
- * Skeleton-Karten angezeigt. Bei leerer Ergebnisliste wird eine
- * Leer-Zustand-Nachricht mit FAB zum Erstellen angezeigt.
+ * Zeigt die Rezepte als Kartenraster an. Während des ersten Ladens werden
+ * Skeleton-Karten angezeigt, beim Nachladen einige Platzhalter am Ende. Erst
+ * wenn die Datenbank «keine Treffer» bestätigt, erscheint die Leer-Meldung
+ * mit FAB zum Erstellen.
  */
 const RecipeResultsGrid = ({
   recipes,
   isLoading,
+  hasConfirmedNoResults,
   embeddedMode,
   fabButtonIcon,
   onCardClick,
   onFabButtonClick,
   onNewClick,
+  hasMore,
+  isLoadingMore,
+  loadMoreError,
+  onLoadMore,
+  sentinelRef,
 }: RecipeResultsGridProps) => {
+  // Ohne IntersectionObserver (alte Browser) lädt nur der Knopf nach
+  const needsLoadMoreButton =
+    hasMore &&
+    !isLoadingMore &&
+    (Boolean(loadMoreError) || typeof IntersectionObserver === "undefined");
+
   return (
     <Grid container spacing={2}>
       {isLoading ? (
         // 8 Karten zum Überbrücken, bis die Daten da sind
-        [1, 2, 3, 4, 5, 6, 7, 8].map((counter) => (
-          <Grid
-            size={{
-              xs: 12,
-              sm: embeddedMode ? 12 : 6,
-              md: embeddedMode ? 6 : 4,
-              lg: embeddedMode ? 4 : 3,
-            }}
-            key={"recipeLoadingCardGrid_" + counter}
-          >
-            <RecipeCardLoading key={"recipeLoadingCard_" + counter} />
-          </Grid>
-        ))
+        <LoadingCards count={8} embeddedMode={embeddedMode} />
       ) : (
         <React.Fragment>
           {recipes.map((recipe) => (
-            <Grid
-              size={{
-                xs: 12,
-                sm: embeddedMode ? 6 : 4,
-                md: embeddedMode ? 4 : 3,
-                lg: embeddedMode ? 4 : 3,
-                xl: embeddedMode ? 3 : 2,
-              }}
-              key={"recipe_" + recipe.uid}
-            >
+            <Grid size={getCardGridSize(embeddedMode)} key={"recipe_" + recipe.uid}>
               <RecipeCard
                 key={"recipe_card_" + recipe.uid}
                 recipe={recipe}
@@ -1435,8 +1070,9 @@ const RecipeResultsGrid = ({
               />
             </Grid>
           ))}
+          {isLoadingMore && <LoadingCards count={4} embeddedMode={embeddedMode} />}
           {/* Keine Rezepte gefunden --> Neues Erfassen? */}
-          {recipes.length === 0 && (
+          {hasConfirmedNoResults && (
             <Grid size={{xs: 12, sm: 12, md: 12}} key={"noRecipe"}>
               <Typography
                 variant="h5"
@@ -1463,9 +1099,28 @@ const RecipeResultsGrid = ({
               </Grid>
             </Grid>
           )}
+          {loadMoreError && (
+            <Grid size={12}>
+              <Typography align="center" color="error">
+                {TEXT_RECIPE_LIST_LOAD_MORE_ERROR}
+              </Typography>
+            </Grid>
+          )}
+          {needsLoadMoreButton && (
+            <Grid size={12} sx={{display: "flex", justifyContent: "center"}}>
+              <Button variant="outlined" onClick={onLoadMore}>
+                {loadMoreError ? TEXT_RECIPE_LIST_RETRY : TEXT_RECIPE_LIST_LOAD_MORE}
+              </Button>
+            </Grid>
+          )}
+          {/* Unsichtbares Ende der Liste: Sobald es sich nähert, wird nachgeladen */}
+          {hasMore && (
+            <Grid size={12}>
+              <div ref={sentinelRef} data-testid="recipeListSentinel" style={{height: 1}} />
+            </Grid>
+          )}
         </React.Fragment>
       )}
     </Grid>
   );
 };
-

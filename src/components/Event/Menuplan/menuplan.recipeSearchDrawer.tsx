@@ -21,7 +21,6 @@ import {useCustomStyles} from "../../../constants/styles";
 import {RECIPES_DRAWER_TITLE as TEXT_RECIPES_DRAWER_TITLE} from "../../../constants/text";
 import {DrawerSettings} from "../../Recipe/RecipeDrawer";
 import {RecipeSearch} from "../../Recipe/recipes";
-import {RecipeShort} from "../../Recipe/recipe.types";
 import {OnRecipeCardClickProps} from "../../Recipe/recipes";
 import AuthUser from "../../Session/authUser.class";
 import type {OnRecipeSelection} from "./menuplan.page.types";
@@ -29,8 +28,9 @@ import type {OnRecipeSelection} from "./menuplan.page.types";
 /**
  * Props für den Rezept-Suchen-Drawer.
  *
- * @param drawerSettings - Einstellungen des Drawers (open, isLoadingData)
- * @param recipes - Liste der verfügbaren Rezepte
+ * @param drawerSettings - Einstellungen des Drawers (open); die Rezepte lädt die Suche selbst, sobald er offen ist
+ * @param eventUid - UID des Anlasses, dessen Varianten in der Suche erscheinen
+ * @param reloadToken - Ändert sich dieser Wert, lädt die Rezeptliste neu (neues/geändertes Rezept)
  * @param authUser - Authentifizierter Benutzer
  * @param onClose - Callback beim Schliessen
  * @param onRecipeCardClick - Callback beim Klick auf eine Rezeptkarte
@@ -40,7 +40,8 @@ import type {OnRecipeSelection} from "./menuplan.page.types";
  */
 interface RecipeSearchDrawerProps {
   drawerSettings: DrawerSettings;
-  recipes: RecipeShort[];
+  eventUid: string;
+  reloadToken?: number;
   authUser: AuthUser;
   onClose: () => void;
   onRecipeCardClick: ({event, recipe}: OnRecipeCardClickProps) => void;
@@ -55,7 +56,8 @@ interface RecipeSearchDrawerProps {
  */
 const RecipeSearchDrawer = ({
   drawerSettings,
-  recipes,
+  eventUid,
+  reloadToken = 0,
   onClose,
   onRecipeCardClick,
   onRecipeSelection,
@@ -93,13 +95,14 @@ const RecipeSearchDrawer = ({
         </Typography>
         <RecipeSearch
           key={searchResetKey}
-          recipes={recipes}
           embeddedMode={true}
+          eventUid={eventUid}
+          enabled={drawerSettings.open}
+          reloadToken={reloadToken}
           fabButtonIcon={<AddIcon />}
           onFabButtonClick={onRecipeSelection}
           onNewClick={onNewRecipe}
           onCardClick={onRecipeCardClick}
-          isLoading={drawerSettings.isLoadingData}
           authUser={authUser}
         />
       </Container>

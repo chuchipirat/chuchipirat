@@ -595,6 +595,31 @@ describe("getMenuesOfMeals", () => {
     expect(result).toContain("menue-3");
     expect(result).toHaveLength(2);
   });
+
+  // Regression CHUCHIPIRAT-9J: eine gelöschte Mahlzeit, auf die eine
+  // Einkaufs-/Material-/Verwendungsliste noch über eine ältere
+  // selectedMeals-Momentaufnahme verweist, darf nicht crashen.
+  it("überspringt eine Meal-UID, die nicht mehr im Menüplan existiert", () => {
+    const mp = buildPopulatedMenuplan();
+
+    const result = getMenuesOfMeals({
+      menuplan: mp,
+      meals: ["meal-1", "meal-geloescht"],
+    });
+
+    expect(result).toEqual(["menue-1"]);
+  });
+
+  it("gibt ein leeres Array zurück, wenn keine der Meal-UIDs mehr existiert", () => {
+    const mp = buildPopulatedMenuplan();
+
+    const result = getMenuesOfMeals({
+      menuplan: mp,
+      meals: ["meal-geloescht-a", "meal-geloescht-b"],
+    });
+
+    expect(result).toEqual([]);
+  });
 });
 
 describe("createMealRecipe", () => {

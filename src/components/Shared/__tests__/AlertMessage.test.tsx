@@ -117,6 +117,28 @@ describe("AlertMessage", () => {
     });
   });
 
+  describe("Sitzungs-Reload-Aktion", () => {
+    // window.location.reload() selbst wird hier nicht getestet: `location`
+    // ist in dieser jsdom-Version nicht konfigurierbar (weder Objekt noch
+    // reload-Property lassen sich mocken) — der onClick-Handler ist ein
+    // trivialer Einzeiler, die Anzeige-Logik ist der eigentliche Regressionsfall.
+    test("zeigt einen Reload-Button bei einem abgelaufenen JWT (CHUCHIPIRAT-HG)", () => {
+      renderAlertMessage({error: new Error("JWT expired")});
+
+      expect(
+        screen.getByRole("button", {name: "Seite neu laden"}),
+      ).toBeInTheDocument();
+    });
+
+    test("zeigt keinen Reload-Button bei einem normalen Fehler", () => {
+      renderAlertMessage({error: new Error("Invalid login credentials")});
+
+      expect(
+        screen.queryByRole("button", {name: "Seite neu laden"}),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("Severity", () => {
     test("Verwendet standardmaessig severity 'error'", () => {
       renderAlertMessage();

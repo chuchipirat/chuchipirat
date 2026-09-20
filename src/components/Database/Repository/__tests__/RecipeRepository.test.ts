@@ -214,6 +214,70 @@ describe("RecipeRepository", () => {
   });
 
   /* ------------------------------------------
+  // getRecipesByIds()
+  // ------------------------------------------ */
+  describe("getRecipesByIds()", () => {
+    test("Lädt mehrere Rezepte mit einer einzigen id-IN-Abfrage (CHUCHIPIRAT-H9)", async () => {
+      const secondRow: RecipeRow = {...testRow, id: "recipe-uuid-002", name: "Risotto"};
+      supabaseMock.queryMock.in = jest
+        .fn()
+        .mockResolvedValue({data: [testRow, secondRow], error: null});
+
+      const result = await repo.getRecipesByIds([
+        "recipe-uuid-001",
+        "recipe-uuid-002",
+      ]);
+
+      // Genau eine Anfrage statt einer pro ID
+      expect(supabaseMock.client.from).toHaveBeenCalledTimes(1);
+      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("id", [
+        "recipe-uuid-001",
+        "recipe-uuid-002",
+      ]);
+      expect(result.size).toBe(2);
+      expect(result.get("recipe-uuid-001")?.name).toBe("Spaghetti Bolognese");
+      expect(result.get("recipe-uuid-002")?.name).toBe("Risotto");
+    });
+
+    test("dedupliziert IDs vor der Abfrage", async () => {
+      supabaseMock.queryMock.in = jest
+        .fn()
+        .mockResolvedValue({data: [testRow], error: null});
+
+      await repo.getRecipesByIds([
+        "recipe-uuid-001",
+        "recipe-uuid-001",
+        "recipe-uuid-001",
+      ]);
+
+      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("id", [
+        "recipe-uuid-001",
+      ]);
+    });
+
+    test("stellt keine Anfrage bei leerem Array", async () => {
+      const result = await repo.getRecipesByIds([]);
+
+      expect(supabaseMock.client.from).not.toHaveBeenCalled();
+      expect(result.size).toBe(0);
+    });
+
+    test("IDs ohne Treffer fehlen in der Map, statt zu crashen", async () => {
+      supabaseMock.queryMock.in = jest
+        .fn()
+        .mockResolvedValue({data: [testRow], error: null});
+
+      const result = await repo.getRecipesByIds([
+        "recipe-uuid-001",
+        "recipe-uuid-geloescht",
+      ]);
+
+      expect(result.size).toBe(1);
+      expect(result.has("recipe-uuid-geloescht")).toBe(false);
+    });
+  });
+
+  /* ------------------------------------------
   // getAllPublicRecipes()
   // ------------------------------------------ */
   describe("getAllPublicRecipes()", () => {
@@ -584,6 +648,198 @@ describe("RecipeRepository", () => {
       await expect(
         repo.getVariantShortsForEvent("event-uuid-001"),
       ).rejects.toEqual(dbError);
+    });
+  });
+
+  /* ------------------------------------------
+  // listRecipeShorts() — seitenweise Rezeptliste (RPC)
+  // ------------------------------------------ */
+  describe("listRecipeShorts()", () => {
+    /** Zeile, wie sie `list_recipe_shorts` liefert (snake_case). */
+    const createListRow = (index: number, extra: Record<string, unknown> = {}) => ({
+      id: `recipe-${String(index).padStart(3, "0")}`,
+      name: `Rezept ${String(index).padStart(3, "0")}`,
+      source: "",
+      picture_src: "",
+      tags: [],
+      menu_types: ["main_course"],
+      diet: "vegan",
+      allergens: ["gluten"],
+      outdoor_kitchen_suitable: true,
+      avg_rating: 4.5,
+      no_ratings: 3,
+      no_comments: 1,
+      recipe_type: "public",
+      variant_name: null,
+      created_at: "2026-03-01T00:00:00Z",
+      created_by: "auth-uuid-123",
+      total_count: null,
+      ...extra,
+    });
+
+    const mockRpcResult = (rows: unknown[] | null, error: unknown = null) => {
+      supabaseMock.client.rpc = jest
+        .fn()
+        .mockResolvedValue({data: rows, error});
+    };
+
+    test("ruft die RPC mit Standardwerten auf", async () => {
+      mockRpcResult([]);
+      await repo.listRecipeShorts({});
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
+        "list_recipe_shorts",
+        {p_scope: "all", p_limit: 24},
+      );
+    });
+
+    test("übersetzt Filter und Suche in RPC-Parameter", async () => {
+      mockRpcResult([]);
+      await repo.listRecipeShorts({
+        searchText: "  hornli  ",
+        diet: 3,
+        excludedAllergens: [1, 2],
+        menuTypes: [1, 4],
+        outdoorKitchen: true,
+        scope: "public",
+        onlyMine: true,
+        eventUid: "event-1",
+        limit: 10,
+        after: {name: "Rezept 010", uid: "recipe-010"},
+      });
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith("list_recipe_shorts", {
+        p_scope: "public",
+        p_limit: 10,
+        p_search: "hornli",
+        p_diet: "vegan",
+        p_exclude_allergens: ["lactose", "gluten"],
+        p_menu_types: ["main_course", "dessert"],
+        p_outdoor: true,
+        p_only_mine: true,
+        p_event_id: "event-1",
+        p_after_name: "Rezept 010",
+        p_after_id: "recipe-010",
+      });
+    });
+
+    test("lässt leere Filter weg (leerer Suchtext, kein Outdoor)", async () => {
+      mockRpcResult([]);
+      await repo.listRecipeShorts({
+        searchText: "   ",
+        excludedAllergens: [],
+        menuTypes: [],
+        outdoorKitchen: false,
+        onlyMine: false,
+      });
+      expect(supabaseMock.client.rpc).toHaveBeenCalledWith(
+        "list_recipe_shorts",
+        {p_scope: "all", p_limit: 24},
+      );
+    });
+
+    test("bildet Zeilen auf RecipeShortDomain ab", async () => {
+      mockRpcResult([createListRow(1)]);
+      const page = await repo.listRecipeShorts({});
+      expect(page.recipes).toHaveLength(1);
+      expect(page.recipes[0]).toMatchObject({
+        uid: "recipe-001",
+        name: "Rezept 001",
+        menuTypes: [1],
+        dietProperties: {diet: 3, allergens: [2]},
+        avgRating: 4.5,
+        recipeType: "public",
+      });
+    });
+
+    test("genau limit Zeilen: keine weitere Seite", async () => {
+      const rows = Array.from({length: 24}, (_, index) => createListRow(index + 1));
+      mockRpcResult(rows);
+      const page = await repo.listRecipeShorts({});
+      expect(page.recipes).toHaveLength(24);
+      expect(page.hasMore).toBe(false);
+      expect(page.nextCursor).toBeNull();
+    });
+
+    test("limit + 1 Zeilen: weitere Seite, die Zusatzzeile wird abgeschnitten", async () => {
+      const rows = Array.from({length: 25}, (_, index) => createListRow(index + 1));
+      mockRpcResult(rows);
+      const page = await repo.listRecipeShorts({});
+      expect(page.recipes).toHaveLength(24);
+      expect(page.hasMore).toBe(true);
+      // Cursor = letztes ANGEZEIGTES Rezept, nicht die Zusatzzeile
+      expect(page.nextCursor).toEqual({name: "Rezept 024", uid: "recipe-024"});
+    });
+
+    test("Gesamtzahl steht nur auf der ersten Seite", async () => {
+      mockRpcResult([createListRow(1, {total_count: "57"})]);
+      const firstPage = await repo.listRecipeShorts({});
+      expect(firstPage.total).toBe(57);
+
+      mockRpcResult([createListRow(2, {total_count: "57"})]);
+      const laterPage = await repo.listRecipeShorts({
+        after: {name: "Rezept 001", uid: "recipe-001"},
+      });
+      expect(laterPage.total).toBeNull();
+    });
+
+    test("leeres Ergebnis (data null)", async () => {
+      mockRpcResult(null);
+      const page = await repo.listRecipeShorts({});
+      expect(page).toEqual({recipes: [], hasMore: false, nextCursor: null, total: null});
+    });
+
+    test("reicht ein Abbruch-Signal an die Anfrage weiter", async () => {
+      const result = {data: [], error: null};
+      const abortSignal = jest.fn().mockResolvedValue(result);
+      supabaseMock.client.rpc = jest.fn().mockReturnValue({abortSignal});
+      const controller = new AbortController();
+      await repo.listRecipeShorts({}, controller.signal);
+      expect(abortSignal).toHaveBeenCalledWith(controller.signal);
+    });
+
+    test("propagiert einen RPC-Fehler", async () => {
+      mockRpcResult(null, {message: "boom"});
+      await expect(repo.listRecipeShorts({})).rejects.toEqual({message: "boom"});
+    });
+  });
+
+  /* ------------------------------------------
+  // getPublicRecipeNames() — schlanke Namensliste
+  // ------------------------------------------ */
+  describe("getPublicRecipeNames()", () => {
+    test("liest nur id und name der öffentlichen Rezepte", async () => {
+      supabaseMock.queryMock.range = jest.fn().mockResolvedValue({
+        data: [{id: "r1", name: "Apfelmus"}, {id: "r2", name: "Birchermüesli"}],
+        error: null,
+      });
+      const names = await repo.getPublicRecipeNames();
+      expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("id, name");
+      expect(supabaseMock.queryMock.eq).toHaveBeenCalledWith("recipe_type", "public");
+      expect(names).toEqual([
+        {uid: "r1", name: "Apfelmus"},
+        {uid: "r2", name: "Birchermüesli"},
+      ]);
+    });
+
+    test("lädt weitere Seiten, solange eine Seite voll ist (1000 Zeilen)", async () => {
+      const fullPage = Array.from({length: 1000}, (_, index) => ({
+        id: `r${index}`,
+        name: `Rezept ${index}`,
+      }));
+      supabaseMock.queryMock.range = jest
+        .fn()
+        .mockResolvedValueOnce({data: fullPage, error: null})
+        .mockResolvedValueOnce({data: [{id: "last", name: "Letztes"}], error: null});
+      const names = await repo.getPublicRecipeNames();
+      expect(names).toHaveLength(1001);
+      expect(supabaseMock.queryMock.range).toHaveBeenNthCalledWith(1, 0, 999);
+      expect(supabaseMock.queryMock.range).toHaveBeenNthCalledWith(2, 1000, 1999);
+    });
+
+    test("propagiert einen Fehler", async () => {
+      supabaseMock.queryMock.range = jest
+        .fn()
+        .mockResolvedValue({data: null, error: {message: "boom"}});
+      await expect(repo.getPublicRecipeNames()).rejects.toEqual({message: "boom"});
     });
   });
 });

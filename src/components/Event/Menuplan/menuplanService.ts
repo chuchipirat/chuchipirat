@@ -568,7 +568,11 @@ export function getMenuesOfMeals({
 }: GetMenuesOfMealsParams): Menue["uid"][] {
   const menuesOfMeals: Menue["uid"][] = [];
   meals.forEach((mealUid) => {
-    menuplan.meals[mealUid].menuOrder.forEach((menueUid) =>
+    // Eine Mahlzeit kann zwischenzeitlich aus dem Menüplan gelöscht worden
+    // sein, während eine Einkaufs-/Material-/Verwendungsliste noch eine
+    // ältere selectedMeals-Momentaufnahme referenziert (CHUCHIPIRAT-9J) —
+    // dann existiert kein Eintrag mehr, statt zu crashen einfach überspringen.
+    menuplan.meals[mealUid]?.menuOrder.forEach((menueUid) =>
       menuesOfMeals.push(menueUid),
     );
   });

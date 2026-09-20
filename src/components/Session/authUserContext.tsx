@@ -8,6 +8,11 @@ import {LocalStorageKey} from "../../constants/localStorage";
 import {Role} from "../../constants/roles";
 import {useGlobalSettings} from "./globalSettingsContext";
 import {isUuid} from "../../utils/uuid";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../utils/errorUtils";
 
 import {
   SIGN_IN as ROUTE_SIGN_IN,
@@ -186,7 +191,13 @@ export const AuthUserProvider: React.FC<{children: React.ReactNode}> = ({
                 updateAuthUser(newAuthUser);
               }
             } catch (err) {
-              Sentry.captureException(err);
+              // Vorübergehende Netzfehler und abgelaufene Sitzungen sind
+              // erwartbar (z.B. direkt nach dem Signup auf einer instabilen
+              // Mobilverbindung) — der nächste Auth-State-Change/Reload holt
+              // das Profil erneut. Kein App-Fehler, daher kein Sentry-Report.
+              if (!isTransientNetworkError(err) && !isMissingSessionError(err)) {
+                Sentry.captureException(toError(err));
+              }
             }
           }, 0);
         } else if (event === "SIGNED_OUT") {

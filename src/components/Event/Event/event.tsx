@@ -73,13 +73,7 @@ import {
 } from "../Menuplan/menuplanService";
 import {UsedRecipes} from "../UsedRecipes/usedRecipes.class";
 import {Utils} from "../../Shared/utils.class";
-import {
-  RecipeShort,
-  createEmptyRecipeShort,
-  createShortRecipeFromRecipe,
-} from "../../Recipe/recipe.types";
-import {RecipeType} from "../../Recipe/recipe.class";
-import {RecipeShortDomain} from "../../Database/Repository/RecipeRepository";
+import {RecipeShort} from "../../Recipe/recipe.types";
 import {Material} from "../../Material/material.types";
 import {Product} from "../../Product/product.types";
 import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
@@ -109,6 +103,11 @@ import {
   FieldValidationError,
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../../utils/errorUtils";
 import {
   DialogType,
   SingleTextInputResult,
@@ -288,7 +287,6 @@ export interface OnMasterdataCreateProps {
 }
 export enum FetchMissingDataType {
   RECIPE,
-  RECIPES,
   UNITS,
   PRODUCTS,
   MATERIALS,
@@ -329,8 +327,6 @@ enum ReducerActions {
   RECIPE_FETCH_INIT,
   RECIPE_FETCH_SUCCESS,
   RECIPES_FETCH_SUCCESS,
-  RECIPE_LIST_FETCH_INIT,
-  RECIPE_LIST_FETCH_SUCCESS,
   UNTIS_FETCH_INIT,
   UNITS_FETCH_SUCCESS,
   PRODUCTS_FETCH_INIT,
@@ -360,7 +356,6 @@ type DispatchAction =
         | ReducerActions.SHOPPINGLIST_COLLECTION_FETCH_INIT
         | ReducerActions.SHOPPINGLIST_FETCH_INIT
         | ReducerActions.MATERIALLIST_FETCH_INIT
-        | ReducerActions.RECIPE_LIST_FETCH_INIT
         | ReducerActions.UNTIS_FETCH_INIT
         | ReducerActions.PRODUCTS_FETCH_INIT
         | ReducerActions.MATERIALS_FETCH_INIT
@@ -393,7 +388,6 @@ type DispatchAction =
   | {type: ReducerActions.RECIPE_FETCH_SUCCESS; payload: Recipe}
   | {type: ReducerActions.RECIPES_FETCH_SUCCESS; payload: Recipes}
   | {type: ReducerActions.ON_RECIPE_UPDATE; payload: Recipe}
-  | {type: ReducerActions.RECIPE_LIST_FETCH_SUCCESS; payload: RecipeShort[]}
   | {type: ReducerActions.UNITS_FETCH_SUCCESS; payload: Unit[]}
   | {type: ReducerActions.PRODUCTS_FETCH_SUCCESS; payload: Product[]}
   | {type: ReducerActions.MATERIALS_FETCH_SUCCESS; payload: Material[]}
@@ -424,8 +418,6 @@ type State = {
   shoppingList: {value: ShoppingList | null; unsubscribe: (() => void) | null};
   materialList: MaterialList;
   recipes: Recipes;
-  // Rezept-Übersicht
-  recipeList: RecipeShort[];
   units: Unit[];
   products: Product[];
   materials: Material[];
@@ -444,7 +436,6 @@ type State = {
     shoppingLists: boolean;
     materialList: boolean;
     recipe: boolean;
-    recipes: boolean;
     units: boolean;
     products: boolean;
     materials: boolean;
@@ -643,22 +634,6 @@ const eventReducer = (state: State, action: DispatchAction): State => {
         }),
         loadingComponents: {...state.loadingComponents, recipe: false},
       };
-    case ReducerActions.RECIPE_LIST_FETCH_INIT:
-      return {
-        ...state,
-        isLoading: true,
-        loadingComponents: {...state.loadingComponents, recipes: true},
-      };
-    case ReducerActions.RECIPE_LIST_FETCH_SUCCESS:
-      return {
-        ...state,
-        recipeList: action.payload as RecipeShort[],
-        isLoading: Utils.deriveIsLoading({
-          ...state.loadingComponents,
-          recipes: false,
-        }),
-        loadingComponents: {...state.loadingComponents, recipes: false},
-      };
     case ReducerActions.UNTIS_FETCH_INIT:
       return {
         ...state,
@@ -753,30 +728,13 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       }
     }
     case ReducerActions.ON_RECIPE_UPDATE: {
+      // Die Rezeptliste der Suche lädt sich selbst neu (siehe Menüplan)
       const newRecipe = action.payload as Recipe;
-      let updatedRecipeList = [...state.recipeList];
       const updatedRecipes = {...state.recipes};
       updatedRecipes[newRecipe.uid] = newRecipe;
 
-      const arrayIndex = updatedRecipeList.findIndex(
-        (recipeShort) => recipeShort.uid == newRecipe.uid,
-      );
-
-      if (arrayIndex !== -1) {
-        updatedRecipeList[arrayIndex] = createShortRecipeFromRecipe(newRecipe);
-      } else {
-        // Neues Rezept aufnehmen
-        updatedRecipeList.push(createShortRecipeFromRecipe(newRecipe));
-      }
-      // Array sortieren
-      updatedRecipeList = Utils.sortArray({
-        array: updatedRecipeList,
-        attributeName: "name",
-      });
-
       return {
         ...state,
-        recipeList: updatedRecipeList,
         recipes: updatedRecipes,
       };
     }
@@ -819,15 +777,20 @@ const eventReducer = (state: State, action: DispatchAction): State => {
       };
     case ReducerActions.GENERIC_ERROR:
       // Allgemeiner Fehler — FieldValidationError ist ein Nutzer-Hinweis
-      // (z.B. ungültiger/veralteter Event-Link), wird angezeigt, aber nicht
-      // an Sentry gemeldet.
-      if (!(action.payload instanceof FieldValidationError)) {
-        Sentry.captureException(action.payload);
+      // (z.B. ungültiger/veralteter Event-Link), vorübergehende Netzfehler
+      // und abgelaufene Sitzungen sind erwartbar — alle drei werden
+      // angezeigt, aber nicht an Sentry gemeldet.
+      if (
+        !(action.payload instanceof FieldValidationError) &&
+        !isTransientNetworkError(action.payload) &&
+        !isMissingSessionError(action.payload)
+      ) {
+        Sentry.captureException(toError(action.payload));
       }
       return {
         ...state,
         isLoading: false,
-        error: action.payload as Error,
+        error: toError(action.payload),
       };
     default: {
       const _exhaustiveCheck: never = action;
@@ -846,7 +809,6 @@ const INITITIAL_STATE: State = {
   shoppingList: {value: null, unsubscribe: null},
   materialList: new MaterialList(),
   recipes: {} as Recipes,
-  recipeList: [],
   units: [],
   products: [],
   materials: [],
@@ -865,7 +827,6 @@ const INITITIAL_STATE: State = {
     shoppingLists: false,
     materialList: false,
     recipe: false,
-    recipes: false,
     units: false,
     products: false,
     materials: false,
@@ -1902,60 +1863,6 @@ const EventPage = () => {
     objectUid,
   }: FetchMissingDataProps) => {
     switch (type) {
-      case FetchMissingDataType.RECIPES:
-        dispatch({type: ReducerActions.RECIPE_LIST_FETCH_INIT, payload: {}});
-        // Rezepte aus Supabase laden (öffentliche + private + Varianten dieses Events)
-        Promise.all([
-          database.recipes.getAllPublicRecipeShorts(),
-          database.recipes.getPrivateRecipeShortsForUser(authUser.uid),
-          database.recipes.getVariantShortsForEvent(state.event.uid),
-        ])
-          .then(([publicRecipes, privateRecipes, variantRecipes]) => {
-            // RecipeShortDomain → RecipeShort konvertieren
-            const toRecipeShort = (d: RecipeShortDomain): RecipeShort => {
-              const rs = createEmptyRecipeShort();
-              rs.uid = d.uid;
-              rs.name = d.name;
-              rs.source = d.source;
-              rs.pictureSrc = d.pictureSrc;
-              rs.tags = d.tags;
-              rs.menuTypes = d.menuTypes;
-              rs.dietProperties = {
-                allergens: d.dietProperties.allergens,
-                diet: d.dietProperties.diet,
-              };
-              rs.outdoorKitchenSuitable = d.outdoorKitchenSuitable;
-              rs.rating = {avgRating: d.avgRating, noRatings: d.noRatings};
-              rs.noComments = d.noComments;
-              rs.type = d.recipeType as RecipeType;
-              rs.variantName = d.variantName ?? undefined;
-              rs.created = {
-                date: d.createdAt,
-                fromUid: d.createdBy,
-                fromDisplayName: "",
-              };
-              return rs;
-            };
-            const allRecipes = [
-              ...publicRecipes.map(toRecipeShort),
-              ...privateRecipes.map(toRecipeShort),
-              ...variantRecipes.map(toRecipeShort),
-            ];
-            allRecipes.sort((a, b) => a.name.localeCompare(b.name));
-            dispatch({
-              type: ReducerActions.RECIPE_LIST_FETCH_SUCCESS,
-              payload: allRecipes,
-            });
-          })
-          .catch((error) => {
-            Sentry.captureException(error);
-            dispatch({
-              type: ReducerActions.GENERIC_ERROR,
-              payload: error,
-            });
-          });
-
-        break;
       case FetchMissingDataType.RECIPE:
         // Einzelnes Rezept lesen
         if (!recipeShort) {
@@ -2402,7 +2309,6 @@ const EventPage = () => {
                 menuplan={state.menuplan}
                 groupConfiguration={state.groupConfig}
                 event={state.event}
-                recipeList={state.recipeList}
                 recipes={state.recipes}
                 units={state.units}
                 products={state.products}
@@ -2554,4 +2460,4 @@ const EventPage = () => {
   );
 };
 
-export {EventPage};
+export {EventPage, eventReducer, ReducerActions, INITITIAL_STATE};
