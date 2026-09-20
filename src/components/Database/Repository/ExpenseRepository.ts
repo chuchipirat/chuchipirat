@@ -32,13 +32,29 @@ export class ExpenseRepository extends BaseRepository<
 > {
   tableName = "event_expenses";
 
+  /**
+   * @param client - Optionaler Supabase-Client (für Tests); Standard ist der globale Client.
+   */
   constructor(client?: SupabaseClient) {
     super(client);
   }
+  /**
+   * Ausgaben werden nicht gecacht (Multi-User-Daten eines Events).
+   *
+   * @returns Cache-Konfiguration mit `excludeFromCaching`.
+   */
   getCacheConfig(): StorageObjectProperty {
     return STORAGE_OBJECT_PROPERTY.EVENT_EXPENSES;
   }
 
+  /**
+   * Konvertiert ein ExpenseDomain-Objekt in eine Postgres-Zeile. Das Datum
+   * wird über `formatLocalDate` geschrieben, weil `expense_date` eine
+   * `date`-Spalte ist (`toISOString()` würde in CET/CEST den Tag verschieben).
+   *
+   * @param domain - Das Domain-Objekt (camelCase)
+   * @returns Partielle DB-Zeile (snake_case)
+   */
   toRow(domain: ExpenseDomain): Partial<ExpenseRow> {
     return {
       event_id: domain.eventId,
@@ -56,6 +72,13 @@ export class ExpenseRepository extends BaseRepository<
     };
   }
 
+  /**
+   * Konvertiert eine Postgres-Zeile in ein ExpenseDomain-Objekt. Das Datum
+   * wird über `parseLocalDate` als lokale Mitternacht gelesen.
+   *
+   * @param row - Die DB-Zeile (snake_case)
+   * @returns Domain-Objekt (camelCase)
+   */
   toDomain(row: ExpenseRow): ExpenseDomain {
     return {
       id: row.id,
@@ -98,9 +121,8 @@ export class ExpenseRepository extends BaseRepository<
       .eq("event_id", eventId);
 
     if (error) throw error;
-    data ?? [];
 
-    return data.reduce<Record<string, number>>((sums, row) => {
+    return (data ?? []).reduce<Record<string, number>>((sums, row) => {
       sums[row.budget_id] = (sums[row.budget_id] ?? 0) + row.amount_in_cents;
       return sums;
     }, {});
@@ -109,18 +131,37 @@ export class ExpenseRepository extends BaseRepository<
   /* =====================================================================
   // Schreiboperationen 
   // ===================================================================== */
+  /**
+   * Legt eine neue Ausgabe an.
+   *
+   * @param expense - Die anzulegende Ausgabe (`id` bleibt leer, die DB vergibt sie).
+   * @param authUser - Der angemeldete Benutzer.
+   * @returns Vergebene ID und die gespeicherte Ausgabe.
+   */
   async createExpense(
     expense: ExpenseDomain,
     authUser: AuthUser,
   ): Promise<{id: string; value: ExpenseDomain}> {
     return this.insert({value: expense, authUser});
   }
+  /**
+   * Speichert Änderungen an einer bestehenden Ausgabe.
+   *
+   * @param expense - Die geänderte Ausgabe (identifiziert über `expense.id`).
+   * @param authUser - Der angemeldete Benutzer.
+   * @returns Die gespeicherte Ausgabe.
+   */
   async updateExpense(
     expense: ExpenseDomain,
     authUser: AuthUser,
   ): Promise<ExpenseDomain> {
     return this.update({id: expense.id, value: expense, authUser});
   }
+  /**
+   * Löscht eine Ausgabe.
+   *
+   * @param id - ID der Ausgabe.
+   */
   async deleteExpense(id: string): Promise<void> {
     return this.remove(id);
   }

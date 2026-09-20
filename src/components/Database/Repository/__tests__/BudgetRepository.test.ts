@@ -238,3 +238,90 @@ describe("BudgetRepository", () => {
     });
   });
 });
+
+/* =====================================================================
+// subscribeToBudgets
+// ===================================================================== */
+describe("BudgetRepository.subscribeToBudgets", () => {
+  const EVENT_ID = "event-uuid-001";
+  let repo: BudgetRepository;
+  let supabaseMock: ReturnType<typeof createSupabaseMock>;
+
+  /**
+   * Chainbarer Channel-Mock: `on` und `subscribe` geben den Channel zurück,
+   * wie beim echten Supabase-Client. So lassen sich die übergebenen
+   * Callbacks später aus `mock.calls` auslesen und selbst aufrufen.
+   */
+  const createMockChannel = () => ({
+    on: jest.fn().mockReturnThis(),
+    subscribe: jest.fn().mockReturnThis(),
+  });
+
+  beforeEach(() => {
+    supabaseMock = createSupabaseMock();
+    repo = new BudgetRepository();
+    (repo as any).client = supabaseMock.client;
+  });
+
+  // Das Reconnect-/Backoff-Verhalten selbst ist in realtimeSubscription.test.ts
+  // getestet — hier wird nur geprüft, dass das Repository richtig verdrahtet ist.
+  test("abonniert die Tabelle event_budgets, gefiltert auf das Event", () => {
+    const channel = createMockChannel();
+    supabaseMock.client.channel.mockReturnValue(channel);
+
+    repo.subscribeToBudgets(EVENT_ID, jest.fn(), jest.fn());
+
+    expect(supabaseMock.client.channel).toHaveBeenCalledWith(
+      `budgets:${EVENT_ID}`,
+    );
+    expect(channel.on).toHaveBeenCalledWith(
+      "postgres_changes",
+      expect.objectContaining({
+        event: "*",
+        schema: "public",
+        table: "event_budgets",
+        filter: `event_id=eq.${EVENT_ID}`,
+      }),
+      expect.any(Function),
+    );
+    expect(channel.subscribe).toHaveBeenCalledTimes(1);
+  });
+
+  test("ruft onChange bei einer Änderung in der Tabelle auf", () => {
+    const channel = createMockChannel();
+    supabaseMock.client.channel.mockReturnValue(channel);
+    const onChange = jest.fn();
+
+    repo.subscribeToBudgets(EVENT_ID, onChange, jest.fn());
+
+    // Der dritte Parameter von channel.on(...) ist der Handler für DB-Änderungen
+    const changeHandler = channel.on.mock.calls[0][2];
+    changeHandler({eventType: "UPDATE"});
+
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
+  test("ruft onChange beim ersten Verbindungsaufbau nicht auf", () => {
+    const channel = createMockChannel();
+    supabaseMock.client.channel.mockReturnValue(channel);
+    const onChange = jest.fn();
+
+    repo.subscribeToBudgets(EVENT_ID, onChange, jest.fn());
+
+    // Der Callback von channel.subscribe(...) meldet den Verbindungsstatus
+    const statusCallback = channel.subscribe.mock.calls[0][0];
+    statusCallback("SUBSCRIBED");
+
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  test("unsubscribe entfernt den Channel", () => {
+    const channel = createMockChannel();
+    supabaseMock.client.channel.mockReturnValue(channel);
+
+    const {unsubscribe} = repo.subscribeToBudgets(EVENT_ID, jest.fn(), jest.fn());
+    unsubscribe();
+
+    expect(supabaseMock.client.removeChannel).toHaveBeenCalledWith(channel);
+  });
+});
