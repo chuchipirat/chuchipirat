@@ -9,13 +9,6 @@ import {
 } from "../../../constants/text";
 
 /**
- * Parameter für {@link Budget.computeBudgetPerPersonPerDayAmount}.
- *
- * @param participantCount - Anzahl Teilnehmer:innen.
- * @param dayCount - Anzahl Lagertage.
- * @param amountPerPersonPerDay - Betrag pro Person und Tag in Rappen.
- */
-/**
  * Domain-Klasse für das Budget eines Events.
  *
  * Enthält reine Business-Logik (kein Supabase). Persistenz
