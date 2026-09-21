@@ -395,19 +395,19 @@ Instanz (Epic 3), Belege (Epic 4).
    Schnittstelle zu Epic 4: Sobald es Belege gibt, muss das Löschen einer Ausgabe auch das
    Storage-Objekt entfernen — wird dann in 4.3 ergänzt, nicht vorweggenommen.
 
-**Paket 2.1 — `expenseTracking.tsx` aufteilen (reines Verschieben, keine Verhaltensänderung)**
+**Paket 2.1 — `expenseTracking.tsx` aufteilen (reines Verschieben, keine Verhaltensänderung)** ✅ erledigt
 
 Ausgangslage: `expenseTracking.tsx` hat 1254 Zeilen und enthält fünf Dinge, die nichts
 miteinander zu tun haben. Aufteilung nach **Abhängigkeitsrichtung**: Seite → Karte/Dialog/Reducer →
 Icons/Typen/Domain. Nichts darf zurück in die Seitendatei importieren (Zirkelbezug).
 
-| Neue Datei (`src/components/Event/ExpenseTracking/`) | Inhalt (heutige Zeilen) | Ca. Zeilen neu |
-|---|---|---|
-| `budgetIcons.ts` | `BUDGET_ICON_MAP` + die 12 MUI-Icon-Imports (138–157) | ~30 |
-| `expenseTracking.reducer.ts` | `ReducerActions`, `State`, `DispatchAction`, `initialState`, `expenseTrackingReducer` (159–301) | ~170 |
-| `budgetCard.tsx` | `BudgetCard` inkl. `BudgetCardProps` (827–940) und `AddBudgetCard` (942–981) | ~175 |
-| `budgetDetailDialog.tsx` | `BudgetDetailDialog`, `BudgetDetailDialogProps`, `BudgetDetailDialogState`, `INITIAL_FORM_STATE`, `AVAILABLE_CURRENCIES` (983–1254) | ~300 |
-| `expenseTracking.tsx` (bleibt) | `EventExpenseTrackingPage`, Props, `ExpenseTrackingView`, Effekte, Handler, Layout (303–825) | ~580 |
+| Neue Datei (`src/components/Event/ExpenseTracking/`) | Inhalt (heutige Zeilen)                                                                                                             | Ca. Zeilen neu |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- | -------------- |
+| `budgetIcons.ts`                                     | `BUDGET_ICON_MAP` + die 12 MUI-Icon-Imports (138–157)                                                                               | ~30            |
+| `expenseTracking.reducer.ts`                         | `ReducerActions`, `State`, `DispatchAction`, `initialState`, `expenseTrackingReducer` (159–301)                                     | ~170           |
+| `budgetCard.tsx`                                     | `BudgetCard` inkl. `BudgetCardProps` (827–940) und `AddBudgetCard` (942–981)                                                        | ~175           |
+| `budgetDetailDialog.tsx`                             | `BudgetDetailDialog`, `BudgetDetailDialogProps`, `BudgetDetailDialogState`, `INITIAL_FORM_STATE`, `AVAILABLE_CURRENCIES` (983–1254) | ~300           |
+| `expenseTracking.tsx` (bleibt)                       | `EventExpenseTrackingPage`, Props, `ExpenseTrackingView`, Effekte, Handler, Layout (303–825)                                        | ~580           |
 
 **Warum diese Schnitte**
 
@@ -459,20 +459,111 @@ nichts anderes enthält.
 - Nicht Teil von 2.1: die Datenlade-/Realtime-Logik aus der Seite in einen Hook auslagern — das
   passiert in 2.3, weil sich dort die Datenbasis ohnehin ändert.
 
-**Paket 2.2 — `expense.class.ts` (reine Domain-Logik)**
+**Paket 2.2 — `expense.class.ts` (reine Domain-Logik, kein UI)** ✅ erledigt
 
-- Statische Methoden, keine DB-Imports (Vorbild `budget.class.ts`):
-  - `Expense.checkExpenseData(expense)` wirft `FieldValidationError` bei: leerer/nur-Whitespace-
-    Bezeichnung, Betrag nicht ganz oder ≤ 0 (`amountInCents` muss eine positive Ganzzahl sein,
-    DB-Check `> 0`), fehlender `budgetId`, ungültigem Datum, leerer Währung.
-    Zahlende-Instanz-Validierung kommt erst mit Epic 3 (nicht vorwegnehmen).
-  - `Expense.sumByBudgetAndCurrency(expenses)` → `Record<budgetId, Record<currency, number>>`.
-  - `Expense.sortByDateDescending(expenses)` (stabil, Gleichstand nach Bezeichnung).
-  - `Expense.groupByBudget(expenses, budgets)` → Gruppen in Budget-Reihenfolge inkl. Summen je
-    Währung (für die Liste in 2.4); Budgets ohne Ausgaben ergeben leere Gruppen.
-- Neue Textkonstanten für die Validierungsmeldungen in `constants/text/expenseTracking.ts`.
-- **Tests:** leere Liste, gemischte Währungen, Betrag 0/negativ/Kommazahl/`NaN`, Whitespace-
-  Bezeichnung, Sortierung bei gleichem Datum, Gruppen inkl. leerer Budgets. Keine UI.
+Ziel: alles, was der Ausgaben-Dialog (2.5) und die Liste (2.4) rechnen oder prüfen müssen, als
+getestete, reine Funktionen — ohne React, ohne Supabase. Vorbild `budget.class.ts`. Danach
+brauchen 2.3–2.5 keine eigene Logik mehr zu erfinden.
+
+**Dateien**
+
+| Datei (`src/components/Event/ExpenseTracking/`) | Inhalt                                                                                          |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `expense.class.ts` (neu)                        | Klasse `Expense` mit vier statischen Methoden (unten)                                           |
+| `expense.types.ts` (ergänzen)                   | neuer Typ `ExpenseGroup` (Rückgabe von `groupByBudget`), `ExpenseTotalsByBudget`                |
+| `__mocks__/expense.mock.ts` (neu)               | Beispiel-`ExpenseDomain` wie `budget.mock.ts` (gültige Ausgabe, `structuredClone` in den Tests) |
+| `__tests__/expense.class.test.ts` (neu)         | Tests, siehe unten                                                                              |
+| `constants/text/expenseTracking.ts` (ergänzen)  | Validierungsmeldungen, siehe unten                                                              |
+
+**Signaturen**
+
+```ts
+export type ExpenseTotalsByBudget = Record<string, Record<string, number>>; // budgetId → Währung → Rappen
+export type ExpenseGroup = {
+  budget: BudgetDomain;
+  expenses: ExpenseDomain[];                 // neueste zuerst
+  totalsByCurrency: Record<string, number>;  // Rappen je Währung
+};
+
+Expense.checkExpenseData(expense: ExpenseDomain): void
+Expense.sumByBudgetAndCurrency(expenses: ExpenseDomain[]): ExpenseTotalsByBudget
+Expense.sortByDateDescending(expenses: ExpenseDomain[]): ExpenseDomain[]
+Expense.groupByBudget(expenses: ExpenseDomain[], budgets: BudgetDomain[]): ExpenseGroup[]
+```
+
+**`checkExpenseData` — Regeln (Reihenfolge = Reihenfolge der Felder im Dialog)**
+
+1. `label.trim()` leer → `PLEASE_PROVIDE_EXPENSE_LABEL` («Bitte eine Bezeichnung angeben.»).
+2. `amountInCents` muss `Number.isInteger` und `> 0` sein → `PLEASE_PROVIDE_AMOUNT` (**bestehende**
+   Konstante wiederverwenden, gleiche Aussage wie beim Budget). Deckt 0, negativ, `NaN`,
+   `Infinity` und Kommazahlen ab. **Zusätzlich Obergrenze `2_147_483_647`:** die Spalte ist
+   `integer`; ein grösserer Wert käme sonst als Postgres-Fehler `22003` beim Speichern zurück
+   statt als Hinweis am Feld → eigene Meldung `EXPENSE_AMOUNT_TOO_LARGE`.
+3. `budgetId` leer → `PLEASE_SELECT_BUDGET` («Bitte ein Budget wählen.»).
+4. `expenseDate` muss ein gültiges `Date` sein (`instanceof Date && !isNaN(getTime())`) →
+   `PLEASE_PROVIDE_EXPENSE_DATE`. Der `DatePicker` liefert bei halb getipptem Datum `Invalid Date`.
+5. `currency` muss `/^[A-Z]{3}$/` treffen → `PLEASE_PROVIDE_CURRENCY`. Nicht nur «nicht leer»:
+   `formatAmountFromCents` benutzt `Intl.NumberFormat`, das bei einem ungültigen Code eine
+   `RangeError` wirft und damit die **ganze Liste beim Rendern** zum Absturz bringt.
+
+- Zahlende-Instanz **nicht** prüfen (Epic 3, Platzhalter `no_refund_needed`).
+- Wirft `FieldValidationError` (= Nutzerhinweis, kein Sentry), **immer nur den ersten Fehler**, wie
+  `checkBudgetData`.
+
+**`sumByBudgetAndCurrency`**
+
+- Leere Liste → `{}`. Nur Budgets/Währungen, für die es Ausgaben gibt, erscheinen als Schlüssel
+  (fehlender Schlüssel = 0; der Aufrufer in 2.3 liest mit `?? 0`).
+- Rappen sind ganze Zahlen → einfache Addition, keine Rundungsprobleme.
+- Verändert die Eingabe nicht.
+
+**`sortByDateDescending`**
+
+- Gibt eine **neue** Liste zurück (`[...expenses].sort(...)`) — `Array.sort` mutiert sonst den
+  State des Reducers.
+- Vergleich über `expenseDate.getTime()`, absteigend. Gleiches Datum → `label` mit
+  `localeCompare("de")`, danach bleibt die Reihenfolge stabil (`sort` ist seit ES2019 stabil).
+  Gleiches Datum **und** Bezeichnung → Reihenfolge der Eingabe bleibt.
+
+**`groupByBudget`**
+
+- Ergebnis hat **genau einen Eintrag pro übergebenem Budget, in der Reihenfolge von `budgets`**
+  (die Seite sortiert die Budgets bereits; die Liste soll dieselbe Reihenfolge wie die Übersicht
+  haben). Budgets ohne Ausgaben ergeben `expenses: []` und `totalsByCurrency: {}`.
+- Ausgaben innerhalb der Gruppe: `sortByDateDescending`. Summen: `sumByBudgetAndCurrency`.
+- **Ausgabe mit unbekannter `budgetId`** (Budget gerade in einer anderen Sitzung gelöscht,
+  Realtime-Reload noch nicht durch — wegen `ON DELETE RESTRICT` sonst nicht möglich): wird
+  **ausgelassen**, nicht geworfen und nicht in eine Sammelgruppe gepackt. Bewusst dokumentiert im
+  JSDoc und im Test, damit es später niemand als Bug meldet.
+
+**Aufräumen im Vorbeigehen (klein, gehört thematisch hierher):** Der Kommentar-Block über
+`class Budget` in `budget.class.ts` beschreibt eine Funktion, die es nicht mehr gibt
+(`computeBudgetPerPersonPerDayAmount`) und steht doppelt vor der Klasse — beim Anlegen von
+`expense.class.ts` nicht kopieren. Aufräumen nur, wenn es den Commit nicht aufbläht.
+
+**Texte** (`constants/text/expenseTracking.ts`, gleicher Stil wie oben in der Datei)
+
+`PLEASE_PROVIDE_EXPENSE_LABEL`, `EXPENSE_AMOUNT_TOO_LARGE`, `PLEASE_SELECT_BUDGET`,
+`PLEASE_PROVIDE_EXPENSE_DATE`, `PLEASE_PROVIDE_CURRENCY`. (Feldbeschriftungen für den Dialog
+kommen erst in 2.5.)
+
+**Tests** (`expense.class.test.ts`, Mutationsprobe wie in 1.5: Regel im Code kaputtmachen → Test
+muss rot werden)
+
+- `checkExpenseData`: gültige Ausgabe wirft nicht; je Feld ein Test (Bezeichnung leer und nur
+  Leerzeichen; Betrag `0`, `-1`, `12.5`, `NaN`, `2_147_483_648`, Grenzfall `2_147_483_647` ist
+  **gültig**; `budgetId` leer; `Invalid Date`; Währung `""`, `"chf"`, `"CH"`); wirft ein
+  `FieldValidationError` (nicht nur irgendeinen `Error`); bei zwei Fehlern gewinnt der erste.
+- `sumByBudgetAndCurrency`: leere Liste; zwei Budgets; **CHF und EUR im selben Budget getrennt**;
+  Eingabe bleibt unverändert.
+- `sortByDateDescending`: neueste zuerst; Gleichstand nach Bezeichnung; Originalliste
+  unverändert (Referenz **und** Reihenfolge).
+- `groupByBudget`: Reihenfolge der Budgets bleibt; leeres Budget → leere Gruppe; Summen je
+  Währung; Ausgabe mit unbekannter `budgetId` taucht nirgends auf; leere Ausgabenliste.
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`,
+`npm run lint` sauber; `expense.class.ts` importiert weder React, MUI noch Supabase; keine
+bestehende Datei ausser `expense.types.ts` und `constants/text/expenseTracking.ts` geändert.
 
 **Paket 2.3 — Datenbasis umstellen (Refactor, noch kein neues UI)**
 
