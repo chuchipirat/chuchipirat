@@ -72,25 +72,32 @@ export const EXPENSE_TRACKING_EXPENSES = "Ausgaben";
 export const BUDGET_NAME = "Name";
 export const PLEASE_PROVIDE_NAME = "Bitte einen Namen angeben.";
 export const BUDGET_AMOUNT = "Betrag";
-export const PLEASE_PROVIDE_AMOUNT = "Bitte einen gültigen Betrag angeben";
+export const PLEASE_PROVIDE_AMOUNT = "Bitte einen gültigen Betrag angeben.";
 export const BUDGET_CURRENCY = "Währung";
 export const BUDGET_ICON = "Icon";
-export const PLEASE_PROVIDE_ICON = "Bitte ein Icon auswählen";
+export const PLEASE_PROVIDE_ICON = "Bitte ein Icon auswählen.";
 export const BUDGET_TYPE = "Typ";
-export const PROVIDE_BUDGET_TYPE = "Bitte Budget-Typ wählen";
+export const PROVIDE_BUDGET_TYPE = "Bitte Budget-Typ wählen.";
 export const BUDGET_SAVED = "Budget wurde gespeichert.";
 export const BUDGET_UPDATED = "Budget wurde angepasst.";
 export const BUDGET_DELETED = "Budget wurde gelöscht.";
-export const BUDGET_ICON_INVALID = "Das gewählte Icon ist nicht gültig";
+export const BUDGET_ICON_INVALID = "Das gewählte Icon ist nicht gültig.";
 export const DELETE_BUDGET_DIALOG = (budgetName: string): string =>
   `Budget «${budgetName}» löschen?`;
 export const DELETE_BUDGET_SIMPLE =
   "Diese Aktion kann nicht rückgängig gemacht werden.";
-export const BUDGET_CANT_BE_DELETED = "Budget kann nicht gelöscht werden";
+export const BUDGET_CANT_BE_DELETED = "Budget kann nicht gelöscht werden.";
 export const BUDGET_HAS_EXPENSES =
-  "Dieses Budget hat noch Ausgaben und kann nicht gelöscht werden";
+  "Dieses Budget hat noch Ausgaben und kann nicht gelöscht werden.";
 export const SPENT_AMOUNT = (amountInCents: number, currency: string): string =>
   formatAmountFromCents(amountInCents, currency);
 
 export const OF_LIMIT = (amountInCents: number, currency: string): string =>
   `von ${formatAmountFromCents(amountInCents, currency)}`;
+
+// Ausgaben
+export const PLEASE_PROVIDE_LABEL = "Bitte eine Bezeichnung angeben.";
+export const EXPENSE_AMOUNT_TOO_LARGE = "Bitte kleineren Ausgabebetrag wählen.";
+export const PLEASE_PROVIDE_BUDGET = "Bitte ein Budget wählen.";
+export const PLEASE_PROVIDE_DATE = "Bitte Ausgabedatum angeben.";
+export const PLEASE_PROVIDE_CURRENCY = "Bitte Währung wählen.";
