@@ -262,7 +262,7 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
      (`loadBudgets`), Erstlade + Realtime + Reload nach Verbindungsabbruch teilen sich dieselbe
      Funktion.
 - **Aufgeräumt:** `Budget.createDefaultKitchenBudget` inkl. Tests entfernt. Die Migration
-  `20260918000001_add_budget_icon.sql` setzt beim Backfill bestehender Zeilen mit dem Namen
+  `20260921000001_add_budget_icon.sql` setzt beim Backfill bestehender Zeilen mit dem Namen
   "Küche" das Icon `kitchen` — bleibt bestehen, ist für neue Daten harmlos.
 - **Kein Test mehr für Auto-Anlage.** Stattdessen (siehe 1.5): leere Liste zeigt nur die
   "Neues Budget"-Karte, und der Realtime-Reload legt nie ein Budget an.
@@ -397,15 +397,67 @@ Instanz (Epic 3), Belege (Epic 4).
 
 **Paket 2.1 — `expenseTracking.tsx` aufteilen (reines Verschieben, keine Verhaltensänderung)**
 
-- Neue Dateien in `src/components/Event/ExpenseTracking/`: `budgetCard.tsx` (`BudgetCard`,
-  `AddBudgetCard`), `budgetIcons.ts` (`BUDGET_ICON_MAP`), `budgetDetailDialog.tsx`
-  (`BudgetDetailDialog` + Formular-Typen/`INITIAL_FORM_STATE`), `expenseTracking.reducer.ts`
-  (`State`, `ReducerActions`, Reducer). `expenseTracking.tsx` behält die Seite (Effekte, Handler,
-  Layout) und sinkt auf < ~600 Zeilen.
-- Exporte, `data-testid`s und Verhalten bleiben identisch. Tests ziehen mit um
-  (`budgetDetailDialog.test.tsx` für die Dialog-Tests), Assertions ändern sich nicht.
-- **Definition of Done:** `git diff -M` zeigt fast nur Verschiebungen; alle bestehenden Tests
-  laufen unverändert grün; `tsc`/`lint` sauber. Kein neues Feature in diesem Paket.
+Ausgangslage: `expenseTracking.tsx` hat 1254 Zeilen und enthält fünf Dinge, die nichts
+miteinander zu tun haben. Aufteilung nach **Abhängigkeitsrichtung**: Seite → Karte/Dialog/Reducer →
+Icons/Typen/Domain. Nichts darf zurück in die Seitendatei importieren (Zirkelbezug).
+
+| Neue Datei (`src/components/Event/ExpenseTracking/`) | Inhalt (heutige Zeilen) | Ca. Zeilen neu |
+|---|---|---|
+| `budgetIcons.ts` | `BUDGET_ICON_MAP` + die 12 MUI-Icon-Imports (138–157) | ~30 |
+| `expenseTracking.reducer.ts` | `ReducerActions`, `State`, `DispatchAction`, `initialState`, `expenseTrackingReducer` (159–301) | ~170 |
+| `budgetCard.tsx` | `BudgetCard` inkl. `BudgetCardProps` (827–940) und `AddBudgetCard` (942–981) | ~175 |
+| `budgetDetailDialog.tsx` | `BudgetDetailDialog`, `BudgetDetailDialogProps`, `BudgetDetailDialogState`, `INITIAL_FORM_STATE`, `AVAILABLE_CURRENCIES` (983–1254) | ~300 |
+| `expenseTracking.tsx` (bleibt) | `EventExpenseTrackingPage`, Props, `ExpenseTrackingView`, Effekte, Handler, Layout (303–825) | ~580 |
+
+**Warum diese Schnitte**
+
+- `budgetIcons.ts` ist eigenständig, weil **Karte und Dialog** die Map beide brauchen (Icon-Anzeige /
+  Icon-Auswahl). Bliebe sie in der Seite, müssten beide aus der Seite importieren → Zirkelbezug.
+- Der Reducer ist reine Logik ohne JSX und lässt sich danach einzeln testen (Tests dafür gehören
+  nicht in dieses Paket, aber ab 2.3 wird er wichtiger).
+- `AddBudgetCard` liegt bei `BudgetCard`: beide sind Karten im selben Raster der Übersicht.
+- `AVAILABLE_CURRENCIES` bleibt im Dialog. Das Hochziehen in eine gemeinsame Konstante folgt in
+  2.5, wenn der zweite Verbraucher (Ausgaben-Dialog) existiert — nicht spekulativ vorziehen.
+
+**Erlaubte Änderungen** (alles andere ist tabu, siehe unten)
+
+- `import`-/`export`-Zeilen. Vorher nicht exportierte Teile werden exportiert (`BudgetCard`,
+  `BudgetDetailDialogState`, Reducer, `ReducerActions`, State-/Action-Typen).
+- Die exportierten Reducer-Typen bekommen sprechende Namen: `State` → `ExpenseTrackingState`,
+  `DispatchAction` → `ExpenseTrackingAction` (generische Namen sollen nicht aus einem Modul
+  exportiert werden). Das ist die **einzige** erlaubte Umbenennung.
+- Die Dialog-Tests (vier Tests, die `BudgetDetailDialog` direkt rendern) ziehen in
+  `__tests__/budgetDetailDialog.test.tsx` um; der Import in der Seiten-Testdatei ändert sich
+  entsprechend. `event.tsx` bleibt unverändert (importiert nur `EventExpenseTrackingPage`).
+
+**Vorgehen in Schritten** — nach jedem Schritt `npx tsc --noEmit` und
+`npx jest ExpenseTracking --watchAll=false`, erst dann weiter:
+
+1. `budgetIcons.ts` (kleinster Schnitt, keine Abhängigkeiten) — Seite und Dialog importieren von dort.
+2. `expenseTracking.reducer.ts`.
+3. `budgetCard.tsx` (`BudgetCard` + `AddBudgetCard`).
+4. `budgetDetailDialog.tsx`, danach die Dialog-Tests verschieben.
+5. Import-Block der Seite aufräumen: `npm run lint` meldet ungenutzte Imports als **Fehler** und zeigt
+   damit genau, was in der Seitendatei übrig ist. Danach Zeilenzahl prüfen.
+
+Tipp fürs Prüfen: `git diff --color-moved=dimmed-zebra` — verschobene Blöcke erscheinen gedimmt, nur
+die eigentlichen Änderungen (Import/Export-Zeilen) fallen auf.
+
+**Tabu in diesem Paket** — fällt beim Verschieben etwas auf, wird es in `tech-debt.md` notiert und
+**nicht** geändert: Logik, Texte, Styles, Prop-Namen, `data-testid`s, Reihenfolge der Hooks,
+Dependency-Arrays, Kommentare umschreiben. Ein Verschiebe-Paket ist nur dann sicher, wenn der Diff
+nichts anderes enthält.
+
+**Definition of Done**
+
+- `expenseTracking.tsx` < ~600 Zeilen, jede neue Datei < ~300 Zeilen.
+- Alle bestehenden Tests laufen **ohne geänderte Assertions** grün (nur Import-Pfade der
+  Dialog-Tests ändern sich); `tsc` und `lint` sauber (0 Fehler).
+- `git diff --color-moved` zeigt fast nur Verschiebungen.
+- Kurzer Sichttest im Browser (Übersicht öffnen, Karte bearbeiten, Dialog öffnen/schliessen,
+  Löschen-Rückfrage): Verhalten identisch zu vorher. Kein Mobile-Test nötig, da kein UI geändert wird.
+- Nicht Teil von 2.1: die Datenlade-/Realtime-Logik aus der Seite in einen Hook auslagern — das
+  passiert in 2.3, weil sich dort die Datenbasis ohnehin ändert.
 
 **Paket 2.2 — `expense.class.ts` (reine Domain-Logik)**
 
