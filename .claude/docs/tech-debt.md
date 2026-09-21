@@ -178,6 +178,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`Admin/migration.tsx` default export** — Verwendet `export default MigrationPage`. Sollte als Teil eines breiteren Admin-Folder-Refactorings zu Named Export konvertiert werden.
   **Priorität:** tief · **Komplexität:** klein
 
+- **Reducer-Dateinamen und -Ablage uneinheitlich** — Neue ausgelagerte Reducer heissen `<feature>.reducer.ts` (`Event/ExpenseTracking/expenseTracking.reducer.ts`, passend zu `.class.ts`/`.types.ts`); diese Punkt-Schreibweise ist der neue Standard. Bestehende ausgelagerte Reducer folgen dem älteren Muster `<feature>Reducer.ts` und sollten bei Gelegenheit umbenannt werden (`git mv` samt Tests und Imports): `Home/homeReducer.ts`, `Event/UsedRecipes/usedRecipesReducer.ts`, `Request/requestOverviewReducer.ts`, `Unit/unitConversionReducer.ts`. Die meisten übrigen Seiten (ca. 40, z.B. `materials.tsx`, `event.tsx`, `shoppingList.tsx`) definieren ihren Reducer noch inline in der Seitendatei — beim nächsten grösseren Umbau der jeweiligen Seite in eine `<feature>.reducer.ts` auslagern, nicht als eigene Aktion. Ausserdem heissen Typen im neuen Reducer noch generisch `State`/`DispatchAction`; sie sollten `ExpenseTrackingState`/`ExpenseTrackingAction` heissen, sobald weitere Reducer im selben Feature dazukommen (Kollisionsgefahr beim Import).
+  **Priorität:** tief · **Komplexität:** klein (Umbenennen der 4 Dateien), mittel (Inline-Reducer auslagern)
+
 ## Architecture
 
 - **`src/components/Shared/customDialogContext.tsx`** — Modul-Level `resolveCallback` Variable ist fragil bei gleichzeitigen Dialogen. Funktioniert in der Praxis (App zeigt nur einen Dialog gleichzeitig), aber ein `useRef`-basiertes Rewrite wäre robuster. Würde 26 Konsumenten betreffen.
