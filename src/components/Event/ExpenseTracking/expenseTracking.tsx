@@ -1,5 +1,5 @@
 import * as Sentry from "@sentry/react";
-import React, {useState} from "react";
+import React from "react";
 
 import {
   Card,
@@ -12,24 +12,10 @@ import {
   Link,
   Stack,
   Grid,
-  IconButton,
-  Chip,
   Button,
   ToggleButtonGroup,
   ToggleButton,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  TextField,
-  RadioGroup,
-  FormControlLabel,
-  Radio,
-  MenuItem,
-  FormLabel,
-  ButtonBase,
   SnackbarCloseReason,
-  LinearProgress,
 } from "@mui/material";
 import {Event} from "../Event/event.class";
 
@@ -40,31 +26,9 @@ import {
   EXPENSE_TRACKING_NOT_ACTIVE as TEXT_EXPENSE_TRACKING_NOT_ACTIVE,
   EXPENSE_TRACKING_NOT_ACTIVE_DESCRIPTION as TEXT_EXPENSE_TRACKING_NOT_ACTIVE_DESCRIPTION,
   EXPENSE_TRACKING_NOT_ACTIVE_DESCRIPTION_HELPCENTER_LINK as TEXT_EXPENSE_TRACKING_NOT_ACTIVE_DESCRIPTION_HELPCENTER_LINK,
-  // BUDGET_TYPE_PER_PERSON_PER_DAY_AMOUNT as TEXT_BUDGET_TYPE_PER_PERSON_PER_DAY_AMOUNT,
-  // BUDGET_TYPE_FIXED as TEXT_BUDGET_TYPE_FIXED,
-  EDIT_BUDGET as TEXT_EDIT_BUDGET,
-  BUDGET_PER_PERSON_PER_DAY as TEXT_BUDGET_PER_PERSON_PER_DAY,
-  BUDGET_TYPE_FIXED_AMOUNT as TEXT_BUDGET_TYPE_FIXED_AMOUNT,
-  BUDGET_TYPE_PER_PERSON_PER_DAY as TEXT_BUDGET_TYPE_PER_PERSON_PER_DAY,
-  BUDGET_TARGET_AMOUNT as TEXT_BUDGET_TARGET_AMOUNT,
-  BUDGET_TARGET_AMOUNT_MISSING as TEXT_BUDGET_TARGET_AMOUNT_MISSING,
   NEW_BUDGET as TEXT_NEW_BUDGET,
   EXPENSE_TRACKING_OVERVIEW as TEXT_EXPENSE_TRACKING_OVERVIEW,
   EXPENSE_TRACKING_EXPENSES as TEXT_EXPENSE_TRACKING_EXPENSES,
-  BUDGET_NAME as TEXT_BUDGET_NAME,
-  BUDGET_AMOUNT as TEXT_BUDGET_AMOUNT,
-  PLEASE_PROVIDE_NAME as TEXT_PLEASE_PROVIDE_NAME,
-  PLEASE_PROVIDE_AMOUNT as TEXT_PLEASE_PROVIDE_AMOUNT,
-  BUDGET_CURRENCY as TEXT_BUDGET_CURRENCY,
-  BUDGET_ICON as TEXT_BUDGET_ICON,
-  PLEASE_PROVIDE_ICON as TEXT_PLEASE_PROVIDE_ICON,
-  BUDGET_TYPE as TEXT_BUDGET_TYPE,
-  BUDGET_SAVED as TEXT_BUDGET_SAVED,
-  SPENT_AMOUNT as TEXT_SPENT_AMOUNT,
-  OF_LIMIT as TEXT_OF_LIMIT,
-  BUDGET as TEXT_BUDGET,
-  BUDGET_UPDATED as TEXT_BUDGET_UPDATED,
-  BUDGET_DELETED as TEXT_BUDGET_DELETED,
   DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
   DELETE_BUDGET_SIMPLE as TEXT_DELETE_BUDGET_SIMPLE,
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
@@ -73,7 +37,6 @@ import {
 import {
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
   CANCEL as TEXT_CANCEL,
-  SAVE as TEXT_SAVE,
   DELETE as TEXT_DELETE,
   OK as TEXT_OK,
 } from "../../../constants/text";
@@ -93,211 +56,33 @@ import {
 import {Action} from "../../../constants/actions";
 import {Budget} from "./budget.class";
 import {useAuthUser} from "../../Session/authUserContext";
-import {
-  BudgetWithProgress,
-  BudgetDomain,
-  BudgetIcon,
-  BudgetType,
-} from "./budget.types";
-import {CustomSnackbar, SnackbarState} from "../../Shared/customSnackbar";
+import {BudgetWithProgress, BudgetDomain} from "./budget.types";
+import {CustomSnackbar} from "../../Shared/customSnackbar";
 import {AlertMessage} from "../../Shared/AlertMessage";
 
-import EditIcon from "@mui/icons-material/EditOutlined";
-import {
-  CabinOutlined,
-  CategoryOutlined,
-  CelebrationOutlined,
-  CleaningServicesOutlined,
-  DirectionsBusOutlined,
-  HandymanOutlined,
-  HealthAndSafetyOutlined,
-  LocalBarOutlined,
-  LocalGroceryStoreOutlined,
-  RestaurantOutlined,
-  SportsSoccerOutlined,
-  StorefrontOutlined,
-  AddOutlined,
-} from "@mui/icons-material";
-import DeleteIcon from "@mui/icons-material/Delete";
+import {AddOutlined} from "@mui/icons-material";
 
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {trackEvent} from "../../Analytics/analyticsService";
-import {
-  formatAmountFromCents,
-  parseAmountToCents,
-} from "../../Shared/utils/currencyUtils";
+import {parseAmountToCents} from "../../Shared/utils/currencyUtils";
 import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
+import {
+  expenseTrackingReducer,
+  initialState,
+  ReducerActions,
+} from "./expenseTracking.reducer";
+import {BudgetCard, AddBudgetCard} from "./budgetCard";
+import {
+  BudgetDetailDialog,
+  BudgetDetailDialogState,
+} from "./budgetDetailDialog";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
-
-/**
- * Ordnet jedem {@link BudgetIcon} die passende MUI-Icon-Komponente zu.
- * Als `Record` typisiert, damit der Compiler eine fehlende Zuordnung meldet,
- * sobald dem Enum (und der DB) ein neues Icon hinzugefügt wird.
- */
-export const BUDGET_ICON_MAP: Record<BudgetIcon, React.ElementType> = {
-  [BudgetIcon.KITCHEN]: RestaurantOutlined,
-  [BudgetIcon.GROCERIES]: LocalGroceryStoreOutlined,
-  [BudgetIcon.BEVERAGES]: LocalBarOutlined,
-  [BudgetIcon.KIOSK]: StorefrontOutlined,
-  [BudgetIcon.THEME]: CelebrationOutlined,
-  [BudgetIcon.MATERIAL]: HandymanOutlined,
-  [BudgetIcon.TRANSPORT]: DirectionsBusOutlined,
-  [BudgetIcon.ACCOMMODATION]: CabinOutlined,
-  [BudgetIcon.ACTIVITIES]: SportsSoccerOutlined,
-  [BudgetIcon.SAFETY]: HealthAndSafetyOutlined,
-  [BudgetIcon.CLEANING]: CleaningServicesOutlined,
-  [BudgetIcon.OTHER]: CategoryOutlined,
-};
-
-/** Aktionen, die der Reducer der Abrechnungsseite verarbeitet. */
-enum ReducerActions {
-  BUDGETS_FETCH_SUCCESS,
-  BUDGET_CREATED,
-  BUDGET_UPDATED,
-  BUDGET_DELETED,
-  GENERIC_ERROR,
-  // SNACKBAR_SHOW,
-  SNACKBAR_CLOSE,
-}
-/**
- * State der Abrechnungsseite.
- *
- * @param isError - `true`, solange ein Fehler oder Validierungshinweis angezeigt wird.
- * @param error - Anzuzeigender Fehler (nur gesetzt, wenn `isError` `true` ist).
- * @param budgets - Budgets des Events; `null`, solange noch nicht geladen.
- * @param spentAmounts - Summe der Ausgaben je Budget-ID in Rappen; `null` vor dem Laden.
- * @param snackbar - Zustand der Rückmeldung nach erfolgreichem Speichern/Löschen.
- */
-type State = {
-  isError: boolean;
-  error: Error | null;
-  budgets: BudgetDomain[] | null;
-  spentAmounts: Record<string, number> | null;
-  snackbar: SnackbarState;
-};
-/**
- * Alle Aktionen des Reducers mit ihrem jeweiligen Payload.
- * `BUDGET_DELETED` trägt das ganze Budget (statt nur der ID), damit der
- * Reducer bei Bedarf auf dessen Felder zugreifen kann.
- */
-type DispatchAction =
-  | {
-      type: ReducerActions.BUDGETS_FETCH_SUCCESS;
-      payload: {budgets: BudgetDomain[]; spentAmounts: Record<string, number>};
-    }
-  | {type: ReducerActions.BUDGET_CREATED; payload: BudgetDomain}
-  | {type: ReducerActions.BUDGET_UPDATED; payload: BudgetDomain}
-  | {type: ReducerActions.BUDGET_DELETED; payload: BudgetDomain}
-  | {type: ReducerActions.GENERIC_ERROR; payload: Error}
-  // | {
-  //     type: ReducerActions.SNACKBAR_SHOW;
-  //     payload: {severity: AlertColor; message: string};
-  //   }
-  | {type: ReducerActions.SNACKBAR_CLOSE};
-/** Ausgangszustand: noch nichts geladen, kein Fehler, Snackbar geschlossen. */
-const initialState: State = {
-  budgets: null,
-  spentAmounts: null,
-  isError: false,
-  error: null,
-  snackbar: {open: false, severity: "success", message: ""},
-};
-
-/**
- * Reducer der Abrechnungsseite. Jede erfolgreiche Aktion setzt `isError`
- * zurück, damit ein vorübergehender Fehler (z.B. Netzwerk) nicht stehen
- * bleibt, sobald die Daten wieder erfolgreich geladen oder gespeichert wurden.
- *
- * @param state - Bisheriger State.
- * @param action - Auszuführende Aktion.
- * @returns Neuer State.
- * @throws {Error} Bei einer unbekannten Aktion (Exhaustive-Check).
- */
-const expenseTrackingReducer = (
-  state: State,
-  action: DispatchAction,
-): State => {
-  switch (action.type) {
-    case ReducerActions.BUDGETS_FETCH_SUCCESS:
-      return {
-        ...state,
-        budgets: action.payload.budgets,
-        spentAmounts: action.payload.spentAmounts,
-        isError: false,
-        error: null,
-      };
-    case ReducerActions.BUDGET_CREATED:
-      return {
-        ...state,
-        budgets:
-          state.budgets?.length == 0 || state.budgets == null
-            ? [action.payload]
-            : state.budgets?.concat(action.payload),
-        snackbar: {open: true, severity: "success", message: TEXT_BUDGET_SAVED},
-        isError: false,
-        error: null,
-      };
-    case ReducerActions.BUDGET_UPDATED: {
-      const updatedBudgets = (state.budgets ?? []).map((budget) =>
-        budget.id === action.payload.id ? action.payload : budget,
-      );
-      return {
-        ...state,
-        budgets: updatedBudgets,
-        snackbar: {
-          open: true,
-          severity: "success",
-          message: TEXT_BUDGET_UPDATED,
-        },
-        isError: false,
-        error: null,
-      };
-    }
-    case ReducerActions.BUDGET_DELETED: {
-      const updatedBudgets = (state.budgets ?? []).filter(
-        (budget) => budget.id !== action.payload.id,
-      );
-      return {
-        ...state,
-        budgets: updatedBudgets,
-        snackbar: {
-          open: true,
-          severity: "success",
-          message: TEXT_BUDGET_DELETED,
-        },
-        isError: false,
-        error: null,
-      };
-    }
-    case ReducerActions.GENERIC_ERROR:
-      return {
-        ...state,
-        isError: true,
-        error: action.payload as Error,
-      };
-    case ReducerActions.SNACKBAR_CLOSE:
-      return {
-        ...state,
-        snackbar: {
-          severity: "success",
-          message: "",
-          open: false,
-        },
-        isError: false,
-        error: null,
-      };
-    default: {
-      const _exhaustiveCheck: never = action;
-      throw new Error(`Unknown action: ${_exhaustiveCheck}`);
-    }
-  }
-};
 
 /** Props für die Event-Abrechnungsseite. */
 interface EventExpenseTrackingPageProps {
@@ -821,433 +606,6 @@ const EventExpenseTrackingPage = ({
         handleClose={handleSnackbarClose}
       />
     </React.Fragment>
-  );
-};
-/** Props für die Budget-Karte. */
-interface BudgetCardProps {
-  budgetWithProgress: BudgetWithProgress;
-  handleEditClick: (budgetId: string) => void;
-}
-
-/**
- * Karte eines Budgets: Name, Icon, Typ, Fortschrittsbalken und Beträge.
- * Der Balken wird bei 85 % gelb und ab 100 % rot.
- *
- * @param props - Siehe {@link BudgetCardProps}.
- */
-const BudgetCard = ({budgetWithProgress, handleEditClick}: BudgetCardProps) => {
-  const classes = useCustomStyles();
-
-  const BudgetIconComponent = BUDGET_ICON_MAP[budgetWithProgress.budget.icon];
-
-  /** Farbe des Fortschrittsbalkens je nach Ausschöpfung des Budgets. */
-  const getProgressColor = (
-    percentage: number,
-  ): "success" | "warning" | "error" => {
-    if (percentage >= 100) return "error";
-    if (percentage >= 85) return "warning";
-    return "success";
-  };
-
-  const isPerPersonPerDay =
-    budgetWithProgress.budget.budgetType === BudgetType.PER_PERSON_PER_DAY;
-
-  const chipLabel = isPerPersonPerDay
-    ? TEXT_BUDGET_PER_PERSON_PER_DAY(
-        budgetWithProgress.budget.amountInCents,
-        budgetWithProgress.budget.currency,
-      )
-    : budgetWithProgress.budget.amountInCents
-      ? `${TEXT_BUDGET_TYPE_FIXED_AMOUNT}: ${formatAmountFromCents(budgetWithProgress.budget.amountInCents, budgetWithProgress.budget.currency)}`
-      : TEXT_BUDGET_TYPE_FIXED_AMOUNT;
-
-  return (
-    <Card
-      sx={classes.budgetCard}
-      elevation={0}
-      data-testid={budgetWithProgress.budget.id}
-    >
-      <Box sx={classes.budgetCardHeader}>
-        <Box sx={classes.budgetCardTitleGroup}>
-          <BudgetIconComponent fontSize="small" />
-          <Typography variant="subtitle1" sx={classes.budgetCardTitle}>
-            {budgetWithProgress.budget.name}
-          </Typography>
-        </Box>
-        <IconButton
-          size="small"
-          aria-label={TEXT_EDIT_BUDGET}
-          onClick={() => handleEditClick(budgetWithProgress.budget.id)}
-        >
-          <EditIcon fontSize="small" />
-        </IconButton>
-      </Box>
-
-      <Chip
-        size="small"
-        label={chipLabel}
-        sx={
-          isPerPersonPerDay
-            ? classes.budgetChipVariable
-            : classes.budgetChipFixed
-        }
-      />
-
-      <LinearProgress
-        variant="determinate"
-        value={Math.min(budgetWithProgress.percentage, 100)}
-        color={getProgressColor(budgetWithProgress.percentage)}
-        sx={classes.budgetProgressBar}
-      />
-
-      <Box sx={classes.budgetAmountRow}>
-        <Typography
-          variant="body2"
-          sx={
-            budgetWithProgress.percentage >= 100
-              ? classes.budgetAmountOver
-              : classes.budgetAmountNormal
-          }
-        >
-          {TEXT_SPENT_AMOUNT(
-            budgetWithProgress.spentAmountInCents,
-            budgetWithProgress.budget.currency,
-          )}
-        </Typography>
-        <Typography variant="body2" sx={classes.budgetAmountSecondary}>
-          {TEXT_OF_LIMIT(
-            budgetWithProgress.targetAmountInCents,
-            budgetWithProgress.budget.currency,
-          )}
-        </Typography>
-      </Box>
-
-      {!isPerPersonPerDay && (
-        <Box sx={classes.budgetAmountRow}>
-          <Typography variant="body2" sx={classes.budgetAmountSecondary}>
-            {budgetWithProgress.budget.amountInCents != null
-              ? TEXT_BUDGET_TARGET_AMOUNT(
-                  budgetWithProgress.budget.amountInCents,
-                  budgetWithProgress.budget.currency,
-                )
-              : TEXT_BUDGET_TARGET_AMOUNT_MISSING}
-          </Typography>
-        </Box>
-      )}
-    </Card>
-  );
-};
-
-/** Props der «Neues Budget»-Karte. */
-interface AddBudgetCardProps {
-  onClick: () => void;
-}
-
-/**
- * Klickbare Karte am Ende der Budget-Liste zum Anlegen eines neuen Budgets.
- * Dient bei leerer Liste zugleich als Leerzustand (analog Einkaufsliste).
- *
- * @param props - Siehe {@link AddBudgetCardProps}.
- */
-export const AddBudgetCard: React.FC<AddBudgetCardProps> = ({onClick}) => {
-  const classes = useCustomStyles();
-
-  const handleClick = () => {
-    onClick();
-  };
-
-  // Die Karte ist ein `Box` mit `role="button"` — Enter und Leertaste müssen
-  // für die Tastaturbedienung von Hand abgebildet werden.
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === "Enter" || event.key === " ") {
-      event.preventDefault();
-      handleClick();
-    }
-  };
-
-  return (
-    <Box
-      sx={classes.budgetCardAddNew}
-      role="button"
-      tabIndex={0}
-      aria-label={TEXT_NEW_BUDGET}
-      onClick={handleClick}
-      onKeyDown={handleKeyDown}
-    >
-      <AddOutlined fontSize="medium" />
-      <Typography variant="body2">{TEXT_NEW_BUDGET}</Typography>
-    </Box>
-  );
-};
-
-/**
- * Eingabezustand des Budget-Dialogs. Der Betrag bleibt als Text, damit
- * unvollständige Eingaben («8.», «») im Feld stehen bleiben können; die
- * Umrechnung in Rappen erfolgt erst beim Speichern.
- *
- * @param name - Name des Budgets.
- * @param budgetType - Fixbetrag oder Betrag pro Person und Tag.
- * @param amount - Betrag als Text (Rate bei «pro Person und Tag», sonst Total).
- * @param currency - ISO-Währungscode.
- * @param icon - Gewähltes Icon; `null`, solange noch keines gewählt wurde.
- */
-type BudgetDetailDialogState = {
-  name: string;
-  budgetType: BudgetType;
-  amount: string;
-  currency: string;
-  icon: BudgetIcon | null;
-};
-/** Leeres Formular für ein neues Budget. */
-const INITIAL_FORM_STATE: BudgetDetailDialogState = {
-  name: "",
-  budgetType: BudgetType.FIXED_AMOUNT,
-  amount: "",
-  currency: "CHF",
-  icon: null,
-};
-
-/**
- * Props des Budget-Dialogs.
- *
- * @param open - Ob der Dialog sichtbar ist.
- * @param budget - Zu bearbeitendes Budget; `null` = neues Budget anlegen.
- * @param onClose - Wird beim Schliessen aufgerufen.
- * @param onCreate - Wird beim Speichern eines neuen Budgets aufgerufen.
- * @param onEdit - Wird beim Speichern eines bestehenden Budgets aufgerufen.
- * @param onDelete - Wird beim Klick auf «Löschen» aufgerufen (nur im Bearbeiten-Modus).
- */
-interface BudgetDetailDialogProps {
-  open: boolean;
-  budget: BudgetDomain | null;
-  onClose: () => void;
-  onCreate: (budget: BudgetDetailDialogState) => void;
-  onEdit: (
-    budgetId: BudgetDomain["id"],
-    budget: BudgetDetailDialogState,
-  ) => void;
-  onDelete: (budget: BudgetDomain) => void;
-}
-// Schweizer Franken (Hauptwährung der App) + Euro (häufigste Fremdwährung
-// bei grenznahen Lagern) — bei Bedarf um weitere Währungen erweitern.
-const AVAILABLE_CURRENCIES = ["CHF", "EUR"];
-
-/**
- * Dialog zum Anlegen und Bearbeiten eines Budgets. Ist `budget` gesetzt,
- * werden die Felder vorbelegt und «Löschen» angeboten; sonst ist es ein leeres
- * Anlegen-Formular. Die eigentliche Speicher-/Löschlogik liegt beim Aufrufer
- * (über `onCreate`/`onEdit`/`onDelete`), der Dialog kennt weder Datenbank noch
- * Rückfrage.
- *
- * @param props - Siehe {@link BudgetDetailDialogProps}.
- */
-export const BudgetDetailDialog: React.FC<BudgetDetailDialogProps> = ({
-  open,
-  budget,
-  onClose,
-  onCreate,
-  onEdit,
-  onDelete,
-}) => {
-  // Form-State erstellen
-  const budgetToFormState = (
-    budget: BudgetDomain | null,
-  ): BudgetDetailDialogState =>
-    budget
-      ? {
-          name: budget.name,
-          budgetType: budget.budgetType,
-          amount: budget.amountInCents
-            ? (budget.amountInCents / 100).toFixed(2)
-            : "",
-          currency: budget.currency,
-          icon: budget.icon,
-        }
-      : INITIAL_FORM_STATE;
-
-  const classes = useCustomStyles();
-  const [touched, setTouched] = React.useState(false);
-  const [formState, setFormState] = useState<BudgetDetailDialogState>(
-    budgetToFormState(budget),
-  );
-
-  /* ------------------------------------------
-  // Formular beim Öffnen neu befüllen: `useState` liest den Startwert nur
-  // beim ersten Rendern, der Dialog bleibt aber dauerhaft gemountet. Ohne
-  // diesen Effekt blieben Werte eines früheren Budgets stehen.
-  // ------------------------------------------ */
-  React.useEffect(() => {
-    if (!open) return;
-    setFormState(budgetToFormState(budget));
-    setTouched(false);
-  }, [open, budget]);
-  /* ------------------------------------------
-  // Dialog-Handler
-  // ------------------------------------------ */
-  const handleClose = () => {
-    setTouched(false);
-    onClose();
-  };
-
-  /** Validiert die Eingaben und meldet sie je nach Modus an `onEdit`/`onCreate`. */
-  const handleSave = () => {
-    setTouched(true);
-    if (!isValid || formState.icon == null || amountInCents == null) {
-      return;
-    }
-
-    if (budget?.id) {
-      onEdit(budget.id, formState);
-    } else {
-      onCreate(formState);
-    }
-    handleClose();
-  };
-
-  /** Meldet das Löschen an den Aufrufer, der die Rückfrage übernimmt. */
-  const handleDelete = () => {
-    if (!budget) return;
-    onDelete(budget);
-    handleClose();
-  };
-
-  const updateField = <K extends keyof BudgetDetailDialogState>(
-    field: K,
-    value: BudgetDetailDialogState[K],
-  ) => {
-    setFormState((prev) => ({...prev, [field]: value}));
-  };
-  /* ------------------------------------------
-  // UI Berechnungen
-  // ------------------------------------------ */
-  const amountInCents = parseAmountToCents(formState.amount);
-  const isValid =
-    formState.name.trim().length > 0 &&
-    amountInCents != null &&
-    amountInCents > 0 &&
-    formState.icon != null;
-
-  return (
-    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
-      <DialogTitle>{budget ? TEXT_BUDGET : TEXT_NEW_BUDGET}</DialogTitle>
-      <DialogContent>
-        <TextField
-          autoFocus
-          fullWidth
-          label={TEXT_BUDGET_NAME}
-          value={formState.name}
-          onChange={(event) => updateField("name", event.target.value)}
-          error={touched && formState.name.trim().length === 0}
-          helperText={
-            touched && formState.name.trim().length === 0
-              ? TEXT_PLEASE_PROVIDE_NAME
-              : undefined
-          }
-          sx={classes.formControl}
-          margin="normal"
-        />
-        <FormLabel>{TEXT_BUDGET_TYPE}</FormLabel>
-
-        <RadioGroup
-          value={formState.budgetType}
-          onChange={(event) =>
-            updateField("budgetType", event.target.value as BudgetType)
-          }
-        >
-          <FormControlLabel
-            value={BudgetType.FIXED_AMOUNT}
-            control={<Radio />}
-            label={TEXT_BUDGET_TYPE_FIXED_AMOUNT}
-          />
-          <FormControlLabel
-            value={BudgetType.PER_PERSON_PER_DAY}
-            control={<Radio />}
-            label={TEXT_BUDGET_TYPE_PER_PERSON_PER_DAY}
-          />
-        </RadioGroup>
-
-        <Box sx={classes.budgetFormAmountRow}>
-          <TextField
-            label={TEXT_BUDGET_AMOUNT}
-            value={formState.amount}
-            onChange={(event) => updateField("amount", event.target.value)}
-            error={touched && (amountInCents == null || amountInCents <= 0)}
-            helperText={
-              touched && (amountInCents == null || amountInCents <= 0)
-                ? TEXT_PLEASE_PROVIDE_AMOUNT
-                : undefined
-            }
-            margin="normal"
-            fullWidth
-          />
-          <TextField
-            select
-            label={TEXT_BUDGET_CURRENCY}
-            value={formState.currency}
-            onChange={(event) => updateField("currency", event.target.value)}
-            margin="normal"
-            sx={classes.budgetFormCurrencySelect}
-          >
-            {AVAILABLE_CURRENCIES.map((currencyOption) => (
-              <MenuItem key={currencyOption} value={currencyOption}>
-                {currencyOption}
-              </MenuItem>
-            ))}
-          </TextField>
-        </Box>
-
-        <Typography variant="body2" sx={classes.formControl}>
-          {TEXT_BUDGET_ICON}
-        </Typography>
-        <Box sx={classes.budgetIconPickerGrid}>
-          {Object.values(BudgetIcon).map((iconOption) => {
-            const IconComponent = BUDGET_ICON_MAP[iconOption];
-            return (
-              <ButtonBase
-                key={iconOption}
-                onClick={() => updateField("icon", iconOption)}
-                sx={
-                  formState.icon === iconOption
-                    ? classes.budgetIconPickerButtonSelected
-                    : classes.budgetIconPickerButton
-                }
-                aria-label={iconOption}
-                aria-pressed={formState.icon === iconOption}
-              >
-                <IconComponent fontSize="small" />
-              </ButtonBase>
-            );
-          })}
-        </Box>
-        {touched && formState.icon == null && (
-          <Typography variant="caption" color="error">
-            {TEXT_PLEASE_PROVIDE_ICON}
-          </Typography>
-        )}
-      </DialogContent>
-      <DialogActions>
-        {budget && (
-          <React.Fragment>
-            <Button
-              variant="outlined"
-              color="error"
-              startIcon={<DeleteIcon />}
-              onClick={handleDelete}
-            >
-              {TEXT_DELETE}
-            </Button>
-            <Box sx={{flex: 1}} />{" "}
-          </React.Fragment>
-        )}
-
-        <Button variant="outlined" onClick={handleClose}>
-          {TEXT_CANCEL}
-        </Button>
-        <Button variant="contained" onClick={handleSave}>
-          {TEXT_SAVE}
-        </Button>
-      </DialogActions>
-    </Dialog>
   );
 };
 
