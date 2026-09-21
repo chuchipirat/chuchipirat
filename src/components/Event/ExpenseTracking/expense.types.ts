@@ -11,6 +11,16 @@ export enum ExpensePayeeType {
   NO_REFUND_NEEDED = "no_refund_needed",
 }
 /* =====================================================================
+// View-Modelle -> mit Informationen für das UI
+// ===================================================================== */
+export type ExpenseTotalsByBudget = Record<string, Record<string, number>>; // budgetId → Währung → Rappen
+
+export type ExpenseGroup = {
+  budget: BudgetDomain;
+  expenses: ExpenseDomain[]; // neueste zuerst
+  totalsByCurrency: Record<string, number>; // Rappen je Währung
+};
+/* =====================================================================
 // Domain-Modelle (camelCase, werden in der App verwendet)
 // ===================================================================== */
 
