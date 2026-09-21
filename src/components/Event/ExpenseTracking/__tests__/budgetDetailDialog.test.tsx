@@ -2,7 +2,11 @@ import {fireEvent, render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import {budget as mockBudget} from "../__mocks__/budget.mock";
-
+import {
+  PLEASE_PROVIDE_AMOUNT as TEXT_PLEASE_PROVIDE_AMOUNT,
+  PLEASE_PROVIDE_ICON as TEXT_PLEASE_PROVIDE_ICON,
+  PLEASE_PROVIDE_NAME as TEXT_PLEASE_PROVIDE_NAME,
+} from "../../../../constants/text/expenseTracking";
 import {BudgetDetailDialog} from "../budgetDetailDialog";
 import {BudgetIcon} from "../budget.types";
 
@@ -23,11 +27,9 @@ describe("Budget Detials Tests", () => {
     fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
 
     // TEXT_SAVE
-    expect(screen.getByText("Bitte einen Namen angeben.")).toBeInTheDocument();
-    expect(
-      screen.getByText("Bitte einen gültigen Betrag angeben"),
-    ).toBeInTheDocument();
-    expect(screen.getByText("Bitte ein Icon auswählen")).toBeInTheDocument();
+    expect(screen.getByText(TEXT_PLEASE_PROVIDE_NAME)).toBeInTheDocument();
+    expect(screen.getByText(TEXT_PLEASE_PROVIDE_AMOUNT)).toBeInTheDocument();
+    expect(screen.getByText(TEXT_PLEASE_PROVIDE_ICON)).toBeInTheDocument();
     expect(onCreate).not.toHaveBeenCalled();
   });
 
