@@ -126,6 +126,20 @@ export const BudgetCard = ({
           )}
         </Typography>
       </Box>
+      {budgetWithProgress.otherCurrenciesSpent.map((currency) => {
+        const [key, value] = Object.entries(currency)[0];
+
+        return (
+          <Box
+            key={"budget_" + budgetWithProgress.budget.id + "_currency_" + key}
+            sx={classes.budgetSecondaryCurrencyRow}
+          >
+            <Typography variant="body2" sx={classes.budgetAmountSecondary}>
+              {TEXT_SPENT_AMOUNT(value, key)}
+            </Typography>
+          </Box>
+        );
+      })}
 
       {!isPerPersonPerDay && (
         <Box sx={classes.budgetAmountRow}>

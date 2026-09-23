@@ -80,6 +80,7 @@ import {
   BudgetDetailDialog,
   BudgetDetailDialogState,
 } from "./budgetDetailDialog";
+import {Expense} from "./expense.class";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
@@ -151,18 +152,17 @@ const EventExpenseTrackingPage = ({
   // Budget für dieses Event laden
   // ------------------------------------------ */
   /**
-   * Liest Budgets und die bisher ausgegebenen Beträge je Budget. Rein
+   * Liest Budgets und bereits getätigte Ausgaben. Rein
    * lesend — legt nie ein Budget an, damit es auch aus dem Realtime-Reload
    * gefahrlos aufgerufen werden kann.
    *
-   * @returns Budgets des Events und Ausgabensummen je Budget-ID.
+   * @returns Budgets und Ausgaben des Anlasses, als Array
    */
-  const fetchBudgets = React.useCallback(async () => {
-    const budgets = await database.budgets.getBudgetsForEvent(event.uid);
-    const spentAmounts = await database.expenses.getSpentAmountsByBudget(
-      event.uid,
-    );
-    return {budgets, spentAmounts};
+  const fetchData = React.useCallback(async () => {
+    return await Promise.all([
+      database.budgets.getBudgetsForEvent(event.uid),
+      database.expenses.getExpensesForEvent(event.uid),
+    ]);
   }, [database, event.uid]);
 
   /**
@@ -172,15 +172,15 @@ const EventExpenseTrackingPage = ({
    */
   const loadBudgets = React.useCallback(async () => {
     try {
-      const {budgets, spentAmounts} = await fetchBudgets();
+      const [budgets, expenses] = await fetchData();
       dispatch({
         type: ReducerActions.BUDGETS_FETCH_SUCCESS,
-        payload: {budgets, spentAmounts},
+        payload: {budgets, expenses},
       });
     } catch (error) {
       handleError(error, "Budgets laden");
     }
-  }, [fetchBudgets, handleError]);
+  }, [fetchData, handleError]);
 
   /* ------------------------------------------
   // Realtime-Subscription für Budgets
@@ -252,37 +252,41 @@ const EventExpenseTrackingPage = ({
         }
       });
   }, [event.uid]);
+
   /* ------------------------------------------
   // Sollbetrag und Ausschöpfung je Budget ableiten
   // (nicht im State speichern: Teilnehmerzahl und Lagertage ändern sich live
   // über die Gruppenkonfiguration, der Sollbetrag muss dann mitziehen)
   // ------------------------------------------ */
+  const expenseTotals = React.useMemo(
+    () => Expense.sumByBudgetAndCurrency(state.expenses ?? []),
+    [state.expenses],
+  );
   const budgetsWithProgress = React.useMemo<BudgetWithProgress[]>(() => {
     if (!state.budgets) return [];
-    const spentAmounts = state.spentAmounts ?? {};
+
     return state.budgets.map((budget) => {
       const targetAmountInCents = Budget.getTargetAmountInCents(
         budget,
         groupConfiguration.totalPortions,
         event.numberOfDays,
       );
-      const spentAmountInCents = spentAmounts[budget.id] ?? 0;
+      const {spentAmountInCents, otherCurrencies} = Budget.getSpentAmounts(
+        budget,
+        expenseTotals,
+      );
       return {
         budget,
         targetAmountInCents,
         spentAmountInCents,
+        otherCurrenciesSpent: otherCurrencies,
         percentage:
           targetAmountInCents > 0
             ? Math.round((spentAmountInCents / targetAmountInCents) * 100)
             : 0,
       };
     });
-  }, [
-    state.budgets,
-    state.spentAmounts,
-    groupConfiguration,
-    event.numberOfDays,
-  ]);
+  }, [state.budgets, expenseTotals, groupConfiguration, event.numberOfDays]);
 
   /* ------------------------------------------
   // Navigation-Handler
@@ -414,7 +418,7 @@ const EventExpenseTrackingPage = ({
     // Datenbankfehlers erhält. Zeigt der lokale Stand (noch) keine Ausgaben,
     // sie sind aber inzwischen von jemand anderem erfasst worden, meldet die
     // Datenbank den Fremdschlüssel-Fehler und `handleError` zeigt ihn an.
-    if (state.spentAmounts && state.spentAmounts[budget.id] > 0) {
+    if (state.expenses?.some((expense) => expense.budgetId === budget.id)) {
       await customDialog({
         dialogType: DialogType.Confirm,
         title: TEXT_BUDGET_CANT_BE_DELETED,

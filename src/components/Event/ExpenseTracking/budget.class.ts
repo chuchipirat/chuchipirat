@@ -7,6 +7,7 @@ import {
   PROVIDE_BUDGET_TYPE as TEXT_PROVIDE_BUDGET_TYPE,
   BUDGET_ICON_INVALID as TEXT_BUDGET_ICON_INVALID,
 } from "../../../constants/text";
+import {ExpenseTotalsByBudget} from "./expense.types";
 
 /**
  * Domain-Klasse für das Budget eines Events.
@@ -62,5 +63,53 @@ export class Budget {
       return (budget.amountInCents ?? 0) * participantCount * dayCount;
     }
     return budget.amountInCents ?? 0;
+  };
+  /**
+   * Berechnet die Ausgegebenen Beträge für das übergebene Budget.
+   *
+   * @param budget - Das Budget.
+   * @param expenseTotalsByBudget - Alle Ausgaben, sortiert nach Budget und Währung
+   * @returns - die Ausgaben für das übergebene Budget
+   */
+  static getSpentAmounts = (
+    budget: BudgetDomain,
+    expenseTotalsByBudget: ExpenseTotalsByBudget,
+  ) => {
+    const spentAmounts: {
+      spentAmountInCents: number;
+      otherCurrencies: Record<string, number>[];
+    } = {spentAmountInCents: 0, otherCurrencies: []};
+
+    if (!expenseTotalsByBudget[budget.id]) {
+      spentAmounts.spentAmountInCents = 0;
+      return spentAmounts;
+    }
+
+    Object.keys(expenseTotalsByBudget[budget.id]).map((currency) => {
+      if (currency.toLowerCase() == budget.currency.toLowerCase()) {
+        spentAmounts.spentAmountInCents =
+          expenseTotalsByBudget[budget.id][currency] ?? 0;
+      } else {
+        spentAmounts.otherCurrencies.push({
+          [currency.toUpperCase()]:
+            expenseTotalsByBudget[budget.id][currency] ?? 0,
+        });
+      }
+    });
+
+    spentAmounts.otherCurrencies.sort((a, b) => {
+      const currencyA = Object.keys(a)[0];
+      const currencyB = Object.keys(b)[0];
+
+      if (currencyA < currencyB) {
+        return -1;
+      }
+      if (currencyA > currencyB) {
+        return 1;
+      }
+      return 0;
+    });
+
+    return spentAmounts;
   };
 }
