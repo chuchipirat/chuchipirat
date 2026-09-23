@@ -35,5 +35,22 @@
         "cmd": "sqlfluff fix \"${file}\" || true"
       }
     ]
+  },
+
+  // ── Markdown: formatOnSave deaktiviert ─────────────────────────────────
+  // WICHTIG: Prettier normalisiert Markdown-Emphasis beim Formatieren
+  // ungefragt von *kursiv* auf _kursiv_ (keine Konfigurationsoption dafür —
+  // fixes Verhalten seit prettier/prettier#2465) und interpretiert eine
+  // Zeile direkt nach einer nummerierten/Bullet-Unterliste ohne Leerzeile
+  // dazwischen als Fortsetzung des letzten Listenpunkts, wodurch sie
+  // umindentiert wird. Beides zerstört bestehende Formatierung in den
+  // `.claude/docs/*.md`-Dateien bei jedem Speichern, unabhängig vom Inhalt
+  // der eigentlichen Änderung. Globales "editor.formatOnSave": true +
+  // [markdown]-defaultFormatter in den User-Settings würde das sonst bei
+  // jedem Speichern auslösen.
+  "[markdown]": {
+    "editor.formatOnSave": false,
+    "editor.formatOnPaste": false,
+    "editor.formatOnType": false
   }
 }
