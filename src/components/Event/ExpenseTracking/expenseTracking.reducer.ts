@@ -5,6 +5,7 @@ import {
   BUDGET_UPDATED as TEXT_BUDGET_UPDATED,
   BUDGET_DELETED as TEXT_BUDGET_DELETED,
 } from "../../../constants/text/expenseTracking";
+import {ExpenseDomain} from "./expense.types";
 
 /** Aktionen, die der Reducer der Abrechnungsseite verarbeitet. */
 export enum ReducerActions {
@@ -24,7 +25,7 @@ export enum ReducerActions {
 export type DispatchAction =
   | {
       type: ReducerActions.BUDGETS_FETCH_SUCCESS;
-      payload: {budgets: BudgetDomain[]; spentAmounts: Record<string, number>};
+      payload: {budgets: BudgetDomain[]; expenses: ExpenseDomain[]};
     }
   | {type: ReducerActions.BUDGET_CREATED; payload: BudgetDomain}
   | {type: ReducerActions.BUDGET_UPDATED; payload: BudgetDomain}
@@ -38,21 +39,21 @@ export type DispatchAction =
  * @param isError - `true`, solange ein Fehler oder Validierungshinweis angezeigt wird.
  * @param error - Anzuzeigender Fehler (nur gesetzt, wenn `isError` `true` ist).
  * @param budgets - Budgets des Events; `null`, solange noch nicht geladen.
- * @param spentAmounts - Summe der Ausgaben je Budget-ID in Rappen; `null` vor dem Laden.
+ * @param expenses - Ausgaben des Events; `null`, solange noch nicht geladen.
  * @param snackbar - Zustand der Rückmeldung nach erfolgreichem Speichern/Löschen.
  */
 export type State = {
   isError: boolean;
   error: Error | null;
   budgets: BudgetDomain[] | null;
-  spentAmounts: Record<string, number> | null;
+  expenses: ExpenseDomain[] | null;
   snackbar: SnackbarState;
 };
 
 /** Ausgangszustand: noch nichts geladen, kein Fehler, Snackbar geschlossen. */
 export const initialState: State = {
   budgets: null,
-  spentAmounts: null,
+  expenses: null,
   isError: false,
   error: null,
   snackbar: {open: false, severity: "success", message: ""},
@@ -77,7 +78,7 @@ export const expenseTrackingReducer = (
       return {
         ...state,
         budgets: action.payload.budgets,
-        spentAmounts: action.payload.spentAmounts,
+        expenses: action.payload.expenses,
         isError: false,
         error: null,
       };

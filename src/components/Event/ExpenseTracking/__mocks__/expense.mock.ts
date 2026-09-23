@@ -15,3 +15,9 @@ export const expense: ExpenseDomain = {
   attachmentPath: null,
   attachmentOriginalFilename: null,
 };
+
+export const expenseTotalsByBudget = {
+  "budget-id-001": {CHF: 4200},
+  "budget-id-002": {CHF: 2000, EUR: 3300},
+  "budget-id-003": {USD: 50, CHF: 3700, EUR: 1100},
+};
