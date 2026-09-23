@@ -395,7 +395,7 @@ Instanz (Epic 3), Belege (Epic 4).
    Schnittstelle zu Epic 4: Sobald es Belege gibt, muss das Löschen einer Ausgabe auch das
    Storage-Objekt entfernen — wird dann in 4.3 ergänzt, nicht vorweggenommen.
 
-**Paket 2.1 — `expenseTracking.tsx` aufteilen (reines Verschieben, keine Verhaltensänderung)** ✅ erledigt
+### **Paket 2.1 — `expenseTracking.tsx` aufteilen (reines Verschieben, keine Verhaltensänderung)** ✅ erledigt
 
 Ausgangslage: `expenseTracking.tsx` hat 1254 Zeilen und enthält fünf Dinge, die nichts
 miteinander zu tun haben. Aufteilung nach **Abhängigkeitsrichtung**: Seite → Karte/Dialog/Reducer →
@@ -457,9 +457,10 @@ nichts anderes enthält.
 - Kurzer Sichttest im Browser (Übersicht öffnen, Karte bearbeiten, Dialog öffnen/schliessen,
   Löschen-Rückfrage): Verhalten identisch zu vorher. Kein Mobile-Test nötig, da kein UI geändert wird.
 - Nicht Teil von 2.1: die Datenlade-/Realtime-Logik aus der Seite in einen Hook auslagern — das
-  passiert in 2.3, weil sich dort die Datenbasis ohnehin ändert.
+  passiert in 2.3b, nach der Datenbasis-Umstellung in 2.3 (Verschieben und Verhaltensänderung
+  gehören in getrennte Commits).
 
-**Paket 2.2 — `expense.class.ts` (reine Domain-Logik, kein UI)** ✅ erledigt
+### **Paket 2.2 — `expense.class.ts` (reine Domain-Logik, kein UI)** ✅ erledigt
 
 Ziel: alles, was der Ausgaben-Dialog (2.5) und die Liste (2.4) rechnen oder prüfen müssen, als
 getestete, reine Funktionen — ohne React, ohne Supabase. Vorbild `budget.class.ts`. Danach
@@ -565,21 +566,142 @@ muss rot werden)
 `npm run lint` sauber; `expense.class.ts` importiert weder React, MUI noch Supabase; keine
 bestehende Datei ausser `expense.types.ts` und `constants/text/expenseTracking.ts` geändert.
 
-**Paket 2.3 — Datenbasis umstellen (Refactor, noch kein neues UI)**
+### **Paket 2.3 — Datenbasis umstellen (Refactor, noch kein neues UI ausser Fremdwährungszeile)**
 
-- `state.spentAmounts` → `state.expenses`; `loadData()` (bisher `loadBudgets`) lädt
-  `getBudgetsForEvent` + `getExpensesForEvent`; `budgetsWithProgress` leitet den Verbrauch über
-  `Expense.sumByBudgetAndCurrency` ab und zählt nur die Budget-Währung (Entscheidung 2).
-- `BudgetCard` zeigt je Fremdwährung eine Zusatzzeile (Style vorhanden, neue Textkonstante).
-- Löschen-Vorprüfung: «Budget hat Ausgaben» = irgendeine Ausgabe mit dieser `budgetId`
-  (**unabhängig von der Währung** — sonst würde eine reine Fremdwährungs-Ausgabe das Löschen
-  freigeben und die Datenbank mit einem FK-Fehler antworten).
-- Aufräumen: `ExpenseRepository.getSpentAmountsByBudget` und sein Test entfernen.
-- **Tests:** Fremdwährung zählt nicht zum Fortschritt; Fremdwährung erscheint als Zusatzzeile;
-  Löschen-Sperre auch bei nur-Fremdwährungs-Ausgaben; bestehende Tests bleiben grün
-  (`mockDatabase.expenses.getExpensesForEvent` statt `getSpentAmountsByBudget`).
+Ziel: Die Seite hält `state.expenses` statt `state.spentAmounts`. Der Fortschritt einer Karte
+wird daraus abgeleitet und zählt **nur die Budget-Währung** (Entscheidung 2); Beträge in anderen
+Währungen erscheinen als Zusatzzeile. Danach gibt es eine Datenquelle für Karten, Liste (2.4)
+und später Dashboard/«Offene Beträge» (Epic 3/6).
 
-**Paket 2.4 — Ausgaben-Ansicht (Liste, nur lesen)**
+**Wichtigste Entscheidung: die Ableitung wird eine reine Funktion, nicht `useMemo`-Code in der
+Seite.** Wie in 2.2 gilt: Logik, die man ohne React testen kann, gehört in `budget.class.ts`.
+Sonst braucht jeder Randfall (Fremdwährung, Währungswechsel) einen schweren Seitentest.
+
+**Neue/geänderte Bausteine**
+
+| Datei                                | Änderung                                                                                                                                               |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `budget.class.ts`                    | neue statische Methode `Budget.getSpentAmounts(budget, totalsByCurrency)` (unten)                                                                      |
+| `budget.types.ts`                    | `BudgetWithProgress` bekommt `otherCurrencySpent: {currency: string; amountInCents: number}[]` (JSDoc ergänzen)                                        |
+| `expenseTracking.reducer.ts`         | `State.spentAmounts` → `State.expenses: ExpenseDomain[] \| null`; Payload `{budgets, expenses}`; Action `BUDGETS_FETCH_SUCCESS` → `DATA_FETCH_SUCCESS` |
+| `expenseTracking.tsx`                | `fetchBudgets`/`loadBudgets` → `fetchData`/`loadData`; lädt **parallel** (`Promise.all`); `useMemo` für die Summen; Löschen-Vorprüfung                 |
+| `budgetCard.tsx`                     | eine Zusatzzeile je Fremdwährung                                                                                                                       |
+| `constants/text/expenseTracking.ts`  | Text für die Zusatzzeile (Funktion mit Betrag + Währung, wie `SPENT_AMOUNT`)                                                                           |
+| `ExpenseRepository.ts`               | `getSpentAmountsByBudget` entfernen; `getExpensesForEvent` bekommt einen Test                                                                          |
+| `__tests__/expenseTracking.test.tsx` | Mock `getExpensesForEvent` statt `getSpentAmountsByBudget`, Helfer nimmt `ExpenseDomain[]`                                                             |
+
+**`Budget.getSpentAmounts(budget, totalsByCurrency)`**
+
+- `totalsByCurrency` ist `totals[budget.id]` aus `Expense.sumByBudgetAndCurrency` (oder `undefined`,
+  wenn das Budget keine Ausgaben hat — dann `{}` behandeln).
+- Rückgabe `{spentInCents: number; otherCurrencies: {currency; amountInCents}[]}`:
+  `spentInCents` = Summe in **`budget.currency`** (0, wenn keine); `otherCurrencies` = alle
+  anderen Währungen, **alphabetisch nach Code sortiert** (stabile Anzeige, kein Springen bei
+  einem Reload).
+- Reine Funktion, kein React. Prozent, Ampelfarben und Sollbetrag bleiben unverändert in der
+  Seite bzw. Karte.
+
+**Seite (`expenseTracking.tsx`)**
+
+1. `fetchData`: `const [budgets, expenses] = await Promise.all([database.budgets.getBudgetsForEvent(event.uid), database.expenses.getExpensesForEvent(event.uid)])`.
+   Bisher liefen die zwei Abfragen nacheinander. Schlägt eine fehl, wirft `Promise.all` einmal
+   und `handleError` meldet einmal. Kontext-Text für Sentry: «Budgets und Ausgaben laden».
+2. Zwei `useMemo`, damit nicht bei jedem Budget-Edit alle Ausgaben neu summiert werden:
+   `expenseTotals = useMemo(() => Expense.sumByBudgetAndCurrency(state.expenses ?? []), [state.expenses])`
+   und darauf aufbauend `budgetsWithProgress` (Dependencies: `state.budgets`, `expenseTotals`,
+   `groupConfiguration`, `event.numberOfDays`).
+3. Löschen-Vorprüfung: `state.expenses?.some((expense) => expense.budgetId === budget.id)`.
+   **Unabhängig von der Währung** — sonst gäbe eine reine Fremdwährungs-Ausgabe das Löschen
+   frei, und die Datenbank antwortet mit dem FK-Fehler. Ist `state.expenses` noch `null`
+   (nicht geladen), wird wie bisher nicht vorab gesperrt; der FK-Fallback bleibt.
+4. Der Reducer setzt bei `DATA_FETCH_SUCCESS` beide Felder auf einmal (kein Zwischenzustand mit
+   Budgets, aber ohne Ausgaben → sonst kurz alle Balken auf 0).
+5. `BUDGET_CREATED/UPDATED/DELETED` bleiben unverändert (fassen `expenses` nicht an).
+
+**Randfälle, die es zu bedenken gilt**
+
+- **Budget-Währung nachträglich ändern** (Bearbeiten-Dialog, CHF → EUR) bei vorhandenen
+  Ausgaben: Die bisherigen CHF-Ausgaben zählen dann nicht mehr zum Fortschritt, sondern stehen als
+  Fremdwährung darunter. Das ist durch die Ableitung konsistent und **gewollt** — keine Sperre.
+  Es gehört aber als Test in `budget.class.test.ts`.
+- **`findMany` liest höchstens 1000 Zeilen** (PostgREST `db-max-rows`, siehe Tech-Debt-Eintrag):
+  Mehr Ausgaben würden **stillschweigend** abgeschnitten, Summen wären zu klein. Vorher hatte
+  `getSpentAmountsByBudget` dieselbe Grenze — es entsteht keine Verschlechterung. Bewusst nicht
+  paginieren (Entscheidung 1: ein Lager hat Hunderte Ausgaben), aber **in `tech-debt.md`
+  eintragen** («Ausgaben-Liste bei > 1000 Zeilen abgeschnitten», Priorität tief).
+- **Sortierung:** `getExpensesForEvent` sortiert nach `expense_date`; die Anzeige sortiert selbst
+  (`Expense.sortByDateDescending`) — die Repository-Sortierung ist für die App bedeutungslos,
+  ändert aber nichts. Nicht anfassen.
+- **Realtime:** In diesem Paket gibt es **noch keine** Subscription auf `event_expenses` (kommt in
+  2.7). Der bestehende Budget-Reload lädt aber jetzt auch die Ausgaben mit (gemeinsames
+  `loadData`) — das ist so gewollt.
+
+**Reihenfolge (nach jedem Schritt `npx tsc --noEmit` und `npx jest ExpenseTracking --watchAll=false`)**
+
+1. `Budget.getSpentAmounts` + Typ `otherCurrencySpent` + Unit-Tests in `budget.class.test.ts`
+   (noch **nicht** verdrahtet — alles bleibt grün).
+2. Test für `ExpenseRepository.getExpensesForEvent` (Filter `event_id`, Mapping) in
+   `ExpenseRepository.test.ts`.
+3. Reducer und Seite umstellen (Schritt 1 aus «Seite» bis 4), Test-Helfer anpassen. Die
+   bestehenden Assertions bleiben — nur die Mock-Daten ändern sich
+   (`renderUnlockedPage(initialBudgets, expenses)`). Grün heisst: Verhalten unverändert.
+4. Löschen-Vorprüfung auf `state.expenses.some(...)` und der Test dazu.
+5. `BudgetCard`: Zusatzzeilen (Style `budgetSecondaryCurrencyRow` ist vorhanden) + Text + Test.
+6. `getSpentAmountsByBudget` löschen (kein Test vorhanden, `grep` muss danach leer sein),
+   Tech-Debt-Eintrag.
+
+**Tests**
+
+- `budget.class.test.ts` (`getSpentAmounts`): keine Ausgaben (`undefined` und `{}`) → 0 und leere
+  Liste; nur Budget-Währung; **Budget-Währung + Fremdwährung getrennt**; nur Fremdwährung
+  (`spentInCents` = 0, Zeile vorhanden); zwei Fremdwährungen **alphabetisch**; Währungswechsel
+  des Budgets ordnet um; Eingabe unverändert.
+- Seite: bestehende Tests grün; Fremdwährung zählt nicht zum Fortschritt (Balken/Prozent);
+  Zusatzzeile sichtbar mit Betrag und Währung; **Löschen-Sperre auch bei reiner
+  Fremdwährungs-Ausgabe**; Realtime-Reload lädt Ausgaben mit (`getExpensesForEvent` zweimal
+  aufgerufen).
+- **Mutationsproben:** `budget.currency`-Vergleich in `getSpentAmounts` entfernen → Fremdwährungs-
+  Test rot; `some(...)` durch Summen-Prüfung in der Budget-Währung ersetzen → Fremdwährungs-
+  Löschen-Test rot; Sortierung der Fremdwährungen weglassen → Reihenfolge-Test rot.
+
+**Sichttest im Browser (DEV, nie PROD).** Ohne Erfassungsdialog per SQL in die **DEV**-DB
+(`supabase-db-*`, nicht PROD) einfügen; Werte in `<…>` ersetzen:
+
+```sql
+INSERT INTO public.event_expenses
+  (event_id, budget_id, expense_date, amount_in_cents, currency, label, payee_type)
+VALUES
+  ('<event-uuid>', '<budget-uuid>', CURRENT_DATE, 4200, 'CHF', 'TEST Migros', 'no_refund_needed'),
+  ('<event-uuid>', '<budget-uuid>', CURRENT_DATE, 1000, 'EUR', 'TEST Aldi',   'no_refund_needed');
+-- Aufräumen:
+DELETE FROM public.event_expenses WHERE label LIKE 'TEST %';
+```
+
+Prüfen: Balken zählt nur die CHF-Ausgabe, EUR erscheint als Zusatzzeile; Löschen des Budgets
+zeigt die Sperr-Meldung; **Mobile-Ansicht** (Karte wird höher, darf nichts abschneiden);
+Budget-Währung im Bearbeiten-Dialog ändern → Zeilen tauschen die Rollen.
+
+**Definition of Done:** `getSpentAmountsByBudget` und `state.spentAmounts` kommen im Code nicht
+mehr vor (`grep`); `tsc`, `lint`, `jest ExpenseTracking` sauber; `budget.class.ts` importiert
+weder React noch Supabase; Tech-Debt-Eintrag zur 1000-Zeilen-Grenze vorhanden.
+
+**Paket 2.3b — Datenlade-/Realtime-Logik in einen Hook auslagern (reines Verschieben)**
+
+Empfehlung: **eigenes Paket und eigener Commit nach 2.3** — nicht in 2.3 hineinmischen. Ein
+Commit, der die Datenbasis ändert **und** Code verschiebt, ist nicht mehr prüfbar (in 2.1 war
+genau das Prinzip: Verschieben ohne Verhaltensänderung). Es muss aber **vor 2.5** passieren,
+weil 2.5 (Handler für Anlegen) und 2.7 (zweite Subscription) die Seite sonst weit über 700
+Zeilen treiben.
+
+- Neue Datei `useExpenseTrackingData.ts`: `useReducer`, `handleError`, `fetchData`/`loadData`,
+  Erstlade-Effekt, Realtime-Effekt (Budgets), Rückgabe `{state, dispatch, loadData}`. Die Seite
+  behält Handler, `useMemo`-Ableitungen und Layout.
+- Dependencies der Effekte **unverändert** übernehmen (Tabu wie in 2.1: nichts «nebenbei»
+  verbessern). Bestehende Seitentests laufen ohne geänderte Assertions grün; die Callbacks der
+  Realtime-Tests werden weiter aus dem Mock gelesen.
+- Zeilen: Seite danach < ~500.
+
+### **Paket 2.4 — Ausgaben-Ansicht (Liste, nur lesen)**
 
 - Toggle «Ausgaben» (bisher `disabled`) aktivieren. Neue Komponente `expenseList.tsx` in eigener
   Datei: Gruppen je Budget (Icon, Name, Summe je Währung im Gruppenkopf), darunter die
@@ -592,7 +714,7 @@ bestehende Datei ausser `expense.types.ts` und `constants/text/expenseTracking.t
 - **Tests:** Gruppierung und Reihenfolge, Summen je Währung im Kopf, Betragsformat, Leerzustand,
   Klick löst Callback mit der richtigen ID aus.
 
-**Paket 2.5 — Ausgabe anlegen**
+### **Paket 2.5 — Ausgabe anlegen**
 
 - `ExpenseDetailDialog` (Anlegen **und** Bearbeiten-Struktur, Entscheidung 4): Datum
   (`DatePicker`, Vorbelegung heute), Betrag + Währung (Vorbelegung = Währung des Budgets),
@@ -609,7 +731,7 @@ bestehende Datei ausser `expense.types.ts` und `constants/text/expenseTracking.t
   Platzhalter-Werte werden geschrieben, ein Datum kurz vor Mitternacht landet als richtiger
   Kalendertag (Repository-Test mit `formatLocalDate`).
 
-**Paket 2.6 — Ausgabe bearbeiten und löschen**
+### **Paket 2.6 — Ausgabe bearbeiten und löschen**
 
 - Klick auf eine Zeile öffnet den Dialog vorbefüllt (Betrag `toFixed(2)`, Datum lokal). Budget
   wechseln ist erlaubt; die Summen ziehen live nach (abgeleitet, Entscheidung 1).
@@ -620,7 +742,7 @@ bestehende Datei ausser `expense.types.ts` und `constants/text/expenseTracking.t
 - **Randfall:** Eine andere Sitzung hat die Ausgabe schon gelöscht → Fehlermeldung statt
   stillem Nichts (`update` findet keine Zeile).
 
-**Paket 2.7 — Realtime für Ausgaben**
+### **Paket 2.7 — Realtime für Ausgaben**
 
 - `ExpenseRepository.subscribeToExpenses(eventId, onChange, onError, onStatusChange)` (Channel
   `expenses:${eventId}`, Binding `event_expenses`, Muster `BudgetRepository.subscribeToBudgets`).
@@ -633,7 +755,7 @@ bestehende Datei ausser `expense.types.ts` und `constants/text/expenseTracking.t
   Fortschritt der Karte; Löschung verschwindet; nur eine Subscription pro Tabelle; `unsubscribe`
   beim Verlassen. Danach **Mutationsprobe** (Regel aus der Checkliste).
 
-**Paket 2.8 — Hervorhebung von Fremdänderungen (optional)**
+### **Paket 2.8 — Hervorhebung von Fremdänderungen (optional)**
 
 - Karten und Zeilen, die eine **andere** Sitzung geändert oder angelegt hat, leuchten 2 Sekunden
   auf (`classes.remoteChangeGlow`, Vorbild `materialList.tsx`). Diff nach ID und Feldern zwischen

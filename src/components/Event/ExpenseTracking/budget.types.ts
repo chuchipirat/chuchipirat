@@ -62,6 +62,7 @@ export type BudgetDomain = {
  * @param budget - Informationen des Budgets
  * @param targetAmountInCents - absoluter Budgetbetrag
  * @param spentAmountInCents - bereits ausgegebener Betrag
+ * @param otherCurrenciesSpent - Ausgaben in anderen Währungen
  *@param percentage - prozentuale Ausnutzung des Budgets;
  */
 
@@ -69,6 +70,7 @@ export type BudgetWithProgress = {
   budget: BudgetDomain;
   targetAmountInCents: number;
   spentAmountInCents: number;
+  otherCurrenciesSpent: Record<string, number>[];
   percentage: number;
 };
 
