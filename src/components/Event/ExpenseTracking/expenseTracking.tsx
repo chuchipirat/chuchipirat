@@ -44,7 +44,6 @@ import {
 import {
   isForeignKeyViolationError,
   isTransientNetworkError,
-  toError,
 } from "../../../utils/errorUtils";
 import {DonationForm} from "../../Donate/DonationForm";
 import {useCustomStyles} from "../../../constants/styles";
@@ -70,17 +69,14 @@ import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
-import {
-  expenseTrackingReducer,
-  initialState,
-  ReducerActions,
-} from "./expenseTracking.reducer";
+import {ReducerActions} from "./expenseTracking.reducer";
 import {BudgetCard, AddBudgetCard} from "./budgetCard";
 import {
   BudgetDetailDialog,
   BudgetDetailDialogState,
 } from "./budgetDetailDialog";
 import {Expense} from "./expense.class";
+import {useExpenseTrackingData} from "./useExpenseTrackingData";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
@@ -114,10 +110,6 @@ const EventExpenseTrackingPage = ({
   const navigationValuesContext = React.useContext(NavigationValuesContext);
 
   const [hasDonation, setHasDonation] = React.useState<boolean | null>(null);
-  const [state, dispatch] = React.useReducer(
-    expenseTrackingReducer,
-    initialState,
-  );
   const [view, setView] = React.useState<ExpenseTrackingView>("overview");
   const [budgetDetailDialogProperties, setBudgetDetailDialogProperties] =
     React.useState<{budget: BudgetDomain | null; open: boolean}>({
@@ -129,109 +121,14 @@ const EventExpenseTrackingPage = ({
   const classes = useCustomStyles();
   const authUser = useAuthUser();
   const {customDialog} = useCustomDialog();
-  /* ------------------------------------------
-  // Error Handling
-  // ------------------------------------------ */
-  /**
-   * Zentrale Fehlerbehandlung: zeigt den Fehler oben auf der Seite an und
-   * meldet ihn an Sentry. Nutzerhinweise (`FieldValidationError`) und
-   * vorübergehende Netzwerkfehler werden bewusst nicht gemeldet.
-   *
-   * @param error - Der aufgetretene Fehler.
-   * @param context - Kurzbeschreibung der Aktion für den Sentry-Kontext.
-   */
-  const handleError = React.useCallback((error: unknown, context: string) => {
-    const isUserHint = error instanceof FieldValidationError;
-    if (!isTransientNetworkError(error) && !isUserHint) {
-      Sentry.captureException(error, {extra: {context}});
-    }
-    dispatch({type: ReducerActions.GENERIC_ERROR, payload: toError(error)});
-  }, []);
 
-  /* ------------------------------------------
-  // Budget für dieses Event laden
-  // ------------------------------------------ */
-  /**
-   * Liest Budgets und bereits getätigte Ausgaben. Rein
-   * lesend — legt nie ein Budget an, damit es auch aus dem Realtime-Reload
-   * gefahrlos aufgerufen werden kann.
-   *
-   * @returns Budgets und Ausgaben des Anlasses, als Array
-   */
-  const fetchData = React.useCallback(async () => {
-    return await Promise.all([
-      database.budgets.getBudgetsForEvent(event.uid),
-      database.expenses.getExpensesForEvent(event.uid),
-    ]);
-  }, [database, event.uid]);
-
-  /**
-   * Lädt die Budgets und schreibt sie in den State. Fehler werden über
-   * {@link handleError} angezeigt und gemeldet. Wird für das Erstladen, bei
-   * jeder Realtime-Änderung und nach einem Verbindungsabbruch verwendet.
-   */
-  const loadBudgets = React.useCallback(async () => {
-    try {
-      const [budgets, expenses] = await fetchData();
-      dispatch({
-        type: ReducerActions.BUDGETS_FETCH_SUCCESS,
-        payload: {budgets, expenses},
-      });
-    } catch (error) {
-      handleError(error, "Budgets laden");
-    }
-  }, [fetchData, handleError]);
-
-  /* ------------------------------------------
-  // Realtime-Subscription für Budgets
-  // ------------------------------------------ */
-  // Erstladen: Die Realtime-Subscription meldet nur Änderungen (auch beim
-  // ersten Verbindungsaufbau wird `onChange` nicht aufgerufen) — der
-  // Ausgangszustand muss deshalb separat geladen werden.
-  React.useEffect(() => {
-    if (hasDonation !== true || !authUser) return;
-    void loadBudgets();
-  }, [hasDonation, authUser, loadBudgets]);
-
-  // Realtime: `onChange` liefert keinen Payload, daher wird bei jeder
-  // Änderung neu geladen. Ein eigener Save löst ebenfalls ein Echo aus — das
-  // ist harmlos, weil der Reload idempotent ist und dieselben Daten liefert.
-  // Zu `realtime` werden nur die (stabilen) Funktionen als Dependencies
-  // geführt: `useRealtimeConnectionStatus()` gibt bei jedem Render ein neues
-  // Objekt zurück, sonst würde der Channel bei jedem Render neu aufgebaut.
-  React.useEffect(() => {
-    if (!event.uid || hasDonation !== true || !authUser) return;
-
-    const {unsubscribe, reconnect} = database.budgets.subscribeToBudgets(
-      event.uid,
-      loadBudgets, // Änderung durch eine andere Sitzung
-      (error) =>
-        Sentry.captureException(error, {
-          extra: {context: "Realtime budgets subscription"},
-        }),
-      (status) => {
-        realtime.setStatus("budgets", status);
-        // Nach einem Verbindungsabbruch sind Änderungen verpasst worden, die
-        // Realtime nicht nachliefert — daher einmalig neu laden.
-        if (status === "connected") void loadBudgets();
-      },
-    );
-
-    realtime.register("budgets", reconnect);
-    return () => {
-      unsubscribe();
-      realtime.unregister("budgets");
-    };
-  }, [
-    hasDonation,
-    authUser,
-    event.uid,
+  const {state, dispatch, handleError} = useExpenseTrackingData({
+    event,
     database,
-    loadBudgets,
-    realtime.setStatus,
-    realtime.register,
-    realtime.unregister,
-  ]);
+    hasDonation,
+    realtime,
+  });
+
   /* ------------------------------------------
   // Spende für dieses Event laden
   // ------------------------------------------ */
