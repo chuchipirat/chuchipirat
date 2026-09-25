@@ -10,7 +10,7 @@ import {
 import {BudgetDetailDialog} from "../budgetDetailDialog";
 import {BudgetIcon} from "../budget.types";
 
-describe("Budget Detials Tests", () => {
+describe("Budget Details Tests", () => {
   test("zeigt Validierungsfehler bei leerem Formular", () => {
     const onCreate = jest.fn();
     render(

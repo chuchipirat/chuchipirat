@@ -3,7 +3,7 @@
  *
  * Prüfung ob je nach Spende die richtige Ansicht angezeigt wird.
  */
-// Polyfill fuer jsdom (react-router benoetigt TextEncoder/TextDecoder) — die
+// Polyfill für jsdom (react-router benötigt TextEncoder/TextDecoder) — die
 // gesperrte Ansicht bindet jetzt DonationForm ein, das ueber authUserContext
 // transitiv react-router importiert (Muster: DonationForm.test.tsx).
 import {TextEncoder, TextDecoder} from "util";
@@ -102,9 +102,9 @@ mockAuthUser.uid = "auth-uid-1";
 
 /**
  * Rendert die EventExpenseTracking mit Standard-Props.
- * Optionale Overrides koennen uebergeben werden.
+ * Optionale Overrides können übergeben werden.
  *
- * @param overrides Partielle Props, die die Standardwerte ueberschreiben.
+ * @param overrides Partielle Props, die die Standardwerte überschreiben.
  * @returns Das Render-Ergebnis von @testing-library/react.
  */
 const renderEventExpenseTrackingPage = (
