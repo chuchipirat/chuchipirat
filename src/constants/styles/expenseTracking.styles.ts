@@ -122,4 +122,38 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     justifyContent: "center",
     color: theme.palette.primary.main,
   },
+  expenseGroupHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    backgroundColor: theme.palette.background.paper,
+  },
+  expenseGroupHeaderName: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    color: theme.palette.text.primary,
+  },
+  expenseGroupHeaderTotals: {
+    display: "flex",
+    gap: theme.spacing(1.5),
+    color: theme.palette.text.primary,
+  },
+  expenseRowPrimary: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    gap: theme.spacing(1),
+    minWidth: 0, // nötig, damit noWrap+Ellipsis im Flex-Kind wirken kann
+  },
+  expenseRowAmount: {
+    flexShrink: 0,
+    fontWeight: 500,
+  },
+  noExpensesHint: {
+    textAlign: "center",
+    color: theme.palette.text.secondary,
+    padding: theme.spacing(4, 2),
+  },
 });

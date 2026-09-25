@@ -101,3 +101,5 @@ export const EXPENSE_AMOUNT_TOO_LARGE = "Bitte kleineren Ausgabebetrag wählen."
 export const PLEASE_PROVIDE_BUDGET = "Bitte ein Budget wählen.";
 export const PLEASE_PROVIDE_DATE = "Bitte Ausgabedatum angeben.";
 export const PLEASE_PROVIDE_CURRENCY = "Bitte Währung wählen.";
+
+export const NO_EXPENSES_YET = "Noch keine Ausgaben.";

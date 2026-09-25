@@ -566,7 +566,7 @@ muss rot werden)
 `npm run lint` sauber; `expense.class.ts` importiert weder React, MUI noch Supabase; keine
 bestehende Datei ausser `expense.types.ts` und `constants/text/expenseTracking.ts` geändert.
 
-### **Paket 2.3 — Datenbasis umstellen (Refactor, noch kein neues UI ausser Fremdwährungszeile)**
+### **Paket 2.3 — Datenbasis umstellen (Refactor, noch kein neues UI ausser Fremdwährungszeile)** ✅ erledigt
 
 Ziel: Die Seite hält `state.expenses` statt `state.spentAmounts`. Der Fortschritt einer Karte
 wird daraus abgeleitet und zählt **nur die Budget-Währung** (Entscheidung 2); Beträge in anderen
@@ -685,7 +685,7 @@ Budget-Währung im Bearbeiten-Dialog ändern → Zeilen tauschen die Rollen.
 mehr vor (`grep`); `tsc`, `lint`, `jest ExpenseTracking` sauber; `budget.class.ts` importiert
 weder React noch Supabase; Tech-Debt-Eintrag zur 1000-Zeilen-Grenze vorhanden.
 
-**Paket 2.3b — Datenlade-/Realtime-Logik in einen Hook auslagern (reines Verschieben)**
+### **Paket 2.3b — Datenlade-/Realtime-Logik in einen Hook auslagern (reines Verschieben)** ✅ erledigt
 
 Empfehlung: **eigenes Paket und eigener Commit nach 2.3** — nicht in 2.3 hineinmischen. Ein
 Commit, der die Datenbasis ändert **und** Code verschiebt, ist nicht mehr prüfbar (in 2.1 war
@@ -701,18 +701,93 @@ Zeilen treiben.
   Realtime-Tests werden weiter aus dem Mock gelesen.
 - Zeilen: Seite danach < ~500.
 
-### **Paket 2.4 — Ausgaben-Ansicht (Liste, nur lesen)**
+### **Paket 2.4 — Ausgaben-Ansicht (Liste, nur lesen)** ✅ erledigt
 
-- Toggle «Ausgaben» (bisher `disabled`) aktivieren. Neue Komponente `expenseList.tsx` in eigener
-  Datei: Gruppen je Budget (Icon, Name, Summe je Währung im Gruppenkopf), darunter die
-  Ausgaben (Datum, Bezeichnung, Kommentar als Zweitzeile, Betrag rechts über
-  `formatAmountFromCents`). Neueste zuerst, mobil gestapelt.
-- Leerzustand: «Noch keine Ausgaben». Zeilen sind klickbar (Callback `onEditClick`, in 2.6
-  angebunden). Kein «Neue Ausgabe»-Button in diesem Paket — der kommt mit dem Dialog in 2.5.
-- Zum Ansehen im Browser: ein paar Zeilen per SQL in die DEV-DB einfügen (Snippet im
-  Paket-Kommentar festhalten), Desktop **und** Mobile prüfen.
-- **Tests:** Gruppierung und Reihenfolge, Summen je Währung im Kopf, Betragsformat, Leerzustand,
-  Klick löst Callback mit der richtigen ID aus.
+Ziel: Toggle «Ausgaben» zeigt eine gruppierte, sortierte Liste aller Ausgaben — reine Darstellung von Daten, die bereits in `state.expenses` liegen (2.3) und bereits von `Expense.groupByBudget()` (2.2) richtig gruppiert/sortiert/summiert werden. Dieses Paket schreibt keine neue Berechnungslogik, nur eine neue Komponente plus die Verdrahtung.
+
+**Wichtiger Fund beim Durchsehen der Seite:** Das Grid mit den Budget-Karten hängt aktuell **nicht** von `view` ab — es wird immer gerendert, sobald `hasDonation === true`, unabhängig vom Toggle-Zustand. Der Toggle selbst schaltet nur seinen eigenen `value` um, sonst passiert nichts. Dieses Paket muss also zusätzlich zum reinen Aktivieren des Buttons:
+
+1. Das bestehende `<Grid container>` (Budget-Karten + `AddBudgetCard`) in `{view === "overview" && (...)}` einpacken.
+2. Einen neuen Zweig `{view === "expenses" && (...)}` ergänzen, der `ExpenseList` rendert.
+
+Ohne diese zwei Änderungen zeigt das Aktivieren des Toggles nichts Neues an.
+
+**Dateien**
+
+| Datei | Inhalt |
+|---|---|
+| `expenseList.tsx` (neu) | `ExpenseList` (exportiert) + private Unterkomponenten `ExpenseGroupHeader`, `ExpenseRow` (nicht exportiert, wie `AddBudgetCard` neben `BudgetCard`) |
+| `__tests__/expenseList.test.tsx` (neu) | Tests für `ExpenseList`, siehe unten |
+| `expenseTracking.tsx` | neuer `useMemo` `expenseGroups`; Grid + neuer Zweig hinter `view` verzweigt; Toggle-Button nicht mehr `disabled`; `handleExpenseClick`-Stub |
+| `constants/text/expenseTracking.ts` | `NO_EXPENSES`-Text |
+
+**Entscheidung: `List`/`ListSubheader`/`ListItemButton` statt DataGrid oder Card-pro-Zeile.** Diskutiert und bewusst verworfen:
+
+- **DataGrid** (wie in den Admin-Seiten und in `products.tsx`/`materials.tsx`): Das Projekt nutzt die Community-Edition (`@mui/x-data-grid`, kein `-pro`/`-premium`) — Zeilengruppierung mit Zwischensummen (genau das, was ein Budget-Kopf mit Währungssummen braucht) ist dort eine **Pro-Funktion**, in diesem Projekt nirgends verwendet. Ohne Pro müsste man Gruppenköpfe als synthetische Zeilen ins flache Datenmodell einschleusen und Sortierung/Klick um sie herum sonderbehandeln. Ausserdem gäbe es zwei komplette Implementierungen (Tabelle + Karten) für dieselben Daten — doppelte Tests, doppelte Pflege bei jedem neuen Feld (Epic 3 Zahlende Instanz, Epic 4 Beleg-Icon). Kein bestehendes Cook-facing Feature der App macht das; DataGrid kommt bisher nur bei Verwaltungsaufgaben vor (Admin-Seiten, Produkte/Materialien — dort ohne jede Mobile-Anpassung, also kein Beleg dafür, dass es auf dem Handy gut funktioniert).
+- **`Card` pro Zeile** (wie `BudgetCard`): passt für wenige, eigenständige Objekte in einem Grid, aber für eine Transaktionsliste mit potenziell Dutzenden Zeilen wirkt ein Rahmen + Radius + Padding pro Zeile visuell schwer und weniger "listenhaft" als Zeilen mit Trennlinien.
+- **Gewählt: `List`** — hat in der App bereits Präzedenz (`Menuplan/menuplan.menucard.list.tsx` nutzt `List`/`ListItem`/`ListItemButton`/`ListItemText` für eine vergleichbare Zeilenliste). `ListItemButton` ist ein spezialisiertes `ButtonBase` mit eingebautem `divider` (Trennlinie statt manuellem `borderBottom`) und Tastatur-/Fokus-Verhalten geschenkt. `ListSubheader` ist genau für «beschrifteter Abschnitt innerhalb einer Liste» gebaut — inkl. optionalem `sticky`, damit der Budget-Name beim Scrollen durch viele Ausgaben sichtbar bleibt.
+
+**`ExpenseList` — Props und Verhalten**
+
+```ts
+type ExpenseListProps = {
+  expenseGroups: ExpenseGroup[];
+  onEditClick: (expenseId: string) => void;
+};
+```
+
+- Gruppen **ohne** Ausgaben werden **nicht** angezeigt (kein leerer Gruppenkopf «Küche: —» für jedes frisch angelegte Budget — das wäre bei wenigen erfassten Ausgaben nur Rauschen). Reihenfolge der angezeigten Gruppen folgt `expenseGroups` (= Reihenfolge der Budgets, wie in der Übersicht). Pro Gruppe: eine `<ListSubheader>` gefolgt von einer eigenen `<List>` mit den Zeilen dieser Gruppe (nicht eine grosse `<List>` über alle Gruppen — Subheader gehören semantisch zu ihrer eigenen Liste).
+- **Leerzustand der ganzen Liste** («Noch keine Ausgaben»): wenn **keine** Gruppe Ausgaben hat (`expenseGroups.every((group) => group.expenses.length === 0)`), nicht erst wenn `expenseGroups` leer ist — Budgets existieren ja bereits, bevor die erste Ausgabe erfasst wird.
+- **Gruppenkopf** (`ExpenseGroupHeader`, rendert `<ListSubheader>`): Icon (`BUDGET_ICON_MAP[group.budget.icon]`, wie `BudgetCard`), Name des Budgets, Summen aus `group.totalsByCurrency` — bei mehreren Währungen alle nebeneinander, Reihenfolge alphabetisch nach Code (gleiches Muster wie die Fremdwährungs-Sortierung in `Budget.getSpentAmounts`, Konsistenz zur Übersicht).
+- **Zeile** (`ExpenseRow`, rendert `<ListItemButton divider onClick={...}>`): Datum (`expense.expenseDate`, Format wie im Rest der App — `dayjs`/vorhandene Datums-Utility prüfen, nicht neu erfinden) und Betrag (`formatAmountFromCents`) als eigene `Typography` links/rechts der `<ListItemText primary={expense.label} secondary={expense.comment || undefined} />` — `ListItemText` blendet `secondary` automatisch aus, wenn `undefined` übergeben wird, kein manuelles `comment && (...)` nötig. Layout responsiv über die `sx`-Prop selbst, **nicht** über zwei Komponenten: `sx={{flexDirection: {xs: "column", md: "row"}}}` — mobil gestapelt (Datum/Betrag über/unter Bezeichnung+Kommentar), auf Desktop eine Zeile, wirkt dann tabellenartig, ohne eine Tabelle zu sein. Gleiches DOM, gleiche Tests, nur CSS unterscheidet sich je Breakpoint. `data-testid={`expense-${expense.id}`}` (Muster wie `data-testid={budget.id}` bei `BudgetCard`). Kein manuelles `role="button"` + `onKeyDown` nötig — das übernimmt `ListItemButton`.
+- Innerhalb einer Gruppe ist die Sortierung (neueste zuerst) bereits durch `Expense.sortByDateDescending()` in `groupByBudget()` erledigt — `ExpenseList` sortiert nichts selbst, rendert nur in der gelieferten Reihenfolge.
+
+**Seite (`expenseTracking.tsx`)**
+
+```ts
+const expenseGroups = React.useMemo(
+  () => Expense.groupByBudget(state.expenses ?? [], state.budgets ?? []),
+  [state.expenses, state.budgets],
+);
+```
+
+Eigener `useMemo`, unabhängig von `expenseTotals`/`budgetsWithProgress` aus 2.3 — berechnet die Summen zwar noch einmal (leichte Redundanz), bleibt aber unabhängig und einfach; bei hunderten, nicht tausenden Ausgaben (Entscheidung 1) ist das keine Performance-Frage. Nicht vorzeitig zusammenlegen.
+
+`handleExpenseClick` ist in diesem Paket ein Stub, der noch nichts tut — die Anbindung an einen Bearbeiten-Dialog kommt mit 2.6:
+
+```ts
+/** Öffnet den Bearbeiten-Dialog für eine Ausgabe. Wird in Paket 2.6 angebunden. */
+const handleExpenseClick = (_expenseId: string) => {};
+```
+
+**Toolbar-Entscheidung:** Der «Neues Budget»-Button wird nur bei `view === "overview"` gezeigt. Im Ausgaben-Tab gibt es in diesem Paket bewusst noch keinen Erfassungs-Button (siehe unten) — ihn trotzdem stehen zu lassen wäre irreführend (Klick würde einen Budget-Dialog öffnen, während die sichtbare Liste Ausgaben zeigt). Paket 2.5 ergänzt einen spiegelbildlichen «Neue. Ausgabe»-Button, der nur bei `view === "expenses"` erscheint.
+
+**Kein «Neue Ausgabe»-Button in diesem Paket.** Der Dialog dafür kommt erst mit 2.5; ein Button ohne funktionierenden Dialog dahinter wäre nur eine Attrappe.
+
+**Texte** (`constants/text/expenseTracking.ts`)
+`NO_EXPENSES = "Noch keine Ausgaben."` (gleicher Stil/Interpunktion wie die übrigen
+Meldungen in der Datei).
+
+**Zum Ansehen im Browser** (DEV, nie PROD): gleiches SQL-Snippet wie in Paket 2.3 (zwei
+Test-Ausgaben einfügen, danach `DELETE ... WHERE label LIKE 'TEST %'`). Prüfen: Gruppen in Budget-Reihenfolge, neueste Ausgabe pro Gruppe zuerst, Kommentarzeile nur wenn vorhanden, Leerzustand bei einem frisch angelegten Event ohne Ausgaben, Umschalten zwischen «Übersicht» und «Ausgaben» zeigt/versteckt die richtigen Bereiche. **Mobile-Ansicht zwingend prüfen**
+(Entscheidung 6: Ausgaben werden im Lager am Handy erfasst) — gestapelte Zeilen, keine
+horizontale Scrollbar, Touch-Ziele der Zeilen gross genug.
+
+**Tests** (`expenseList.test.tsx`, eigene Datei wie `budgetCard`/`budgetDetailDialog` — keine Seite, kein Realtime, kein Rerender-Gefrickel nötig)
+
+- Gruppierung: Ausgaben erscheinen unter dem richtigen Budget-Kopf, Reihenfolge der Gruppen folgt `expenseGroups`.
+- Sortierung **innerhalb** einer Gruppe wird tatsächlich gerendert (nicht nur von `groupByBudget()` geliefert) — Testdaten bewusst nicht schon sortiert übergeben.
+- Summen je Währung im Gruppenkopf, inkl. **mehrere Währungen in einer Gruppe**.
+- Betragsformat: **`getDefaultNormalizer()` verwenden** beim Textvergleich mit `formatAmountFromCents(...)` — sonst dieselbe Falle mit dem geschützten Leerzeichen
+ (`\u00A0`) wie beim Fremdwährungs-Test in 2.3.
+- Kommentarzeile erscheint nur, wenn `comment` gesetzt ist; fehlt bei `comment: null`.
+- Leerzustand: keine Gruppe hat Ausgaben → «Noch keine Ausgaben», keine Gruppenköpfe sichtbar.
+- Gruppe ohne Ausgaben (aber andere Gruppen mit welchen) wird **nicht** angezeigt.
+- Klick auf eine Zeile ruft `onEditClick` mit der richtigen Ausgaben-ID auf.
+
+Auf Seitenebene (`expenseTracking.test.tsx`) reicht ein kleiner Integrationstest: Umschalten auf «Ausgaben» zeigt `ExpenseList` und versteckt das Budget-Grid, und umgekehrt — die Detailprüfungen (Gruppierung, Summen, Klick) gehören in `expenseList.test.tsx`, nicht dupliziert auf Seitenebene.
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `expenseList.tsx` enthält keine Berechnungslogik (nur `groupByBudget()` aufrufen und rendern); Toggle nicht mehr `disabled`; bestehende Tests unverändert grün bis auf die neue Sichtbarkeits-Logik; Sichttest Desktop **und** Mobile gemacht.
 
 ### **Paket 2.5 — Ausgabe anlegen**
 
