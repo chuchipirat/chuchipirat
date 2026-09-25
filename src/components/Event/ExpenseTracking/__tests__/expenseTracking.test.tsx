@@ -224,6 +224,19 @@ describe("EventExpenseTrackingPage", () => {
     expect(await screen.findByTestId(existingBudget.id)).toBeInTheDocument();
     expect(mockDatabase.budgets.createBudget).not.toHaveBeenCalled();
   });
+  test("Toggle Button wechselt die Ansicht", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    renderEventExpenseTrackingPage();
+    expect(
+      await screen.findByTestId("expense-tracking-unlocked"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(
+      await screen.findByTestId("expense-tracking-expenses-list"),
+    ).toBeInTheDocument();
+  });
 });
 describe("Budget-Cards werden richtig dargestellt", () => {
   test("Ausgaben in mehreren Währungen werden angezeigt", async () => {
