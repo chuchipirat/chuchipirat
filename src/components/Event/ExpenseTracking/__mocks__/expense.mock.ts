@@ -21,3 +21,34 @@ export const expenseTotalsByBudget = {
   "budget-id-002": {CHF: 2000, EUR: 3300},
   "budget-id-003": {USD: 50, CHF: 3700, EUR: 1100},
 };
+
+export const expenseChf: ExpenseDomain = {
+  id: "expense-id-002",
+  eventId: "event-id-001",
+  budgetId: "budget-id-001",
+  expenseDate: new Date(2026, 10, 1),
+  amountInCents: 1100,
+  currency: "CHF",
+  label: "Coop Hinterpfupfiken",
+  comment: "Kurswoche",
+  payeeType: ExpensePayeeType.EXISTING_USER,
+  payeeUserId: "payee-id-001",
+  payeeName: null,
+  attachmentPath: null,
+  attachmentOriginalFilename: null,
+};
+export const expenseEur: ExpenseDomain = {
+  id: "expense-id-003",
+  eventId: "event-id-001",
+  budgetId: "budget-id-001",
+  expenseDate: new Date(2026, 10, 2),
+  amountInCents: 1100,
+  currency: "EUR",
+  label: "Edeke Walshut",
+  comment: "Kurswoche",
+  payeeType: ExpensePayeeType.EXISTING_USER,
+  payeeUserId: "payee-id-001",
+  payeeName: null,
+  attachmentPath: null,
+  attachmentOriginalFilename: null,
+};

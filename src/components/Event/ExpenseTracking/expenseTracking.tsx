@@ -77,6 +77,8 @@ import {
 } from "./budgetDetailDialog";
 import {Expense} from "./expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
+import {ExpenseList} from "./expenseList";
+import {ExpenseGroup} from "./expense.types";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
@@ -185,6 +187,11 @@ const EventExpenseTrackingPage = ({
     });
   }, [state.budgets, expenseTotals, groupConfiguration, event.numberOfDays]);
 
+  const expenseGroups = React.useMemo<ExpenseGroup[]>(
+    () => Expense.groupByBudget(state.expenses ?? [], state.budgets ?? []),
+    [state.expenses, state.budgets],
+  );
+
   /* ------------------------------------------
   // Navigation-Handler
   // ------------------------------------------ */
@@ -198,6 +205,14 @@ const EventExpenseTrackingPage = ({
   /* ------------------------------------------
   // View Handler Budget / Ausgaben
   // ------------------------------------------ */
+  /**
+   * Wechselt zwischen Budget-Übersicht und Ausgaben-Liste. `newView` ist
+   * `null`, wenn auf den bereits aktiven Button geklickt wird (exklusive
+   * `ToggleButtonGroup`) — dann bleibt die aktuelle Ansicht bestehen.
+   *
+   * @param _event - Klick-Event (ungenutzt).
+   * @param newView - Neu gewählte Ansicht, oder `null` bei erneutem Klick.
+   */
   const handleViewChange = (
     _event: React.MouseEvent<HTMLElement>,
     newView: ExpenseTrackingView | null,
@@ -237,7 +252,15 @@ const EventExpenseTrackingPage = ({
       open: true,
     });
   };
-
+  /**
+   * Öffnet den Bearbeiten-Dialog für eine Ausgabe. Noch ohne Wirkung —
+   * wird in Paket 2.6 mit dem Ausgaben-Dialog verdrahtet.
+   *
+   * @param _expenseId - ID der angeklickten Ausgabe (noch ungenutzt).
+   */
+  const handleEditExpense = (_expenseId: string) => {
+    return;
+  };
   /**
    * Validiert ein Budget vor dem Speichern und zeigt Fehler an.
    *
@@ -370,6 +393,13 @@ const EventExpenseTrackingPage = ({
   /* ------------------------------------------
   // Snackbar-Handler
   // ------------------------------------------ */
+  /**
+   * Schliesst die Erfolgs-Snackbar. Ein Klick daneben (`"clickaway"`) wird
+   * ignoriert, damit die Meldung nicht verschwindet, während man noch liest.
+   *
+   * @param _event - Schliess-Event (ungenutzt).
+   * @param reason - Grund des Schliessens.
+   */
   const handleSnackbarClose = (
     _event: globalThis.Event | React.SyntheticEvent<Element, globalThis.Event>,
     reason: SnackbarCloseReason,
@@ -452,38 +482,45 @@ const EventExpenseTrackingPage = ({
                 <ToggleButton value="overview">
                   {TEXT_EXPENSE_TRACKING_OVERVIEW}
                 </ToggleButton>
-                <ToggleButton value="expenses" disabled>
+                <ToggleButton value="expenses">
                   {TEXT_EXPENSE_TRACKING_EXPENSES}
                 </ToggleButton>
               </ToggleButtonGroup>
-
-              <Button
-                variant="contained"
-                color="primary"
-                startIcon={<AddOutlined />}
-                onClick={handleOpenCreateBudgetDialog}
-              >
-                {TEXT_NEW_BUDGET}
-              </Button>
-            </Box>
-
-            <Grid container spacing={2}>
-              {budgetsWithProgress?.map((budget) => (
-                <Grid
-                  key={`budgeCardGrid_${budget.budget.id}`}
-                  size={{xs: 12, md: 4}}
+              {view === "overview" ? (
+                <Button
+                  variant="contained"
+                  color="primary"
+                  startIcon={<AddOutlined />}
+                  onClick={handleOpenCreateBudgetDialog}
                 >
-                  <BudgetCard
-                    key={`budgetCard_${budget.budget.id}`}
-                    budgetWithProgress={budget}
-                    handleEditClick={handleBudgetEditClick}
-                  />
+                  {TEXT_NEW_BUDGET}
+                </Button>
+              ) : null}
+            </Box>
+            {view === "overview" ? (
+              <Grid container spacing={2}>
+                {budgetsWithProgress?.map((budget) => (
+                  <Grid
+                    key={`budgeCardGrid_${budget.budget.id}`}
+                    size={{xs: 12, md: 4}}
+                  >
+                    <BudgetCard
+                      key={`budgetCard_${budget.budget.id}`}
+                      budgetWithProgress={budget}
+                      handleEditClick={handleBudgetEditClick}
+                    />
+                  </Grid>
+                ))}
+                <Grid size={{xs: 12, md: 4}}>
+                  <AddBudgetCard onClick={handleOpenCreateBudgetDialog} />
                 </Grid>
-              ))}
-              <Grid size={{xs: 12, md: 4}}>
-                <AddBudgetCard onClick={handleOpenCreateBudgetDialog} />
               </Grid>
-            </Grid>
+            ) : (
+              <ExpenseList
+                expenseGroups={expenseGroups}
+                handleEditClick={handleEditExpense}
+              />
+            )}
           </Box>
         )}
       </Stack>
