@@ -16,6 +16,7 @@ import {
   ToggleButtonGroup,
   ToggleButton,
   SnackbarCloseReason,
+  Tooltip,
 } from "@mui/material";
 import {Event} from "../Event/event.class";
 
@@ -33,12 +34,12 @@ import {
   DELETE_BUDGET_SIMPLE as TEXT_DELETE_BUDGET_SIMPLE,
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
   BUDGET_CANT_BE_DELETED as TEXT_BUDGET_CANT_BE_DELETED,
-} from "../../../constants/text/expenseTracking";
-import {
+  NEW_EXPENSE as TEXT_NEW_EXPENSE,
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
   OK as TEXT_OK,
+  PLEASE_CREATE_BUDGET_FIRST as TEXT_PLEASE_CREATE_BUDGET_FIRST,
 } from "../../../constants/text";
 
 import {
@@ -78,8 +79,11 @@ import {
 import {Expense} from "./expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
 import {ExpenseList} from "./expenseList";
-import {ExpenseGroup} from "./expense.types";
-
+import {ExpenseDomain, ExpenseGroup, ExpensePayeeType} from "./expense.types";
+import {
+  ExpenseDetailDialog,
+  ExpenseDetailDialogState,
+} from "./expenseDetailDialog";
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
 
@@ -118,6 +122,11 @@ const EventExpenseTrackingPage = ({
       budget: null,
       open: false,
     });
+  const [expenseDetailDialogProperties, setExpenseDetailDialogProperties] =
+    React.useState<{expense: ExpenseDomain | null; open: boolean}>({
+      expense: null,
+      open: false,
+    });
   const realtime = useRealtimeConnectionStatus();
 
   const classes = useCustomStyles();
@@ -130,6 +139,10 @@ const EventExpenseTrackingPage = ({
     hasDonation,
     realtime,
   });
+  const [lastUsedBudgetId, setLastUsedBudgetId] = React.useState<string | null>(
+    null,
+  );
+  const defaultBudgetId = lastUsedBudgetId ?? state.budgets?.[0]?.id ?? null;
 
   /* ------------------------------------------
   // Spende für dieses Event laden
@@ -244,6 +257,25 @@ const EventExpenseTrackingPage = ({
       icon: budgetInput.icon!,
     };
   };
+  const transformInputToExpenseDomain = (
+    expenseInput: ExpenseDetailDialogState,
+  ): ExpenseDomain => {
+    return {
+      id: "",
+      eventId: event.uid,
+      budgetId: expenseInput.budgetId,
+      date: expenseInput.date?.toDate() ?? new Date(NaN),
+      amountInCents: parseAmountToCents(expenseInput.amount) ?? 0,
+      currency: expenseInput.currency,
+      label: expenseInput.label,
+      comment: expenseInput.comment.trim() || null,
+      payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+      payeeUserId: null,
+      payeeName: null,
+      attachmentPath: null,
+      attachmentOriginalFilename: null,
+    };
+  };
   /** Öffnet den Dialog im Anlegen-Modus (ohne vorhandenes Budget). */
   const handleOpenCreateBudgetDialog = () => {
     setBudgetDetailDialogProperties({
@@ -251,6 +283,9 @@ const EventExpenseTrackingPage = ({
       budget: null,
       open: true,
     });
+  };
+  const handleOpenCreateExpenseDialog = () => {
+    setExpenseDetailDialogProperties({expense: null, open: true});
   };
   /**
    * Öffnet den Bearbeiten-Dialog für eine Ausgabe. Noch ohne Wirkung —
@@ -267,11 +302,26 @@ const EventExpenseTrackingPage = ({
    * @param budget - Zu prüfendes Budget.
    * @returns `true`, wenn das Budget gültig ist.
    */
-  const checkInputdata = (budget: BudgetDomain): boolean => {
+  const checkBudgetInputdata = (budget: BudgetDomain): boolean => {
     try {
       Budget.checkBudgetData(budget);
     } catch (error) {
       handleError(error, "Validierung Budget-Input");
+      return false;
+    }
+    return true;
+  };
+  /**
+   * Validiert eine Ausgabe vor dem Speichern und zeigt Fehler an.
+   *
+   * @param expense - Zu prüfende Ausgabe.
+   * @returns `true`, wenn die Ausgabe gültig ist.
+   */
+  const checkExpenseInputdata = (expense: ExpenseDomain): boolean => {
+    try {
+      Expense.checkExpenseData(expense);
+    } catch (error) {
+      handleError(error, "Validierung Expense-Input");
       return false;
     }
     return true;
@@ -286,7 +336,7 @@ const EventExpenseTrackingPage = ({
   const handleCreateBudget = async (budgetInput: BudgetDetailDialogState) => {
     const budget = transformInputToBudgetDomain(budgetInput);
 
-    if (!checkInputdata(budget)) {
+    if (!checkBudgetInputdata(budget)) {
       return;
     }
 
@@ -303,6 +353,32 @@ const EventExpenseTrackingPage = ({
 
     setBudgetDetailDialogProperties({budget: null, open: false});
   };
+  const handleCreateExpense = async (
+    expenseInput: ExpenseDetailDialogState,
+  ) => {
+    const expense = transformInputToExpenseDomain(expenseInput);
+
+    if (!checkExpenseInputdata(expense)) {
+      return;
+    }
+
+    try {
+      const newExpense = await database.expenses.createExpense(
+        expense,
+        authUser!,
+      );
+      setLastUsedBudgetId(newExpense.value.budgetId);
+      trackEvent(AnalyticsEvent.EXPENSE_CREATED);
+      dispatch({
+        type: ReducerActions.EXPENSE_CREATED,
+        payload: newExpense.value,
+      });
+    } catch (error) {
+      handleError(error, "Ausgabe erstellen");
+    }
+
+    setExpenseDetailDialogProperties({expense: null, open: false});
+  };
   /**
    * Speichert Änderungen an einem bestehenden Budget.
    *
@@ -315,7 +391,7 @@ const EventExpenseTrackingPage = ({
   ) => {
     const budget = {...transformInputToBudgetDomain(budgetInput), id: budgetId};
 
-    if (!checkInputdata(budget)) {
+    if (!checkBudgetInputdata(budget)) {
       return;
     }
 
@@ -374,7 +450,13 @@ const EventExpenseTrackingPage = ({
 
     setBudgetDetailDialogProperties({budget: null, open: false});
   };
-
+  /**
+   * Löscht eine Ausgabe nach Rückfrage. Noch ohne Wirkung — wird in Paket
+   * 2.6 mit dem Ausgaben-Dialog verdrahtet.
+   *
+   * @param _expense - Die zu löschende Ausgabe (noch ungenutzt).
+   */
+  const handleDeleteExpense = async (_expense: ExpenseDomain) => {};
   /**
    * Öffnet den Dialog im Bearbeiten-Modus für das angeklickte Budget.
    *
@@ -409,6 +491,11 @@ const EventExpenseTrackingPage = ({
     }
     dispatch({type: ReducerActions.SNACKBAR_CLOSE});
   };
+  /* ------------------------------------------
+  // UI Steuerung
+  // ------------------------------------------ */
+  const hasNoBudgets = !state.budgets || state.budgets.length === 0;
+
   return (
     <React.Fragment>
       <Stack spacing={2}>
@@ -495,7 +582,23 @@ const EventExpenseTrackingPage = ({
                 >
                   {TEXT_NEW_BUDGET}
                 </Button>
-              ) : null}
+              ) : (
+                <Tooltip
+                  title={hasNoBudgets ? TEXT_PLEASE_CREATE_BUDGET_FIRST : ""}
+                >
+                  <span>
+                    <Button
+                      variant="contained"
+                      color="primary"
+                      startIcon={<AddOutlined />}
+                      onClick={handleOpenCreateExpenseDialog}
+                      disabled={hasNoBudgets}
+                    >
+                      {TEXT_NEW_EXPENSE}
+                    </Button>
+                  </span>
+                </Tooltip>
+              )}
             </Box>
             {view === "overview" ? (
               <Grid container spacing={2}>
@@ -536,6 +639,21 @@ const EventExpenseTrackingPage = ({
         onCreate={handleCreateBudget}
         onEdit={handleUpdateBudget}
         onDelete={handleDeleteBudget}
+      />
+      <ExpenseDetailDialog
+        open={expenseDetailDialogProperties.open}
+        expense={expenseDetailDialogProperties.expense}
+        budgets={state.budgets ?? []}
+        defaultBudgetId={defaultBudgetId}
+        onCreate={handleCreateExpense}
+        onEdit={handleEditExpense}
+        onDelete={handleDeleteExpense}
+        onClose={() =>
+          setExpenseDetailDialogProperties({
+            ...expenseDetailDialogProperties,
+            open: false,
+          })
+        }
       />
       <CustomSnackbar
         message={state.snackbar.message}

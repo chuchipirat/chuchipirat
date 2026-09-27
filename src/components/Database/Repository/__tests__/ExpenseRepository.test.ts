@@ -56,7 +56,7 @@ const testDomain: ExpenseDomain = {
   budgetId: "budget-uuid-001",
   // Lokale Mitternacht (wie parseLocalDate() sie erzeugt) statt UTC-String —
   // sonst rundtrippt der exakte Zeitpunkt nicht, obwohl der Kalendertag stimmt.
-  expenseDate: new Date(2026, 0, 1),
+  date: new Date(2026, 0, 1),
   amountInCents: 10000,
   currency: "CHF",
   label: "Test Expense",
@@ -135,16 +135,16 @@ describe("ExpenseRepository", () => {
       // sonst hängt der erwartete Tag vom Zeitzonen-Offset der Testumgebung ab.
       const nearMidnight: ExpenseDomain = {
         ...testDomain,
-        expenseDate: new Date(2026, 8, 11, 23, 0, 0),
+        date: new Date(2026, 8, 11, 23, 0, 0),
       };
 
       const row = repo.toRow(nearMidnight) as ExpenseRow;
       expect(row.expense_date).toEqual("2026-09-11");
 
       const domain = repo.toDomain(row);
-      expect(domain.expenseDate.getFullYear()).toBe(2026);
-      expect(domain.expenseDate.getMonth()).toBe(8);
-      expect(domain.expenseDate.getDate()).toBe(11);
+      expect(domain.date.getFullYear()).toBe(2026);
+      expect(domain.date.getMonth()).toBe(8);
+      expect(domain.date.getDate()).toBe(11);
     });
   });
   /* ------------------------------------------

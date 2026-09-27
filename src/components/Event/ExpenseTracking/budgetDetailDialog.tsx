@@ -21,25 +21,26 @@ import {
   BUDGET_TYPE_PER_PERSON_PER_DAY as TEXT_BUDGET_TYPE_PER_PERSON_PER_DAY,
   NEW_BUDGET as TEXT_NEW_BUDGET,
   BUDGET_NAME as TEXT_BUDGET_NAME,
-  BUDGET_AMOUNT as TEXT_BUDGET_AMOUNT,
   PLEASE_PROVIDE_NAME as TEXT_PLEASE_PROVIDE_NAME,
   PLEASE_PROVIDE_AMOUNT as TEXT_PLEASE_PROVIDE_AMOUNT,
-  BUDGET_CURRENCY as TEXT_BUDGET_CURRENCY,
+  CURRENCY as TEXT_CURRENCY,
   BUDGET_ICON as TEXT_BUDGET_ICON,
   PLEASE_PROVIDE_ICON as TEXT_PLEASE_PROVIDE_ICON,
   BUDGET_TYPE as TEXT_BUDGET_TYPE,
   BUDGET as TEXT_BUDGET,
-} from "../../../constants/text/expenseTracking";
-import {
   CANCEL as TEXT_CANCEL,
   SAVE as TEXT_SAVE,
   DELETE as TEXT_DELETE,
+  AMOUNT as TEXT_AMOUNT,
 } from "../../../constants/text";
 
 import {BudgetDomain, BudgetIcon, BudgetType} from "./budget.types";
 import {BUDGET_ICON_MAP} from "./budgetIcons";
 import {useCustomStyles} from "../../../constants/styles";
-import {parseAmountToCents} from "../../Shared/utils/currencyUtils";
+import {
+  AVAILABLE_CURRENCIES,
+  parseAmountToCents,
+} from "../../Shared/utils/currencyUtils";
 
 import DeleteIcon from "@mui/icons-material/Delete";
 
@@ -91,9 +92,6 @@ interface BudgetDetailDialogProps {
   ) => void;
   onDelete: (budget: BudgetDomain) => void;
 }
-// Schweizer Franken (Hauptwährung der App) + Euro (häufigste Fremdwährung
-// bei grenznahen Lagern) — bei Bedarf um weitere Währungen erweitern.
-const AVAILABLE_CURRENCIES = ["CHF", "EUR"];
 
 /**
  * Dialog zum Anlegen und Bearbeiten eines Budgets. Ist `budget` gesetzt,
@@ -231,7 +229,7 @@ export const BudgetDetailDialog: React.FC<BudgetDetailDialogProps> = ({
 
         <Box sx={classes.budgetFormAmountRow}>
           <TextField
-            label={TEXT_BUDGET_AMOUNT}
+            label={TEXT_AMOUNT}
             value={formState.amount}
             onChange={(event) => updateField("amount", event.target.value)}
             error={touched && (amountInCents == null || amountInCents <= 0)}
@@ -242,10 +240,11 @@ export const BudgetDetailDialog: React.FC<BudgetDetailDialogProps> = ({
             }
             margin="normal"
             fullWidth
+            inputMode="decimal"
           />
           <TextField
             select
-            label={TEXT_BUDGET_CURRENCY}
+            label={TEXT_CURRENCY}
             value={formState.currency}
             onChange={(event) => updateField("currency", event.target.value)}
             margin="normal"

@@ -58,8 +58,8 @@ export class Expense {
     }
 
     if (
-      !(expense.expenseDate instanceof Date) ||
-      isNaN(expense.expenseDate.getTime())
+      !(expense.date instanceof Date) ||
+      isNaN(expense.date.getTime())
     ) {
       throw new FieldValidationError(TEXT_PLEASE_PROVIDE_DATE);
     }
@@ -93,9 +93,9 @@ export class Expense {
    */
   static sortByDateDescending(expenses: ExpenseDomain[]): ExpenseDomain[] {
     return [...expenses].sort((a, b) => {
-      if (b.expenseDate.getTime() > a.expenseDate.getTime()) {
+      if (b.date.getTime() > a.date.getTime()) {
         return 1;
-      } else if (a.expenseDate.getTime() > b.expenseDate.getTime()) {
+      } else if (a.date.getTime() > b.date.getTime()) {
         return -1;
       } else {
         // Gleiches Datum

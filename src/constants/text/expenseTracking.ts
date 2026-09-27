@@ -71,9 +71,8 @@ export const EXPENSE_TRACKING_OVERVIEW = "Übersicht";
 export const EXPENSE_TRACKING_EXPENSES = "Ausgaben";
 export const BUDGET_NAME = "Name";
 export const PLEASE_PROVIDE_NAME = "Bitte einen Namen angeben.";
-export const BUDGET_AMOUNT = "Betrag";
 export const PLEASE_PROVIDE_AMOUNT = "Bitte einen gültigen Betrag angeben.";
-export const BUDGET_CURRENCY = "Währung";
+export const CURRENCY = "Währung";
 export const BUDGET_ICON = "Icon";
 export const PLEASE_PROVIDE_ICON = "Bitte ein Icon auswählen.";
 export const BUDGET_TYPE = "Typ";
@@ -94,8 +93,9 @@ export const SPENT_AMOUNT = (amountInCents: number, currency: string): string =>
 
 export const OF_LIMIT = (amountInCents: number, currency: string): string =>
   `von ${formatAmountFromCents(amountInCents, currency)}`;
-
+export const PLEASE_CREATE_BUDGET_FIRST = "Lege zuerst ein Budget an.";
 // Ausgaben
+export const EXPENSE = "Ausgabe";
 export const PLEASE_PROVIDE_LABEL = "Bitte eine Bezeichnung angeben.";
 export const EXPENSE_AMOUNT_TOO_LARGE = "Bitte kleineren Ausgabebetrag wählen.";
 export const PLEASE_PROVIDE_BUDGET = "Bitte ein Budget wählen.";
@@ -103,3 +103,8 @@ export const PLEASE_PROVIDE_DATE = "Bitte Ausgabedatum angeben.";
 export const PLEASE_PROVIDE_CURRENCY = "Bitte Währung wählen.";
 
 export const NO_EXPENSES_YET = "Noch keine Ausgaben.";
+export const NEW_EXPENSE = "Neue Ausgabe";
+export const LABEL = "Bezeichnung";
+export const PLACEHOLDER_LABEL = "z.B. Grosseinkauf Migros";
+export const OPTIONAL = "optional";
+export const EXPENSE_SAVED = "Ausgabe wurde gespeichert.";

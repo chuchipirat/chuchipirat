@@ -4,6 +4,7 @@ import {
   BUDGET_SAVED as TEXT_BUDGET_SAVED,
   BUDGET_UPDATED as TEXT_BUDGET_UPDATED,
   BUDGET_DELETED as TEXT_BUDGET_DELETED,
+  EXPENSE_SAVED as TEXT_EXPENSE_SAVED,
 } from "../../../constants/text/expenseTracking";
 import {ExpenseDomain} from "./expense.types";
 
@@ -13,6 +14,7 @@ export enum ReducerActions {
   BUDGET_CREATED,
   BUDGET_UPDATED,
   BUDGET_DELETED,
+  EXPENSE_CREATED,
   GENERIC_ERROR,
   SNACKBAR_CLOSE,
 }
@@ -30,6 +32,7 @@ export type DispatchAction =
   | {type: ReducerActions.BUDGET_CREATED; payload: BudgetDomain}
   | {type: ReducerActions.BUDGET_UPDATED; payload: BudgetDomain}
   | {type: ReducerActions.BUDGET_DELETED; payload: BudgetDomain}
+  | {type: ReducerActions.EXPENSE_CREATED; payload: ExpenseDomain}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error}
   | {type: ReducerActions.SNACKBAR_CLOSE};
 
@@ -120,6 +123,22 @@ export const expenseTrackingReducer = (
           open: true,
           severity: "success",
           message: TEXT_BUDGET_DELETED,
+        },
+        isError: false,
+        error: null,
+      };
+    }
+    case ReducerActions.EXPENSE_CREATED: {
+      return {
+        ...state,
+        expenses:
+          state.expenses == null
+            ? [action.payload]
+            : state.expenses.concat(action.payload),
+        snackbar: {
+          open: true,
+          severity: "success",
+          message: TEXT_EXPENSE_SAVED,
         },
         isError: false,
         error: null,

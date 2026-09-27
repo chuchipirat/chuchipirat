@@ -30,7 +30,7 @@ export type ExpenseGroup = {
  * @param id - Eindeutige ID des Budgets.
  * @param eventId - Event-ID des Budgets.
  * @param budgetType - Typ des Budgets.
- * @param expenseDate - Datum der Ausgabe.
+ * @param date - Datum der Ausgabe.
  * @param amountInCents - Betrag in Rappen.
  * @param currency - Währung (Standard: CHF).
  * @param label - Bezeichnung der Ausgabe.
@@ -46,7 +46,7 @@ export type ExpenseDomain = {
   id: string;
   eventId: string;
   budgetId: BudgetDomain["id"];
-  expenseDate: Date;
+  date: Date;
   amountInCents: number;
   currency: string;
   label: string;

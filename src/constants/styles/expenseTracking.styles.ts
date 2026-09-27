@@ -156,4 +156,23 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     color: theme.palette.text.secondary,
     padding: theme.spacing(4, 2),
   },
+  expenseFormAmountRow: {
+    display: "grid",
+    gap: theme.spacing(2),
+    gridTemplateColumns: {xs: "1fr 1fr", sm: "1fr 1fr 100px"},
+    gridTemplateAreas: {
+      xs: `"date date" "amount currency"`,
+      sm: `"date amount currency"`,
+    },
+  },
+  expenseFormDateField: {
+    gridArea: "date",
+  },
+  expenseFormAmountField: {
+    gridArea: "amount",
+  },
+  expenseFormCurrencySelect: {
+    gridArea: "currency",
+    minWidth: 0, // ersetzt das alte flexShrink: 0 — im Grid nicht mehr nötig
+  },
 });
