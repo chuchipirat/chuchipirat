@@ -501,7 +501,7 @@ Expense.groupByBudget(expenses: ExpenseDomain[], budgets: BudgetDomain[]): Expen
    `integer`; ein grösserer Wert käme sonst als Postgres-Fehler `22003` beim Speichern zurück
    statt als Hinweis am Feld → eigene Meldung `EXPENSE_AMOUNT_TOO_LARGE`.
 3. `budgetId` leer → `PLEASE_SELECT_BUDGET` («Bitte ein Budget wählen.»).
-4. `expenseDate` muss ein gültiges `Date` sein (`instanceof Date && !isNaN(getTime())`) →
+4. `date` muss ein gültiges `Date` sein (`instanceof Date && !isNaN(getTime())`) →
    `PLEASE_PROVIDE_EXPENSE_DATE`. Der `DatePicker` liefert bei halb getipptem Datum `Invalid Date`.
 5. `currency` muss `/^[A-Z]{3}$/` treffen → `PLEASE_PROVIDE_CURRENCY`. Nicht nur «nicht leer»:
    `formatAmountFromCents` benutzt `Intl.NumberFormat`, das bei einem ungültigen Code eine
@@ -522,7 +522,7 @@ Expense.groupByBudget(expenses: ExpenseDomain[], budgets: BudgetDomain[]): Expen
 
 - Gibt eine **neue** Liste zurück (`[...expenses].sort(...)`) — `Array.sort` mutiert sonst den
   State des Reducers.
-- Vergleich über `expenseDate.getTime()`, absteigend. Gleiches Datum → `label` mit
+- Vergleich über `date.getTime()`, absteigend. Gleiches Datum → `label` mit
   `localeCompare("de")`, danach bleibt die Reihenfolge stabil (`sort` ist seit ES2019 stabil).
   Gleiches Datum **und** Bezeichnung → Reihenfolge der Eingabe bleibt.
 
@@ -739,7 +739,7 @@ type ExpenseListProps = {
 - Gruppen **ohne** Ausgaben werden **nicht** angezeigt (kein leerer Gruppenkopf «Küche: —» für jedes frisch angelegte Budget — das wäre bei wenigen erfassten Ausgaben nur Rauschen). Reihenfolge der angezeigten Gruppen folgt `expenseGroups` (= Reihenfolge der Budgets, wie in der Übersicht). Pro Gruppe: eine `<ListSubheader>` gefolgt von einer eigenen `<List>` mit den Zeilen dieser Gruppe (nicht eine grosse `<List>` über alle Gruppen — Subheader gehören semantisch zu ihrer eigenen Liste).
 - **Leerzustand der ganzen Liste** («Noch keine Ausgaben»): wenn **keine** Gruppe Ausgaben hat (`expenseGroups.every((group) => group.expenses.length === 0)`), nicht erst wenn `expenseGroups` leer ist — Budgets existieren ja bereits, bevor die erste Ausgabe erfasst wird.
 - **Gruppenkopf** (`ExpenseGroupHeader`, rendert `<ListSubheader>`): Icon (`BUDGET_ICON_MAP[group.budget.icon]`, wie `BudgetCard`), Name des Budgets, Summen aus `group.totalsByCurrency` — bei mehreren Währungen alle nebeneinander, Reihenfolge alphabetisch nach Code (gleiches Muster wie die Fremdwährungs-Sortierung in `Budget.getSpentAmounts`, Konsistenz zur Übersicht).
-- **Zeile** (`ExpenseRow`, rendert `<ListItemButton divider onClick={...}>`): Datum (`expense.expenseDate`, Format wie im Rest der App — `dayjs`/vorhandene Datums-Utility prüfen, nicht neu erfinden) und Betrag (`formatAmountFromCents`) als eigene `Typography` links/rechts der `<ListItemText primary={expense.label} secondary={expense.comment || undefined} />` — `ListItemText` blendet `secondary` automatisch aus, wenn `undefined` übergeben wird, kein manuelles `comment && (...)` nötig. Layout responsiv über die `sx`-Prop selbst, **nicht** über zwei Komponenten: `sx={{flexDirection: {xs: "column", md: "row"}}}` — mobil gestapelt (Datum/Betrag über/unter Bezeichnung+Kommentar), auf Desktop eine Zeile, wirkt dann tabellenartig, ohne eine Tabelle zu sein. Gleiches DOM, gleiche Tests, nur CSS unterscheidet sich je Breakpoint. `data-testid={`expense-${expense.id}`}` (Muster wie `data-testid={budget.id}` bei `BudgetCard`). Kein manuelles `role="button"` + `onKeyDown` nötig — das übernimmt `ListItemButton`.
+- **Zeile** (`ExpenseRow`, rendert `<ListItemButton divider onClick={...}>`): Datum (`expense.date`, Format wie im Rest der App — `dayjs`/vorhandene Datums-Utility prüfen, nicht neu erfinden) und Betrag (`formatAmountFromCents`) als eigene `Typography` links/rechts der `<ListItemText primary={expense.label} secondary={expense.comment || undefined} />` — `ListItemText` blendet `secondary` automatisch aus, wenn `undefined` übergeben wird, kein manuelles `comment && (...)` nötig. Layout responsiv über die `sx`-Prop selbst, **nicht** über zwei Komponenten: `sx={{flexDirection: {xs: "column", md: "row"}}}` — mobil gestapelt (Datum/Betrag über/unter Bezeichnung+Kommentar), auf Desktop eine Zeile, wirkt dann tabellenartig, ohne eine Tabelle zu sein. Gleiches DOM, gleiche Tests, nur CSS unterscheidet sich je Breakpoint. `data-testid={`expense-${expense.id}`}` (Muster wie `data-testid={budget.id}` bei `BudgetCard`). Kein manuelles `role="button"` + `onKeyDown` nötig — das übernimmt `ListItemButton`.
 - Innerhalb einer Gruppe ist die Sortierung (neueste zuerst) bereits durch `Expense.sortByDateDescending()` in `groupByBudget()` erledigt — `ExpenseList` sortiert nichts selbst, rendert nur in der gelieferten Reihenfolge.
 
 **Seite (`expenseTracking.tsx`)**
@@ -789,22 +789,133 @@ Auf Seitenebene (`expenseTracking.test.tsx`) reicht ein kleiner Integrationstest
 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `expenseList.tsx` enthält keine Berechnungslogik (nur `groupByBudget()` aufrufen und rendern); Toggle nicht mehr `disabled`; bestehende Tests unverändert grün bis auf die neue Sichtbarkeits-Logik; Sichttest Desktop **und** Mobile gemacht.
 
-### **Paket 2.5 — Ausgabe anlegen**
+### **Paket 2.5 — Ausgabe anlegen** ✅ erledigt
 
-- `ExpenseDetailDialog` (Anlegen **und** Bearbeiten-Struktur, Entscheidung 4): Datum
-  (`DatePicker`, Vorbelegung heute), Betrag + Währung (Vorbelegung = Währung des Budgets),
-  Bezeichnung, Kommentar (mehrzeilig, optional), Budget (Auswahl; vorbelegt mit dem zuletzt
-  verwendeten, sonst dem ersten). Auf xs im Vollbild.
-- `AVAILABLE_CURRENCIES` aus dem Budget-Dialog in eine gemeinsame Konstante heben (jetzt gibt es
-  den zweiten Verbraucher) — Betragsparsing (`parseAmountToCents`) wird bereits geteilt.
-- Toolbar-Button «Neue Ausgabe» (in der Ausgaben-Ansicht); ohne Budget deaktiviert mit Hinweis
-  (Entscheidung 7). Speichern: `Expense.checkExpenseData` → `createExpense` mit Platzhalter
-  `payee_type = 'no_refund_needed'` (Entscheidung 3) → Reducer-Aktion → Snackbar; Fehler über
-  `handleError`. Analytics-Event `EXPENSE_CREATED`.
-- **Tests:** Dialog-Validierung (leer, Betrag ≤ 0, kein Budget), `onCreate`-Payload,
-  Seite: Anlegen aktualisiert Liste **und** Fortschrittsbalken der Karte, Fehlerfall,
-  Platzhalter-Werte werden geschrieben, ein Datum kurz vor Mitternacht landet als richtiger
-  Kalendertag (Repository-Test mit `formatLocalDate`).
+Ziel: `ExpenseDetailDialog` nach dem Vorbild von `BudgetDetailDialog` (Entscheidung 4 — von Anfang an mit `onCreate`/`onEdit`/`onDelete`, damit hier keine spätere Umbenennung wie `CreateBudgetDialog` → `BudgetDetailDialog` nötig wird). Dieses Paket verdrahtet nur
+`onCreate` fertig; `onEdit`/`onDelete` bekommen in 2.6 echte Handler, in diesem Paket sind es Stubs nach demselben Muster wie `handleEditExpense` (2.4).
+
+**Dateien**
+
+| Datei | Inhalt |
+|---|---|
+| `expenseDetailDialog.tsx` (neu) | `ExpenseDetailDialog`, `ExpenseDetailDialogState`, `ExpenseDetailDialogProps` |
+| `__tests__/expenseDetailDialog.test.tsx` (neu) | Dialog-Tests, siehe unten |
+| `src/components/Shared/utils/currencyUtils.ts` | `AVAILABLE_CURRENCIES` (verschoben aus `budgetDetailDialog.tsx`, zweiter Verbraucher — gleicher Ort wie `formatAmountFromCents`/`parseAmountToCents`, die beide Dialoge schon teilen) |
+| `budgetDetailDialog.tsx` | Import von `AVAILABLE_CURRENCIES` statt lokaler Konstante |
+| `expenseTracking.reducer.ts` | neue Aktion `EXPENSE_CREATED` |
+| `src/constants/text/expenseTracking.ts` | `NEW_EXPENSE`, `EXPENSE_LABEL`, `EXPENSE_COMMENT`, `EXPENSE_DATE`, `EXPENSE_SAVED`, `PLEASE_CREATE_BUDGET_FIRST` (Wortlaut aus Entscheidung 7) |
+| `src/components/Analytics/analyticsEvents.ts` | `EXPENSE_CREATED: "expense_created"` |
+| `expenseTracking.tsx` | Dialog-State, `lastUsedBudgetId`, «Neue Ausgabe»-Button, `handleCreateExpense` |
+
+**`ExpenseDetailDialogState` und Props** — analog zu `BudgetDetailDialogState`, Betrag bleibt als Text (unvollständige Eingaben dürfen stehen bleiben), Datum als `Dayjs | null` (Muster `eventInfo.tsx`/`CopyEventDialog.tsx`: `DatePicker` mit `dayjs`), Kommentar als `""` statt `null` (kontrollierte Textarea; Umwandlung zu `null` beim Speichern, wenn leer):
+
+```ts
+type ExpenseDetailDialogState = {
+  label: string;
+  amount: string;
+  currency: string;
+  budgetId: string;
+  date: Dayjs | null;
+  comment: string;
+};
+
+interface ExpenseDetailDialogProps {
+  open: boolean;
+  expense: ExpenseDomain | null;      // null = Anlegen-Modus
+  budgets: BudgetDomain[];            // für die Budget-Auswahl
+  defaultBudgetId: string | null;     // Vorbelegung im Anlegen-Modus, siehe unten
+  onClose: () => void;
+  onCreate: (expense: ExpenseDetailDialogState) => void;
+  onEdit: (expenseId: string, expense: ExpenseDetailDialogState) => void;
+  onDelete: (expense: ExpenseDomain) => void;
+}
+```
+
+- Felder: Datum (`DatePicker`), Betrag + Währung (Reihenfolge/Layout wie im Budget-Dialog, `classes.budgetFormAmountRow` wiederverwenden), Bezeichnung, Budget (`TextField select`, `MenuItem` je `budgets`-Eintrag, gleiches Select-Muster wie die Währung), Kommentar (`TextField multiline`, optional, kein Pflichtfeld — keine Fehleranzeige dafür).
+- Feld-Beschriftungen «Betrag»/«Währung» **wiederverwenden** (`BUDGET_AMOUNT`/ `BUDGET_CURRENCY` — gleiches Feld-Konzept wie beim Budget, kein Grund für eine zweite Konstante mit demselben Text). «Budget» ebenso (`BUDGET`-Konstante).
+- **Zwei-Ebenen-Validierung wie beim Budget-Dialog:** Der Dialog zeigt inline Fehler (`touched`-State, Fehlertext unter dem Feld) für Bezeichnung, Betrag und Datum. Die eigentliche, verbindliche Prüfung passiert erst auf Seitenebene mit `Expense.checkExpenseData()` auf dem transformierten Domain-Objekt (Muster `checkInputdata`/`Budget.checkBudgetData` in `expenseTracking.tsx`) — der Dialog kennt `Expense.checkExpenseData` nicht direkt, genau wie `BudgetDetailDialog` `checkBudgetData` nicht kennt.
+- **Ungültiges Datum braucht keinen Sonderfall:** Ist `date` `null` **oder** ein ungültiges `Dayjs`-Objekt (halb eingetipptes Datum), liefert `.toDate() ?? new Date(NaN)` bzw. `dayjs(...).toDate()` so oder so ein `Date` mit `NaN` als `getTime()` — `checkExpenseData`s bestehende Prüfung (`isNaN(date.getTime())`) greift ohne Zusatzcode. Trotzdem einen expliziten Test dafür,  damit diese Annahme nicht stillschweigend bricht, falls sich `checkExpenseData` später ändert.
+
+**Vorbelegung des Budgets** (Anlegen-Modus): `defaultBudgetId` wird auf **Seitenebene** berechnet, nicht im Dialog — die Seite kennt «zuletzt verwendet», der Dialog nicht:
+
+```ts
+const [lastUsedBudgetId, setLastUsedBudgetId] = React.useState<string | null>(null);
+const defaultBudgetId = lastUsedBudgetId ?? state.budgets?.[0]?.id ?? null;
+```
+
+Nach erfolgreichem Anlegen: `setLastUsedBudgetId(budgetInput.budgetId)`. Reine Session-UX (kein Persistieren nötig) — Zustand geht beim Verlassen der Seite bewusst verloren.
+
+**Toolbar «Neue Ausgabe»** (Entscheidung 7 — ohne Budget deaktiviert, Hinweis «Lege zuerst ein Budget an»), spiegelbildlich zu «Neues Budget» (2.4 hat das bereits auf `view === "overview"` beschränkt):
+
+```tsx
+{view === "overview" ? (
+  <Button ...>{TEXT_NEW_BUDGET}</Button>
+) : (
+  <Tooltip title={hasNoBudgets ? TEXT_PLEASE_CREATE_BUDGET_FIRST : ""}>
+    {/* Tooltip braucht ein Element, das Maus-Events empfängt — ein
+       disabled Button feuert keine; ohne den span bleibt der Tooltip
+       auf einem deaktivierten Button stumm (bekannte MUI-Falle). */}
+    <span>
+      <Button
+        variant="contained" color="primary" startIcon={<AddOutlined />}
+        onClick={handleOpenCreateExpenseDialog}
+        disabled={hasNoBudgets}
+      >
+        {TEXT_NEW_EXPENSE}
+      </Button>
+    </span>
+  </Tooltip>
+)}
+```
+`hasNoBudgets = !state.budgets || state.budgets.length === 0`.
+
+**`handleCreateExpense`** — gleicher Ablauf wie `handleCreateBudget`: transformieren → `Expense.checkExpenseData` (über  `checkInputdata`-Äquivalent) → `createExpense` → Reducer-Aktion → `trackEvent(AnalyticsEvent.EXPENSE_CREATED)` → `lastUsedBudgetId` setzen → Dialog schliessen. Platzhalter-Zahlende-Instanz (Entscheidung 3, bis Epic 3):
+
+```ts
+payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+payeeUserId: null,
+payeeName: null,
+```
+
+**Reducer** — `EXPENSE_CREATED` analog `BUDGET_CREATED`, aber ohne dessen etwas umständliche Null-Prüfung (`state.expenses == null` reicht als einzige Bedingung):
+
+```ts
+case ReducerActions.EXPENSE_CREATED:
+  return {
+    ...state,
+    expenses:
+      state.expenses == null
+        ? [action.payload]
+        : state.expenses.concat(action.payload),
+    snackbar: {open: true, severity: "success", message: TEXT_EXPENSE_SAVED},
+    isError: false,
+    error: null,
+  };
+```
+
+**Tests**
+
+`expenseDetailDialog.test.tsx` (eigene Datei wie `budgetDetailDialog.test.tsx`): 
+- Validierung: leere Bezeichnung, Betrag ≤ 0 / nicht parsebar, ungültiges Datum — jeweils eigener Fehlertext sichtbar, `onCreate` **nicht** aufgerufen.
+- `onCreate`-Payload enthält exakt die eingegebenen Werte (inkl. gewähltem Budget).
+- Datum und Budget sind mit `defaultBudgetId`/heute vorbelegt, wenn der Dialog öffnet.
+- Kommentar ist optional: leer lassen → `onCreate` wird trotzdem aufgerufen (kein Fehler).
+- Defensiv: `budgets={[]}` lässt den Dialog nicht abstürzen (auch wenn der Button das in der Praxis verhindert — z.B. falls ein Realtime-Update während offenem Dialog alle Budgets löscht).
+
+Seitenebene (`expenseTracking.test.tsx`):
+- «Neue Ausgabe» ist deaktiviert und zeigt den Hinweis, wenn `state.budgets` leer ist; aktiviert, sobald ein Budget existiert.
+- Anlegen aktualisiert **beides**: die Ausgaben-Liste **und** den Fortschrittsbalken der betroffenen Budget-Karte (zurück zur Übersicht wechseln und prüfen — zeigt, dass `expenseTotals`/`budgetsWithProgress` aus 2.3 korrekt auf die neue Ausgabe reagieren).
+- Fehlerfall (`createExpense` lehnt ab) zeigt die Fehlermeldung, Dialog bleibt/State bleibt konsistent.
+- Platzhalter-Werte (`payee_type: 'no_refund_needed'`, `payee_user_id: null`, `payee_name: null`) werden tatsächlich an `createExpense` übergeben — Test prüft den Aufruf-Payload, nicht nur, dass kein Fehler auftritt.
+- Zweites Anlegen direkt danach: Budget-Feld ist mit dem zuletzt verwendeten Budget vorbelegt, nicht mehr mit dem ersten.
+
+**Bereits vorhanden, nicht Teil dieses Pakets:** `ExpenseRepository.createExpense()` und der Datums-Rundungstest («kurz vor Mitternacht») existieren schon (0.4 und ein bestehender Test in `ExpenseRepository.test.ts`) — hier nur verdrahten, nicht neu bauen.
+
+**Zum Ansehen im Browser** (DEV, nie PROD): Dialog öffnen ohne Budget (deaktiviert + Tooltip), Budget anlegen, Ausgabe erfassen, prüfen dass sie in der Liste **und** im Fortschrittsbalken der Übersicht erscheint. Zweite Ausgabe: Budget-Vorbelegung korrekt.
+**Mobile prüfen:** Dialog auf xs im Vollbild (wie beim Budget-Dialog), `DatePicker` gut bedienbar.
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `AVAILABLE_CURRENCIES` existiert nur noch einmal; bestehende Budget-Dialog-Tests bleiben unverändert grün (reiner Import-Wechsel); Sichttest Desktop und
+Mobile gemacht.
 
 ### **Paket 2.6 — Ausgabe bearbeiten und löschen**
 

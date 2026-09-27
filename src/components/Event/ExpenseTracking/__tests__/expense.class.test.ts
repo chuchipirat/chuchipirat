@@ -16,7 +16,7 @@ import {FieldValidationError} from "../../../Shared/fieldValidation.error.class"
 const expenses: ExpenseDomain[] = [
   {
     id: "expense-id-1",
-    expenseDate: new Date(2026, 9, 21),
+    date: new Date(2026, 9, 21),
 
     label: "Migros",
     budgetId: "kitchen",
@@ -25,7 +25,7 @@ const expenses: ExpenseDomain[] = [
   } as ExpenseDomain,
   {
     id: "expense-id-2",
-    expenseDate: new Date(2026, 9, 17),
+    date: new Date(2026, 9, 17),
 
     label: "Coop",
     budgetId: "kitchen",
@@ -34,7 +34,7 @@ const expenses: ExpenseDomain[] = [
   } as ExpenseDomain,
   {
     id: "expense-id-3",
-    expenseDate: new Date(2026, 9, 24),
+    date: new Date(2026, 9, 24),
 
     label: "Aldi Deutschland",
     budgetId: "kitchen",
@@ -43,7 +43,7 @@ const expenses: ExpenseDomain[] = [
   } as ExpenseDomain,
   {
     id: "expense-id-4",
-    expenseDate: new Date(2026, 9, 1),
+    date: new Date(2026, 9, 1),
 
     label: "Bus Billet",
     budgetId: "transport",
@@ -119,7 +119,7 @@ describe("Expense.checkExpenseData", () => {
 
   test("Expense.checkExpenseData(), gültiges Datum", () => {
     const expenseMock = {...expense};
-    expenseMock.expenseDate = new Date("invalid");
+    expenseMock.date = new Date("invalid");
     expect(() => Expense.checkExpenseData(expenseMock)).toThrow(
       TEXT_PLEASE_PROVIDE_DATE,
     );
@@ -191,7 +191,7 @@ describe("Expense.sortByDateDescending", () => {
     const mockedExpenses = expenses.map((expense) => ({...expense}));
 
     mockedExpenses.forEach(
-      (expense) => (expense.expenseDate = new Date(2026, 9, 21)),
+      (expense) => (expense.date = new Date(2026, 9, 21)),
     );
 
     const sortedList = Expense.sortByDateDescending(mockedExpenses);

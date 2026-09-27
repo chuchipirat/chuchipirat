@@ -143,7 +143,7 @@ type ExpenseRowProps = {
 const ExpenseRow = ({expense, handleClick}: ExpenseRowProps) => {
   const classes = useCustomStyles();
 
-  const formattedDate = expense.expenseDate.toLocaleString("de-CH", {
+  const formattedDate = expense.date.toLocaleString("de-CH", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",

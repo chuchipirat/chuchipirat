@@ -192,11 +192,11 @@ describe("ExpenseList, Standard Funktionalität ", () => {
     const expenseRow2 = screen.getByTestId("expense-expense-id-002");
     expect(
       within(expenseRow1).getByText(
-        `${formattedDate(expense.expenseDate)} · Vorweekend`,
+        `${formattedDate(expense.date)} · Vorweekend`,
       ),
     ).toBeInTheDocument();
     expect(
-      within(expenseRow2).getByText(formattedDate(expenseChf.expenseDate)),
+      within(expenseRow2).getByText(formattedDate(expenseChf.date)),
     ).toBeInTheDocument();
     expect(
       within(expenseRow2).queryByText(/Kurswoche/),

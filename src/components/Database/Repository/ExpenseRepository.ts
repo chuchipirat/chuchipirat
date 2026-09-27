@@ -59,7 +59,7 @@ export class ExpenseRepository extends BaseRepository<
     return {
       event_id: domain.eventId,
       budget_id: domain.budgetId,
-      expense_date: formatLocalDate(domain.expenseDate),
+      expense_date: formatLocalDate(domain.date),
       amount_in_cents: domain.amountInCents,
       currency: domain.currency,
       label: domain.label,
@@ -84,7 +84,7 @@ export class ExpenseRepository extends BaseRepository<
       id: row.id,
       eventId: row.event_id,
       budgetId: row.budget_id,
-      expenseDate: parseLocalDate(row.expense_date),
+      date: parseLocalDate(row.expense_date),
       amountInCents: row.amount_in_cents,
       currency: row.currency,
       label: row.label,

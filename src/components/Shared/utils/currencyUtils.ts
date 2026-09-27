@@ -1,3 +1,7 @@
+// Schweizer Franken (Hauptwährung der App) + Euro (häufigste Fremdwährung
+// bei grenznahen Lagern) — bei Bedarf um weitere Währungen erweitern.
+export const AVAILABLE_CURRENCIES = ["CHF", "EUR"];
+
 /**
  * Formatiert einen Rappen-Betrag als lokalisierten Waehrungsstring.
  *
