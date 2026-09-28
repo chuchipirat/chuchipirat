@@ -17,6 +17,10 @@ import {BaseRepository} from "./BaseRepository";
 import {STORAGE_OBJECT_PROPERTY} from "../../Shared/sessionStorageHandler.class";
 import {AuthUser} from "../../Session/authUser.class";
 import {formatLocalDate, parseLocalDate} from "../../../utils/dateUtils";
+import {
+  RealtimeConnectionStatus,
+  subscribeWithRetry,
+} from "./realtimeSubscription";
 /* =====================================================================
 // ExpenseRepository
 // ===================================================================== */
@@ -143,5 +147,35 @@ export class ExpenseRepository extends BaseRepository<
    */
   async deleteExpense(id: string): Promise<void> {
     return this.remove(id);
+  }
+  /* =====================================================================
+  // Echtzeit-Subscription: Ausgaben von Event
+  // ===================================================================== */
+  /**
+   * Abonniert Echtzeit-Änderungen der Ausgaben eines Events.
+   * `onChange` wird bei jedem Einfügen, Ändern und Löschen aufgerufen, liefert
+   * aber keine Daten — der Aufrufer lädt die Ausgaben selbst neu. Beim ersten
+   * Verbindungsaufbau wird `onChange` nicht aufgerufen.
+   *
+   * @param eventId - Die ID des Events
+   * @param onChange - Callback bei einer Änderung (darf asynchron sein)
+   * @param onError - Callback bei Fehler in `onChange`
+   * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+   * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
+   */
+  subscribeToExpenses(
+    eventId: string,
+    onChange: () => void | Promise<void>,
+    onError: (error: Error) => void,
+    onStatusChange?: (status: RealtimeConnectionStatus) => void,
+  ) {
+    return subscribeWithRetry({
+      client: this.client,
+      channelName: `expenses:${eventId}`,
+      bindings: [{table: "event_expenses", filter: `event_id=eq.${eventId}`}],
+      onChange,
+      onError,
+      onStatusChange,
+    });
   }
 }

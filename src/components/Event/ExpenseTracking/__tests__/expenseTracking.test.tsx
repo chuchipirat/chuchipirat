@@ -98,9 +98,10 @@ const mockGroupConfiguration = {
 
 // Handle, den `subscribeToBudgets` zurückgibt — als Konstanten, damit die Tests
 // prüfen können, ob unsubscribe/reconnect aufgerufen wurden.
-const mockUnsubscribe = jest.fn();
-const mockReconnect = jest.fn();
-
+const mockUnsubscribeBudgets = jest.fn();
+const mockReconnectBudgets = jest.fn();
+const mockUnsubscribeExpenses = jest.fn();
+const mockReconnectExpenses = jest.fn();
 const mockDatabase = {
   donations: {getEventDonations: jest.fn().mockResolvedValue([])},
   budgets: {
@@ -109,8 +110,8 @@ const mockDatabase = {
     updateBudget: jest.fn(),
     deleteBudget: jest.fn(),
     subscribeToBudgets: jest.fn().mockReturnValue({
-      unsubscribe: mockUnsubscribe,
-      reconnect: mockReconnect,
+      unsubscribe: mockUnsubscribeBudgets,
+      reconnect: mockReconnectBudgets,
     }),
   },
   expenses: {
@@ -127,6 +128,10 @@ const mockDatabase = {
     createExpense: jest.fn(),
     updateExpense: jest.fn(),
     deleteExpense: jest.fn(),
+    subscribeToExpenses: jest.fn().mockReturnValue({
+      unsubscribe: mockUnsubscribeExpenses,
+      reconnect: mockReconnectExpenses,
+    }),
   },
 } as any;
 const mockAuthUser = new AuthUser();
@@ -174,8 +179,9 @@ beforeEach(() => {
 
 /**
  * Rendert die freigeschaltete Seite, wartet bis die Subscription steht und
- * liefert die Callbacks, die die Seite an `subscribeToBudgets` übergeben hat.
- * Die Tests rufen sie selbst auf und simulieren damit Ereignisse von Supabase.
+ * liefert die Callbacks, die die Seite an `subscribeToBudgets` und `subscribeToExpenses`
+ * übergeben hat. Die Tests rufen sie selbst auf und simulieren damit
+ * Ereignisse von Supabase.
  *
  * @param initialBudgets Budgets, die der Erstlade-Aufruf liefert.
  * @param expenses Bisher ausgegebene Beträge je Budget-ID  und Währung (in Rappen).
@@ -193,11 +199,21 @@ const renderUnlockedPage = async (
   await waitFor(() =>
     expect(mockDatabase.budgets.subscribeToBudgets).toHaveBeenCalled(),
   );
+  await waitFor(() =>
+    expect(mockDatabase.expenses.subscribeToExpenses).toHaveBeenCalled(),
+  );
 
-  // Aufrufparameter: (eventUid, onChange, onError, onStatusChange)
   const [, onChange, , onStatusChange] =
     mockDatabase.budgets.subscribeToBudgets.mock.calls[0];
-  return {view, onChange, onStatusChange};
+  const [, expensesOnChange, , expensesOnStatusChange] =
+    mockDatabase.expenses.subscribeToExpenses.mock.calls[0];
+  return {
+    view,
+    onChange,
+    onStatusChange,
+    expensesOnChange,
+    expensesOnStatusChange,
+  };
 };
 
 describe("EventExpenseTrackingPage", () => {
@@ -519,7 +535,7 @@ describe("EventExpenseTrackingPage: Realtime der Budgets", () => {
     });
 
     expect(mockDatabase.budgets.subscribeToBudgets).toHaveBeenCalledTimes(1);
-    expect(mockUnsubscribe).not.toHaveBeenCalled();
+    expect(mockUnsubscribeBudgets).not.toHaveBeenCalled();
   });
 
   test("beendet die Subscription, wenn die Seite verlassen wird", async () => {
@@ -528,7 +544,7 @@ describe("EventExpenseTrackingPage: Realtime der Budgets", () => {
 
     view.unmount();
 
-    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+    expect(mockUnsubscribeBudgets).toHaveBeenCalledTimes(1);
   });
 
   test("zeigt einen Fehler beim Neuladen und blendet ihn nach Erfolg wieder aus", async () => {
@@ -1419,5 +1435,279 @@ describe("EventExpenseTrackingPage: Ausgaben bearbeiten und löschen", () => {
     fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+});
+/* =====================================================================
+// Realtime-Subscription der Ausgaben
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Realtime der Ausgaben", () => {
+  test("abonniert erst, wenn eine Spende bestätigt ist", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    await screen.findByTestId("expense-tracking-locked");
+    expect(mockDatabase.expenses.subscribeToExpenses).not.toHaveBeenCalled();
+  });
+
+  test("abonniert die Ausgaben des Events", async () => {
+    await renderUnlockedPage();
+
+    expect(mockDatabase.expenses.subscribeToExpenses).toHaveBeenCalledWith(
+      mockEvent.uid,
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+    );
+  });
+
+  test("zeigt eine neue Ausgabe, wenn eine andere Sitzung es anlegt", async () => {
+    // Bestehende Ausgabe direkt über renderUnlockedPage vorbelegen: die
+    // Subscription liefert keine Daten, nur ein Reload-Signal — der
+    // Ausgangszustand muss deshalb schon im Erstladen stehen, nicht in einem
+    // Mock-Wert, der erst nach dem Rendern gequeued wird (der würde nie
+    // konsumiert, weil der Tab-Wechsel selbst keinen Reload auslöst).
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+    const {onChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+
+    // Budgetkarte vor dem Update
+    expect(await screen.findByTestId("budget-001")).toBeInTheDocument();
+
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(500, "CHF")),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    expect(
+      await screen.findByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-expense-existing-2"),
+    ).not.toBeInTheDocument();
+
+    // Supabase meldet eine Änderung. `loadData` lädt bei jedem Reload beide
+    // Tabellen neu (Entscheidung 8) — ohne einen frischen Budgets-Mock würde
+    // getBudgetsForEvent auf den beforeEach-Default ([]) zurückfallen und
+    // groupByBudget hätte kein Budget mehr, über das es die Ausgaben gruppieren
+    // könnte.
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      existingExpense,
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2300,
+        currency: "CHF",
+      },
+    ]);
+
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(
+      await screen.findByTestId("expense-expense-existing-2"),
+    ).toBeInTheDocument();
+    // Prüfen, dass sich die Karten auch angepasst haben
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(2800, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("entfernt eine Ausgabe, wenn eine andere Sitzung die Ausgabe löscht", async () => {
+    const existingExpenses = [
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2100,
+        currency: "CHF",
+      },
+    ];
+
+    const {onChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      existingExpenses,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(
+      await screen.findByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+
+    // Ohne frischen Budgets-Mock würde getBudgetsForEvent auf den
+    // beforeEach-Default ([]) zurückfallen — groupByBudget hätte dann kein
+    // Budget mehr, über das es die verbleibende Ausgabe gruppieren könnte,
+    // und die ganze Liste würde leer erscheinen (nicht nur die gelöschte Zeile).
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2100,
+        currency: "CHF",
+      },
+    ]);
+    await act(async () => {
+      await onChange();
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("expense-expense-existing-1"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByTestId("expense-expense-existing-2"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(2100, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("lädt nach einem Verbindungsabbruch neu, aber nicht schon beim Abbruch", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    // Nutzt die Ausgaben-Subscription — nicht `onStatusChange` (Budgets):
+    // sonst wird nie die Statuswechsel-Behandlung der Ausgaben-Subscription
+    // selbst geprüft, nur die der Budgets-Subscription (die zufällig
+    // dieselbe `loadData` aufruft und den Test trotzdem grün macht).
+    const {expensesOnStatusChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    await screen.findByTestId("expense-expense-existing-1");
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+
+    // Verbindung bricht ab: Hinweis erscheint, aber noch kein Reload
+    await act(async () => {
+      expensesOnStatusChange("reconnecting");
+    });
+    expect(screen.getByText(TEXT_REALTIME_RECONNECTING)).toBeInTheDocument();
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+
+    // Verbindung steht wieder: in der Zwischenzeit verpasste Änderungen nachladen
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      existingExpense,
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 2200,
+        currency: "CHF",
+      },
+    ]);
+    await act(async () => {
+      expensesOnStatusChange("connected");
+    });
+
+    await screen.findByTestId("expense-expense-existing-2");
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(2700, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("abonniert nur einmal, auch wenn sich der Verbindungsstatus ändert", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    const {expensesOnStatusChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+
+    // Statuswechsel löst ein Re-Render aus. Wären die Dependencies des
+    // Effects instabil, würde die Seite dabei neu abonnieren.
+    await act(async () => {
+      expensesOnStatusChange("reconnecting");
+    });
+
+    expect(mockDatabase.expenses.subscribeToExpenses).toHaveBeenCalledTimes(1);
+    expect(mockUnsubscribeExpenses).not.toHaveBeenCalled();
+  });
+
+  test("beendet die Subscription, wenn die Seite verlassen wird", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    const {view} = await renderUnlockedPage([kitchenBudget], [existingExpense]);
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+    view.unmount();
+
+    expect(mockUnsubscribeExpenses).toHaveBeenCalledTimes(1);
+    expect(mockUnsubscribeBudgets).toHaveBeenCalledTimes(1);
   });
 });
