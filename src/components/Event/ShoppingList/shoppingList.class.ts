@@ -298,8 +298,11 @@ export class ShoppingList {
         // Skalierte Zutaten zur Liste hinzufügen
         Object.values(scaledIngredients).forEach((ingredient: Ingredient) => {
           const product = products.find((p) => p.uid === ingredient.product.uid);
+          // Produkt nicht (mehr) geladen — z.B. inzwischen deaktiviert oder
+          // nach dem Laden der Produktliste erstellt → überspringen
+          if (!product) return;
           const department = departments.find(
-            (d) => d.uid === product?.department.uid,
+            (d) => d.uid === product.department.uid,
           );
 
           if (
@@ -309,7 +312,7 @@ export class ShoppingList {
           ) {
             ShoppingList.addItem({
               shoppingListReference: shoppingList,
-              item: product!,
+              item: product,
               quantity: ingredient.quantity,
               unit: ingredient.unit,
               department,
@@ -319,7 +322,7 @@ export class ShoppingList {
 
             trace = ShoppingList.addTraceEntry({
               trace,
-              item: product!,
+              item: product,
               menueUid,
               recipe: {uid: mealRecipe.recipe.recipeUid, name: mealRecipe.recipe.name},
               planedPortions: mealRecipe.totalPortions,
@@ -340,6 +343,8 @@ export class ShoppingList {
           const material = materials.find(
             (m) => m.uid === recipeMaterial.material.uid,
           );
+          // Material nicht (mehr) geladen → überspringen
+          if (!material) return;
           const department = departments.find(
             (d) => d.name.toUpperCase() === NON_FOOD_DEPARTMENT_NAME,
           );
@@ -347,12 +352,12 @@ export class ShoppingList {
           if (
             !department ||
             !selectedDepartments ||
-            (material?.type === MaterialType.consumable &&
+            (material.type === MaterialType.consumable &&
               selectedDepartments.includes(department.uid))
           ) {
             ShoppingList.addItem({
               shoppingListReference: shoppingList,
-              item: material!,
+              item: material,
               quantity: recipeMaterial.quantity,
               unit: "",
               department,
@@ -362,7 +367,7 @@ export class ShoppingList {
 
             trace = ShoppingList.addTraceEntry({
               trace,
-              item: material!,
+              item: material,
               menueUid,
               recipe: {uid: mealRecipe.recipe.recipeUid, name: mealRecipe.recipe.name},
               planedPortions: mealRecipe.totalPortions,
@@ -397,12 +402,14 @@ export class ShoppingList {
       menueplan.menues[menueUid].productOrder.forEach((productMenuUid) => {
         const menuPlanProductEntry = menueplan.products[productMenuUid];
         const product = products.find((p) => p.uid === menuPlanProductEntry.productUid);
-        const department = departments.find((d) => d.uid === product?.department.uid);
+        // Produkt nicht (mehr) geladen → überspringen
+        if (!product) return;
+        const department = departments.find((d) => d.uid === product.department.uid);
 
         if (!department || selectedDepartments.includes(department.uid)) {
           ShoppingList.addItem({
             shoppingListReference: shoppingList,
-            item: product!,
+            item: product,
             quantity: menuPlanProductEntry.totalQuantity,
             unit: menuPlanProductEntry.unit,
             department,
@@ -412,7 +419,7 @@ export class ShoppingList {
 
           trace = ShoppingList.addTraceEntry({
             trace,
-            item: product!,
+            item: product,
             menueUid,
             recipe: {} as {uid: string; name: string},
             quantity: menuPlanProductEntry.totalQuantity,

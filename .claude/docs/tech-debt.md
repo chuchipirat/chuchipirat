@@ -159,6 +159,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **ShoppingList Offline-Modus** — Während des Lagers (mobile Nutzung) kann das Netzwerk unzuverlässig sein. Die Einkaufsliste könnte von optimistischen Updates oder Local-First-Patterns profitieren.
   **Priorität:** tief · **Komplexität:** gross
 
+- **Einkaufsliste überspringt fehlende Produkte/Materialien stillschweigend** — `src/components/Event/ShoppingList/shoppingList.class.ts` (`addIngredientsFromRecipes`, `addProductsFromMenuplan`): Verweist ein Rezept oder der Menüplan auf ein Produkt/Material, das nicht in der geladenen Liste ist (`getAllProducts({onlyUsable: true})` in `event.tsx` — also inzwischen deaktiviert/gemergt, oder nach dem Laden der Produktliste erstellt), wird der Artikel seit dem Fix für CHUCHIPIRAT-HY übersprungen statt zu crashen. Die Köch:innen erfahren aber nicht, dass eine Zutat fehlt. Vorschlag: übersprungene Namen sammeln und nach dem Erstellen als Hinweis anzeigen; ggf. zusätzlich die Produktliste bei neu erstellten Produkten nachladen.
+  **Priorität:** mittel · **Komplexität:** klein
+
 ## Migration Debts
 
 - **Menuplan-Bridge (Domain ↔ UI Transformation)** — `src/components/Database/Repository/MenuplanRepository.ts` (Methoden `menuplanDomainToUi` / `menuplanUiToDomain`). Die Menüplan-Daten werden bidirektional zwischen der flachen DB-Struktur (8 Tabellen mit `sort_order`) und der verschachtelten UI-Struktur (`MenuplanData` mit Maps + Order-Arrays) transformiert. Diese verschachtelte Struktur stammt aus der Firebase-Ära. Refactoring-Optionen: (A) UI auf flache Arrays umstellen oder (B) Transformation schrittweise eliminieren. Tests vorhanden: `menuplanBridge.test.ts`.
