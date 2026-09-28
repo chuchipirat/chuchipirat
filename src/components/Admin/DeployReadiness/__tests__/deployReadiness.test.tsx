@@ -218,6 +218,17 @@ describe("DeployReadinessPage", () => {
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
+  // Regression CHUCHIPIRAT-HN: derselbe Netzaussetzer, diesmal in der zweiten
+  // parallelen Abfrage (getRecentActivity)
+  test("meldet einen Netzaussetzer der Aktivitäts-Abfrage nicht an Sentry", async () => {
+    mockGetRecentActivity.mockRejectedValue(
+      new Error("TypeError: Failed to fetch (api.chuchipirat.ch)"),
+    );
+    renderPage();
+    expect(await screen.findByText(/Failed to fetch/)).toBeInTheDocument();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
   test("meldet eine abgelaufene Sitzung nicht an Sentry", async () => {
     mockGetRecentActivity.mockRejectedValue(new Error("JWT expired"));
     renderPage();
