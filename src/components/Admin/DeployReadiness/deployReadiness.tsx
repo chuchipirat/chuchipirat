@@ -59,6 +59,10 @@ import {Action} from "../../../constants/actions";
 import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
 import {AlertMessage} from "../../Shared/AlertMessage";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+} from "../../../utils/errorUtils";
 import {useCustomStyles} from "../../../constants/styles";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {
@@ -363,7 +367,11 @@ const DeployReadinessPage = () => {
           payload: {runningEvents, activities, fetchedAt: new Date()},
         });
       } catch (error) {
-        Sentry.captureException(error);
+        // Netzaussetzer und abgelaufene Sitzungen (z.B. Tab über Nacht offen)
+        // heilen beim nächsten Auto-Refresh selbst — nur anzeigen, nicht melden
+        if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+          Sentry.captureException(error);
+        }
         dispatch({
           type: ReducerActions.GENERIC_ERROR,
           payload: error instanceof Error ? error : new Error(String(error)),

@@ -9,6 +9,7 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
+import * as Sentry from "@sentry/react";
 import {render, screen, waitFor, act} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
@@ -22,6 +23,7 @@ import {
   RunningEventDomain,
 } from "../../../Database/Repository/AdminOperationsRepository";
 import {AUTO_REFRESH_INTERVAL_MS} from "../deployReadinessUtils";
+import {BUTTON_RELOAD_PAGE as TEXT_BUTTON_RELOAD_PAGE} from "../../../../constants/text";
 
 /* ===================================================================
 // ======================== Mock-Setup ================================
@@ -202,5 +204,27 @@ describe("DeployReadinessPage", () => {
     mockGetRunningEvents.mockRejectedValue(new Error("RPC kaputt"));
     renderPage();
     expect(await screen.findByText(/RPC kaputt/)).toBeInTheDocument();
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  // Regression CHUCHIPIRAT-HP: Das Repository verpackt den postgrest-Fetch-Fehler
+  // in `new Error(error.message)` — genau diese Form kam in Sentry an.
+  test("meldet einen Netzaussetzer nicht an Sentry, zeigt ihn aber an", async () => {
+    mockGetRunningEvents.mockRejectedValue(
+      new Error("TypeError: Failed to fetch (api.chuchipirat.ch)"),
+    );
+    renderPage();
+    expect(await screen.findByText(/Failed to fetch/)).toBeInTheDocument();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet eine abgelaufene Sitzung nicht an Sentry", async () => {
+    mockGetRecentActivity.mockRejectedValue(new Error("JWT expired"));
+    renderPage();
+    // AlertMessage übersetzt die Meldung und bietet «Neu laden» an
+    expect(
+      await screen.findByRole("button", {name: TEXT_BUTTON_RELOAD_PAGE}),
+    ).toBeInTheDocument();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });
