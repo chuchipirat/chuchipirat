@@ -12,6 +12,9 @@ import {
 } from "./expenseTracking.reducer";
 import {useAuthUser} from "../../Session/authUserContext";
 import {Event} from "../Event/event.class";
+import {BudgetDomain} from "./budget.types";
+import {ExpenseDomain} from "./expense.types";
+import {Expense} from "./expense.class";
 
 /** Parameter für {@link useExpenseTrackingData}. */
 type UseExpenseTrackingDataParams = {
@@ -22,6 +25,10 @@ type UseExpenseTrackingDataParams = {
   /** Eine gemeinsame Instanz mit der Seite — sonst sieht das Status-Banner
    *  der Seite nicht denselben Verbindungsstatus, den dieser Hook setzt. */
   realtime: ReturnType<typeof useRealtimeConnectionStatus>;
+  /** Zähler eigener, noch nicht abgeschlossener Saves — unterdrückt den
+   *  Reload für das kurze Nachlauf-Fenster, in dem das Realtime-Echo des
+   *  eigenen Saves eintreffen kann (Muster `useShoppingListHandlers.tsx`). */
+  saveInProgressRef: React.MutableRefObject<number>;
 };
 
 /**
@@ -37,6 +44,7 @@ export const useExpenseTrackingData = ({
   database,
   hasDonation,
   realtime,
+  saveInProgressRef,
 }: UseExpenseTrackingDataParams) => {
   const authUser = useAuthUser();
   const [state, dispatch] = React.useReducer(
@@ -84,6 +92,11 @@ export const useExpenseTrackingData = ({
    * Lädt die Budgets und schreibt sie in den State. Fehler werden über
    * {@link handleError} angezeigt und gemeldet. Wird für das Erstladen, bei
    * jeder Realtime-Änderung und nach einem Verbindungsabbruch verwendet.
+   *
+   * @returns Die frisch geladenen Budgets und Ausgaben, oder `null` bei
+   *   einem Fehler — `loadDataAndHighlightChanges` braucht den direkten
+   *   Rückgabewert für den Diff, weil `state` nach einem `dispatch()` erst
+   *   mit dem nächsten React-Render aktuell ist, nicht schon synchron danach.
    */
   const loadData = React.useCallback(async () => {
     try {
@@ -92,10 +105,67 @@ export const useExpenseTrackingData = ({
         type: ReducerActions.BUDGETS_FETCH_SUCCESS,
         payload: {budgets, expenses},
       });
+      return {budgets, expenses};
     } catch (error) {
       handleError(error, "Budgets laden");
+      return null;
     }
   }, [fetchData, handleError]);
+
+  const budgetsRef = React.useRef<BudgetDomain[]>([]);
+  const expensesRef = React.useRef<ExpenseDomain[]>([]);
+  const [highlightedBudgetIds, setHighlightedBudgetIds] = React.useState<
+    Set<string>
+  >(new Set());
+  const [highlightedExpenseIds, setHighlightedExpenseIds] = React.useState<
+    Set<string>
+  >(new Set());
+  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+
+  // Hält die Refs auch nach dem Erstladen aktuell (das ruft `loadData`
+  // direkt auf, nicht `loadDataAndHighlightChanges`, siehe unten).
+  React.useEffect(() => {
+    budgetsRef.current = state.budgets ?? [];
+    expensesRef.current = state.expenses ?? [];
+  }, [state.budgets, state.expenses]);
+
+  /**
+   * Lädt neu und markiert Budgets/Ausgaben, die sich gegenüber dem letzten
+   * bekannten Stand geändert haben, für 2 Sekunden zum Aufleuchten. Wird nur
+   * von den Realtime-Callbacks aufgerufen, nicht vom Erstladen.
+   */
+  const loadDataAndHighlightChanges = React.useCallback(async () => {
+    if (saveInProgressRef.current > 0) return; // eigener Save, Echo ignorieren
+
+    const oldBudgets = budgetsRef.current;
+    const oldExpenses = expensesRef.current;
+    const result = await loadData();
+    if (!result) return; // Fehlerfall, bereits von handleError gemeldet
+
+    // Direkt mit dem frischen Rückgabewert diffen, nicht mit budgetsRef/
+    // expensesRef: die werden erst vom Effect oben aktualisiert, sobald
+    // React nach dem dispatch() neu gerendert hat — an dieser Stelle, direkt
+    // nach `await loadData()`, ist das noch nicht passiert.
+    const changedBudgetIds = Expense.diffIds(oldBudgets, result.budgets);
+    const changedExpenseIds = Expense.diffIds(oldExpenses, result.expenses);
+
+    // Refs auch direkt hier nachziehen: zwei schnell aufeinanderfolgende
+    // Realtime-Events sollen jeweils gegen den wirklich letzten bekannten
+    // Stand diffen, nicht gegen einen noch nicht nachgezogenen Ref-Wert.
+    budgetsRef.current = result.budgets;
+    expensesRef.current = result.expenses;
+
+    if (changedBudgetIds.size === 0 && changedExpenseIds.size === 0) return;
+
+    setHighlightedBudgetIds(changedBudgetIds);
+    setHighlightedExpenseIds(changedExpenseIds);
+    if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+    highlightTimeoutRef.current = setTimeout(() => {
+      setHighlightedBudgetIds(new Set());
+      setHighlightedExpenseIds(new Set());
+    }, 2000);
+  }, [loadData, saveInProgressRef]);
+
   // Erstladen: Die Realtime-Subscription meldet nur Änderungen (auch beim
   // ersten Verbindungsaufbau wird `onChange` nicht aufgerufen) — der
   // Ausgangszustand muss deshalb separat geladen werden.
@@ -117,7 +187,7 @@ export const useExpenseTrackingData = ({
 
     const {unsubscribe, reconnect} = database.budgets.subscribeToBudgets(
       event.uid,
-      loadData, // Änderung durch eine andere Sitzung
+      loadDataAndHighlightChanges, // Änderung durch eine andere Sitzung
       (error) =>
         Sentry.captureException(error, {
           extra: {context: "Realtime budgets subscription"},
@@ -126,7 +196,7 @@ export const useExpenseTrackingData = ({
         realtime.setStatus("budgets", status);
         // Nach einem Verbindungsabbruch sind Änderungen verpasst worden, die
         // Realtime nicht nachliefert — daher einmalig neu laden.
-        if (status === "connected") void loadData();
+        if (status === "connected") void loadDataAndHighlightChanges();
       },
     );
 
@@ -140,7 +210,7 @@ export const useExpenseTrackingData = ({
     authUser,
     event.uid,
     database,
-    loadData,
+    loadDataAndHighlightChanges,
     realtime.setStatus,
     realtime.register,
     realtime.unregister,
@@ -160,14 +230,14 @@ export const useExpenseTrackingData = ({
 
     const {unsubscribe, reconnect} = database.expenses.subscribeToExpenses(
       event.uid,
-      loadData,
+      loadDataAndHighlightChanges,
       (error) =>
         Sentry.captureException(error, {
           extra: {context: "Realtime expenses subscription"},
         }),
       (status) => {
         realtime.setStatus("expenses", status);
-        if (status === "connected") void loadData();
+        if (status === "connected") void loadDataAndHighlightChanges();
       },
     );
 
@@ -181,11 +251,18 @@ export const useExpenseTrackingData = ({
     authUser,
     event.uid,
     database,
-    loadData,
+    loadDataAndHighlightChanges,
     realtime.setStatus,
     realtime.register,
     realtime.unregister,
   ]);
 
-  return {state, dispatch, loadData, handleError};
+  return {
+    state,
+    dispatch,
+    loadDataAndHighlightChanges,
+    handleError,
+    highlightedBudgetIds,
+    highlightedExpenseIds,
+  };
 };

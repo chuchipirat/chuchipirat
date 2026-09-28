@@ -1711,3 +1711,211 @@ describe("EventExpenseTrackingPage: Realtime der Ausgaben", () => {
     expect(mockUnsubscribeBudgets).toHaveBeenCalledTimes(1);
   });
 });
+
+/* =====================================================================
+// Hervorhebung von Fremdänderungen (Paket 2.8)
+// ===================================================================== */
+/**
+ * Prüft, ob ein Element aktuell die `remoteChangeGlow`-Animation aus seiner
+ * generierten CSS-Klasse anwendet. Ein reiner Klassennamen-Vergleich reicht
+ * nicht: MUI/Emotion erzeugt für jede `sx`-Kombination einen neuen Hash,
+ * unabhängig davon, ob die Animation tatsächlich enthalten ist — deshalb
+ * wird die generierte Regel selbst aus dem CSSOM gelesen und auf
+ * `remoteChangeGlow` geprüft.
+ */
+const hasRemoteChangeGlow = (element: HTMLElement): boolean => {
+  const hashClass = element.className
+    .split(" ")
+    .find((cls) => cls.startsWith("css-"));
+  if (!hashClass) return false;
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      for (const rule of Array.from(sheet.cssRules)) {
+        if (
+          rule.cssText.includes(hashClass) &&
+          rule.cssText.includes("remoteChangeGlow")
+        ) {
+          return true;
+        }
+      }
+    } catch {
+      // Cross-Origin-Stylesheets o.ä. — hier irrelevant.
+    }
+  }
+  return false;
+};
+
+describe("EventExpenseTrackingPage: Hervorhebung von Fremdänderungen", () => {
+  // jest.useFakeTimers() wird erst NACH renderUnlockedPage()/den Dialog-
+  // Interaktionen aktiviert: deren interne waitFor/findBy*-Aufrufe pollen
+  // über echte Timer und würden mit gefälschten Timern nie auflösen.
+  // Sicherheitsnetz, falls ein Test vor dem eigenen `useRealTimers()` wirft.
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test("Fremd-Änderung einer Ausgabe hebt die Zeile 2 Sekunden lang hervor", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    const {onChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+
+    expect(
+      hasRemoteChangeGlow(screen.getByTestId("expense-expense-existing-1")),
+    ).toBe(false);
+
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      existingExpense,
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2300,
+        currency: "CHF",
+      },
+    ]);
+
+    jest.useFakeTimers();
+    // Promise-Auflösung (Microtasks) ist von gefälschten Timern unabhängig —
+    // fetchData() läuft hier trotzdem synchron innerhalb von act() durch.
+    await act(async () => {
+      await onChange();
+    });
+
+    const newRow = screen.getByTestId("expense-expense-existing-2");
+    expect(hasRemoteChangeGlow(newRow)).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(hasRemoteChangeGlow(newRow)).toBe(false);
+  });
+
+  test("Fremd-Änderung eines Budgets hebt die Karte hervor", async () => {
+    const {onChange} = await renderUnlockedPage([kitchenBudget]);
+    await screen.findByTestId(kitchenBudget.id);
+
+    expect(hasRemoteChangeGlow(screen.getByTestId(kitchenBudget.id))).toBe(
+      false,
+    );
+
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([]);
+
+    jest.useFakeTimers();
+    await act(async () => {
+      await onChange();
+    });
+
+    const newCard = screen.getByTestId(mottoBudget.id);
+    expect(hasRemoteChangeGlow(newCard)).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(hasRemoteChangeGlow(newCard)).toBe(false);
+  });
+
+  test("Eigener Save einer Ausgabe löst keine Hervorhebung aus, obwohl ein Realtime-Echo folgt", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      label: "Coop",
+    });
+
+    const {expensesOnChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+
+    jest.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+    });
+    // Save dispatcht den zurückgelieferten Wert direkt — kein Reload.
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+
+    // Echo der eigenen Änderung trifft ein, bevor die 400ms-Nachlaufzeit von
+    // saveInProgressRef abgelaufen sind.
+    await act(async () => {
+      await expensesOnChange();
+    });
+
+    // Guard hat den Reload verhindert: kein zusätzlicher Ladeaufruf, keine
+    // Hervorhebung der eigenen Zeile.
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+    expect(
+      hasRemoteChangeGlow(screen.getByTestId("expense-expense-existing-1")),
+    ).toBe(false);
+  });
+
+  test("Eigener Save eines Budgets löst keine Hervorhebung aus, obwohl ein Realtime-Echo folgt", async () => {
+    mockDatabase.budgets.updateBudget.mockResolvedValueOnce({
+      ...kitchenBudget,
+      name: "Motto",
+    });
+
+    const {onChange} = await renderUnlockedPage([kitchenBudget]);
+    const card = await screen.findByTestId(kitchenBudget.id);
+    fireEvent.click(
+      within(card).getByRole("button", {name: "Budget bearbeiten"}),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: {value: "Motto"},
+    });
+
+    jest.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+    });
+    expect(mockDatabase.budgets.getBudgetsForEvent).toHaveBeenCalledTimes(1);
+
+    // Echo der eigenen Änderung trifft ein, bevor die 400ms-Nachlaufzeit von
+    // saveInProgressRef abgelaufen sind.
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(mockDatabase.budgets.getBudgetsForEvent).toHaveBeenCalledTimes(1);
+    expect(hasRemoteChangeGlow(screen.getByTestId(kitchenBudget.id))).toBe(
+      false,
+    );
+  });
+});

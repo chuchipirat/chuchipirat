@@ -28,6 +28,7 @@ import {BUDGET_ICON_MAP} from "./budgetIcons";
 /** Props für die Budget-Karte. */
 interface BudgetCardProps {
   budgetWithProgress: BudgetWithProgress;
+  isHighlighted: boolean;
   handleEditClick: (budgetId: string) => void;
 }
 
@@ -39,6 +40,7 @@ interface BudgetCardProps {
  */
 export const BudgetCard = ({
   budgetWithProgress,
+  isHighlighted,
   handleEditClick,
 }: BudgetCardProps) => {
   const classes = useCustomStyles();
@@ -68,7 +70,7 @@ export const BudgetCard = ({
 
   return (
     <Card
-      sx={classes.budgetCard}
+      sx={[classes.budgetCard, isHighlighted && classes.remoteChangeGlow]}
       elevation={0}
       data-testid={budgetWithProgress.budget.id}
     >

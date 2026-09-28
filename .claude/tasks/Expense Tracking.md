@@ -1163,14 +1163,200 @@ einfach ein zweiter Key neben `"budgets"`.
 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `ExpenseRepository.subscribeToExpenses` hat eigene Tests analog `BudgetRepository.subscribeToBudgets`; beide Realtime-Effects in `useExpenseTrackingData.ts` sind unabhängig testbar (eigene `unsubscribe`-Mocks); Mutationsprobe für vertauschte Subscription/Status-Key bestanden.
 
-### **Paket 2.8 — Hervorhebung von Fremdänderungen (optional)**
+### **Paket 2.8 — Hervorhebung von Fremdänderungen (optional)** ✅ erledigt
 
-- Karten und Zeilen, die eine **andere** Sitzung geändert oder angelegt hat, leuchten 2 Sekunden
-  auf (`classes.remoteChangeGlow`, Vorbild `materialList.tsx`). Diff nach ID und Feldern zwischen
-  altem und neuem State, nur bei Realtime-Reloads, nicht beim Erstladen.
-- Eigene Änderungen leuchten nicht: ein Zähler `pendingWritesRef` (vor dem Schreibaufruf +1, im
-  `finally` −1) unterdrückt die Hervorhebung, solange ein eigener Save läuft (das Echo kann vor
-  der HTTP-Antwort eintreffen).
+Ziel: Karten und Zeilen, die eine **andere** Sitzung geändert oder neu angelegt hat, leuchten kurz
+auf (`classes.remoteChangeGlow`, bereits global in `styles.ts` definiert, keine neue Migration/kein
+neuer Style nötig).
+
+**Korrektur zum ursprünglichen Entwurf.** Der alte Stichpunkt hier sprach von einem `pendingWritesRef`-
+Zähler, der nur die *Hervorhebung* unterdrückt, während der Reload normal weiterläuft — das war eine
+Vermutung, kein Zitat. Tatsächlich existiert das Muster bereits zweimal im Code, und beide Male
+unterdrückt es den **gesamten Reload**, nicht nur das Leuchten:
+
+- `materialList.tsx`/`event.tsx:1508`: `saveInProgressRef` als `React.useRef(false)` (Boolean),
+  `if (saveInProgressRef.current) return;` ganz am Anfang des Realtime-Callbacks.
+- `useShoppingListHandlers.tsx:485-520`/`event.tsx:931,2117`: dieselbe Idee, aber als **Zähler**
+  (`React.useRef(0)`, `+= 1` vor dem Save, `Math.max(0, ... - 1)` in einem `setTimeout(400)` im
+  `finally`) — robuster, weil ein zweiter, sich überlappender Save den Schutz nicht vorzeitig aufhebt.
+  Die eigene JSDoc dort erklärt das Warum: *„Der saveInProgressRef-Zähler wird synchron hochgezählt
+  und erst mit kurzer Verzögerung nach dem Save wieder heruntergezählt: die WAL-Events des eigenen
+  Saves treffen asynchron ein (typisch < 300 ms)."*
+
+Für Ausgaben/Budgets übernehmen wir die **Zähler-Variante** (`saveInProgressRef: React.useRef(0)`),
+weil sechs Schreib-Handler (3× Budget, 3× Ausgabe) denselben Ref teilen und sich theoretisch
+überlappen können (z.B. Budget-Dialog schliesst, während der letzte Ausgaben-Save noch läuft).
+
+**Wo der Ref lebt:** Anders als bei Material-/Shoppingliste, wo die Save-Handler in einem separaten
+`useXxxHandlers`-Hook stecken und der Ref in `event.tsx` erzeugt und durchgereicht wird, liegen bei
+Ausgaben sowohl die sechs Schreib-Handler als auch (seit 2.3b) die Realtime-Effects in zwei
+verschiedenen, aber von derselben Seite (`expenseTracking.tsx`) verwendeten Stellen
+(`expenseTracking.tsx` bzw. `useExpenseTrackingData.ts`). Analog zu `realtime`, das schon heute als
+gemeinsame Instanz von der Seite in den Hook gereicht wird: `saveInProgressRef` wird in
+`expenseTracking.tsx` erzeugt und beim Aufruf von `useExpenseTrackingData({..., saveInProgressRef})`
+mitgegeben.
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `expenseTracking.tsx` | `const saveInProgressRef = React.useRef(0);`, an `useExpenseTrackingData` übergeben; alle 6 Schreib-Handler umschliessen ihren `database.*`-Aufruf mit `+= 1` / `finally`-`setTimeout(-= 1, 400)`; `highlightedBudgetIds`/`highlightedExpenseIds` an `BudgetCard`/`ExpenseList` durchreichen |
+| `useExpenseTrackingData.ts` | `budgetsRef`/`expensesRef` als Vorher-Snapshot (Muster `materialListItemsRef`), `highlightedBudgetIds`/`highlightedExpenseIds`-State, Diff+Highlight in beiden Realtime-`onChange`/`onStatusChange("connected")`-Pfaden, `if (saveInProgressRef.current > 0) return;` am Anfang beider Callbacks |
+| `budgetCard.tsx` | neue Prop `isHighlighted: boolean`, `sx={[classes.budgetCard, isHighlighted && classes.remoteChangeGlow]}` |
+| `expenseList.tsx` | `ExpenseList` bekommt `highlightedExpenseIds: Set<string>`, reicht pro Zeile `isHighlighted={highlightedExpenseIds.has(expense.id)}` an `ExpenseRow` weiter, dort dieselbe `sx`-Array-Technik wie bei `budgetCard` |
+
+**`saveInProgressRef` um jeden Schreib-Handler — Muster aus `useShoppingListHandlers.tsx`:**
+
+```ts
+const handleUpdateExpense = async (
+  expenseId: string,
+  expenseInput: ExpenseDetailDialogState,
+) => {
+  const expense = {...transformInputToExpenseDomain(expenseInput), id: expenseId};
+  if (!checkExpenseInputdata(expense)) return;
+
+  saveInProgressRef.current += 1;
+  try {
+    const updated = await database.expenses.updateExpense(expense, authUser!);
+    trackEvent(AnalyticsEvent.EXPENSE_UPDATED);
+    dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
+  } catch (error) {
+    handleError(error, "Ausgabe aktualisieren");
+  } finally {
+    setTimeout(() => {
+      saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+    }, 400);
+  }
+};
+```
+
+Gleiches Muster für die anderen 5 Handler (`handleCreateBudget`, `handleUpdateBudget`,
+`handleDeleteBudget`, `handleCreateExpense`, `handleDeleteExpense`).
+
+**Diff+Highlight in `useExpenseTrackingData.ts` — Muster aus `materialList.tsx:343-399`, aber für
+beide Realtime-Effects gemeinsam genutzt (`loadData` lädt ohnehin immer beide Tabellen):**
+
+```ts
+const budgetsRef = React.useRef<BudgetDomain[]>([]);
+const expensesRef = React.useRef<ExpenseDomain[]>([]);
+const [highlightedBudgetIds, setHighlightedBudgetIds] = React.useState<Set<string>>(new Set());
+const [highlightedExpenseIds, setHighlightedExpenseIds] = React.useState<Set<string>>(new Set());
+const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+
+// Ref synchron mit dem State halten — Closure-Falle sonst wie bei materialListItemsRef.
+React.useEffect(() => {
+  budgetsRef.current = state.budgets ?? [];
+  expensesRef.current = state.expenses ?? [];
+}, [state.budgets, state.expenses]);
+
+/**
+ * Lädt neu und markiert Budgets/Ausgaben, die sich gegenüber dem letzten
+ * bekannten Stand geändert haben, für 2 Sekunden zum Aufleuchten. Wird nur
+ * von den Realtime-Callbacks aufgerufen, nicht vom Erstladen.
+ */
+const loadDataAndHighlightChanges = React.useCallback(async () => {
+  if (saveInProgressRef.current > 0) return; // eigener Save, Echo ignorieren
+
+  const oldBudgets = budgetsRef.current;
+  const oldExpenses = expensesRef.current;
+  await loadData();
+
+  const changedBudgetIds = Expense.diffIds(oldBudgets, budgetsRef.current);
+  const changedExpenseIds = Expense.diffIds(oldExpenses, expensesRef.current);
+  if (changedBudgetIds.size === 0 && changedExpenseIds.size === 0) return;
+
+  setHighlightedBudgetIds(changedBudgetIds);
+  setHighlightedExpenseIds(changedExpenseIds);
+  if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+  highlightTimeoutRef.current = setTimeout(() => {
+    setHighlightedBudgetIds(new Set());
+    setHighlightedExpenseIds(new Set());
+  }, 2000);
+}, [loadData]);
+```
+
+Budget-/Ausgaben-Subscriptions rufen ab jetzt `loadDataAndHighlightChanges` statt `loadData` als
+`onChange` und im `onStatusChange("connected")`-Reconnect-Zweig — das **Erstladen** (der separate
+`useEffect`, der bei `hasDonation === true` einmalig lädt) bleibt bei `loadData`, unverändert: beim
+ersten Laden gibt es keinen "alten Stand", gegen den zu diffen wäre, und alles wäre sonst fälschlich
+"neu".
+
+**Neue Hilfsfunktion `Expense.diffIds`** (oder als freie Funktion, falls sie budget- und
+ausgabenunabhängig bleiben soll) — vergleicht zwei Arrays mit `id`-Feld und liefert die Menge der
+IDs, die neu sind oder sich inhaltlich unterscheiden (Vorbild: der inline `oldMap`/`changedIds`-Block
+in `materialList.tsx:365-389`, hier aber generisch statt Feld-für-Feld, weil bei Budgets/Ausgaben —
+anders als bei Material-Positionen — die ganze Karte/Zeile aufleuchtet, nicht nur ein Wert):
+
+```ts
+static diffIds<T extends {id: string}>(previous: T[], current: T[]): Set<string> {
+  const previousById = new Map(previous.map((item) => [item.id, item]));
+  const changed = new Set<string>();
+  for (const item of current) {
+    const before = previousById.get(item.id);
+    if (!before || JSON.stringify(before) !== JSON.stringify(item)) {
+      changed.add(item.id);
+    }
+  }
+  return changed;
+}
+```
+
+`JSON.stringify`-Vergleich ist hier bewusst simpel gehalten (kein Feld-für-Feld wie bei
+`materialList`, da `date` ein `Date`-Objekt ist und ein tiefer Objektvergleich sonst mehr Code
+bräuchte als er hier wert ist) — **im Test verifizieren, dass ein reines `date`-Objekt mit gleichem
+Wert, aber neuer Instanz (kommt nach jedem Reload vor, `parseLocalDate` erzeugt immer ein neues
+`Date`) nicht fälschlich als "geändert" erkannt wird**, sonst leuchtet nach jedem Fremd-Reload die
+gesamte Liste, egal ob sich wirklich etwas geändert hat. `JSON.stringify` auf ein `Date` ruft
+`toISOString()` auf und ist daher wertstabil — sollte funktionieren, aber das ist genau die Annahme,
+die der erste Test widerlegen oder bestätigen muss, bevor mehr darauf aufgebaut wird.
+
+**Warum kein Context wie bei Menuplan.** `HighlightedMenueContext` existiert, weil `menuplan.menucard.tsx`
+tief verschachtelt ist und Props-Drilling dort unpraktisch wäre. `BudgetCard`/`ExpenseRow` hängen
+direkt an der Seite (`expenseTracking.tsx` → `BudgetCard` bzw. → `ExpenseList` → `ExpenseRow`, zwei
+Ebenen) — normales Prop-Reichen reicht, kein Context nötig.
+
+**Tests**
+
+- `Expense.diffIds`: leeres Array → leeres Array; neues Element (ID nicht in `previous`) wird erkannt;
+  geändertes Feld wird erkannt; unverändertes Element wird **nicht** erkannt; **Datum mit gleichem
+  Wert, aber neuer Objekt-Instanz wird nicht fälschlich als geändert erkannt** (die Annahme von oben).
+- `useExpenseTrackingData`/Seite: Fremd-Änderung einer Ausgabe → Zeile bekommt `remoteChangeGlow`
+  (Klasse/Style prüfen, nicht nur den Wert), verschwindet nach 2 Sekunden (`jest.useFakeTimers()`).
+- Eigener Save (z.B. `handleUpdateExpense`) löst **keine** Hervorhebung aus, obwohl danach ein
+  Realtime-Echo simuliert wird (`saveInProgressRef.current` muss zum Zeitpunkt des Echos noch > 0
+  sein — im Test das Echo *synchron* nach dem Save-Aufruf, aber vor Ablauf der 400 ms triggern).
+- **Mutationsprobe:** `saveInProgressRef.current > 0`-Check aus einem der beiden Realtime-Callbacks
+  entfernen → der "eigener Save löst keine Hervorhebung aus"-Test muss für genau diesen Callback rot
+  werden (Budget- und Ausgaben-Pfad einzeln prüfen, nicht nur einen).
+
+**Zum Ansehen im Browser** (DEV, nie PROD): zwei Fenster, in Fenster A eine Ausgabe anlegen — in
+Fenster B leuchtet die neue Zeile und ggf. die betroffene Budget-Karte kurz auf; eigene Änderungen in
+Fenster A selbst leuchten nicht.
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint`
+sauber; `Expense.diffIds` hat eigene Tests inkl. des Datums-Randfalls; beide Realtime-Pfade
+(Budgets/Ausgaben) haben je einen eigenen, bei entferntem `saveInProgressRef`-Check rot werdenden
+Test. ✅ erledigt — `npx tsc --noEmit`, `npm run lint` (0 Fehler) und die volle Testsuite
+(212 Suiten / 2595 Tests) sind grün.
+
+**Zwei Abweichungen vom ursprünglichen Entwurf, beim Bauen entdeckt:**
+
+1. **`loadDataAndHighlightChanges` ist eine einzige, geteilte Funktion** für beide Subscriptions
+   (nicht zwei getrennte pro Tabelle) — Konsequenz von Entscheidung 8 (`loadData` lädt ohnehin immer
+   beide Tabellen zusammen). Dadurch bricht die Mutationsprobe des `saveInProgressRef`-Checks **beide**
+   "eigener Save…"-Tests gleichzeitig, nicht nur den zur jeweiligen Subscription passenden — geprüft
+   und für richtig befunden, da beide Pfade trotzdem einzeln über ihren jeweiligen Realtime-Kanal
+   (`onChange` bzw. `expensesOnChange`) exercised werden.
+2. **Timing-Bug beim ersten Bauversuch, der die Hervorhebung komplett stumm hielt:** Die ursprüngliche
+   Fassung diffte gegen `budgetsRef.current`/`expensesRef.current`, die über einen separaten `useEffect`
+   auf `state.budgets`/`state.expenses` synchron gehalten wurden — dieser Effect läuft aber erst nach
+   dem nächsten React-Commit, also **nicht** mehr rechtzeitig direkt nach `await loadData()`. Der Diff
+   verglich dadurch den alten Stand mit sich selbst und fand nie eine Änderung. Fix: `loadData` gibt die
+   frisch geladenen Werte jetzt direkt zurück (`{budgets, expenses}`), `loadDataAndHighlightChanges`
+   difft gegen diesen Rückgabewert statt gegen die Refs und aktualisiert die Refs danach manuell —
+   genau das Muster, das `materialList.tsx` bereits verwendet (Ref am Ende der Callback-Funktion selbst
+   setzen, nicht über einen reaktiven Effect).
+
 - **Nur umsetzen, wenn 2.1–2.7 stabil sind** — rein kosmetisch, darf Epic 2 nicht aufhalten.
 
 **Abschluss von Epic 2:** kurzer Rückblick (analog oben) und Feinplanung von Epic 3 mit den
