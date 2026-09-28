@@ -19,6 +19,11 @@ import {
 } from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
 import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../../utils/errorUtils";
+import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
 } from "../../Shared/sessionStorageHandler.class";
@@ -173,6 +178,17 @@ export class MaterialListRepository extends BaseRepository<
     super(client);
   }
 
+  /**
+   * Meldet einen Supabase-Fehler an Sentry — ausser Netzaussetzern und
+   * fehlenden/abgelaufenen Sitzungen, die erwartbar sind und sich selbst heilen.
+   *
+   * @param error - Der von Supabase gelieferte Fehler.
+   */
+  private reportUnexpectedError(error: unknown): void {
+    if (isTransientNetworkError(error) || isMissingSessionError(error)) return;
+    Sentry.captureException(toError(error));
+  }
+
   getCacheConfig(): StorageObjectProperty {
     return STORAGE_OBJECT_PROPERTY.MATERIAL_LISTS;
   }
@@ -217,7 +233,7 @@ export class MaterialListRepository extends BaseRepository<
       .order("created_at");
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
     if (!data || data.length === 0) return [];
@@ -244,7 +260,7 @@ export class MaterialListRepository extends BaseRepository<
       .order("sort_order", {ascending: true});
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
     if (!data || data.length === 0) return [];
@@ -283,7 +299,7 @@ export class MaterialListRepository extends BaseRepository<
       .single();
 
     if (headerError) {
-      Sentry.captureException(headerError);
+      this.reportUnexpectedError(headerError);
       throw headerError;
     }
     const created = headerRow as MaterialListHeaderRow;
@@ -299,7 +315,7 @@ export class MaterialListRepository extends BaseRepository<
         .insert(itemRows);
 
       if (itemsError) {
-        Sentry.captureException(itemsError);
+        this.reportUnexpectedError(itemsError);
         throw itemsError;
       }
     }
@@ -337,7 +353,7 @@ export class MaterialListRepository extends BaseRepository<
     });
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
   }
@@ -362,7 +378,7 @@ export class MaterialListRepository extends BaseRepository<
       .insert({...item, list_id: listId});
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
   }
@@ -393,7 +409,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", listId);
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
   }
@@ -416,7 +432,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", itemId);
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
   }
@@ -450,7 +466,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", itemId);
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
   }
@@ -471,7 +487,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", listId);
 
     if (error) {
-      Sentry.captureException(error);
+      this.reportUnexpectedError(error);
       throw error;
     }
   }

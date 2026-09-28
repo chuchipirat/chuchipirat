@@ -830,7 +830,12 @@ const HomeOngoingEventSection = React.memo(
           }
         })
         .catch((fetchError) => {
-          Sentry.captureException(fetchError);
+          if (
+            !isTransientNetworkError(fetchError) &&
+            !isMissingSessionError(fetchError)
+          ) {
+            Sentry.captureException(toError(fetchError));
+          }
           if (!cancelled) {
             setData({
               menuplan: createEmptyMenuplan(),
@@ -1057,7 +1062,12 @@ const EventCardWithLifecycle = React.memo(
           },
         )
         .catch((fetchError) => {
-          Sentry.captureException(fetchError);
+          if (
+            !isTransientNetworkError(fetchError) &&
+            !isMissingSessionError(fetchError)
+          ) {
+            Sentry.captureException(toError(fetchError));
+          }
           if (!cancelled) {
             setReadiness({
               usedRecipes: false,
