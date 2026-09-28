@@ -756,7 +756,8 @@ export default class Recipe {
    * @param recipe - Das Rezept, dessen Zutaten ausgewertet werden.
    * @param products - Produktliste mit Diät-Informationen.
    * @returns Berechnete `DietProperties`.
-   * @throws {Error} Wenn ein Produkt aus der Zutat nicht in der Produktliste gefunden wird.
+   * @throws {FieldValidationError} Wenn ein Produkt aus der Zutat nicht in der
+   *   Produktliste gefunden wird (z.B. inzwischen deaktiviert) — Nutzer-Hinweis.
    */
   static defineDietProperties({recipe, products}: DefineDietProperties) {
     // HINT: diese Funktion muss auch in der Cloud-FX nachgeführt werden
@@ -773,7 +774,12 @@ export default class Recipe {
         ) as Product;
 
         if (!product) {
-          throw new Error(TEXT.ERROR_PRODUCT_UNKNOWN(ingredient.product.name));
+          // Produkt nicht in der (nur aktiven) Produktliste — typischerweise
+          // von einem Admin deaktiviert, während Rezepte es noch verwenden.
+          // Nutzer-Hinweis, kein App-Fehler → nicht an Sentry (CHUCHIPIRAT-J0).
+          throw new FieldValidationError(
+            TEXT.ERROR_PRODUCT_UNKNOWN(ingredient.product.name),
+          );
         }
 
         if (product?.dietProperties?.allergens?.length > 0) {
