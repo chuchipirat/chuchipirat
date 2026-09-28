@@ -3,6 +3,7 @@
  */
 import React from "react";
 import {renderHook, act} from "@testing-library/react";
+import * as Sentry from "@sentry/react";
 
 import {useRecipeList} from "../useRecipeList";
 import {DatabaseContext} from "../../Database/DatabaseContext";
@@ -278,6 +279,54 @@ describe("useRecipeList — weitere Seiten", () => {
     await flush();
     expect(result.current.loadMoreError).toBeNull();
     expect(result.current.recipes).toHaveLength(2);
+  });
+});
+
+// Regression CHUCHIPIRAT-HZ: Netzaussetzer (postgrest-Wrapper eines
+// fehlgeschlagenen fetch() auf iOS Safari) wurden ungefiltert gemeldet, und
+// die Meldung in der Liste lautete "[object Object]".
+describe("useRecipeList — Fehlerbehandlung (CHUCHIPIRAT-HZ)", () => {
+  const NETWORK_ERROR = {
+    code: "",
+    details: "@https://chuchipirat.ch/assets/index-CyeMH6l_.js:45:15443",
+    hint: "",
+    message: "TypeError: Load failed (api.chuchipirat.ch)",
+  };
+
+  test("Netzaussetzer auf der ersten Seite: angezeigt, nicht gemeldet", async () => {
+    mockListRecipeShorts.mockRejectedValueOnce(NETWORK_ERROR);
+    const {result} = renderList();
+    await flush();
+
+    expect(result.current.error?.message).toBe(NETWORK_ERROR.message);
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("Netzaussetzer beim Nachladen: angezeigt, nicht gemeldet", async () => {
+    mockListRecipeShorts.mockResolvedValueOnce(createPage([1], {hasMore: true}));
+    const {result} = renderList();
+    await flush();
+
+    mockListRecipeShorts.mockRejectedValueOnce(NETWORK_ERROR);
+    act(() => result.current.loadMore());
+    await flush();
+
+    expect(result.current.loadMoreError?.message).toBe(NETWORK_ERROR.message);
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("ein echter Fehler wird gemeldet", async () => {
+    mockListRecipeShorts.mockRejectedValueOnce({
+      code: "42883",
+      message: "function list_recipe_shorts does not exist",
+    });
+    const {result} = renderList();
+    await flush();
+
+    expect(result.current.error?.message).toBe(
+      "function list_recipe_shorts does not exist",
+    );
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
   });
 });
 

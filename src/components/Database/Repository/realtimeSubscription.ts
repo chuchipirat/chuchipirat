@@ -157,6 +157,29 @@ export function subscribeWithRetry({
   };
 
   /**
+   * Meldet das endgültige Scheitern einmalig an Sentry (nicht über
+   * `onError`, das ist ausschliesslich für onChange-Fehler reserviert; sonst
+   * würde jede Aufrufstelle das ein zweites Mal melden).
+   *
+   * Ist der Tab im Hintergrund oder der Browser offline, ist das Scheitern
+   * erwartbar (Standby, gedrosselter Tab, Funkloch) und heilt sich über die
+   * `visibilitychange`-/`online`-Listener selbst — dann keine Meldung
+   * (CHUCHIPIRAT-GV). Der Zustand wird trotzdem als "failed" angezeigt.
+   */
+  const reportPermanentFailure = () => {
+    const visibilityState = document.visibilityState;
+    const isOnline = navigator.onLine;
+    if (visibilityState === "hidden" || isOnline === false) return;
+
+    const permanentError = new Error(
+      `Realtime-Verbindung für ${channelName} nach ${maxRetries} Versuchen fehlgeschlagen`,
+    );
+    Sentry.captureException(permanentError, {
+      extra: {channelName, retryCount, visibilityState, isOnline},
+    });
+  };
+
+  /**
    * Baut den Channel auf und abonniert ihn. Bei `CHANNEL_ERROR`/`TIMED_OUT`
    * wird der Channel entfernt und nach Backoff-Verzögerung erneut aufgebaut.
    */
@@ -204,15 +227,7 @@ export function subscribeWithRetry({
         activeChannel = null;
 
         if (retryCount >= maxRetries) {
-          // Endgültig aufgegeben — einmalig an Sentry melden (nicht über
-          // onError, das ist ausschliesslich für onChange-Fehler reserviert;
-          // sonst würde jede Aufrufstelle das hier ein zweites Mal melden).
-          const permanentError = new Error(
-            `Realtime-Verbindung für ${channelName} nach ${maxRetries} Versuchen fehlgeschlagen`,
-          );
-          Sentry.captureException(permanentError, {
-            extra: {channelName, retryCount},
-          });
+          reportPermanentFailure();
           lastReportedStatus = "failed";
           onStatusChange?.("failed");
           return;

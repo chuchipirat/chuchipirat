@@ -64,8 +64,39 @@ const baseParams = (client: unknown) => ({
   onError: jest.fn(),
 });
 
+/**
+ * Setzt Sichtbarkeit und Online-Status der Seite (in jsdom beide
+ * konfigurierbar).
+ */
+const setPageState = ({
+  visibility,
+  online,
+}: {
+  visibility: "visible" | "hidden";
+  online: boolean;
+}) => {
+  Object.defineProperty(document, "visibilityState", {
+    configurable: true,
+    value: visibility,
+  });
+  Object.defineProperty(window.navigator, "onLine", {
+    configurable: true,
+    get: () => online,
+  });
+};
+
+/** Lässt alle Retries fehlschlagen, bis das Budget erschöpft ist. */
+const exhaustRetries = (channels: MockChannel[]) => {
+  for (const delay of [1000, 2000, 4000, 8000, 16000]) {
+    lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+    jest.advanceTimersByTime(delay);
+  }
+  lastStatusCallback(channels)("CHANNEL_ERROR", new Error("net"));
+};
+
 beforeEach(() => {
   jest.clearAllMocks();
+  setPageState({visibility: "visible", online: true});
 });
 
 /* =====================================================================
@@ -237,6 +268,7 @@ describe("subscribeWithRetry", () => {
     });
 
     test("meldet nach maxRetries einmalig an Sentry und stoppt — onError bleibt aus, onStatusChange('failed') stattdessen", () => {
+      setPageState({visibility: "visible", online: true});
       const {client, channels} = createClientMock();
       const params = baseParams(client);
       const onStatusChange = jest.fn();
@@ -261,7 +293,14 @@ describe("subscribeWithRetry", () => {
         expect.objectContaining({
           message: "Realtime-Verbindung für event:evt-1 nach 5 Versuchen fehlgeschlagen",
         }),
-        expect.anything(),
+        {
+          extra: {
+            channelName: "event:evt-1",
+            retryCount: 5,
+            visibilityState: "visible",
+            isOnline: true,
+          },
+        },
       );
       expect(onStatusChange).toHaveBeenLastCalledWith("failed");
 
@@ -379,6 +418,51 @@ describe("subscribeWithRetry", () => {
    * Reconnect bliebe die Verbindung bis zum manuellen Klick auf "Erneut
    * versuchen" tot.
    */
+  // Regression CHUCHIPIRAT-GV: Ein Tab im Hintergrund / Laptop im Standby
+  // erschöpft das Retry-Budget routinemässig; seit 6a49566 heilt sich das
+  // selbst, wurde aber trotzdem gemeldet.
+  describe("Meldung bei erschöpftem Retry-Budget", () => {
+    beforeEach(() => jest.useFakeTimers());
+    afterEach(() => jest.useRealTimers());
+
+    test("meldet nicht, wenn der Tab im Hintergrund ist — Status trotzdem 'failed'", () => {
+      setPageState({visibility: "hidden", online: true});
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+
+      exhaustRetries(channels);
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+      expect(onStatusChange).toHaveBeenLastCalledWith("failed");
+    });
+
+    test("meldet nicht, wenn der Browser offline ist", () => {
+      setPageState({visibility: "visible", online: false});
+      const {client, channels} = createClientMock();
+      subscribeWithRetry(baseParams(client));
+
+      exhaustRetries(channels);
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    test("erholt sich nach stillem Scheitern, sobald der Tab wieder sichtbar wird", () => {
+      setPageState({visibility: "hidden", online: true});
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+      exhaustRetries(channels);
+
+      setPageState({visibility: "visible", online: true});
+      document.dispatchEvent(new Event("visibilitychange"));
+      lastStatusCallback(channels)("SUBSCRIBED");
+
+      expect(onStatusChange).toHaveBeenLastCalledWith("connected");
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+  });
+
   describe("Automatischer Reconnect bei Tab-Wechsel/Online", () => {
     beforeEach(() => jest.useFakeTimers());
     afterEach(() => jest.useRealTimers());

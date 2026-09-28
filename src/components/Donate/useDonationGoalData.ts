@@ -10,6 +10,7 @@
 import {useEffect, useState} from "react";
 
 import {useDatabase} from "../Database/DatabaseContext";
+import {captureUnexpectedError} from "../../utils/errorUtils";
 import {DonationGoalSection, DonationGoalStats} from "./donation.types";
 
 type DonationGoalData = {
@@ -41,6 +42,11 @@ const useDonationGoalData = (year?: number): DonationGoalData => {
           setSections(goalSections);
           setStats(goalStats);
         }
+      } catch (error) {
+        // loadData() wird ohne await gestartet — ohne catch landete ein
+        // Fehler als UnhandledRejection in Sentry (CHUCHIPIRAT-FV). Das
+        // Widget zeigt dann einfach keinen Fortschritt an.
+        captureUnexpectedError(error, {context: "Spendenziel laden"});
       } finally {
         if (!cancelled) setIsLoading(false);
       }

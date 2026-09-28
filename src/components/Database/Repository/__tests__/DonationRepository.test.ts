@@ -52,7 +52,9 @@ describe("DonationRepository.getEventDonations", () => {
     jest.clearAllMocks();
   });
 
-  test("meldet einen abgelaufenen JWT nicht an Sentry, wirft ihn aber weiter (CHUCHIPIRAT-FY)", async () => {
+  // Das Repository wirft nur — die Aufrufer melden mit Kontext an Sentry.
+  // Würde es selbst melden, entstünde pro Fehler ein doppelter Sentry-Eintrag.
+  test("wirft einen abgelaufenen JWT weiter, ohne selbst an Sentry zu melden (CHUCHIPIRAT-FY)", async () => {
     const {client, queryMock} = createSupabaseMock();
     queryMock.order.mockResolvedValue({
       data: null,
@@ -66,7 +68,7 @@ describe("DonationRepository.getEventDonations", () => {
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
-  test("meldet einen unerwarteten Fehler weiterhin an Sentry", async () => {
+  test("wirft einen unerwarteten Fehler weiter, ohne selbst an Sentry zu melden", async () => {
     const {client, queryMock} = createSupabaseMock();
     queryMock.order.mockResolvedValue({
       data: null,
@@ -77,6 +79,6 @@ describe("DonationRepository.getEventDonations", () => {
     await expect(repo.getEventDonations("event-001")).rejects.toMatchObject({
       message: "duplicate key",
     });
-    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });

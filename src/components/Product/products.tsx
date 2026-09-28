@@ -95,7 +95,11 @@ import {
   useCustomDialog,
 } from "../Shared/customDialogContext";
 import {useAuthUser} from "../Session/authUserContext";
-import {isForeignKeyViolationError, toError} from "../../utils/errorUtils";
+import {
+  captureUnexpectedError,
+  isForeignKeyViolationError,
+  toError,
+} from "../../utils/errorUtils";
 import {useDatabase} from "../Database/DatabaseContext";
 import {DataGrid, GridColDef, GridRowSelectionModel} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
@@ -205,6 +209,17 @@ const ProductsPage = () => {
         .convertProductToMaterial(product.uid, materialType)
         .then(() => {
           hook.onConvertProductToMaterial(product);
+        })
+        // Ohne catch: keine Rückmeldung an den Nutzer und UnhandledRejection
+        // in Sentry (CHUCHIPIRAT-FV)
+        .catch((error) => {
+          captureUnexpectedError(error, {
+            context: "Produkt in Material umwandeln",
+          });
+          hook.dispatch({
+            type: ReducerActions.GENERIC_ERROR,
+            payload: toError(error),
+          });
         });
     }
   };

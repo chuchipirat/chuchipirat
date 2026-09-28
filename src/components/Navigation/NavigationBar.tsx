@@ -27,6 +27,7 @@ import {NavigationDrawer} from "./NavigationDrawer";
 import {useSignOut} from "./useSignOut";
 import {NavigationValuesContext} from "./navigationContext";
 import {Utils} from "../Shared/utils.class";
+import {CustomSnackbar} from "../Shared/customSnackbar";
 import AuthUser from "../Session/authUser.class";
 
 /**
@@ -57,6 +58,7 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
+  const [signOutFailed, setSignOutFailed] = useState(false);
   const menuOpen = Boolean(menuAnchor);
   const [useOriginalColorScheme, setUseOriginalColorScheme] = useState(
     () =>
@@ -117,7 +119,8 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
 
   const handleSignOut = useCallback(async () => {
     setMenuAnchor(null);
-    await signOut();
+    const signedOut = await signOut();
+    if (!signedOut) setSignOutFailed(true);
   }, [signOut]);
 
   return (
@@ -218,6 +221,12 @@ export const NavigationBar = ({authUser}: NavigationBarProps) => {
         open={drawerOpen}
         onClose={handleCloseDrawer}
         authUser={authUser}
+      />
+      <CustomSnackbar
+        message={TEXT.ERROR_SIGN_OUT_FAILED}
+        severity="error"
+        snackbarOpen={signOutFailed}
+        handleClose={() => setSignOutFailed(false)}
       />
     </>
   );

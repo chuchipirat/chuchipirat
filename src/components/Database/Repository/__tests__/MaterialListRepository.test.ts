@@ -14,6 +14,7 @@ import {
   MaterialListItemInsertRow,
 } from "../MaterialListRepository";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
+import * as Sentry from "@sentry/react";
 
 // SessionStorageHandler mocken, damit Caching die Tests nicht beeinflusst
 jest.mock("../../../Shared/sessionStorageHandler.class", () => {
@@ -130,6 +131,7 @@ describe("MaterialListRepository", () => {
   let queryMock: ReturnType<typeof createSupabaseMock>["queryMock"];
 
   beforeEach(() => {
+    jest.clearAllMocks();
     ({client, queryMock} = createSupabaseMock());
     repo = new MaterialListRepository();
     (repo as any).client = client;
@@ -188,6 +190,35 @@ describe("MaterialListRepository", () => {
         message: "DB error",
         code: "42P01",
       });
+      expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    });
+
+    // Regression CHUCHIPIRAT-HS: postgrest-js verpackt einen fehlgeschlagenen
+    // fetch() (Safari: "Load failed") in ein Fehlerobjekt — genau diese Form
+    // kam in Sentry an.
+    it("should rethrow but not report a transient network error", async () => {
+      const networkError = {
+        code: "",
+        details: "@https://chuchipirat.ch/assets/index-CyeMH6l_.js:45:15443",
+        hint: "",
+        message: "TypeError: Load failed (api.chuchipirat.ch)",
+      };
+      queryMock.order.mockResolvedValue({data: null, error: networkError});
+
+      await expect(repo.getListsForEvent(EVENT_ID)).rejects.toEqual(
+        networkError,
+      );
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    it("should rethrow but not report an expired session", async () => {
+      queryMock.order.mockResolvedValue({
+        data: null,
+        error: {code: "PGRST301", message: "JWT expired"},
+      });
+
+      await expect(repo.getListsForEvent(EVENT_ID)).rejects.toBeTruthy();
+      expect(Sentry.captureException).not.toHaveBeenCalled();
     });
   });
 

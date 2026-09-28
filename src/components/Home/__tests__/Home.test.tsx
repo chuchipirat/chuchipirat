@@ -14,6 +14,7 @@ jest.mock("../../Shared/RichTextEditor", () => ({
 }));
 
 import React from "react";
+import * as Sentry from "@sentry/react";
 import {render, screen, waitFor, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
@@ -553,6 +554,39 @@ describe("HomePage", () => {
         "/event/evt-readiness-1?tab=shoppinglist",
       );
     });
+
+    // Regression CHUCHIPIRAT-HS: Safari-Netzaussetzer in Form des
+    // postgrest-js-Fehlerobjekts
+    test("meldet einen Netzaussetzer beim Laden der Listen nicht an Sentry", async () => {
+      mockGetAllEventsForUser.mockResolvedValue([createEventStartingInDays(5)]);
+      mockGetMaterialListsForEvent.mockRejectedValue({
+        code: "",
+        details: "@https://chuchipirat.ch/assets/index-CyeMH6l_.js:45:15443",
+        hint: "",
+        message: "TypeError: Load failed (api.chuchipirat.ch)",
+      });
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(screen.getByText("Materialliste")).toBeInTheDocument();
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
+    test("meldet einen echten Fehler beim Laden der Listen weiterhin an Sentry", async () => {
+      mockGetAllEventsForUser.mockResolvedValue([createEventStartingInDays(5)]);
+      mockGetMaterialListsForEvent.mockRejectedValue({
+        code: "42P01",
+        message: "relation does not exist",
+      });
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+      });
+    });
   });
 
   /* ------------------------------------------
@@ -650,6 +684,24 @@ describe("HomePage", () => {
         expect(screen.getByText("Zmittag")).toBeInTheDocument();
         expect(screen.getByText("Rösti")).toBeInTheDocument();
       });
+    });
+
+    test("meldet einen Netzaussetzer beim Laden des Menuplans nicht an Sentry", async () => {
+      mockGetAllEventsForUser.mockResolvedValue([createOngoingEvent()]);
+      mockGetMenuplanForUi.mockRejectedValue(
+        new Error("TypeError: Failed to fetch (api.chuchipirat.ch)"),
+      );
+      mockGetCutoffTimes.mockResolvedValue([]);
+
+      renderHomePage();
+
+      await waitFor(() => {
+        expect(mockGetMenuplanForUi).toHaveBeenCalled();
+      });
+      await waitFor(() => {
+        expect(screen.queryByText("Läuft gerade")).not.toBeInTheDocument();
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
     });
 
     test("navigiert beim Klick auf ein Rezept zum Menuplan-Tab mit Deep-Link zum Rezept-Drawer", async () => {

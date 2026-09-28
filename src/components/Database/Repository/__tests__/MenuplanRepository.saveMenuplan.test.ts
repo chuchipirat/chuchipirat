@@ -6,7 +6,11 @@
  * konnte eine `uid` doppelt in `mealTypes.order` legen; saveMenuplan schickte
  * dann zwei Zeilen mit derselben id an die RPC-Funktion, was an
  * `event_meal_types_pkey` (23505) scheiterte.
+ *
+ * Regression CHUCHIPIRAT-H8 (2026-09-27): Ein Netzaussetzer beim Speichern
+ * (postgrest-Wrapper "Failed to fetch") landete in derselben Sentry-Gruppe.
  */
+import * as Sentry from "@sentry/react";
 import {
   MenuplanRepository,
   dedupeByUid,
@@ -14,6 +18,11 @@ import {
 } from "../MenuplanRepository";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Session/authUser.class";
+
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+  addBreadcrumb: jest.fn(),
+}));
 
 describe("dedupeByUid", () => {
   test("entfernt Einträge mit doppelter uid, erster gewinnt", () => {
@@ -109,5 +118,55 @@ describe("MenuplanRepository.saveMenuplan — Deduplizierung", () => {
     const [, args] = supabaseMock.client.rpc.mock.calls[0];
     expect(args.p_payload.mealTypes).toHaveLength(2);
     expect(args.p_payload.meals).toHaveLength(2);
+  });
+});
+
+/* =====================================================================
+// saveMenuplan — Fehlermeldung an Sentry
+// ===================================================================== */
+
+describe("MenuplanRepository.saveMenuplan — Fehlerbehandlung", () => {
+  let repo: MenuplanRepository;
+  let supabaseMock: ReturnType<typeof createSupabaseMock>;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    supabaseMock = createSupabaseMock();
+    repo = new MenuplanRepository();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (repo as any).client = supabaseMock.client;
+  });
+
+  test("wirft einen Netzaussetzer weiter, meldet ihn aber nicht", async () => {
+    const networkError = {
+      code: "",
+      details: "TypeError: Failed to fetch\n    at async Xde.saveMenuplan",
+      hint: "",
+      message: "TypeError: Failed to fetch (api.chuchipirat.ch)",
+    };
+    supabaseMock.client.rpc.mockResolvedValueOnce({
+      data: null,
+      error: networkError,
+    });
+
+    await expect(
+      repo.saveMenuplan("event-1", emptyMenuplan(), {} as AuthUser),
+    ).rejects.toBe(networkError);
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet einen echten Fehler mit eventId", async () => {
+    supabaseMock.client.rpc.mockResolvedValueOnce({
+      data: null,
+      error: {code: "23505", message: "duplicate key value"},
+    });
+
+    await expect(
+      repo.saveMenuplan("event-1", emptyMenuplan(), {} as AuthUser),
+    ).rejects.toBeTruthy();
+    expect(Sentry.captureException).toHaveBeenCalledWith(
+      expect.any(Error),
+      {extra: {eventId: "event-1"}},
+    );
   });
 });

@@ -11,7 +11,7 @@
  */
 import React from "react";
 import {AlertColor} from "@mui/material";
-import * as Sentry from "@sentry/react";
+import {captureUnexpectedError, toError} from "../../../utils/errorUtils";
 import {generateAndDownloadPdf} from "../../Shared/pdfUtils";
 import {
   DialogSelectMenuesForRecipeDialogValues,
@@ -219,7 +219,7 @@ export function useMaterialListHandlers({
           getPersistedItemIds(listId),
         );
       } catch (error) {
-        Sentry.captureException(error);
+        captureUnexpectedError(error);
         onDispatchError(error instanceof Error ? error : new Error(String(error)));
       } finally {
         // Kurzes Nachlauf-Fenster: die WAL-Events des eigenen Saves treffen
@@ -246,7 +246,7 @@ export function useMaterialListHandlers({
       try {
         await database.materialLists.updateListHeader(listId, updates);
       } catch (error) {
-        Sentry.captureException(error);
+        captureUnexpectedError(error);
         onDispatchError(error instanceof Error ? error : new Error(String(error)));
       }
     },
@@ -337,7 +337,7 @@ export function useMaterialListHandlers({
           if ((error as Error).toString().includes(TEXT_ERROR_NO_RECIPES_FOUND)) {
             onDispatchSnackbar("info", TEXT_ERROR_NO_RECIPES_FOUND);
           } else {
-            Sentry.captureException(error);
+            captureUnexpectedError(error);
             onDispatchError(error instanceof Error ? error : new Error(String(error)));
           }
         }
@@ -437,7 +437,7 @@ export function useMaterialListHandlers({
       trackEvent(AnalyticsEvent.MATERIAL_LIST_REFRESHED, {eventUid: event.uid});
       onDispatchLoading(false);
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       onDispatchError(error instanceof Error ? error : new Error(String(error)));
     }
   };
@@ -465,7 +465,7 @@ export function useMaterialListHandlers({
         database.materialLists
           .updateItemChecked(material.supabaseId, material.checked)
           .catch((err) => {
-            Sentry.captureException(err);
+            captureUnexpectedError(err);
           });
       }
     },
@@ -577,24 +577,31 @@ export function useMaterialListHandlers({
           if (traceData.length === 0 && !item?.manualAdd && listProps) {
             // On-demand berechnen: Rezepte laden und Trace erstellen
             const capturedMaterialUid = contextMenuSelectedItem.materialUid;
-            loadRecipesForMenues(listProps.selectedMenues).then((loadedRecipes) => {
-              const computed = MaterialList.computeTrace({
-                materialUid: capturedMaterialUid,
-                selectedMenues: listProps.selectedMenues,
-                menueplan: menuplan,
-                materials: materials,
-                recipes: loadedRecipes,
+            loadRecipesForMenues(listProps.selectedMenues)
+              .then((loadedRecipes) => {
+                const computed = MaterialList.computeTrace({
+                  materialUid: capturedMaterialUid,
+                  selectedMenues: listProps.selectedMenues,
+                  menueplan: menuplan,
+                  materials: materials,
+                  recipes: loadedRecipes,
+                });
+                setTraceItemDialogValues({
+                  open: true,
+                  sortedMenues: sortSelectedMenues({
+                    menueList: listProps.selectedMenues,
+                    menuplan: menuplan,
+                  }),
+                  trace: computed,
+                  hasBeenManuallyEdited: Boolean(item?.manualEdit),
+                });
+              })
+              // Ohne catch landete ein Netzfehler beim Rezepte-Laden als
+              // UnhandledRejection in Sentry (CHUCHIPIRAT-FV)
+              .catch((error) => {
+                captureUnexpectedError(error);
+                onDispatchError(toError(error));
               });
-              setTraceItemDialogValues({
-                open: true,
-                sortedMenues: sortSelectedMenues({
-                  menueList: listProps.selectedMenues,
-                  menuplan: menuplan,
-                }),
-                trace: computed,
-                hasBeenManuallyEdited: Boolean(item?.manualEdit),
-              });
-            });
           } else {
             setTraceItemDialogValues({
               open: true,
@@ -624,6 +631,7 @@ export function useMaterialListHandlers({
       menuplan,
       onMaterialListUpdate,
       persistListItems,
+      onDispatchError,
     ],
   );
 
@@ -740,7 +748,7 @@ export function useMaterialListHandlers({
             pendingInsertUidsRef.current.add(item.uid);
             database.materialLists
               .insertItem(selectedListItem, rows[0])
-              .catch((err) => Sentry.captureException(err))
+              .catch((err) => captureUnexpectedError(err))
               .finally(() => {
                 saveInProgressRef.current = false;
                 pendingInsertUidsRef.current.delete(item!.uid);
@@ -772,7 +780,7 @@ export function useMaterialListHandlers({
         }
         database.materialLists
           .updateItem(item.supabaseId, updates)
-          .catch((err) => Sentry.captureException(err));
+          .catch((err) => captureUnexpectedError(err));
       }
     },
     [
@@ -804,7 +812,7 @@ export function useMaterialListHandlers({
         onMaterialListUpdate(updatedMaterialList);
         trackEvent(AnalyticsEvent.MATERIAL_LIST_DELETED, {eventUid: event.uid});
       } catch (error) {
-        Sentry.captureException(error);
+        captureUnexpectedError(error);
         onDispatchError(error instanceof Error ? error : new Error(String(error)));
       }
     },
@@ -931,7 +939,7 @@ export function useMaterialListHandlers({
         recipes: loadedRecipes,
       });
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       return [];
     }
   }, [
@@ -974,7 +982,7 @@ export function useMaterialListHandlers({
         {eventUid: event.uid},
       );
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       onDispatchError(error as Error);
     }
   }, [materialList, selectedListItem, menuplan, event.name, authUser, onDispatchError]);
@@ -1005,7 +1013,7 @@ export function useMaterialListHandlers({
             assigned_cook_name: cookId ? null : cookName,
           })
           .catch((err) => {
-            Sentry.captureException(err);
+            captureUnexpectedError(err);
           });
       }
     },

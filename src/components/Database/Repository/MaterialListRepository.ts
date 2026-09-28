@@ -11,13 +11,13 @@
  * const items = await repo.getListItems(listId);
  */
 import {SupabaseClient} from "@supabase/supabase-js";
-import * as Sentry from "@sentry/react";
 import {
   subscribeWithRetry,
   RealtimeConnectionStatus,
   RealtimeSubscriptionHandle,
 } from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
+import {captureUnexpectedError} from "../../../utils/errorUtils";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
@@ -217,7 +217,7 @@ export class MaterialListRepository extends BaseRepository<
       .order("created_at");
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
     if (!data || data.length === 0) return [];
@@ -244,7 +244,7 @@ export class MaterialListRepository extends BaseRepository<
       .order("sort_order", {ascending: true});
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
     if (!data || data.length === 0) return [];
@@ -283,7 +283,7 @@ export class MaterialListRepository extends BaseRepository<
       .single();
 
     if (headerError) {
-      Sentry.captureException(headerError);
+      captureUnexpectedError(headerError);
       throw headerError;
     }
     const created = headerRow as MaterialListHeaderRow;
@@ -299,7 +299,7 @@ export class MaterialListRepository extends BaseRepository<
         .insert(itemRows);
 
       if (itemsError) {
-        Sentry.captureException(itemsError);
+        captureUnexpectedError(itemsError);
         throw itemsError;
       }
     }
@@ -337,7 +337,7 @@ export class MaterialListRepository extends BaseRepository<
     });
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -362,7 +362,7 @@ export class MaterialListRepository extends BaseRepository<
       .insert({...item, list_id: listId});
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -393,7 +393,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", listId);
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -416,7 +416,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", itemId);
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -450,7 +450,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", itemId);
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -471,7 +471,7 @@ export class MaterialListRepository extends BaseRepository<
       .eq("id", listId);
 
     if (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }

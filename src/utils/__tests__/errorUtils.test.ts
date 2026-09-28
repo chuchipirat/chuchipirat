@@ -1,4 +1,6 @@
+import * as Sentry from "@sentry/react";
 import {
+  captureUnexpectedError,
   isChunkLoadError,
   isForeignKeyViolationError,
   isJwtExpiredError,
@@ -7,6 +9,8 @@ import {
   isTransientNetworkError,
   toError,
 } from "../errorUtils";
+
+jest.mock("@sentry/react", () => ({captureException: jest.fn()}));
 
 /* ===================================================================
 // ======================== Test-Helfer ==============================
@@ -321,5 +325,55 @@ describe("isChunkLoadError", () => {
     expect(isChunkLoadError(new Error("Failed to fetch"))).toBe(false);
     expect(isChunkLoadError(new Error("boom"))).toBe(false);
     expect(isChunkLoadError(null)).toBe(false);
+  });
+});
+
+describe("captureUnexpectedError", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  // Regression CHUCHIPIRAT-HX: postgrest-js-Wrapper eines fehlgeschlagenen
+  // fetch() auf iOS Safari (Stacktrace in `details`, leerer `code`)
+  test("meldet einen vorübergehenden Netzfehler nicht", () => {
+    captureUnexpectedError(
+      {
+        code: "",
+        details:
+          "CC@https://chuchipirat.ch/assets/index-CyeMH6l_.js:773:16647\nSS@",
+        hint: "",
+        message: "TypeError: Load failed (api.chuchipirat.ch)",
+      },
+      {context: "RecipeComments – Kommentare laden fehlgeschlagen"},
+    );
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet eine abgelaufene Sitzung nicht", () => {
+    captureUnexpectedError({code: "PGRST301", message: "JWT expired"});
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet einen echten Fehler normalisiert und mit Zusatzkontext", () => {
+    const supabaseError = {code: "42P01", message: "relation does not exist"};
+
+    captureUnexpectedError(supabaseError, {context: "Test", recipeId: "r-1"});
+
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    const [reported, hint] = (Sentry.captureException as jest.Mock).mock
+      .calls[0];
+    expect(reported).toBeInstanceOf(Error);
+    expect(reported.name).toBe("SupabaseError");
+    expect(hint).toEqual({extra: {context: "Test", recipeId: "r-1"}});
+  });
+
+  test("übergibt ohne Zusatzkontext keinen Hint", () => {
+    const error = new Error("boom");
+
+    captureUnexpectedError(error);
+
+    expect(Sentry.captureException).toHaveBeenCalledWith(error, undefined);
   });
 });

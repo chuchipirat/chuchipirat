@@ -637,6 +637,37 @@ describe("Recipe.defineDietProperties()", () => {
         })
       ).toThrow(TEXT_ERROR_PRODUCT_UNKNOWN("Fake"));
   });
+  // Regression CHUCHIPIRAT-J0: ein (vom Admin deaktiviertes) Produkt fehlt in
+  // der Produktliste → Nutzer-Hinweis statt App-Fehler, damit onSave in
+  // recipe.edit.tsx ihn nur anzeigt und nicht an Sentry meldet.
+  test("unknown Product wirft FieldValidationError mit Handlungshinweis", () => {
+    const recipeMock = structuredClone(recipe);
+    recipeMock.ingredients.entries.abc = {
+      uid: "abc",
+      product: {uid: "123", name: "Pancaketoppings"},
+      posType: PositionType.ingredient,
+      quantity: 1,
+      unit: "",
+      detail: "",
+      scalingFactor: 1,
+    };
+
+    let thrown: unknown;
+    try {
+      Recipe.defineDietProperties({
+        recipe: recipeMock,
+        products: structuredClone(products),
+      });
+    } catch (error) {
+      thrown = error;
+    }
+
+    expect(thrown).toBeInstanceOf(FieldValidationError);
+    expect((thrown as Error).message).toBe(
+      "Das Produkt «Pancaketoppings» ist nicht mehr verfügbar. " +
+        "Bitte ersetze die Zutat durch ein anderes Produkt.",
+    );
+  });
   test("Vegan", () => {
     const recipeMock = structuredClone(recipe);
     recipeMock.ingredients.entries = {

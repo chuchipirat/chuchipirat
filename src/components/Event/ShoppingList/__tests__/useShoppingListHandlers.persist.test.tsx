@@ -7,6 +7,8 @@
  *   Realtime-Echo den optimistischen lokalen Stand nicht überschreibt.
  * - B3: Der Kontextmenü-Eintrag „Löschen" persistiert die Änderung jetzt
  *   (vorher nur lokale Mutation → Zeile kam beim nächsten Echo zurück).
+ * - CHUCHIPIRAT-FV: Ein Fehler beim Rezepte-Laden für «Herkunft» (TRACE) lief
+ *   als UnhandledRejection aus dem Click-Handler heraus.
  */
 // Polyfill für jsdom (react-router wird transitiv über event.tsx geladen)
 import {TextEncoder, TextDecoder} from "util";
@@ -49,6 +51,7 @@ import {ShoppingList, ItemType} from "../shoppingList.class";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
 import {Action} from "../../../../constants/actions";
 import Department from "../../../Department/department.class";
+import {UsedRecipes} from "../../UsedRecipes/usedRecipes.class";
 
 const LIST_ID = "list-1";
 
@@ -98,7 +101,9 @@ const defer = (): Deferred => {
   return {promise, resolve, reject};
 };
 
-const renderHandlers = (overrides: {saveListItems?: jest.Mock} = {}) => {
+const renderHandlers = (
+  overrides: {saveListItems?: jest.Mock; database?: Record<string, unknown>} = {},
+) => {
   const saveListItems =
     overrides.saveListItems ?? jest.fn().mockResolvedValue(undefined);
   const saveInProgressRef: React.MutableRefObject<number> = {current: 0};
@@ -111,7 +116,9 @@ const renderHandlers = (overrides: {saveListItems?: jest.Mock} = {}) => {
       updateListHeader: jest.fn().mockResolvedValue(undefined),
       updateItemChecked: jest.fn().mockResolvedValue(undefined),
     },
+    ...overrides.database,
   } as never;
+  const onDispatchError = jest.fn();
 
   const shoppingListCollection = {
     lists: {
@@ -153,13 +160,20 @@ const renderHandlers = (overrides: {saveListItems?: jest.Mock} = {}) => {
         onShoppingCollectionUpdate: jest.fn(),
         onDispatchLoading: jest.fn(),
         onDispatchSetSelectedListItem: jest.fn(),
-        onDispatchError: jest.fn(),
+        onDispatchError,
         onDispatchSnackbar: jest.fn(),
       }),
     {wrapper},
   );
 
-  return {result, saveListItems, saveInProgressRef, onShoppingListUpdate, shoppingList};
+  return {
+    result,
+    saveListItems,
+    saveInProgressRef,
+    onShoppingListUpdate,
+    shoppingList,
+    onDispatchError,
+  };
 };
 
 /** Öffnet das Kontextmenü für eine Position (Button-ID: `btn_<dept>_<uid>_<unit>`). */
@@ -317,5 +331,70 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
     expect(saveInProgressRef.current).toBe(0);
     expect(Sentry.captureException).toHaveBeenCalled();
     jest.useRealTimers();
+  });
+});
+
+describe("useShoppingListHandlers — Kontextmenü «Herkunft» (CHUCHIPIRAT-FV)", () => {
+  /** postgrest-Wrapper eines fehlgeschlagenen fetch() auf iOS Safari. */
+  const NETWORK_ERROR = {
+    code: "",
+    details: "@https://chuchipirat.ch/assets/index-CyeMH6l_.js:45:15443",
+    hint: "",
+    message: "TypeError: Load failed (api.chuchipirat.ch)",
+  };
+
+  /** Datenbank-Mock, dessen Rezept-Abfragen mit `error` fehlschlagen. */
+  const failingRecipeDatabase = (error: unknown) => ({
+    recipes: {getRecipe: jest.fn().mockRejectedValue(error)},
+    recipeIngredients: {getIngredientsForRecipe: jest.fn().mockResolvedValue([])},
+    recipePreparationSteps: {getStepsForRecipe: jest.fn().mockResolvedValue([])},
+    recipeMaterials: {getMaterialsForRecipe: jest.fn().mockResolvedValue([])},
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    jest
+      .spyOn(UsedRecipes, "defineSelectedRecipes")
+      .mockReturnValue([{uid: "recipe-1"}] as never);
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("fängt einen Netzfehler ab, zeigt ihn an und meldet ihn nicht", async () => {
+    const {result, onDispatchError} = renderHandlers({
+      database: failingRecipeDatabase(NETWORK_ERROR),
+    });
+    openContextMenu(result, "btn_0_item-a_kg");
+
+    // Darf nicht rejecten — sonst UnhandledRejection im Browser
+    await act(async () => {
+      await expect(
+        result.current.onContextMenuClick({
+          currentTarget: {dataset: {action: Action.TRACE}},
+        } as never),
+      ).resolves.toBeUndefined();
+    });
+
+    expect(onDispatchError).toHaveBeenCalledWith(expect.any(Error));
+    expect(onDispatchError.mock.calls[0][0].message).toContain("Load failed");
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet einen echten Fehler beim Rezepte-Laden an Sentry", async () => {
+    const {result, onDispatchError} = renderHandlers({
+      database: failingRecipeDatabase({code: "42P01", message: "relation does not exist"}),
+    });
+    openContextMenu(result, "btn_0_item-a_kg");
+
+    await act(async () => {
+      await result.current.onContextMenuClick({
+        currentTarget: {dataset: {action: Action.TRACE}},
+      } as never);
+    });
+
+    expect(onDispatchError).toHaveBeenCalledTimes(1);
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
   });
 });
