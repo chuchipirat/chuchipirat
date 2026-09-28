@@ -1054,18 +1054,114 @@ Löschen mit Bestätigung und mit Abbruch. **Mobile prüfen** (Dialog auf xs, wi
 Funktionen mit je einem eigenen, bestehenden Test, der bei Vertauschen rot wird; `ExpenseList`s `handleEditClick` zeigt weiterhin auf `handleEditExpense`, `ExpenseDetailDialog`s
 `onEdit` auf `handleUpdateExpense`.
 
-### **Paket 2.7 — Realtime für Ausgaben**
+### **Paket 2.7 — Realtime für Ausgaben** ✅ erledigt
 
-- `ExpenseRepository.subscribeToExpenses(eventId, onChange, onError, onStatusChange)` (Channel
-  `expenses:${eventId}`, Binding `event_expenses`, Muster `BudgetRepository.subscribeToBudgets`).
-  Die Seite meldet den zweiten Status unter dem Key `"expenses"` an; beide Subscriptions rufen
-  `loadData()` (Entscheidung 8), Reload auch nach Wiederverbindung. Publication und
-  `REPLICA IDENTITY FULL` sind seit 0.3 vorhanden — keine Migration.
-- Als `useEffect` mit stabilen Funktionen aus `useRealtimeConnectionStatus()` als Dependencies
-  (das zurückgegebene Objekt selbst ist pro Render neu — siehe Tech-Debt-Eintrag).
-- **Tests:** Callback aus dem Mock auslesen → neue Ausgabe erscheint in der Liste **und** im
-  Fortschritt der Karte; Löschung verschwindet; nur eine Subscription pro Tabelle; `unsubscribe`
-  beim Verlassen. Danach **Mutationsprobe** (Regel aus der Checkliste).
+Ziel: Ausgaben live halten, exakt nach dem Muster, das `BudgetRepository.subscribeToBudgets` / `useExpenseTrackingData`s Budget-Effect seit 2.3b vorgeben. Kein neuer Mechanismus — eine zweite, unabhängige Subscription neben der bestehenden.
+
+**Wichtige Vereinfachung:** `fetchData()`/`loadData()` in `useExpenseTrackingData.ts` laden schon heute **beide** Tabellen zusammen (`Promise.all([getBudgetsForEvent, getExpensesForEvent])`, Entscheidung 8). Die neue Ausgaben-Subscription braucht deshalb **keinen eigenen Reducer-Zweig**
+und **keine eigene Ladefunktion** — ihr `onChange`/`onStatusChange` ruft dieselbe `loadData` auf, die die Budget-Subscription längst aufruft. Das Paket fügt nur einen zweiten `useEffect` hinzu, der einen zweiten Kanal öffnet und unter einem zweiten Status-Key anmeldet.
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `ExpenseRepository.ts` | neue Methode `subscribeToExpenses(eventId, onChange, onError, onStatusChange)` |
+| `useExpenseTrackingData.ts` | zweiter `useEffect` analog dem Budget-Effect, Status-Key `"expenses"` |
+| `ExpenseRepository.test.ts` | Tests für `subscribeToExpenses`, analog `BudgetRepository.test.ts` |
+| `expenseTracking.test.tsx` | neue `describe`-Gruppe „Realtime der Ausgaben", `renderUnlockedPage`-Helper erweitert |
+
+**`ExpenseRepository.subscribeToExpenses` — wörtliche Kopie von `subscribeToBudgets`, nur Tabelle/Channel getauscht:**
+
+```ts
+/**
+ * Abonniert Echtzeit-Änderungen der Ausgaben eines Events.
+ * `onChange` wird bei jedem Einfügen, Ändern und Löschen aufgerufen, liefert
+ * aber keine Daten — der Aufrufer lädt die Ausgaben selbst neu. Beim ersten
+ * Verbindungsaufbau wird `onChange` nicht aufgerufen.
+ *
+ * @param eventId - Die ID des Events
+ * @param onChange - Callback bei einer Änderung (darf asynchron sein)
+ * @param onError - Callback bei Fehler in `onChange`
+ * @param onStatusChange - Optionaler Callback bei Verbindungsstatus-Wechseln
+ * @returns {@link RealtimeSubscriptionHandle} mit `unsubscribe()`/`reconnect()`
+ */
+subscribeToExpenses(
+  eventId: string,
+  onChange: () => void | Promise<void>,
+  onError: (error: Error) => void,
+  onStatusChange?: (status: RealtimeConnectionStatus) => void,
+) {
+  return subscribeWithRetry({
+    client: this.client,
+    channelName: `expenses:${eventId}`,
+    bindings: [{table: "event_expenses", filter: `event_id=eq.${eventId}`}],
+    onChange,
+    onError,
+    onStatusChange,
+  });
+}
+```
+
+Publication und `REPLICA IDENTITY FULL` für `event_expenses` sind seit 0.3 vorhanden — **keine Migration nötig**.
+
+**`useExpenseTrackingData.ts` — zweiter `useEffect`, Kopie des Budget-Effects (Zeilen 116–148):**
+
+```ts
+React.useEffect(() => {
+  if (!event.uid || hasDonation !== true || !authUser) return;
+
+  const {unsubscribe, reconnect} = database.expenses.subscribeToExpenses(
+    event.uid,
+    loadData,
+    (error) =>
+      Sentry.captureException(error, {
+        extra: {context: "Realtime expenses subscription"},
+      }),
+    (status) => {
+      realtime.setStatus("expenses", status);
+      if (status === "connected") void loadData();
+    },
+  );
+
+  realtime.register("expenses", reconnect);
+  return () => {
+    unsubscribe();
+    realtime.unregister("expenses");
+  };
+}, [
+  hasDonation,
+  authUser,
+  event.uid,
+  database,
+  loadData,
+  realtime.setStatus,
+  realtime.register,
+  realtime.unregister,
+]);
+```
+
+**Zwei Effects, ein `loadData`.** Beide Subscriptions rufen dieselbe Funktion auf — eine neue Ausgabe löst denselben Reload aus wie ein neues Budget, und beide bringen ohnehin beide Tabellen mit. Das ist kein Duplikat, sondern die Konsequenz von Entscheidung 8: der Reload ist idempotent, zwei Trigger-Quellen für denselben Reload sind güns­tiger als eine fein­granularere, aber doppelt so komplexe Lösung, die nur die geänderte Tabelle neu lädt.
+
+**Kein neuer Status im aggregierten Banner nötig.** `useRealtimeConnectionStatus()` ist schon mehrere-Keys-fähig (`register`/`setStatus`/`unregister` je Key, `aggregateRealtimeStatus` fasst zusammen) — das Budget-Muster aus 2.3b nutzt das bereits genau für diesen Fall. `"expenses"` ist
+einfach ein zweiter Key neben `"budgets"`.
+
+**Test-Helper `renderUnlockedPage` muss erweitert werden.** Aktuell (Zeile 184–201) liest er nur die Aufrufparameter von `mockDatabase.budgets.subscribeToBudgets.mock.calls[0]` aus. Für 2.7 muss `mockDatabase.expenses` ein `subscribeToExpenses: jest.fn()` bekommen (mit eigenem `unsubscribe`/`reconnect`-Mock-Paar, nicht `mockUnsubscribe`/`mockReconnect` wiederverwenden — sonst lässt sich in einem Test nicht mehr unterscheiden, welcher der beiden Kanäle geschlossen wurde), und der Helper muss zusätzlich `expenseOnChange`/`expenseOnStatusChange` zurückgeben, analog zu `onChange`/`onStatusChange` für Budgets.
+
+**Tests** (analog „Realtime der Budgets", für `expenseTracking.test.tsx`)
+
+- Abonniert `event_expenses` erst, wenn eine Spende bestätigt ist.
+- Abonniert die Ausgaben des Events (`subscribeToExpenses` mit den richtigen 4 Argumenten).
+- Neue Ausgabe einer anderen Sitzung erscheint in der Liste **und** im Fortschritt der zugehörigen Budget-Karte (Reload liefert ja beide Tabellen — ein Test kann beides in einem Aufwasch prüfen).
+- Löschung einer Ausgabe einer anderen Sitzung: Zeile verschwindet, Kartensumme sinkt.
+- Lädt nach einem Verbindungsabbruch der Ausgaben-Subscription neu, aber nicht schon beim Abbruch   selbst (Muster wie beim Budget-Pendant).
+- Abonniert nur einmal, auch wenn sich nur der Ausgaben-Status ändert (Effect-Dependencies stabil).
+- Beendet **beide** Subscriptions beim Verlassen der Seite — zwei getrennte `unsubscribe`-Mocks,   jeweils einzeln geprüft (das ist der Punkt, an dem das separate Mock-Paar aus dem Helper-Hinweis   oben zahlt: ein gemeinsamer Mock würde nicht zeigen, wenn nur einer der beiden Kanäle sauber schliesst).
+- **Nur eine Subscription pro Tabelle:** `subscribeToBudgets` und `subscribeToExpenses` je genau einmal aufgerufen, nicht mehrfach durch den zweiten Effect ausgelöst.
+- **Mutationsprobe** (Checkliste aus 1.5): Ausgaben-Subscription versehentlich mit `subscribeToBudgets` statt `subscribeToExpenses` verdrahten (Copy-Paste-Fehler) → der „nur eine Subscription pro Tabelle"-Test muss rot werden. Status-Key `"expenses"` durch `"budgets"` ersetzen → der „nur einmal abonniert"/Banner-Aggregations-Test muss auffallen, weil zwei Kanäle denselben Key teilen.
+
+**Zum Ansehen im Browser** (DEV, nie PROD): zwei Browser-Fenster mit demselben Event — in Fenster A eine Ausgabe anlegen/bearbeiten/löschen, in Fenster B ohne Neuladen live sehen, dass Liste **und** Fortschrittsbalken sich aktualisieren. Verbindung kurz kappen (DevTools offline) und wiederherstellen → Reconnect-Banner erscheint und verschwindet wieder, Daten sind danach aktuell.
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `ExpenseRepository.subscribeToExpenses` hat eigene Tests analog `BudgetRepository.subscribeToBudgets`; beide Realtime-Effects in `useExpenseTrackingData.ts` sind unabhängig testbar (eigene `unsubscribe`-Mocks); Mutationsprobe für vertauschte Subscription/Status-Key bestanden.
 
 ### **Paket 2.8 — Hervorhebung von Fremdänderungen (optional)**
 

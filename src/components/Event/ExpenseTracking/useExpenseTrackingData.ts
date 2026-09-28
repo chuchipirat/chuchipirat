@@ -96,9 +96,6 @@ export const useExpenseTrackingData = ({
       handleError(error, "Budgets laden");
     }
   }, [fetchData, handleError]);
-  /* ------------------------------------------
-  // Realtime-Subscription für Budgets
-  // ------------------------------------------ */
   // Erstladen: Die Realtime-Subscription meldet nur Änderungen (auch beim
   // ersten Verbindungsaufbau wird `onChange` nicht aufgerufen) — der
   // Ausgangszustand muss deshalb separat geladen werden.
@@ -106,7 +103,9 @@ export const useExpenseTrackingData = ({
     if (hasDonation !== true || !authUser) return;
     void loadData();
   }, [hasDonation, authUser, loadData]);
-
+  /* ------------------------------------------
+  // Realtime-Subscription für Budgets
+  // ------------------------------------------ */
   // Realtime: `onChange` liefert keinen Payload, daher wird bei jeder
   // Änderung neu geladen. Ein eigener Save löst ebenfalls ein Echo aus — das
   // ist harmlos, weil der Reload idempotent ist und dieselben Daten liefert.
@@ -135,6 +134,47 @@ export const useExpenseTrackingData = ({
     return () => {
       unsubscribe();
       realtime.unregister("budgets");
+    };
+  }, [
+    hasDonation,
+    authUser,
+    event.uid,
+    database,
+    loadData,
+    realtime.setStatus,
+    realtime.register,
+    realtime.unregister,
+  ]);
+  /* ------------------------------------------
+  // Realtime-Subscription für Ausgaben
+  // ------------------------------------------ */
+  // Realtime: `onChange` liefert keinen Payload, daher wird bei jeder
+  // Änderung neu geladen. Ein eigener Save löst ebenfalls ein Echo aus — das
+  // ist harmlos, weil der Reload idempotent ist und dieselben Daten liefert.
+  // Zu `realtime` werden nur die (stabilen) Funktionen als Dependencies
+  // geführt: `useRealtimeConnectionStatus()` gibt bei jedem Render ein neues
+  // Objekt zurück, sonst würde der Channel bei jedem Render neu aufgebaut.
+
+  React.useEffect(() => {
+    if (!event.uid || hasDonation !== true || !authUser) return;
+
+    const {unsubscribe, reconnect} = database.expenses.subscribeToExpenses(
+      event.uid,
+      loadData,
+      (error) =>
+        Sentry.captureException(error, {
+          extra: {context: "Realtime expenses subscription"},
+        }),
+      (status) => {
+        realtime.setStatus("expenses", status);
+        if (status === "connected") void loadData();
+      },
+    );
+
+    realtime.register("expenses", reconnect);
+    return () => {
+      unsubscribe();
+      realtime.unregister("expenses");
     };
   }, [
     hasDonation,
