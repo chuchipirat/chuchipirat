@@ -104,6 +104,7 @@ import {
   FormValidationFieldError,
 } from "../../Shared/fieldValidation.error.class";
 import {
+  captureUnexpectedError,
   isMissingSessionError,
   isTransientNetworkError,
   toError,
@@ -1568,9 +1569,7 @@ const EventPage = () => {
       })
       .catch((error) => {
         menuplanSaveInProgress.current = false;
-        Sentry.captureException(error, {
-          extra: {context: "Menuplan-Speichern"},
-        });
+        captureUnexpectedError(error, {context: "Menuplan-Speichern"});
         // Rollback: vorherigen Zustand wiederherstellen, damit keine Daten verloren gehen
         dispatch({
           type: ReducerActions.MENUPLAN_FETCH_SUCCESS,

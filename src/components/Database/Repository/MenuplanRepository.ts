@@ -22,6 +22,7 @@ import {
   RealtimeSubscriptionHandle,
 } from "./realtimeSubscription";
 import {BaseRepository} from "./BaseRepository";
+import {captureUnexpectedError} from "../../../utils/errorUtils";
 import {
   STORAGE_OBJECT_PROPERTY,
   StorageObjectProperty,
@@ -907,7 +908,7 @@ export class MenuplanRepository extends BaseRepository<
     });
 
     if (error) {
-      Sentry.captureException(error, {extra: {eventId}});
+      captureUnexpectedError(error, {eventId});
       throw error;
     }
   }
@@ -1792,7 +1793,7 @@ export class MenuplanRepository extends BaseRepository<
         sortOrder: row.sort_order,
       }));
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -1827,7 +1828,7 @@ export class MenuplanRepository extends BaseRepository<
         sortOrder: row.sort_order,
       };
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -1850,7 +1851,7 @@ export class MenuplanRepository extends BaseRepository<
 
       if (error) throw error;
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
@@ -1869,7 +1870,7 @@ export class MenuplanRepository extends BaseRepository<
 
       if (error) throw error;
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       throw error;
     }
   }
