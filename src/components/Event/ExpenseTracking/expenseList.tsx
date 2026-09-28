@@ -23,11 +23,15 @@ import {NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET} from "../../../constants/text/e
  * @param expenseGroups - Ausgaben gruppiert nach Budget (siehe
  *   `Expense.groupByBudget`), bereits sortiert und summiert — `ExpenseList`
  *   berechnet selbst nichts, nur Darstellung.
+ * @param highlightedExpenseIds - IDs von Ausgaben, die eine andere Sitzung
+ *   gerade angelegt oder geändert hat (Paket 2.8) — die betroffene Zeile
+ *   leuchtet kurz auf (`classes.remoteChangeGlow`).
  * @param handleEditClick - Callback bei Klick auf eine Zeile, liefert die ID
  *   der angeklickten Ausgabe.
  */
 interface ExpenseListProps {
   expenseGroups: ExpenseGroup[];
+  highlightedExpenseIds: Set<string>;
   handleEditClick: (expenseId: string) => void;
 }
 
@@ -43,6 +47,7 @@ interface ExpenseListProps {
  */
 export const ExpenseList = ({
   expenseGroups,
+  highlightedExpenseIds,
   handleEditClick,
 }: ExpenseListProps) => {
   const classes = useCustomStyles();
@@ -63,6 +68,7 @@ export const ExpenseList = ({
               <ExpenseRow
                 key={"expenseRow_" + expense.id}
                 expense={expense}
+                isHighlighted={highlightedExpenseIds.has(expense.id)}
                 handleClick={handleEditClick}
               />
             ))}
@@ -135,6 +141,7 @@ const ExpenseGroupHeader = ({group, isFirstGroup}: ExpenseGroupHeaderProps) => {
 /** Props für {@link ExpenseRow}. */
 type ExpenseRowProps = {
   expense: ExpenseDomain;
+  isHighlighted: boolean;
   /** Callback bei Klick auf die Zeile, liefert `expense.id`. */
   handleClick: (expenseId: string) => void;
 };
@@ -148,7 +155,7 @@ type ExpenseRowProps = {
  *
  * @param props - Siehe {@link ExpenseRowProps}.
  */
-const ExpenseRow = ({expense, handleClick}: ExpenseRowProps) => {
+const ExpenseRow = ({expense, isHighlighted, handleClick}: ExpenseRowProps) => {
   const classes = useCustomStyles();
 
   const formattedDate = expense.date.toLocaleString("de-CH", {
@@ -165,6 +172,7 @@ const ExpenseRow = ({expense, handleClick}: ExpenseRowProps) => {
       divider
       onClick={() => handleClick(expense.id)}
       data-testid={`expense-${expense.id}`}
+      sx={[isHighlighted && classes.remoteChangeGlow]}
     >
       <ListItemText
         primary={

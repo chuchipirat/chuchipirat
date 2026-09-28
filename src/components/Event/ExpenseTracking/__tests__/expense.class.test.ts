@@ -190,9 +190,7 @@ describe("Expense.sortByDateDescending", () => {
   test("Sortierung mit gleichen Daten", () => {
     const mockedExpenses = expenses.map((expense) => ({...expense}));
 
-    mockedExpenses.forEach(
-      (expense) => (expense.date = new Date(2026, 9, 21)),
-    );
+    mockedExpenses.forEach((expense) => (expense.date = new Date(2026, 9, 21)));
 
     const sortedList = Expense.sortByDateDescending(mockedExpenses);
 
@@ -263,5 +261,46 @@ describe("Expense.groupByBudget", () => {
     expect(
       groups.flatMap((group) => group.expenses).map((entry) => entry.id),
     ).not.toContain("orphan");
+  });
+});
+
+describe("Expense.diffIds", () => {
+  test("Leere Listen ergeben eine leere Menge", () => {
+    expect(Expense.diffIds([], [])).toEqual(new Set());
+  });
+
+  test("Neues Element (ID nicht in previous) wird erkannt", () => {
+    const previous = [{id: "a", value: 1}];
+    const current = [
+      {id: "a", value: 1},
+      {id: "b", value: 2},
+    ];
+
+    expect(Expense.diffIds(previous, current)).toEqual(new Set(["b"]));
+  });
+
+  test("Geändertes Feld wird erkannt", () => {
+    const previous = [{id: "a", value: 1}];
+    const current = [{id: "a", value: 2}];
+
+    expect(Expense.diffIds(previous, current)).toEqual(new Set(["a"]));
+  });
+
+  test("Unverändertes Element wird nicht erkannt", () => {
+    const previous = [{id: "a", value: 1}];
+    const current = [{id: "a", value: 1}];
+
+    expect(Expense.diffIds(previous, current)).toEqual(new Set());
+  });
+
+  test("Datum mit gleichem Wert, aber neuer Objekt-Instanz wird nicht fälschlich als geändert erkannt", () => {
+    // Zwei verschiedene Date-Instanzen, gleicher Zeitpunkt — genau das, was
+    // parseLocalDate() bei jedem Reload neu erzeugt. JSON.stringify ruft auf
+    // Date.toISOString() zurück, ist also wertstabil, nicht referenzstabil.
+    const previous = [{id: "a", date: new Date("2026-10-21")}];
+    const current = [{id: "a", date: new Date("2026-10-21")}];
+    expect(previous[0].date).not.toBe(current[0].date);
+
+    expect(Expense.diffIds(previous, current)).toEqual(new Set());
   });
 });

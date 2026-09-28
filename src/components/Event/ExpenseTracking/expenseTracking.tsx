@@ -134,11 +134,19 @@ const EventExpenseTrackingPage = ({
   const authUser = useAuthUser();
   const {customDialog} = useCustomDialog();
 
-  const {state, dispatch, handleError} = useExpenseTrackingData({
+  const saveInProgressRef = React.useRef(0);
+  const {
+    state,
+    dispatch,
+    handleError,
+    highlightedBudgetIds,
+    highlightedExpenseIds,
+  } = useExpenseTrackingData({
     event,
     database,
     hasDonation,
     realtime,
+    saveInProgressRef,
   });
   const [lastUsedBudgetId, setLastUsedBudgetId] = React.useState<string | null>(
     null,
@@ -343,6 +351,7 @@ const EventExpenseTrackingPage = ({
       return;
     }
 
+    saveInProgressRef.current += 1;
     try {
       const newBudget = await database.budgets.createBudget(budget, authUser!);
       trackEvent(AnalyticsEvent.BUDGET_CREATED);
@@ -352,6 +361,10 @@ const EventExpenseTrackingPage = ({
       });
     } catch (error) {
       handleError(error, "Budget erstellen");
+    } finally {
+      setTimeout(() => {
+        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+      }, 400);
     }
 
     setBudgetDetailDialogProperties({budget: null, open: false});
@@ -365,6 +378,7 @@ const EventExpenseTrackingPage = ({
       return;
     }
 
+    saveInProgressRef.current += 1;
     try {
       const newExpense = await database.expenses.createExpense(
         expense,
@@ -378,6 +392,10 @@ const EventExpenseTrackingPage = ({
       });
     } catch (error) {
       handleError(error, "Ausgabe erstellen");
+    } finally {
+      setTimeout(() => {
+        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+      }, 400);
     }
 
     setExpenseDetailDialogProperties({expense: null, open: false});
@@ -398,12 +416,17 @@ const EventExpenseTrackingPage = ({
       return;
     }
 
+    saveInProgressRef.current += 1;
     try {
       const updated = await database.budgets.updateBudget(budget, authUser!);
       trackEvent(AnalyticsEvent.BUDGET_UPDATED);
       dispatch({type: ReducerActions.BUDGET_UPDATED, payload: updated});
     } catch (error) {
       handleError(error, "Budget aktualisieren");
+    } finally {
+      setTimeout(() => {
+        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+      }, 400);
     }
   };
   /**
@@ -423,13 +446,17 @@ const EventExpenseTrackingPage = ({
     if (!checkExpenseInputdata(expense)) {
       return;
     }
-
+    saveInProgressRef.current += 1;
     try {
       const updated = await database.expenses.updateExpense(expense, authUser!);
       trackEvent(AnalyticsEvent.EXPENSE_UPDATED);
       dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
     } catch (error) {
       handleError(error, "Ausgabe aktualisieren");
+    } finally {
+      setTimeout(() => {
+        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+      }, 400);
     }
   };
   /**
@@ -462,6 +489,7 @@ const EventExpenseTrackingPage = ({
     });
     if (!isConfirmed) return;
 
+    saveInProgressRef.current += 1;
     try {
       await database.budgets.deleteBudget(budget.id);
       trackEvent(AnalyticsEvent.BUDGET_DELETED);
@@ -475,6 +503,10 @@ const EventExpenseTrackingPage = ({
       } else {
         handleError(error, "Budget löschen");
       }
+    } finally {
+      setTimeout(() => {
+        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+      }, 400);
     }
 
     setBudgetDetailDialogProperties({budget: null, open: false});
@@ -498,12 +530,17 @@ const EventExpenseTrackingPage = ({
     });
     if (!isConfirmed) return;
 
+    saveInProgressRef.current += 1;
     try {
       await database.expenses.deleteExpense(expense.id);
       trackEvent(AnalyticsEvent.EXPENSE_DELETED);
       dispatch({type: ReducerActions.EXPENSE_DELETED, payload: expense});
     } catch (error) {
       handleError(error, "Ausgabe löschen");
+    } finally {
+      setTimeout(() => {
+        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+      }, 400);
     }
 
     setExpenseDetailDialogProperties({expense: null, open: false});
@@ -661,6 +698,7 @@ const EventExpenseTrackingPage = ({
                     <BudgetCard
                       key={`budgetCard_${budget.budget.id}`}
                       budgetWithProgress={budget}
+                      isHighlighted={highlightedBudgetIds.has(budget.budget.id)}
                       handleEditClick={handleBudgetEditClick}
                     />
                   </Grid>
@@ -672,6 +710,7 @@ const EventExpenseTrackingPage = ({
             ) : (
               <ExpenseList
                 expenseGroups={expenseGroups}
+                highlightedExpenseIds={highlightedExpenseIds}
                 handleEditClick={handleEditExpense}
               />
             )}

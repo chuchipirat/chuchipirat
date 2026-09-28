@@ -57,10 +57,7 @@ export class Expense {
       throw new FieldValidationError(TEXT_PLEASE_PROVIDE_BUDGET);
     }
 
-    if (
-      !(expense.date instanceof Date) ||
-      isNaN(expense.date.getTime())
-    ) {
+    if (!(expense.date instanceof Date) || isNaN(expense.date.getTime())) {
       throw new FieldValidationError(TEXT_PLEASE_PROVIDE_DATE);
     }
 
@@ -126,5 +123,32 @@ export class Expense {
           Expense.sumByBudgetAndCurrency(expensesOfBudget)[budget.id] ?? {},
       };
     });
+  }
+  /**
+   * Vergleicht zwei Listen (nach `id`) und liefert die IDs, die im
+   * aktuellen Stand neu sind oder sich inhaltlich gegenüber dem vorherigen
+   * Stand geändert haben. Für die Hervorhebung von Fremdänderungen (Paket
+   * 2.8): eine ID in der Rückgabe bedeutet "Karte/Zeile soll aufleuchten".
+   *
+   * @param previous - Vorheriger Stand.
+   * @param current - Aktueller Stand nach einem Reload.
+   * @returns IDs aus `current`, die neu sind oder sich geändert haben.
+   *   Gelöschte IDs (nur in `previous` vorhanden) sind nicht enthalten.
+   * @example
+   * Expense.diffIds([{id: "a", value: 1}], [{id: "a", value: 2}]) // Set(["a"])
+   */
+  static diffIds<T extends {id: string}>(
+    previous: T[],
+    current: T[],
+  ): Set<string> {
+    const previousById = new Map(previous.map((item) => [item.id, item]));
+    const changed = new Set<string>();
+    for (const item of current) {
+      const before = previousById.get(item.id);
+      if (!before || JSON.stringify(before) !== JSON.stringify(item)) {
+        changed.add(item.id);
+      }
+    }
+    return changed;
   }
 }

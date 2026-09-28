@@ -38,6 +38,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       <ExpenseList
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
       />,
     );
 
@@ -63,6 +64,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       <ExpenseList
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
       />,
     );
 
@@ -96,6 +98,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       <ExpenseList
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
       />,
     );
 
@@ -122,6 +125,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       <ExpenseList
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
       />,
     );
 
@@ -150,6 +154,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       <ExpenseList
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
       />,
     );
 
@@ -185,6 +190,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       <ExpenseList
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
       />,
     );
 
@@ -222,6 +228,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       <ExpenseList
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
       />,
     );
 
@@ -246,7 +253,11 @@ describe("ExpenseList, Standard Funktionalität ", () => {
     ];
 
     render(
-      <ExpenseList expenseGroups={mockExpenseGroup} handleEditClick={onEdit} />,
+      <ExpenseList
+        expenseGroups={mockExpenseGroup}
+        handleEditClick={onEdit}
+        highlightedExpenseIds={new Set()}
+      />,
     );
 
     fireEvent.click(screen.getByTestId("expense-expense-id-001"));
