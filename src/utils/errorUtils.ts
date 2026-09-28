@@ -11,6 +11,7 @@
  * aus dem Monitoring herauszuhalten) sowie beliebige geworfene Werte in echte
  * `Error`-Instanzen zu normalisieren.
  */
+import * as Sentry from "@sentry/react";
 
 /**
  * Nachrichten-Fragmente, die auf einen vorübergehenden Netzwerk-/Offline-Fehler
@@ -221,4 +222,28 @@ export function toError(value: unknown): Error {
   if (typeof value === "string" && value) return new Error(value);
 
   return new Error("Unbekannter Fehler");
+}
+
+/**
+ * Meldet einen Fehler an Sentry — ausser vorübergehenden Netzfehlern und
+ * fehlenden/abgelaufenen Sitzungen, die erwartbar sind und sich selbst heilen.
+ *
+ * Fasst das an vielen Stellen wiederholte Muster
+ * `if (!isTransientNetworkError(e) && !isMissingSessionError(e)) Sentry.captureException(...)`
+ * zusammen und normalisiert den Wert via {@link toError}, damit Sentry
+ * Supabase-Fehlerobjekte sinnvoll gruppiert.
+ *
+ * @param error - Der geworfene Wert.
+ * @param extra - Optionaler Zusatzkontext für das Sentry-Event.
+ * @example
+ * .catch((error) =>
+ *   captureUnexpectedError(error, {context: "Kommentare laden fehlgeschlagen"}),
+ * );
+ */
+export function captureUnexpectedError(
+  error: unknown,
+  extra?: Record<string, unknown>,
+): void {
+  if (isTransientNetworkError(error) || isMissingSessionError(error)) return;
+  Sentry.captureException(toError(error), extra ? {extra} : undefined);
 }
