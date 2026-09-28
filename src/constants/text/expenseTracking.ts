@@ -108,3 +108,12 @@ export const LABEL = "Bezeichnung";
 export const PLACEHOLDER_LABEL = "z.B. Grosseinkauf Migros";
 export const OPTIONAL = "optional";
 export const EXPENSE_SAVED = "Ausgabe wurde gespeichert.";
+export const EXPENSE_UPDATED = "Ausgabe wurde angepasst.";
+export const EXPENSE_DELETED = "Ausgabe wurde gelöscht.";
+
+export const DELETE_EXPENSE_DIALOG = (
+  label: string,
+  amountInCents: number,
+  currency: string,
+): string =>
+  `Ausgabe «${label}» (${formatAmountFromCents(amountInCents, currency)}) löschen?`;

@@ -62,6 +62,8 @@ export const AnalyticsEvent = {
   BUDGET_UPDATED: "budget_updated",
   BUDGET_DELETED: "budget_deleted",
   EXPENSE_CREATED: "expense_created",
+  EXPENSE_UPDATED: "expense_updated",
+  EXPENSE_DELETED: "expense_deleted",
 
   // ── Masterdata ──
   PRODUCT_CREATED: "product_created",

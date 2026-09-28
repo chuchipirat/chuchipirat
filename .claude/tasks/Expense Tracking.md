@@ -917,16 +917,142 @@ Seitenebene (`expenseTracking.test.tsx`):
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `AVAILABLE_CURRENCIES` existiert nur noch einmal; bestehende Budget-Dialog-Tests bleiben unverändert grün (reiner Import-Wechsel); Sichttest Desktop und
 Mobile gemacht.
 
-### **Paket 2.6 — Ausgabe bearbeiten und löschen**
+### **Paket 2.6 — Ausgabe bearbeiten und löschen** ✅ erledigt
 
-- Klick auf eine Zeile öffnet den Dialog vorbefüllt (Betrag `toFixed(2)`, Datum lokal). Budget
-  wechseln ist erlaubt; die Summen ziehen live nach (abgeleitet, Entscheidung 1).
-- Löschen mit Bestätigung (`DialogType.Confirm`), Text mit Bezeichnung und Betrag der Ausgabe.
-  Analytics-Events `EXPENSE_UPDATED`/`EXPENSE_DELETED`, Fehler über `handleError`.
-- **Tests analog 1.5:** Vorbefüllung, `updateExpense`-Payload, Löschen mit Bestätigung/Abbruch,
-  Fehlerfälle (Speichern und Löschen), Budget-Wechsel verschiebt die Summe zwischen den Karten.
-- **Randfall:** Eine andere Sitzung hat die Ausgabe schon gelöscht → Fehlermeldung statt
-  stillem Nichts (`update` findet keine Zeile).
+Ziel: dieselben drei Bausteine wie in 1.5 (Bearbeiten, Löschen, Live-Reaktion), diesmal für Ausgaben. Der Dialog selbst (`ExpenseDetailDialog`) ist seit 2.5 schon vollständig
+edit-fähig — dieses Paket verdrahtet nur noch die Seite.
+
+("Öffnet den Bearbeiten-Dialog … noch ohne Wirkung") als **Zeilen-Klick-Opener** gedacht, analog `handleBudgetEditClick`. Aktuell hängt dieselbe leere Stub-Funktion an **zwei**
+Stellen: `ExpenseList`s `handleEditClick` (Zeilen-Klick) **und** `ExpenseDetailDialog`s `onEdit` (Speichern im Bearbeiten-Modus) — das geht nur, weil beide noch nichts tun.
+Dieses Paket muss die beiden Rollen **trennen**:
+
+1. `handleEditExpense(expenseId)` bleibt der Zeilen-Klick-Opener (Name passt, Inhalt fehlt    noch) — bleibt an `ExpenseList`s `handleEditClick` hängen.
+2. Eine **neue** Funktion `handleUpdateExpense(expenseId, expenseInput)` wird geschrieben    und ersetzt `handleEditExpense` als `onEdit`-Prop von `ExpenseDetailDialog`.
+
+Ohne diese Trennung landet man entweder bei einer Funktion mit zwei unvereinbaren Signaturen oder beim Versehen, den Zeilen-Klick nie zu verdrahten, weil "onEdit ist ja schon da" täuscht.
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `expenseTracking.tsx` | `handleEditExpense` (echt), `handleUpdateExpense` (neu), `handleDeleteExpense` (echt), `<ExpenseDetailDialog onEdit={handleUpdateExpense}>` |
+| `expenseTracking.reducer.ts` | neue Aktionen `EXPENSE_UPDATED`, `EXPENSE_DELETED` |
+| `constants/text/expenseTracking.ts` | `EXPENSE_UPDATED`, `EXPENSE_DELETED`, `DELETE_EXPENSE_DIALOG(label, amountInCents, currency)` |
+| `Analytics/analyticsEvents.ts` | `EXPENSE_UPDATED: "expense_updated"`, `EXPENSE_DELETED: "expense_deleted"` |
+
+**`handleEditExpense` — Zeilen-Klick-Opener, analog `handleBudgetEditClick`:**
+
+```ts
+/**
+ * Öffnet den Bearbeiten-Dialog für die angeklickte Ausgabe.
+ *
+ * @param expenseId - ID der angeklickten Ausgabe.
+ */
+const handleEditExpense = (expenseId: string) => {
+  const expense =
+    state.expenses?.find((expense) => expense.id === expenseId) ?? null;
+
+  setExpenseDetailDialogProperties({expense, open: true});
+};
+```
+`expenseToFormState` im Dialog übernimmt die Vorbelegung bereits vollständig seit 2.5 (Betrag `toFixed(2)`, Datum als `dayjs(expense.date)`) — hier ist nichts weiter zu tun.
+
+**`handleUpdateExpense` — analog `handleUpdateBudget`:**
+
+```ts
+const handleUpdateExpense = async (
+  expenseId: string,
+  expenseInput: ExpenseDetailDialogState,
+) => {
+  const expense = {...transformInputToExpenseDomain(expenseInput), id: expenseId};
+
+  if (!checkExpenseInputdata(expense)) {
+    return;
+  }
+
+  try {
+    const updated = await database.expenses.updateExpense(expense, authUser!);
+    trackEvent(AnalyticsEvent.EXPENSE_UPDATED);
+    dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
+  } catch (error) {
+    handleError(error, "Ausgabe aktualisieren");
+  }
+};
+```
+
+**Budget wechseln beim Bearbeiten braucht keinen Sondercode.** `expenseTotals`, `budgetsWithProgress` und `expenseGroups` sind seit 2.3/2.4 abgeleiteter State
+(`useMemo` über `state.expenses`) — sobald `state.expenses` per `EXPENSE_UPDATED` die neue `budgetId` trägt, verschiebt sich die Summe beim nächsten Render automatisch vom alten aufs
+neue Budget. Das ist die Auszahlung von Entscheidung 1 (eine Datenquelle statt zweier), nicht etwas, das dieses Paket selbst bauen muss — **aber es muss getestet werden**, weil genau das
+die Stelle ist, an der eine künftige Abkürzung (z.B. Summen wieder einfrieren) am ehesten unbemerkt einreisst.
+
+**`handleDeleteExpense` — analog `handleDeleteBudget`, aber einfacher.** Ausgaben sind Blätter (Entscheidung 9: keine Fremdschlüssel-Einschränkung durch andere Tabellen) — die
+Budget-spezifische Vorab-Prüfung "hat noch Ausgaben" entfällt ersatzlos, ebenso der `isForeignKeyViolationError`-Sonderfall im `catch`:
+
+```ts
+/**
+ * Löscht eine Ausgabe nach Rückfrage.
+ *
+ * @param expense - Die zu löschende Ausgabe.
+ */
+const handleDeleteExpense = async (expense: ExpenseDomain) => {
+  const isConfirmed = await customDialog({
+    dialogType: DialogType.Confirm,
+    title: TEXT_DELETE_EXPENSE_DIALOG(expense.label, expense.amountInCents, expense.currency),
+    text: TEXT_DELETE_BUDGET_SIMPLE, // generischer Text, siehe unten
+    buttonTextCancel: TEXT_CANCEL,
+    buttonTextConfirm: TEXT_DELETE,
+  });
+  if (!isConfirmed) return;
+
+  try {
+    await database.expenses.deleteExpense(expense.id);
+    trackEvent(AnalyticsEvent.EXPENSE_DELETED);
+    dispatch({type: ReducerActions.EXPENSE_DELETED, payload: expense});
+  } catch (error) {
+    handleError(error, "Ausgabe löschen");
+  }
+
+  setExpenseDetailDialogProperties({expense: null, open: false});
+};
+```
+
+**`TEXT_DELETE_BUDGET_SIMPLE` bewusst wiederverwendet, nicht dupliziert** — der Text ("Diese Aktion kann nicht rückgängig gemacht werden.") ist inhaltlich generisch, nicht
+budget-spezifisch. Optional, nicht Teil dieses Pakets: in `DELETE_ACTION_IRREVERSIBLE` umbenennen und an beiden Stellen importieren, analog der `AMOUNT`/`CURRENCY`/`DATE`-
+Konsolidierung aus 2.5 — nur wenn es sich beim Schreiben natürlich ergibt. 
+**`DELETE_EXPENSE_DIALOG` zeigt Bezeichnung *und* Betrag**, anders als `DELETE_BUDGET_DIALOG` (nur der Name) — eine Ausgabe ohne Betrag im Bestätigungstext ist
+schwerer wiederzuerkennen als ein Budget, das nur einen Namen hat:
+
+```ts
+export const DELETE_EXPENSE_DIALOG = (
+  label: string,
+  amountInCents: number,
+  currency: string,
+): string =>
+  `Ausgabe «${label}» (${formatAmountFromCents(amountInCents, currency)}) löschen?`;
+```
+
+**Randfall «andere Sitzung hat die Ausgabe schon gelöscht» — nur beim Bearbeiten relevant, nicht beim Löschen selbst.** `BaseRepository.update()` endet auf `.select().single()`; trifft
+das Update keine Zeile mehr, wirft Supabase (`PGRST116`, "no rows returned") — das reicht bereits bis zu `handleError` durch, **kein neuer Code nötig**, nur ein Test, der das beweist.
+Beim Löschen ist die Lage anders: `BaseRepository.remove()` nutzt kein `.single()` — ein `delete().eq(id)` auf eine bereits gelöschte Zeile trifft null Zeilen und **wirft nicht**.
+Das ist hier unproblematisch (der gewünschte Endzustand — «Ausgabe existiert nicht mehr» — ist so oder so erreicht) und braucht keine Behandlung.
+
+**Tests** (analog 1.5, für `expenseTracking.test.tsx`)
+
+- Klick auf eine Zeile öffnet den Dialog mit den Werten der Ausgabe (Bezeichnung, Betrag,   Währung, Budget, Datum, Kommentar).
+- `updateExpense`-Payload: geänderte Felder korrekt, inkl. Budget-Wechsel. 
+- **Budget-Wechsel verschiebt die Summe zwischen den Karten:** Ausgabe von Budget A nach Budget B verschieben, in der Übersicht prüfen, dass Karte A kleiner und Karte B grösser
+  wird (zwei `within(card)`-Prüfungen, ein Test — das ist der eigentliche Beweis für die "kein Sondercode nötig"-Aussage oben).
+- Löschen mit Bestätigung entfernt die Zeile aus der Liste **und** aus der Kartensumme; Abbruch lässt beides unverändert.
+- Fehlerfälle: `updateExpense` und `deleteExpense` lehnen ab → Fehlermeldung, State bleibt wie vorher (Muster aus 2.5s Fehlerfall-Test).
+- **Randfall:** `updateExpense` wirft `{code: "PGRST116", message: "..."}` (Ausgabe von anderer Sitzung bereits gelöscht) → Fehlermeldung erscheint, kein stilles Nichts.
+- **Mutationsprobe** (Checkliste aus 1.5): `handleEditExpense`/`handleUpdateExpense` vertauschen oder eine der beiden auf die alte Stub-Funktion zurückfallen lassen → die Zeilen-Klick- bzw. die Speichern-Tests müssen rot werden, nicht beide gleichzeitig grün bleiben (das wäre das Zeichen, dass die Trennung von oben nicht wirklich geprüft wird).
+
+**Zum Ansehen im Browser** (DEV, nie PROD): bestehende Ausgabe anklicken → Dialog zeigt die richtigen Werte; Budget wechseln und speichern → Summe wandert sichtbar zur anderen Karte;
+Löschen mit Bestätigung und mit Abbruch. **Mobile prüfen** (Dialog auf xs, wie immer).
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `handleEditExpense` und `handleUpdateExpense` sind zwei getrennte
+Funktionen mit je einem eigenen, bestehenden Test, der bei Vertauschen rot wird; `ExpenseList`s `handleEditClick` zeigt weiterhin auf `handleEditExpense`, `ExpenseDetailDialog`s
+`onEdit` auf `handleUpdateExpense`.
 
 ### **Paket 2.7 — Realtime für Ausgaben**
 

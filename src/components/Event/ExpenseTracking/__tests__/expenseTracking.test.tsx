@@ -27,13 +27,14 @@ import {AuthUserContext} from "../../../Session/authUserContext";
 import AuthUser from "../../../Session/authUser.class";
 import {BudgetType, BudgetIcon} from "../budget.types";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
-import {budget as mockBudget} from "../__mocks__/budget.mock";
+import {budget2, budget as mockBudget} from "../__mocks__/budget.mock";
 import {expense as mockExpense} from "../__mocks__/expense.mock";
 import {REALTIME_RECONNECTING as TEXT_REALTIME_RECONNECTING} from "../../../../constants/text";
 import {
   NEW_BUDGET as TEXT_NEW_BUDGET,
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
   DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
+  DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
 } from "../../../../constants/text/expenseTracking";
 import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
@@ -65,6 +66,7 @@ const normalizer = getDefaultNormalizer();
 
 /** Ein bestehendes Budget, wie es die Datenbank liefert. */
 const kitchenBudget = {...mockBudget, id: "budget-001", name: "Küche"};
+const mottoBudget = {...budget2, id: "budget-002", name: "Motto"};
 
 /** Testdaten: Ein Event mit einem Koch und einer Datumsperiode. */
 const mockEvent = {
@@ -123,6 +125,8 @@ const mockDatabase = {
       },
     ]),
     createExpense: jest.fn(),
+    updateExpense: jest.fn(),
+    deleteExpense: jest.fn(),
   },
 } as any;
 const mockAuthUser = new AuthUser();
@@ -159,6 +163,12 @@ beforeEach(() => {
   mockDatabase.donations.getEventDonations.mockReset().mockResolvedValue([]);
   mockDatabase.budgets.getBudgetsForEvent.mockReset().mockResolvedValue([]);
   mockDatabase.expenses.getExpensesForEvent.mockReset().mockResolvedValue([]);
+  // Auch die Schreib-Mocks zurücksetzen: sonst überlebt ein in einem Test
+  // gesetzter, aber nie konsumierter `...Once`-Wert (z.B. weil der Löschen-
+  // Dialog abgebrochen wurde) bis in den nächsten Test hinein.
+  mockDatabase.expenses.createExpense.mockReset();
+  mockDatabase.expenses.updateExpense.mockReset();
+  mockDatabase.expenses.deleteExpense.mockReset();
   mockCustomDialog.mockReset();
 });
 
@@ -708,277 +718,706 @@ describe("EventExpenseTrackingPage: Budget bearbeiten und löschen", () => {
     expect(await screen.findByRole("alert")).toBeInTheDocument();
     expect(screen.getByTestId("budget-001")).toBeInTheDocument();
   });
-  /* ------------------------------------------
-  // Ausgaben
-  // ------------------------------------------ */
-  describe("Ausgaben", () => {
-    test("Neue Ausgabe deaktiviert, wenn kein Budget vorhanden", async () => {
-      mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
-      mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([]);
-      renderEventExpenseTrackingPage();
-      expect(
-        await screen.findByTestId("expense-tracking-unlocked"),
-      ).toBeInTheDocument();
+});
+/* =====================================================================
+// Ausgaben bearbeiten und löschen
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgaben bearbeiten und löschen", () => {
+  test("Neue Ausgabe deaktiviert, wenn kein Budget vorhanden", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([]);
+    renderEventExpenseTrackingPage();
+    expect(
+      await screen.findByTestId("expense-tracking-unlocked"),
+    ).toBeInTheDocument();
 
-      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
 
-      expect(
-        await screen.findByTestId("expense-tracking-expenses-list"),
-      ).toBeInTheDocument();
-      expect(screen.getByRole("button", {name: "Neue Ausgabe"})).toBeDisabled();
+    expect(
+      await screen.findByTestId("expense-tracking-expenses-list"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Neue Ausgabe"})).toBeDisabled();
+  });
+  test("Neue Ausgabe aktiviert, sobald ein Budget vorhanden ist", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    expect(screen.getByRole("button", {name: "Neue Ausgabe"})).toBeEnabled();
+  });
+  test("Neue Ausgabe aktualisiert Liste und Fortschrittsbalken der Karte", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+
+    const newExpense = {
+      ...mockExpense,
+      id: "expense-new-1",
+      budgetId: kitchenBudget.id,
+      label: "Coop",
+      amountInCents: 1780,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: newExpense.id,
+      value: newExpense,
     });
-
-    test("Neue Ausgabe aktiviert, sobald ein Budget vorhanden ist", async () => {
-      mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
-      mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
-        kitchenBudget,
-      ]);
-      renderEventExpenseTrackingPage();
-      await screen.findByTestId("expense-tracking-unlocked");
-
-      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
-      await screen.findByTestId("expense-tracking-expenses-list");
-
-      expect(screen.getByRole("button", {name: "Neue Ausgabe"})).toBeEnabled();
-    });
-    test("Neue Ausgabe aktualisiert Liste und Fortschrittsbalken der Karte", async () => {
-      mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
-      mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
-        kitchenBudget,
-      ]);
-
-      const newExpense = {
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
         ...mockExpense,
-        id: "expense-new-1",
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    // Neue Zeile: eigener Betrag, gescoped auf ihre eigene Zeile
+    const newRow = await screen.findByTestId(`expense-${newExpense.id}`);
+    expect(
+      within(newRow).getByText(normalizer(formatAmountFromCents(1780, "CHF"))),
+    ).toBeInTheDocument();
+
+    // Gruppenkopf: Summe aus bestehender + neuer Ausgabe, gescoped auf den Kopf
+    const groupHeader = screen.getByTestId(
+      `budget-subheader-${kitchenBudget.id}`,
+    );
+    expect(
+      within(groupHeader).getByText(
+        normalizer(formatAmountFromCents(2280, "CHF")),
+      ),
+    ).toBeInTheDocument();
+
+    // Dialog schliesst mit Fade-Transition — erst warten, bis er wirklich
+    // weg ist, sonst ist der Rest der Seite noch aria-hidden.
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+    const card = await screen.findByTestId(kitchenBudget.id);
+    expect(
+      within(card).getByText(normalizer(formatAmountFromCents(2280, "CHF"))),
+    ).toBeInTheDocument();
+  });
+  test("Fehlerfall beim Speichern zeigt eine Fehlermeldung, State bleibt unverändert", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.createExpense.mockRejectedValueOnce(
+      new Error("Speichern fehlgeschlagen"),
+    );
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    // Kein neuer Eintrag: Liste zeigt weiterhin nur die bestehende Ausgabe
+    expect(screen.queryByText("Coop")).not.toBeInTheDocument();
+    const groupHeader = screen.getByTestId(
+      `budget-subheader-${kitchenBudget.id}`,
+    );
+    expect(
+      within(groupHeader).getByText(
+        normalizer(formatAmountFromCents(500, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+  test("Platzhalter für die zahlende Instanz werden beim Anlegen mitgeschickt", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-2",
+      value: {
+        ...mockExpense,
+        id: "expense-new-2",
         budgetId: kitchenBudget.id,
         label: "Coop",
         amountInCents: 1780,
         currency: "CHF",
-      };
-      mockDatabase.expenses.createExpense.mockResolvedValueOnce({
-        id: newExpense.id,
-        value: newExpense,
-      });
-      mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
-        {
-          ...mockExpense,
-          id: "expense-existing-1",
-          budgetId: kitchenBudget.id,
-          label: "Migros",
-          amountInCents: 500,
-          currency: "CHF",
-        },
-      ]);
-
-      renderEventExpenseTrackingPage();
-      await screen.findByTestId("expense-tracking-unlocked");
-
-      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
-      await screen.findByTestId("expense-tracking-expenses-list");
-
-      fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
-
-      fireEvent.change(screen.getByLabelText("Bezeichnung"), {
-        target: {value: "Coop"},
-      });
-      fireEvent.change(screen.getByLabelText("Betrag"), {
-        target: {value: "17.80"},
-      });
-
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
-      fireEvent.click(screen.getByRole("option", {name: "CHF"}));
-
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
-      fireEvent.click(screen.getByRole("option", {name: "Küche"}));
-
-      fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
-
-      // Neue Zeile: eigener Betrag, gescoped auf ihre eigene Zeile
-      const newRow = await screen.findByTestId(`expense-${newExpense.id}`);
-      expect(
-        within(newRow).getByText(
-          normalizer(formatAmountFromCents(1780, "CHF")),
-        ),
-      ).toBeInTheDocument();
-
-      // Gruppenkopf: Summe aus bestehender + neuer Ausgabe, gescoped auf den Kopf
-      const groupHeader = screen.getByTestId(
-        `budget-subheader-${kitchenBudget.id}`,
-      );
-      expect(
-        within(groupHeader).getByText(
-          normalizer(formatAmountFromCents(2280, "CHF")),
-        ),
-      ).toBeInTheDocument();
-
-      // Dialog schliesst mit Fade-Transition — erst warten, bis er wirklich
-      // weg ist, sonst ist der Rest der Seite noch aria-hidden.
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-      );
-
-      // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
-      fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
-      const card = await screen.findByTestId(kitchenBudget.id);
-      expect(
-        within(card).getByText(normalizer(formatAmountFromCents(2280, "CHF"))),
-      ).toBeInTheDocument();
+      },
     });
 
-    test("Fehlerfall beim Speichern zeigt eine Fehlermeldung, State bleibt unverändert", async () => {
-      mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
-      mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
-        kitchenBudget,
-      ]);
-      mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
-        {
-          ...mockExpense,
-          id: "expense-existing-1",
-          budgetId: kitchenBudget.id,
-          label: "Migros",
-          amountInCents: 500,
-          currency: "CHF",
-        },
-      ]);
-      mockDatabase.expenses.createExpense.mockRejectedValueOnce(
-        new Error("Speichern fehlgeschlagen"),
-      );
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
 
-      renderEventExpenseTrackingPage();
-      await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
 
-      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
-      await screen.findByTestId("expense-tracking-expenses-list");
-
-      fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
-      fireEvent.change(screen.getByLabelText("Bezeichnung"), {
-        target: {value: "Coop"},
-      });
-      fireEvent.change(screen.getByLabelText("Betrag"), {
-        target: {value: "17.80"},
-      });
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
-      fireEvent.click(screen.getByRole("option", {name: "CHF"}));
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
-      fireEvent.click(screen.getByRole("option", {name: "Küche"}));
-      fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
-
-      expect(await screen.findByRole("alert")).toBeInTheDocument();
-
-      // Kein neuer Eintrag: Liste zeigt weiterhin nur die bestehende Ausgabe
-      expect(screen.queryByText("Coop")).not.toBeInTheDocument();
-      const groupHeader = screen.getByTestId(
-        `budget-subheader-${kitchenBudget.id}`,
-      );
-      expect(
-        within(groupHeader).getByText(normalizer(formatAmountFromCents(500, "CHF"))),
-      ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
     });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
 
-    test("Platzhalter für die zahlende Instanz werden beim Anlegen mitgeschickt", async () => {
-      mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
-      mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
-        kitchenBudget,
-      ]);
-      mockDatabase.expenses.createExpense.mockResolvedValueOnce({
-        id: "expense-new-2",
-        value: {
-          ...mockExpense,
-          id: "expense-new-2",
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
           budgetId: kitchenBudget.id,
           label: "Coop",
           amountInCents: 1780,
           currency: "CHF",
-        },
-      });
-
-      renderEventExpenseTrackingPage();
-      await screen.findByTestId("expense-tracking-unlocked");
-
-      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
-      await screen.findByTestId("expense-tracking-expenses-list");
-
-      fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
-      fireEvent.change(screen.getByLabelText("Bezeichnung"), {
-        target: {value: "Coop"},
-      });
-      fireEvent.change(screen.getByLabelText("Betrag"), {
-        target: {value: "17.80"},
-      });
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
-      fireEvent.click(screen.getByRole("option", {name: "CHF"}));
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
-      fireEvent.click(screen.getByRole("option", {name: "Küche"}));
-      fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
-
-      await waitFor(() =>
-        expect(mockDatabase.expenses.createExpense).toHaveBeenCalledWith(
-          expect.objectContaining({
-            budgetId: kitchenBudget.id,
-            label: "Coop",
-            amountInCents: 1780,
-            currency: "CHF",
-            payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
-            payeeUserId: null,
-            payeeName: null,
-          }),
-          mockAuthUser,
-        ),
-      );
-    });
-
-    test("Budget-Auswahl merkt sich beim nächsten Anlegen das zuletzt verwendete Budget", async () => {
-      const mottoBudget = {...mockBudget, id: "budget-002", name: "Motto"};
-      mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
-      mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
-        kitchenBudget,
-        mottoBudget,
-      ]);
-      mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+          payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+          payeeUserId: null,
+          payeeName: null,
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+  test("Budget-Auswahl merkt sich beim nächsten Anlegen das zuletzt verwendete Budget", async () => {
+    const mottoBudget = {...mockBudget, id: "budget-002", name: "Motto"};
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-3",
+      value: {
+        ...mockExpense,
         id: "expense-new-3",
-        value: {
-          ...mockExpense,
-          id: "expense-new-3",
-          budgetId: mottoBudget.id,
-          label: "Deko",
-          amountInCents: 2500,
-          currency: "CHF",
-        },
-      });
-
-      renderEventExpenseTrackingPage();
-      await screen.findByTestId("expense-tracking-unlocked");
-
-      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
-      await screen.findByTestId("expense-tracking-expenses-list");
-
-      // Erste Ausgabe: bewusst NICHT das erste Budget der Liste wählen
-      fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
-      fireEvent.change(screen.getByLabelText("Bezeichnung"), {
-        target: {value: "Deko"},
-      });
-      fireEvent.change(screen.getByLabelText("Betrag"), {
-        target: {value: "25.00"},
-      });
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
-      fireEvent.click(screen.getByRole("option", {name: "CHF"}));
-      fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
-      fireEvent.click(screen.getByRole("option", {name: "Motto"}));
-      fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
-
-      await waitFor(() =>
-        expect(mockDatabase.expenses.createExpense).toHaveBeenCalled(),
-      );
-      await waitFor(() =>
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-      );
-
-      // Zweite Ausgabe: Budget-Auswahl soll bereits "Motto" zeigen, nicht
-      // "Küche" (das erste Budget in der Liste)
-      fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
-      expect(
-        screen.getByRole("combobox", {name: "Budget"}),
-      ).toHaveTextContent("Motto");
+        budgetId: mottoBudget.id,
+        label: "Deko",
+        amountInCents: 2500,
+        currency: "CHF",
+      },
     });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    // Erste Ausgabe: bewusst NICHT das erste Budget der Liste wählen
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Deko"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "25.00"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Motto"}));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalled(),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    // Zweite Ausgabe: Budget-Auswahl soll bereits "Motto" zeigen, nicht
+    // "Küche" (das erste Budget in der Liste)
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    expect(screen.getByRole("combobox", {name: "Budget"})).toHaveTextContent(
+      "Motto",
+    );
+  });
+  test("Klick auf eine Zeile öffnet den Dialog mit den Werten der Ausgabe", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Bezeichnung")).toHaveValue("Migros");
+    expect(within(dialog).getByLabelText("Betrag")).toHaveValue("5.00");
+    expect(
+      within(dialog).getByRole("button", {name: "Löschen"}),
+    ).toBeInTheDocument();
+  });
+  test("Änderung einer Ausgabe", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-3",
+        budgetId: mottoBudget.id,
+        label: "Bau und Hobby",
+        amountInCents: 3300,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: mottoBudget.id,
+      label: "Coop",
+      amountInCents: 770,
+      currency: "CHF",
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+
+    const dialog = await screen.findByRole("dialog");
+
+    // Wert, Budget und Bezeichnung ändern
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "7.70"},
+    });
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Motto"}));
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "expense-existing-1",
+          eventId: "evt-1",
+          budgetId: "budget-002",
+          amountInCents: 770,
+          currency: "CHF",
+          label: "Coop",
+          comment: "Vorweekend",
+        }),
+        mockAuthUser,
+      ),
+    );
+
+    expect(
+      await within(screen.getByTestId("expense-expense-existing-1")).findByText(
+        "Coop",
+      ),
+    ).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(kitchenBudget.id)).getByText(
+          normalizer(formatAmountFromCents(2500, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(mottoBudget.id)).getByText(
+          normalizer(formatAmountFromCents(4070, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+  test("Änderung der Ausgabe, wird auf Budgetkarte wiederspiegelt", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 1595,
+      currency: "CHF",
+    });
+
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "15.95"},
+    });
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("expense-expense-existing-1")).getByText(
+          normalizer(formatAmountFromCents(1595, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(kitchenBudget.id)).getByText(
+          normalizer(formatAmountFromCents(4095, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+  /* ------------------------------------------
+  // Löschen
+  // ------------------------------------------ */
+
+  test("nach Bestätigung wird die Ausgabe gelöscht, der Listeneintrag entfernt und die Budgetkarte aktualisiert", async () => {
+    mockCustomDialog.mockResolvedValue(true); // Nutzer:in bestätigt
+    mockDatabase.expenses.deleteExpense.mockResolvedValueOnce(undefined);
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 1600,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.deleteExpense).toHaveBeenCalledWith(
+        "expense-existing-1",
+      ),
+    );
+    expect(mockCustomDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: TEXT_DELETE_EXPENSE_DIALOG("Migros", 500, "CHF"),
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("expense-expense-existing-1"),
+      ).not.toBeInTheDocument(),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(kitchenBudget.id)).getByText(
+          normalizer(formatAmountFromCents(1600, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  test("bei Abbruch bleibt die Ausgabe bestehen", async () => {
+    mockCustomDialog.mockResolvedValue(false); // Nutzer:in bricht ab
+
+    mockDatabase.expenses.deleteExpense.mockResolvedValueOnce(undefined);
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 1600,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    await waitFor(() => expect(mockCustomDialog).toHaveBeenCalledTimes(1));
+    expect(mockDatabase.expenses.deleteExpense).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+  });
+  test("Fehlerfall beim Bearbeiten zeigt eine Fehlermeldung, State bleibt unverändert", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.updateExpense.mockRejectedValueOnce(
+      new Error("Speichern fehlgeschlagen"),
+    );
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    // State blieb unverändert: Zeile zeigt weiterhin die alte Bezeichnung
+    expect(
+      within(screen.getByTestId("expense-expense-existing-1")).getByText(
+        "Migros",
+      ),
+    ).toBeInTheDocument();
+  });
+  test("Fehlerfall beim Löschen zeigt eine Fehlermeldung, die Ausgabe bleibt bestehen", async () => {
+    mockCustomDialog.mockResolvedValue(true); // Nutzer:in bestätigt
+    mockDatabase.expenses.deleteExpense.mockRejectedValueOnce(
+      new Error("Löschen fehlgeschlagen"),
+    );
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+  });
+  test("Randfall: Ausgabe wurde von anderer Sitzung bereits gelöscht", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.updateExpense.mockRejectedValueOnce({
+      code: "PGRST116",
+      message: "JSON object requested, multiple (or no) rows returned",
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
   });
 });

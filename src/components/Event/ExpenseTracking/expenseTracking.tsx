@@ -40,6 +40,7 @@ import {
   DELETE as TEXT_DELETE,
   OK as TEXT_OK,
   PLEASE_CREATE_BUDGET_FIRST as TEXT_PLEASE_CREATE_BUDGET_FIRST,
+  DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
 } from "../../../constants/text";
 
 import {
@@ -284,17 +285,19 @@ const EventExpenseTrackingPage = ({
       open: true,
     });
   };
+  /** Öffnet den Dialog im Anlegen-Modus (ohne vorhandene Ausgabe). */
   const handleOpenCreateExpenseDialog = () => {
     setExpenseDetailDialogProperties({expense: null, open: true});
   };
   /**
-   * Öffnet den Bearbeiten-Dialog für eine Ausgabe. Noch ohne Wirkung —
-   * wird in Paket 2.6 mit dem Ausgaben-Dialog verdrahtet.
+   * Öffnet den Bearbeiten-Dialog für eine Ausgabe.
    *
-   * @param _expenseId - ID der angeklickten Ausgabe (noch ungenutzt).
+   * @param expenseId - ID der angeklickten Ausgabe.
    */
-  const handleEditExpense = (_expenseId: string) => {
-    return;
+  const handleEditExpense = (expenseId: string) => {
+    const expense =
+      state.expenses?.find((expense) => expense.id === expenseId) ?? null;
+    setExpenseDetailDialogProperties({expense, open: true});
   };
   /**
    * Validiert ein Budget vor dem Speichern und zeigt Fehler an.
@@ -404,6 +407,32 @@ const EventExpenseTrackingPage = ({
     }
   };
   /**
+   * Speichert Änderungen an einer bestehenden Ausgabe.
+   *
+   * @param expenseId - ID der bearbeiteten Ausgabe.
+   * @param expenseInput - Neue Eingaben aus dem Dialog.
+   */
+  const handleUpdateExpense = async (
+    expenseId: string,
+    expenseInput: ExpenseDetailDialogState,
+  ) => {
+    const expense = {
+      ...transformInputToExpenseDomain(expenseInput),
+      id: expenseId,
+    };
+    if (!checkExpenseInputdata(expense)) {
+      return;
+    }
+
+    try {
+      const updated = await database.expenses.updateExpense(expense, authUser!);
+      trackEvent(AnalyticsEvent.EXPENSE_UPDATED);
+      dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
+    } catch (error) {
+      handleError(error, "Ausgabe aktualisieren");
+    }
+  };
+  /**
    * Löscht ein Budget nach Rückfrage. Budgets mit Ausgaben können nicht
    * gelöscht werden (FK `event_expenses.budget_id` ist `ON DELETE RESTRICT`).
    *
@@ -451,12 +480,34 @@ const EventExpenseTrackingPage = ({
     setBudgetDetailDialogProperties({budget: null, open: false});
   };
   /**
-   * Löscht eine Ausgabe nach Rückfrage. Noch ohne Wirkung — wird in Paket
-   * 2.6 mit dem Ausgaben-Dialog verdrahtet.
+   * Löscht eine Ausgabe nach Rückfrage.
    *
-   * @param _expense - Die zu löschende Ausgabe (noch ungenutzt).
+   * @param expense - Die zu löschende Ausgabe.
    */
-  const handleDeleteExpense = async (_expense: ExpenseDomain) => {};
+  const handleDeleteExpense = async (expense: ExpenseDomain) => {
+    const isConfirmed = await customDialog({
+      dialogType: DialogType.Confirm,
+      title: TEXT_DELETE_EXPENSE_DIALOG(
+        expense.label,
+        expense.amountInCents,
+        expense.currency,
+      ),
+      text: TEXT_DELETE_BUDGET_SIMPLE,
+      buttonTextCancel: TEXT_CANCEL,
+      buttonTextConfirm: TEXT_DELETE,
+    });
+    if (!isConfirmed) return;
+
+    try {
+      await database.expenses.deleteExpense(expense.id);
+      trackEvent(AnalyticsEvent.EXPENSE_DELETED);
+      dispatch({type: ReducerActions.EXPENSE_DELETED, payload: expense});
+    } catch (error) {
+      handleError(error, "Ausgabe löschen");
+    }
+
+    setExpenseDetailDialogProperties({expense: null, open: false});
+  };
   /**
    * Öffnet den Dialog im Bearbeiten-Modus für das angeklickte Budget.
    *
@@ -646,7 +697,7 @@ const EventExpenseTrackingPage = ({
         budgets={state.budgets ?? []}
         defaultBudgetId={defaultBudgetId}
         onCreate={handleCreateExpense}
-        onEdit={handleEditExpense}
+        onEdit={handleUpdateExpense}
         onDelete={handleDeleteExpense}
         onClose={() =>
           setExpenseDetailDialogProperties({
