@@ -24,6 +24,11 @@ import {
 } from "../../constants/text";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../utils/errorUtils";
 
 // Lazy Loading
 const RecipeEdit = lazy(() =>
@@ -319,7 +324,13 @@ export const RecipePage = () => {
             });
           })
           .catch((error) => {
-            Sentry.captureException(error, {extra: {context: "RecipePage: Rezept laden fehlgeschlagen"}});
+            // Netzaussetzer (z.B. postgrest-Wrapper eines fehlgeschlagenen
+            // fetch()) und abgelaufene Sitzungen nur anzeigen, nicht melden
+            if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+              Sentry.captureException(toError(error), {
+                extra: {context: "RecipePage: Rezept laden fehlgeschlagen"},
+              });
+            }
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
               payload: error,
@@ -380,7 +391,11 @@ export const RecipePage = () => {
     });
   };
   const onError = (error: Error) => {
-    Sentry.captureException(error, {extra: {context: "RecipePage: Fehler in Unterkomponente"}});
+    if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+      Sentry.captureException(error, {
+        extra: {context: "RecipePage: Fehler in Unterkomponente"},
+      });
+    }
     dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
   };
 
