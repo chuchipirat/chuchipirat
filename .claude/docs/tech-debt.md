@@ -89,6 +89,9 @@ _(Claude Code: append entries here when you encounter `console.log` / `console.e
 - **Gleiche Doppelmeldung, aber component-seitig in `event.tsx`** (entdeckt 2026-09-18 bei CHUCHIPIRAT-HE) — ca. 10 der ~20 `dispatch(GENERIC_ERROR)`-Aufrufstellen rufen direkt davor bereits selbst `Sentry.captureException(error)` auf (z.B. Zeilen ~1081, ~1132, ~1213, ~1262, ~1484, ~1551, ~1610, ~1722, ~1856, ~2183) — der zentrale `GENERIC_ERROR`-Reducer-Fall (Zeile ~820) meldet danach **denselben** Fehler ein zweites Mal. Der Reducer-Fall selbst filtert seit CHUCHIPIRAT-HE bereits `isTransientNetworkError`/`isMissingSessionError`/`FieldValidationError` heraus — für alle anderen (echten) Fehler bleibt die Doppelmeldung aber bestehen. Nicht in diesem Zug behoben, da >10 Stellen in der grössten/kritischsten Datei der App und pro Stelle geprüft werden muss, ob der individuelle `Sentry.captureException`-Aufruf zusätzlichen Kontext (`extra: {...}`) trägt, der beim Entfernen verloren ginge (dann müsste dieser Kontext stattdessen in den `GENERIC_ERROR`-Payload wandern statt die Stelle einfach zu löschen).
   **Priorität:** tief · **Komplexität:** mittel
 
+- **Unbehandelte Promise-Rejections per Lint verhindern** (2026-09-28, CHUCHIPIRAT-FV) — Ein einmaliger Sweep mit `@typescript-eslint/no-floating-promises` + `no-misused-promises` (typed linting) fand 233 Treffer, davon 7 echte Lücken (alle behoben) und 2 theoretische (`authUserContext.tsx` `getSession().then` ohne catch — rejected nur beim bereits ignorierten Web-Locks-Timeout; `event.tsx` `onEventSaveChanges` wirft Nicht-Validierungsfehler aus einer synchronen Prüfung weiter). Die übrigen sind Fehlalarme: v.a. 68× `navigate()` (react-router v7 typisiert es als `void | Promise<void>`, unter `BrowserRouter` aber synchron), `await customDialog()` (rejected nie), `removeChannel()` (resolved immer), async-Handler mit vollständigem try/catch. Damit neue Lücken nicht wieder als nicht lokalisierbare UnhandledRejection in Sentry landen: beide Regeln dauerhaft aktivieren (`parserOptions.project` nötig; `navigate`-Aufrufe mit `void` markieren oder per Regel-Option ausnehmen).
+  **Priorität:** mittel · **Komplexität:** mittel
+
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_
@@ -156,6 +159,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 - **`any`-Typ in Testdateien** — Folgende Testdateien verwenden `any` statt typisierter Mocks: `eventUsedRecipes.test.tsx`, `usedRecipesPdf.test.tsx`, `menuplan.menucard.test.ts`, `menuplanPdf.test.tsx`, `eventInfo.test.tsx`. Mit `unknown` und Type-Narrowing oder korrekt typisierten Mocks ersetzen.
   **Priorität:** tief · **Komplexität:** klein
+
+- **`tsconfig.json` prüft keine eigenständigen `.tsx`-Dateien** (entdeckt 2026-09-28 bei CHUCHIPIRAT-FV) — `"include": ["./src/**/*.ts"]` nimmt `.tsx` nur transitiv mit, wenn sie aus einer `.ts`-Datei importiert werden. 26 Dateien (u.a. `App.tsx`, `AppRoutes.tsx`, `NavigationBar.tsx`, `navigation.tsx`, `customDialog.tsx`, `dialogs/*`) werden von `npx tsc --noEmit` daher **nicht** typgeprüft. Fix: `"include": ["./src/**/*.ts", "./src/**/*.tsx"]` — vorher prüfen, wie viele Fehler dann auftauchen.
+  **Priorität:** mittel · **Komplexität:** klein
 
 ## UX/UI Improvements
 

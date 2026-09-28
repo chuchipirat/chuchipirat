@@ -1498,9 +1498,20 @@ const EventPage = () => {
 
           const ml = headersDomainToMaterialList(headers, eventUid);
 
-          for (const header of headers) {
-            const items = await database.materialLists.getListItems(header.id);
-            ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
+          // subscribeToLists ruft diesen Callback ohne await auf — ein Fehler
+          // beim Nachladen muss hier abgefangen werden, sonst landet er als
+          // UnhandledRejection in Sentry (CHUCHIPIRAT-FV). Kein Fehlerdialog:
+          // Hintergrund-Reload, der nächste Realtime-Event lädt erneut.
+          try {
+            for (const header of headers) {
+              const items = await database.materialLists.getListItems(header.id);
+              ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
+            }
+          } catch (error) {
+            captureUnexpectedError(error, {
+              context: "Realtime materiallists reload",
+            });
+            return;
           }
 
           materialListRef.current = structuredClone(ml);

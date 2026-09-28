@@ -25,6 +25,7 @@ import {
   SIGN_IN as TEXT_SIGN_IN,
 } from "../../constants/text";
 import {User} from "../User/user.class";
+import {captureUnexpectedError} from "../../utils/errorUtils";
 
 import {AlertMessage} from "../Shared/AlertMessage";
 import DatabaseService from "../Database/DatabaseService";
@@ -188,10 +189,15 @@ const DialogReauthenticate = ({
 
     // Login in eigener Sammlung registrieren
     if (authUser) {
+      // Fire-and-forget — ein Fehler darf die Reauthentifizierung nicht
+      // blockieren, muss aber abgefangen werden (sonst UnhandledRejection,
+      // CHUCHIPIRAT-FV).
       User.registerSignIn({
         database: database,
         authUser: authUser,
-      });
+      }).catch((error) =>
+        captureUnexpectedError(error, {context: "Anmeldung registrieren"}),
+      );
     }
 
     handleOk();

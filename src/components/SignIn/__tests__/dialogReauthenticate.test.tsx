@@ -33,7 +33,8 @@ const mockDatabase = {
 jest.mock("../../User/user.class", () => ({
   __esModule: true,
   User: {
-    registerSignIn: jest.fn(),
+    // Echte Methode ist async → gibt immer eine Promise zurück
+    registerSignIn: jest.fn().mockResolvedValue(undefined),
   },
 }));
 

@@ -9,6 +9,7 @@ import {Role} from "../../constants/roles";
 import {useGlobalSettings} from "./globalSettingsContext";
 import {isUuid} from "../../utils/uuid";
 import {
+  captureUnexpectedError,
   isMissingSessionError,
   isTransientNetworkError,
   toError,
@@ -273,9 +274,18 @@ export const AuthorizationGuard: React.FC<AuthorizationGuardProps> = ({
         // Wenn Session vorhanden, warten bis AuthUserProvider den authUser setzt.
       });
     } else if (blockedByMaintenance) {
-      database.auth.signOut().then(() => {
-        navigate(ROUTE_SIGN_IN);
-      });
+      database.auth
+        .signOut()
+        .then(() => {
+          navigate(ROUTE_SIGN_IN);
+        })
+        // Offline schlägt das Abmelden fehl und die Sitzung bleibt bestehen —
+        // nicht zur Anmeldung navigieren; der Inhalt bleibt ohnehin
+        // ausgeblendet (blockedByMaintenance). Ohne catch: UnhandledRejection
+        // (CHUCHIPIRAT-FV).
+        .catch((error) =>
+          captureUnexpectedError(error, {context: "Wartungsmodus-Abmeldung"}),
+        );
     } else if (!condition(authUser)) {
       navigate(ROUTE_NO_AUTH);
     }
