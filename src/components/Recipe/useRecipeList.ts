@@ -13,7 +13,7 @@
  *   Suche ist sofort da).
  */
 import React from "react";
-import * as Sentry from "@sentry/react";
+import {captureUnexpectedError, toError} from "../../utils/errorUtils";
 
 import {useDatabase} from "../Database/DatabaseContext";
 import {
@@ -338,12 +338,8 @@ export const useRecipeList = ({
       .catch((caughtError) => {
         // Abgebrochene (veraltete) Anfragen sind kein Fehler
         if (controller.signal.aborted) return;
-        Sentry.captureException(caughtError);
-        dispatch({
-          type: "FIRST_ERROR",
-          key: fetchKey,
-          error: caughtError instanceof Error ? caughtError : new Error(String(caughtError)),
-        });
+        captureUnexpectedError(caughtError, {context: "Rezeptliste laden"});
+        dispatch({type: "FIRST_ERROR", key: fetchKey, error: toError(caughtError)});
       });
     return () => controller.abort();
   }, [fetchKey, reloadToken, enabled, database, pageSize]);
@@ -365,12 +361,8 @@ export const useRecipeList = ({
       })
       .then((page) => dispatch({type: "MORE_SUCCESS", key, page}))
       .catch((caughtError) => {
-        Sentry.captureException(caughtError);
-        dispatch({
-          type: "MORE_ERROR",
-          key,
-          error: caughtError instanceof Error ? caughtError : new Error(String(caughtError)),
-        });
+        captureUnexpectedError(caughtError, {context: "Rezeptliste nachladen"});
+        dispatch({type: "MORE_ERROR", key, error: toError(caughtError)});
       });
   }, [database, pageSize]);
 
