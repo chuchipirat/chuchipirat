@@ -129,6 +129,12 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     gap: theme.spacing(1),
     backgroundColor: theme.palette.background.paper,
   },
+  // Nur bei Gruppenköpfen ab der zweiten Gruppe: grenzt sie sichtbar von der
+  // letzten Zeile der vorherigen Gruppe ab (sonst wirkt der Übergang wie
+  // eine gewöhnliche weitere Zeile statt einer neuen Budget-Gruppe).
+  expenseGroupHeaderSpacing: {
+    marginTop: theme.spacing(4),
+  },
   expenseGroupHeaderName: {
     display: "flex",
     alignItems: "center",

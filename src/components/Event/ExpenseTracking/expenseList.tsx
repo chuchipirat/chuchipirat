@@ -46,30 +46,28 @@ export const ExpenseList = ({
   handleEditClick,
 }: ExpenseListProps) => {
   const classes = useCustomStyles();
-  const hasAnyExpense = expenseGroups.some(
+  const groupsWithExpenses = expenseGroups.filter(
     (group) => group.expenses.length > 0,
   );
   return (
     <List data-testid="expense-tracking-expenses-list">
-      {!hasAnyExpense ? (
+      {groupsWithExpenses.length === 0 ? (
         <Typography sx={classes.noExpensesHint}>
           {TEXT_NO_EXPENSES_YET}
         </Typography>
       ) : (
-        expenseGroups.map((group) =>
-          group.expenses.length === 0 ? null : (
-            <React.Fragment key={"expense_budget_" + group.budget.id}>
-              <ExpenseGroupHeader group={group} />
-              {group.expenses.map((expense) => (
-                <ExpenseRow
-                  key={"expenseRow_" + expense.id}
-                  expense={expense}
-                  handleClick={handleEditClick}
-                />
-              ))}
-            </React.Fragment>
-          ),
-        )
+        groupsWithExpenses.map((group, index) => (
+          <React.Fragment key={"expense_budget_" + group.budget.id}>
+            <ExpenseGroupHeader group={group} isFirstGroup={index === 0} />
+            {group.expenses.map((expense) => (
+              <ExpenseRow
+                key={"expenseRow_" + expense.id}
+                expense={expense}
+                handleClick={handleEditClick}
+              />
+            ))}
+          </React.Fragment>
+        ))
       )}
     </List>
   );
@@ -79,6 +77,13 @@ export const ExpenseList = ({
 type ExpenseGroupHeaderProps = {
   /** Die Gruppe (Budget + zugehörige Ausgaben + Summen je Währung). */
   group: ExpenseGroup;
+  /**
+   * Ob dies der erste angezeigte Gruppenkopf ist. Nur nachfolgende Köpfe
+   * bekommen zusätzlichen Abstand nach oben (Abgrenzung zur letzten Zeile
+   * der vorherigen Gruppe) — der erste Kopf sitzt sonst mit unnötigem
+   * Leerraum unter der Toolbar.
+   */
+  isFirstGroup: boolean;
 };
 
 /**
@@ -88,7 +93,7 @@ type ExpenseGroupHeaderProps = {
  *
  * @param props - Siehe {@link ExpenseGroupHeaderProps}.
  */
-const ExpenseGroupHeader = ({group}: ExpenseGroupHeaderProps) => {
+const ExpenseGroupHeader = ({group, isFirstGroup}: ExpenseGroupHeaderProps) => {
   const BudgetIconComponent = BUDGET_ICON_MAP[group.budget.icon];
   const classes = useCustomStyles();
 
@@ -101,7 +106,10 @@ const ExpenseGroupHeader = ({group}: ExpenseGroupHeaderProps) => {
 
   return (
     <ListSubheader
-      sx={classes.expenseGroupHeader}
+      sx={[
+        classes.expenseGroupHeader,
+        !isFirstGroup && classes.expenseGroupHeaderSpacing,
+      ]}
       data-testid={"budget-subheader-" + group.budget.id}
     >
       <Box sx={classes.expenseGroupHeaderName}>
