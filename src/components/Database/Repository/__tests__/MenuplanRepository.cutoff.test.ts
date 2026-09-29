@@ -2,15 +2,25 @@
  * Unit-Tests fuer die neuen MenuplanRepository-Methoden rund um das
  * "Läuft gerade"-Home-Widget: getMealIdsForEventInRange und die
  * Mahlzeit-Typ-Cutoff-Zeiten-CRUD (mit Synonym-Namen).
+ *
+ * Regression CHUCHIPIRAT-J1: Ein Netzaussetzer beim Laden der Cutoff-Zeiten
+ * (Home, iPhone) wurde ungefiltert an Sentry gemeldet.
  */
+import * as Sentry from "@sentry/react";
 import {MenuplanRepository} from "../MenuplanRepository";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
+
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+  addBreadcrumb: jest.fn(),
+}));
 
 describe("MenuplanRepository — Cutoff-Zeiten und Datumsbereich-Abfragen", () => {
   let repo: MenuplanRepository;
   let supabaseMock: ReturnType<typeof createSupabaseMock>;
 
   beforeEach(() => {
+    jest.clearAllMocks();
     supabaseMock = createSupabaseMock();
     repo = new MenuplanRepository();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -97,6 +107,23 @@ describe("MenuplanRepository — Cutoff-Zeiten und Datumsbereich-Abfragen", () =
       });
 
       await expect(repo.getCutoffTimes()).rejects.toEqual({message: "DB Fehler"});
+      expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+    });
+
+    test("wirft einen Netzaussetzer weiter, meldet ihn aber nicht", async () => {
+      const networkError = {
+        code: "",
+        details: "@https://chuchipirat.ch/assets/index-CyeMH6l_.js:45:15443",
+        hint: "",
+        message: "TypeError: Load failed (api.chuchipirat.ch)",
+      };
+      supabaseMock.queryMock.order.mockResolvedValue({
+        data: null,
+        error: networkError,
+      });
+
+      await expect(repo.getCutoffTimes()).rejects.toBe(networkError);
+      expect(Sentry.captureException).not.toHaveBeenCalled();
     });
   });
 

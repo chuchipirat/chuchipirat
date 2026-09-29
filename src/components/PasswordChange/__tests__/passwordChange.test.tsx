@@ -62,7 +62,8 @@ const mockDatabase = {
 /** Mock: User.registerSignIn & User.updateEmail */
 jest.mock("../../User/user.class", () => ({
   User: {
-    registerSignIn: jest.fn(),
+    // Echte Methode ist async → gibt immer eine Promise zurück
+    registerSignIn: jest.fn().mockResolvedValue(undefined),
     updateEmail: jest.fn().mockResolvedValue(undefined),
   },
 }));

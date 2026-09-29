@@ -9,10 +9,15 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen, fireEvent} from "@testing-library/react";
+import {render, screen, fireEvent, waitFor} from "@testing-library/react";
+import * as Sentry from "@sentry/react";
 import "@testing-library/jest-dom";
 
 import {EventInfoPage} from "../eventInfo";
+
+jest.mock("@sentry/react", () => ({
+  captureException: jest.fn(),
+}));
 
 
 /** Mock: Utils — Standardwerte für Testumgebung */
@@ -249,5 +254,35 @@ describe("EventInfoPage", () => {
     renderEventInfoPage();
 
     expect(screen.getByText("Max Muster")).toBeInTheDocument();
+  });
+});
+
+describe("EventInfoPage: Laden der Event-Spende", () => {
+  test("meldet einen unerwarteten Fehler mit Kontext an Sentry", async () => {
+    const error = {code: "23505", message: "duplicate key"};
+    mockDatabase.donations.getEventDonations.mockRejectedValueOnce(error);
+
+    renderEventInfoPage();
+
+    await waitFor(() =>
+      expect(Sentry.captureException).toHaveBeenCalledWith(error, {
+        extra: {context: "Event-Spende laden"},
+      }),
+    );
+    expect(Sentry.captureException).toHaveBeenCalledTimes(1);
+  });
+
+  test("meldet einen abgelaufenen Login (JWT expired) nicht an Sentry", async () => {
+    mockDatabase.donations.getEventDonations.mockRejectedValueOnce({
+      code: "PGRST303",
+      message: "JWT expired",
+    });
+
+    renderEventInfoPage();
+
+    await waitFor(() =>
+      expect(mockDatabase.donations.getEventDonations).toHaveBeenCalled(),
+    );
+    expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 });

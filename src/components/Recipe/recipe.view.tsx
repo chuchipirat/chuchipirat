@@ -1,5 +1,5 @@
 import React from "react";
-import * as Sentry from "@sentry/react";
+import {captureUnexpectedError} from "../../utils/errorUtils";
 import {trackEvent} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 import {generateAndDownloadPdf} from "../Shared/pdfUtils";
@@ -430,11 +430,8 @@ export const RecipeView = ({
         },
       });
     } catch (err) {
-      Sentry.captureException(err, {
-        extra: {
-          context:
-            "RecipeView.onSetRating – Bewertung speichern fehlgeschlagen",
-        },
+      captureUnexpectedError(err, {
+        context: "RecipeView.onSetRating – Bewertung speichern fehlgeschlagen",
       });
       onError && onError(err as Error);
     }
@@ -461,8 +458,8 @@ export const RecipeView = ({
       });
       onUpdateRecipe({recipe: {...recipe, tags}});
     } catch (err) {
-      Sentry.captureException(err, {
-        extra: {context: "RecipeView.onTagDelete – Tag löschen fehlgeschlagen"},
+      captureUnexpectedError(err, {
+        context: "RecipeView.onTagDelete – Tag löschen fehlgeschlagen",
       });
       onError && onError(err as Error);
     }
@@ -477,11 +474,9 @@ export const RecipeView = ({
       });
       onUpdateRecipe({recipe: {...recipe, tags: listOfTags}});
     } catch (err) {
-      Sentry.captureException(err, {
-        extra: {
-          context:
-            "RecipeView.handleTagAddDialogAdd – Tags hinzufügen fehlgeschlagen",
-        },
+      captureUnexpectedError(err, {
+        context:
+          "RecipeView.handleTagAddDialogAdd – Tags hinzufügen fehlgeschlagen",
       });
       onError && onError(err as Error);
     }
@@ -557,11 +552,9 @@ export const RecipeView = ({
             products = result as unknown as Product[];
           })
           .catch((error) => {
-            Sentry.captureException(error, {
-              extra: {
-                context:
-                  "RecipeView.onRecipeScale – Produkte laden fehlgeschlagen",
-              },
+            captureUnexpectedError(error, {
+              context:
+                "RecipeView.onRecipeScale – Produkte laden fehlgeschlagen",
             });
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
@@ -576,11 +569,9 @@ export const RecipeView = ({
             units = result as unknown as Unit[];
           })
           .catch((error) => {
-            Sentry.captureException(error, {
-              extra: {
-                context:
-                  "RecipeView.onRecipeScale – Einheiten laden fehlgeschlagen",
-              },
+            captureUnexpectedError(error, {
+              context:
+                "RecipeView.onRecipeScale – Einheiten laden fehlgeschlagen",
             });
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
@@ -716,7 +707,7 @@ export const RecipeView = ({
         {recipeUid: recipe.uid},
       );
     } catch (error) {
-      Sentry.captureException(error);
+      captureUnexpectedError(error);
       dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
     }
   };
@@ -777,11 +768,9 @@ export const RecipeView = ({
         },
       });
     } catch (error) {
-      Sentry.captureException(error, {
-        extra: {
-          context:
-            "RecipeView.onCreateRecipePublishRequest – Veröffentlichungsantrag erstellen fehlgeschlagen",
-        },
+      captureUnexpectedError(error, {
+        context:
+          "RecipeView.onCreateRecipePublishRequest – Veröffentlichungsantrag erstellen fehlgeschlagen",
       });
       onError && onError(error as Error);
     }
@@ -848,11 +837,9 @@ export const RecipeView = ({
         },
       });
     } catch (error) {
-      Sentry.captureException(error, {
-        extra: {
-          context:
-            "RecipeView.onReportErrorRequest – Fehlermeldung erstellen fehlgeschlagen",
-        },
+      captureUnexpectedError(error, {
+        context:
+          "RecipeView.onReportErrorRequest – Fehlermeldung erstellen fehlgeschlagen",
       });
       onError && onError(error as Error);
     }
@@ -2427,11 +2414,9 @@ const RecipeComments = ({
         setOffset(loadedComments.length);
       })
       .catch((error) =>
-        Sentry.captureException(error, {
-          extra: {
-            context: "RecipeComments – Kommentare laden fehlgeschlagen",
-            recipeId,
-          },
+        captureUnexpectedError(error, {
+          context: "RecipeComments – Kommentare laden fehlgeschlagen",
+          recipeId,
         }),
       )
       .finally(() => setLoading(false));
@@ -2449,12 +2434,10 @@ const RecipeComments = ({
         setOffset((previous) => previous + olderComments.length);
       })
       .catch((error) =>
-        Sentry.captureException(error, {
-          extra: {
-            context:
-              "RecipeComments.onLoadMore – Ältere Kommentare laden fehlgeschlagen",
-            recipeId,
-          },
+        captureUnexpectedError(error, {
+          context:
+            "RecipeComments.onLoadMore – Ältere Kommentare laden fehlgeschlagen",
+          recipeId,
         }),
       );
   };
@@ -2500,12 +2483,10 @@ const RecipeComments = ({
         context: "Rezept kommentiert",
       });
     } catch (err) {
-      Sentry.captureException(err, {
-        extra: {
-          context:
-            "RecipeComments.onAddComment – Kommentar speichern fehlgeschlagen",
-          recipeId,
-        },
+      captureUnexpectedError(err, {
+        context:
+          "RecipeComments.onAddComment – Kommentar speichern fehlgeschlagen",
+        recipeId,
       });
     } finally {
       setSaving(false);
@@ -2547,12 +2528,10 @@ const RecipeComments = ({
       );
       setEditingId(null);
     } catch (err) {
-      Sentry.captureException(err, {
-        extra: {
-          context:
-            "RecipeComments.onSaveEdit – Kommentar bearbeiten fehlgeschlagen",
-          editingId,
-        },
+      captureUnexpectedError(err, {
+        context:
+          "RecipeComments.onSaveEdit – Kommentar bearbeiten fehlgeschlagen",
+        editingId,
       });
     }
   };
@@ -2577,12 +2556,10 @@ const RecipeComments = ({
         previous.filter((comment) => comment.uid !== commentToDelete.uid),
       );
     } catch (err) {
-      Sentry.captureException(err, {
-        extra: {
-          context:
-            "RecipeComments.onDeleteComment – Kommentar löschen fehlgeschlagen",
-          commentUid: commentToDelete.uid,
-        },
+      captureUnexpectedError(err, {
+        context:
+          "RecipeComments.onDeleteComment – Kommentar löschen fehlgeschlagen",
+        commentUid: commentToDelete.uid,
       });
     }
   };

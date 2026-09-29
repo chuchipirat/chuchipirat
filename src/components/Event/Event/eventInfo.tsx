@@ -90,6 +90,7 @@ import {Action} from "../../../constants/actions";
 import {EventDate} from "./event.class";
 import {DatePicker} from "@mui/x-date-pickers";
 import dayjs, {Dayjs} from "dayjs";
+import {isMissingSessionError, isTransientNetworkError} from "../../../utils/errorUtils";
 
 
 /** Epoch-Zeitstempel (1.1.1970) für Vergleiche mit leeren Datumsfeldern. */
@@ -216,6 +217,10 @@ const EventInfoPage = ({
         setEventDonation(donations.length > 0 ? donations[0] : null);
       })
       .catch((error) => {
+        // Transiente Netzwerk- und Session-Fehler sind kein Bug der App
+        if (isTransientNetworkError(error) || isMissingSessionError(error)) {
+          return;
+        }
         Sentry.captureException(error, {
           extra: {context: "Event-Spende laden"},
         });

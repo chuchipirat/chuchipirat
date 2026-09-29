@@ -59,6 +59,7 @@ import {
 import {useCustomStyles} from "../../../constants/styles";
 import {ButtonAction} from "../../Shared/global.interface";
 import {AlertMessage} from "../../Shared/AlertMessage";
+import {captureUnexpectedError, toError} from "../../../utils/errorUtils";
 import {Event} from "../Event/event.class";
 import {EventGroupConfiguration} from "./groupConfiguration.class";
 
@@ -283,7 +284,16 @@ const EventGroupConfigurationPage = ({
   const saveEvent = async (mouseEvent: React.MouseEvent<HTMLButtonElement>) => {
     if (!deferSave) {
       const gcDomain = database.eventGroupConfig.groupConfigUiToDomain(state.groupConfig, event.uid);
-      await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
+      try {
+        await database.eventGroupConfig.saveGroupConfig(gcDomain, authUser);
+      } catch (error) {
+        // Ohne catch lief der Fehler als UnhandledRejection aus dem
+        // Click-Handler, und der Nutzer bekam keine Rückmeldung (CHUCHIPIRAT-FV).
+        // Nicht weiternavigieren — die Eingaben sollen erhalten bleiben.
+        captureUnexpectedError(error, {context: "Gruppenkonfiguration speichern"});
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: toError(error)});
+        return;
+      }
     }
     onConfirm?.onClick && onConfirm.onClick(mouseEvent, state.groupConfig);
   };

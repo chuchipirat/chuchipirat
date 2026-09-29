@@ -71,6 +71,7 @@ import {useCustomStyles} from "../../constants/styles";
 
 import {RecipeShort} from "./recipe.types";
 import {MenuType, RecipeType} from "./recipe.class";
+import {parseMenuTypeSelection} from "./parseMenuTypeSelection";
 import {
   INITIAL_SEARCH_SETTINGS,
   SearchSettings,
@@ -526,25 +527,7 @@ export const RecipeSearch = ({
   const onSearchSettingMenuTypeUpdate = (
     event: SelectChangeEvent<MenuType[]>,
   ) => {
-    let selectedMenuTypes: MenuType[] = (
-      event.target.value as unknown as string[]
-    ).map((value: string) => parseInt(value));
-    let newValue: MenuType;
-    // Der Wert wird als String zurückgegeben, wir speichern ihn aber als Number
-    // Wenn das Array nun zwei mal den gleichen Wert hat (als String und als Number)
-    // müssen beide Werte entfernt werden --> Checkbox deselektiert.
-    // der Neuste Wert ist immer der letzte im Array. Nach diesem kann gesucht werden
-    if (selectedMenuTypes.length > 0) {
-      newValue = selectedMenuTypes.slice(-1)[0];
-    }
-    if (selectedMenuTypes.filter((value) => value === newValue!).length > 1) {
-      // Mehrere Einträge... alles löschen was dem neuen Wert entspricht
-      selectedMenuTypes = selectedMenuTypes.filter(
-        (value) => value !== newValue!,
-      );
-    }
-
-    selectedMenuTypes.sort();
+    const selectedMenuTypes = parseMenuTypeSelection(event.target.value);
     trackEvent(AnalyticsEvent.RECIPE_FILTER_APPLIED, {filterType: "menutype"});
     applySearchSettings({menuTypes: selectedMenuTypes});
   };

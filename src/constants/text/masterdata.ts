@@ -30,7 +30,8 @@ export const WARNING_PRODUCT_3 =
   " Aber mach aus einem Apfel keine Peperoni! Sonst schmecken die Öpfelchüechli dann doch eher ungewohnt.";
 export const SHOPPING_UNIT_INFO = "Für die Einheit «Stück» Feld leer lassen";
 export const ERROR_PRODUCT_UNKNOWN = (productName: string) =>
-  `Produkt ${productName} ist unbekannt.`;
+  `Das Produkt «${productName}» ist nicht mehr verfügbar. ` +
+  "Bitte ersetze die Zutat durch ein anderes Produkt.";
 export const ERROR_PRODUCT_WITH_THIS_NAME_ALREADY_EXISTS =
   "Es existiert bereits ein Produkt mit diesen Namen. Bitte wähle das gewünschte Produkt aus dem Dropdown aus.";
 export const ERROR_MATERIAL_WITH_THIS_NAME_ALREADY_EXISTS =

@@ -20,3 +20,6 @@ export const ERROR_GENERIC =
 export const ERROR_SESSION_EXPIRED =
   "Deine Sitzung ist möglicherweise abgelaufen. Bitte lade die Seite neu, " +
   "melde dich erneut an und versuche es nochmals.";
+export const ERROR_SIGN_OUT_FAILED =
+  "Abmelden hat nicht geklappt. Bitte prüfe deine Internetverbindung " +
+  "und versuche es erneut.";

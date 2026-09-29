@@ -29,6 +29,7 @@ import Recipe, {
   Section,
   RecipeObjectStructure,
 } from "./recipe.class";
+import {parseMenuTypeSelection} from "./parseMenuTypeSelection";
 import {OnUpdateRecipeProps, RecipeDivider, SwitchEditMode} from "./recipe";
 
 import {
@@ -1049,32 +1050,9 @@ const RecipeEdit = ({
       event.target.name === "outdoorKitchenSuitable"
     ) {
       value = event.target.checked;
-    } else if (
-      Array.isArray(event.target.value) &&
-      event.target.name === "menuTypes"
-    ) {
-      let selectedMenuTypes: MenuType[] = (
-        event.target.value as unknown as string[]
-      ).map((value: string) => parseInt(value));
-
-      let newValue: MenuType;
-      // Der Wert wird als String zurückgegeben, wir speichern ihn aber als Number
-      // Wenn das Array nun zwei mal den gleichen Wert hat (als String und als Number)
-      // müssen beide Werte entfernt werden --> Checkbox deselektiert.
-      // der Neuste Wert ist immer der letzte im Array. Nach diesem kann gesucht werden
-      if (selectedMenuTypes.length > 0) {
-        newValue = selectedMenuTypes.slice(-1)[0];
-      }
-
-      if (selectedMenuTypes.filter((value) => value == newValue).length > 1) {
-        // Mehrere Einträge... alles löschen was dem neuen Wert entspricht
-        selectedMenuTypes = selectedMenuTypes.filter(
-          (value) => value != newValue,
-        );
-      }
-
-      value = selectedMenuTypes;
-      value.sort();
+    } else if (event.target.name === "menuTypes") {
+      // Kein Array-Check: beim Browser-Autofill liefert MUI einen String
+      value = parseMenuTypeSelection(event.target.value);
     } else {
       value = event.target.value as string;
     }

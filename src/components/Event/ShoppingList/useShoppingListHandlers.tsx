@@ -14,6 +14,7 @@
  */
 import React from "react";
 import * as Sentry from "@sentry/react";
+import {captureUnexpectedError, toError} from "../../../utils/errorUtils";
 import {AlertColor} from "@mui/material";
 import {
   DialogSelectMenuesForRecipeDialogValues,
@@ -744,7 +745,7 @@ const useShoppingListHandlers = ({
         // "Die Auswahl beinhaltet keine Artikel." ist ein Nutzer-Hinweis —
         // anzeigen, aber nicht an Sentry melden.
         if (!(error instanceof FieldValidationError)) {
-          Sentry.captureException(error);
+          captureUnexpectedError(error);
         }
         onDispatchError(error as Error);
       }
@@ -920,7 +921,7 @@ const useShoppingListHandlers = ({
               // nicht an Sentry melden (vgl. ShoppingList.createNewList).
               onDispatchSnackbar("info", error.message);
             } else {
-              Sentry.captureException(error);
+              captureUnexpectedError(error);
               onDispatchError(error as Error);
             }
           } finally {
@@ -1020,7 +1021,7 @@ const useShoppingListHandlers = ({
 
       // In Supabase löschen (CASCADE entfernt Items)
       database.shoppingLists.deleteList(selectedList).catch((error) => {
-        Sentry.captureException(error);
+        captureUnexpectedError(error);
         onDispatchError(error);
       });
       trackEvent(AnalyticsEvent.SHOPPING_LIST_DELETED, {eventUid: event.uid});
@@ -1285,14 +1286,23 @@ const useShoppingListHandlers = ({
           // und taucht beim nächsten Realtime-Echo wieder auf.
           persistListItems(updatedShoppingList!.uid, updatedShoppingList!).catch(
             (error) => {
-              Sentry.captureException(error);
+              captureUnexpectedError(error);
             },
           );
           break;
 
         case Action.TRACE:
-          // Trace on-demand berechnen, bevor der Dialog geöffnet wird
-          await computeTraceOnDemand(selectedListItem!);
+          // Trace on-demand berechnen, bevor der Dialog geöffnet wird. Der
+          // Handler läuft als Click-Handler ohne Aufrufer, der eine Rejection
+          // abfangen würde — ohne catch landete ein Netzfehler beim
+          // Rezepte-Laden als UnhandledRejection in Sentry (CHUCHIPIRAT-FV).
+          try {
+            await computeTraceOnDemand(selectedListItem!);
+          } catch (error) {
+            captureUnexpectedError(error);
+            onDispatchError(toError(error));
+            break;
+          }
           setTraceItemDialogValues({
             open: true,
             sortedMenues: sortSelectedMenues({
@@ -1318,6 +1328,7 @@ const useShoppingListHandlers = ({
       onShoppingCollectionUpdate,
       computeTraceOnDemand,
       persistListItems,
+      onDispatchError,
     ],
   );
 
@@ -1483,7 +1494,7 @@ const useShoppingListHandlers = ({
 
       // In Supabase persistieren
       persistListItems(selectedListItem!, shoppingList!).catch((error) => {
-        Sentry.captureException(error);
+        captureUnexpectedError(error);
         onDispatchError(error);
       });
 
@@ -1492,7 +1503,7 @@ const useShoppingListHandlers = ({
         database.shoppingLists.updateListHeader(selectedListItem!, {
           has_manually_added_items: true,
         }).catch((error) => {
-          Sentry.captureException(error);
+          captureUnexpectedError(error);
         });
       }
 
@@ -1579,7 +1590,7 @@ const useShoppingListHandlers = ({
         database.shoppingLists
           .updateItemChecked(item.supabaseId, item.checked)
           .catch((error) => {
-            Sentry.captureException(error);
+            captureUnexpectedError(error);
           })
           .finally(() => {
             saveInProgressRef.current -= 1;
@@ -1587,7 +1598,7 @@ const useShoppingListHandlers = ({
       } else {
         // Fallback: alle Positionen neu speichern (zählt selbst hoch/runter)
         persistListItems(shoppingList.uid, shoppingList).catch((error) => {
-          Sentry.captureException(error);
+          captureUnexpectedError(error);
         });
       }
     },
@@ -1883,7 +1894,7 @@ const useShoppingListHandlers = ({
       // Änderungen in Supabase persistieren
       persistListItems(updatedShoppingList.uid, updatedShoppingList).catch(
         (error) => {
-          Sentry.captureException(error);
+          captureUnexpectedError(error);
         },
       );
 
@@ -1899,7 +1910,7 @@ const useShoppingListHandlers = ({
             has_manually_added_items: true,
           })
           .catch((error) => {
-            Sentry.captureException(error);
+            captureUnexpectedError(error);
           });
       }
     },

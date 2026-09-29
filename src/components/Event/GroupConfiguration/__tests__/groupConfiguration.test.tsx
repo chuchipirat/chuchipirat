@@ -3,13 +3,17 @@
  *
  * Fokussiert auf das Portionen-Eingabefeld: negative Zahlen dürfen nicht
  * übernommen werden, sondern müssen auf 0 gekappt werden.
+ *
+ * Regression CHUCHIPIRAT-FV: Ein Fehler beim Speichern lief als
+ * UnhandledRejection aus dem Click-Handler, ohne Rückmeldung an den Nutzer.
  */
 // Polyfill für jsdom (react-router benötigt TextEncoder/TextDecoder)
 import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, fireEvent} from "@testing-library/react";
+import {render, fireEvent, screen, waitFor} from "@testing-library/react";
+import * as Sentry from "@sentry/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
 
@@ -40,6 +44,8 @@ jest.mock("../../../../constants/styles", () => ({
     button: {},
   })),
 }));
+
+jest.mock("@sentry/react", () => ({captureException: jest.fn()}));
 
 /** Mock: useCustomDialog */
 jest.mock("../../../Shared/customDialogContext", () => ({
@@ -87,7 +93,10 @@ function createMinimalGroupConfig(portions = 5): EventGroupConfiguration {
   return groupConfig;
 }
 
-const renderPage = (groupConfiguration: EventGroupConfiguration) => {
+const renderPage = (
+  groupConfiguration: EventGroupConfiguration,
+  onConfirm?: {buttonText: string; onClick: jest.Mock},
+) => {
   return render(
     <MemoryRouter>
       <DatabaseContext.Provider value={mockDatabase}>
@@ -95,6 +104,7 @@ const renderPage = (groupConfiguration: EventGroupConfiguration) => {
           authUser={new AuthUser()}
           event={new Event()}
           groupConfiguration={groupConfiguration}
+          onConfirm={onConfirm}
         />
       </DatabaseContext.Provider>
     </MemoryRouter>,
@@ -163,5 +173,50 @@ describe("EventGroupConfigurationPage — Portionen-Eingabe", () => {
 
     expect(portionsInput).toHaveAttribute("type", "number");
     expect(portionsInput).toHaveAttribute("min", "0");
+  });
+});
+
+describe("EventGroupConfigurationPage — Speichern (CHUCHIPIRAT-FV)", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  test("zeigt bei einem Netzfehler eine Meldung, bleibt auf der Seite und meldet nicht", async () => {
+    mockDatabase.eventGroupConfig.saveGroupConfig.mockRejectedValueOnce({
+      code: "",
+      details: "TypeError: Failed to fetch",
+      hint: "",
+      message: "TypeError: Failed to fetch (api.chuchipirat.ch)",
+    });
+    const onConfirm = {buttonText: "Speichern", onClick: jest.fn()};
+    renderPage(createMinimalGroupConfig(), onConfirm);
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByText(/Failed to fetch/)).toBeInTheDocument();
+    expect(onConfirm.onClick).not.toHaveBeenCalled();
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  test("meldet einen echten Fehler an Sentry", async () => {
+    mockDatabase.eventGroupConfig.saveGroupConfig.mockRejectedValueOnce({
+      code: "23505",
+      message: "duplicate key value",
+    });
+    const onConfirm = {buttonText: "Speichern", onClick: jest.fn()};
+    renderPage(createMinimalGroupConfig(), onConfirm);
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() => expect(Sentry.captureException).toHaveBeenCalledTimes(1));
+    expect(onConfirm.onClick).not.toHaveBeenCalled();
+  });
+
+  test("ruft onConfirm nach erfolgreichem Speichern auf", async () => {
+    mockDatabase.eventGroupConfig.saveGroupConfig.mockResolvedValueOnce(undefined);
+    const onConfirm = {buttonText: "Speichern", onClick: jest.fn()};
+    renderPage(createMinimalGroupConfig(), onConfirm);
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() => expect(onConfirm.onClick).toHaveBeenCalledTimes(1));
   });
 });

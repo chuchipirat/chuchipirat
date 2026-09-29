@@ -176,26 +176,24 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
    * Lädt alle zählbaren (bestätigten oder migrierten) Spenden für ein
    * bestimmtes Event.
    *
+   * Meldet Fehler bewusst nicht selbst an Sentry, sondern wirft sie weiter:
+   * Die Aufrufer melden mit Kontext und filtern transiente Netzwerk- und
+   * Session-Fehler selbst (sonst würde ein Fehler doppelt gemeldet).
+   *
    * @param eventId - Die Event-ID.
    * @returns Zählbare Event-Spenden, sortiert nach Zahldatum.
+   * @throws Supabase-Fehler, wenn die Abfrage fehlschlägt.
    */
   async getEventDonations(eventId: string): Promise<DonationDomain[]> {
-    try {
-      const {data, error} = await this.client
-        .from(this.viewName)
-        .select(DonationRepository.PUBLIC_VIEW_COLUMNS)
-        .eq("event_id", eventId)
-        .in("status", COUNTABLE_DONATION_STATUSES)
-        .order("paid_at", {ascending: false});
+    const {data, error} = await this.client
+      .from(this.viewName)
+      .select(DonationRepository.PUBLIC_VIEW_COLUMNS)
+      .eq("event_id", eventId)
+      .in("status", COUNTABLE_DONATION_STATUSES)
+      .order("paid_at", {ascending: false});
 
-      if (error) throw error;
-      return (data ?? []).map((row) => this.toDomain(row as unknown as DonationRow));
-    } catch (error) {
-      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
-        Sentry.captureException(error);
-      }
-      throw error;
-    }
+    if (error) throw error;
+    return (data ?? []).map((row) => this.toDomain(row as unknown as DonationRow));
   }
 
   /**
