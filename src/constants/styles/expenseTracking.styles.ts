@@ -181,4 +181,10 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     gridArea: "currency",
     minWidth: 0, // ersetzt das alte flexShrink: 0 — im Grid nicht mehr nötig
   },
+  payeeOptionCard: {
+    border: `1px solid ${theme.palette.divider}`,
+    borderRadius: "8px",
+    padding: theme.spacing(1, 1.5),
+    marginTop: theme.spacing(1),
+  },
 });

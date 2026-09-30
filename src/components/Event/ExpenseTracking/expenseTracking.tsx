@@ -88,6 +88,46 @@ import {
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
 
+/**
+ * Übersetzt die Formulareingaben des Ausgaben-Dialogs in ein `ExpenseDomain`-
+ * Objekt für die Persistierung. Auf Modul-Ebene (nicht als Closure in der
+ * Seite) definiert, damit sie unabhängig von der UI direkt getestet werden
+ * kann — insbesondere die `payeeUserId`/`payeeName`-Zweige, die im normalen
+ * Dialog-Ablauf nie mit einer zum `payeeType` inkonsistenten Kombination
+ * aufgerufen werden (der Dialog setzt sie beim Typ-Wechsel bereits zurück),
+ * hier aber trotzdem als zweite, unabhängige Absicherung greifen sollen.
+ *
+ * @param expenseInput - Die Formularwerte aus `ExpenseDetailDialogState`.
+ * @param eventId - ID des Events, dem die Ausgabe zugeordnet wird.
+ * @returns Das für `createExpense`/`updateExpense` vorbereitete Domain-Objekt.
+ */
+export const transformInputToExpenseDomain = (
+  expenseInput: ExpenseDetailDialogState,
+  eventId: string,
+): ExpenseDomain => {
+  return {
+    id: "",
+    eventId,
+    budgetId: expenseInput.budgetId,
+    date: expenseInput.date?.toDate() ?? new Date(NaN),
+    amountInCents: parseAmountToCents(expenseInput.amount) ?? 0,
+    currency: expenseInput.currency,
+    label: expenseInput.label,
+    comment: expenseInput.comment.trim() || null,
+    payeeType: expenseInput.payeeType,
+    payeeUserId:
+      expenseInput.payeeType === ExpensePayeeType.EXISTING_USER
+        ? expenseInput.payeeUserId
+        : null,
+    payeeName:
+      expenseInput.payeeType === ExpensePayeeType.NEW_PERSON
+        ? expenseInput.payeeName.trim() || null
+        : null,
+    attachmentPath: null,
+    attachmentOriginalFilename: null,
+  };
+};
+
 /** Props für die Event-Abrechnungsseite. */
 interface EventExpenseTrackingPageProps {
   /** Das aktuelle Event-Objekt. */
@@ -266,25 +306,6 @@ const EventExpenseTrackingPage = ({
       icon: budgetInput.icon!,
     };
   };
-  const transformInputToExpenseDomain = (
-    expenseInput: ExpenseDetailDialogState,
-  ): ExpenseDomain => {
-    return {
-      id: "",
-      eventId: event.uid,
-      budgetId: expenseInput.budgetId,
-      date: expenseInput.date?.toDate() ?? new Date(NaN),
-      amountInCents: parseAmountToCents(expenseInput.amount) ?? 0,
-      currency: expenseInput.currency,
-      label: expenseInput.label,
-      comment: expenseInput.comment.trim() || null,
-      payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
-      payeeUserId: null,
-      payeeName: null,
-      attachmentPath: null,
-      attachmentOriginalFilename: null,
-    };
-  };
   /** Öffnet den Dialog im Anlegen-Modus (ohne vorhandenes Budget). */
   const handleOpenCreateBudgetDialog = () => {
     setBudgetDetailDialogProperties({
@@ -372,7 +393,7 @@ const EventExpenseTrackingPage = ({
   const handleCreateExpense = async (
     expenseInput: ExpenseDetailDialogState,
   ) => {
-    const expense = transformInputToExpenseDomain(expenseInput);
+    const expense = transformInputToExpenseDomain(expenseInput, event.uid);
 
     if (!checkExpenseInputdata(expense)) {
       return;
@@ -440,7 +461,7 @@ const EventExpenseTrackingPage = ({
     expenseInput: ExpenseDetailDialogState,
   ) => {
     const expense = {
-      ...transformInputToExpenseDomain(expenseInput),
+      ...transformInputToExpenseDomain(expenseInput, event.uid),
       id: expenseId,
     };
     if (!checkExpenseInputdata(expense)) {
@@ -735,6 +756,7 @@ const EventExpenseTrackingPage = ({
         expense={expenseDetailDialogProperties.expense}
         budgets={state.budgets ?? []}
         defaultBudgetId={defaultBudgetId}
+        cooks={event.cooks}
         onCreate={handleCreateExpense}
         onEdit={handleUpdateExpense}
         onDelete={handleDeleteExpense}
