@@ -328,7 +328,8 @@ fixed_amount`), Validierung (leerer Name etc. → `FieldValidationError`, Vorbil
 
 ---
 
-## Epic 2 — Ausgaben: Kern-CRUD (ohne Zahlungsinstanz/Beleg)
+## Epic 2 — Ausgaben: Kern-CRUD (ohne Zahlungsinstanz/Beleg) ✅ erledigt
+
 
 Ziel: Köch:innen erfassen, bearbeiten und löschen Ausgaben (Datum, Betrag+Währung, Bezeichnung,
 Kommentar, Budget-Zuordnung). Die Budget-Karten aus Epic 1 zeigen den Verbrauch automatisch
@@ -1365,12 +1366,258 @@ im Dialog sauber ersetzbar war.
 
 ## Epic 3 — Zahlende Instanz
 
-_Wird vor Start verfeinert. Grober Zuschnitt:_
+Ziel: Die Platzhalter-Lösung aus Epic 2 (Entscheidung 3 — jede Ausgabe wird beim Anlegen fest auf `NO_REFUND_NEEDED` gesetzt) durch echte Erfassung ersetzen. Schema, Enum und Repository-Mapping existieren bereits vollständig seit Epic 0/2 (`ExpensePayeeType`, `ExpenseDomain.payeeType/ payeeUserId/payeeName`, `ExpenseRepository.toRow/toDomain`) — Epic 3 ist reine UI- und Aggregations-Arbeit, keine neue Migration.
 
-- 3.1 Auswahl-UI im Ausgaben-Dialog: bestehende Person (aus `event_cooks`), neue Person
-  (Freitext), "keine Rückerstattung nötig".
-- 3.2 Aggregation "Offene Beträge pro Person" (reine Funktion, UI-Vorschau — volle
-  Dashboard-Integration folgt in Epic 6).
+**Wichtiger Fund beim Verfeinern:** Die Migration `20260905000002_add_event_expenses.sql` hat ein strenges `CHECK`-Constraint, das die Datenmodellierung eindeutig vorgibt:
+
+```sql
+CONSTRAINT chk_expense_payee CHECK (
+  (payee_type = 'existing_user' AND payee_user_id IS NOT NULL AND payee_name IS NULL) OR
+  (payee_type = 'new_person' AND payee_name IS NOT NULL AND payee_user_id IS NULL) OR
+  (payee_type = 'no_refund_needed' AND payee_user_id IS NULL AND payee_name IS NULL)
+)
+```
+
+D.h. für `existing_user` wird **kein** Namens-Snapshot gespeichert — der Anzeigename kommt beim Anlegen/Bearbeiten immer live aus `event.cooks`, nie aus `payee_name`. Ein `BEFORE DELETE`-Trigger
+auf `auth.users` (`detach_deleted_expense_payee`) fängt den Fall ab, dass ein referenzierter Account komplett gelöscht wird: er kopiert dann den letzten bekannten Namen nach `payee_name` und stellt den
+Typ auf `new_person` um — **das ist bereits gebaut, Epic 3 muss sich darum nicht kümmern.** Nicht abgedeckt (und laut Entscheidung unten bewusst nicht in 3.1 behandelt): eine Person verlässt nur die Koch-Liste **dieses Events** (`event.cooks`), ohne dass ihr Account gelöscht wird — der Trigger greift dann nicht.
+
+**Entscheidungen (mit dir abgestimmt):**
+
+1. **Verwaiste `payeeUserId` beim Bearbeiten** (Person war zum Zeitpunkt der Ausgabe noch im Event-Team, ist es inzwischen nicht mehr): kein zusätzlicher Repository-Aufruf. Die Auswahl-Optionen sind `event.cooks` **plus** — falls `expense.payeeUserId` darin fehlt — ein synthetischer, deaktivierter Eintrag mit Platzhalter-Label ("Ehemalige Person"), der nur dafür sorgt, dass der `Select`-Wert einen gültigen `MenuItem` findet und nicht leer/falsch erscheint.
+2. **Anzeige in der Liste:** bewusst **nicht** Teil von 3.1. `ExpenseRow` bleibt unverändert; die zahlende Instanz ist vorerst nur im Dialog sichtbar. Volle Sichtbarkeit kommt mit Epic 6 (Dashboard) über 3.2s Aggregation.
+
+### **Story 3.1 — Auswahl-UI im Ausgaben-Dialog** ✅ erledigt
+
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `expenseDetailDialog.tsx` | `ExpenseDetailDialogState` + 3 neue Felder, neue Prop `cooks: Cook[]`, `RadioGroup` mit Options-Karten + je nach Typ eingebettetem `Select`/`TextField`, `isValid`-Erweiterung |
+| `expenseTracking.tsx` | `transformInputToExpenseDomain` liest die drei Formularfelder statt sie zu hardcoden; `<ExpenseDetailDialog cooks={event.cooks}>` |
+| `expense.class.ts` | `checkExpenseData` um Payee-Konsistenzprüfung erweitert (Server-seitiges Pendant zum `CHECK`-Constraint) |
+| `constants/styles/expenseTracking.styles.ts` | neuer Style `payeeOptionCard` (Rahmen/Radius/Padding je Options-Karte, siehe unten) |
+| `constants/text/expenseTracking.ts` | `PAYEE`, `PAYEE_EXISTING_USER`, `PAYEE_NEW_PERSON`, `PAYEE_NO_REFUND_NEEDED`, `PLEASE_PROVIDE_PAYEE`, `PLEASE_PROVIDE_PAYEE_NAME`, `FORMER_EVENT_COOK`; `NAME` aus `shared.ts` wiederverwenden (nicht duplizieren, analog der Text-Konsolidierung aus 2.5) |
+
+**UI-Entscheidung (mit Mockup abgeglichen):** Jede Payee-Option ist eine eigene, umrandete Karte statt einer flachen `RadioGroup` mit separatem Feld danach (wie ursprünglich skizziert) — das verbindet das bedingte Zweitfeld visuell eindeutig mit seiner Option, statt es lose unter der ganzen Gruppe erscheinen zu lassen. Weicht bewusst vom flachen `RadioGroup`-Muster aus `budgetDetailDialog.tsx`s `BudgetType`-Auswahl ab (dort reicht ein flaches Layout, weil beide Typen dieselben Folgefelder nutzen — hier hat jeder Typ ein eigenes, unterschiedliches Zweitfeld).
+
+**`ExpenseDetailDialogState` — drei neue Felder, analog dem bestehenden Muster (`payeeName` als leerer String im Formular wie `comment`, nicht `null`):**
+
+```ts
+export type ExpenseDetailDialogState = {
+  // ...bestehende Felder unverändert...
+  payeeType: ExpensePayeeType;
+  payeeUserId: string | null;
+  payeeName: string;
+};
+
+const INITIAL_FORM_STATE: ExpenseDetailDialogState = {
+  // ...bestehende Felder unverändert...
+  payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+  payeeUserId: null,
+  payeeName: "",
+};
+```
+
+`expenseToFormState`'s Bearbeiten-Zweig übernimmt `expense.payeeType`/`payeeUserId` unverändert; `payeeName` kommt **nur** im `new_person`-Fall aus `expense.payeeName` — sonst leerer String (siehe
+`CHECK`-Constraint oben, `payee_name` ist bei `existing_user` ohnehin `null`).
+
+**Neue Prop `cooks: Cook[]`** (aus `event.cooks`, `Cook` bereits importierbar aus `event.class.ts`, Vorbild `materialList.tsx`s `cooks`-Prop). Die Auswahl-Optionen für den `existing_user`-Select kombinieren `cooks` mit einem synthetischen Fallback-Eintrag für Entscheidung 1 oben:
+
+```ts
+const payeeOptions =
+  formState.payeeType === ExpensePayeeType.EXISTING_USER &&
+  formState.payeeUserId &&
+  !cooks.some((cook) => cook.uid === formState.payeeUserId)
+    ? [...cooks, {uid: formState.payeeUserId, displayName: TEXT_FORMER_EVENT_COOK} as Cook]
+    : cooks;
+```
+
+**UI — eine `RadioGroup`, deren `FormControlLabel`s je in einer eigenen `Box`-Karte stecken; das bedingte Zweitfeld ist Geschwister des `FormControlLabel`s *innerhalb derselben Karte*, nicht irgendwo unter der ganzen Gruppe. Eingefügt nach der Budget-Auswahl, vor dem Kommentarfeld:**
+
+```tsx
+<FormLabel sx={{mt: 2, display: "block"}}>{TEXT_PAYEE}</FormLabel>
+<RadioGroup
+  value={formState.payeeType}
+  onChange={(event) => {
+    const payeeType = event.target.value as ExpensePayeeType;
+    // Beim Typ-Wechsel die jeweils andere Auswahl zurücksetzen — sonst bliebe
+    // z.B. eine payeeUserId stehen, obwohl "Neue Person" gewählt wurde, und
+    // der CHECK-Constraint der DB würde das Speichern ablehnen.
+    setFormState((prev) => ({
+      ...prev,
+      payeeType,
+      payeeUserId: payeeType === ExpensePayeeType.EXISTING_USER ? prev.payeeUserId : null,
+      payeeName: payeeType === ExpensePayeeType.NEW_PERSON ? prev.payeeName : "",
+    }));
+  }}
+>
+  <Box sx={classes.payeeOptionCard}>
+    <FormControlLabel
+      value={ExpensePayeeType.EXISTING_USER}
+      control={<Radio />}
+      label={TEXT_PAYEE_EXISTING_USER}
+    />
+    {formState.payeeType === ExpensePayeeType.EXISTING_USER && (
+      <TextField
+        select
+        fullWidth
+        label={TEXT_NAME}
+        value={formState.payeeUserId ?? ""}
+        onChange={(event) => updateField("payeeUserId", event.target.value)}
+        error={touched && !formState.payeeUserId}
+        helperText={touched && !formState.payeeUserId ? TEXT_PLEASE_PROVIDE_PAYEE : undefined}
+        margin="normal"
+        sx={{mt: 1}}
+      >
+        {payeeOptions.map((cook) => (
+          <MenuItem
+            key={cook.uid}
+            value={cook.uid}
+            disabled={!cooks.some((c) => c.uid === cook.uid)}
+          >
+            {cook.displayName}
+          </MenuItem>
+        ))}
+      </TextField>
+    )}
+  </Box>
+
+  <Box sx={classes.payeeOptionCard}>
+    <FormControlLabel
+      value={ExpensePayeeType.NEW_PERSON}
+      control={<Radio />}
+      label={TEXT_PAYEE_NEW_PERSON}
+    />
+    {formState.payeeType === ExpensePayeeType.NEW_PERSON && (
+      <TextField
+        fullWidth
+        label={TEXT_NAME}
+        value={formState.payeeName}
+        onChange={(event) => updateField("payeeName", event.target.value)}
+        error={touched && formState.payeeName.trim().length === 0}
+        helperText={
+          touched && formState.payeeName.trim().length === 0
+            ? TEXT_PLEASE_PROVIDE_PAYEE_NAME
+            : undefined
+        }
+        margin="normal"
+        sx={{mt: 1}}
+      />
+    )}
+  </Box>
+
+  <Box sx={classes.payeeOptionCard}>
+    <FormControlLabel
+      value={ExpensePayeeType.NO_REFUND_NEEDED}
+      control={<Radio />}
+      label={TEXT_PAYEE_NO_REFUND_NEEDED}
+    />
+  </Box>
+</RadioGroup>
+```
+
+`RadioGroup` erwartet keine direkten `FormControlLabel`-Kinder — sie liest ihren Kontext (`RadioGroupContext`) über den React-Baum, egal wie tief die `Radio`-Elemente verschachtelt sind. Die zusätzliche `Box`-Ebene pro Option bricht die Gruppierung also nicht.
+
+**Neuer Style `payeeOptionCard`** (`expenseTracking.styles.ts`, Vorbild `budgetCardAddNew`s gestrichelter Rahmen, hier aber durchgezogen):
+
+```ts
+payeeOptionCard: {
+  border: `1px solid ${theme.palette.divider}`,
+  borderRadius: "8px",
+  padding: theme.spacing(1, 1.5),
+  marginTop: theme.spacing(1),
+},
+```
+
+**`isValid`-Erweiterung:**
+
+```ts
+const isPayeeValid =
+  formState.payeeType === ExpensePayeeType.EXISTING_USER
+    ? !!formState.payeeUserId
+    : formState.payeeType === ExpensePayeeType.NEW_PERSON
+      ? formState.payeeName.trim().length > 0
+      : true; // no_refund_needed braucht keine weitere Angabe
+
+const isValid =
+  isDateValid &&
+  formState.label.trim().length > 0 &&
+  amountInCents != null &&
+  amountInCents > 0 &&
+  formState.date &&
+  formState.currency &&
+  formState.budgetId &&
+  isPayeeValid;
+```
+
+**`transformInputToExpenseDomain`** (in `expenseTracking.tsx`) — ersetzt die drei hartkodierten Zeilen aus Entscheidung 3:
+
+```ts
+const transformInputToExpenseDomain = (
+  expenseInput: ExpenseDetailDialogState,
+): ExpenseDomain => {
+  return {
+    // ...bestehende Felder unverändert...
+    payeeType: expenseInput.payeeType,
+    payeeUserId:
+      expenseInput.payeeType === ExpensePayeeType.EXISTING_USER
+        ? expenseInput.payeeUserId
+        : null,
+    payeeName:
+      expenseInput.payeeType === ExpensePayeeType.NEW_PERSON
+        ? expenseInput.payeeName.trim() || null
+        : null,
+    attachmentPath: null,
+    attachmentOriginalFilename: null,
+  };
+};
+```
+
+Die verschachtelten Bedingungen sind bewusst redundant zum `RadioGroup`-Reset-Handler oben — beide Stellen erzwingen unabhängig voneinander die exakte Kombination, die der DB-`CHECK`-Constraint
+verlangt. Ohne diese zweite Absicherung hier könnte ein Zustand, der im Formular kurzzeitig inkonsistent war (z.B. ein Test, der Felder direkt setzt statt über die UI), unbemerkt durchrutschen.
+
+**`Expense.checkExpenseData`-Erweiterung** — Server-seitiges Pendant zum `CHECK`-Constraint, selbes Muster wie die bestehenden Feld-Prüfungen:
+
+```ts
+if (expense.payeeType === ExpensePayeeType.EXISTING_USER && !expense.payeeUserId) {
+  throw new FieldValidationError(TEXT_PLEASE_PROVIDE_PAYEE);
+}
+if (
+  expense.payeeType === ExpensePayeeType.NEW_PERSON &&
+  !expense.payeeName?.trim()
+) {
+  throw new FieldValidationError(TEXT_PLEASE_PROVIDE_PAYEE_NAME);
+}
+```
+
+**Tests**
+
+- `expenseDetailDialog.test.tsx`: alle drei `payeeType`-Optionen wählbar; Wechsel des Typs setzt die jeweils andere Auswahl zurück (RadioGroup-Handler); Validierung greift korrekt pro Typ (leerer Name bei `new_person`, keine Auswahl bei `existing_user` → Fehler; `no_refund_needed` immer gültig); verwaiste `payeeUserId` erscheint als deaktivierter Platzhalter-Eintrag, wenn nicht in `cooks`.
+- `expense.class.test.ts`: `checkExpenseData` wirft bei inkonsistenter Payee-Kombination (Muster wie die bestehenden Feld-Tests), lässt alle drei gültigen Kombinationen durch. 
+- `expenseTracking.test.tsx`: `createExpense`/`updateExpense`-Payload enthält die korrekte Payee-Kombination je gewähltem Typ (Muster: `expect.objectContaining({payeeType, payeeUserId, payeeName})`, analog dem `budgetId`-Wechsel-Test aus 2.6).
+- **Mutationsprobe:** Reset-Logik im `RadioGroup`-Handler entfernen (z.B. `payeeUserId` bei Typwechsel nicht mehr zurücksetzen) → ein Test muss zeigen, dass beim Speichern nach einem Typwechsel trotzdem die alte, jetzt inkonsistente `payeeUserId` mitgeschickt würde.
+
+**Zum Ansehen im Browser** (DEV, nie PROD): alle drei Typen durchklicken, Validierung prüfen; 
+Ausgabe mit `existing_user` speichern, Dialog erneut öffnen → Person weiterhin korrekt vorausgewählt;
+falls im Testdatensatz möglich, einen Cook aus `event.cooks` entfernen und die zugehörige alte Ausgabe bearbeiten → Platzhalter-Eintrag erscheint, keine falsche Vorbelegung. **Mobile prüfen** (RadioGroup auf xs, wie immer).
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; alle drei Payee-Typen haben je einen eigenen Test für Auswahl **und** Validierung;
+`checkExpenseData` deckt alle drei gültigen und die zwei ungültigen Payee-Kombinationen ab; Mutationsprobe für den Reset-Handler bestanden.
+
+### **Story 3.2 — Aggregation "Offene Beträge pro Person"**
+
+_Wird unmittelbar vor Start verfeinert (nach 3.1), grober Zuschnitt bereits jetzt:_
+
+- Reine Funktion (vermutlich `Expense.sumByPayee` o.ä., analog `sumByBudgetAndCurrency`): summiert
+  alle Ausgaben mit `payeeType !== NO_REFUND_NEEDED` je Person (Schlüssel `payeeUserId` **oder**
+  `payeeName`, je nachdem was gesetzt ist) und Währung.
+- Nur eine **Vorschau-UI** (Ort noch offen — z.B. ein einfacher, eingeklappter Abschnitt unterhalb
+  der Budget-Karten) — die volle Dashboard-Integration mit Kennzahlen kommt erst in Epic 6, dort
+  wird 3.2s Aggregations-Funktion wiederverwendet, nicht neu gebaut.
+- Braucht 3.1 als Voraussetzung (ohne echte Payee-Daten nichts zu aggregieren) — kann inhaltlich erst
+  sinnvoll verfeinert werden, sobald 3.1 gebaut ist und reale Testdaten liefert.
 
 ## Epic 4 — Belege (Attachments)
 
