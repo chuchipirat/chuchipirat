@@ -8,8 +8,10 @@ import {
   PLEASE_PROVIDE_BUDGET as TEXT_PLEASE_PROVIDE_BUDGET,
   PLEASE_PROVIDE_DATE as TEXT_PLEASE_PROVIDE_DATE,
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
+  PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
+  PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
 } from "../../../../constants/text";
-import {ExpenseDomain} from "../expense.types";
+import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
 import {BudgetDomain} from "../budget.types";
 import {FieldValidationError} from "../../../Shared/fieldValidation.error.class";
 
@@ -140,13 +142,40 @@ describe("Expense.checkExpenseData", () => {
       TEXT_PLEASE_PROVIDE_CURRENCY,
     );
   });
+  test("Expense.checkExpenseData(), Payee-Kombinationen", () => {
+    const expenseMock = {...expense};
+
+    expenseMock.payeeType = ExpensePayeeType.EXISTING_USER;
+    expenseMock.payeeUserId = null;
+    expect(() => Expense.checkExpenseData(expenseMock)).toThrow(
+      TEXT_PLEASE_PROVIDE_PAYEE,
+    );
+
+    expenseMock.payeeType = ExpensePayeeType.NEW_PERSON;
+    expenseMock.payeeName = "";
+
+    expect(() => Expense.checkExpenseData(expenseMock)).toThrow(
+      TEXT_PLEASE_PROVIDE_PAYEE_NAME,
+    );
+
+    // Korrekte Kombinationen funktionieren
+    expenseMock.payeeType = ExpensePayeeType.EXISTING_USER;
+    expenseMock.payeeUserId = "user-id-01";
+    expenseMock.payeeName = null;
+    expect(() => Expense.checkExpenseData(expenseMock)).not.toThrow();
+
+    expenseMock.payeeType = ExpensePayeeType.NEW_PERSON;
+    expenseMock.payeeUserId = null;
+    expenseMock.payeeName = "Hans Beispiel";
+    expect(() => Expense.checkExpenseData(expenseMock)).not.toThrow();
+  });
   test("Expense.checkExpenseData(), Positiv-Fall", () => {
     const expenseMock = {...expense};
     expect(() => Expense.checkExpenseData(expenseMock)).not.toThrow();
+    expect(() => Expense.checkExpenseData({...expense, label: ""})).toThrow(
+      FieldValidationError,
+    );
   });
-  expect(() => Expense.checkExpenseData({...expense, label: ""})).toThrow(
-    FieldValidationError,
-  );
 });
 describe("Expense.sumByBudgetAndCurrency", () => {
   test("Leere Liste = {}", () => {

@@ -1,4 +1,4 @@
-import {Event} from "../event.class";
+import {Event, Cook} from "../event.class";
 
 export const event: Event = {
   uid: "wGhsPDH0WI9IKvg9ERXg",
@@ -42,4 +42,17 @@ export const event: Event = {
     fromDisplayName: "Test User",
     fromUid: "RvLIR9NDGOWPwos8PrSZVgfIZvj9",
   },
+};
+
+export const cook1: Cook = {
+  displayName: "Röstizüngli Röbi",
+  motto: "🥔 Ohne Rösti kein Erfolg",
+  pictureSrc: "",
+  uid: "user-uid-01",
+};
+export const cook2: Cook = {
+  displayName: "Fondueli Fritz",
+  motto: "🧀 100% Käse, 0% Kompromisse",
+  pictureSrc: "",
+  uid: "user-uid-02",
 };

@@ -110,7 +110,13 @@ export const OPTIONAL = "optional";
 export const EXPENSE_SAVED = "Ausgabe wurde gespeichert.";
 export const EXPENSE_UPDATED = "Ausgabe wurde angepasst.";
 export const EXPENSE_DELETED = "Ausgabe wurde gelöscht.";
-
+export const PAYEE = "Wer hat bezahlt?";
+export const PAYEE_EXISTING_USER = "Bestehende Person";
+export const PLEASE_PROVIDE_PAYEE = "Bitte eine Person wählen.";
+export const PAYEE_NEW_PERSON = "Neue Person erfassen";
+export const PLEASE_PROVIDE_PAYEE_NAME = "Bitte einen Namen angeben.";
+export const PAYEE_NO_REFUND_NEEDED = "Keine Rückerstattung nötig";
+export const FORMER_EVENT_COOK = "Ehemalige Person";
 export const DELETE_EXPENSE_DIALOG = (
   label: string,
   amountInCents: number,

@@ -20,6 +20,14 @@ import {
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
   PLEASE_PROVIDE_DATE as TEXT_PLEASE_PROVIDE_DATE,
   DELETE as TEXT_DELETE,
+  NAME as TEXT_NAME,
+  PAYEE as TEXT_PAYEE,
+  PAYEE_EXISTING_USER as TEXT_PAYEE_EXISTING_USER,
+  PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
+  PAYEE_NEW_PERSON as TEXT_PAYEE_NEW_PERSON,
+  PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
+  PAYEE_NO_REFUND_NEEDED as TEXT_PAYEE_NO_REFUND_NEEDED,
+  FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
 } from "../../../constants/text";
 
 import {
@@ -31,10 +39,14 @@ import {
   MenuItem,
   TextField,
   Box,
+  FormLabel,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
 } from "@mui/material";
 
 import DeleteIcon from "@mui/icons-material/Delete";
-import {ExpenseDomain} from "./expense.types";
+import {ExpenseDomain, ExpensePayeeType} from "./expense.types";
 
 import {
   AVAILABLE_CURRENCIES,
@@ -44,6 +56,7 @@ import {DatePicker} from "@mui/x-date-pickers";
 import {useCustomStyles} from "../../../constants/styles";
 import dayjs, {Dayjs} from "dayjs";
 import {BudgetDomain} from "./budget.types";
+import {Cook} from "../Event/event.class";
 
 /**
  * Props des Ausgaben-Dialogs.
@@ -64,6 +77,7 @@ interface ExpenseDetailDialogProps {
   expense: ExpenseDomain | null;
   budgets: BudgetDomain[];
   defaultBudgetId: string | null;
+  cooks: Cook[];
   onClose: () => void;
   onCreate: (budget: ExpenseDetailDialogState) => void;
   onEdit: (expenseId: string, expense: ExpenseDetailDialogState) => void;
@@ -90,6 +104,9 @@ export type ExpenseDetailDialogState = {
   budgetId: string;
   date: Dayjs | null;
   comment: string;
+  payeeType: ExpensePayeeType;
+  payeeUserId: string | null;
+  payeeName: string;
 };
 
 /** Leeres Formular für ein neues Budget. */
@@ -100,6 +117,9 @@ const INITIAL_FORM_STATE: ExpenseDetailDialogState = {
   budgetId: "",
   date: null,
   comment: "",
+  payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+  payeeUserId: null,
+  payeeName: "",
 };
 
 /**
@@ -117,6 +137,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   expense,
   budgets,
   defaultBudgetId,
+  cooks,
   onCreate,
   onClose,
   onEdit,
@@ -139,6 +160,9 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
           budgetId: expense.budgetId,
           date: dayjs(expense.date),
           comment: expense.comment ?? "",
+          payeeType: expense.payeeType,
+          payeeUserId: expense.payeeUserId,
+          payeeName: expense.payeeName ?? "",
         }
       : {
           ...INITIAL_FORM_STATE,
@@ -205,6 +229,13 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   // ------------------------------------------ */
   const amountInCents = parseAmountToCents(formState.amount);
   const isDateValid = formState.date != null && formState.date.isValid();
+  const isPayeeValid =
+    formState.payeeType === ExpensePayeeType.EXISTING_USER
+      ? !!formState.payeeUserId
+      : formState.payeeType === ExpensePayeeType.NEW_PERSON
+        ? formState.payeeName.trim().length > 0
+        : true; // no_refund_needed braucht keine weitere Angabe
+
   const isValid =
     isDateValid &&
     formState.label.trim().length > 0 &&
@@ -212,7 +243,21 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
     amountInCents > 0 &&
     formState.date &&
     formState.currency &&
-    formState.budgetId;
+    formState.budgetId &&
+    isPayeeValid;
+
+  const payeeOptions =
+    formState.payeeType === ExpensePayeeType.EXISTING_USER &&
+    formState.payeeUserId &&
+    !cooks.some((cook) => cook.uid === formState.payeeUserId)
+      ? [
+          ...cooks,
+          {
+            uid: formState.payeeUserId,
+            displayName: TEXT_FORMER_EVENT_COOK,
+          } as Cook,
+        ]
+      : cooks;
 
   return (
     <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
@@ -318,6 +363,97 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
           rows={3}
           fullWidth
         />
+        <FormLabel sx={{mt: 2, display: "block"}}>{TEXT_PAYEE}</FormLabel>
+        <RadioGroup
+          value={formState.payeeType}
+          onChange={(event) => {
+            const payeeType = event.target.value as ExpensePayeeType;
+            // Beim Typ-Wechsel die jeweils andere Auswahl zurücksetzen — sonst bliebe
+            // z.B. eine payeeUserId stehen, obwohl "Neue Person" gewählt wurde, und
+            // der CHECK-Constraint der DB würde das Speichern ablehnen.
+            setFormState((prev) => ({
+              ...prev,
+              payeeType,
+              payeeUserId:
+                payeeType === ExpensePayeeType.EXISTING_USER
+                  ? prev.payeeUserId
+                  : null,
+              payeeName:
+                payeeType === ExpensePayeeType.NEW_PERSON ? prev.payeeName : "",
+            }));
+          }}
+        >
+          <Box sx={classes.payeeOptionCard}>
+            <FormControlLabel
+              value={ExpensePayeeType.EXISTING_USER}
+              control={<Radio />}
+              label={TEXT_PAYEE_EXISTING_USER}
+            />
+            {formState.payeeType === ExpensePayeeType.EXISTING_USER && (
+              <TextField
+                select
+                fullWidth
+                label={TEXT_NAME}
+                value={formState.payeeUserId ?? ""}
+                onChange={(event) =>
+                  updateField("payeeUserId", event.target.value)
+                }
+                error={touched && !formState.payeeUserId}
+                helperText={
+                  touched && !formState.payeeUserId
+                    ? TEXT_PLEASE_PROVIDE_PAYEE
+                    : undefined
+                }
+                margin="normal"
+                sx={{mt: 1}}
+              >
+                {payeeOptions.map((cook) => (
+                  <MenuItem
+                    key={cook.uid}
+                    value={cook.uid}
+                    disabled={!cooks.some((c) => c.uid === cook.uid)}
+                  >
+                    {cook.displayName}
+                  </MenuItem>
+                ))}
+              </TextField>
+            )}
+          </Box>
+
+          <Box sx={classes.payeeOptionCard}>
+            <FormControlLabel
+              value={ExpensePayeeType.NEW_PERSON}
+              control={<Radio />}
+              label={TEXT_PAYEE_NEW_PERSON}
+            />
+            {formState.payeeType === ExpensePayeeType.NEW_PERSON && (
+              <TextField
+                fullWidth
+                label={TEXT_NAME}
+                value={formState.payeeName}
+                onChange={(event) =>
+                  updateField("payeeName", event.target.value)
+                }
+                error={touched && formState.payeeName.trim().length === 0}
+                helperText={
+                  touched && formState.payeeName.trim().length === 0
+                    ? TEXT_PLEASE_PROVIDE_PAYEE_NAME
+                    : undefined
+                }
+                margin="normal"
+                sx={{mt: 1}}
+              />
+            )}
+          </Box>
+
+          <Box sx={classes.payeeOptionCard}>
+            <FormControlLabel
+              value={ExpensePayeeType.NO_REFUND_NEEDED}
+              control={<Radio />}
+              label={TEXT_PAYEE_NO_REFUND_NEEDED}
+            />
+          </Box>
+        </RadioGroup>
       </DialogContent>
       <DialogActions>
         {expense && (

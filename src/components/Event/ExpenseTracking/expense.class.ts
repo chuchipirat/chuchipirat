@@ -2,6 +2,7 @@ import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import {
   ExpenseDomain,
   ExpenseGroup,
+  ExpensePayeeType,
   ExpenseTotalsByBudget,
 } from "./expense.types";
 
@@ -12,6 +13,8 @@ import {
   PLEASE_PROVIDE_BUDGET as TEXT_PLEASE_PROVIDE_BUDGET,
   PLEASE_PROVIDE_DATE as TEXT_PLEASE_PROVIDE_DATE,
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
+  PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
+  PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
 } from "../../../constants/text/expenseTracking";
 import {BudgetDomain} from "./budget.types";
 
@@ -63,6 +66,18 @@ export class Expense {
 
     if (!expense.currency || !CURRENCY_CODE_PATTERN.test(expense.currency)) {
       throw new FieldValidationError(TEXT_PLEASE_PROVIDE_CURRENCY);
+    }
+    if (
+      expense.payeeType === ExpensePayeeType.EXISTING_USER &&
+      !expense.payeeUserId
+    ) {
+      throw new FieldValidationError(TEXT_PLEASE_PROVIDE_PAYEE);
+    }
+    if (
+      expense.payeeType === ExpensePayeeType.NEW_PERSON &&
+      !expense.payeeName?.trim()
+    ) {
+      throw new FieldValidationError(TEXT_PLEASE_PROVIDE_PAYEE_NAME);
     }
   }
   /**

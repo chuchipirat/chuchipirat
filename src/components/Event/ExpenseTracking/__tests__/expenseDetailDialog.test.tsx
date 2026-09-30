@@ -1,4 +1,4 @@
-import {fireEvent, render, screen} from "@testing-library/react";
+import {fireEvent, render, screen, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {ExpenseDetailDialog} from "../expenseDetailDialog";
 import {BudgetDomain} from "../budget.types";
@@ -11,8 +11,12 @@ import {
   PLEASE_PROVIDE_DATE as TEXT_PLEASE_PROVIDE_DATE,
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
   PLEASE_PROVIDE_LABEL,
+  PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
+  PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
 } from "../../../../constants/text";
 import dayjs from "dayjs";
+import {Cook} from "../../Event/event.class";
+import {cook1, cook2} from "../../Event/__mocks__/event.mock";
 
 jest.mock("@mui/x-date-pickers", () => ({
   DatePicker: (props: any) => (
@@ -28,6 +32,7 @@ jest.mock("@mui/x-date-pickers", () => ({
 }));
 
 const budgets: BudgetDomain[] = [{...budget}, {...budget2}];
+const cooks: Cook[] = [cook1, cook2];
 
 describe("Ausgabe Detail Test", () => {
   test("zeigt Validierungsfehler bei leerem Formular", () => {
@@ -38,18 +43,27 @@ describe("Ausgabe Detail Test", () => {
         expense={null}
         budgets={budgets}
         defaultBudgetId={null}
+        cooks={cooks}
         onClose={jest.fn()}
         onCreate={onCreate}
         onEdit={jest.fn()}
         onDelete={jest.fn()}
       />,
     );
+    fireEvent.click(screen.getByRole("radio", {name: "Bestehende Person"}));
     fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
 
     expect(screen.getByText(TEXT_PLEASE_PROVIDE_AMOUNT)).toBeInTheDocument();
     expect(screen.getByText(TEXT_PLEASE_PROVIDE_CURRENCY)).toBeInTheDocument();
     expect(screen.getByText(TEXT_PLEASE_PROVIDE_LABEL)).toBeInTheDocument();
     expect(screen.getByText(TEXT_PLEASE_PROVIDE_BUDGET)).toBeInTheDocument();
+    expect(screen.getByText(TEXT_PLEASE_PROVIDE_PAYEE)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", {name: "Neue Person erfassen"}));
+    expect(
+      screen.getByText(TEXT_PLEASE_PROVIDE_PAYEE_NAME),
+    ).toBeInTheDocument();
+
     expect(onCreate).not.toHaveBeenCalled();
   });
   describe("Zeigt Validierungsfehler bei falschen Einträgen", () => {
@@ -64,6 +78,7 @@ describe("Ausgabe Detail Test", () => {
           expense={mockExpense}
           budgets={budgets}
           defaultBudgetId={null}
+          cooks={cooks}
           onClose={jest.fn()}
           onCreate={jest.fn()}
           onEdit={onEdit}
@@ -85,6 +100,7 @@ describe("Ausgabe Detail Test", () => {
           expense={mockExpense}
           budgets={budgets}
           defaultBudgetId={null}
+          cooks={cooks}
           onClose={jest.fn()}
           onCreate={jest.fn()}
           onEdit={onEdit}
@@ -106,6 +122,7 @@ describe("Ausgabe Detail Test", () => {
           expense={mockExpense}
           budgets={budgets}
           defaultBudgetId={null}
+          cooks={cooks}
           onClose={jest.fn()}
           onCreate={jest.fn()}
           onEdit={onEdit}
@@ -125,6 +142,7 @@ describe("Ausgabe Detail Test", () => {
         expense={null}
         budgets={budgets}
         defaultBudgetId={null}
+        cooks={cooks}
         onClose={jest.fn()}
         onCreate={onCreate}
         onEdit={jest.fn()}
@@ -170,6 +188,7 @@ describe("Ausgabe Detail Test", () => {
         expense={null}
         budgets={budgets}
         defaultBudgetId={"budget-id-002"}
+        cooks={cooks}
         onClose={jest.fn()}
         onCreate={jest.fn()}
         onEdit={jest.fn()}
@@ -187,6 +206,7 @@ describe("Ausgabe Detail Test", () => {
         expense={mockExpense}
         budgets={budgets}
         defaultBudgetId={null}
+        cooks={cooks}
         onClose={jest.fn()}
         onCreate={jest.fn()}
         onEdit={jest.fn()}
@@ -205,6 +225,7 @@ describe("Ausgabe Detail Test", () => {
         expense={null}
         budgets={budgets}
         defaultBudgetId={null}
+        cooks={cooks}
         onClose={jest.fn()}
         onCreate={jest.fn()}
         onEdit={jest.fn()}
@@ -227,6 +248,7 @@ describe("Ausgabe Detail Test", () => {
         expense={mockExpense}
         budgets={budgets}
         defaultBudgetId={"budget-id-002"}
+        cooks={cooks}
         onClose={jest.fn()}
         onCreate={jest.fn()}
         onEdit={onEdit}
@@ -247,6 +269,7 @@ describe("Ausgabe Detail Test", () => {
         expense={mockExpense}
         budgets={[]}
         defaultBudgetId={"budget-id-002"}
+        cooks={cooks}
         onClose={jest.fn()}
         onCreate={jest.fn()}
         onEdit={onEdit}
@@ -256,5 +279,92 @@ describe("Ausgabe Detail Test", () => {
 
     fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
     expect(onEdit).toHaveBeenCalled();
+  });
+  test("Wechsel des Ausgabentyp, löscht vorherige Werte", () => {
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+    fireEvent.click(screen.getByRole("radio", {name: "Bestehende Person"}));
+
+    // Werte eingeben
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Name"}));
+    fireEvent.click(screen.getByRole("option", {name: "Fondueli Fritz"}));
+
+    fireEvent.click(screen.getByRole("radio", {name: "Neue Person erfassen"}));
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: {value: "Beispiel Benno"},
+    });
+
+    fireEvent.click(screen.getByRole("radio", {name: "Bestehende Person"}));
+    expect(
+      within(screen.getByRole("combobox", {name: "Name"})).queryByText(
+        "Fondueli Fritz",
+      ),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("radio", {name: "Neue Person erfassen"}));
+    expect(screen.getByLabelText("Name")).toHaveValue("");
+  });
+});
+describe("Mutationsprobe", () => {
+  test("Nach Typ-Wechsel wird die alte Auswahl nicht mitgeschickt", () => {
+    const onCreate = jest.fn();
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={onCreate}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    // Erst bestehende Person wählen...
+    fireEvent.click(screen.getByRole("radio", {name: "Bestehende Person"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Name"}));
+    fireEvent.click(screen.getByRole("option", {name: "Fondueli Fritz"}));
+
+    // ...dann zu Neue Person wechseln und einen Namen eintippen
+    fireEvent.click(screen.getByRole("radio", {name: "Neue Person erfassen"}));
+    fireEvent.change(screen.getByLabelText("Name"), {
+      target: {value: "Beispiel Benno"},
+    });
+
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Sackmesser"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "12.00"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        payeeType: "new_person",
+        payeeUserId: null, // die frühere Auswahl (cook2) darf hier nicht mehr stehen
+        payeeName: "Beispiel Benno",
+      }),
+    );
   });
 });

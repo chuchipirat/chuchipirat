@@ -21,7 +21,10 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import {EventExpenseTrackingPage} from "../expenseTracking";
+import {
+  EventExpenseTrackingPage,
+  transformInputToExpenseDomain,
+} from "../expenseTracking";
 import {getHelpPageUrl} from "../../../Navigation/helpCenter";
 import {AuthUserContext} from "../../../Session/authUserContext";
 import AuthUser from "../../../Session/authUser.class";
@@ -37,6 +40,7 @@ import {
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
 } from "../../../../constants/text/expenseTracking";
 import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
+import {ExpenseDetailDialogState} from "../expenseDetailDialog";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import dayjs from "dayjs";
 /**
@@ -1141,6 +1145,104 @@ describe("EventExpenseTrackingPage: Ausgaben bearbeiten und löschen", () => {
       ).toBeInTheDocument(),
     );
   });
+  test("Neue Ausgabe mit bestehender Person sendet payeeUserId", async () => {
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-1",
+      value: {...mockExpense, id: "expense-new-1"},
+    });
+
+    await renderUnlockedPage([kitchenBudget]);
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Sackmesser"},
+    });
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "12.00"},
+    });
+
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Währung"}),
+    );
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    fireEvent.click(
+      within(dialog).getByRole("radio", {name: "Bestehende Person"}),
+    );
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Name"}));
+    fireEvent.click(screen.getByRole("option", {name: "Max Muster"}));
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payeeType: "existing_user",
+          payeeUserId: "user-123",
+          payeeName: null,
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+  test("Neue Ausgabe mit Neuer Person sendet payerName", async () => {
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-1",
+      value: {...mockExpense, id: "expense-new-1"},
+    });
+
+    await renderUnlockedPage([kitchenBudget]);
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Sackmesser"},
+    });
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "12.00"},
+    });
+
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Währung"}),
+    );
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    fireEvent.click(
+      within(dialog).getByRole("radio", {name: "Neue Person erfassen"}),
+    );
+
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: {value: "Externe Person"},
+    });
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payeeType: "new_person",
+          payeeUserId: null,
+          payeeName: "Externe Person",
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+
   test("Änderung der Ausgabe, wird auf Budgetkarte wiederspiegelt", async () => {
     mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
     mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
@@ -1713,7 +1815,7 @@ describe("EventExpenseTrackingPage: Realtime der Ausgaben", () => {
 });
 
 /* =====================================================================
-// Hervorhebung von Fremdänderungen (Paket 2.8)
+// Hervorhebung von Fremdänderungen 
 // ===================================================================== */
 /**
  * Prüft, ob ein Element aktuell die `remoteChangeGlow`-Animation aus seiner
@@ -1917,5 +2019,71 @@ describe("EventExpenseTrackingPage: Hervorhebung von Fremdänderungen", () => {
     expect(hasRemoteChangeGlow(screen.getByTestId(kitchenBudget.id))).toBe(
       false,
     );
+  });
+});
+
+/* =====================================================================
+// transformInputToExpenseDomain (reine Funktion, direkt getestet)
+// ===================================================================== */
+describe("transformInputToExpenseDomain", () => {
+  const validFormState: ExpenseDetailDialogState = {
+    label: "Sackmesser",
+    amount: "12.00",
+    currency: "CHF",
+    budgetId: kitchenBudget.id,
+    date: dayjs("2026-10-01"),
+    comment: "",
+    payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+    payeeUserId: null,
+    payeeName: "",
+  };
+
+  test("ignoriert eine stehengebliebene payeeUserId, wenn payeeType NEW_PERSON ist", () => {
+    // Zustand, den der Dialog über sein eigenes RadioGroup-Reset nie
+    // produzieren würde: payeeType NEW_PERSON, aber payeeUserId noch von
+    // einer früheren "Bestehende Person"-Auswahl gesetzt. Prüft die zweite,
+    // von der Dialog-Logik unabhängige Absicherung in dieser Funktion.
+    const result = transformInputToExpenseDomain(
+      {
+        ...validFormState,
+        payeeType: ExpensePayeeType.NEW_PERSON,
+        payeeUserId: "stale-user-id",
+        payeeName: "Jemand",
+      },
+      "event-1",
+    );
+
+    expect(result.payeeUserId).toBeNull();
+    expect(result.payeeName).toBe("Jemand");
+  });
+
+  test("ignoriert einen stehengebliebenen payeeName, wenn payeeType EXISTING_USER ist", () => {
+    const result = transformInputToExpenseDomain(
+      {
+        ...validFormState,
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "user-123",
+        payeeName: "Stehengebliebener Name",
+      },
+      "event-1",
+    );
+
+    expect(result.payeeName).toBeNull();
+    expect(result.payeeUserId).toBe("user-123");
+  });
+
+  test("setzt beide Payee-Felder auf null bei NO_REFUND_NEEDED, auch wenn beide gesetzt wären", () => {
+    const result = transformInputToExpenseDomain(
+      {
+        ...validFormState,
+        payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+        payeeUserId: "stale-user-id",
+        payeeName: "Stehengebliebener Name",
+      },
+      "event-1",
+    );
+
+    expect(result.payeeUserId).toBeNull();
+    expect(result.payeeName).toBeNull();
   });
 });
