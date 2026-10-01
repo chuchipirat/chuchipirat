@@ -4,6 +4,7 @@ import {
   ExpenseGroup,
   ExpensePayeeType,
   ExpenseTotalsByBudget,
+  PayeeBalance,
 } from "./expense.types";
 
 import {
@@ -165,5 +166,41 @@ export class Expense {
       }
     }
     return changed;
+  }
+  /**
+   * Summiert alle Ausgaben mit zahlender Instanz (ohne `no_refund_needed`) pro
+   * Person und Währung. Fasst `new_person`-Einträge mit exakt gleichem Namen
+   * zusammen (kein Fuzzy-Matching).
+   *
+   * @param expenses - Alle Ausgaben des Anlasses.
+   * @returns Eine Zeile je Person, unsortiert (Sortierung nach Anzeigename
+   *   obliegt der UI-Schicht, die `event.cooks` zur Auflösung braucht).
+   */
+  static sumByPayee(expenses: ExpenseDomain[]): PayeeBalance[] {
+    const balancesByKey = new Map<string, PayeeBalance>();
+
+    for (const expense of expenses) {
+      if (expense.payeeType === ExpensePayeeType.NO_REFUND_NEEDED) continue;
+
+      const key = expense.payeeUserId ?? expense.payeeName ?? "";
+
+      const balance = balancesByKey.get(key) ?? {
+        payeeType: expense.payeeType,
+        payeeUserId: expense.payeeUserId,
+        payeeName: expense.payeeName,
+        expenses: [],
+        totalsByCurrency: {},
+      };
+      balance.expenses.push(expense);
+      balance.totalsByCurrency[expense.currency] =
+        (balance.totalsByCurrency[expense.currency] ?? 0) +
+        expense.amountInCents;
+      balancesByKey.set(key, balance);
+    }
+
+    return [...balancesByKey.values()].map((balance) => ({
+      ...balance,
+      expenses: Expense.sortByDateDescending(balance.expenses),
+    }));
   }
 }
