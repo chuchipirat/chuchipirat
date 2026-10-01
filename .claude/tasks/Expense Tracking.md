@@ -1606,18 +1606,199 @@ falls im Testdatensatz möglich, einen Cook aus `event.cooks` entfernen und die 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; alle drei Payee-Typen haben je einen eigenen Test für Auswahl **und** Validierung;
 `checkExpenseData` deckt alle drei gültigen und die zwei ungültigen Payee-Kombinationen ab; Mutationsprobe für den Reset-Handler bestanden.
 
-### **Story 3.2 — Aggregation "Offene Beträge pro Person"**
+### **Story 3.2 — Aggregation "Offene Beträge pro Person"** ✅ erledigt
 
-_Wird unmittelbar vor Start verfeinert (nach 3.1), grober Zuschnitt bereits jetzt:_
+Ziel: eine reine Aggregations-Funktion, die aus allen Ausgaben eines Events die Summe pro zahlender Person errechnet, plus eine einfache Vorschau-Anzeige. Die volle Dashboard-Integration (Kennzahlen, Epic 6) baut auf derselben Funktion auf, nicht auf einer neuen.
 
-- Reine Funktion (vermutlich `Expense.sumByPayee` o.ä., analog `sumByBudgetAndCurrency`): summiert
-  alle Ausgaben mit `payeeType !== NO_REFUND_NEEDED` je Person (Schlüssel `payeeUserId` **oder**
-  `payeeName`, je nachdem was gesetzt ist) und Währung.
-- Nur eine **Vorschau-UI** (Ort noch offen — z.B. ein einfacher, eingeklappter Abschnitt unterhalb
-  der Budget-Karten) — die volle Dashboard-Integration mit Kennzahlen kommt erst in Epic 6, dort
-  wird 3.2s Aggregations-Funktion wiederverwendet, nicht neu gebaut.
-- Braucht 3.1 als Voraussetzung (ohne echte Payee-Daten nichts zu aggregieren) — kann inhaltlich erst
-  sinnvoll verfeinert werden, sobald 3.1 gebaut ist und reale Testdaten liefert.
+**Wichtige Annahme, bitte gegenlesen:** Im gesamten Epic-0–10-Grobplan gibt es kein "als
+zurückerstattet markieren"-Epic, und `ExpenseDomain` hat kein entsprechendes Feld. "Offen" heisst hier deshalb schlicht "insgesamt geschuldet" — die App berechnet, wer wie viel bekommen sollte, die tatsächliche Rückerstattung (Banküberweisung, bar) passiert ausserhalb der App. Es gibt also **keine** Settled/Unsettled-Filterung zu bauen. Falls doch eine Rückerstattungs-Markierung geplant ist, muss das vor dem Bauen geklärt werden — die Aggregation unten geht davon aus, dass es sie nicht
+gibt.
+
+**Gruppierung bei `new_person`:** Zwei Ausgaben mit identischem getippten Namen (z.B. beide "Hans") werden **zusammengefasst** — exakter String-Vergleich, keine Fuzzy-Matching. Ein Tippfehler ("Hans" vs. "hans") wird bewusst **nicht**  zusammengeführt; das ist eine Grenze der freien Texteingabe, keine die diese Story lösen muss.
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `expense.types.ts` | neuer Typ `PayeeBalance` |
+| `expense.class.ts` | neue Methode `Expense.sumByPayee` |
+| `expense.class.test.ts` | Tests für `sumByPayee` |
+| `payeeBalanceAccordion.tsx` (neu) | Anzeige-Komponente, analog `budgetCard.tsx`/`expenseList.tsx` als eigene Datei |
+| `expenseTracking.tsx` | `PayeeBalanceAccordion` unterhalb der Budget-Karten einbinden |
+| `constants/text/expenseTracking.ts` | `OPEN_AMOUNTS_PER_PERSON` (Accordion-Titel) |
+| `constants/styles/expenseTracking.styles.ts` | neuer Style `payeeBalanceSummary` (siehe unten) |
+
+**`PayeeBalance`-Typ** (`expense.types.ts`) — bewusst ohne Anzeigenamen: `sumByPayee` bleibt reine
+Domain-Logik ohne Kenntnis von `Cook`/`event.cooks`, genau wie `groupByBudget` keine
+Icon-Komponente auflöst (das macht `budgetCard.tsx`). Die Auflösung des Anzeigenamens passiert erst
+in der UI-Komponente. **Trägt bewusst auch die einzelnen `expenses`**, nicht nur die Summe — sonst
+könnte man in der UI nicht nachsehen, welche Ausgaben einen Betrag ausmachen, bevor man jemanden
+zurückerstattet. Das macht den Typ strukturell fast identisch zu `ExpenseGroup`
+(`{budget, expenses, totalsByCurrency}`), nur nach zahlender Person statt Budget gruppiert:
+
+```ts
+export type PayeeBalance = {
+  payeeType: ExpensePayeeType.EXISTING_USER | ExpensePayeeType.NEW_PERSON;
+  payeeUserId: string | null;
+  payeeName: string | null;
+  expenses: ExpenseDomain[]; // neueste zuerst, wie ExpenseGroup.expenses
+  totalsByCurrency: Record<string, number>;
+};
+```
+
+**`Expense.sumByPayee`** — Muster wie `sumByBudgetAndCurrency`. Kein zusammengesetzter Schlüssel: der DB-`CHECK`-Constraint garantiert, dass nach dem Ausschluss von  `no_refund_needed` pro Ausgabe **genau eines** von `payeeUserId`/`payeeName` gesetzt ist, nie beide, nie keines — eine UUID und ein getippter Name landen also nie im selben Bucket, ganz ohne Namensraum-Präfix. Ein Präfix dagegen (ursprünglich hier vorgesehen) hätte nur eine praktisch nie eintretende Kollision verhindert (jemand tippt zufällig eine UUID als Namen) und wäre unnötige Komplexität für ein Szenario, das nicht eintreten kann:
+
+```ts
+/**
+ * Summiert alle Ausgaben mit zahlender Instanz (ohne `no_refund_needed`) pro
+ * Person und Währung. Fasst `new_person`-Einträge mit exakt gleichem Namen
+ * zusammen (kein Fuzzy-Matching).
+ *
+ * @param expenses - Alle Ausgaben des Anlasses.
+ * @returns Eine Zeile je Person, unsortiert (Sortierung nach Anzeigename
+ *   obliegt der UI-Schicht, die `event.cooks` zur Auflösung braucht).
+ */
+static sumByPayee(expenses: ExpenseDomain[]): PayeeBalance[] {
+  const balancesByKey = new Map<string, PayeeBalance>();
+
+  for (const expense of expenses) {
+    if (expense.payeeType === ExpensePayeeType.NO_REFUND_NEEDED) continue;
+
+    // Nach dem Ausschluss von no_refund_needed garantiert der DB-CHECK-
+    // Constraint: genau eines von beiden ist gesetzt.
+    const key = expense.payeeUserId ?? expense.payeeName ?? "";
+
+    const balance = balancesByKey.get(key) ?? {
+      payeeType: expense.payeeType,
+      payeeUserId: expense.payeeUserId,
+      payeeName: expense.payeeName,
+      expenses: [],
+      totalsByCurrency: {},
+    };
+    balance.expenses.push(expense);
+    balance.totalsByCurrency[expense.currency] =
+      (balance.totalsByCurrency[expense.currency] ?? 0) + expense.amountInCents;
+    balancesByKey.set(key, balance);
+  }
+
+  // Analog groupByBudget: neueste Ausgabe zuerst je Person.
+  return [...balancesByKey.values()].map((balance) => ({
+    ...balance,
+    expenses: Expense.sortByDateDescending(balance.expenses),
+  }));
+}
+```
+
+**`PayeeBalanceAccordion`** (neue Datei) — **eine eigene `Accordion` pro Person**, nicht eine gemeinsame Accordion um eine flache Liste.  Begründung: mit nur einer äusseren Accordion müsste man erst aufklappen, um überhaupt zu sehen, wer auf der Liste steht — Name und Summe pro Person sollen aber immer sichtbar sein (`AccordionSummary`), nur die einzelnen Ausgaben dahinter sind Detail und bleiben eingeklappt (`AccordionDetails`, Vorbild `dialogRequest.tsx`s Changelog-Accordion für das Grundmuster). Das erlaubt ausserdem, vor einer Rückerstattung nachzusehen, *welche* Ausgaben eine Summe ausmachen:
+
+```tsx
+type PayeeBalanceAccordionProps = {
+  expenses: ExpenseDomain[];
+  cooks: Cook[];
+};
+
+export const PayeeBalanceAccordion = ({expenses, cooks}: PayeeBalanceAccordionProps) => {
+  const classes = useCustomStyles();
+  const balances = Expense.sumByPayee(expenses);
+  if (balances.length === 0) return null; // Leerzustand: Abschnitt einfach ausblenden
+
+  const rows = balances
+    .map((balance) => ({
+      ...balance,
+      displayName:
+        balance.payeeType === ExpensePayeeType.EXISTING_USER
+          ? (cooks.find((cook) => cook.uid === balance.payeeUserId)?.displayName ??
+             TEXT_FORMER_EVENT_COOK) // dieselbe Formulierung wie im Payee-Select aus 3.1
+          : (balance.payeeName ?? ""),
+    }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, "de"));
+
+  return (
+    <Box sx={{mt: 2}}>
+      <Typography variant="subtitle2" sx={{mb: 1}}>
+        {TEXT_OPEN_AMOUNTS_PER_PERSON}
+      </Typography>
+      {rows.map((row) => (
+        <Accordion
+          key={`${row.payeeType}_${row.payeeUserId ?? row.payeeName}`}
+          variant="outlined"
+        >
+          <AccordionSummary expandIcon={<ExpandMoreIcon />}>
+            <Box sx={classes.payeeBalanceSummary}>
+              <Typography>{row.displayName}</Typography>
+              <Box sx={classes.expenseGroupHeaderTotals}>
+                {Object.entries(row.totalsByCurrency)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([currency, amountInCents]) => (
+                    <Typography key={currency} variant="body2">
+                      {formatAmountFromCents(amountInCents, currency)}
+                    </Typography>
+                  ))}
+              </Box>
+            </Box>
+          </AccordionSummary>
+          <AccordionDetails>
+            <List dense>
+              {row.expenses.map((expense) => (
+                <ListItem key={expense.id}>
+                  <ListItemText
+                    primary={expense.label}
+                    secondary={formatAmountFromCents(
+                      expense.amountInCents,
+                      expense.currency,
+                    )}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </AccordionDetails>
+        </Accordion>
+      ))}
+    </Box>
+  );
+};
+```
+
+**Neuer Style `payeeBalanceSummary`** (`expenseTracking.styles.ts`) — `AccordionSummary` legt seinen
+Inhalt nicht automatisch mit `space-between` an, Name links und Summen rechts brauchen das aber:
+
+```ts
+payeeBalanceSummary: {
+  display: "flex",
+  justifyContent: "space-between",
+  alignItems: "center",
+  width: "100%",
+},
+```
+
+Wiederverwendet bewusst `classes.expenseGroupHeaderTotals` (Mehrwährungs-Layout, schon aus 2.4) statt
+eines weiteren neuen Styles dafür — selbe visuelle Situation (mehrere Beträge nebeneinander je Zeile).
+`TEXT_FORMER_EVENT_COOK` ist dieselbe Konstante wie in 3.1s Payee-Select — nicht duplizieren.
+
+**Einbindung in `expenseTracking.tsx`** — direkt nach dem schliessenden `</Grid>` der Budget-Karten, noch innerhalb des `view === "overview"`-Zweigs (nach Zeile ~730 im aktuellen Stand):
+
+```tsx
+              </Grid>
+              <PayeeBalanceAccordion expenses={state.expenses ?? []} cooks={event.cooks} />
+            ) : (
+```
+
+**Tests**
+
+- `Expense.sumByPayee`: leere Liste → `[]`; `no_refund_needed`-Einträge werden ignoriert; `existing_user`-Einträge derselben `payeeUserId` werden summiert; zwei `new_person`-Einträge mit identischem Namen werden zusammengefasst; unterschiedliche Namen bleiben getrennt; mehrere Währungen derselben Person landen in getrennten `totalsByCurrency`-Einträgen; `expenses` je Person enthält genau die richtigen Ausgaben, sortiert nach Datum absteigend (Muster wie bei `groupByBudget`s entsprechendem Test).
+- `PayeeBalanceAccordion`: rendert nichts, wenn keine Ausgaben mit zahlender Instanz vorhanden sind; 
+Name **und** Summe sind sichtbar, ohne dass die Accordion aufgeklappt ist (das ist der eigentliche Punkt dieser Story); 
+aufgeklappt zeigt sie genau die Ausgaben dieser Person; 
+zeigt aufgelösten Cook-Namen bei `existing_user`; 
+zeigt `payeeName` direkt bei `new_person`; 
+zeigt `TEXT_FORMER_EVENT_COOK`, wenn `payeeUserId` nicht mehr in `cooks` vorkommt; 
+Sortierung der Personen nach Anzeigename; mehrere Währungen werden nebeneinander angezeigt; 
+zwei Personen mit Einträgen haben zwei unabhängig auf-/zuklappbare Accordions (eine aufklappen ändert die andere nicht).
+- **Mutationsprobe:** den `NO_REFUND_NEEDED`-Filter (`continue`) entfernen → ein Test muss zeigen, dass dann auch Ausgaben ohne Rückerstattungsbedarf in der Summe auftauchen.
+
+**Zum Ansehen im Browser** (DEV, nie PROD): mehrere Ausgaben mit unterschiedlichen Personen (bestehend und neu, verschiedene Währungen) anlegen — Namen und Summen sofort sichtbar, ohne etwas aufzuklappen; eine Person aufklappen und die einzelnen Ausgaben prüfen; alle Ausgaben löschen → Abschnitt verschwindet ganz. **Mobile prüfen.**
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `Expense.sumByPayee` hat eigene Tests inkl. der `expenses`-Zuordnung und -Sortierung; `PayeeBalanceAccordion` hat eigene Tests für Leerzustand, sichtbare Zusammenfassung ohne Aufklappen, Namensauflösung, Sortierung und unabhängiges Auf-/Zuklappen.
 
 ## Epic 4 — Belege (Attachments)
 
