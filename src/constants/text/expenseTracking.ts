@@ -123,3 +123,6 @@ export const DELETE_EXPENSE_DIALOG = (
   currency: string,
 ): string =>
   `Ausgabe «${label}» (${formatAmountFromCents(amountInCents, currency)}) löschen?`;
+
+export const OPEN_AMOUNTS_PER_PERSON = "Ausgegebene Beträge pro Person";
+export const SHOW_EXPENSES = "Ausgaben anzeigen";

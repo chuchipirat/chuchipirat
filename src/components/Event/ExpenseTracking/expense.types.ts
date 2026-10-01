@@ -20,6 +20,13 @@ export type ExpenseGroup = {
   expenses: ExpenseDomain[]; // neueste zuerst
   totalsByCurrency: Record<string, number>; // Rappen je Währung
 };
+export type PayeeBalance = {
+  payeeType: ExpensePayeeType.EXISTING_USER | ExpensePayeeType.NEW_PERSON;
+  payeeUserId: string | null;
+  payeeName: string | null;
+  expenses: ExpenseDomain[];
+  totalsByCurrency: Record<string, number>;
+};
 /* =====================================================================
 // Domain-Modelle (camelCase, werden in der App verwendet)
 // ===================================================================== */

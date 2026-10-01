@@ -1,4 +1,4 @@
-import {expense} from "../__mocks__/expense.mock";
+import {expense, expenseChf, expenseEur} from "../__mocks__/expense.mock";
 import {Expense} from "../expense.class";
 
 import {
@@ -331,5 +331,135 @@ describe("Expense.diffIds", () => {
     expect(previous[0].date).not.toBe(current[0].date);
 
     expect(Expense.diffIds(previous, current)).toEqual(new Set());
+  });
+});
+describe("Expense.sumByPayee", () => {
+  test("Leere Expense-Liste = []", () => {
+    expect(Expense.sumByPayee([])).toEqual([]);
+  });
+  test("NO_REFUND_NEEDED Einträge werden ignoriert", () => {
+    // Beide Einträge teilen dieselbe payeeUserId — landen also so oder so in
+    // derselben Zeile. Der eigentliche Beweis ist deshalb nicht payeeType
+    // (das Feld stammt immer vom ersten verarbeiteten Eintrag für den
+    // Schlüssel, unabhängig vom Filter), sondern dass der Betrag des
+    // no_refund_needed-Eintrags nicht mitgezählt wird.
+    const expensesMock: ExpenseDomain[] = [
+      {...expense},
+      {...expense, payeeType: ExpensePayeeType.NO_REFUND_NEEDED},
+    ];
+
+    const sumByPayee = Expense.sumByPayee(expensesMock);
+
+    expect(sumByPayee).toHaveLength(1);
+    expect(sumByPayee[0].totalsByCurrency["CHF"]).toEqual(
+      expense.amountInCents, // nicht amountInCents * 2
+    );
+  });
+  test("Selbe PayeeUserId wird summiert", () => {
+    const expensesMock: ExpenseDomain[] = [
+      {...expense},
+      {...expenseChf},
+      {...expense, payeeUserId: "payee-id-002"},
+    ];
+    const sumByPayee = Expense.sumByPayee(expensesMock);
+
+    expect(
+      sumByPayee.find((row) => row.payeeUserId == "payee-id-001")
+        ?.totalsByCurrency["CHF"],
+    ).toEqual(5300);
+    expect(
+      sumByPayee.find((row) => row.payeeUserId == "payee-id-002")
+        ?.totalsByCurrency["CHF"],
+    ).toEqual(4200);
+  });
+  test("Neue Person identisch wird summiert", () => {
+    const expensesMock: ExpenseDomain[] = [
+      {
+        ...expense,
+        payeeName: "Felix",
+        payeeType: ExpensePayeeType.NEW_PERSON,
+        payeeUserId: null,
+      },
+      {
+        ...expenseChf,
+        payeeName: "Felix",
+        payeeType: ExpensePayeeType.NEW_PERSON,
+        payeeUserId: null,
+      },
+      {
+        ...expense,
+        payeeName: "felix",
+        payeeType: ExpensePayeeType.NEW_PERSON,
+        payeeUserId: null,
+      },
+    ];
+    const sumByPayee = Expense.sumByPayee(expensesMock);
+
+    expect(
+      sumByPayee.find((row) => row.payeeName == "Felix")?.totalsByCurrency[
+        "CHF"
+      ],
+    ).toEqual(5300);
+    expect(
+      sumByPayee.find((row) => row.payeeName == "felix")?.totalsByCurrency[
+        "CHF"
+      ],
+    ).toEqual(4200);
+  });
+  test("Mehrere Währungen pro Person, werden zusammengeführt", () => {
+    const expensesMock: ExpenseDomain[] = [
+      {
+        ...expense,
+        payeeType: ExpensePayeeType.EXISTING_USER,
+      },
+      {
+        ...expenseChf,
+        payeeType: ExpensePayeeType.EXISTING_USER,
+      },
+      {
+        ...expenseEur,
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "payee-id-001",
+      },
+    ];
+    const sumByPayee = Expense.sumByPayee(expensesMock);
+
+    expect(sumByPayee.length).toEqual(1);
+    expect(sumByPayee[0].totalsByCurrency["CHF"]).toEqual(5300);
+    expect(sumByPayee[0].totalsByCurrency["EUR"]).toEqual(1100);
+  });
+  test("Ausgaben einer Person werden richtig sortiert", () => {
+    const expensesMock: ExpenseDomain[] = [
+      {
+        ...expense,
+        id: "expense-id-001",
+        date: new Date(2026, 10, 1),
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "payee-id-001",
+      },
+      {
+        ...expenseChf,
+        id: "expense-id-002",
+        date: new Date(2026, 10, 10),
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "payee-id-001",
+      },
+      {
+        ...expenseEur,
+        id: "expense-id-003",
+        date: new Date(2026, 9, 27),
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "payee-id-001",
+      },
+    ];
+
+    const sumByPayee = Expense.sumByPayee(expensesMock);
+
+    // Eingabereihenfolge ist 1, 2, 3 — erwartet wird nach Datum sortiert
+    expect(sumByPayee[0].expenses.map((entry) => entry.id)).toEqual([
+      "expense-id-002",
+      "expense-id-001",
+      "expense-id-003",
+    ]);
   });
 });

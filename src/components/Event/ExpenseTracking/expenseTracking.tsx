@@ -17,6 +17,7 @@ import {
   ToggleButton,
   SnackbarCloseReason,
   Tooltip,
+  Divider,
 } from "@mui/material";
 import {Event} from "../Event/event.class";
 
@@ -85,6 +86,8 @@ import {
   ExpenseDetailDialog,
   ExpenseDetailDialogState,
 } from "./expenseDetailDialog";
+import {PayeeBalanceAccordion} from "./payeeBalanceAccordion";
+
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
 
@@ -710,24 +713,33 @@ const EventExpenseTrackingPage = ({
               )}
             </Box>
             {view === "overview" ? (
-              <Grid container spacing={2}>
-                {budgetsWithProgress?.map((budget) => (
-                  <Grid
-                    key={`budgeCardGrid_${budget.budget.id}`}
-                    size={{xs: 12, md: 4}}
-                  >
-                    <BudgetCard
-                      key={`budgetCard_${budget.budget.id}`}
-                      budgetWithProgress={budget}
-                      isHighlighted={highlightedBudgetIds.has(budget.budget.id)}
-                      handleEditClick={handleBudgetEditClick}
-                    />
+              <React.Fragment>
+                <Grid container spacing={2}>
+                  {budgetsWithProgress?.map((budget) => (
+                    <Grid
+                      key={`budgeCardGrid_${budget.budget.id}`}
+                      size={{xs: 12, md: 4}}
+                    >
+                      <BudgetCard
+                        key={`budgetCard_${budget.budget.id}`}
+                        budgetWithProgress={budget}
+                        isHighlighted={highlightedBudgetIds.has(
+                          budget.budget.id,
+                        )}
+                        handleEditClick={handleBudgetEditClick}
+                      />
+                    </Grid>
+                  ))}
+                  <Grid size={{xs: 12, md: 4}}>
+                    <AddBudgetCard onClick={handleOpenCreateBudgetDialog} />
                   </Grid>
-                ))}
-                <Grid size={{xs: 12, md: 4}}>
-                  <AddBudgetCard onClick={handleOpenCreateBudgetDialog} />
                 </Grid>
-              </Grid>
+                {state.expenses && state.expenses.length > 0 && <Divider />}
+                <PayeeBalanceAccordion
+                  expenses={state.expenses ?? []}
+                  cooks={event.cooks}
+                />
+              </React.Fragment>
             ) : (
               <ExpenseList
                 expenseGroups={expenseGroups}

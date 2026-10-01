@@ -187,4 +187,10 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     padding: theme.spacing(1, 1.5),
     marginTop: theme.spacing(1),
   },
+  payeeBalanceSummary: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+  },
 });
