@@ -1364,7 +1364,7 @@ Test. ✅ erledigt — `npx tsc --noEmit`, `npm run lint` (0 Fehler) und die vol
 dann gemachten Erfahrungen; insbesondere prüfen, ob die Platzhalter-Lösung (Entscheidung 3)
 im Dialog sauber ersetzbar war.
 
-## Epic 3 — Zahlende Instanz
+## Epic 3 — Zahlende Instanz ✅ erledigt
 
 Ziel: Die Platzhalter-Lösung aus Epic 2 (Entscheidung 3 — jede Ausgabe wird beim Anlegen fest auf `NO_REFUND_NEEDED` gesetzt) durch echte Erfassung ersetzen. Schema, Enum und Repository-Mapping existieren bereits vollständig seit Epic 0/2 (`ExpensePayeeType`, `ExpenseDomain.payeeType/ payeeUserId/payeeName`, `ExpenseRepository.toRow/toDomain`) — Epic 3 ist reine UI- und Aggregations-Arbeit, keine neue Migration.
 
@@ -1802,14 +1802,273 @@ zwei Personen mit Einträgen haben zwei unabhängig auf-/zuklappbare Accordions 
 
 ## Epic 4 — Belege (Attachments)
 
-_Wird vor Start verfeinert. Grober Zuschnitt:_
+Ziel: Ausgaben können einen Beleg (PDF oder Bild) tragen. Schema ist bereits seit Epic 0/2 vorhanden (`ExpenseDomain.attachmentPath`/`attachmentOriginalFilename`, siehe `20260905000002_add_event_expenses.sql`)
+— Epic 4 füllt sie erstmals mit echten Daten: erst die Storage-Policy (4.1), dann Upload/Löschen im Dialog (4.2), dann Anzeige/Download in der Liste (4.3).
 
-- 4.1 Storage-RLS-Migration: neue Policy-Variante für `media`-Bucket unter
-  `events/<eventId>/expenses/<expenseId>/<filename>` (beliebiger Dateiname, anders als das
-  hartkodierte `cover.jpg`-Muster), Insert/Select/Delete über `is_event_cook`.
-- 4.2 `ExpenseAttachmentStorageRepository` + Upload/Löschen im Ausgaben-Dialog (PDF/Bild,
-  Grössen-/Typ-Validierung, Hinweistext "wird nach 1 Jahr gelöscht").
-- 4.3 Anzeige/Download/Löschen des Belegs in der Ausgaben-Liste.
+### **Story 4.1 — Storage-RLS für Ausgaben-Belege** ✅ erledigt
+
+**Wichtiger Fund beim Verfeinern:** Fast nichts davon braucht eine neue Policy. Der `media`-Bucket und seine `events/`-Policies existieren bereits seit `20260401000007_grants_indexes.sql` (Cover-Bild-Feature). Von den vier Operationen (SELECT/INSERT/UPDATE/DELETE) sind **SELECT und DELETE bereits generisch genug**:
+
+```sql
+-- media_events_select (bestehend, unverändert)
+bucket_id = 'media'
+AND (storage.foldername(name))[1] = 'events'
+AND is_event_cook((storage.foldername(name))[2])
+
+-- media_events_delete (bestehend, unverändert)
+bucket_id = 'media'
+AND (storage.foldername(name))[1] = 'events'
+AND (storage.foldername(name))[2] IS NOT NULL
+AND is_event_cook((storage.foldername(name))[2])
+```
+
+Beide prüfen nur `[1] = 'events'` und `is_event_cook([2])` — das deckt **jeden** Pfad unter `events/<event-uid>/` ab, egal wie tief darunter noch etwas verschachtelt ist. `storage.foldername(name)` liefert alle Pfadsegmente **ausser** dem Dateinamen selbst; für
+`events/<event-uid>/expenses/<expense-uid>/<dateiname>.pdf` ist `[1]`/`[2]` identisch zu `events/<event-uid>/cover.jpg` — nur `[3]`/`[4]` sind neu. `media_events_delete`s eigener Kommentar in jener Migration sagt das sogar wörtlich voraus: *"damit zukünftige Dateitypen (z.B. Quittungen) ebenfalls gelöscht werden können"* — Quittungen (Belege) waren beim Bauen der DELETE-Policy bereits
+mitgedacht.
+
+**Nur INSERT/UPDATE brauchen eine neue Policy-Variante**, weil die bestehenden zusätzlich `storage.filename(name) = 'cover.jpg'` verlangen — ein Beleg hat aber keinen festen Dateinamen (anders als das Cover-Bild: verschiedene Dateitypen/-endungen, PDF oder Bild). Deshalb eine **separate, zusätzliche** Policy statt die bestehende zu ändern (bereits angewendete Migrationen werden nie verändert) — für den spezifischen `expenses/`-Unterpfad, ohne Dateinamen-Einschränkung:
+
+```sql
+-- Neue Migration: 20261001000001_add_expense_receipt_storage_policies.sql
+
+DROP POLICY IF EXISTS "media_expenses_insert" ON storage.objects;
+CREATE POLICY "media_expenses_insert" ON storage.objects FOR INSERT TO authenticated
+  WITH CHECK (
+    bucket_id = 'media'
+    AND (storage.foldername(name))[1] = 'events'
+    AND (storage.foldername(name))[3] = 'expenses'
+    AND (storage.foldername(name))[4] IS NOT NULL
+    AND is_event_cook((storage.foldername(name))[2])
+  );
+
+DROP POLICY IF EXISTS "media_expenses_update" ON storage.objects;
+CREATE POLICY "media_expenses_update" ON storage.objects FOR UPDATE TO authenticated
+  USING (
+    bucket_id = 'media'
+    AND (storage.foldername(name))[1] = 'events'
+    AND (storage.foldername(name))[3] = 'expenses'
+    AND (storage.foldername(name))[4] IS NOT NULL
+    AND is_event_cook((storage.foldername(name))[2])
+  );
+```
+
+**Entscheidungen (bewusst so, nicht versehentlich vergessen):**
+
+1. **Kein Dateinamen-Check**, anders als bei `cover.jpg`. Es gibt genau ein Attachment pro Ausgabe (`attachment_path`/`attachment_original_filename` sind einzelne Spalten, kein Array), aber je nach Dateityp unterschiedliche Endungen — ein fester Name würde das verhindern. Der tatsächliche Dateiname wird in Epic 4.2 von der App gewählt (nicht Teil dieser Story).
+2. **Kein Abgleich, ob `<expense-uid>` wirklich zu `<event-uid>` gehört.** Das wäre ein zusätzlicher Lookup gegen `event_expenses` in der Policy — aber ein Event-Koch darf laut den bestehenden SELECT/DELETE-Policies ohnehin **jede** Datei unter `events/<event-uid>/` lesen/löschen, auch unabhängig vom neuen `expenses/`-Unterpfad. Eine falsche `expense-uid` im Pfad eröffnet also keine neue Berechtigung, die nicht schon existiert — die Prüfung würde nur Komplexität und einen Extra-Lookup pro Request kosten, ohne echten Sicherheitsgewinn.
+3. **Keine Grössen-/Typ-Beschränkung auf Bucket-Ebene.** `media` wird auch für Cover-Bilder und Profilbilder verwendet — eine bucket-weite Beschränkung (z.B. `allowed_mime_types`) würde alle drei Verwendungszwecke gleichzeitig treffen. Grössen-/Typ-Validierung für Belege bleibt Anwendungslogik in 4.2 (serverseitig ohnehin nicht umgehbar prüfbar ohne Bucket-Config — das ist eine reine UX-Vorabprüfung, kein Sicherheitsmechanismus).
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `supabase/migrations/20261001000001_add_expense_receipt_storage_policies.sql` (neu) | zwei neue Storage-Policies (siehe oben) |
+
+**Tests/Verifikation** — reines SQL, keine Jest-Tests möglich (der Supabase-Client ist in der Jest-Suite komplett gemockt, `jest.config.json`s `moduleNameMapper`; RLS lässt sich nur gegen eine echte Postgres-Instanz prüfen):
+
+- Migration transaktional gegen den laufenden `supabase-db-test`-Container anwenden (`supabase db reset` ist mit der aktuellen CLI blockiert — Workaround siehe `reference_local_migration_verify`).
+- Manuell mit mind. zwei Test-Usern verifizieren (CLAUDE.md-Pflicht bei RLS-Änderungen):
+  - Koch von Event A kann unter `events/<A>/expenses/<beliebige-uid>/beleg.pdf` hochladen/ersetzen.
+  - Koch von Event B (nicht Teammitglied von A) kann das **nicht** (INSERT/UPDATE schlägt fehl).
+  - Nicht angemeldet (anon): weder Lesen noch Schreiben möglich.
+  - Bestehendes Verhalten unverändert: Cover-Bild-Upload (`events/<A>/cover.jpg`) funktioniert nach wie vor genau wie vor dieser Migration.
+
+**Zum Ansehen im Browser:** nicht sinnvoll möglich, solange 4.2 (Upload-UI) nicht existiert — diese Story ist reine Datenbank-Arbeit. Verifikation läuft über die Supabase Studio SQL-Oberfläche oder direkte `storage.upload()`-Aufrufe mit unterschiedlichen Test-Sessions.
+
+**Definition of Done:** Migration wendet sich fehlerfrei auf der Test-DB an; alle vier Verifikations-Szenarien oben manuell bestätigt; bestehende Cover-Bild-Funktionalität nicht beeinträchtigt (keine bestehende Migration verändert, nur eine neue hinzugefügt).
+
+### **Story 4.2 — Upload/Löschen im Ausgaben-Dialog**
+
+**Die `folderPath`-Frage aus dem ersten Entwurf ist gelöst, keine Basisklassen-Änderung nötig.**
+Ich habe nachgesehen, wie `EventStorageRepository` tatsächlich aufgerufen wird (`event.tsx:1677`):
+
+```ts
+await database.storage.events.upload(event.uid + "/cover.jpg", resized, "image/jpeg");
+```
+
+`folderPath = "events/"` ist nur das **feste** Präfix — die variable `event.uid` ist bereits Teil des
+`filename`-Arguments, nicht des `folderPath`. (`EventStorageRepository`s eigenes `@example` im
+Docstring ist dabei veraltet/widersprüchlich zur Klassenbeschreibung direkt darüber — nicht Teil
+dieser Story, aber falls das mal auffällt: kein Bug, nur ein veraltetes Beispiel.) Dasselbe Muster
+funktioniert 1:1 für Belege, ganz ohne Änderung an `StorageRepository`:
+
+```ts
+export class ExpenseAttachmentStorageRepository extends StorageRepository {
+  bucketName = "media";
+  folderPath = "events/";
+}
+// Aufruf: repo.upload(`${eventId}/expenses/${expenseId}/${filename}`, file, file.type)
+```
+
+**Architektur-Entscheidung: Upload passiert nicht im Dialog, sondern in der Seite — wie überall
+sonst auch.** Der Dialog kennt laut seinem eigenen Docstring "weder Datenbank noch Rückfrage"; das
+gilt auch für Storage. Der Dialog sammelt nur die rohe `File` im Formular-State, die Seite lädt sie
+erst beim tatsächlichen Speichern hoch (nicht sofort bei der Dateiauswahl) — das deckt sich mit dem
+Rest des Formulars (nichts passiert vor "Speichern") **und** vermeidet verwaiste Storage-Objekte,
+wenn jemand eine Datei wählt und den Dialog dann abbricht.
+
+**`ExpenseDetailDialogState`-Erweiterung:**
+
+```ts
+export type ExpenseDetailDialogState = {
+  // ...bestehende Felder unverändert...
+  attachmentFile: File | null; // neu ausgewählte, noch nicht hochgeladene Datei
+  removeAttachment: boolean; // true = bestehenden Beleg beim Speichern entfernen
+};
+```
+
+**UI nur im Bearbeiten-Modus**, analog zum bestehenden `{expense && (<Button>Löschen</Button>)}`-Muster
+für den "Löschen"-Button — neue Ausgaben haben noch keine `expenseId`, unter der ein Beleg abgelegt
+werden könnte:
+
+```tsx
+{expense && (
+  <Box sx={{mt: 2}}>
+    <FormLabel>{TEXT_ATTACHMENT}</FormLabel>
+    {expense.attachmentOriginalFilename && !formState.removeAttachment ? (
+      <Box sx={classes.attachmentRow}>
+        <Typography>{expense.attachmentOriginalFilename}</Typography>
+        <Button onClick={() => updateField("removeAttachment", true)}>
+          {TEXT_REMOVE_ATTACHMENT}
+        </Button>
+      </Box>
+    ) : (
+      <Button component="label">
+        {TEXT_UPLOAD_ATTACHMENT}
+        <input
+          type="file"
+          hidden
+          accept="application/pdf,image/jpeg,image/png"
+          onChange={(event) => {
+            const file = event.target.files?.[0] ?? null;
+            setFormState((prev) => ({...prev, attachmentFile: file, removeAttachment: false}));
+          }}
+        />
+      </Button>
+    )}
+    <Typography variant="caption" color="text.secondary">
+      {TEXT_ATTACHMENT_RETENTION_HINT}
+    </Typography>
+  </Box>
+)}
+```
+
+**Validierung vor dem Hochladen** (clientseitig, UX-Vorabprüfung — kein Sicherheitsmechanismus, siehe
+4.1-Entscheidung 3): Typ gegen `["application/pdf", "image/jpeg", "image/png"]`, Grösse gegen eine
+Obergrenze. **Vorschlag 10 MB** (üblich für Foto-Scans einer Quittung) — bei Bedarf anpassen, keine
+technische Notwendigkeit für genau diesen Wert.
+
+**`handleUpdateExpense`-Erweiterung** (`expenseTracking.tsx`) — Upload/Löschen passiert hier, nicht im
+Dialog, **vor** `database.expenses.updateExpense`, damit die Ausgabe nur mit einem gültigen,
+bereits hochgeladenen Pfad aktualisiert wird:
+
+```ts
+const handleUpdateExpense = async (
+  expenseId: string,
+  expenseInput: ExpenseDetailDialogState,
+) => {
+  const expense = {...transformInputToExpenseDomain(expenseInput, event.uid), id: expenseId};
+  if (!checkExpenseInputdata(expense)) return;
+
+  saveInProgressRef.current += 1;
+  try {
+    // Alten Beleg ersetzen oder entfernen: zuerst das alte Storage-Objekt
+    // löschen (falls vorhanden), damit kein verwaistes File übrig bleibt.
+    const previousExpense = state.expenses?.find((e) => e.id === expenseId);
+    if (
+      previousExpense?.attachmentPath &&
+      (expenseInput.attachmentFile || expenseInput.removeAttachment)
+    ) {
+      await database.storage.expenseAttachments.remove(previousExpense.attachmentPath);
+    }
+
+    if (expenseInput.attachmentFile) {
+      const extension = expenseInput.attachmentFile.name.split(".").pop();
+      const filename = `${crypto.randomUUID()}.${extension}`;
+      const relativePath = `${event.uid}/expenses/${expenseId}/${filename}`;
+      await database.storage.expenseAttachments.upload(
+        relativePath,
+        expenseInput.attachmentFile,
+        expenseInput.attachmentFile.type,
+      );
+      expense.attachmentPath = relativePath;
+      expense.attachmentOriginalFilename = expenseInput.attachmentFile.name;
+    } else if (expenseInput.removeAttachment) {
+      expense.attachmentPath = null;
+      expense.attachmentOriginalFilename = null;
+    }
+
+    const updated = await database.expenses.updateExpense(expense, authUser!);
+    trackEvent(AnalyticsEvent.EXPENSE_UPDATED);
+    dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
+  } catch (error) {
+    handleError(error, "Ausgabe aktualisieren");
+  } finally {
+    setTimeout(() => {
+      saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+    }, 400);
+  }
+};
+```
+
+**Generierter Dateiname statt Originalname in Storage** (`${crypto.randomUUID()}.<ext>`,
+`attachmentOriginalFilename` bleibt der menschenlesbare Name für die Anzeige) — vermeidet jedes
+Problem mit Sonderzeichen/Encoding im Originalnamen und macht jeden Upload eindeutig, unabhängig
+davon, ob zwei Nutzer:innen zufällig gleich benannte Dateien wählen. **Konsequenz:** ein Ersetzen
+braucht einen expliziten `remove()` des alten Pfads (siehe oben) — anders als bei `cover.jpg`, wo
+`upsert: true` automatisch denselben Namen überschreibt, weil der Name dort fix ist.
+
+**Akzeptiertes Restrisiko, nicht Teil dieser Story:** Falls der Upload gelingt, aber der
+anschliessende `updateExpense`-Aufruf fehlschlägt (z.B. Netzwerkabbruch), bleibt ein verwaistes
+Storage-Objekt zurück, auf das keine Ausgabe verweist. Dasselbe Risiko besteht bereits heute beim
+Cover-Bild-Upload (`event.tsx`) und wurde dort nie gelöst — kein neuer Massstab für Belege. Episch 9s
+Lösch-Cron filtert über das Anlassende, erreicht echte Waisen (nie referenziert) ohnehin nicht; das
+wäre ein eigenes, separates Aufräum-Thema, falls es je relevant wird.
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `ExpenseAttachmentStorageRepository.ts` (neu) | wie oben, Vorbild `EventStorageRepository` |
+| `DatabaseService.ts` | `storage`-Typ und Konstruktor um `expenseAttachments: ExpenseAttachmentStorageRepository` ergänzen (Zeile ~116/152, selbes Muster wie `events`) |
+| `expenseDetailDialog.tsx` | `attachmentFile`/`removeAttachment` im State, UI nur im Bearbeiten-Modus |
+| `expenseTracking.tsx` | `handleUpdateExpense`-Erweiterung wie oben |
+| `constants/text/expenseTracking.ts` | `ATTACHMENT`, `UPLOAD_ATTACHMENT`, `REMOVE_ATTACHMENT`, `ATTACHMENT_RETENTION_HINT` ("wird 1 Jahr nach Lagerende automatisch gelöscht") |
+| `constants/styles/expenseTracking.styles.ts` | `attachmentRow` (Name + Entfernen-Button nebeneinander) |
+
+**Tests**
+
+- `ExpenseAttachmentStorageRepository`: `upload`/`remove` rufen den Supabase-Client mit dem
+  erwarteten Pfad auf (Mock-Client, Muster wie bestehende Repository-Tests).
+- `expenseDetailDialog.test.tsx`: Beleg-UI nur sichtbar im Bearbeiten-Modus, nicht beim Anlegen;
+  Datei auswählen setzt `attachmentFile`; "Entfernen" setzt `removeAttachment`, ohne die Datei
+  sofort zu löschen (erst beim Speichern); Typ-/Grössen-Validierung zeigt Fehlertext, `onEdit` wird
+  nicht aufgerufen.
+- `expenseTracking.test.tsx`: `handleUpdateExpense` — neuer Beleg löst Upload **und** `updateExpense`
+  mit korrektem `attachmentPath`/`attachmentOriginalFilename` aus; Ersetzen eines bestehenden Belegs
+  löscht zuerst den alten Pfad; `removeAttachment` löscht den Storage-Eintrag und setzt beide Felder
+  auf `null`, ohne hochzuladen.
+- **Mutationsprobe:** das `remove()` des alten Pfads vor dem neuen Upload weglassen → ein Test muss
+  zeigen, dass der alte Storage-Pfad nach einem Ersetzen weiterhin existiert (verwaistes Objekt).
+
+**Zum Ansehen im Browser** (DEV, nie PROD, braucht 4.1 bereits angewendet): Ausgabe anlegen, erneut
+öffnen, Beleg hochladen (PDF und Bild testen), speichern, Dialog erneut öffnen → Beleg weiterhin da;
+ersetzen → alter Pfad im Supabase-Storage-Browser tatsächlich weg; entfernen → Feld leer. **Mobile
+prüfen** (Datei-Auswahl via Kamera auf dem Handy).
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint`
+sauber; Repository-Tests für Upload/Remove; Dialog-Tests für Sichtbarkeit und Validierung;
+Seiten-Tests für Upload-, Ersetzen- und Entfernen-Pfad inkl. Mutationsprobe für die
+Alte-Datei-Löschung.
+
+### **Story 4.3 — Anzeige/Download/Löschen in der Ausgaben-Liste**
+
+_Wird unmittelbar vor Start verfeinert (nach 4.2):_
+
+- `ExpenseRow` bzw. der Bearbeiten-Dialog zeigt `attachmentOriginalFilename` als Link/Icon, wenn
+  gesetzt; Klick öffnet/lädt über `getPublicUrl` oder eine signierte URL herunter.
+- Löschen des Belegs separat vom Löschen der ganzen Ausgabe möglich (nur `attachment_path`/
+  `attachment_original_filename` auf `null` setzen + Storage-Objekt entfernen).
 
 ## Epic 5 — Profil: Zahlungsangaben
 
