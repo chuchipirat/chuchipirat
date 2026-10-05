@@ -1807,6 +1807,8 @@ Ziel: Ausgaben können einen Beleg (PDF oder Bild) tragen. Schema ist bereits se
 
 ### **Story 4.1 — Storage-RLS für Ausgaben-Belege** ✅ erledigt
 
+**Nachkorrektur (2026-10-02):** Der ursprüngliche Pfad `events/<eventId>/expenses/<expenseId>/<dateiname>` (ein Ordner pro Ausgabe) war unnötig verschachtelt — jede Ausgabe hat genau einen Beleg, die `expenseId` ist bereits eindeutig, ein zusätzlicher Ordner bringt nichts. Vereinfacht auf `events/<eventId>/expenses/<expenseId>.<ext>` (flach, Dateiname = `expenseId`). Da diese Migration bereits angewendet/committet war, wurde sie **nicht verändert** — stattdessen eine neue, ablösende Migration ergänzt: `20261002000001_simplify_expense_receipt_storage_path.sql` (gleiche Methode wie unten, `[4] IS NOT NULL`-Check entfällt, weil der flache Pfad nur noch 3 statt 4 Ordner-Segmente hat). Lokal gegen `supabase-db-test` erneut verifiziert: Koch von Event A kann unter dem neuen flachen Pfad hochladen, ein anderer Nutzer nicht, bestehende Cover-Bild-Policies unverändert. Die Code-Beispiele unten zeigen noch den ursprünglichen, verschachtelten Pfad — massgeblich ist die Korrektur hier und in 4.2.
+
 **Wichtiger Fund beim Verfeinern:** Fast nichts davon braucht eine neue Policy. Der `media`-Bucket und seine `events/`-Policies existieren bereits seit `20260401000007_grants_indexes.sql` (Cover-Bild-Feature). Von den vier Operationen (SELECT/INSERT/UPDATE/DELETE) sind **SELECT und DELETE bereits generisch genug**:
 
 ```sql
@@ -1877,35 +1879,25 @@ CREATE POLICY "media_expenses_update" ON storage.objects FOR UPDATE TO authentic
 
 **Definition of Done:** Migration wendet sich fehlerfrei auf der Test-DB an; alle vier Verifikations-Szenarien oben manuell bestätigt; bestehende Cover-Bild-Funktionalität nicht beeinträchtigt (keine bestehende Migration verändert, nur eine neue hinzugefügt).
 
-### **Story 4.2 — Upload/Löschen im Ausgaben-Dialog**
+### **Story 4.2 — Upload/Löschen im Ausgaben-Dialog** ✅ erledigt
 
-**Die `folderPath`-Frage aus dem ersten Entwurf ist gelöst, keine Basisklassen-Änderung nötig.**
-Ich habe nachgesehen, wie `EventStorageRepository` tatsächlich aufgerufen wird (`event.tsx:1677`):
+**Die `folderPath`-Frage aus dem ersten Entwurf ist gelöst, keine Basisklassen-Änderung nötig.** Ich habe nachgesehen, wie `EventStorageRepository` tatsächlich aufgerufen wird (`event.tsx:1677`):
 
 ```ts
 await database.storage.events.upload(event.uid + "/cover.jpg", resized, "image/jpeg");
 ```
 
-`folderPath = "events/"` ist nur das **feste** Präfix — die variable `event.uid` ist bereits Teil des
-`filename`-Arguments, nicht des `folderPath`. (`EventStorageRepository`s eigenes `@example` im
-Docstring ist dabei veraltet/widersprüchlich zur Klassenbeschreibung direkt darüber — nicht Teil
-dieser Story, aber falls das mal auffällt: kein Bug, nur ein veraltetes Beispiel.) Dasselbe Muster
-funktioniert 1:1 für Belege, ganz ohne Änderung an `StorageRepository`:
+`folderPath = "events/"` ist nur das **feste** Präfix — die variable `event.uid` ist bereits Teil des `filename`-Arguments, nicht des `folderPath`. (`EventStorageRepository`s eigenes `@example` im Docstring ist dabei veraltet/widersprüchlich zur Klassenbeschreibung direkt darüber — nicht Teil dieser Story, aber falls das mal auffällt: kein Bug, nur ein veraltetes Beispiel.) Dasselbe Muster funktioniert 1:1 für Belege, ganz ohne Änderung an `StorageRepository`:
 
 ```ts
 export class ExpenseAttachmentStorageRepository extends StorageRepository {
   bucketName = "media";
   folderPath = "events/";
 }
-// Aufruf: repo.upload(`${eventId}/expenses/${expenseId}/${filename}`, file, file.type)
+// Aufruf: repo.upload(`${eventId}/expenses/${expenseId}.${extension}`, file, file.type)
 ```
 
-**Architektur-Entscheidung: Upload passiert nicht im Dialog, sondern in der Seite — wie überall
-sonst auch.** Der Dialog kennt laut seinem eigenen Docstring "weder Datenbank noch Rückfrage"; das
-gilt auch für Storage. Der Dialog sammelt nur die rohe `File` im Formular-State, die Seite lädt sie
-erst beim tatsächlichen Speichern hoch (nicht sofort bei der Dateiauswahl) — das deckt sich mit dem
-Rest des Formulars (nichts passiert vor "Speichern") **und** vermeidet verwaiste Storage-Objekte,
-wenn jemand eine Datei wählt und den Dialog dann abbricht.
+**Architektur-Entscheidung: Upload passiert nicht im Dialog, sondern in der Seite — wie überall sonst auch.** Der Dialog kennt laut seinem eigenen Docstring "weder Datenbank noch Rückfrage"; das gilt auch für Storage. Der Dialog sammelt nur die rohe `File` im Formular-State, die Seite lädt sie erst beim tatsächlichen Speichern hoch (nicht sofort bei der Dateiauswahl) — das deckt sich mit dem Rest des Formulars (nichts passiert vor "Speichern") **und** vermeidet verwaiste Storage-Objekte, wenn jemand eine Datei wählt und den Dialog dann abbricht.
 
 **`ExpenseDetailDialogState`-Erweiterung:**
 
@@ -1917,50 +1909,139 @@ export type ExpenseDetailDialogState = {
 };
 ```
 
-**UI nur im Bearbeiten-Modus**, analog zum bestehenden `{expense && (<Button>Löschen</Button>)}`-Muster
-für den "Löschen"-Button — neue Ausgaben haben noch keine `expenseId`, unter der ein Beleg abgelegt
-werden könnte:
+**Korrektur nach Mockup-Abgleich.** Zwei Punkte aus dem ersten Entwurf waren falsch:
 
-```tsx
-{expense && (
-  <Box sx={{mt: 2}}>
-    <FormLabel>{TEXT_ATTACHMENT}</FormLabel>
-    {expense.attachmentOriginalFilename && !formState.removeAttachment ? (
-      <Box sx={classes.attachmentRow}>
-        <Typography>{expense.attachmentOriginalFilename}</Typography>
-        <Button onClick={() => updateField("removeAttachment", true)}>
-          {TEXT_REMOVE_ATTACHMENT}
-        </Button>
-      </Box>
-    ) : (
-      <Button component="label">
-        {TEXT_UPLOAD_ATTACHMENT}
-        <input
-          type="file"
-          hidden
-          accept="application/pdf,image/jpeg,image/png"
-          onChange={(event) => {
-            const file = event.target.files?.[0] ?? null;
-            setFormState((prev) => ({...prev, attachmentFile: file, removeAttachment: false}));
-          }}
-        />
-      </Button>
-    )}
-    <Typography variant="caption" color="text.secondary">
-      {TEXT_ATTACHMENT_RETENTION_HINT}
-    </Typography>
-  </Box>
-)}
+1. **Drag-and-drop fehlte komplett** — der ursprüngliche Entwurf hatte nur einen Klick-Button. Das Mockup zeigt eine gestrichelte Dropzone ("PDF oder Bild hierher ziehen"). Es gibt dafür noch keine Vorlage im Code (keine `dataTransfer.files`-Verwendung irgendwo) — wird hier neu, mit nativen HTML5-Drag-Events gebaut, keine neue Abhängigkeit (kein `react-dropzone` o.ä., passt zu "MUI only").
+2. **Nur-Bearbeiten-Einschränkung war falsch.** Das Mockup zeigt den Beleg-Bereich im **Anlegen**-Dialog ("Ausgabe erfassen"), nicht nur beim Bearbeiten. Gelöst: `handleCreateExpense` legt die Ausgabe zuerst an (um die ID zu bekommen), lädt danach — falls eine Datei gewählt wurde — den Beleg hoch und aktualisiert die Ausgabe ein zweites Mal mit dem Pfad. Weiterhin alles erst bei "Speichern", nicht beim Auswählen der Datei.
+
+**Neue Dropzone-Styles** (`expenseTracking.styles.ts`, Vorbild `budgetCardAddNew`s gestrichelter Rahmen — selbe visuelle Sprache, neu nur die Grösse und der Hervorhebungs-Zustand beim Drag-over):
+
+```ts
+attachmentDropzone: {
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  gap: theme.spacing(0.5),
+  minHeight: "120px",
+  padding: theme.spacing(2),
+  borderRadius: "12px",
+  border: `1px dashed ${theme.palette.divider}`,
+  color: theme.palette.text.secondary,
+  cursor: "pointer",
+  textAlign: "center",
+},
+attachmentDropzoneActive: {
+  borderColor: theme.palette.primary.main,
+  backgroundColor: alpha(theme.palette.primary.main, 0.04),
+},
 ```
 
-**Validierung vor dem Hochladen** (clientseitig, UX-Vorabprüfung — kein Sicherheitsmechanismus, siehe
-4.1-Entscheidung 3): Typ gegen `["application/pdf", "image/jpeg", "image/png"]`, Grösse gegen eine
-Obergrenze. **Vorschlag 10 MB** (üblich für Foto-Scans einer Quittung) — bei Bedarf anpassen, keine
-technische Notwendigkeit für genau diesen Wert.
+**UI in beiden Modi**, mit Drag-and-drop **und** Klick-Fallback (der native `<input type="file">` liegt als Kind im `<label>`, beides funktioniert gleichzeitig). Zeigt die bestehende/gewählte Datei + Entfernen-Button, sobald eine da ist — egal ob frisch gewählt (`formState.attachmentFile`, auch im Anlegen-Modus) oder bereits gespeichert (`expense?.attachmentOriginalFilename`, nur beim Bearbeiten):
 
-**`handleUpdateExpense`-Erweiterung** (`expenseTracking.tsx`) — Upload/Löschen passiert hier, nicht im
-Dialog, **vor** `database.expenses.updateExpense`, damit die Ausgabe nur mit einem gültigen,
-bereits hochgeladenen Pfad aktualisiert wird:
+```tsx
+const [isDraggingOver, setIsDraggingOver] = React.useState(false);
+
+const handleFileSelected = (file: File | null) => {
+  // Typ-/Grössenprüfung hier (siehe unten), bei Fehler touched-Fehlertext setzen statt speichern.
+  setFormState((prev) => ({...prev, attachmentFile: file, removeAttachment: false}));
+};
+
+const currentFilename = formState.attachmentFile?.name ?? expense?.attachmentOriginalFilename;
+
+// ...im JSX:
+<Box sx={{mt: 2}}>
+  <FormLabel>{TEXT_ATTACHMENT}</FormLabel>
+  {currentFilename && !formState.removeAttachment ? (
+    <Box sx={classes.attachmentRow}>
+      <Typography>{currentFilename}</Typography>
+      <Button onClick={() => updateField("removeAttachment", true)}>
+        {TEXT_REMOVE_ATTACHMENT}
+      </Button>
+    </Box>
+  ) : (
+    <Box
+      component="label"
+      sx={[classes.attachmentDropzone, isDraggingOver && classes.attachmentDropzoneActive]}
+      onDragOver={(event) => {
+        event.preventDefault(); // nötig, sonst feuert onDrop nie (Browser-Standard)
+        setIsDraggingOver(true);
+      }}
+      onDragLeave={() => setIsDraggingOver(false)}
+      onDrop={(event) => {
+        event.preventDefault();
+        setIsDraggingOver(false);
+        handleFileSelected(event.dataTransfer.files?.[0] ?? null);
+      }}
+    >
+      <CloudUploadOutlined />
+      <Typography>{TEXT_DROP_ATTACHMENT_HINT}</Typography>
+      <Typography variant="caption" color="text.secondary">
+        {TEXT_ATTACHMENT_RETENTION_HINT}
+      </Typography>
+      <input
+        type="file"
+        hidden
+        accept="application/pdf,image/jpeg,image/png"
+        onChange={(event) => handleFileSelected(event.target.files?.[0] ?? null)}
+      />
+    </Box>
+  )}
+</Box>
+```
+
+**Validierung vor dem Hochladen** (clientseitig, UX-Vorabprüfung — kein Sicherheitsmechanismus, siehe 4.1-Entscheidung 3): Typ gegen `["application/pdf", "image/jpeg", "image/png"]`, Grösse gegen eine Obergrenze. **Vorschlag 10 MB** (üblich für Foto-Scans einer Quittung) — bei Bedarf anpassen, keine technische Notwendigkeit für genau diesen Wert. Gilt für **beide** Wege, Klick und Drop — dieselbe `handleFileSelected`-Funktion.
+
+**`handleCreateExpense`-Erweiterung** (`expenseTracking.tsx`) — zweiter Schritt nach dem Anlegen, eigenes `try/catch` mit eigenem Fehlerkontext: schlägt nur der Beleg-Upload fehl, existiert die Ausgabe trotzdem bereits — das muss die Fehlermeldung widerspiegeln, nicht "Ausgabe erstellen" sagen:
+
+```ts
+const handleCreateExpense = async (expenseInput: ExpenseDetailDialogState) => {
+  const expense = transformInputToExpenseDomain(expenseInput, event.uid);
+  if (!checkExpenseInputdata(expense)) return;
+
+  saveInProgressRef.current += 1;
+  try {
+    const newExpense = await database.expenses.createExpense(expense, authUser!);
+    setLastUsedBudgetId(newExpense.value.budgetId);
+    trackEvent(AnalyticsEvent.EXPENSE_CREATED);
+    dispatch({type: ReducerActions.EXPENSE_CREATED, payload: newExpense.value});
+
+    if (expenseInput.attachmentFile) {
+      try {
+        const extension = ATTACHMENT_MIME_TO_EXTENSION[expenseInput.attachmentFile.type];
+        const relativePath = `${event.uid}/expenses/${newExpense.value.id}.${extension}`;
+        await database.storage.expenseAttachments.upload(
+          relativePath,
+          expenseInput.attachmentFile,
+          expenseInput.attachmentFile.type,
+        );
+        const updated = await database.expenses.updateExpense(
+          {
+            ...newExpense.value,
+            attachmentPath: relativePath,
+            attachmentOriginalFilename: expenseInput.attachmentFile.name,
+          },
+          authUser!,
+        );
+        dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
+      } catch (error) {
+        // Ausgabe existiert bereits — nur der Beleg-Upload ist fehlgeschlagen.
+        handleError(error, "Beleg hochladen");
+      }
+    }
+  } catch (error) {
+    handleError(error, "Ausgabe erstellen");
+  } finally {
+    setTimeout(() => {
+      saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
+    }, 400);
+  }
+
+  setExpenseDetailDialogProperties({expense: null, open: false});
+};
+```
+
+**`handleUpdateExpense`-Erweiterung** (`expenseTracking.tsx`) — unverändert zum ersten Entwurf, war bereits korrekt (Ausgabe existiert hier ja bereits): Upload/Löschen passiert hier, nicht im Dialog, **vor** `database.expenses.updateExpense`, damit die Ausgabe nur mit einem gültigen, bereits hochgeladenen Pfad aktualisiert wird:
 
 ```ts
 const handleUpdateExpense = async (
@@ -1972,20 +2053,20 @@ const handleUpdateExpense = async (
 
   saveInProgressRef.current += 1;
   try {
-    // Alten Beleg ersetzen oder entfernen: zuerst das alte Storage-Objekt
-    // löschen (falls vorhanden), damit kein verwaistes File übrig bleibt.
     const previousExpense = state.expenses?.find((e) => e.id === expenseId);
-    if (
-      previousExpense?.attachmentPath &&
-      (expenseInput.attachmentFile || expenseInput.removeAttachment)
-    ) {
-      await database.storage.expenseAttachments.remove(previousExpense.attachmentPath);
-    }
 
     if (expenseInput.attachmentFile) {
-      const extension = expenseInput.attachmentFile.name.split(".").pop();
-      const filename = `${crypto.randomUUID()}.${extension}`;
-      const relativePath = `${event.uid}/expenses/${expenseId}/${filename}`;
+      const extension = ATTACHMENT_MIME_TO_EXTENSION[expenseInput.attachmentFile.type];
+      const relativePath = `${event.uid}/expenses/${expenseId}.${extension}`;
+      // Nur löschen, wenn sich der Pfad tatsächlich ändert (andere Endung als
+      // vorher) — beim Ersetzen mit derselben Endung überschreibt
+      // `upsert: true` denselben Pfad automatisch, genau wie bei cover.jpg.
+      if (
+        previousExpense?.attachmentPath &&
+        previousExpense.attachmentPath !== relativePath
+      ) {
+        await database.storage.expenseAttachments.remove(previousExpense.attachmentPath);
+      }
       await database.storage.expenseAttachments.upload(
         relativePath,
         expenseInput.attachmentFile,
@@ -1994,6 +2075,9 @@ const handleUpdateExpense = async (
       expense.attachmentPath = relativePath;
       expense.attachmentOriginalFilename = expenseInput.attachmentFile.name;
     } else if (expenseInput.removeAttachment) {
+      if (previousExpense?.attachmentPath) {
+        await database.storage.expenseAttachments.remove(previousExpense.attachmentPath);
+      }
       expense.attachmentPath = null;
       expense.attachmentOriginalFilename = null;
     }
@@ -2011,19 +2095,19 @@ const handleUpdateExpense = async (
 };
 ```
 
-**Generierter Dateiname statt Originalname in Storage** (`${crypto.randomUUID()}.<ext>`,
-`attachmentOriginalFilename` bleibt der menschenlesbare Name für die Anzeige) — vermeidet jedes
-Problem mit Sonderzeichen/Encoding im Originalnamen und macht jeden Upload eindeutig, unabhängig
-davon, ob zwei Nutzer:innen zufällig gleich benannte Dateien wählen. **Konsequenz:** ein Ersetzen
-braucht einen expliziten `remove()` des alten Pfads (siehe oben) — anders als bei `cover.jpg`, wo
-`upsert: true` automatisch denselben Namen überschreibt, weil der Name dort fix ist.
+**Dateiname = `expenseId`, nicht der Originalname** (`attachmentOriginalFilename` bleibt der menschenlesbare Name für die Anzeige) — vermeidet jedes Problem mit Sonderzeichen/Encoding im Originalnamen, ganz ohne zusätzliche generierte ID: die `expenseId` ist bereits eindeutig, und es gibt genau einen Beleg pro Ausgabe (siehe Korrektur-Hinweis in 4.1). Die Endung wird **aus dem MIME-Type abgeleitet**, nicht aus dem Dateinamen (`event.target.files[0].name.split(".").pop()` wäre brüchig — Datei ohne Punkt im Namen, ungewöhnliche Gross-/Kleinschreibung der Endung etc.); da der Typ ohnehin validiert wird, ist eine feste Zuordnung robuster:
 
-**Akzeptiertes Restrisiko, nicht Teil dieser Story:** Falls der Upload gelingt, aber der
-anschliessende `updateExpense`-Aufruf fehlschlägt (z.B. Netzwerkabbruch), bleibt ein verwaistes
-Storage-Objekt zurück, auf das keine Ausgabe verweist. Dasselbe Risiko besteht bereits heute beim
-Cover-Bild-Upload (`event.tsx`) und wurde dort nie gelöst — kein neuer Massstab für Belege. Episch 9s
-Lösch-Cron filtert über das Anlassende, erreicht echte Waisen (nie referenziert) ohnehin nicht; das
-wäre ein eigenes, separates Aufräum-Thema, falls es je relevant wird.
+```ts
+const ATTACHMENT_MIME_TO_EXTENSION: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+};
+```
+
+**Konsequenz für das Ersetzen:** nur löschen, wenn sich die Endung (und damit der Pfad) ändert — bei gleicher Endung überschreibt `upsert: true` denselben Pfad automatisch, genau wie bei `cover.jpg`. Nur ein Wechsel des Dateityps (z.B. PDF → JPG) braucht den expliziten `remove()` des alten Pfads (siehe `handleUpdateExpense` oben).
+
+**Akzeptiertes Restrisiko, nicht Teil dieser Story:** Falls der Upload gelingt, aber der anschliessende `updateExpense`-Aufruf fehlschlägt (z.B. Netzwerkabbruch), bleibt ein verwaistes Storage-Objekt zurück, auf das keine Ausgabe verweist. Dasselbe Risiko besteht bereits heute beim Cover-Bild-Upload (`event.tsx`) und wurde dort nie gelöst — kein neuer Massstab für Belege. Episch 9s Lösch-Cron filtert über das Anlassende, erreicht echte Waisen (nie referenziert) ohnehin nicht; das wäre ein eigenes, separates Aufräum-Thema, falls es je relevant wird.
 
 **Dateien**
 
@@ -2031,35 +2115,28 @@ wäre ein eigenes, separates Aufräum-Thema, falls es je relevant wird.
 |---|---|
 | `ExpenseAttachmentStorageRepository.ts` (neu) | wie oben, Vorbild `EventStorageRepository` |
 | `DatabaseService.ts` | `storage`-Typ und Konstruktor um `expenseAttachments: ExpenseAttachmentStorageRepository` ergänzen (Zeile ~116/152, selbes Muster wie `events`) |
-| `expenseDetailDialog.tsx` | `attachmentFile`/`removeAttachment` im State, UI nur im Bearbeiten-Modus |
-| `expenseTracking.tsx` | `handleUpdateExpense`-Erweiterung wie oben |
-| `constants/text/expenseTracking.ts` | `ATTACHMENT`, `UPLOAD_ATTACHMENT`, `REMOVE_ATTACHMENT`, `ATTACHMENT_RETENTION_HINT` ("wird 1 Jahr nach Lagerende automatisch gelöscht") |
-| `constants/styles/expenseTracking.styles.ts` | `attachmentRow` (Name + Entfernen-Button nebeneinander) |
+| `expenseDetailDialog.tsx` | `attachmentFile`/`removeAttachment` im State, Dropzone in beiden Modi sichtbar |
+| `expenseTracking.tsx` | `handleCreateExpense`- **und** `handleUpdateExpense`-Erweiterung wie oben |
+| `constants/text/expenseTracking.ts` | `ATTACHMENT`, `DROP_ATTACHMENT_HINT` ("PDF oder Bild hierher ziehen"), `REMOVE_ATTACHMENT`, `ATTACHMENT_RETENTION_HINT` ("wird 1 Jahr nach Lagerende automatisch gelöscht") |
+| `constants/styles/expenseTracking.styles.ts` | `attachmentRow`, `attachmentDropzone`, `attachmentDropzoneActive` |
+| `expense.types.ts` (oder `expenseTracking.tsx`, wo es am besten passt) | `ATTACHMENT_MIME_TO_EXTENSION`-Lookup (siehe oben) |
 
 **Tests**
 
-- `ExpenseAttachmentStorageRepository`: `upload`/`remove` rufen den Supabase-Client mit dem
-  erwarteten Pfad auf (Mock-Client, Muster wie bestehende Repository-Tests).
-- `expenseDetailDialog.test.tsx`: Beleg-UI nur sichtbar im Bearbeiten-Modus, nicht beim Anlegen;
-  Datei auswählen setzt `attachmentFile`; "Entfernen" setzt `removeAttachment`, ohne die Datei
-  sofort zu löschen (erst beim Speichern); Typ-/Grössen-Validierung zeigt Fehlertext, `onEdit` wird
-  nicht aufgerufen.
-- `expenseTracking.test.tsx`: `handleUpdateExpense` — neuer Beleg löst Upload **und** `updateExpense`
-  mit korrektem `attachmentPath`/`attachmentOriginalFilename` aus; Ersetzen eines bestehenden Belegs
-  löscht zuerst den alten Pfad; `removeAttachment` löscht den Storage-Eintrag und setzt beide Felder
-  auf `null`, ohne hochzuladen.
-- **Mutationsprobe:** das `remove()` des alten Pfads vor dem neuen Upload weglassen → ein Test muss
-  zeigen, dass der alte Storage-Pfad nach einem Ersetzen weiterhin existiert (verwaistes Objekt).
+- `ExpenseAttachmentStorageRepository`: `upload`/`remove` rufen den Supabase-Client mit dem erwarteten Pfad auf (Mock-Client, Muster wie bestehende Repository-Tests).
+- `expenseDetailDialog.test.tsx`: Dropzone sichtbar in **beiden** Modi (Anlegen und Bearbeiten); Datei per Klick auswählen **und** per `fireEvent.drop` setzen `attachmentFile` gleichermassen (dieselbe `handleFileSelected`-Funktion, ein Test pro Weg genügt, um das zu belegen); "Entfernen" setzt `removeAttachment`, ohne die Datei sofort zu löschen (erst beim Speichern); Typ-/Grössen-   Validierung zeigt Fehlertext, `onEdit`/`onCreate` wird nicht aufgerufen.
+- `expenseTracking.test.tsx`:
+  - `handleCreateExpense` ohne Beleg: unverändertes Verhalten (Regressionstest).
+  - `handleCreateExpense` mit Beleg: `createExpense` wird zuerst aufgerufen, danach Upload unter `<eventId>/expenses/<neue ID>.<ext>` (Endung aus `ATTACHMENT_MIME_TO_EXTENSION`), danach ein zweiter `updateExpense`-Aufruf mit `attachmentPath`/`attachmentOriginalFilename`.
+  - `handleCreateExpense`, Upload schlägt fehl: Ausgabe bleibt trotzdem angelegt (nur der Beleg-Schritt scheitert, kein Rollback) — Fehlermeldung bezieht sich auf den Beleg, nicht auf das Anlegen.
+  - `handleUpdateExpense`, Ersetzen mit **gleicher** Endung (z.B. PDF → PDF): **kein** `remove()`-Aufruf, nur `upload` mit `upsert: true` auf denselben Pfad.
+  - `handleUpdateExpense`, Ersetzen mit **anderer** Endung (z.B. PDF → JPG): `remove()` des alten Pfads **vor** dem Upload des neuen.
+  - `handleUpdateExpense`, `removeAttachment`: löscht den Storage-Eintrag und setzt beide Felder auf `null`, ohne hochzuladen.
+- **Mutationsprobe:** den Pfad-Vergleich (`previousExpense.attachmentPath !== relativePath`) durch "immer löschen" ersetzen → der Gleiche-Endung-Test muss zeigen, dass unnötig ein `remove()`-Aufruf passiert (ein Test, der `remove` bei gleicher Endung **nicht** erwartet, muss rot werden). Umgekehrt: Vergleich ganz weglassen (nie löschen) → der Andere-Endung-Test muss zeigen, dass der alte Pfad liegen bleibt (verwaistes Objekt).
 
-**Zum Ansehen im Browser** (DEV, nie PROD, braucht 4.1 bereits angewendet): Ausgabe anlegen, erneut
-öffnen, Beleg hochladen (PDF und Bild testen), speichern, Dialog erneut öffnen → Beleg weiterhin da;
-ersetzen → alter Pfad im Supabase-Storage-Browser tatsächlich weg; entfernen → Feld leer. **Mobile
-prüfen** (Datei-Auswahl via Kamera auf dem Handy).
+**Zum Ansehen im Browser** (DEV, nie PROD, braucht 4.1 bereits angewendet): Ausgabe **neu anlegen** und dabei direkt per Drag-and-drop und per Klick je einmal einen Beleg hinzufügen (PDF und Bild testen) → nach dem Speichern im Bearbeiten-Dialog vorhanden; im Bearbeiten-Dialog ersetzen → alter Pfad im Supabase-Storage-Browser tatsächlich weg; entfernen → Feld leer. **Mobile prüfen** (Datei-Auswahl via Kamera auf dem Handy — Drag-and-drop ist dort ohnehin irrelevant, der Klick-Fallback muss aber funktionieren).
 
-**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint`
-sauber; Repository-Tests für Upload/Remove; Dialog-Tests für Sichtbarkeit und Validierung;
-Seiten-Tests für Upload-, Ersetzen- und Entfernen-Pfad inkl. Mutationsprobe für die
-Alte-Datei-Löschung.
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; Repository-Tests für Upload/Remove; Dialog-Tests für Sichtbarkeit in beiden Modi, Drag-and-drop **und** Klick-Pfad, Validierung; Seiten-Tests für Anlegen-mit-Beleg (inkl. Fehlerfall ohne Rollback), Ersetzen- und Entfernen-Pfad inkl. Mutationsprobe für die Alte-Datei-Löschung.
 
 ### **Story 4.3 — Anzeige/Download/Löschen in der Ausgaben-Liste**
 
