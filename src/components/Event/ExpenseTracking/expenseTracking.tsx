@@ -81,7 +81,12 @@ import {
 import {Expense} from "./expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
 import {ExpenseList} from "./expenseList";
-import {ExpenseDomain, ExpenseGroup, ExpensePayeeType} from "./expense.types";
+import {
+  ExpenseDomain,
+  ExpenseGroup,
+  ExpensePayeeType,
+  ATTACHMENT_MIME_TO_EXTENSION,
+} from "./expense.types";
 import {
   ExpenseDetailDialog,
   ExpenseDetailDialogState,
@@ -393,14 +398,23 @@ const EventExpenseTrackingPage = ({
 
     setBudgetDetailDialogProperties({budget: null, open: false});
   };
+  /**
+   * Legt eine neue Ausgabe an. Der Dialog wird sofort geschlossen; ein
+   * Fehler erscheint oben auf der Seite.
+   *
+   * Beleg-Upload erfolgt zweiphasig: die Ausgabe muss zuerst angelegt sein,
+   * damit ihre (von der DB vergebene) ID als Speicherpfad verwendet werden
+   * kann. Ein fehlgeschlagener Upload wird separat gemeldet ("Beleg
+   * hochladen"), damit er nicht fälschlich als gescheitertes Anlegen der
+   * Ausgabe selbst erscheint.
+   *
+   * @param expenseInput - Eingaben aus dem Dialog.
+   */
   const handleCreateExpense = async (
     expenseInput: ExpenseDetailDialogState,
   ) => {
     const expense = transformInputToExpenseDomain(expenseInput, event.uid);
-
-    if (!checkExpenseInputdata(expense)) {
-      return;
-    }
+    if (!checkExpenseInputdata(expense)) return;
 
     saveInProgressRef.current += 1;
     try {
@@ -414,6 +428,32 @@ const EventExpenseTrackingPage = ({
         type: ReducerActions.EXPENSE_CREATED,
         payload: newExpense.value,
       });
+
+      if (expenseInput.attachmentFile) {
+        try {
+          const extension =
+            ATTACHMENT_MIME_TO_EXTENSION[expenseInput.attachmentFile.type];
+          const relativePath = `${event.uid}/expenses/${newExpense.value.id}.${extension}`;
+
+          await database.storage.expenses.upload(
+            relativePath,
+            expenseInput.attachmentFile,
+            expenseInput.attachmentFile.type,
+          );
+          const updated = await database.expenses.updateExpense(
+            {
+              ...newExpense.value,
+              attachmentPath: relativePath,
+              attachmentOriginalFilename: expenseInput.attachmentFile.name,
+            },
+            authUser!,
+          );
+          dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
+        } catch (error) {
+          // Ausgabe existiert bereits — nur der Beleg-Upload ist fehlgeschlagen.
+          handleError(error, "Beleg hochladen");
+        }
+      }
     } catch (error) {
       handleError(error, "Ausgabe erstellen");
     } finally {
@@ -424,6 +464,7 @@ const EventExpenseTrackingPage = ({
 
     setExpenseDetailDialogProperties({expense: null, open: false});
   };
+
   /**
    * Speichert Änderungen an einem bestehenden Budget.
    *
@@ -472,6 +513,49 @@ const EventExpenseTrackingPage = ({
     }
     saveInProgressRef.current += 1;
     try {
+      const previousExpense = state.expenses?.find(
+        (expense) => expense.id === expenseId,
+      );
+
+      if (expenseInput.attachmentFile) {
+        const extension =
+          ATTACHMENT_MIME_TO_EXTENSION[expenseInput.attachmentFile.type];
+        const relativePath = `${event.uid}/expenses/${expenseId}.${extension}`;
+        // Nur löschen, wenn sich der Pfad tatsächlich ändert (andere Endung als
+        // vorher) — beim Ersetzen mit derselben Endung überschreibt
+        // `upsert: true` denselben Pfad automatisch, genau wie bei cover.jpg.
+        if (
+          previousExpense?.attachmentPath &&
+          previousExpense.attachmentPath !== relativePath
+        ) {
+          await database.storage.expenses.remove(
+            previousExpense.attachmentPath,
+          );
+        }
+        await database.storage.expenses.upload(
+          relativePath,
+          expenseInput.attachmentFile,
+          expenseInput.attachmentFile.type,
+        );
+        expense.attachmentPath = relativePath;
+        expense.attachmentOriginalFilename = expenseInput.attachmentFile.name;
+      } else if (expenseInput.removeAttachment) {
+        if (previousExpense?.attachmentPath) {
+          await database.storage.expenses.remove(
+            previousExpense.attachmentPath,
+          );
+        }
+        expense.attachmentPath = null;
+        expense.attachmentOriginalFilename = null;
+      } else {
+        // Beleg nicht angefasst — bestehenden Pfad/Dateinamen übernehmen,
+        // sonst überschreibt transformInputToExpenseDomain()'s hartkodiertes
+        // null das update() als volles Zeilen-Update.
+        expense.attachmentPath = previousExpense?.attachmentPath ?? null;
+        expense.attachmentOriginalFilename =
+          previousExpense?.attachmentOriginalFilename ?? null;
+      }
+
       const updated = await database.expenses.updateExpense(expense, authUser!);
       trackEvent(AnalyticsEvent.EXPENSE_UPDATED);
       dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});

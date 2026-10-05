@@ -137,6 +137,12 @@ const mockDatabase = {
       reconnect: mockReconnectExpenses,
     }),
   },
+  storage: {
+    expenses: {
+      upload: jest.fn(),
+      remove: jest.fn(),
+    },
+  },
 } as any;
 const mockAuthUser = new AuthUser();
 mockAuthUser.uid = "auth-uid-1";
@@ -178,8 +184,47 @@ beforeEach(() => {
   mockDatabase.expenses.createExpense.mockReset();
   mockDatabase.expenses.updateExpense.mockReset();
   mockDatabase.expenses.deleteExpense.mockReset();
+  mockDatabase.storage.expenses.upload.mockReset().mockResolvedValue(undefined);
+  mockDatabase.storage.expenses.remove.mockReset().mockResolvedValue(undefined);
   mockCustomDialog.mockReset();
 });
+
+/**
+ * Baut eine PDF-Testdatei. `size` ist auf dem jsdom-`File` normalerweise aus
+ * dem Inhalt abgeleitet; für den "zu gross"-Test wird er direkt überschrieben,
+ * da ein echtes 10-MB-Array den Test unnötig verlangsamen würde.
+ *
+ * @param name - Dateiname.
+ * @param type - MIME-Typ.
+ * @param size - Optionale Grösse in Bytes (überschreibt die tatsächliche Länge).
+ * @returns Die Testdatei.
+ */
+const makeFile = (
+  name: string,
+  type: string,
+  size?: number,
+): File => {
+  const file = new File(["Testinhalt"], name, {type});
+  if (size != null) {
+    Object.defineProperty(file, "size", {value: size});
+  }
+  return file;
+};
+
+/**
+ * Wählt eine Datei über das versteckte `<input type="file">` der Dropzone
+ * aus — jsdom erlaubt das Setzen von `files` über `fireEvent.change`. Der
+ * MUI-`Dialog` rendert per Portal direkt in `document.body`, nicht in den
+ * `container` von `render()` — deshalb wird hier über `document` gesucht.
+ *
+ * @param file - Die auszuwählende Datei.
+ */
+const selectAttachmentFile = (file: File) => {
+  const input = document.querySelector(
+    'input[type="file"]',
+  ) as HTMLInputElement;
+  fireEvent.change(input, {target: {files: [file]}});
+};
 
 /**
  * Rendert die freigeschaltete Seite, wartet bis die Subscription steht und
@@ -1537,6 +1582,290 @@ describe("EventExpenseTrackingPage: Ausgaben bearbeiten und löschen", () => {
     fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+});
+/* =====================================================================
+// Beleg-Upload (Story 4.2)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Beleg-Upload", () => {
+  /** Öffnet den Anlegen-Dialog und füllt die Pflichtfelder einer Ausgabe aus. */
+  const openNewExpenseDialogAndFillRequiredFields = async () => {
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Währung"}),
+    );
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    return dialog;
+  };
+
+  /** Öffnet den Bearbeiten-Dialog der übergebenen Ausgabe. */
+  const openExistingExpenseDialog = async (expense: ExpenseDomain) => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      expense,
+    ]);
+
+    const result = renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+    fireEvent.click(screen.getByTestId(`expense-${expense.id}`));
+    const dialog = await screen.findByRole("dialog");
+
+    return {...result, dialog};
+  };
+
+  test("Neue Ausgabe mit Beleg: lädt die Datei erst nach dem Anlegen hoch und verknüpft sie", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    const createdExpense = {
+      ...mockExpense,
+      id: "expense-new-1",
+      budgetId: kitchenBudget.id,
+      label: "Coop",
+      amountInCents: 1780,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: createdExpense.id,
+      value: createdExpense,
+    });
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...createdExpense,
+      attachmentPath: "evt-1/expenses/expense-new-1.pdf",
+      attachmentOriginalFilename: "beleg.pdf",
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    const dialog = await openNewExpenseDialogAndFillRequiredFields();
+
+    selectAttachmentFile(makeFile("beleg.pdf", "application/pdf"));
+    // Dropzone ist weg, Dateiname wird stattdessen angezeigt
+    expect(within(dialog).getByText("beleg.pdf")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalled(),
+    );
+    // Upload erst NACH dem Anlegen, mit dem von der DB vergebenen Pfad
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.upload).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-new-1.pdf",
+        expect.any(File),
+        "application/pdf",
+      ),
+    );
+    await waitFor(() =>
+      expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "expense-new-1",
+          attachmentPath: "evt-1/expenses/expense-new-1.pdf",
+          attachmentOriginalFilename: "beleg.pdf",
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+
+  test("Schlägt der Beleg-Upload fehl, bleibt die neu angelegte Ausgabe trotzdem bestehen", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    const createdExpense = {
+      ...mockExpense,
+      id: "expense-new-1",
+      budgetId: kitchenBudget.id,
+      label: "Coop",
+      amountInCents: 1780,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: createdExpense.id,
+      value: createdExpense,
+    });
+    mockDatabase.storage.expenses.upload.mockRejectedValueOnce(
+      new Error("Upload fehlgeschlagen"),
+    );
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    await openNewExpenseDialogAndFillRequiredFields();
+    selectAttachmentFile(makeFile("beleg.pdf", "application/pdf"));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    // Die Ausgabe selbst wurde angelegt (nur der Beleg scheiterte) — daneben
+    // erscheint auch die normale Erfolgs-Snackbar fürs Anlegen, deshalb hier
+    // gezielt auf den Fehlertext statt auf role="alert" prüfen.
+    expect(
+      await screen.findByTestId(`expense-${createdExpense.id}`),
+    ).toBeInTheDocument();
+    expect(await screen.findByText("Upload fehlgeschlagen")).toBeInTheDocument();
+    expect(mockDatabase.expenses.updateExpense).not.toHaveBeenCalled();
+  });
+
+  test("Ersetzen mit anderer Dateiendung löscht den alten Pfad vor dem Hochladen", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.jpg",
+      attachmentOriginalFilename: "foto.jpg",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+      attachmentOriginalFilename: "beleg.pdf",
+    });
+
+    // Bestehenden Beleg erst zum Entfernen markieren, dann eine neue Datei
+    // auswählen — das hebt die Markierung wieder auf (siehe Dialog-Logik)
+    fireEvent.click(
+      within(dialog).getByRole("button", {name: "Beleg löschen"}),
+    );
+    selectAttachmentFile(makeFile("beleg.pdf", "application/pdf"));
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-existing-1.jpg",
+      ),
+    );
+    expect(mockDatabase.storage.expenses.upload).toHaveBeenCalledWith(
+      "evt-1/expenses/expense-existing-1.pdf",
+      expect.any(File),
+      "application/pdf",
+    );
+    expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+        attachmentOriginalFilename: "beleg.pdf",
+      }),
+      mockAuthUser,
+    );
+  });
+
+  test("Ersetzen mit derselben Dateiendung überschreibt, ohne vorher zu löschen", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.jpg",
+      attachmentOriginalFilename: "altes-foto.jpg",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      attachmentOriginalFilename: "neues-foto.jpg",
+    });
+
+    fireEvent.click(
+      within(dialog).getByRole("button", {name: "Beleg löschen"}),
+    );
+    selectAttachmentFile(makeFile("neues-foto.jpg", "image/jpeg"));
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.upload).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-existing-1.jpg",
+        expect.any(File),
+        "image/jpeg",
+      ),
+    );
+    // Gleicher Pfad wie vorher → kein explizites Löschen nötig (upsert überschreibt)
+    expect(mockDatabase.storage.expenses.remove).not.toHaveBeenCalled();
+  });
+
+  test("Beleg entfernen löscht ihn aus dem Storage und setzt den Pfad auf null", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.jpg",
+      attachmentOriginalFilename: "foto.jpg",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      attachmentPath: null,
+      attachmentOriginalFilename: null,
+    });
+
+    fireEvent.click(
+      within(dialog).getByRole("button", {name: "Beleg löschen"}),
+    );
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-existing-1.jpg",
+      ),
+    );
+    expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentPath: null,
+        attachmentOriginalFilename: null,
+      }),
+      mockAuthUser,
+    );
+    expect(mockDatabase.storage.expenses.upload).not.toHaveBeenCalled();
+  });
+
+  test("Bearbeiten ohne den Beleg anzufassen behält den bestehenden Pfad (Regressionstest)", async () => {
+    // Ohne den Fix würde transformInputToExpenseDomain()'s hartkodiertes
+    // null hier den bestehenden Beleg aus der DB löschen, obwohl nur die
+    // Bezeichnung geändert wurde.
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+      attachmentOriginalFilename: "beleg.pdf",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      label: "Coop",
+    });
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          label: "Coop",
+          attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+          attachmentOriginalFilename: "beleg.pdf",
+        }),
+        mockAuthUser,
+      ),
+    );
+    expect(mockDatabase.storage.expenses.upload).not.toHaveBeenCalled();
+    expect(mockDatabase.storage.expenses.remove).not.toHaveBeenCalled();
   });
 });
 /* =====================================================================

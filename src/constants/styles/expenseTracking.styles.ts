@@ -193,4 +193,28 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     alignItems: "center",
     width: "100%",
   },
+  attachmentDropzone: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing(0.5),
+    minHeight: "120px",
+    padding: theme.spacing(2),
+    borderRadius: "12px",
+    border: `1px dashed ${theme.palette.divider}`,
+    color: theme.palette.text.secondary,
+    cursor: "pointer",
+    textAlign: "center",
+  },
+  attachmentDropzoneActive: {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: alpha(theme.palette.primary.main, 0.04),
+  },
+  attachmentRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    width: "100%",
+  },
 });

@@ -1,4 +1,25 @@
 import {BudgetDomain} from "./budget.types";
+
+/** Erlaubte MIME-Typen für Ausgaben-Belege (PDF oder Bild). */
+export const ACCEPTED_ATTACHMENT_TYPES = [
+  "application/pdf",
+  "image/jpeg",
+  "image/png",
+];
+/**
+ * Dateiendung je MIME-Typ, für den Storage-Dateinamen. Aus dem validierten
+ * Typ abgeleitet statt aus dem Originalnamen geparst — robuster, da der
+ * Originalname z.B. keinen Punkt oder eine ungewöhnliche Endung haben kann.
+ */
+export const ATTACHMENT_MIME_TO_EXTENSION: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+};
+
+/** Maximale Dateigrösse für einen Ausgaben-Beleg (10 MB). */
+export const MAX_ATTACHMENT_SIZE_BYTES = 10 * 1024 * 1024;
+
 /* =====================================================================
 // ExpenseType-Enum (entspricht public.expense_type in Postgres)
 // ===================================================================== */

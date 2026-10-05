@@ -28,6 +28,12 @@ import {
   PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
   PAYEE_NO_REFUND_NEEDED as TEXT_PAYEE_NO_REFUND_NEEDED,
   FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
+  DROP_ATTACHMENT_HINT as TEXT_DROP_ATTACHMENT_HINT,
+  ATTACHMENT_RETENTION_HINT as TEXT_ATTACHMENT_RETENTION_HINT,
+  EXPENSE_RECEIPT as TEXT_EXPENSE_RECEIPT,
+  REMOVE_EXPENSE_RECEIPT as TEXT_REMOVE_EXPENSE_RECEIPT,
+  ATTACHMENT_INVALID_TYPE as TEXT_ATTACHMENT_INVALID_TYPE,
+  ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
 } from "../../../constants/text";
 
 import {
@@ -43,10 +49,17 @@ import {
   RadioGroup,
   FormControlLabel,
   Radio,
+  Typography,
+  IconButton,
 } from "@mui/material";
 
 import DeleteIcon from "@mui/icons-material/Delete";
-import {ExpenseDomain, ExpensePayeeType} from "./expense.types";
+import {
+  ExpenseDomain,
+  ExpensePayeeType,
+  ACCEPTED_ATTACHMENT_TYPES,
+  MAX_ATTACHMENT_SIZE_BYTES,
+} from "./expense.types";
 
 import {
   AVAILABLE_CURRENCIES,
@@ -57,6 +70,7 @@ import {useCustomStyles} from "../../../constants/styles";
 import dayjs, {Dayjs} from "dayjs";
 import {BudgetDomain} from "./budget.types";
 import {Cook} from "../Event/event.class";
+import {CloudUploadOutlined} from "@mui/icons-material";
 
 /**
  * Props des Ausgaben-Dialogs.
@@ -96,6 +110,11 @@ interface ExpenseDetailDialogProps {
  * @param budgetId - ID des gewählten Budgets.
  * @param date - Datum der Ausgabe; `null`, solange keines gewählt wurde.
  * @param comment - Optionaler Kommentar (leerer Text statt `null` im Formular).
+ * @param payeeType - Bezahl Option siehe {@link ExpensePayeeType}
+ * @param payeeUserId - User-ID der bezahlenden Person (wenn payeeType == `existing_user`)
+ * @param payeeName - Name der bezahlenden Person (wenn payeeType == `new_person`)
+ * @param attachmentFile - neu ausgewählte, noch nicht hochgeladene Datei
+ * @param removeAttachment - true = bestehenden Beleg beim Speichern entfernen
  */
 export type ExpenseDetailDialogState = {
   label: string;
@@ -107,6 +126,8 @@ export type ExpenseDetailDialogState = {
   payeeType: ExpensePayeeType;
   payeeUserId: string | null;
   payeeName: string;
+  attachmentFile: File | null;
+  removeAttachment: boolean; // true = bestehenden Beleg beim Speichern entfernen
 };
 
 /** Leeres Formular für ein neues Budget. */
@@ -120,6 +141,8 @@ const INITIAL_FORM_STATE: ExpenseDetailDialogState = {
   payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
   payeeUserId: null,
   payeeName: "",
+  attachmentFile: null,
+  removeAttachment: false,
 };
 
 /**
@@ -163,6 +186,8 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
           payeeType: expense.payeeType,
           payeeUserId: expense.payeeUserId,
           payeeName: expense.payeeName ?? "",
+          attachmentFile: null,
+          removeAttachment: false,
         }
       : {
           ...INITIAL_FORM_STATE,
@@ -179,6 +204,10 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   const [formState, setFormState] = useState<ExpenseDetailDialogState>(
     expenseToFormState(expense),
   );
+  const [isDraggingOver, setIsDraggingOver] = React.useState(false);
+  const [attachmentError, setAttachmentError] = React.useState<string | null>(
+    null,
+  );
 
   /* ------------------------------------------
   // Formular beim Öffnen neu befüllen: `useState` liest den Startwert nur
@@ -189,6 +218,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
     if (!open) return;
     setFormState(expenseToFormState(expense));
     setTouched(false);
+    setAttachmentError(null);
   }, [open, expense]);
 
   /* ------------------------------------------
@@ -224,6 +254,32 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   ) => {
     setFormState((prev) => ({...prev, [field]: value}));
   };
+  /* ------------------------------------------
+  // File-Handler
+  // ------------------------------------------ */
+  const handleFileSelected = (file: File | null) => {
+    if (!file) return;
+
+    if (!ACCEPTED_ATTACHMENT_TYPES.includes(file.type)) {
+      setAttachmentError(TEXT_ATTACHMENT_INVALID_TYPE);
+      return;
+    }
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      setAttachmentError(TEXT_ATTACHMENT_TOO_LARGE);
+      return;
+    }
+
+    setAttachmentError(null);
+    // Typ-/Grössenprüfung hier (siehe unten), bei Fehler touched-Fehlertext setzen statt speichern.
+    setFormState((prev) => ({
+      ...prev,
+      attachmentFile: file,
+      removeAttachment: false,
+    }));
+  };
+  const currentFilename =
+    formState.attachmentFile?.name ?? expense?.attachmentOriginalFilename;
+
   /* ------------------------------------------
   // UI Berechnungen
   // ------------------------------------------ */
@@ -454,6 +510,57 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
             />
           </Box>
         </RadioGroup>
+        <Box sx={{mt: 2}}>
+          <FormLabel>{TEXT_EXPENSE_RECEIPT}</FormLabel>
+          {currentFilename && !formState.removeAttachment ? (
+            <Box sx={classes.attachmentRow}>
+              <Typography>{currentFilename}</Typography>
+              <IconButton
+                onClick={() => updateField("removeAttachment", true)}
+                aria-label={TEXT_REMOVE_EXPENSE_RECEIPT}
+              >
+                <DeleteIcon fontSize="small" />
+              </IconButton>
+            </Box>
+          ) : (
+            <Box
+              component="label"
+              sx={[
+                classes.attachmentDropzone,
+                isDraggingOver && classes.attachmentDropzoneActive,
+              ]}
+              onDragOver={(event) => {
+                event.preventDefault(); // nötig, sonst feuert onDrop nie (Browser-Standard)
+                setIsDraggingOver(true);
+              }}
+              onDragLeave={() => setIsDraggingOver(false)}
+              onDrop={(event) => {
+                event.preventDefault();
+                setIsDraggingOver(false);
+                handleFileSelected(event.dataTransfer.files?.[0] ?? null);
+              }}
+            >
+              <CloudUploadOutlined />
+              <Typography>{TEXT_DROP_ATTACHMENT_HINT}</Typography>
+              <Typography variant="caption" color="text.secondary">
+                {TEXT_ATTACHMENT_RETENTION_HINT}
+              </Typography>
+              <input
+                type="file"
+                hidden
+                accept={ACCEPTED_ATTACHMENT_TYPES.join(",")}
+                onChange={(event) =>
+                  handleFileSelected(event.target.files?.[0] ?? null)
+                }
+              />
+            </Box>
+          )}
+          {attachmentError && (
+            <Typography variant="caption" color="error">
+              {attachmentError}
+            </Typography>
+          )}
+        </Box>
       </DialogContent>
       <DialogActions>
         {expense && (

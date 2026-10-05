@@ -13,6 +13,9 @@ import {
   PLEASE_PROVIDE_LABEL,
   PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
   PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
+  DROP_ATTACHMENT_HINT as TEXT_DROP_ATTACHMENT_HINT,
+  ATTACHMENT_INVALID_TYPE as TEXT_ATTACHMENT_INVALID_TYPE,
+  ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
 } from "../../../../constants/text";
 import dayjs from "dayjs";
 import {Cook} from "../../Event/event.class";
@@ -364,6 +367,340 @@ describe("Mutationsprobe", () => {
         payeeType: "new_person",
         payeeUserId: null, // die frühere Auswahl (cook2) darf hier nicht mehr stehen
         payeeName: "Beispiel Benno",
+      }),
+    );
+  });
+});
+
+/* =====================================================================
+// Ausgaben-Beleg
+// ===================================================================== */
+describe("Ausgaben-Beleg", () => {
+  /**
+   * Baut eine Testdatei. `size` überschreibt die tatsächliche Länge (für den
+   * "zu gross"-Test, ohne ein echtes 10-MB-Array anlegen zu müssen).
+   *
+   * @param name - Dateiname.
+   * @param type - MIME-Typ.
+   * @param size - Optionale Grösse in Bytes.
+   * @returns Die Testdatei.
+   */
+  const makeFile = (name: string, type: string, size?: number): File => {
+    const file = new File(["Testinhalt"], name, {type});
+    if (size != null) {
+      Object.defineProperty(file, "size", {value: size});
+    }
+    return file;
+  };
+
+  /**
+   * Wählt eine Datei über das versteckte `<input type="file">` aus. Der
+   * MUI-`Dialog` rendert per Portal in `document.body`, nicht in den
+   * `container` von `render()` — deshalb wird über `document` gesucht.
+   *
+   * @param file - Die auszuwählende Datei.
+   */
+  const selectFile = (file: File) => {
+    const input = document.querySelector(
+      'input[type="file"]',
+    ) as HTMLInputElement;
+    fireEvent.change(input, {target: {files: [file]}});
+  };
+
+  /** Findet die Dropzone (das `<label>`, das das Datei-Input umschliesst). */
+  const getDropzone = () =>
+    document.querySelector('input[type="file"]')!.closest("label")!;
+
+  test("zeigt die Dropzone, wenn (noch) kein Beleg vorhanden ist", () => {
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText(TEXT_DROP_ATTACHMENT_HINT)).toBeInTheDocument();
+  });
+
+  test("zeigt einen bestehenden Beleg direkt als Dateiname statt der Dropzone", () => {
+    const mockExpense = {
+      ...expense,
+      attachmentPath: "evt-1/expenses/expense-id-001.pdf",
+      attachmentOriginalFilename: "quittung.pdf",
+    };
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={mockExpense}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    expect(screen.getByText("quittung.pdf")).toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_DROP_ATTACHMENT_HINT),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Dateiauswahl über das Dateidialog-Input zeigt den Dateinamen an", () => {
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    selectFile(makeFile("beleg.pdf", "application/pdf"));
+
+    expect(screen.getByText("beleg.pdf")).toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_DROP_ATTACHMENT_HINT),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Drag & Drop einer Datei auf die Dropzone übernimmt sie wie die Dateiauswahl", () => {
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    const dropzone = getDropzone();
+    const file = makeFile("beleg.jpg", "image/jpeg");
+
+    fireEvent.dragOver(dropzone, {dataTransfer: {files: [file]}});
+    fireEvent.drop(dropzone, {dataTransfer: {files: [file]}});
+
+    expect(screen.getByText("beleg.jpg")).toBeInTheDocument();
+  });
+
+  test("lehnt einen nicht erlaubten Dateityp ab und zeigt den Fehlertext", () => {
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    selectFile(makeFile("notizen.txt", "text/plain"));
+
+    expect(screen.getByText(TEXT_ATTACHMENT_INVALID_TYPE)).toBeInTheDocument();
+    // Dropzone bleibt stehen — die Datei wurde nicht übernommen
+    expect(screen.getByText(TEXT_DROP_ATTACHMENT_HINT)).toBeInTheDocument();
+    expect(screen.queryByText("notizen.txt")).not.toBeInTheDocument();
+  });
+
+  test("lehnt eine zu grosse Datei ab und zeigt den Fehlertext", () => {
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    selectFile(
+      makeFile("grosse-datei.pdf", "application/pdf", 11 * 1024 * 1024),
+    );
+
+    expect(screen.getByText(TEXT_ATTACHMENT_TOO_LARGE)).toBeInTheDocument();
+    expect(screen.getByText(TEXT_DROP_ATTACHMENT_HINT)).toBeInTheDocument();
+    expect(screen.queryByText("grosse-datei.pdf")).not.toBeInTheDocument();
+  });
+
+  test("eine gültige Datei nach einem abgelehnten Versuch löscht den Fehlertext", () => {
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    selectFile(makeFile("notizen.txt", "text/plain"));
+    expect(screen.getByText(TEXT_ATTACHMENT_INVALID_TYPE)).toBeInTheDocument();
+
+    selectFile(makeFile("beleg.pdf", "application/pdf"));
+    expect(
+      screen.queryByText(TEXT_ATTACHMENT_INVALID_TYPE),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("beleg.pdf")).toBeInTheDocument();
+  });
+
+  test("Löschen-Icon markiert den Beleg zum Entfernen, die Dropzone erscheint wieder", () => {
+    const mockExpense = {
+      ...expense,
+      attachmentPath: "evt-1/expenses/expense-id-001.pdf",
+      attachmentOriginalFilename: "quittung.pdf",
+    };
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={mockExpense}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg löschen"}));
+
+    expect(screen.queryByText("quittung.pdf")).not.toBeInTheDocument();
+    expect(screen.getByText(TEXT_DROP_ATTACHMENT_HINT)).toBeInTheDocument();
+  });
+
+  test("Speichern nach dem Markieren zum Entfernen sendet removeAttachment:true, ohne attachmentFile", () => {
+    const onEdit = jest.fn();
+    const mockExpense = {
+      ...expense,
+      attachmentPath: "evt-1/expenses/expense-id-001.pdf",
+      attachmentOriginalFilename: "quittung.pdf",
+    };
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={mockExpense}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={onEdit}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg löschen"}));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(onEdit).toHaveBeenCalledWith(
+      mockExpense.id,
+      expect.objectContaining({removeAttachment: true, attachmentFile: null}),
+    );
+  });
+
+  test("eine neue Datei nach dem Markieren zum Entfernen hebt die Markierung wieder auf", () => {
+    const onEdit = jest.fn();
+    const mockExpense = {
+      ...expense,
+      attachmentPath: "evt-1/expenses/expense-id-001.pdf",
+      attachmentOriginalFilename: "quittung.pdf",
+    };
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={mockExpense}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={onEdit}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg löschen"}));
+    selectFile(makeFile("neu.pdf", "application/pdf"));
+
+    // Die Markierung ist aufgehoben: Dateiname (der neuen Datei) statt Dropzone
+    expect(screen.getByText("neu.pdf")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(onEdit).toHaveBeenCalledWith(
+      mockExpense.id,
+      expect.objectContaining({
+        removeAttachment: false,
+        attachmentFile: expect.objectContaining({name: "neu.pdf"}),
+      }),
+    );
+  });
+
+  test("Speichern einer neuen Ausgabe mit ausgewähltem Beleg sendet die Datei mit", () => {
+    const onCreate = jest.fn();
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={onCreate}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "11.50"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Motto"}));
+
+    selectFile(makeFile("beleg.pdf", "application/pdf"));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(onCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentFile: expect.objectContaining({name: "beleg.pdf"}),
       }),
     );
   });
