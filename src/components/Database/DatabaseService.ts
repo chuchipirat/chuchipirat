@@ -33,6 +33,7 @@ import {StatsRepository} from "./Repository/StatsRepository";
 import {AdminOperationsRepository} from "./Repository/AdminOperationsRepository";
 import {CronJobLogRepository} from "./Repository/CronJobLogRepository";
 import {MailLogRepository} from "./Repository/MailLogRepository";
+import {ExpenseStorageRepository} from "./Repository/ExpenseStorageRepository";
 /* =====================================================================
 // DatabaseService — Zentraler Einstiegspunkt für Datenbankzugriff
 // Bündelt alle Repository-Instanzen und den AuthService.
@@ -113,7 +114,11 @@ export class DatabaseService {
   adminOps: AdminOperationsRepository;
   cronJobLog: CronJobLogRepository;
   mailLog: MailLogRepository;
-  storage: {users: UserStorageRepository; events: EventStorageRepository};
+  storage: {
+    users: UserStorageRepository;
+    events: EventStorageRepository;
+    expenses: ExpenseStorageRepository;
+  };
 
   constructor() {
     this.auth = new AuthService();
@@ -152,6 +157,7 @@ export class DatabaseService {
     this.storage = {
       users: new UserStorageRepository(),
       events: new EventStorageRepository(),
+      expenses: new ExpenseStorageRepository(),
     };
   }
 }

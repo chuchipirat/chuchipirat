@@ -58,10 +58,9 @@ export abstract class StorageRepository {
   async upload(
     filename: string,
     data: Blob | File,
-    contentType?: string
+    contentType?: string,
   ): Promise<UploadResult> {
     const fullPath = `${this.folderPath}${filename}`;
-
     const {error} = await this.client.storage
       .from(this.bucketName)
       .upload(fullPath, data, {
@@ -127,7 +126,7 @@ export abstract class StorageRepository {
    */
   getTransformedUrl(
     filename: string,
-    options: {width?: number; height?: number}
+    options: {width?: number; height?: number},
   ): string {
     const fullPath = `${this.folderPath}${filename}`;
     const {data} = this.client.storage

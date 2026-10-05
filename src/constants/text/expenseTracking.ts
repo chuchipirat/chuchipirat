@@ -126,3 +126,12 @@ export const DELETE_EXPENSE_DIALOG = (
 
 export const OPEN_AMOUNTS_PER_PERSON = "Ausgegebene Beträge pro Person";
 export const SHOW_EXPENSES = "Ausgaben anzeigen";
+export const BELEG = "Beleg";
+export const DELETE_BELEG = "Beleg löschen";
+export const DROP_ATTACHMENT_HINT = "PDF oder Bild hierher ziehen";
+export const ATTACHMENT_RETENTION_HINT =
+  "Wird 1 Jahr nach Anlassende automatisch gelöscht";
+export const EXPENSE_RECEIPT = "Beleg";
+export const REMOVE_EXPENSE_RECEIPT = "Beleg löschen";
+export const ATTACHMENT_INVALID_TYPE = "Nur PDF oder Bild (JPEG/PNG) erlaubt.";
+export const ATTACHMENT_TOO_LARGE = "Datei ist zu gross (max. 10 MB).";
