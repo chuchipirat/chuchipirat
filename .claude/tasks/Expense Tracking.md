@@ -1800,7 +1800,7 @@ zwei Personen mit Einträgen haben zwei unabhängig auf-/zuklappbare Accordions 
 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; `Expense.sumByPayee` hat eigene Tests inkl. der `expenses`-Zuordnung und -Sortierung; `PayeeBalanceAccordion` hat eigene Tests für Leerzustand, sichtbare Zusammenfassung ohne Aufklappen, Namensauflösung, Sortierung und unabhängiges Auf-/Zuklappen.
 
-## Epic 4 — Belege (Attachments)
+## Epic 4 — Belege (Attachments) ✅ erledigt
 
 Ziel: Ausgaben können einen Beleg (PDF oder Bild) tragen. Schema ist bereits seit Epic 0/2 vorhanden (`ExpenseDomain.attachmentPath`/`attachmentOriginalFilename`, siehe `20260905000002_add_event_expenses.sql`)
 — Epic 4 füllt sie erstmals mit echten Daten: erst die Storage-Policy (4.1), dann Upload/Löschen im Dialog (4.2), dann Anzeige/Download in der Liste (4.3).
@@ -2294,14 +2294,118 @@ await database.events.deleteEvent(state.event.uid);
 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false` **und** `npx jest StorageRepository --watchAll=false` (liegt unter `Database/Repository/__tests__/`, nicht unter `ExpenseTracking/` — vom ersten Filter nicht erfasst), `npm run lint` sauber; neue Tests grün, bestehende `expenseList`- **und** `StorageRepository`-Tests unverändert grün; beide Mutationsproben bestanden; Sichttest Desktop **und** Mobile gemacht; Storage-Objekt nach Löschen einer Ausgabe **und** nach Löschen eines ganzen Anlasses im Supabase-Storage-Browser verifiziert weg (inkl. Cover, in einem Aufruf).
 
-## Epic 5 — Profil: Zahlungsangaben
+## Epic 5 — Profil: Zahlungsangaben 
 
-_Wird vor Start verfeinert. Grober Zuschnitt:_
+Ziel: Registrierte Personen können Adresse + IBAN für Rückerstattungen im eigenen Profil hinterlegen, ansehen, ändern und löschen. Epic 7.3 nutzt die Angaben später als Prefill für die PDF-Abrechnung. Grundlage im Issue: Abschnitt "IBAN & Adresse für Rückerstattung".
 
-- 5.1 Migration `user_payment_details` (1:1 zu `auth.users`, Adresse + IBAN, Owner-only RLS).
-- 5.2 `PaymentDetailsRepository` + neue `PaymentDetailsCard`-Komponente in `userProfile.tsx`s
-  bestehendem `<Stack>` (kein neuer Tab — die Profilseite hat keine Tabs, sondern eine
-  Card-Liste, siehe bestehende `DonationsCard`).
+### Entscheidungen (vorab, mit Begründung)
+
+1. **Eigene Tabelle statt Spalten auf `public.users`.** `users_select` lässt neben der Person selbst auch `is_community_leader()` und `is_admin()` lesen — Bankdaten gehören nicht in diese Sichtbarkeit. RLS wirkt pro Zeile, nicht pro Spalte; eine strengere Regel für nur zwei Spalten ginge nur über Column-Grants/Views (mehr Komplexität, leicht zu unterlaufen).
+2. **Nur die Person selbst — kein Admin, keine Mitköch:innen** (mit dem Nutzer entschieden, 2026-10-09). Folge für 7.3: Prefill funktioniert nur, wenn jemand die **eigene** Abrechnung erstellt; erstellt eine Köchin die Abrechnung für eine andere Person, tippt sie deren Angaben von Hand ein (wie bei nicht-registrierten Personen). Das deckt sich mit dem Issue ("Opt-in der Person selbst") und hält die Angriffsfläche minimal. Konsequenz für Support: Admins können die Angaben nicht einsehen — gewollt.
+3. **Kontoinhaber:in = Profilname** (`users.first_name`/`last_name`), keine eigene Spalte (mit dem Nutzer entschieden). Bekannte Grenze: Gehört das Konto jemand anderem (z.B. Eltern), steht auf dem PDF der falsche Name — falls das in der Praxis auftaucht, lässt sich später eine nullable `account_holder_name`-Spalte additiv ergänzen.
+4. **Existenz der Zeile = Einwilligung.** Kein `consent`-Flag: Es wird nur gespeichert, wenn die Person es aktiv tut (Profil-Card in 5.3 oder Checkbox "fürs nächste Mal speichern" in 7.3); Widerruf = Zeile löschen. `created_at` dokumentiert den Zeitpunkt.
+5. **Primärschlüssel = `user_id`** (1:1, wie `public.users.id`). Kein separates `id`-Feld — ermöglicht in 5.2 ein schlichtes `upsert` auf den PK, und eine zweite Zeile pro Person ist strukturell unmöglich. FK auf `auth.users ON DELETE CASCADE` (wie `donations.donor_uid`): Konto-Löschung räumt die Bankdaten automatisch mit weg.
+6. **Keine `created_by`/`updated_by`-Spalten.** Sie wären per Definition immer `user_id` (Owner-only) — reine Redundanz. `created_at`/`updated_at` + `update_updated_at()`-Trigger bleiben.
+7. **IBAN normalisiert speichern** (Grossbuchstaben, ohne Leerzeichen); die DB prüft nur die **Form** (`^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$`, also 15–34 Zeichen). Die **Mod-97-Prüfsumme** prüft die App in 5.2 als reine, getestete Funktion — in SQL wäre sie möglich, aber schwer lesbar und doppelt gepflegt. Die Form-Prüfung in der DB ist das Sicherheitsnetz gegen Rohdaten, die an der UI vorbei kommen.
+8. **Adresse als Einzelfelder** `street` (inkl. Hausnummer), `postal_code`, `city`. Alle `NOT NULL` — gespeichert wird nur vollständig (fürs PDF braucht es alles). `postal_code` als `text` (ausländische Formate, führende Nullen). **Kein `country_code`** (bei der Umsetzung gestrichen, 2026-10-09): das Land ergibt sich aus Adresse bzw. IBAN-Präfix.
+9. **Kein Realtime, kein `REPLICA IDENTITY FULL`** — nur eine Person bearbeitet die eigene Zeile; Multi-User-Gleichzeitigkeit gibt es hier nicht.
+10. **Least-Privilege-Grants:** `GRANT SELECT, INSERT, UPDATE, DELETE … TO authenticated` statt `GRANT ALL` wie bei den Event-Tabellen — `ALL` enthält u.a. `TRUNCATE`, das RLS nicht unterliegt. Über PostgREST nicht erreichbar, aber für Bankdaten soll die Rechtevergabe auch ohne dieses Wissen korrekt sein. `anon` erhält nichts. **Fund bei der Verifikation:** Die Supabase-eigenen Default-Privileges (`pg_default_acl`) geben `anon` **und** `authenticated` auf jede neue Tabelle automatisch `ALL` — ein `GRANT` allein bewirkt nichts. Deshalb zuerst `REVOKE ALL … FROM anon, authenticated`, dann gezielt `GRANT`. Projektweites Problem, siehe Tech-Debt "Supabase-Default-Privileges".
+11. **Keine Verschlüsselung auf Spaltenebene.** pgsodium/TCE ist von Supabase abgekündigt, Vault ist für Secrets (wenige, serverseitig gelesen), nicht für Nutzerdaten, die der Client liest. Schutz: RLS + Plattenverschlüsselung + Least-Privilege. Bewusst so akzeptiert.
+12. **Profil: Card, kein neuer Reiter.** Das Issue spricht von einem "neuen Reiter", die Profilseite hat aber keine Tabs, sondern einen `<Stack>` mit Cards (`ProfileCard`, `PublicProfileCard`, `DonationsCard`). Neue `PaymentDetailsCard` reiht sich dort ein.
+
+### **Story 5.1 — Migration `user_payment_details`** ✅ erledigt
+
+**Datei:** `supabase/migrations/20261009000001_add_user_payment_details.sql` (neu, self-contained: Tabelle + Trigger + RLS + Grants).
+
+**Code-Skizze:**
+
+```sql
+-- =============================================================================
+-- Neue Funktionalität: Abrechnung
+--
+-- Zahlungsangaben (Adresse + IBAN) für Rückerstattungen. 1:1 zum Konto, nur
+-- von der Person selbst les- und schreibbar (auch nicht von Admins). Eine
+-- Zeile existiert nur nach aktivem Speichern durch die Person (= Einwilligung).
+-- =============================================================================
+
+CREATE TABLE public.user_payment_details (
+  user_id uuid DEFAULT auth.uid() NOT NULL,
+  street text NOT NULL,
+  postal_code text NOT NULL,
+  city text NOT NULL,
+  iban text NOT NULL,
+  created_at timestamptz DEFAULT now() NOT NULL,
+  updated_at timestamptz DEFAULT now() NOT NULL,
+  CONSTRAINT user_payment_details_pkey PRIMARY KEY (user_id),
+  CONSTRAINT user_payment_details_user_id_fkey FOREIGN KEY (user_id) REFERENCES auth.users (id) ON DELETE CASCADE,
+  CONSTRAINT user_payment_details_street_check CHECK (char_length(btrim(street)) BETWEEN 1 AND 100),
+  CONSTRAINT user_payment_details_postal_code_check CHECK (char_length(btrim(postal_code)) BETWEEN 1 AND 10),
+  CONSTRAINT user_payment_details_city_check CHECK (char_length(btrim(city)) BETWEEN 1 AND 100),
+  -- Nur die Form; die Mod-97-Prüfsumme prüft die App (siehe Entscheidung 7).
+  CONSTRAINT user_payment_details_iban_check CHECK (iban ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{11,30}$')
+);
+
+ALTER TABLE public.user_payment_details ENABLE ROW LEVEL SECURITY;
+
+CREATE TRIGGER trg_user_payment_details_updated_at BEFORE UPDATE ON public.user_payment_details
+  FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
+
+-- Bewusst ohne is_admin(): Bankdaten sieht nur die Person selbst.
+CREATE POLICY "user_payment_details_select" ON public.user_payment_details FOR SELECT TO authenticated
+  USING (user_id = (SELECT auth.uid()));
+CREATE POLICY "user_payment_details_insert" ON public.user_payment_details FOR INSERT TO authenticated
+  WITH CHECK (user_id = (SELECT auth.uid()));
+CREATE POLICY "user_payment_details_update" ON public.user_payment_details FOR UPDATE TO authenticated
+  USING (user_id = (SELECT auth.uid()))
+  WITH CHECK (user_id = (SELECT auth.uid()));
+CREATE POLICY "user_payment_details_delete" ON public.user_payment_details FOR DELETE TO authenticated
+  USING (user_id = (SELECT auth.uid()));
+
+-- Supabase-Default-Privileges geben anon UND authenticated automatisch ALL
+-- (inkl. TRUNCATE, das RLS umgeht) — erst alles entziehen, dann gezielt vergeben.
+REVOKE ALL ON public.user_payment_details FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.user_payment_details TO authenticated;
+```
+
+Hinweise zur Skizze:
+
+- `(SELECT auth.uid())` statt `auth.uid()` — gleiche Schreibweise wie `users_select`; Postgres wertet den Subselect einmal pro Statement statt pro Zeile aus (Supabase-Performance-Empfehlung). - `UPDATE … WITH CHECK` verhindert, dass jemand die eigene Zeile per Update auf eine fremde `user_id` "umhängt".
+- Kein Index nötig — der PK auf `user_id` ist der einzige Zugriffspfad.
+- Ob `update_updated_at()` das richtige Trigger-Funktionspaar ist: siehe `event_budgets`
+  (`20260905000001`); `update_updated_by()` entfällt (Entscheidung 6).
+
+**Tests/Verifikation** — reines SQL, keine Jest-Tests (Supabase-Client in Jest gemockt). Migration transaktional gegen den laufenden `supabase-db-test`-Container anwenden (`supabase db reset` blockiert, siehe `reference_local_migration_verify`), dann mit zwei Test-Usern A und B sowie einem Admin prüfen — Rolle/JWT pro Abschnitt per `SET LOCAL ROLE authenticated; SELECT set_config('request.jwt.claims', '{"sub":"<uuid>","role":"authenticated"}', true);`:
+
+1. A legt eigene Zeile an (ohne `user_id` → Default `auth.uid()` greift), liest, ändert, löscht sie — alles erfolgreich; `updated_at` ändert sich beim Update.
+2. B sieht A's Zeile **nicht** (`SELECT` liefert 0 Zeilen), `UPDATE`/`DELETE` auf A's Zeile betreffen 0 Zeilen, `INSERT` mit `user_id = A` wird abgewiesen.
+3. Admin sieht A's Zeile **nicht** (Entscheidung 2 — explizit prüfen, sonst fällt ein versehentliches `OR is_admin()` nicht auf).
+4. A kann die eigene Zeile nicht per `UPDATE … SET user_id = B` umhängen.
+5. `anon` (`SET LOCAL ROLE anon`) bekommt `permission denied`.
+6. Zweites `INSERT` von A → PK-Konflikt (genau eine Zeile pro Person).
+7. Constraints: IBAN mit Leerzeichen/Kleinbuchstaben, zu kurz (`CH12`), leere/nur-Leerzeichen `street`/`city`, zu lange `postal_code` → jeweils abgewiesen; gültige IBAN `CH9300762011623852957` akzeptiert.
+8. Kaskade: Test-User in `auth.users` löschen (innerhalb der Transaktion) → seine Zeile ist weg.
+9. Am Ende `ROLLBACK` für die Prüf-Daten; Migration selbst danach regulär anwenden.
+
+**Zum Ansehen im Browser:** nichts — reine Datenbank-Story (UI folgt in 5.3).
+
+**Definition of Done:** Migration wendet sich fehlerfrei auf der Test-DB an; alle neun Verifikationspunkte bestätigt (SQL-Ausgaben im Feedback mitschicken); `sqlfluff` auf die neue Datei (nur Casing); Timestamp-Präfix eindeutig (`ls supabase/migrations | sed 's/_.*//' | sort | uniq -d` leer); keine bestehende Migration verändert.
+
+**Verifiziert (2026-10-09):** Prüfskript (alle 9 Punkte, transaktional mit `ROLLBACK`) grün — inkl. Admin sieht 0 Zeilen, `anon` → permission denied, `authenticated` ohne `TRUNCATE`. Auf `supabase-db-test` regulär angewendet. Abweichungen zur Skizze: kein `country_code` (Entscheidung 8), `REVOKE ALL` vor dem `GRANT` (Entscheidung 10). Für 5.2 mitnehmen: Die DB prüft `btrim(...)`, speichert aber ungetrimmt — Repository/Formular trimmt und normalisiert die IBAN vor dem Speichern.
+
+### Story 5.2 — Domain-Typen, Repository, IBAN-Validierung (grob, wird vor Start verfeinert)
+
+- `src/components/User/paymentDetails.types.ts`: `PaymentDetailsDomain`, `PaymentDetailsRow`.
+- `PaymentDetailsRepository` (extends `BaseRepository`): `getMine()` (→ `Domain | null`), `saveMine(details)` als `upsert` auf PK `user_id`, `deleteMine()`; in `DatabaseService.ts` registrieren; `excludeFromCaching: true` — Bankdaten gehören nicht in den `sessionStorage`.
+- Reine Funktionen `normalizeIban()` / `isValidIban()` (Mod-97) in eigener Utility, mit Tests (gültige CH/LI/DE-IBANs, falsche Prüfsumme, Leerzeichen/Kleinbuchstaben, zu kurz/lang).
+- Repo-Tests für Mapping + `getMine()` ohne Zeile → `null`.
+
+### Story 5.3 — `PaymentDetailsCard` im Profil (grob, wird vor Start verfeinert)
+
+- Neue Card im `<Stack>` von `userProfile.tsx` (eigene Datei, Vorbild `DonationsCard`):
+  Leerzustand mit "Zahlungsangaben hinterlegen", Anzeige (IBAN gruppiert/teilmaskiert),
+  Bearbeiten, Löschen (Bestätigungsdialog = Widerruf der Einwilligung).
+- Hinweistext, wofür die Angaben verwendet werden und wer sie sieht (nur du).
+- Helpcenter: Profil-Seite um den Abschnitt ergänzen (separates Repo, siehe CLAUDE.md).
 
 ## Epic 6 — Dashboard & Kennzahlen
 
