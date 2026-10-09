@@ -18,6 +18,7 @@ export * from "./admin";
 export * from "./requests";
 export * from "./masterdata";
 export * from "./users";
+export * from "./userPaymentDetails";
 export * from "./landing";
 export * from "./shared";
 export * from "./mappings";

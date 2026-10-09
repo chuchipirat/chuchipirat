@@ -1,5 +1,6 @@
 import {AuthService} from "./AuthService";
 import {UserRepository} from "./Repository/UserRepository";
+import {UserPaymentDetailsRepository} from "./Repository/UserPaymentDetailsRepository";
 import {UserStorageRepository} from "./Repository/UserStorageRepository";
 import {EventStorageRepository} from "./Repository/EventStorageRepository";
 import {GlobalSettingsRepository} from "./Repository/GlobalSettingsRepository";
@@ -50,6 +51,7 @@ import {ExpenseStorageRepository} from "./Repository/ExpenseStorageRepository";
  *
  * @property auth - Service für Supabase Auth Operationen
  * @property users - Repository für Benutzer-CRUD-Operationen (RLS aktiv)
+ * @property userPaymentDetails - Repository für Zahlungsdetails eines Benutzers
  * @property globalSettings - Repository für globale Einstellungen
  * @property systemMessages - Repository für Systemmeldungen
  * @property departments - Repository für Abteilungen
@@ -83,6 +85,7 @@ import {ExpenseStorageRepository} from "./Repository/ExpenseStorageRepository";
 export class DatabaseService {
   auth: AuthService;
   users: UserRepository;
+  userPaymentDetails: UserPaymentDetailsRepository;
   globalSettings: GlobalSettingsRepository;
   systemMessages: SystemMessageRepository;
   departments: DepartmentRepository;
@@ -123,6 +126,7 @@ export class DatabaseService {
   constructor() {
     this.auth = new AuthService();
     this.users = new UserRepository();
+    this.userPaymentDetails = new UserPaymentDetailsRepository();
     this.globalSettings = new GlobalSettingsRepository();
     this.systemMessages = new SystemMessageRepository();
     this.departments = new DepartmentRepository();
