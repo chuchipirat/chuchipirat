@@ -2138,14 +2138,161 @@ const ATTACHMENT_MIME_TO_EXTENSION: Record<string, string> = {
 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` sauber; Repository-Tests für Upload/Remove; Dialog-Tests für Sichtbarkeit in beiden Modi, Drag-and-drop **und** Klick-Pfad, Validierung; Seiten-Tests für Anlegen-mit-Beleg (inkl. Fehlerfall ohne Rollback), Ersetzen- und Entfernen-Pfad inkl. Mutationsprobe für die Alte-Datei-Löschung.
 
-### **Story 4.3 — Anzeige/Download/Löschen in der Ausgaben-Liste**
+### **Story 4.3 — Anzeige/Download in der Liste & Storage-Aufräumen beim Löschen (Ausgabe & Anlass)** ✅ erledigt
 
-_Wird unmittelbar vor Start verfeinert (nach 4.2):_
+Zwei getrennte, unabhängige Fähigkeiten, keine davon ist der "Beleg entfernen"-Pfad — der ist bereits seit 4.2 über den Dialog erledigt (Icon-Button → `removeAttachment` → Speichern) und wird hier **nicht** nochmal gebaut:
 
-- `ExpenseRow` bzw. der Bearbeiten-Dialog zeigt `attachmentOriginalFilename` als Link/Icon, wenn
-  gesetzt; Klick öffnet/lädt über `getPublicUrl` oder eine signierte URL herunter.
-- Löschen des Belegs separat vom Löschen der ganzen Ausgabe möglich (nur `attachment_path`/
-  `attachment_original_filename` auf `null` setzen + Storage-Objekt entfernen).
+1. **Anzeige/Download in der Liste** — ein Anhang-Icon in `ExpenseRow`, wenn `attachmentPath` gesetzt ist; Klick öffnet die Datei in einem neuen Tab.
+2. **Storage-Objekt beim Löschen der ganzen Ausgabe entfernen** — die in Epic 2 bewusst aufgeschobene Schnittstelle (Entscheidung 9, Zeile 396f.): `handleDeleteExpense` löscht aktuell nur die DB-Zeile, das Storage-Objekt bliebe verwaist liegen.
+3. **Storage-Objekte beim Löschen des ganzen Anlasses entfernen** — derselbe Verwaisungs-Fall wie 2., nur ausgelöst von `event.tsx`s `onEventDelete` statt von der Abrechnungsseite: `event_expenses.event_id` hat `ON DELETE CASCADE` (`event_expenses_event_id_fkey`), die DB-Zeilen (und damit alle `attachment_path`-Werte) verschwinden beim Löschen des Anlasses automatisch — die zugehörigen Storage-Objekte nicht. `onEventDelete` entfernt heute bereits `cover.jpg` (Zeile 1811ff.), aber keine Belege. Gelöst über eine neue generische `removeFolder()`-Methode auf `StorageRepository` (siehe Entscheidung 8) statt über die DB — braucht daher **keine** Ausgaben-Abfrage vorab.
+
+**Architektur-Entscheidungen**
+
+1. **`media`-Bucket ist public → kein signierter Link nötig.** `getPublicUrl()` reicht (anders als bei einem privaten Bucket). Die Methode ist zudem rein synchron — reine String-Konstruktion aus Projekt-URL + Bucket + Pfad, kein Netzwerk-Call — kann also direkt beim Rendern aufgerufen werden, ohne Async-State oder Ladezustand in der Zeile.
+2. **`ExpenseList`/`ExpenseRow` bleiben "reine Darstellung".** Laut eigenem Docstring berechnet die Liste nichts und kennt keine Datenbank. Statt die ganze `database`-Instanz durchzureichen, bekommt `ExpenseList` eine schmale Callback-Prop `getAttachmentUrl: (attachmentPath: string) => string` — umgesetzt als **Pflicht**-Prop (nicht optional wie ursprünglich geplant), da die Liste jetzt auch für Ausgaben ohne Beleg ein Icon rendert; bestehende Aufrufe in `expenseList.test.tsx` übergeben `jest.fn()`.
+3. **Echter `<a>`-Link statt `window.open()`.** `IconButton component="a" href={...} target="_blank" rel="noopener noreferrer"` — funktioniert mit Rechtsklick/"Link speichern als" und Cmd/Strg-Klick, kein Popup-Blocker-Risiko. "Anzeige" und "Download" sind damit ein und derselbe Klick: Browser zeigen PDF/Bild meist inline, "Speichern als" bleibt dem Nutzer im neuen Tab überlassen — kein erzwungener Download-Header nötig.
+4. **`stopPropagation` auf dem Icon-Klick**, sonst öffnet sich zusätzlich der Bearbeiten-Dialog (die ganze Zeile ist bereits klickbar) — etabliertes Muster, siehe `eventCard.tsx:200`.
+5. **Layout:** `expenseRowPrimary` hat `justifyContent: space-between` mit genau zwei Kindern (Bezeichnung, Betrag). Ein drittes Kind würde das umbrechen (mittleres Element würde zentriert statt rechts ausgerichtet). Deshalb Icon + Betrag in einer neuen `expenseRowAmountGroup`-Box zusammenfassen, die als zweites der zwei `space-between`-Kinder dient.
+6. **Reihenfolge beim Löschen: DB-Zeile zuerst, Storage danach.** Analog zum Upload-Fehler-Muster aus 4.2 (dort: Ausgabe zuerst anlegen, Beleg danach hochladen) — die DB-Operation ist die primäre, für den Nutzer sichtbare Aktion und darf nicht an einem Storage-Fehler scheitern. Schlägt `remove()` fehl, bleibt ein verwaistes Storage-Objekt liegen; das ist unkritisch (kein Datenverlust, kein sichtbarer Fehlzustand) und wird langfristig vom geplanten Housekeeping-Cron mit aufgeräumt, nicht hier nochmal behandelt.
+7. **Fehler beim Storage-Entfernen wird trotzdem gemeldet** (`handleError(error, "Beleg löschen")`, gleiches Muster wie "Beleg hochladen" in 4.2), auch wenn die Zeile zu diesem Zeitpunkt schon verschwunden ist — Konsistenz mit dem Rest des Features (jeder Storage-Fehler wird gemeldet) wiegt hier höher als die etwas unscharfe UX in diesem Rand-Fall.
+8. **Beim Anlass-Löschen: ganzer Storage-Ordner statt DB-Abfrage.** Statt die Ausgaben vor dem Löschen abzufragen (um an die `attachment_path`-Werte zu kommen, bevor die CASCADE sie mitnimmt), bekommt `StorageRepository` eine neue generische Methode `removeFolder(folderPrefix)`, die direkt im Storage nachschaut, was unter diesem Pfad tatsächlich liegt, und alles löscht — unabhängig vom DB-Zustand. Das macht die Reihenfolge-Frage aus der vorherigen Fassung dieser Entscheidung hinfällig (keine Abfrage mehr nötig, die vor dem CASCADE passieren müsste) und räumt als Nebeneffekt auch Dateien auf, die aus irgendeinem anderen Grund nie einen `attachment_path`-Eintrag bekommen haben (z.B. ein Fehler zwischen Upload und dem zweiten `updateExpense`-Aufruf aus 4.2). Supabase Storage hat kein atomares "Ordner löschen" — Ordner sind rein virtuell (aus Dateipfaden abgeleitet) — `list()` liefert nur eine Ebene, Unterordner erscheinen als Einträge mit `id: null` und müssen selbst nochmal aufgelistet werden; `removeFolder()` löst das rekursiv auf und ruft am Ende **ein** `remove([...])` mit allen gefundenen Pfaden.
+9. **`events/<eventId>/` ist flach genug für die generische Lösung, lohnt sich aber auch fürs Housekeeping-Cron.** Die konkrete Struktur hier ist nur eine Ebene tief (`cover.jpg` direkt, `expenses/<id>.<ext>` einen Unterordner tiefer) — eine fest verdrahtete Zwei-Ebenen-Lösung hätte auch gereicht. Die rekursive Variante ist trotzdem die bessere Wahl: dieselbe Methode liefert auch die vollständige Dateiliste, die das geplante Housekeeping-Cron fürs Reconciliation-Sweep sowieso braucht (siehe `project_housekeeping_cron`-Notiz) — keine zweite Implementierung später.
+10. **Fehler bleiben stumm (`.catch(() => {})`), kein `handleError`.** Ersetzt die bisherige `cover.jpg`-Entfernung 1:1 (war schon stumm) — jetzt räumt derselbe eine, stumme Aufruf Cover **und** alle Belege zusammen auf, keine zweite Fehlerbehandlung nötig.
+
+**Code-Skizze** (`expenseList.tsx`):
+
+```tsx
+interface ExpenseListProps {
+  expenseGroups: ExpenseGroup[];
+  highlightedExpenseIds: Set<string>;
+  handleEditClick: (expenseId: string) => void;
+  getAttachmentUrl?: (attachmentPath: string) => string;
+}
+// ... durchreichen an ExpenseRow ...
+
+{expense.attachmentPath && getAttachmentUrl && (
+  <IconButton
+    component="a"
+    href={getAttachmentUrl(expense.attachmentPath)}
+    target="_blank"
+    rel="noopener noreferrer"
+    size="small"
+    aria-label={TEXT_SHOW_EXPENSE_RECEIPT}
+    onClick={(clickEvent) => clickEvent.stopPropagation()}
+  >
+    <AttachFileOutlined fontSize="small" />
+  </IconButton>
+)}
+```
+
+**Code-Skizze** (`expenseTracking.tsx`, `handleDeleteExpense`-Erweiterung):
+
+```ts
+await database.expenses.deleteExpense(expense.id);
+trackEvent(AnalyticsEvent.EXPENSE_DELETED);
+dispatch({type: ReducerActions.EXPENSE_DELETED, payload: expense});
+
+if (expense.attachmentPath) {
+  try {
+    await database.storage.expenses.remove(expense.attachmentPath);
+  } catch (error) {
+    handleError(error, "Beleg löschen");
+  }
+}
+```
+
+**Code-Skizze** (`StorageRepository.ts`, neue generische Methode):
+
+```ts
+/**
+ * Löscht alle Dateien unterhalb eines Ordners rekursiv.
+ *
+ * Supabase Storage kennt kein atomares "Ordner löschen" — Ordner sind rein
+ * virtuell (aus Dateipfaden abgeleitet). `list()` liefert deshalb nur eine
+ * Ebene; Unterordner erscheinen als Einträge mit `id: null` und werden hier
+ * rekursiv selbst nochmal aufgelistet, bis nur noch echte Dateien übrig sind.
+ *
+ * @param folderPrefix - Ordnerpfad relativ zu `folderPath` (ohne führenden/folgenden Slash).
+ * @throws Error bei Lese- oder Löschfehler.
+ *
+ * @example
+ * await repo.removeFolder("evt-123"); // löscht alles unter events/evt-123/*, rekursiv
+ */
+async removeFolder(folderPrefix: string): Promise<void> {
+  const filePaths = await this.listFilesRecursively(`${this.folderPath}${folderPrefix}`);
+  if (filePaths.length === 0) return;
+
+  const {error} = await this.client.storage.from(this.bucketName).remove(filePaths);
+  if (error) throw error;
+}
+
+private async listFilesRecursively(prefix: string): Promise<string[]> {
+  const {data, error} = await this.client.storage.from(this.bucketName).list(prefix);
+  if (error) throw error;
+
+  const paths: string[] = [];
+  for (const entry of data ?? []) {
+    const entryPath = `${prefix}/${entry.name}`;
+    if (entry.id === null) {
+      paths.push(...(await this.listFilesRecursively(entryPath)));
+    } else {
+      paths.push(entryPath);
+    }
+  }
+  return paths;
+}
+```
+
+**Code-Skizze** (`event.tsx`, `onEventDelete`-Vereinfachung — ersetzt die bisherige `cover.jpg`-Zeile 1:1):
+
+```ts
+// ersetzt die bisherigen zwei Zeilen (cover.jpg einzeln + keine Belege) durch einen Aufruf,
+// der den ganzen events/<eventId>/-Ordner aufräumt — Cover UND alle Belege, in einem Schritt:
+await database.storage.events.removeFolder(state.event.uid).catch(() => {});
+
+await database.events.deleteEvent(state.event.uid);
+```
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `expenseList.tsx` | neue optionale Prop `getAttachmentUrl` auf `ExpenseList` **und** `ExpenseRow`; Anhang-Icon im `expenseRowPrimary`, wenn `attachmentPath` gesetzt |
+| `expenseTracking.tsx` | übergibt `database.storage.expenses.getPublicUrl` als `getAttachmentUrl`; `handleDeleteExpense` entfernt zusätzlich das Storage-Objekt, wenn vorhanden |
+| `constants/styles/expenseTracking.styles.ts` | neue `expenseRowAmountGroup` (Flex-Box, fasst Icon + Betrag zusammen) |
+| `constants/text/expenseTracking.ts` | neuer Text `SHOW_EXPENSE_RECEIPT` ("Beleg ansehen", aria-label fürs Icon) |
+| `StorageRepository.ts` | neue Methoden `removeFolder(folderPrefix)` (public) und `listFilesRecursively(prefix)` (private) |
+| `Repository/__mocks__/storageMock.ts` | `list`-Mock auf `storageBucketMock` ergänzen (fehlt heute, nur `upload`/`remove`/`getPublicUrl`) |
+| `event.tsx` (ausserhalb `ExpenseTracking/`) | `onEventDelete`: bisherige `cover.jpg`-Einzel-Entfernung durch einen `removeFolder(eventId)`-Aufruf ersetzen |
+
+**Tests**
+
+- `expenseList.test.tsx`: Icon erscheint nur, wenn **beides** gesetzt ist (`attachmentPath` **und** `getAttachmentUrl`); `href` entspricht dem Rückgabewert der übergebenen Funktion; Klick auf das Icon löst `handleEditClick` **nicht** aus (stopPropagation); bestehende Aufrufe ohne die neue Prop zeigen weiterhin kein Icon (Regressionstest, belegt die Rückwärtskompatibilität).
+- `expenseTracking.test.tsx`:
+  - Löschen einer Ausgabe **mit** Beleg ruft zusätzlich `storage.expenses.remove(attachmentPath)` auf, **nach** `deleteExpense`.
+  - Löschen einer Ausgabe **ohne** Beleg ruft `remove()` nicht auf (Regressionstest für den bestehenden Lösch-Pfad aus Paket 2.6).
+  - Scheitert das Entfernen des Storage-Objekts, bleibt die Ausgabe trotzdem gelöscht (die Zeile verschwindet), zusätzlich erscheint ein auf "Beleg löschen" bezogener Fehler.
+- `StorageRepository.test.ts` (bestehende Datei, neue `describe("removeFolder()")`):
+  - Flacher Ordner (nur Dateien, keine Unterordner): `list()` einmal aufgerufen, `remove()` mit allen gefundenen Pfaden in einem Aufruf.
+  - Verschachtelter Ordner (ein Unterordner-Eintrag mit `id: null`, wie bei `events/<id>/expenses/`): `list()` wird für den Unterordner **zusätzlich** aufgerufen (rekursiv), am Ende trotzdem **ein** `remove()`-Aufruf mit allen Pfaden aus beiden Ebenen zusammen.
+  - Leerer Ordner (`list()` liefert `[]`): `remove()` wird gar nicht aufgerufen (kein leerer Call mit `[]`).
+  - Lesefehler bei `list()` bzw. Löschfehler bei `remove()`: beide werfen (gleiches Muster wie die bestehenden `upload`/`remove`-Fehlertests).
+- **Mutationsprobe (Beleg-Entfernen in `handleDeleteExpense`):** den `if (expense.attachmentPath)`-Check vor dem `remove()`-Aufruf entfernen (immer aufrufen) → der "ohne Beleg kein remove()"-Test muss rot werden.
+- **Mutationsprobe (`removeFolder`):** die Rekursion weglassen (nur eine `list()`-Ebene) → der "verschachtelter Ordner"-Test muss zeigen, dass die Dateien aus dem Unterordner (`expenses/...`) fehlen und so unentfernt liegen blieben.
+
+**Zum Ansehen im Browser** (DEV, braucht 4.1 und 4.2 bereits angewendet): eine Ausgabe mit PDF- und eine mit Bild-Beleg anlegen → Anhang-Icon erscheint in der Liste, Klick öffnet die Datei in neuem Tab, Klick auf den Rest der Zeile öffnet weiterhin den Bearbeiten-Dialog. Ausgabe mit Beleg löschen → im Supabase-Storage-Browser verifizieren, dass das Objekt tatsächlich weg ist. Anlass mit mehreren Belegen löschen → alle zugehörigen Dateien unter `events/<eventId>/` im Storage-Browser verifizieren, dass sie weg sind (Cover **und** alle Belege, in einem `removeFolder()`-Aufruf). **Mobile prüfen** (Touch-Ziel des Icons neben dem eng gedrängten Betrag).
+
+**Abweichungen in der Umsetzung (gegenüber der Skizze oben)**
+
+- Ausgaben ohne Beleg zeigen ein Warn-Icon ("Beleg fehlt"), Klick öffnet den Bearbeiten-Dialog.
+- Icon sitzt in der Sekundärzeile (`expenseRowSecondary`) statt neben dem Betrag — keine `expenseRowAmountGroup` nötig.
+- Dialog: zusätzlicher "Beleg anzeigen"-Link; "Beleg löschen" markiert nur (durchgestrichen) und ist bis zum Speichern per "Rückgängig" rücknehmbar.
+- Beleg-Uploads mit `cacheControl: "0"` (Supabase-Standard `3600` lieferte nach Ersetzen am gleichen Pfad bis zu 1 h den alten Inhalt); gleicher Effekt bei Cover-/Profilbildern als Tech-Debt erfasst.
+- Tests: Sentry wird in `expenseTracking.test.tsx` per top-level `jest.mock` ersetzt (`jest.spyOn` scheitert am ESM-Export).
+
+**Verifiziert (2026-10-09):** Mutationsproben beide rot; DEV: Beleg nach Ausgabe-Löschen und alle Objekte unter `events/<id>/` nach Anlass-Löschen im Storage weg; Desktop + Mobile geprüft.
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false` **und** `npx jest StorageRepository --watchAll=false` (liegt unter `Database/Repository/__tests__/`, nicht unter `ExpenseTracking/` — vom ersten Filter nicht erfasst), `npm run lint` sauber; neue Tests grün, bestehende `expenseList`- **und** `StorageRepository`-Tests unverändert grün; beide Mutationsproben bestanden; Sichttest Desktop **und** Mobile gemacht; Storage-Objekt nach Löschen einer Ausgabe **und** nach Löschen eines ganzen Anlasses im Supabase-Storage-Browser verifiziert weg (inkl. Cover, in einem Aufruf).
 
 ## Epic 5 — Profil: Zahlungsangaben
 
