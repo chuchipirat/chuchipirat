@@ -399,6 +399,17 @@ const EventExpenseTrackingPage = ({
     setBudgetDetailDialogProperties({budget: null, open: false});
   };
   /**
+   * Liefert die öffentliche URL eines Belegs. Wird als schmaler Callback an
+   * Liste und Dialog gereicht, damit diese die Datenbank nicht kennen müssen.
+   *
+   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner
+   *   (`<eventId>/expenses/<expenseId>.<ext>`).
+   * @returns Öffentliche URL der Datei (synchron, kein Netzwerk-Call).
+   */
+  const handleGetAttachmentUrl = (attachmentPath: string) => {
+    return database.storage.expenses.getPublicUrl(attachmentPath);
+  };
+  /**
    * Legt eine neue Ausgabe an. Der Dialog wird sofort geschlossen; ein
    * Fehler erscheint oben auf der Seite.
    *
@@ -435,10 +446,15 @@ const EventExpenseTrackingPage = ({
             ATTACHMENT_MIME_TO_EXTENSION[expenseInput.attachmentFile.type];
           const relativePath = `${event.uid}/expenses/${newExpense.value.id}.${extension}`;
 
+          // cacheControl "0": derselbe Pfad kann später wiederverwendet werden
+          // (z.B. beim Ersetzen mit gleicher Endung) — ohne das würde ein
+          // Browser/die CDN bis zu eine Stunde den alten Inhalt der gleichen
+          // URL ausliefern (Supabase-Standard: cacheControl "3600").
           await database.storage.expenses.upload(
             relativePath,
             expenseInput.attachmentFile,
             expenseInput.attachmentFile.type,
+            "0",
           );
           const updated = await database.expenses.updateExpense(
             {
@@ -532,10 +548,14 @@ const EventExpenseTrackingPage = ({
             previousExpense.attachmentPath,
           );
         }
+        // cacheControl "0": siehe handleCreateExpense — derselbe Pfad kann bei
+        // gleicher Endung wiederverwendet werden, ohne den alten Inhalt bis zu
+        // eine Stunde lang aus dem Cache auszuliefern.
         await database.storage.expenses.upload(
           relativePath,
           expenseInput.attachmentFile,
           expenseInput.attachmentFile.type,
+          "0",
         );
         expense.attachmentPath = relativePath;
         expense.attachmentOriginalFilename = expenseInput.attachmentFile.name;
@@ -643,6 +663,14 @@ const EventExpenseTrackingPage = ({
       await database.expenses.deleteExpense(expense.id);
       trackEvent(AnalyticsEvent.EXPENSE_DELETED);
       dispatch({type: ReducerActions.EXPENSE_DELETED, payload: expense});
+
+      if (expense.attachmentPath) {
+        try {
+          await database.storage.expenses.remove(expense.attachmentPath);
+        } catch (error) {
+          handleError(error, "Beleg löschen");
+        }
+      }
     } catch (error) {
       handleError(error, "Ausgabe löschen");
     } finally {
@@ -829,6 +857,7 @@ const EventExpenseTrackingPage = ({
                 expenseGroups={expenseGroups}
                 highlightedExpenseIds={highlightedExpenseIds}
                 handleEditClick={handleEditExpense}
+                getAttachmentUrl={handleGetAttachmentUrl}
               />
             )}
           </Box>
@@ -862,6 +891,7 @@ const EventExpenseTrackingPage = ({
             open: false,
           })
         }
+        getAttachmentUrl={handleGetAttachmentUrl}
       />
       <CustomSnackbar
         message={state.snackbar.message}

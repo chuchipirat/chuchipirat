@@ -34,6 +34,8 @@ import {
   REMOVE_EXPENSE_RECEIPT as TEXT_REMOVE_EXPENSE_RECEIPT,
   ATTACHMENT_INVALID_TYPE as TEXT_ATTACHMENT_INVALID_TYPE,
   ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
+  SHOW_EXPENSE_RECEIPT as TEXT_SHOW_EXPENSE_RECEIPT,
+  UNDO_REMOVE_EXPENSE_RECEIPT as TEXT_UNDO_REMOVE_EXPENSE_RECEIPT,
 } from "../../../constants/text";
 
 import {
@@ -51,6 +53,7 @@ import {
   Radio,
   Typography,
   IconButton,
+  Tooltip,
 } from "@mui/material";
 
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -70,7 +73,12 @@ import {useCustomStyles} from "../../../constants/styles";
 import dayjs, {Dayjs} from "dayjs";
 import {BudgetDomain} from "./budget.types";
 import {Cook} from "../Event/event.class";
-import {CloudUploadOutlined} from "@mui/icons-material";
+import {
+  CloudUploadOutlined,
+  DeleteOutlined,
+  OpenInNewOutlined,
+  UndoOutlined,
+} from "@mui/icons-material";
 
 /**
  * Props des Ausgaben-Dialogs.
@@ -96,6 +104,7 @@ interface ExpenseDetailDialogProps {
   onCreate: (budget: ExpenseDetailDialogState) => void;
   onEdit: (expenseId: string, expense: ExpenseDetailDialogState) => void;
   onDelete: (expense: ExpenseDomain) => void;
+  getAttachmentUrl?: (attachmentPath: string) => string;
 }
 
 /**
@@ -127,6 +136,7 @@ export type ExpenseDetailDialogState = {
   payeeUserId: string | null;
   payeeName: string;
   attachmentFile: File | null;
+  attachmentPath: string | null;
   removeAttachment: boolean; // true = bestehenden Beleg beim Speichern entfernen
 };
 
@@ -142,6 +152,7 @@ const INITIAL_FORM_STATE: ExpenseDetailDialogState = {
   payeeUserId: null,
   payeeName: "",
   attachmentFile: null,
+  attachmentPath: null,
   removeAttachment: false,
 };
 
@@ -165,6 +176,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   onClose,
   onEdit,
   onDelete,
+  getAttachmentUrl,
 }) => {
   const preselectedBudgetId =
     budgets.length === 1 ? budgets[0].id : (defaultBudgetId ?? "");
@@ -187,6 +199,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
           payeeUserId: expense.payeeUserId,
           payeeName: expense.payeeName ?? "",
           attachmentFile: null,
+          attachmentPath: expense.attachmentPath ?? null,
           removeAttachment: false,
         }
       : {
@@ -276,6 +289,20 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
       attachmentFile: file,
       removeAttachment: false,
     }));
+  };
+  /**
+   * Entfernt den Beleg. Eine noch nicht gespeicherte, frisch gewählte Datei
+   * wird direkt verworfen (kein Speichern nötig, deshalb auch kein
+   * "Rückgängig" dafür) — ein bereits gespeicherter Beleg wird nur zum
+   * Entfernen markiert und erst beim Speichern tatsächlich gelöscht, bis
+   * dahin per "Rückgängig" rücknehmbar.
+   */
+  const handleRemoveAttachment = () => {
+    if (formState.attachmentFile) {
+      setFormState((prev) => ({...prev, attachmentFile: null}));
+    } else {
+      updateField("removeAttachment", true);
+    }
   };
   const currentFilename =
     formState.attachmentFile?.name ?? expense?.attachmentOriginalFilename;
@@ -512,17 +539,64 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
         </RadioGroup>
         <Box sx={{mt: 2}}>
           <FormLabel>{TEXT_EXPENSE_RECEIPT}</FormLabel>
-          {currentFilename && !formState.removeAttachment ? (
+
+          {currentFilename && (
             <Box sx={classes.attachmentRow}>
-              <Typography>{currentFilename}</Typography>
-              <IconButton
-                onClick={() => updateField("removeAttachment", true)}
-                aria-label={TEXT_REMOVE_EXPENSE_RECEIPT}
+              <Typography
+                noWrap
+                title={currentFilename}
+                sx={[
+                  classes.attachmentFileName,
+                  formState.removeAttachment &&
+                    classes.attachmentFileNameRemoved,
+                ]}
               >
-                <DeleteIcon fontSize="small" />
-              </IconButton>
+                {currentFilename}
+              </Typography>
+
+              {formState.removeAttachment ? (
+                <Button
+                  size="small"
+                  startIcon={<UndoOutlined />}
+                  onClick={() => updateField("removeAttachment", false)}
+                >
+                  {TEXT_UNDO_REMOVE_EXPENSE_RECEIPT}
+                </Button>
+              ) : (
+                <Box sx={classes.attachmentActions}>
+                  {formState.attachmentPath && getAttachmentUrl && (
+                    <Tooltip title={TEXT_SHOW_EXPENSE_RECEIPT}>
+                      <IconButton
+                        component="a"
+                        href={getAttachmentUrl(formState.attachmentPath)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        size="small"
+                        aria-label={TEXT_SHOW_EXPENSE_RECEIPT}
+                      >
+                        <OpenInNewOutlined fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  )}
+                  <Tooltip title={TEXT_REMOVE_EXPENSE_RECEIPT}>
+                    <IconButton
+                      size="small"
+                      onClick={handleRemoveAttachment}
+                      aria-label={TEXT_REMOVE_EXPENSE_RECEIPT}
+                    >
+                      <DeleteOutlined fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </Box>
+              )}
             </Box>
-          ) : (
+          )}
+
+          {(!currentFilename || formState.removeAttachment) && (
+            // Dropzone — auch sichtbar, wenn ein bestehender Beleg zum
+            // Entfernen markiert ist: ein direkt hier abgelegter Ersatz hebt
+            // die Markierung wieder auf (handleFileSelected setzt
+            // removeAttachment zurück auf false).
             <Box
               component="label"
               sx={[
@@ -555,6 +629,13 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
               />
             </Box>
           )}
+
+          {currentFilename && !formState.removeAttachment && (
+            <Typography variant="caption" color="text.secondary">
+              {TEXT_ATTACHMENT_RETENTION_HINT}
+            </Typography>
+          )}
+
           {attachmentError && (
             <Typography variant="caption" color="error">
               {attachmentError}
@@ -562,7 +643,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
           )}
         </Box>
       </DialogContent>
-      <DialogActions>
+      <DialogActions sx={{mt: 2}}>
         {expense && (
           <React.Fragment>
             <Button

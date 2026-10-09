@@ -48,6 +48,12 @@ export abstract class StorageRepository {
    * @param filename - Dateiname (ohne Ordnerpfad).
    * @param data - Dateiinhalt als Blob oder File.
    * @param contentType - MIME-Type der Datei (z.B. "image/jpeg").
+   * @param cacheControl - `Cache-Control: max-age=<Sekunden>` für Browser/CDN.
+   *   Supabase setzt ohne diesen Parameter standardmässig `"3600"` (1 Stunde) —
+   *   beim Ersetzen einer Datei am **gleichen** Pfad (`upsert`, keine neue URL)
+   *   liefert ein Browser/die Supabase-CDN sonst bis zu eine Stunde lang den
+   *   alten Inhalt derselben URL aus. `"0"` übergeben, wenn der Pfad nach einem
+   *   Ersetzen wiederverwendet werden kann (z.B. Ausgaben-Belege).
    * @returns Pfad und öffentliche URL der hochgeladenen Datei.
    * @throws Error bei Upload-Fehler.
    *
@@ -59,6 +65,7 @@ export abstract class StorageRepository {
     filename: string,
     data: Blob | File,
     contentType?: string,
+    cacheControl?: string,
   ): Promise<UploadResult> {
     const fullPath = `${this.folderPath}${filename}`;
     const {error} = await this.client.storage
@@ -66,6 +73,7 @@ export abstract class StorageRepository {
       .upload(fullPath, data, {
         contentType,
         upsert: true,
+        cacheControl,
       });
 
     if (error) throw error;
@@ -91,6 +99,57 @@ export abstract class StorageRepository {
       .remove([fullPath]);
 
     if (error) throw error;
+  }
+
+  /**
+   * Löscht alle Dateien unterhalb eines Ordners rekursiv.
+   *
+   * Supabase Storage kennt kein atomares "Ordner löschen" — Ordner sind rein
+   * virtuell (aus Dateipfaden abgeleitet). `list()` liefert deshalb nur eine
+   * Ebene; Unterordner erscheinen als Einträge mit `id: null` und werden hier
+   * rekursiv selbst nochmal aufgelistet, bis nur noch echte Dateien übrig sind.
+   *
+   * @param folderPrefix - Ordnerpfad relativ zu `folderPath` (ohne führenden/folgenden Slash).
+   * @throws Error bei Lese- oder Löschfehler.
+   *
+   * @example
+   * await repo.removeFolder("evt-123"); // löscht alles unter events/evt-123/*, rekursiv
+   */
+  async removeFolder(folderPrefix: string): Promise<void> {
+    const filePaths = await this.listFilesRecursively(
+      `${this.folderPath}${folderPrefix}`,
+    );
+    if (filePaths.length === 0) return;
+
+    const {error} = await this.client.storage
+      .from(this.bucketName)
+      .remove(filePaths);
+    if (error) throw error;
+  }
+
+  /**
+   * Sammelt rekursiv die vollständigen Pfade aller Dateien unter `prefix`.
+   *
+   * @param prefix - Vollständiger Ordnerpfad im Bucket (inkl. `folderPath`).
+   * @returns Pfade aller gefundenen Dateien, Unterordner aufgelöst.
+   * @throws Error bei Lesefehler.
+   */
+  private async listFilesRecursively(prefix: string): Promise<string[]> {
+    const {data, error} = await this.client.storage
+      .from(this.bucketName)
+      .list(prefix);
+    if (error) throw error;
+
+    const paths: string[] = [];
+    for (const entry of data ?? []) {
+      const entryPath = `${prefix}/${entry.name}`;
+      if (entry.id === null) {
+        paths.push(...(await this.listFilesRecursively(entryPath)));
+      } else {
+        paths.push(entryPath);
+      }
+    }
+    return paths;
   }
 
   /**

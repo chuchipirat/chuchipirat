@@ -43,6 +43,7 @@ import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
 import {ExpenseDetailDialogState} from "../expenseDetailDialog";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import dayjs from "dayjs";
+import * as Sentry from "@sentry/react";
 /**
  * Mock: customDialog — die Tests steuern, was die Nutzer:in «antwortet».
  * `jest.mock` muss auf oberster Ebene der Datei stehen: Es wird vor den
@@ -52,6 +53,15 @@ const mockCustomDialog = jest.fn();
 jest.mock("../../../Shared/customDialogContext", () => ({
   ...jest.requireActual("../../../Shared/customDialogContext"),
   useCustomDialog: () => ({customDialog: mockCustomDialog}),
+}));
+/**
+ * Mock: Sentry — `jest.spyOn` scheitert am ESM-Export ("Cannot redefine
+ * property"), deshalb `captureException` hier ersetzen, um den gemeldeten
+ * Kontext prüfen zu können.
+ */
+jest.mock("@sentry/react", () => ({
+  ...jest.requireActual("@sentry/react"),
+  captureException: jest.fn(),
 }));
 jest.mock("@mui/x-date-pickers", () => ({
   DatePicker: (props: any) => (
@@ -141,6 +151,10 @@ const mockDatabase = {
     expenses: {
       upload: jest.fn(),
       remove: jest.fn(),
+      getPublicUrl: jest.fn(
+        (attachmentPath: string) =>
+          `https://mock.supabase.co/storage/v1/object/public/media/events/${attachmentPath}`,
+      ),
     },
   },
 } as any;
@@ -1673,6 +1687,7 @@ describe("EventExpenseTrackingPage: Beleg-Upload", () => {
         "evt-1/expenses/expense-new-1.pdf",
         expect.any(File),
         "application/pdf",
+        "0", // cacheControl: kein Stale-Cache beim Wiederverwenden des Pfads
       ),
     );
     await waitFor(() =>
@@ -1756,6 +1771,7 @@ describe("EventExpenseTrackingPage: Beleg-Upload", () => {
       "evt-1/expenses/expense-existing-1.pdf",
       expect.any(File),
       "application/pdf",
+      "0", // cacheControl: kein Stale-Cache beim Wiederverwenden des Pfads
     );
     expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -1791,6 +1807,7 @@ describe("EventExpenseTrackingPage: Beleg-Upload", () => {
         "evt-1/expenses/expense-existing-1.jpg",
         expect.any(File),
         "image/jpeg",
+        "0", // cacheControl: kein Stale-Cache beim Wiederverwenden des Pfads
       ),
     );
     // Gleicher Pfad wie vorher → kein explizites Löschen nötig (upsert überschreibt)
@@ -1866,6 +1883,110 @@ describe("EventExpenseTrackingPage: Beleg-Upload", () => {
     );
     expect(mockDatabase.storage.expenses.upload).not.toHaveBeenCalled();
     expect(mockDatabase.storage.expenses.remove).not.toHaveBeenCalled();
+  });
+});
+/* =====================================================================
+// Ausgabe mit Beleg löschen (Story 4.3)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgabe mit Beleg löschen", () => {
+  const ATTACHMENT_PATH = "evt-1/expenses/expense-existing-1.pdf";
+
+  /**
+   * Rendert die freigeschaltete Seite mit genau einer Ausgabe, öffnet deren
+   * Dialog und bestätigt das Löschen.
+   *
+   * @param attachmentPath - Beleg-Pfad der Ausgabe oder `null` (ohne Beleg).
+   */
+  const deleteExpenseViaDialog = async (attachmentPath: string | null) => {
+    mockCustomDialog.mockResolvedValue(true); // Nutzer:in bestätigt
+    mockDatabase.expenses.deleteExpense.mockResolvedValueOnce(undefined);
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+        attachmentPath,
+        attachmentOriginalFilename: attachmentPath ? "beleg.pdf" : null,
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.deleteExpense).toHaveBeenCalledWith(
+        "expense-existing-1",
+      ),
+    );
+  };
+
+  test("mit Beleg: entfernt zusätzlich das Storage-Objekt, nach deleteExpense", async () => {
+    await deleteExpenseViaDialog(ATTACHMENT_PATH);
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledWith(
+        ATTACHMENT_PATH,
+      ),
+    );
+    // Erst die DB-Zeile, dann die Datei: scheitert das DB-Löschen, darf der
+    // Beleg nicht schon weg sein (sonst zeigt die Ausgabe auf eine leere Datei).
+    expect(
+      mockDatabase.expenses.deleteExpense.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mockDatabase.storage.expenses.remove.mock.invocationCallOrder[0],
+    );
+    expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledTimes(1);
+  });
+
+  test("ohne Beleg: ruft remove() nicht auf (Regressionstest)", async () => {
+    await deleteExpenseViaDialog(null);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("expense-expense-existing-1"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockDatabase.storage.expenses.remove).not.toHaveBeenCalled();
+  });
+
+  test("scheitert das Entfernen des Belegs, bleibt die Ausgabe gelöscht und ein Fehler erscheint", async () => {
+    const sentrySpy = jest.mocked(Sentry.captureException);
+    const storageError = new Error("Beleg konnte nicht gelöscht werden");
+    mockDatabase.storage.expenses.remove.mockRejectedValueOnce(storageError);
+
+    await deleteExpenseViaDialog(ATTACHMENT_PATH);
+
+    // Zwei Alerts: die Erfolgs-Snackbar fürs Löschen und die Fehlermeldung.
+    const alerts = await screen.findAllByRole("alert");
+    expect(
+      alerts.some((alert) =>
+        alert.textContent?.includes(storageError.message),
+      ),
+    ).toBe(true);
+    expect(
+      screen.queryByTestId("expense-expense-existing-1"),
+    ).not.toBeInTheDocument();
+    // Der Kontext landet nur in Sentry, nicht im UI — daran ist erkennbar,
+    // dass der Fehler vom Beleg stammt und nicht vom Löschen der Ausgabe.
+    expect(sentrySpy).toHaveBeenCalledWith(storageError, {
+      extra: {context: "Beleg löschen"},
+    });
+    expect(sentrySpy).not.toHaveBeenCalledWith(expect.anything(), {
+      extra: {context: "Ausgabe löschen"},
+    });
   });
 });
 /* =====================================================================

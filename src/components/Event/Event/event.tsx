@@ -1516,7 +1516,9 @@ const EventPage = () => {
           // Hintergrund-Reload, der nächste Realtime-Event lädt erneut.
           try {
             for (const header of headers) {
-              const items = await database.materialLists.getListItems(header.id);
+              const items = await database.materialLists.getListItems(
+                header.id,
+              );
               ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
             }
           } catch (error) {
@@ -1807,9 +1809,9 @@ const EventPage = () => {
     }
     dispatch({type: ReducerActions.EVENT_DELETE_START, payload: {}});
     try {
-      // Bild löschen (Fehler ignorieren, falls kein Bild vorhanden)
+      // Alle Dateien (Fehler ignorieren, falls kein Bild/Belege vorhanden)
       await database.storage.events
-        .remove(state.event.uid + "/cover.jpg")
+        .removeFolder(state.event.uid)
         .catch(() => {});
 
       // Event löschen — CASCADE entfernt alle Supabase-Kinder
