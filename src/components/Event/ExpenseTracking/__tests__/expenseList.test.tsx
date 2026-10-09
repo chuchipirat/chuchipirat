@@ -39,6 +39,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
@@ -65,6 +66,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
@@ -77,9 +79,13 @@ describe("ExpenseList, Standard Funktionalität ", () => {
       "budget-subheader-budget-id-001",
       "RestaurantOutlinedIcon",
       "expense-expense-id-001",
+      "expense-receipt-missing-icon-expense-id-001",
+      "ReportProblemOutlinedIcon",
       "budget-subheader-budget-id-002",
       "CelebrationOutlinedIcon",
       "expense-expense-id-002",
+      "expense-receipt-missing-icon-expense-id-002",
+      "ReportProblemOutlinedIcon",
     ]);
   });
   test("Sortierung der Ausgaben stimmt, mit dem Array überrein", () => {
@@ -99,6 +105,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
@@ -126,6 +133,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
@@ -155,6 +163,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
@@ -191,6 +200,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
@@ -229,6 +239,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
@@ -257,11 +268,73 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={onEdit}
         highlightedExpenseIds={new Set()}
+        getAttachmentUrl={jest.fn()}
       />,
     );
 
     fireEvent.click(screen.getByTestId("expense-expense-id-001"));
 
     expect(onEdit).toHaveBeenCalledWith("expense-id-001");
+  });
+  test("Richtiges Icon erscheint, je nachdem ob Beleg vorhanden", () => {
+    const onEdit = jest.fn();
+    const onGetAttachmentUrl = jest.fn();
+
+    const mockExpenseGroup: ExpenseGroup[] = [
+      {
+        budget: budget,
+        expenses: [
+          {
+            ...expense,
+            attachmentPath: "/event-id/expenses/expense-id-001.pdf",
+            attachmentOriginalFilename: "Migros Quittung.pdf",
+          },
+          {
+            ...expenseChf,
+            attachmentPath: null,
+            attachmentOriginalFilename: null,
+          },
+        ],
+        totalsByCurrency:
+          Expense.sumByBudgetAndCurrency([expense, expenseChf])[budget.id] ??
+          {},
+      },
+    ];
+
+    render(
+      <ExpenseList
+        expenseGroups={mockExpenseGroup}
+        handleEditClick={onEdit}
+        highlightedExpenseIds={new Set()}
+        getAttachmentUrl={onGetAttachmentUrl}
+      />,
+    );
+    // Prüfen, dass die icons richtig sind
+    const expenseRow1 = screen.getByTestId("expense-expense-id-001");
+    const expenseRow2 = screen.getByTestId("expense-expense-id-002");
+
+    expect(
+      within(expenseRow1).getByTestId(`expense-receipt-icon-expense-id-001`),
+    ).toBeInTheDocument();
+    expect(
+      within(expenseRow2).getByTestId(
+        `expense-receipt-missing-icon-expense-id-002`,
+      ),
+    ).toBeInTheDocument();
+
+    // prüfen, dass ein Klick das richtige auslöst.
+    fireEvent.click(
+      within(expenseRow1).getByTestId(`expense-receipt-icon-expense-id-001`),
+    );
+    expect(onGetAttachmentUrl).toHaveBeenCalledWith(
+      "/event-id/expenses/expense-id-001.pdf",
+    );
+
+    fireEvent.click(
+      within(expenseRow2).getByTestId(
+        `expense-receipt-missing-icon-expense-id-002`,
+      ),
+    );
+    expect(onEdit).toHaveBeenCalledWith("expense-id-002");
   });
 });

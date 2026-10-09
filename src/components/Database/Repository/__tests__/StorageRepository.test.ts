@@ -1,7 +1,7 @@
 /**
  * Unit-Tests für StorageRepository.
  *
- * Testet Upload, Remove, getPublicUrl und getTransformedUrl
+ * Testet Upload, Remove, removeFolder, getPublicUrl und getTransformedUrl
  * mit einem gemockten Supabase-Storage-Client.
  */
 import {StorageRepository} from "../StorageRepository";
@@ -75,6 +75,108 @@ describe("StorageRepository", () => {
       });
 
       await expect(repo.remove("profile.jpg")).rejects.toEqual({
+        message: "Delete failed",
+      });
+    });
+  });
+
+  /* ------------------------------------------
+  // removeFolder()
+  // ------------------------------------------ */
+  describe("removeFolder()", () => {
+    /**
+     * Baut einen `list()`-Eintrag, wie ihn Supabase liefert: Dateien haben
+     * eine `id`, (virtuelle) Unterordner `id: null`.
+     *
+     * @param name - Name des Eintrags (ohne Pfad).
+     * @param isFolder - `true` für einen Unterordner.
+     * @returns Der Eintrag.
+     */
+    const listEntry = (name: string, isFolder = false) => ({
+      name,
+      id: isFolder ? null : `id-${name}`,
+    });
+
+    test("flacher Ordner: list() einmal, remove() mit allen Pfaden in einem Aufruf", async () => {
+      storageMock.storageBucketMock.list.mockResolvedValueOnce({
+        data: [listEntry("cover.jpg"), listEntry("avatar.png")],
+        error: null,
+      });
+
+      await repo.removeFolder("user-1");
+
+      expect(storageMock.storageBucketMock.list).toHaveBeenCalledTimes(1);
+      expect(storageMock.storageBucketMock.list).toHaveBeenCalledWith(
+        "users/user-1",
+      );
+      expect(storageMock.storageBucketMock.remove).toHaveBeenCalledTimes(1);
+      expect(storageMock.storageBucketMock.remove).toHaveBeenCalledWith([
+        "users/user-1/cover.jpg",
+        "users/user-1/avatar.png",
+      ]);
+    });
+
+    test("verschachtelter Ordner: listet Unterordner rekursiv, löscht alles in einem remove()", async () => {
+      storageMock.storageBucketMock.list
+        .mockResolvedValueOnce({
+          data: [listEntry("cover.jpg"), listEntry("expenses", true)],
+          error: null,
+        })
+        .mockResolvedValueOnce({
+          data: [listEntry("exp-1.pdf"), listEntry("exp-2.jpg")],
+          error: null,
+        });
+
+      await repo.removeFolder("user-1");
+
+      expect(storageMock.storageBucketMock.list).toHaveBeenCalledTimes(2);
+      expect(storageMock.storageBucketMock.list).toHaveBeenNthCalledWith(
+        2,
+        "users/user-1/expenses",
+      );
+      expect(storageMock.storageBucketMock.remove).toHaveBeenCalledTimes(1);
+      expect(storageMock.storageBucketMock.remove).toHaveBeenCalledWith([
+        "users/user-1/cover.jpg",
+        "users/user-1/expenses/exp-1.pdf",
+        "users/user-1/expenses/exp-2.jpg",
+      ]);
+    });
+
+    test("leerer Ordner: remove() wird nicht aufgerufen", async () => {
+      storageMock.storageBucketMock.list.mockResolvedValueOnce({
+        data: [],
+        error: null,
+      });
+
+      await repo.removeFolder("user-1");
+
+      expect(storageMock.storageBucketMock.list).toHaveBeenCalledTimes(1);
+      expect(storageMock.storageBucketMock.remove).not.toHaveBeenCalled();
+    });
+
+    test("Fehler beim Auflisten werfen", async () => {
+      storageMock.storageBucketMock.list.mockResolvedValueOnce({
+        data: null,
+        error: {message: "List failed"},
+      });
+
+      await expect(repo.removeFolder("user-1")).rejects.toEqual({
+        message: "List failed",
+      });
+      expect(storageMock.storageBucketMock.remove).not.toHaveBeenCalled();
+    });
+
+    test("Fehler beim Löschen werfen", async () => {
+      storageMock.storageBucketMock.list.mockResolvedValueOnce({
+        data: [listEntry("cover.jpg")],
+        error: null,
+      });
+      storageMock.storageBucketMock.remove.mockResolvedValueOnce({
+        data: null,
+        error: {message: "Delete failed"},
+      });
+
+      await expect(repo.removeFolder("user-1")).rejects.toEqual({
         message: "Delete failed",
       });
     });

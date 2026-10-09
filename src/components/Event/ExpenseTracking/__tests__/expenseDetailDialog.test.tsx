@@ -596,8 +596,44 @@ describe("Ausgaben-Beleg", () => {
 
     fireEvent.click(screen.getByRole("button", {name: "Beleg löschen"}));
 
-    expect(screen.queryByText("quittung.pdf")).not.toBeInTheDocument();
+    // Dateiname bleibt (durchgestrichen) sichtbar, bis gespeichert wird —
+    // damit die Markierung per "Rückgängig" zurückgenommen werden kann.
+    expect(screen.getByText("quittung.pdf")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {name: "Beleg löschen"}),
+    ).not.toBeInTheDocument();
     expect(screen.getByText(TEXT_DROP_ATTACHMENT_HINT)).toBeInTheDocument();
+  });
+
+  test("Rückgängig hebt die Lösch-Markierung wieder auf", () => {
+    const mockExpense = {
+      ...expense,
+      attachmentPath: "evt-1/expenses/expense-id-001.pdf",
+      attachmentOriginalFilename: "quittung.pdf",
+    };
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={mockExpense}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg löschen"}));
+    fireEvent.click(screen.getByRole("button", {name: "Rückgängig"}));
+
+    expect(
+      screen.getByRole("button", {name: "Beleg löschen"}),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_DROP_ATTACHMENT_HINT),
+    ).not.toBeInTheDocument();
   });
 
   test("Speichern nach dem Markieren zum Entfernen sendet removeAttachment:true, ohne attachmentFile", () => {

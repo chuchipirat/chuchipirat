@@ -1,6 +1,7 @@
 import React from "react";
 
 import {
+  IconButton,
   List,
   ListItemButton,
   ListItemText,
@@ -15,7 +16,12 @@ import {BUDGET_ICON_MAP} from "./budgetIcons";
 import {useCustomStyles} from "../../../constants/styles";
 import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
 
-import {NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET} from "../../../constants/text/expenseTracking";
+import {
+  NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET,
+  SHOW_EXPENSE_RECEIPT as TEXT_SHOW_EXPENSE_RECEIPT,
+  EXPENSE_RECEIPT_MISSING as TEXT_EXPENSE_RECEIPT_MISSING,
+} from "../../../constants/text/expenseTracking";
+import {ReceiptLongOutlined, ReportProblemOutlined} from "@mui/icons-material";
 
 /**
  * Props für {@link ExpenseList}.
@@ -33,6 +39,7 @@ interface ExpenseListProps {
   expenseGroups: ExpenseGroup[];
   highlightedExpenseIds: Set<string>;
   handleEditClick: (expenseId: string) => void;
+  getAttachmentUrl: (attachmentPath: string) => string;
 }
 
 /**
@@ -49,6 +56,7 @@ export const ExpenseList = ({
   expenseGroups,
   highlightedExpenseIds,
   handleEditClick,
+  getAttachmentUrl,
 }: ExpenseListProps) => {
   const classes = useCustomStyles();
   const groupsWithExpenses = expenseGroups.filter(
@@ -70,6 +78,7 @@ export const ExpenseList = ({
                 expense={expense}
                 isHighlighted={highlightedExpenseIds.has(expense.id)}
                 handleClick={handleEditClick}
+                getAttachmentUrl={getAttachmentUrl}
               />
             ))}
           </React.Fragment>
@@ -144,6 +153,8 @@ type ExpenseRowProps = {
   isHighlighted: boolean;
   /** Callback bei Klick auf die Zeile, liefert `expense.id`. */
   handleClick: (expenseId: string) => void;
+  /** Callback bei Klick auf das File Icon, liefert zu öffnende URL. */
+  getAttachmentUrl: (attachmentPath: string) => string;
 };
 
 /**
@@ -155,7 +166,12 @@ type ExpenseRowProps = {
  *
  * @param props - Siehe {@link ExpenseRowProps}.
  */
-const ExpenseRow = ({expense, isHighlighted, handleClick}: ExpenseRowProps) => {
+const ExpenseRow = ({
+  expense,
+  isHighlighted,
+  handleClick,
+  getAttachmentUrl,
+}: ExpenseRowProps) => {
   const classes = useCustomStyles();
 
   const formattedDate = expense.date.toLocaleString("de-CH", {
@@ -175,6 +191,7 @@ const ExpenseRow = ({expense, isHighlighted, handleClick}: ExpenseRowProps) => {
       sx={[isHighlighted && classes.remoteChangeGlow]}
     >
       <ListItemText
+        slotProps={{secondary: {component: "div"}}}
         primary={
           <Box sx={classes.expenseRowPrimary}>
             <Typography component="span" noWrap>
@@ -185,7 +202,47 @@ const ExpenseRow = ({expense, isHighlighted, handleClick}: ExpenseRowProps) => {
             </Typography>
           </Box>
         }
-        secondary={secondaryText}
+        secondary={
+          <Box sx={classes.expenseRowSecondary}>
+            <Typography
+              component="span"
+              variant="body2"
+              color="text.secondary"
+              noWrap
+              sx={classes.expenseRowSecondaryText}
+            >
+              {secondaryText}
+            </Typography>
+            {expense.attachmentPath && getAttachmentUrl ? (
+              <IconButton
+                component="a"
+                href={getAttachmentUrl(expense.attachmentPath)}
+                target="_blank"
+                rel="noopener noreferrer"
+                size="small"
+                aria-label={TEXT_SHOW_EXPENSE_RECEIPT}
+                onClick={(clickEvent) => clickEvent.stopPropagation()}
+                sx={classes.expenseReceiptIconPresent}
+                data-testid={`expense-receipt-icon-${expense.id}`}
+              >
+                <ReceiptLongOutlined fontSize="small" />
+              </IconButton>
+            ) : (
+              <IconButton
+                size="small"
+                aria-label={TEXT_EXPENSE_RECEIPT_MISSING}
+                onClick={(clickEvent) => {
+                  clickEvent.stopPropagation();
+                  handleClick(expense.id);
+                }}
+                sx={classes.expenseReceiptIconMissing}
+                data-testid={`expense-receipt-missing-icon-${expense.id}`}
+              >
+                <ReportProblemOutlined fontSize="small" />
+              </IconButton>
+            )}
+          </Box>
+        }
       />
     </ListItemButton>
   );

@@ -16,6 +16,11 @@ export function createStorageMock() {
       data: null,
       error: null,
     }),
+    // Standard: leerer Ordner. Tests setzen pro Ebene eigene Einträge.
+    list: jest.fn().mockResolvedValue({
+      data: [],
+      error: null,
+    }),
     getPublicUrl: jest.fn((path: string, options?: any) => ({
       data: {
         publicUrl: options?.transform

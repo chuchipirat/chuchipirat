@@ -135,3 +135,6 @@ export const EXPENSE_RECEIPT = "Beleg";
 export const REMOVE_EXPENSE_RECEIPT = "Beleg löschen";
 export const ATTACHMENT_INVALID_TYPE = "Nur PDF oder Bild (JPEG/PNG) erlaubt.";
 export const ATTACHMENT_TOO_LARGE = "Datei ist zu gross (max. 10 MB).";
+export const SHOW_EXPENSE_RECEIPT = "Beleg anzeigen";
+export const EXPENSE_RECEIPT_MISSING = "Beleg fehlt";
+export const UNDO_REMOVE_EXPENSE_RECEIPT = "Rückgängig";

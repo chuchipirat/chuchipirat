@@ -153,6 +153,22 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     gap: theme.spacing(1),
     minWidth: 0, // nötig, damit noWrap+Ellipsis im Flex-Kind wirken kann
   },
+  expenseRowSecondary: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: theme.spacing(1),
+  },
+  expenseRowSecondaryText: {
+    flex: 1,
+    minWidth: 0, // ohne das schrumpft ein Flex-Kind mit noWrap nicht unter seine Textbreite
+  },
+  expenseReceiptIconPresent: {
+    color: theme.palette.text.secondary,
+  },
+  expenseReceiptIconMissing: {
+    color: theme.palette.warning.main,
+  },
   expenseRowAmount: {
     flexShrink: 0,
     fontWeight: 500,
@@ -216,5 +232,18 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     justifyContent: "space-between",
     alignItems: "center",
     width: "100%",
+    gap: theme.spacing(1),
+  },
+  attachmentFileName: {
+    flex: 1,
+    minWidth: 0, // sonst schrumpft ein Flex-Kind mit noWrap nicht
+  },
+  attachmentFileNameRemoved: {
+    textDecoration: "line-through",
+    color: theme.palette.text.disabled,
+  },
+  attachmentActions: {
+    display: "flex",
+    flexShrink: 0,
   },
 });

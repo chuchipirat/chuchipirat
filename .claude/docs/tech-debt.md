@@ -56,6 +56,11 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 - **Ausgaben-Liste bei > 1000 Zeilen abgeschnitten** — `ExpenseRepository.getExpensesForEvent()` und `BudgetRepository.getBudgetsForEvent()` nutzen `findMany()` ohne eigene Pagination (siehe Eintrag oben). Hat ein Anlass mehr als 1000 Budgets oder Ausgaben, werden die überzähligen Zeilen stillschweigend nicht geladen und fehlen entsprechend in Summen und Fortschrittsanzeige. In der Praxis unkritisch (ein Lager hat Hunderte, nicht Tausende Ausgaben).
   **Priorität:** tief · **Komplexität:** klein
 
+## Storage / Caching
+
+- **`cover.jpg` (Event) und Profilbilder vermutlich vom gleichen Stale-Cache-Bug betroffen wie Ausgaben-Belege** — `StorageRepository.upload()` setzte bis zur Behebung für Ausgaben-Belege (Story 4.3) nirgends `cacheControl`, wodurch der Supabase-Client den Standardwert `"3600"` (`Cache-Control: max-age=3600`) setzt — eine Stunde lang cachen Browser **und** die Supabase-CDN die Antwort derselben URL. `EventStorageRepository`/`UserStorageRepository` laden Bild-Ersetzungen immer unter demselben, fixen Pfad hoch (`<eventId>/cover.jpg` bzw. Profilbild-Pfad, `upsert: true`) — beim Ersetzen bleibt die URL identisch, wodurch ein Browser/die CDN bis zu eine Stunde lang das **alte** Bild ausliefert, obwohl in Storage bereits das neue liegt. Konkret beobachtet und behoben für Ausgaben-Belege (derselbe Pfad-Wiederverwendungs-Mechanismus) — für Cover- und Profilbilder nicht verifiziert, aber aus Code-Analyse hochwahrscheinlich derselbe Bug. Fix wäre identisch: `cacheControl: "0"` bei den jeweiligen `upload()`-Aufrufen übergeben (`StorageRepository.upload()` hat den Parameter bereits, aktuell nur für `ExpenseStorageRepository`-Uploads genutzt).
+  **Priorität:** tief · **Komplexität:** klein
+
 ## Bundle Size
 
 Identifiziert via Sentry Bundle Size Analysis (Build vom 13.04.2026). Die grössten Chunks bieten das meiste Optimierungspotenzial.
