@@ -177,6 +177,12 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     respectPrefix: false,
     excludeFromCaching: true,
   },
+  USER_PAYMENT_DETAILS: {
+    durationOfValidity: 0,
+    uid: "/userPaymentDetails",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
   NONE: {
     durationOfValidity: 0,
     uid: "",
