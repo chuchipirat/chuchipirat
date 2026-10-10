@@ -610,6 +610,7 @@ const EventExpenseTrackingPage = ({
 
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       title: TEXT_DELETE_BUDGET_DIALOG(budget.name),
       text: TEXT_DELETE_BUDGET_SIMPLE,
       buttonTextCancel: TEXT_CANCEL,
@@ -647,6 +648,7 @@ const EventExpenseTrackingPage = ({
   const handleDeleteExpense = async (expense: ExpenseDomain) => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       title: TEXT_DELETE_EXPENSE_DIALOG(
         expense.label,
         expense.amountInCents,
