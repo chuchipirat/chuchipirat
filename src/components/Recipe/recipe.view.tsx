@@ -2542,6 +2542,7 @@ const RecipeComments = ({
   const onDeleteComment = async (commentToDelete: RecipeCommentDomain) => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       title: TEXT_COMMENT_DELETE_TITLE,
       text: TEXT_COMMENT_DELETE_TEXT,
       buttonTextCancel: TEXT_CANCEL,
