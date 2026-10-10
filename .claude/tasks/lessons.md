@@ -9,3 +9,11 @@
 **Rule**: CLAUDE.md says "Plan first, code second. Always create a plan before writing code. Discuss the approach, outline the steps, get confirmation. Never jump straight into implementation." This is a HARD rule, not a guideline. It applies to EVERY non-trivial change — including follow-up requests in the same conversation.
 
 **How to apply**: When the user asks for a change: (1) Research/read code to understand the problem. (2) Enter plan mode and present the approach. (3) Wait for confirmation. (4) THEN implement. The only exception is truly trivial single-line fixes. If in doubt, plan first. Being corrected twice in the same session means this pattern is deeply ingrained — be extra vigilant.
+
+## 2026-10-10: Never run `npx prettier --write` on whole files
+
+**What happened**: To format my own additions I ran `npx prettier --write` on seven files. The repo has no prettier config — the style (`bracketSpacing: false`) lives only in the user's VS Code settings — so prettier reformatted every import (`{App}` → `{ App }`) and rewrapped existing lines, including files with the user's uncommitted work. Caught it in `git diff`, restored with `--no-bracket-spacing` and `git checkout` of a clean file.
+
+**Rule**: Write new code already in the project style instead of formatting afterwards. If formatting is needed, use `npx prettier --no-bracket-spacing` and only on files where the diff afterwards shows nothing but my own lines.
+
+**How to apply**: After any formatter run, check `git diff --stat` and the removed lines (`git diff | grep "^-"`) before going on. Untracked files can't be restored from git — never format those blind.

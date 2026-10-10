@@ -1,3 +1,112 @@
+# Destruktive Bestätigungsdialoge: `destructive`-Flag (eigener Branch `feature/destructive-confirm-dialog` von `develop`)
+
+Ziel: Löschen/Verwerfen sieht anders aus als Bestätigen, und Enter löscht nicht mehr versehentlich. Kein neuer Dialog-Typ, kein neues Muster.
+
+## Schritte
+
+- [x] 1. `customDialogContext.tsx`: optionales `destructive?: boolean` in `DialogContentProps` und `State`, an `customDialog()` durchreichen (Default `false`)
+- [x] 2. `customDialog.tsx`: an `ConfirmDialog` weitergeben
+- [x] 3. `ConfirmDialog.tsx`: bei `destructive` Bestätigen-Button `variant="contained" color="error"` (gleiches Bild wie `ConfirmSecure`), `autoFocus` auf **Abbrechen** statt Bestätigen. Ohne Flag unverändert
+- [x] 4. Tests `Shared/dialogs/__tests__/ConfirmDialog.test.tsx` (neu): Fokus auf Abbrechen + Enter löst kein `onConfirm` aus; ohne Flag Fokus auf Bestätigen (bisheriges Verhalten); Mutationsprobe
+- [x] 5. 17 Aufrufer (14 auf `develop` erledigt; 3 auf `feature/expense-tracking` offen, siehe Review) mit `destructive: true`:
+  - Löschen: Kommentar (`recipe.view.tsx:2544`), Spendenziel-Abschnitt (`donationGoals.tsx:296`), Essens-Cutoff (`mealTypeCutoffTimes.tsx:289`), Feeds (`overviewFeeds.tsx:300`), Systemmeldung (`systemMessageOverview.tsx:187`), Profilbild (`userProfile.tsx:499`), Zahlungsangaben (`userPaymentDetailsCard.tsx:166`), Produkt (`products.tsx:257`), Material (`materials.tsx:518`), Menüplan (`useMenuplanHandlers.tsx:385`, `menuplan.mealTypeRows.tsx:500`), Budget (`expenseTracking.tsx:612`), Ausgabe (`expenseTracking.tsx:649`), Anlass-Bild (`eventInfo.tsx:302`), geplante Tage löschen (`event.tsx:1770`)
+  - Änderungen verwerfen: `recipe.edit.tsx:1429`, `groupConfiguration.tsx:304`
+  - Bei den 4 Löschdialogen ohne Button-Text (Spendenziel, Cutoff, Produkt, Material) zusätzlich `buttonTextConfirm: TEXT_DELETE`, sonst steht «OK» auf einem roten Button
+- [x] 6. Bewusst **nicht** markiert: Profi-Tipp, Rezept veröffentlichen, Rezept privat machen, Antragsstatus, Info «Budget kann nicht gelöscht werden», Mail senden (unumkehrbar, aber kein Löschen; Kandidat für später)
+- [x] 7. `ui-review`-Skill: Regel für destruktive Aktionen (Tabelle: kein Dialog / `Confirm` + `destructive` / `ConfirmSecure`)
+- [x] 8. Tech-Debt: `ConfirmSecureDialog` nutzt hartcodiertes `#C62828` statt `color="error"` aus dem Theme
+
+## Verifikation
+
+- [x] tsc, lint, komplette Jest-Suite (17 Aufrufer in vielen Bereichen)
+- [ ] Browser Desktop + Mobile: Zahlungsangaben löschen (roter Button, Fokus auf Abbrechen, Enter schliesst ohne Löschen), ein nicht-destruktiver Dialog unverändert
+
+## Commits
+
+- Eigener Branch von `develop` (gehört nicht zur Abrechnung). Da `userPaymentDetailsCard.tsx` dort noch nicht existiert: diesen einen Aufrufer erst nach dem Merge, oder direkt auf `feature/expense-tracking` nachziehen.
+
+## Review
+
+- Worktree `../chuchipirat-destructive-dialog`, Branch `feature/destructive-confirm-dialog` von `origin/develop` (Upstream entfernt, damit kein Push auf `develop` möglich ist). `node_modules` und `.env.development` als Symlink aus dem Hauptordner (gleiche Abhängigkeiten).
+- Commit `d588c13`: Flag in Context/Dialog, 14 Aufrufer, 4× «Löschen» statt «OK». Nötig war zusätzlich der handgeschriebene `customDialog`-Typ in `useMenuplanHandlers.tsx` (`destructive?` ergänzt).
+- Tests: 4 neue (`ConfirmDialog.test.tsx`), Mutationsprobe (alter Fokus → 2 rot). tsc sauber, lint 0 Fehler, **2506 Tests grün** (207 Suites).
+- `ui-review`-Skill: Stufentabelle für Löschen/Verwerfen. Tech-Debt: Rot in `ConfirmSecureDialog`, Mail-Versand.
+- **Nicht im Browser geprüft:** Worktree-Server (Port 3001) läuft, aber die Seite blieb für die Chrome-Erweiterung dauerhaft «busy» (keine Konsolenfehler; Port 3000 funktioniert). Nach drei Versuchen abgebrochen.
+
+### Offen
+
+- [ ] Browser-Prüfung Desktop + Mobile (Löschdialog: rot, Fokus auf Abbrechen, Enter bricht ab; ein normaler Dialog unverändert)
+- [ ] PR gegen `develop`
+- [ ] Nach Merge in `develop` und Rebase von `feature/expense-tracking`: `destructive: true` + ggf. `buttonTextConfirm` für Zahlungsangaben, Budget und Ausgabe nachziehen (vorher kompiliert es dort nicht, das Flag fehlt)
+
+---
+
+# Security-Befunde Zahlungsangaben (Branch `feature/expense-tracking`)
+
+- [x] 1. Sentry `beforeSend`: `details`/`hint` aus serialisierten Supabase-Fehlern entfernen (`extra.__serialized__`), getestete Funktion in `src/utils/errorUtils.ts` (statt eigener `sentryUtils.ts`: passt thematisch zu `toError` & Co.), in `src/index.jsx` eingehängt. Eigener Commit `fix(sentry): …`
+- [x] 2. Replay: `data-sentry-block` am Formular-Wrapper (`PaymentDetailsForm`) und an Adresse/IBAN der Card, Test auf das Attribut; veralteten Kommentar in `index.jsx` korrigieren
+- [x] 3. Regel in `security-guidelines.md`: sensible Daten im UI → `data-sentry-block`; Supabase-Fehler-`details` werden zentral entfernt
+- [x] 4. IBAN-Prüfsumme nur im Client: im Story-File als akzeptiert vermerken
+- [x] Verifikation: tsc, lint, betroffene Tests
+- [ ] Nach Deploy auf TEST: ein Replay in Sentry ansehen (graue Flächen statt IBAN)
+
+## Review
+
+- **Befund bestätigt** mit dem echten Sentry-SDK: Ohne Filter steht `Failing row contains (…, CH93…)` in `extra.__serialized__`. Lokal reproduziert: Postgres liefert die ganze Zeile im `DETAIL`.
+- Commit `d489b16` (`fix(sentry)`): `redactSupabaseErrorDetails` als `beforeSend`, 3 Unit-Tests + 1 Test mit echtem SDK, Mutationsprobe (ohne Filter rot). Regel in `security-guidelines.md`.
+- Replay: `data-sentry-block` an Formular und Card, Test in `userProfile.test.tsx`, Mutationsprobe je Attribut rot. **Nicht committet**, gehört zum Story-5.3-Commit mit der übrigen Card-/Dialog-Arbeit.
+- tsc sauber, lint 0 Fehler (8 bestehende Warnungen), 157 Tests grün. Einzig rot: `paymentDetailsForm.test.tsx` (Entwurf des Users, Syntaxfehler im Import), nicht angefasst.
+- Eigener Fehler: `npx prettier --write` ohne Projekt-Config formatierte ganze Dateien um. Zurückgesetzt, nachgeprüft (Diff zeigt nur eigene Zeilen), Lesson eingetragen.
+- Nicht geprüft: Replay-Maskierung im echten Sentry (in DEV aus), siehe offener Punkt.
+
+---
+
+# Claude-Setup: Security-Agent, UI-Review- und Helpcenter-Skill, Subagent-Regel
+
+Ziel: Projektwissen dort anbieten, wo es gebraucht wird, ohne generische «Spezialisten»-Personas. Token sparen, ohne Qualität zu verlieren.
+
+## Schritte
+
+- [x] 1. **Agent `.claude/agents/security-reviewer.md`**
+  - Modell `sonnet`, Werkzeuge `Read`, `Grep`, `Glob`, `Bash` (Bash laut Prompt nur lesend; siehe Review)
+  - Aufruf: am Ende einer Story, wenn Migrationen, RLS, Auth, Formulare, Uploads oder Edge Functions geändert wurden. Die Hauptsession übergibt die Liste der geänderten Dateien (`git diff --name-only develop...`)
+  - Grundlage: `.claude/docs/security-guidelines.md` + RLS-Teil aus `database-and-supabase.md` (liest der Agent selbst, kein Kopieren in den Prompt → keine doppelte Pflege)
+  - Checkliste: RLS auf jeder neuen Tabelle, Policies pro Rolle, `SECURITY DEFINER` mit `search_path` und Admin-Guard, Validierung Client **und** Server, keine Secrets/Env-Werte im Code, kein `console.log` statt Sentry, keine PROD-Bezüge, Storage-Policies, Auth in Edge Functions
+  - Ausgabe: kurze Liste `Schwere · Datei:Zeile · Problem · Vorschlag`, oder «keine Befunde». Keine Zusammenfassung des Codes
+- [x] 2. **Skill `.claude/skills/ui-review/SKILL.md`**
+  - Auslöser: nach UI-Änderungen, vor «fertig»
+  - Checkliste: nur MUI; Styles in `src/constants/styles/*.styles.ts` und über `useCustomStyles()` eingehängt; UI-Texte Schweizerdeutsch in `src/constants/text/*`; Lade-, Fehler- und Leerzustand; Tastatur/Labels (Grundlagen a11y)
+  - Browser-Prüfung über die Chrome-Erweiterung: Desktop (1280 px) und Mobile (390 px), mit Screenshot; falls die Erweiterung nicht verbunden ist: ehrlich als «nicht geprüft» in die Review schreiben (wie bisher)
+- [x] 3. **Skill `.claude/skills/helpcenter-page/SKILL.md`**
+  - Ablauf aus `CLAUDE.md` (Abschnitt Helpcenter) als Schritte: Helpcenter-`CLAUDE.md` lesen → Seite `docs/<subdir>/<page>.md` → Mapping in `helpCenter.ts` + Test → bei Admin-Seiten `docs/admin/system.md` (Rechtetabelle + Link) → optional Release-Notes nach `.claude/docs/release-notes.md`
+  - Prüfen: `bundle exec jekyll build --destination /tmp/chuchipirat-helpcenter-site`, Jest-Test für das Mapping
+  - Regeln: im Helpcenter-Repo nur eigene Dateien anfassen, nie committen ohne Auftrag
+- [x] 4. **`~/CLAUDE.md` Abschnitt «Subagent Strategy»** ersetzen durch:
+  - «Use subagents only for broad codebase searches or isolated reviews (e.g. `security-reviewer`). Do small and focused work inline — each subagent re-reads context and costs tokens.»
+
+## Verifikation
+
+- [x] `/agents` zeigt `security-reviewer`, Skill-Liste zeigt `ui-review` und `helpcenter-page` (evtl. neue Session nötig)
+- [x] Echter Testlauf `security-reviewer` auf dem aktuellen Expense-Tracking-Diff (Zahlungsangaben, IBAN, Owner-only-RLS → passt gut)
+- [x] Echter Testlauf `ui-review` auf `paymentDetailsForm.tsx` / `userPaymentDetailsCard.tsx` (Mobile nicht geprüft, siehe Review)
+- [x] `helpcenter-page` nur als Trockenlauf (Schritte nennen, nichts im Helpcenter-Repo schreiben)
+- [x] Befunde aus den Testläufen **nicht** automatisch fixen, sondern dir vorlegen (gehören zur Story 5.2/5.3)
+
+## Offen
+
+- [ ] Commit auf `chore/claude-agents-skills` von `develop` (vom User bestätigt, später). Die neuen Dateien unter `.claude/` gehören nicht zu `feature/expense-tracking`. Vorschlag: vorerst nicht committen; später eigener Commit auf `chore/claude-agents-skills` von `develop`.
+
+## Review
+
+- Agent und Skills angelegt. Neue Agents lädt Claude Code erst beim Start einer Session: `security-reviewer` war in dieser Session nicht aufrufbar, der Prompt wurde deshalb über einen allgemeinen Agent (Sonnet) mit derselben Datei getestet.
+- **Werkzeuge korrigiert:** In dieser Umgebung gibt es kein `Grep`/`Glob`-Tool, mit nur `Read` konnte der Agent nicht suchen. Jetzt `Bash` dabei, im Prompt auf lesende Befehle beschränkt (nicht technisch erzwungen).
+- **Testlauf Security (Zahlungsangaben):** 3 Befunde, alle als unbestätigt markiert: [mittel] Speicher-Fehler geht ungefiltert an Sentry (Postgres-`details` kann die ganze Zeile inkl. IBAN enthalten), [tief] gleiches Muster beim Laden/Löschen, [tief] IBAN-Prüfsumme nur im Client. RLS, Grants, Cache-Ausschluss, Analytics als ok bestätigt.
+- **Bei der Nachprüfung selbst gefunden (bestätigt):** Sentry Session Replay in `src/index.jsx` mit `maskAllInputs: false` / `maskAllText: false` (10 % aller Sessions, 100 % bei Fehler). IBAN und Adresse landen damit in Replays. Der Agent hatte `index.jsx` nicht gelesen; Prompt ergänzt (globale Datensenken prüfen, wenn neue sensible Daten dazukommen). Nicht gefixt, gehört zur Story 5.2/5.3.
+- **Testlauf UI:** Code-Checkliste ok (MUI, Styles, Texte, Zustände, Mobile-Vollbild-Dialog). Kleinigkeiten: kein Absenden per Enter (kein `<form>`), IBAN im Bearbeiten-Dialog unformatiert (Formatierung erst beim Verlassen), `autoFocus` öffnet auf Mobile sofort die Tastatur. Desktop im Browser ok (Karte + Dialog). **Mobile nicht geprüft:** `resize_window` hatte keine Wirkung (Fenster maximiert); Hinweis in den Skill aufgenommen. Touch-Regel geschärft (MUI-Standardgrössen sind ok, sonst nur Rauschen).
+- **Trockenlauf Helpcenter:** alle Pfade vorhanden; für Zahlungsangaben würde `docs/user/profile.md` ergänzt, Mapping `user/profile` existiert bereits.
+
+---
+
 # Rezeptliste seitenweise (Branch `feature/recipe-list-paging`)
 
 Plan: `~/.claude/plans/i-need-a-new-refactored-cascade.md`
