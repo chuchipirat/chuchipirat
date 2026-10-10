@@ -302,6 +302,7 @@ const EventGroupConfigurationPage = ({
       if (state.groupConfig.totalPortions !== 0) {
         const isConfirmed = await customDialog({
           dialogType: DialogType.Confirm,
+          destructive: true,
           text: TEXT_CONFIRM_CHANGES_ARE_LOST,
           title: TEXT_UNSAVED_CHANGES,
           buttonTextConfirm: TEXT_DISCARD_CHANGES,

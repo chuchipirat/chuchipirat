@@ -1427,6 +1427,7 @@ const RecipeEdit = ({
   const onCancel = async () => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       text: TEXT.CONFIRM_CHANGES_ARE_LOST,
       title: TEXT.UNSAVED_CHANGES,
       buttonTextConfirm: TEXT.DISCARD_CHANGES,
