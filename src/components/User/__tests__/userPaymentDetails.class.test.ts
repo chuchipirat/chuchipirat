@@ -9,8 +9,6 @@ import {
   PLEASE_PROVIDE_VALID_IBAN as TEXT_PLEASE_PROVIDE_VALID_IBAN,
 } from "../../../constants/text/userPaymentDetails";
 
-import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
-
 const userPaymentDetails: UserPaymentDetailsDomain = {
   userId: "user-123",
   street: "Musterstrasse 1",
@@ -19,77 +17,110 @@ const userPaymentDetails: UserPaymentDetailsDomain = {
   iban: "CH9300762011623852957",
 };
 
-describe("checkPaymentDetailsData: Eingabeprüfungen", () => {
+describe("validatePaymentDetails: Eingabeprüfungen", () => {
   test("vollständige, gültige Angaben werfen nicht", () => {
     // ohne diesen Fall würde eine Prüfung, die immer wirft, alle Tests bestehen
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetails),
-    ).not.toThrow();
+    const validationErrors =
+      UserPaymentDetails.validatePaymentDetails(userPaymentDetails);
+    expect(validationErrors.length).toBe(0);
   });
   test("IBAN mit Leerzeichen und Kleinbuchstaben ist gültige Eingabe", () => {
     // geprüft wird die normalisierte Form — so tippen Menschen eine IBAN ab
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData({
-        ...userPaymentDetails,
-        iban: "ch93 0076 2011 6238 5295 7",
-      }),
-    ).not.toThrow();
+    const validationErrors = UserPaymentDetails.validatePaymentDetails({
+      ...userPaymentDetails,
+      iban: "ch93 0076 2011 6238 5295 7",
+    });
+
+    expect(validationErrors.length).toBe(0);
   });
   test("keine Strasse", () => {
     const userPaymentDetailsMock = {...userPaymentDetails, street: ""};
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(TEXT_PLEASE_PROVIDE_STREET);
+
+    let validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(
+      TEXT_PLEASE_PROVIDE_STREET,
+    );
 
     userPaymentDetailsMock.street = "   "; // nur Leerzeichen
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(TEXT_PLEASE_PROVIDE_STREET);
-
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(FieldValidationError);
+    validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(
+      TEXT_PLEASE_PROVIDE_STREET,
+    );
   });
   test("keine Postleitzahl", () => {
     const userPaymentDetailsMock = {...userPaymentDetails, postalCode: ""};
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(TEXT_PLEASE_PROVIDE_POSTAL_CODE);
+
+    let validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(
+      TEXT_PLEASE_PROVIDE_POSTAL_CODE,
+    );
+
     userPaymentDetailsMock.postalCode = "   "; // nur Leerzeichen
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(FieldValidationError);
+    validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(
+      TEXT_PLEASE_PROVIDE_POSTAL_CODE,
+    );
   });
   test("kein Ort", () => {
     const userPaymentDetailsMock = {...userPaymentDetails, city: ""};
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(TEXT_PLEASE_PROVIDE_CITY);
+
+    let validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(TEXT_PLEASE_PROVIDE_CITY);
 
     userPaymentDetailsMock.city = "   "; // nur Leerzeichen
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(FieldValidationError);
+    validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(TEXT_PLEASE_PROVIDE_CITY);
   });
   test("kein IBAN", () => {
     const userPaymentDetailsMock = {...userPaymentDetails, iban: ""};
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(TEXT_PLEASE_PROVIDE_IBAN);
+
+    let validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(TEXT_PLEASE_PROVIDE_IBAN);
 
     userPaymentDetailsMock.iban = "   "; // nur Leerzeichen
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(FieldValidationError);
+    validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(TEXT_PLEASE_PROVIDE_IBAN);
   });
   test("falscher IBAN", () => {
     const userPaymentDetailsMock = {
       ...userPaymentDetails,
       iban: "invalid-iban",
     };
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(TEXT_PLEASE_PROVIDE_VALID_IBAN);
+
+    const validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(
+      TEXT_PLEASE_PROVIDE_VALID_IBAN,
+    );
   });
   test("IBAN mit gültiger Form, aber falscher Prüfsumme", () => {
     // Form stimmt → nur die Mod-97-Prüfung kann das abfangen
@@ -97,9 +128,14 @@ describe("checkPaymentDetailsData: Eingabeprüfungen", () => {
       ...userPaymentDetails,
       iban: "CH9300762011623852958",
     };
-    expect(() =>
-      UserPaymentDetails.checkPaymentDetailsData(userPaymentDetailsMock),
-    ).toThrow(TEXT_PLEASE_PROVIDE_VALID_IBAN);
+
+    const validationErrors = UserPaymentDetails.validatePaymentDetails(
+      userPaymentDetailsMock,
+    );
+    expect(validationErrors.length).toBe(1);
+    expect(validationErrors[0].errorMessage).toEqual(
+      TEXT_PLEASE_PROVIDE_VALID_IBAN,
+    );
   });
 });
 

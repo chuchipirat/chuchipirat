@@ -125,7 +125,7 @@ export class UserPaymentDetailsRepository extends BaseRepository<
    * @returns Die gespeicherten Zahlungsangaben.
    * @throws Supabase-Fehler, z.B. bei verletztem CHECK (nicht normalisierte IBAN).
    * @example
-   * UserPaymentDetails.checkPaymentDetailsData(input);
+   * UserPaymentDetails.validatePaymentDetails(input);
    * await repo.savePaymentDetails(UserPaymentDetails.normalize(input), authUser);
    */
   async savePaymentDetails(

@@ -1,5 +1,4 @@
 import {UserPaymentDetailsDomain} from "./userPaymentDetails.types";
-import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 
 import {normalizeIban, isValidIban} from "../../utils/ibanUtils";
 import {
@@ -9,12 +8,13 @@ import {
   PLEASE_PROVIDE_IBAN as TEXT_PLEASE_PROVIDE_IBAN,
   PLEASE_PROVIDE_VALID_IBAN as TEXT_PLEASE_PROVIDE_VALID_IBAN,
 } from "../../constants/text/userPaymentDetails";
+import {FormValidationFieldError} from "../Shared/fieldValidation.error.class";
 
 /**
  * Domain-Logik für Zahlungsangaben: Prüfen und Normalisieren vor dem
  * Speichern (Vorbild `Expense.checkExpenseData`).
  *
- * Ablauf beim Speichern: `checkPaymentDetailsData()` → `normalize()` →
+ * Ablauf beim Speichern: `validatePaymentDetails()` → `normalize()` →
  * `UserPaymentDetailsRepository.savePaymentDetails()`.
  */
 export class UserPaymentDetails {
@@ -24,29 +24,55 @@ export class UserPaymentDetails {
    * gültige Eingabe.
    *
    * @param paymentDetails - Die Zahlungsangaben, wie sie eingegeben wurden.
-   * @throws {FieldValidationError} Wenn ein Pflichtfeld leer ist (auch nur
    *   Leerzeichen) oder die IBAN Form/Prüfsumme verletzt.
+   * @returns Array mit Validierungsfehlern (leer wenn alles korrekt).
    * @example
-   * UserPaymentDetails.checkPaymentDetailsData({...details, iban: "ch93 0076 2011 6238 5295 7"}); // wirft nicht
+   * UserPaymentDetails.validatePaymentDetails({...details, iban: "ch93 0076 2011 6238 5295 7"});
    */
-  static checkPaymentDetailsData(
+  static validatePaymentDetails(
     paymentDetails: UserPaymentDetailsDomain,
-  ): void {
+  ): FormValidationFieldError[] {
+    const formValidation: FormValidationFieldError[] = [];
+
     if (!paymentDetails.street.trim()) {
-      throw new FieldValidationError(TEXT_PLEASE_PROVIDE_STREET);
+      formValidation.push({
+        priority: 1,
+        fieldName: "street",
+        errorMessage: TEXT_PLEASE_PROVIDE_STREET,
+      });
     }
     if (!paymentDetails.postalCode.trim()) {
-      throw new FieldValidationError(TEXT_PLEASE_PROVIDE_POSTAL_CODE);
+      formValidation.push({
+        priority: 2,
+        fieldName: "postalCode",
+        errorMessage: TEXT_PLEASE_PROVIDE_POSTAL_CODE,
+      });
     }
     if (!paymentDetails.city.trim()) {
-      throw new FieldValidationError(TEXT_PLEASE_PROVIDE_CITY);
+      formValidation.push({
+        priority: 3,
+        fieldName: "city",
+        errorMessage: TEXT_PLEASE_PROVIDE_CITY,
+      });
     }
     if (!paymentDetails.iban.trim()) {
-      throw new FieldValidationError(TEXT_PLEASE_PROVIDE_IBAN);
+      formValidation.push({
+        priority: 4,
+        fieldName: "iban",
+        errorMessage: TEXT_PLEASE_PROVIDE_IBAN,
+      });
     }
-    if (!isValidIban(normalizeIban(paymentDetails.iban))) {
-      throw new FieldValidationError(TEXT_PLEASE_PROVIDE_VALID_IBAN);
+    if (
+      paymentDetails.iban.trim() &&
+      !isValidIban(normalizeIban(paymentDetails.iban))
+    ) {
+      formValidation.push({
+        priority: 5,
+        fieldName: "iban",
+        errorMessage: TEXT_PLEASE_PROVIDE_VALID_IBAN,
+      });
     }
+    return formValidation;
   }
 
   /**
