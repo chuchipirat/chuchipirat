@@ -164,6 +164,7 @@ export const UserPaymentDetailsCard: React.FC<UserPaymentDetailsCardProps> = ({
     if (!authUser) return;
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       title: TEXT_PAYMENT_DETAILS_DELETE,
       text: TEXT_PAYMENT_DETAILS_DELETE_HINT,
       buttonTextConfirm: TEXT_DELETE,
