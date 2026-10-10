@@ -246,4 +246,18 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     display: "flex",
     flexShrink: 0,
   },
+  budgetProjection: {
+    marginTop: theme.spacing(0.75),
+    paddingTop: theme.spacing(0.75),
+    borderTop: `1px solid ${theme.palette.divider}`, // gleiche Trennlinie wie Fremdwährungszeilen
+  },
+  budgetProjectionRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
+  },
+  budgetProjectionWarning: {
+    color: theme.palette.warning.main,
+    fontWeight: 500,
+  },
 });

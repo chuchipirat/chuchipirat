@@ -2294,7 +2294,7 @@ await database.events.deleteEvent(state.event.uid);
 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false` **und** `npx jest StorageRepository --watchAll=false` (liegt unter `Database/Repository/__tests__/`, nicht unter `ExpenseTracking/` — vom ersten Filter nicht erfasst), `npm run lint` sauber; neue Tests grün, bestehende `expenseList`- **und** `StorageRepository`-Tests unverändert grün; beide Mutationsproben bestanden; Sichttest Desktop **und** Mobile gemacht; Storage-Objekt nach Löschen einer Ausgabe **und** nach Löschen eines ganzen Anlasses im Supabase-Storage-Browser verifiziert weg (inkl. Cover, in einem Aufruf).
 
-## Epic 5 — Profil: Zahlungsangaben 
+## Epic 5 — Profil: Zahlungsangaben ✅ erledigt
 
 Ziel: Registrierte Personen können Adresse + IBAN für Rückerstattungen im eigenen Profil hinterlegen, ansehen, ändern und löschen. Epic 7.3 nutzt die Angaben später als Prefill für die PDF-Abrechnung. Grundlage im Issue: Abschnitt "IBAN & Adresse für Rückerstattung".
 
@@ -2686,15 +2686,235 @@ const handleSave = async (input: UserPaymentDetailsDomain) => {
 
 ## Epic 6 — Dashboard & Kennzahlen
 
-_Wird vor Start verfeinert. Grober Zuschnitt:_
+Ziel: Die Küche sieht während des Lagers auf einen Blick, wo sie steht: ob ein Budget voraussichtlich reicht, wie sich die Ausgaben über die Lagertage entwickeln, wie sie sich auf die Budgets verteilen, und welche Kennzahlen (Ø pro Teilnehmer:in / Mahlzeit, grösste Posten, fehlende Belege) Handlungsbedarf zeigen. Grundlage im Issue: Abschnitt "Übersicht / Dashboard" und "Kennzahlen & Diagramme".
 
-- 6.1 `@mui/x-charts` als Dependency, reine Aggregationsfunktionen mit Tests (keine UI).
-- 6.2 Ist/Soll-Fortschrittsbalken pro Budget (`LinearProgress`, farblich gestuft).
-- 6.3 Hochrechnung (linear).
-- 6.4 Ausgabenverlauf-Liniendiagramm (`LineChart`, inkl. Soll-Referenzlinie).
-- 6.5 Verteilung-Donut (`PieChart`) nach Budget.
-- 6.6 Restliche Kennzahlen: Ø/Teilnehmer:in, Ø/Mahlzeit (aus Menüplan), Top-5-Ausgaben, Ausgaben
-  ohne Beleg, volle "Offene Beträge pro Person" (baut auf 3.2 auf).
+### Ausgangslage — was aus dem Grobzuschnitt schon erledigt ist
+
+- **Ist/Soll-Fortschrittsbalken (alter Punkt 6.2) gibt es bereits** seit Epic 1: `budgetCard.tsx` zeigt `LinearProgress`, farblich gestuft (`getProgressColor`: < 85 % `success`, ab 85 % `warning`, ab 100 % `error`), inkl. Fremdwährungszeilen. Entfällt als Story.
+- **"Offene Beträge pro Person" gibt es bereits** seit 3.2 (`Expense.sumByPayee` + `PayeeBalanceAccordion` in der Übersicht, Summen pro Währung, aufklappbar mit den Einzelposten). Das deckt die Anforderung im Issue vollständig ab ("reine Übersicht ohne Status-Tracking"). Epic 6 baut daran nichts um. Auch die Zahlende Instanz in der Ausgabenliste (offen aus 3.1, Entscheidung 2) bleibt draussen: Sie ist über das Accordion sichtbar. Falls sie in der Liste trotzdem fehlt, wird das ein eigenes Politur-Paket in Epic 10.
+- Der Grobzuschnitt hatte "`@mui/x-charts` + alle Aggregationsfunktionen" als 6.1 gebündelt. Das widerspricht der Lehre aus Epic 1 ("ein Paket = ein Ziel") und bringt eine Abhängigkeit ins Projekt, bevor sie jemand nutzt. → Neu: **Jede Story bringt ihre eigene reine Funktion (mit Tests) plus die Anzeige, die sie braucht**, wie 3.2 es vorgemacht hat. Die Chart-Bibliothek kommt mit dem ersten Diagramm (6.3).
+
+### Entscheidungen (vorab, mit Begründung)
+
+1. **Keine neue Datenquelle, kein neues Repository, keine Migration.** Alle Kennzahlen werden aus `state.expenses` + `state.budgets` (schon geladen, schon live über Realtime, Epic-2-Entscheidung 1), `groupConfiguration` und `event` abgeleitet (`useMemo`, wie `budgetsWithProgress`). Folge: Das Dashboard ist automatisch live für alle Köch:innen, ohne eigene Subscription und ohne Race-Conditions. Einzige neue Eingabe ist der Menüplan für Ø/Mahlzeit (6.5). `event.tsx` hat ihn schon in `state.menuplan` und reicht ihn als weitere Prop durch.
+2. **Lagertage = `getEventDateList({event})`** aus `menuplanService.ts`: alle Tage aller Zeitscheiben, leere Platzhalter-Zeitscheiben übersprungen, lokale Mitternacht. Nicht `event.numberOfDays` und nicht `maxDate - minDate`. Grund: Ein Anlass kann aus mehreren, nicht zusammenhängenden Zeitscheiben bestehen (z.B. zwei Wochenenden). Tage zwischen den Scheiben sind keine Lagertage. Dieselbe Funktion erzeugt die Tage des Menüplans, also stimmen "Lagertag 3" im Dashboard und im Menüplan überein.
+3. **"Heute" wird immer als Parameter übergeben** (`today: Date`), nie `new Date()` in den reinen Funktionen. Grund: deterministische Tests ohne Fake-Timer, und dieselbe Funktion kann später (PDF, 7.x) mit einem anderen Stichtag rechnen. Nur die Seite ruft `new Date()` auf. Bekannte Grenze: Bleibt der Tab über Mitternacht offen, springt der Tag erst beim nächsten Render um (jede Realtime-Änderung löst einen aus). Das reicht, kein Timer.
+4. **Datumsvergleiche nur auf Tagesebene, lokal.** `ExpenseDomain.date` kommt aus `parseLocalDate` (lokale Mitternacht), die Lagertage aus `getEventDateList` (auch lokale Mitternacht). Verglichen wird über einen kleinen Helfer `startOfLocalDay(date)` bzw. `formatLocalDate(...)`-Strings. Nie über Millisekunden-Differenzen ÷ 86 400 000: Bei der Zeitumstellung (Ende Oktober, Herbstlager!) hat ein Tag 25 Stunden. Ein Test deckt das ab (6.1).
+5. **Währungen: keine Umrechnung, nie über Währungen summieren** (Issue + Epic-2-Entscheidung 2).
+   - Pro-Budget-Kennzahlen (Hochrechnung 6.1, Verlauf 6.3) rechnen nur in der **Währung des Budgets**, wie der Fortschrittsbalken.
+   - Budgetübergreifende Kennzahlen (6.2, 6.4, 6.5) brauchen eine Währung. Die Auswertungs-Ansicht bekommt deshalb eine Währungsauswahl (`ToggleButtonGroup`), die **nur erscheint, wenn es Ausgaben in mehr als einer Währung gibt**. Vorauswahl: die Währung mit den meisten Ausgaben, bei Gleichstand CHF. Alle budgetübergreifenden Zahlen beziehen sich auf die gewählte Währung; der Hinweis "Ausgaben in EUR sind hier nicht enthalten" steht darunter.
+   - Ausnahme: "Ausgaben ohne Beleg" ist eine Anzahl, keine Summe, und zählt währungsunabhängig.
+6. **Wo es angezeigt wird:**
+   - Die **Hochrechnung** gehört zum Budget und steht deshalb auf der `BudgetCard` in der bestehenden Übersicht (6.1). Dort fällt eine drohende Überschreitung auf, ohne dass man eine weitere Ansicht öffnet (Issue: "Visueller Hinweis bei drohender Budgetüberschreitung").
+   - Alles Budgetübergreifende kommt in eine **dritte Ansicht "Auswertung"** im bestehenden `ToggleButtonGroup` (Übersicht | Ausgaben | Auswertung), ab 6.2. Kein eigener Tab, keine eigene Route: gleiche Daten, gleicher Freischalt-Status.
+   - Auf Mobile (xs) haben drei Toggle-Buttons plus "Neues Budget"/"Neue Ausgabe" in einer Zeile keinen Platz → in 6.2 prüfen und die Toolbar notfalls umbrechen (`flexWrap`). In der Auswertung gibt es keinen "Neu"-Button.
+7. **Chart-Bibliothek `@mui/x-charts` in Version 7** (`^7.29`), nicht 8 oder 9. Grund: `@mui/x-data-grid` und `@mui/x-date-pickers` sind auf 7.29, alle drei teilen sich `@mui/x-internals`. Mischt man Major-Versionen, landen zwei Kopien davon im Bundle und die Typen können auseinanderlaufen. Ein späteres Upgrade aller `@mui/x-*` gemeinsam gehört in die Tech-Debt-Liste, nicht in dieses Epic.
+8. **Diagramme werden in Jest nicht gerendert, sondern gemockt.** Die Bibliothek zieht ESM-only-Pakete (`d3-*`) nach, die `ts-jest` ohne zusätzliche `transformIgnorePatterns`/Babel-Konfiguration nicht verarbeiten kann. jsdom hat ausserdem kein Layout, ein gerendertes SVG wäre wertlos zum Prüfen. → Getestet werden die **reinen Datenfunktionen** (exakte Zahlenreihen) und dass die Komponente der Chart-Komponente die richtigen `series`/`xAxis`-Props übergibt (`jest.mock("@mui/x-charts/LineChart", ...)` mit einer Fake-Komponente, die ihre Props festhält). Zusätzlich braucht `expenseTracking.test.tsx` den Mock, sobald die Seite ein Diagramm importiert → in 6.3 einplanen. Ob die Diagramme stimmen, wird im Browser geprüft.
+9. **Neue reine Funktionen landen in einer eigenen Datei `expenseStatistics.class.ts`** (Klasse `ExpenseStatistics`, statische Methoden, kein Supabase, kein React), ab 6.2. Ausnahme: Die Hochrechnung (6.1) ist eine Eigenschaft *eines Budgets* und kommt zu `Budget` (`budget.class.ts`, aktuell 115 Zeilen). Grund: `expense.class.ts` hat schon fünf Aufgaben (Validierung, Summen, Sortierung, Gruppierung, Diff). Statistiken über alle Budgets sind ein eigenes Thema und würden die Datei über 500 Zeilen treiben.
+10. **Leere Zustände sind normal und bekommen Text statt leerer Diagramme.** Vor der ersten Ausgabe, vor Lagerbeginn, ohne Budget im Typ "pro Person/Tag", ohne Menüplan: Jede Kennzahl erklärt in einem Satz, warum sie (noch) nichts zeigt. Nie `NaN`, nie `Infinity`, nie "CHF 0.00 pro Mahlzeit", wenn es 0 Mahlzeiten gibt. Jede Story hat dafür einen eigenen Testfall.
+
+### Neuer Zuschnitt
+
+| Story | Inhalt | Ort | Neue Abhängigkeit |
+|---|---|---|---|
+| **6.1** | Hochrechnung pro Budget (`Budget.projectSpending`) + Anzeige auf der `BudgetCard` | Übersicht | — |
+| **6.2** | Ansicht "Auswertung" + Währungsauswahl + Kennzahl-Kacheln: Gesamttotal, Ø/Teilnehmer:in, Ausgaben ohne Beleg, Top-5-Ausgaben | Auswertung | — |
+| **6.3** | Ausgabenverlauf (`LineChart`): kumuliert pro Lagertag, Soll-Referenzlinie, Budget-Auswahl | Auswertung | `@mui/x-charts@^7.29` |
+| **6.4** | Verteilung nach Budget (`PieChart` als Donut) | Auswertung | — |
+| **6.5** | Ø pro Mahlzeit (Menüplan als Prop von `event.tsx` durchreichen) | Auswertung | — |
+
+Danach: Rückblick Epic 6, Helpcenter-Seite `docs/event/expensetracking.md` um "Auswertung" ergänzen (kann in 6.5 oder als eigener Schritt passieren).
+
+---
+
+### **Story 6.1 — Hochrechnung pro Budget** ✅ erledigt
+
+Ziel: Jede Budget-Karte zeigt während des Lagers die voraussichtliche Endsumme. Liegt diese über dem Sollbetrag, warnt die Karte schon *bevor* das Budget überschritten ist. Reine Domain-Funktion + eine Zeile auf der bestehenden Karte, keine neue Ansicht, keine neue Abhängigkeit.
+
+**Fachliche Entscheidungen (bitte gegenlesen, weicht bewusst vom Issue-Wortlaut ab)**
+
+1. **Formel.** Das Issue sagt: "bisherige Ausgaben ÷ vergangene Lagertage × Gesamtdauer". Wörtlich umgesetzt würde jedes Lager am ersten Tag falsch Alarm schlagen: Der Grosseinkauf passiert *vor* dem Lager (z.B. CHF 1'200 für eine Woche). An Tag 1 von 7 hiesse das 1'200 ÷ 1 × 7 = CHF 8'400 Hochrechnung, obwohl das Budget vermutlich reicht. → Ausgaben werden in zwei Teile getrennt:
+   - **laufende Ausgaben** = Ausgaben mit `ersterLagertag ≤ Datum ≤ heute`. Nur diese werden hochgerechnet.
+   - **feste Ausgaben** = alle anderen Ausgaben des Budgets: vor dem Lager (Grosseinkauf, Vorbestellungen), nach heute datiert (Vorauszahlungen, Tippfehler im Datum) oder nach Lagerende. Diese zählen einmal, unverändert.
+
+   `Hochrechnung = feste Ausgaben + laufende Ausgaben ÷ vergangene Lagertage × Lagertage gesamt`
+
+   Für ein Lager ohne Vorab-Einkauf ist das exakt die Issue-Formel. Wer die wörtliche Variante will: Einwand vor dem Coden, nicht danach.
+2. **Vergangene Lagertage** = Anzahl Lagertage (Entscheidung 2 oben) mit `Tag ≤ heute`. **Heute zählt mit:** Wer am Abend von Tag 3 die Einkäufe von Tag 3 erfasst hat, hat 3 Tage hinter sich. Ein Tag zwischen zwei Zeitscheiben ist kein Lagertag und zählt nicht. Eine Ausgabe an so einem Tag ist aber eine laufende Ausgabe (sie liegt zwischen erstem Lagertag und heute).
+3. **Wann es eine Hochrechnung gibt:** nur wenn `1 ≤ vergangene Lagertage < Lagertage gesamt`, also ab dem ersten Lagertag bis zum vorletzten. Sonst `null`:
+   - vor dem Lager: keine Daten zum Tempo;
+   - am letzten Lagertag und danach: Hochrechnung = Ist, die Zeile wäre nur Rauschen;
+   - Anlass ohne Daten (`getEventDateList` leer): nichts zu rechnen.
+4. **Nur in der Budgetwährung**, wie der Fortschrittsbalken. Ausgaben in anderen Währungen gehen weder in die festen noch in die laufenden Ausgaben ein.
+5. **Rundung:** Ergebnis auf ganze Rappen runden (`Math.round`). Rappen sind Integer (Architektur-Entscheidung 3), eine Hochrechnung mit Nachkommastellen in Rappen gibt es nicht. "Keine Rundungslogik" im Issue betrifft eingegebene Beträge, nicht berechnete Werte.
+6. **Warnung:** `projectedAmountInCents > targetAmountInCents` **und** `targetAmountInCents > 0` → Zeile in `warning.main` mit Icon `TrendingUpOutlined`. Ein Budget ohne Sollbetrag (0) kann nicht drohend überschritten werden; dort steht die Hochrechnung neutral. Keine zusätzliche `error`-Stufe: Ist das Budget schon überschritten, zeigt das der rote Balken bereits.
+7. **Kein Speichern, kein Realtime-Sonderfall.** Wird live im bestehenden `budgetsWithProgress`-`useMemo` berechnet (wie der Sollbetrag in 1.4). Erfasst eine andere Köchin eine Ausgabe, ändert sich die Hochrechnung bei allen mit dem nächsten Reload.
+
+**Schnittstelle**
+
+`budget.types.ts`:
+
+```ts
+/**
+ * Lineare Hochrechnung der Ausgaben eines Budgets bis Lagerende.
+ */
+export type BudgetProjection = {
+  /** Voraussichtliche Endsumme in Rappen (Budgetwährung). */
+  projectedAmountInCents: number;
+  /** Bereits vergangene Lagertage inkl. heute (≥ 1). */
+  elapsedCampDays: number;
+  /** Anzahl Lagertage gesamt (> elapsedCampDays). */
+  totalCampDays: number;
+};
+
+export type BudgetWithProgress = {
+  // … bestehende Felder …
+  /** `null`, wenn keine Hochrechnung möglich ist (vor dem Lager, ab dem letzten Lagertag). */
+  projection: BudgetProjection | null;
+};
+```
+
+`budget.class.ts`:
+
+```ts
+static projectSpending({
+  budget,
+  expenses,   // alle Ausgaben des Anlasses — Filter auf Budget + Währung passiert hier
+  campDays,   // getEventDateList({event}), aufsteigend sortiert
+  today,
+}: {
+  budget: BudgetDomain;
+  expenses: ExpenseDomain[];
+  campDays: Date[];
+  today: Date;
+}): BudgetProjection | null
+```
+
+Absichtlich *alle* Ausgaben rein und der Filter innen. Gleiches Muster wie `groupByBudget`, und die Seite muss nicht pro Budget vorfiltern.
+
+**Code-Skizze** (`budget.class.ts`, nicht abschreiben, selbst bauen):
+
+```ts
+const todayKey = formatLocalDate(today);
+const campDayKeys = campDays.map((day) => formatLocalDate(day));
+const elapsedCampDays = campDayKeys.filter((dayKey) => dayKey <= todayKey).length;
+if (elapsedCampDays < 1 || elapsedCampDays >= campDayKeys.length) return null;
+
+const firstCampDayKey = campDayKeys[0];
+let fixedAmountInCents = 0;
+let runningAmountInCents = 0;
+for (const expense of expenses) {
+  if (expense.budgetId !== budget.id || expense.currency !== budget.currency) continue;
+  const expenseDayKey = formatLocalDate(expense.date);
+  // Vorab-Einkäufe und vorausdatierte Ausgaben nicht hochrechnen (siehe Entscheidung 1)
+  if (expenseDayKey >= firstCampDayKey && expenseDayKey <= todayKey) {
+    runningAmountInCents += expense.amountInCents;
+  } else {
+    fixedAmountInCents += expense.amountInCents;
+  }
+}
+```
+
+Der Vergleich über `YYYY-MM-DD`-Strings ist lexikografisch korrekt und unabhängig von Uhrzeit und Zeitumstellung (Entscheidung 4). `formatLocalDate` gibt es schon in `src/utils/dateUtils.ts`. Funktion bleibt unter 20 Zeilen, wenn das Aufteilen in fest/laufend als private Hilfsmethode ausgelagert wird (`splitFixedAndRunning`).
+
+**Anbindung in `expenseTracking.tsx`**
+
+- `const campDays = React.useMemo(() => getEventDateList({event}), [event.dates]);`
+- Im bestehenden `budgetsWithProgress`-`useMemo`: `projection: Budget.projectSpending({budget, expenses: state.expenses ?? [], campDays, today: new Date()})`. Dependencies um `state.expenses` und `campDays` ergänzen. Fehlt eine, rechnet die Karte mit veralteten Ausgaben: Mutationsprobe unten.
+- **Prüfen, ob `event.dates` eine stabile Referenz ist** (kommt aus `state.event`). Sonst `useMemo` auf `event.dates` wirkungslos → harmlos (die Funktion ist billig), aber im Review erwähnen.
+
+**Anzeige in `budgetCard.tsx`**
+
+- Neue Zeile unterhalb der Betragszeile, nur wenn `projection !== null`:
+  `Hochrechnung bis Lagerende: CHF 1'480.00` + darunter klein (`caption`, `text.secondary`) `Stand Lagertag 3 von 7`.
+- Warnfall (Entscheidung 6): Text + Icon in `warning.main`. Dazu ein `aria-label`/sichtbarer Text, nicht nur Farbe ("voraussichtlich über Budget"). Farbe allein ist nicht barrierefrei.
+- Betrag über `formatAmountFromCents(…, budget.currency)` (`currencyUtils.ts`).
+- Styles in `constants/styles/expenseTracking.styles.ts`, nicht inline.
+
+**Dateien**
+
+| Datei | Änderung |
+|---|---|
+| `src/components/Event/ExpenseTracking/budget.types.ts` | `BudgetProjection`, Feld `projection` in `BudgetWithProgress` |
+| `src/components/Event/ExpenseTracking/budget.class.ts` | `projectSpending` (+ private `splitFixedAndRunning`) |
+| `src/components/Event/ExpenseTracking/expenseTracking.tsx` | `campDays`-Memo, `projection` im `budgetsWithProgress`-Memo, Dependencies |
+| `src/components/Event/ExpenseTracking/budgetCard.tsx` | Hochrechnungszeile inkl. Warnfall |
+| `src/constants/text/expenseTracking.ts` | `PROJECTION_UNTIL_CAMP_END`, `PROJECTION_CAMP_DAY_OF` (Funktion mit `(elapsed, total)`, Muster bestehender Text-Funktionen prüfen), `PROJECTION_ABOVE_BUDGET` |
+| `src/constants/styles/expenseTracking.styles.ts` | Style für die Hochrechnungszeile |
+| `src/components/Event/ExpenseTracking/__tests__/budget.class.test.ts` | Tests `projectSpending` |
+| `src/components/Event/ExpenseTracking/__tests__/budgetCard.test.tsx` (neu) | Anzeige-Tests der Karte |
+| Fixtures, die `BudgetWithProgress` bauen (`expenseTracking.test.tsx`, Mocks) | `projection: null` nachziehen (neues Pflichtfeld, Pre-Commit-Checkliste) |
+
+**Tests**
+
+`budget.class.test.ts`, `describe("projectSpending")`. Testlager: 7 Tage, 5.–11. Juli 2026, Budget CHF, Soll beliebig. Alle Daten über `parseLocalDate`, nie `new Date("YYYY-MM-DD")`.
+
+- **Vor dem Lager** (heute = 4.7.) → `null`.
+- **Erster Lagertag** (heute = 5.7.), laufend CHF 100 → `projectedAmountInCents` 70000, `elapsedCampDays` 1, `totalCampDays` 7.
+- **Mitte** (heute = 7.7.), laufend CHF 300 → 70000; `elapsedCampDays` 3.
+- **Vorab-Einkauf wird nicht hochgerechnet:** 3.7. CHF 1'200 + laufend CHF 300, heute 7.7. → 120000 + 70000 = 190000.
+- **Vorausdatierte Ausgabe zählt fest:** heute 7.7., Ausgabe am 9.7. CHF 50 → +5000, nicht hochgerechnet.
+- **Letzter Lagertag** (11.7.) → `null`; **nach dem Lager** (12.7.) → `null`.
+- **Fremdwährung ignoriert:** EUR-Ausgabe im CHF-Budget ändert das Ergebnis nicht.
+- **Anderes Budget ignoriert.**
+- **Keine Ausgaben, im Lager** → Hochrechnung 0 (nicht `null`: Die Zeile zeigt CHF 0.00, das ist eine gültige Aussage).
+- **Leere Lagertage** (`campDays = []`) → `null`.
+- **Mehrere Zeitscheiben:** 6.–8.7. und 10.–12.7. (6 Lagertage), heute 10.7. → `elapsedCampDays` 4. Eine Ausgabe am 9.7. (Lücke) zählt als laufend.
+- **Uhrzeit egal:** `today` = 7.7. 23:59 und 7.7. 00:00 ergeben dasselbe.
+- **Zeitumstellung:** Lager 23.10.–1.11.2026 (Umstellung in der Nacht auf 25.10.), heute 27.10. → `elapsedCampDays` 5. (Läuft nur aussagekräftig mit `TZ=Europe/Zurich`. Prüfen, ob `jestSetup.ts` die TZ setzt; sonst im Test-Kommentar vermerken und `elapsedCampDays` trotzdem prüfen.)
+- **Rundung:** laufend 1 Rappen, Tag 3 von 7 → `Math.round(7/3)` = 2.
+
+`budgetCard.test.tsx` (neu, reine Anzeige-Komponente, keine Contexts nötig, Props direkt):
+
+- `projection: null` → keine Hochrechnungszeile.
+- Projektion unter Soll → Betrag + "Lagertag 3 von 7" sichtbar, kein Warnhinweis.
+- Projektion über Soll → Warnhinweis ("voraussichtlich über Budget") sichtbar.
+- Soll 0, Projektion > 0 → kein Warnhinweis.
+
+**Mutationsproben**
+
+1. In `projectSpending` die Trennung fest/laufend entfernen (alles hochrechnen) → der Test "Vorab-Einkauf" muss rot werden.
+2. Vergleich `dayKey <= todayKey` auf `<` ändern → "Erster Lagertag" muss rot werden.
+3. `state.expenses` aus den `useMemo`-Dependencies entfernen und im Browser eine Ausgabe erfassen → die Hochrechnung darf sich dann *nicht* aktualisieren (zeigt, dass die Dependency nötig ist; danach zurücksetzen). Kein Jest-Test dafür, das Seitenrendering ist in `expenseTracking.test.tsx` schon teuer genug.
+
+**Zum Ansehen im Browser** (DEV gegen `supabase-db-test`): Test-Anlass so legen, dass heute ein mittlerer Lagertag ist (Anlass bearbeiten → Zeitscheibe z.B. gestern bis in 4 Tagen).
+1. Budget "Küche" CHF 500 fix. Eine Ausgabe CHF 300 vor dem Lager, eine CHF 50 gestern → Karte zeigt eine Hochrechnung, die den Vorab-Einkauf nicht vervielfacht.
+2. Eine weitere grosse Ausgabe heute → Hochrechnung über Soll → Warnzeile.
+3. Zweites Browserfenster mit anderer Köchin: Ausgabe erfassen → Hochrechnung aktualisiert sich live im ersten Fenster.
+4. Anlass auf die Zukunft legen → Zeile verschwindet. Auf die Vergangenheit → Zeile verschwindet.
+5. Budget "pro Person/Tag": Gruppenkonfiguration ändern → Soll ändert sich, die Warnung reagiert mit.
+6. **Mobile (xs):** Karte nicht überladen, Zeile bricht sauber um, Warnung lesbar.
+
+**Definition of Done:** `npx tsc --noEmit`, `npx jest budget.class budgetCard expenseTracking --watchAll=false`, `npm run lint` grün; Mutationsproben 1 + 2 rot/grün bestätigt; Browser-Rundlauf Desktop **und** Mobile inkl. Zweit-Köchin; Tests decken mehrere Zeitscheiben und die Zeitumstellung ab. Helpcenter-Absatz zur Hochrechnung (Formel in einem Satz, Hinweis auf Vorab-Einkäufe) wird gesammelt am Ende von Epic 6 geschrieben, nicht pro Story.
+
+---
+
+**Abschluss-Review (2026-10-10):**
+
+- `tsc` sauber; `eslint` auf allen geänderten Dateien ohne Befund; `npx jest budget.class budgetCard expenseTracking` 165/165 grün.
+- Tests: 14 Fälle für `projectSpending` (inkl. mehrerer Zeitscheiben, Zeitumstellung mit `TZ=Europe/Zurich` im Test gesetzt, Rundung), 7 für `budgetCard.test.tsx` (neu).
+- Mutationsproben: Warnbedingung in der Karte (`targetAmountInCents > 0` entfernt bzw. `>` → `>=`) machen je einen Test rot. Die Proben 1 + 2 in `projectSpending` und der Browser-Rundlauf (Desktop + Mobile, Zweit-Köchin) wurden laut Nutzer gemacht.
+- Bewusst nicht in Jest: die Anbindung im `budgetsWithProgress`-Memo (Mutationsprobe 3, nur im Browser geprüft).
+- Lehre: `toHaveTextContent` mit `formatAmountFromCents` braucht normale statt geschützter Leerzeichen (Helfer `expectedAmount` in `budgetCard.test.tsx`). Gilt für alle Betrags-Tests in 6.2 ff.
+- Helpcenter-Absatz zur Hochrechnung: gesammelt am Ende von Epic 6.
+
+---
+
+### Story 6.2 – 6.5 (Umriss, wird vor Start ausdetailliert)
+
+- **6.2 — Ansicht "Auswertung" + Kennzahl-Kacheln.** `ExpenseStatistics` (neue Datei, Entscheidung 9) mit `getCurrenciesInUse` (inkl. Vorauswahl-Regel aus Entscheidung 5), `sumForCurrency`, `averagePerParticipant` (Gesamttotal ÷ `groupConfiguration.totalPortions`; bei 0 Teilnehmenden `null` → Hinweis "Gruppenkonfiguration fehlt"), `countWithoutAttachment`, `topExpenses(expenses, currency, limit = 5)`. UI: dritter Toggle, Kacheln (MUI `Card`, Grid xs 12 / sm 6 / md 3), Top-5 als Liste. Ein Klick auf "Ausgaben ohne Beleg" wechselt in die Ausgaben-Ansicht **und filtert sie auf Ausgaben ohne Beleg** (entschieden 2026-10-10): sichtbarer, entfernbarer Filter-`Chip` "Nur ohne Beleg" über der Liste, Filter-Zustand in der Seite (nicht in der URL), wird beim Wechsel zurück in Übersicht/Auswertung zurückgesetzt. Budget-Gruppen ohne passende Ausgaben werden im gefilterten Zustand ausgeblendet. Ist der Umfang zu gross, wird der Filter als eigenes Paket 6.2b abgetrennt. Issue: "Top-Ausgaben budgetübergreifend **oder gefiltert**" → Budgetfilter erst in 6.3 einführen (dort nötig) und für Top-5 wiederverwenden.
+- **6.3 — Ausgabenverlauf.** `npm install @mui/x-charts@^7.29` (Entscheidung 7). `ExpenseStatistics.cumulativeByCampDay({expenses, budget | null, currency, campDays})` → eine Zahl pro Lagertag. Ausgaben vor dem Lager fliessen in Tag 1, Ausgaben in Zeitscheiben-Lücken in den nächsten Lagertag, Ausgaben nach Lagerende in den letzten Tag (sonst fehlen sie in der kumulierten Summe). Soll-Linie: `Soll × Tag / Lagertage`, bei "alle Budgets" die Summe der Sollbeträge der Budgets in der gewählten Währung. Ist-Linie nur bis heute (danach `null`, damit die Linie nicht flach in die Zukunft läuft). Budget-Auswahl (`Select`: "Alle Budgets" + jedes Budget). Jest-Mock für das Diagramm, auch in `expenseTracking.test.tsx` (Entscheidung 8).
+- **6.4 — Verteilung nach Budget.** `ExpenseStatistics.shareByBudget(expenses, budgets, currency)` → `{budgetId, name, amountInCents}[]`, Budgets ohne Ausgaben weggelassen, absteigend. `PieChart` mit `innerRadius` (Donut), Legende unter dem Diagramm auf Mobile. Farben aus dem MUI-Theme, nicht hart codiert.
+- **6.5 — Ø pro Mahlzeit.** `event.tsx` reicht `state.menuplan` als Prop durch. Entschieden (2026-10-10):
+  - **Problem:** Hauptmahlzeiten (Zmorge, Zmittag, Znacht) und kleine Mahlzeiten (Zvieri, Dessert …) kosten sehr unterschiedlich viel. Ein Durchschnitt über alle wäre verzerrt. Mahlzeitentyp-Namen sind freier Text pro Anlass.
+  - **Lösung: Die Köchin wählt, welche Mahlzeitentypen zählen.** Die Kachel zeigt alle Mahlzeitentypen des Menüplans (`menuplan.mealTypes`, in Menüplan-Reihenfolge) als auswählbare `Chip`s. Vorauswahl: **alle ausgewählt**.
+  - **Bewusst nicht** über `meal_type_cutoff_times` vorausgewählt: Die Tabelle dient dem Home-Widget (Relevanz nach Uhrzeit), enthält auch kleine Mahlzeiten (`Dessert`) und trifft häufige Namen nicht (lokal heisst "Zmorgen" in 20 von 25 Anlässen so, die Tabelle kennt nur "Zmorge"/"Frühstück"). Eine Admin-Änderung dort würde sonst still die Kennzahl ändern.
+  - **Mahlzeit** = eine `Meal` (Datum × Mahlzeitentyp) eines ausgewählten Typs mit mindestens einem eingeplanten Rezept. Leere Slots zählen nicht.
+  - **Zwei Zahlen:** "Ø pro Mahlzeit" (Total ÷ Anzahl Mahlzeiten) und "Ø pro Person und Mahlzeit" (Total ÷ (Mahlzeiten × `groupConfiguration.totalPortions`)). Die zweite ist zwischen Lagern vergleichbar.
+  - **Auswahl merken:** pro Anlass im `localStorage` (Key mit `eventId`). Reine Ansichtseinstellung pro Gerät, wird nicht zwischen Köch:innen geteilt, keine Migration. Zugriffe in `try/catch`; ohne Speicher gilt die Vorauswahl. Gemerkte Typ-UIDs, die es im Menüplan nicht mehr gibt, werden ignoriert. Neue Typen sind standardmässig ausgewählt. Reicht das in der Praxis nicht, wäre ein Flag "Hauptmahlzeit" auf `event_meal_types` der saubere nächste Schritt (Migration + Menüplan-UI).
+  - **Reine Funktion:** `ExpenseStatistics.countPlannedMeals(menuplan, selectedMealTypeUids)` mit Tests (leere Slots, nicht ausgewählte Typen, keine Typen ausgewählt → 0).
+  - Ohne geplante Mahlzeiten, ohne ausgewählten Typ oder ohne Teilnehmende → Hinweis statt Zahl (Entscheidung 10).
+  - *Vor Start klären:* **Für welches Budget?** Issue: "nur für Essen/Küche". Vorschlag: für Budgets mit Icon `kitchen` oder `groceries`, angezeigt, wenn in der Budget-Auswahl aus 6.3 ein solches Budget gewählt ist.
 
 ## Epic 7 — PDF-Abrechnung
 
@@ -2731,6 +2951,20 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
 
 - 10.1 Voller Regressionslauf (`tsc`, `lint`, `test`), Mobile/Tablet-Check aller neuen Screens.
 - 10.2 Finaler PR gegen `develop` + Release-Notes-Text.
+
+---
+
+## Nach dem Deploy auf TEST: Rebase auf `develop`
+
+Hintergrund: Der Commit «feat(dialog): destruktive Bestätigungen rot und mit Fokus auf Abbrechen» liegt doppelt vor: als PR #243 (`feature/destructive-confirm-dialog` → `develop`) und per Cherry-pick auf diesem Branch (`8ab3191`), weil Zahlungsangaben, Budget und Ausgabe das Flag `destructive` schon brauchen.
+
+- [ ] Voraussetzung: PR #243 ist in `develop` gemergt und auf TEST deployt.
+- [ ] Auf TEST prüfen: Löschdialog öffnen → «Abbrechen» hat den Fokus, Enter schliesst ohne zu löschen. (Im lokalen Dev-Build landet der Fokus wegen React StrictMode auf dem Dialog-Container, siehe PR #243.)
+- [ ] `git fetch origin && git rebase origin/develop` auf `feature/expense-tracking`. Git erkennt den inhaltsgleichen Dialog-Commit und lässt die Cherry-pick-Kopie automatisch weg (Meldung «skipped previously applied commit»). Gilt auch bei Squash-Merge von #243, da der PR nur diesen einen Commit enthält.
+- [ ] Danach `npx tsc --noEmit`, `npm run lint`, `npx jest --watchAll=false`; Branch war schon gepusht → `git push --force-with-lease`.
+- [ ] Worktree aufräumen: `git worktree remove ../chuchipirat-destructive-dialog` und `git branch -d feature/destructive-confirm-dialog`.
+
+**Wichtig:** Der Rebase muss **vor** dem finalen PR (10.2) passieren (CLAUDE.md: vor jedem PR auf `develop` rebasen). Ist #243 bis dahin noch nicht gemergt, bleibt der Commit einfach im finalen PR mit drin. Das ist unschädlich, nur nicht ganz sauber.
 
 ---
 

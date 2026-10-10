@@ -138,3 +138,10 @@ export const ATTACHMENT_TOO_LARGE = "Datei ist zu gross (max. 10 MB).";
 export const SHOW_EXPENSE_RECEIPT = "Beleg anzeigen";
 export const EXPENSE_RECEIPT_MISSING = "Beleg fehlt";
 export const UNDO_REMOVE_EXPENSE_RECEIPT = "Rückgängig";
+
+export const PROJECTION_TILL_EVENT_END = "Hochrechnung bis Lagerende:";
+export const DAY_X_OF_Y_IN_EVENT = (
+  elapsedDays: number,
+  totalDays: number,
+): string => `Stand Lagertag ${elapsedDays} von ${totalDays}`;
+export const PROJECTION_ABOVE_BUDGET = "Voraussichtlich über Budget";

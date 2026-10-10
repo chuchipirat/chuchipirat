@@ -92,6 +92,7 @@ import {
   ExpenseDetailDialogState,
 } from "./expenseDetailDialog";
 import {PayeeBalanceAccordion} from "./payeeBalanceAccordion";
+import {getEventDateList} from "../Menuplan/menuplanService";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
 type ExpenseTrackingView = "overview" | "expenses";
@@ -231,6 +232,11 @@ const EventExpenseTrackingPage = ({
     () => Expense.sumByBudgetAndCurrency(state.expenses ?? []),
     [state.expenses],
   );
+  const eventDays = React.useMemo(
+    () => getEventDateList({event}),
+    [event.dates],
+  );
+
   const budgetsWithProgress = React.useMemo<BudgetWithProgress[]>(() => {
     if (!state.budgets) return [];
 
@@ -253,9 +259,22 @@ const EventExpenseTrackingPage = ({
           targetAmountInCents > 0
             ? Math.round((spentAmountInCents / targetAmountInCents) * 100)
             : 0,
+        projection: Budget.projectSpending({
+          budget,
+          expenses: state.expenses ?? [],
+          campDays: eventDays,
+          today: new Date(),
+        }),
       };
     });
-  }, [state.budgets, expenseTotals, groupConfiguration, event.numberOfDays]);
+  }, [
+    state.budgets,
+    expenseTotals,
+    groupConfiguration,
+    event.numberOfDays,
+    state.expenses,
+    eventDays,
+  ]);
 
   const expenseGroups = React.useMemo<ExpenseGroup[]>(
     () => Expense.groupByBudget(state.expenses ?? [], state.budgets ?? []),
