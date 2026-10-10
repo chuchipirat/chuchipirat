@@ -2392,7 +2392,7 @@ Hinweise zur Skizze:
 
 **Verifiziert (2026-10-09):** Prüfskript (alle 9 Punkte, transaktional mit `ROLLBACK`) grün — inkl. Admin sieht 0 Zeilen, `anon` → permission denied, `authenticated` ohne `TRUNCATE`. Auf `supabase-db-test` regulär angewendet. Abweichungen zur Skizze: kein `country_code` (Entscheidung 8), `REVOKE ALL` vor dem `GRANT` (Entscheidung 10). Für 5.2 mitnehmen: Die DB prüft `btrim(...)`, speichert aber ungetrimmt — Repository/Formular trimmt und normalisiert die IBAN vor dem Speichern.
 
-### **Story 5.2 — Domain-Typen, Validierung, Repository (kein UI)**
+### **Story 5.2 — Domain-Typen, Validierung, Repository (kein UI)** ✅ erledigt
 
 Ziel: Alles, was 5.3 (Profil-Card) und später 7.3 (Abrechnung) brauchen, um Zahlungsangaben zu laden, zu prüfen und zu speichern — ohne eine einzige Zeile UI. Reine Logik, vollständig per Jest testbar.
 
@@ -2531,30 +2531,81 @@ export class PaymentDetailsRepository extends BaseRepository<PaymentDetailsDomai
 
 **Definition of Done:** `npx tsc --noEmit`, `npx jest ibanUtils paymentDetails PaymentDetailsRepository --watchAll=false`, `npm run lint` sauber; beide Mutationsproben bestanden; Repository in `DatabaseService.ts` registriert (Pre-Commit-Checkliste "Repository-Skelett" komplett durchgegangen); JSDoc auf Deutsch mit lauffähigen `@example`-Zeilen.
 
-### **Story 5.3 — `UserPaymentDetailsCard` im Profil**
+### **Story 5.3 — `UserPaymentDetailsCard` im Profil** ✅ erledigt
 
-Ziel: Auf der Profilseite kann die Person ihre Zahlungsangaben hinterlegen, ansehen, ändern und löschen. Erste Story mit UI in Epic 5 — und der erste echte Rundlauf gegen die Test-DB (5.1 und 5.2 waren reine DB-/Logik-Stories).
+Ziel: Auf der Profilseite kann die Person ihre Zahlungsangaben hinterlegen, ansehen, ändern und löschen. Erste Story mit UI in Epic 5 — und der erste echte Rundlauf gegen die Test-DB (5.1 und 5.2 waren reine DB-/Logik-Stories). Das Formular wird so gebaut, dass Epic 7.3 es wiederverwenden kann.
 
 **Architektur-Entscheidungen**
 
-1. **Eigenständige Card mit eigenem Dialog — nicht Teil des globalen Bearbeiten-Modus.** Die Profilseite hat einen seitenweiten `editMode` (Stift im Header → alle Felder editierbar → ein "Speichern" für `public.users`). Die Zahlungsangaben hängen sich dort bewusst **nicht** ein:
-   - andere Tabelle, anderes Speichern, andere Fehlerfälle — ein gemeinsamer Speichern-Knopf müsste zwei unabhängige Schreibvorgänge koordinieren (was, wenn der eine klappt und der andere nicht?);
-   - Speichern ist hier gleichzeitig die **Einwilligung** (Entscheidung 4) — das soll eine bewusste, eigene Handlung sein, nicht ein Nebeneffekt von "Profil speichern".
+1. **Card = nur Anzeige; Hinterlegen/Ändern über einen Dialog; Löschen direkt in der Card.** Nicht Teil des globalen Bearbeiten-Modus der Profilseite (Stift im Header → ein "Speichern" für `public.users`):
+   - andere Tabelle, anderes Speichern, andere Fehlerfälle — ein gemeinsamer Speichern-Knopf müsste zwei unabhängige Schreibvorgänge koordinieren;
+   - Speichern ist hier gleichzeitig die **Einwilligung** (Epic-5-Entscheidung 4) — eine bewusste, eigene Handlung, kein Nebeneffekt von "Profil speichern".
 
-   Deshalb: Card zeigt die Angaben nur an; "Hinterlegen"/"Bearbeiten" öffnet einen eigenen Dialog mit eigenem Speichern; "Löschen" mit Bestätigung. Unabhängig vom `editMode` immer bedienbar.
-2. **Eigene Dateien** (`userProfile.tsx` hat bereits 979 Zeilen, Richtwert < 500): `src/components/User/userPaymentDetailsCard.tsx` (Card, lädt/speichert/löscht selbst) und `src/components/User/userPaymentDetailsDialog.tsx` (reines Formular). `userProfile.tsx` bekommt nur eine Zeile im `<Stack>` (nach `AchievedRewardsCard`, vor `DonationsCard`).
-3. **Die Card besitzt ihren Zustand selbst** (`useState` für `details`, `isLoading`, Dialog offen/zu) und nutzt `useDatabase()`/`useAuthUser()` direkt — statt den grossen Profil-Reducer um vier Actions zu erweitern. Fehler beim Laden/Löschen gibt sie über einen `onError`-Callback an die Seite (gleiches Muster wie `DonationsCard`), damit sie im bestehenden `AlertMessage` oben erscheinen.
-4. **Zustände der Card:**
+   Card und Dialog sind unabhängig vom `editMode` immer bedienbar.
+2. **Formular und Dialog getrennt — das Formular ist der wiederverwendbare Teil:**
+   - `PaymentDetailsForm` (`src/components/User/paymentDetailsForm.tsx`) — nur die vier Felder: Werte + Fehler rein, `onChange` raus, weiss nichts vom Speichern. Bewusst **ohne** `User` im Namen: In 7.3 wird es auch für Personen **ohne Konto** verwendet (Issue: "eventspezifisch als reines Eingabefeld") — dort kommt dann ein optionales Namensfeld dazu (nicht jetzt bauen).
+   - `UserPaymentDetailsDialog` (`userPaymentDetailsDialog.tsx`) — Titel + `PaymentDetailsForm` + Abbrechen/Speichern. Nur für 5.3.
+   - 7.3 baut später einen eigenen Schritt aus `PaymentDetailsForm` + Checkbox "Angaben fürs nächste Mal speichern" — der Dialog aus 5.3 passt dort nicht (eigener Ablauf, Checkbox, Nicht-Konto-Personen).
+3. **Eigene Dateien** (`userProfile.tsx` hat bereits 979 Zeilen, Richtwert < 500): Card, Dialog und Formular je eine Datei. `userProfile.tsx` bekommt nur eine Zeile im `<Stack>` (nach `AchievedRewardsCard`, vor `DonationsCard`) plus Callbacks für Snackbar/Fehler.
+4. **Die Card besitzt ihren Zustand selbst** (`useState` für `details`, `isLoading`, `isDeleting`, Dialog offen/zu) und nutzt `useDatabase()`/`useAuthUser()` direkt — statt den grossen Profil-Reducer um weitere Actions zu erweitern. Fehler beim Laden/Löschen gibt sie über `onError` an die Seite (Muster `DonationsCard`), Erfolgsmeldungen über `onSuccess(message)` an die bestehende Snackbar.
+5. **Zustände der Card:**
    - *lädt* → `Skeleton` (statt Backdrop — die übrige Seite soll nicht blockieren);
-   - *leer* (`null`) → kurzer Erklärtext + Button "Zahlungsangaben hinterlegen";
-   - *vorhanden* → Name (aus dem Profil, Entscheidung 3), Strasse, PLZ Ort, IBAN via `formatIban()`; Buttons "Bearbeiten" und "Löschen".
-5. **IBAN ungekürzt anzeigen, keine Maskierung.** Es sind die eigenen Daten, hinter Login und Owner-only-RLS; im Bearbeiten-Dialog stünde die volle IBAN ohnehin. Maskierung + "Anzeigen"-Knopf wäre UI-Aufwand ohne echten Schutzgewinn.
-6. **Fehlender Profilname → Hinweis, kein Blocker.** Kontoinhaber:in = Vor- und Nachname aus dem Profil (Entscheidung 3); `users.first_name`/`last_name` dürfen leer sein (Default `''`). Ist einer leer, zeigt die Card einen Hinweis ("Für die Abrechnung braucht es deinen Vor- und Nachnamen — bitte oben im Profil ergänzen"). Speichern der Zahlungsangaben bleibt trotzdem möglich — die Prüfung gehört zur Abrechnung (7.3), nicht hierher.
-7. **Dialog = reines Formular**, Ablauf beim Speichern (in der Card): `checkPaymentDetailsData(input)` → `normalize(input)` → `savePaymentDetails(normalized, authUser)` → Card zeigt das Ergebnis aus der DB, Snackbar "Zahlungsangaben gespeichert". Validierungsfehler (`FieldValidationError`) erscheinen **im Dialog** (der bleibt offen, Eingaben bleiben erhalten); technische Fehler ebenfalls im Dialog, plus Sentry ausser bei Netzwerkfehlern. Während des Speicherns ist der Speichern-Knopf deaktiviert (kein Doppel-Submit).
-8. **IBAN-Eingabe frei**: Leerzeichen und Kleinbuchstaben erlaubt (Normalisierung macht 5.2), Platzhalter `CH93 0076 2011 6238 5295 7`, `autoComplete="off"`, `inputMode="text"`. Keine Live-Formatierung beim Tippen (Cursor-Sprünge auf Mobile).
-9. **Mobile:** Dialog `fullScreen` unterhalb `sm` (`useMediaQuery(theme.breakpoints.down("sm"))`) — Pre-Commit-Checkliste; Touch-Ziele als normale `Button`s, keine kleinen Icon-Buttons.
-10. **Analytics:** zwei eigene Events `PAYMENT_DETAILS_SAVED` (`"payment_details_saved"`) und `PAYMENT_DETAILS_DELETED` (`"payment_details_deleted"`) in `analyticsEvents.ts` — **ohne** Daten-Payload (keine IBAN/Adresse in die Analytics). Kein Feed-Eintrag (private Daten).
-11. **Hinweistext zur Verwendung** in der Card: "Nur du siehst diese Angaben. Sie werden verwendet, um deine Abrechnung vorauszufüllen. Löschen kannst du sie jederzeit." — deckt "wer sieht es / wofür / Widerruf" ab.
+   - *leer* (`null`) → Erklärtext + Button "Zahlungsangaben hinterlegen";
+   - *vorhanden* → Name (aus dem Profil, Epic-5-Entscheidung 3), Strasse, PLZ Ort, IBAN via `formatIban()`; Buttons "Bearbeiten" und "Löschen".
+6. **IBAN ungekürzt anzeigen, keine Maskierung.** Eigene Daten, hinter Login und Owner-only-RLS; im Bearbeiten-Dialog stünde die volle IBAN ohnehin.
+7. **Fehlender Profilname → Hinweis, kein Blocker.** `users.first_name`/`last_name` dürfen leer sein. Ist einer leer: Hinweis "Für die Abrechnung braucht es deinen Vor- und Nachnamen — bitte oben im Profil ergänzen". Speichern bleibt möglich — die Pflicht gehört zur Abrechnung (7.3).
+8. **IBAN-Eingabe: frei tippen, beim Verlassen formatieren und prüfen (`onBlur`)**:
+   - Beim Tippen keine Eingriffe (keine Cursor-Sprünge auf Mobile); Leerzeichen und Kleinbuchstaben erlaubt.
+   - `onBlur`: Feld leer → nichts tun. Sonst Wert auf `formatIban(normalizeIban(value))` setzen (`ch9300762011623852957` → `CH93 0076 2011 6238 5295 7`) und sofort prüfen: `isValidIban(normalizeIban(value))` → Hilfetext "IBAN gültig" bzw. Fehlerzustand "IBAN ungültig — bitte prüfen" am Feld. So fällt ein Tippfehler direkt auf, nicht erst beim Speichern.
+   - Beim erneuten Tippen verschwindet der Fehlerzustand wieder (sonst bleibt das Feld rot, während man korrigiert).
+   - Kein neues Paket: nutzt nur die Funktionen aus 5.2. Fühlt es sich im Browser-Test nicht gut genug an, lässt sich `react-imask` später nachrüsten — betroffen wäre nur `PaymentDetailsForm`.
+   - Gespeichert wird weiterhin normalisiert (ohne Leerzeichen) — das Formatieren ist reine Anzeige.
+   - Feldattribute: Platzhalter `CH93 0076 2011 6238 5295 7`, `autoComplete="off"`, `spellCheck={false}`, `slotProps={{htmlInput: {autoCapitalize: "characters"}}}` (Mobile-Tastatur startet in Grossbuchstaben; MUI-7-Schreibweise — `inputProps` ist veraltet, siehe Tech-Debt "MUI Deprecated APIs").
+9. **Speichern (Ablauf in der Card):** `checkPaymentDetailsData(input)` → `normalize(input)` → `savePaymentDetails(normalized, authUser)` → Card zeigt das Ergebnis aus der DB, Dialog schliesst, Snackbar "Zahlungsangaben gespeichert", `trackEvent(PAYMENT_DETAILS_SAVED)`.
+   - Validierungsfehler (`FieldValidationError`) → im Dialog, Dialog bleibt offen, Eingaben bleiben erhalten, kein Sentry.
+   - Technischer Fehler → im Dialog, Dialog bleibt offen, Sentry ausser bei Netzwerkfehlern.
+   - Während des Speicherns ist "Speichern" deaktiviert (kein Doppel-Submit).
+   - "Bearbeiten" öffnet den Dialog vorausgefüllt (IBAN formatiert); "Hinterlegen" leer.
+10. **Löschen (Ablauf in der Card):**
+    1. Button "Löschen" in der Card neben "Bearbeiten" — **nicht** im Dialog: Löschen ist der Widerruf der Einwilligung und soll nicht erst das Formular öffnen müssen; das wiederverwendbare Formular kennt ohnehin kein Löschen.
+    2. Bestätigung über `customDialog` (`DialogType.Confirm`, wie beim Profilbild): Titel "Zahlungsangaben löschen?", Text "Deine Adresse und IBAN werden gelöscht. Bei der nächsten Abrechnung musst du sie wieder eingeben.", Knopf "Löschen".
+    3. Abbrechen → nichts passiert.
+    4. Bestätigt → beide Card-Buttons deaktiviert, `deletePaymentDetails(authUser.uid)`:
+       - Erfolg → Card zeigt den Leerzustand, Snackbar "Zahlungsangaben gelöscht", `trackEvent(PAYMENT_DETAILS_DELETED)`;
+       - Fehler → `onError` (Meldung oben auf der Seite), Card zeigt weiterhin die Angaben — die Zeile existiert ja noch.
+    5. Bereits erstellte Abrechnungs-PDFs (7.x) sind davon nicht betroffen — das sind heruntergeladene Dateien, nichts auf dem Server. Gehört in den Helpcenter-Text, nicht ins UI.
+11. **Mobile:** Dialog `fullScreen` unterhalb `sm` (`useMediaQuery(theme.breakpoints.down("sm"))`); Card-Aktionen als normale `Button`s, keine kleinen Icon-Buttons.
+12. **Analytics:** `PAYMENT_DETAILS_SAVED` (`"payment_details_saved"`) und `PAYMENT_DETAILS_DELETED` (`"payment_details_deleted"`) in `analyticsEvents.ts` — **ohne** Daten-Payload (keine IBAN/Adresse in die Analytics). Kein Feed-Eintrag (private Daten).
+13. **Hinweistext** in der Card: "Nur du siehst diese Angaben. Sie werden verwendet, um deine Abrechnung vorauszufüllen. Löschen kannst du sie jederzeit." — deckt "wer sieht es / wofür / Widerruf" ab.
+
+**Code-Skizze** (`paymentDetailsForm.tsx`, IBAN-Feld):
+
+```tsx
+const [ibanStatus, setIbanStatus] = React.useState<"unchecked" | "valid" | "invalid">("unchecked");
+
+const handleIbanBlur = () => {
+  if (!values.iban.trim()) return;
+  const normalized = normalizeIban(values.iban);
+  onChange({...values, iban: formatIban(normalized)});
+  setIbanStatus(isValidIban(normalized) ? "valid" : "invalid");
+};
+
+<TextField
+  label={TEXT_IBAN}
+  value={values.iban}
+  onChange={(event) => {
+    setIbanStatus("unchecked"); // beim Korrigieren nicht rot bleiben
+    onChange({...values, iban: event.target.value});
+  }}
+  onBlur={handleIbanBlur}
+  error={ibanStatus === "invalid"}
+  helperText={IBAN_HELPER_TEXT[ibanStatus]}
+  placeholder="CH93 0076 2011 6238 5295 7"
+  autoComplete="off"
+  spellCheck={false}
+  slotProps={{htmlInput: {autoCapitalize: "characters"}}}
+/>
+```
 
 **Code-Skizze** (`userPaymentDetailsCard.tsx`, Speichern):
 
@@ -2575,7 +2626,7 @@ const handleSave = async (input: UserPaymentDetailsDomain) => {
     setDetails(saved);
     setDialogOpen(false);
     trackEvent(AnalyticsEvent.PAYMENT_DETAILS_SAVED);
-    onSaved(); // Snackbar auf der Seite
+    onSuccess(TEXT_PAYMENT_DETAILS_SAVED);
   } catch (error) {
     if (!isTransientNetworkError(error)) Sentry.captureException(error);
     setDialogError(toError(error));
@@ -2589,31 +2640,49 @@ const handleSave = async (input: UserPaymentDetailsDomain) => {
 
 | Datei | Änderung |
 |---|---|
-| `src/components/User/userPaymentDetailsCard.tsx` (neu) | Card: laden, Zustände, Speichern/Löschen, Hinweise |
-| `src/components/User/userPaymentDetailsDialog.tsx` (neu) | Formular-Dialog (4 Felder, Fehleranzeige, fullScreen auf xs) |
-| `src/components/User/userProfile.tsx` | eine Zeile im `<Stack>` + Snackbar-/Fehler-Callbacks |
+| `src/components/User/paymentDetailsForm.tsx` (neu) | wiederverwendbares Formular (4 Felder, IBAN-`onBlur`-Formatierung/-Prüfung) |
+| `src/components/User/userPaymentDetailsDialog.tsx` (neu) | Dialog: Titel + Formular + Abbrechen/Speichern, Fehleranzeige, fullScreen auf xs |
+| `src/components/User/userPaymentDetailsCard.tsx` (neu) | Card: laden, Zustände, Speichern, Löschen mit Bestätigung, Hinweise |
+| `src/components/User/userProfile.tsx` | eine Zeile im `<Stack>` + Callbacks für Snackbar/Fehler |
 | `src/components/Analytics/analyticsEvents.ts` | `PAYMENT_DETAILS_SAVED`, `PAYMENT_DETAILS_DELETED` |
-| `src/constants/text/userPaymentDetails.ts` | Card-/Dialog-Texte (Titel, Erklärtext, Buttons, Bestätigungsdialog, Snackbar, Namens-Hinweis) |
+| `src/constants/text/userPaymentDetails.ts` | Card-/Dialog-/Formulartexte (Titel, Erklärtext, Buttons, Bestätigung, Snackbars, Namens-Hinweis, IBAN-Hilfetexte) |
 | `src/components/User/__tests__/userProfile.test.tsx` | `mockDatabase` um `userPaymentDetails.getPaymentDetails` ergänzen (sonst crasht der bestehende Test) |
-| Helpcenter `docs/user/profile.md` (separates Repo) | neuer Abschnitt "Zahlungsangaben" |
+| Helpcenter `docs/user/profile.md` (separates Repo) | neuer Abschnitt "Zahlungsangaben" inkl. Hinweis zu bereits erstellten PDFs |
 
-**Tests** (`src/components/User/__tests__/userPaymentDetailsCard.test.tsx`, `DatabaseContext`/`AuthUserContext` mit Mock, Vorbild `userProfile.test.tsx`):
+**Tests**
 
-- **Leerzustand:** `getPaymentDetails` → `null` → Erklärtext + "Zahlungsangaben hinterlegen" sichtbar, keine IBAN.
-- **Anzeige:** gespeicherte Angaben → Strasse, "PLZ Ort" und die **formatierte** IBAN (`CH93 0076 2011 6238 5295 7`) sichtbar.
-- **Speichern, Erfolg:** Dialog öffnen, Felder mit Leerzeichen/Kleinbuchstaben ausfüllen → `savePaymentDetails` wird mit den **normalisierten** Werten und `authUser` aufgerufen; Dialog schliesst; Card zeigt die neuen Werte.
-- **Speichern, Validierungsfehler:** ungültige IBAN → Fehlertext im Dialog, `savePaymentDetails` **nicht** aufgerufen, Dialog bleibt offen, Eingaben bleiben erhalten, **kein** Sentry-Aufruf.
+`src/components/User/__tests__/paymentDetailsForm.test.tsx`:
+- Tippen ruft `onChange` mit dem rohen Wert (keine Formatierung beim Tippen).
+- `onBlur` mit `ch9300762011623852957` → `onChange` mit `CH93 0076 2011 6238 5295 7`, Hilfetext "IBAN gültig".
+- `onBlur` mit falscher Prüfsumme → Feld im Fehlerzustand mit Hinweis; danach erneut tippen → Fehlerzustand weg.
+- `onBlur` mit leerem Feld → kein `onChange`, kein Fehler.
+
+`src/components/User/__tests__/userPaymentDetailsCard.test.tsx` (`DatabaseContext`/`AuthUserContext` gemockt, Vorbild `userProfile.test.tsx`):
+- **Leerzustand:** `getPaymentDetails` → `null` → Erklärtext + "Zahlungsangaben hinterlegen", keine IBAN, kein "Löschen".
+- **Anzeige:** gespeicherte Angaben → Strasse, "PLZ Ort" und formatierte IBAN sichtbar.
+- **Speichern, Erfolg:** Dialog öffnen, Felder mit Leerzeichen/Kleinbuchstaben ausfüllen → `savePaymentDetails` mit den **normalisierten** Werten und `authUser`; Dialog schliesst; Card zeigt die neuen Werte; `onSuccess` aufgerufen.
+- **Bearbeiten:** Dialog ist mit den gespeicherten Werten vorausgefüllt.
+- **Speichern, Validierungsfehler:** ungültige IBAN → Fehler im Dialog, `savePaymentDetails` **nicht** aufgerufen, Dialog offen, Eingaben erhalten, **kein** Sentry.
 - **Speichern, DB-Fehler:** `savePaymentDetails` rejected → Fehler im Dialog, Dialog bleibt offen.
-- **Löschen bestätigt:** `customDialog` → `true` → `deletePaymentDetails(authUser.uid)` aufgerufen, Card zeigt Leerzustand.
-- **Löschen abgebrochen:** `customDialog` → `false` → `deletePaymentDetails` **nicht** aufgerufen, Angaben bleiben sichtbar.
+- **Löschen bestätigt:** `customDialog` → `true` → `deletePaymentDetails(authUser.uid)`, Card im Leerzustand, `onSuccess` aufgerufen.
+- **Löschen abgebrochen:** `customDialog` → `false` → `deletePaymentDetails` **nicht** aufgerufen, Angaben sichtbar.
+- **Löschen fehlgeschlagen:** `deletePaymentDetails` rejected → `onError` aufgerufen, Angaben bleiben sichtbar.
 - **Namens-Hinweis:** Profil ohne Nachname → Hinweis sichtbar; mit vollständigem Namen → nicht.
-- **Laden fehlgeschlagen:** `getPaymentDetails` rejected → `onError` wird aufgerufen.
+- **Laden fehlgeschlagen:** `getPaymentDetails` rejected → `onError`.
 - `userProfile.test.tsx` bleibt grün (nur Mock ergänzt).
-- **Mutationsprobe:** in `handleSave` das `normalize(...)` weglassen → der "Speichern, Erfolg"-Test muss rot werden (sonst würde ungetrimmt gespeichert bzw. die DB lehnt die IBAN ab).
+- **Mutationsprobe (Normalisieren):** in `handleSave` das `normalize(...)` weglassen → "Speichern, Erfolg" muss rot werden.
+- **Mutationsprobe (Fehlerzustand):** in `PaymentDetailsForm` das Zurücksetzen auf `"unchecked"` beim Tippen entfernen → der "erneut tippen → Fehlerzustand weg"-Test muss rot werden.
 
-**Zum Ansehen im Browser** (DEV gegen `supabase-db-test`, Migration aus 5.1 angewendet): Profil öffnen → Leerzustand → Angaben mit `ch93 0076 …` hinterlegen → Card zeigt `CH93 0076 …` → Seite neu laden (Daten kommen aus der DB, kein Cache) → bearbeiten → löschen. In Supabase Studio bzw. per SQL prüfen, dass die Zeile normalisiert gespeichert und nach dem Löschen weg ist. Mit einem **zweiten** Test-User einloggen → sieht den Leerzustand (nicht die Angaben des ersten). **Mobile prüfen** (Dialog Vollbild, Tastatur verdeckt Speichern-Knopf nicht).
+**Zum Ansehen im Browser** (DEV gegen `supabase-db-test`, Migration aus 5.1 angewendet): Profil öffnen → Leerzustand → Angaben mit `ch9300762011623852957` hinterlegen; beim Verlassen des Feldes wird daraus `CH93 0076 2011 6238 5295 7` mit "IBAN gültig" → speichern → Card zeigt die Angaben → Seite neu laden (Daten aus der DB, kein Cache) → bearbeiten (vorausgefüllt) → eine Ziffer ändern, Feld verlassen → Fehlerzustand → korrigieren → speichern → löschen (abbrechen, dann bestätigen). Per SQL prüfen, dass die Zeile normalisiert gespeichert und nach dem Löschen weg ist. Mit einem **zweiten** Test-User einloggen → sieht den Leerzustand. **Mobile prüfen:** Dialog Vollbild, Tastatur startet beim IBAN-Feld in Grossbuchstaben, Speichern-Knopf nicht von der Tastatur verdeckt.
 
-**Definition of Done:** `npx tsc --noEmit`, `npx jest userPaymentDetails userProfile --watchAll=false`, `npm run lint` sauber; Mutationsprobe bestanden; Browser-Rundlauf Desktop **und** Mobile; Zweit-User-Prüfung gemacht; Helpcenter-Abschnitt geschrieben (dort nicht committen ohne Rückfrage, siehe CLAUDE.md).
+**Definition of Done:** `npx tsc --noEmit`, `npx jest paymentDetailsForm userPaymentDetails userProfile --watchAll=false`, `npm run lint` sauber; beide Mutationsproben bestanden; Browser-Rundlauf Desktop **und** Mobile; Zweit-User-Prüfung gemacht; Helpcenter-Abschnitt geschrieben (dort nicht committen ohne Rückfrage, siehe CLAUDE.md).
+
+
+**Security-Review (2026-10-10, `security-reviewer`):**
+
+- **Behoben:** Rohe Supabase-Fehler gingen samt `details` (`Failing row contains (…, IBAN, …)`) an Sentry, betraf alle `Sentry.captureException(error)` der App → zentral per `beforeSend` (`redactSupabaseErrorDetails`, eigener Commit). Sentry Replay zeichnete IBAN und Adresse unmaskiert auf → `data-sentry-block` an `PaymentDetailsForm` und am Anzeigebereich der Card, Test in `userProfile.test.tsx`. Regel in `security-guidelines.md` (wichtig für Epic 7: Abrechnung zeigt IBANs anderer Personen).
+- **Akzeptiert:** IBAN-Prüfsumme nur in der App, siehe Entscheidung 7 in Story 5.1.
+- **Offen:** Nach dem Deploy auf TEST ein Replay mit geöffneter Card/Dialog in Sentry ansehen (graue Flächen statt IBAN), lokal nicht prüfbar (Sentry in DEV aus).
 
 ## Epic 6 — Dashboard & Kennzahlen
 

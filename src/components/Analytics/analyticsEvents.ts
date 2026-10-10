@@ -79,6 +79,11 @@ export const AnalyticsEvent = {
   // ── PDF / Export ──
   PDF_EXPORTED: "pdf_exported",
 
+  // ── User ──
+  PAYMENT_DETAILS_CREATED: "payment_details_created",
+  PAYMENT_DETAILS_UPDATED: "payment_details_updated",
+  PAYMENT_DETAILS_DELETED: "payment_details_deleted",
+
   // ── Spenden-Funnel ──
   DONATION_PAGE_VIEWED: "donation_page_viewed",
   DONATION_SKIPPED: "donation_skipped",

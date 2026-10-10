@@ -76,10 +76,18 @@ import {useDatabase} from "../Database/DatabaseContext";
 import {FeedType} from "../Shared/feed.class";
 import {postActivityFeed} from "../Shared/feedActivity";
 import {LocalStorageKey} from "../../constants/localStorage";
-import {DonationDomain, COUNTABLE_DONATION_STATUSES} from "../Donate/donation.types";
+import {
+  DonationDomain,
+  COUNTABLE_DONATION_STATUSES,
+} from "../Donate/donation.types";
 import {DonationReceiptPdf} from "../Donate/DonationReceiptPdf";
 import {generateAndDownloadPdf} from "../Shared/pdfUtils";
-import {isMissingSessionError, isTransientNetworkError, toError} from "../../utils/errorUtils";
+import {
+  isMissingSessionError,
+  isTransientNetworkError,
+  toError,
+} from "../../utils/errorUtils";
+import {UserPaymentDetailsCard} from "./userPaymentDetailsCard";
 
 import {
   IconButton,
@@ -103,6 +111,7 @@ enum ReducerActions {
   USER_PICTURE_UPLOAD_SUCCESS,
   USER_PICTURE_DELETED,
   SET_IS_LOADING,
+  SNACKBAR_SHOW,
   SNACKBAR_CLOSE,
   GENERIC_ERROR,
 }
@@ -134,6 +143,10 @@ type DispatchAction =
   | {type: ReducerActions.USER_PICTURE_UPLOAD_SUCCESS; payload: string}
   | {type: ReducerActions.USER_PICTURE_DELETED}
   | {type: ReducerActions.SET_IS_LOADING; payload: boolean}
+  | {
+      type: ReducerActions.SNACKBAR_SHOW;
+      payload: {severity: SnackbarState["severity"]; message: string};
+    }
   | {type: ReducerActions.SNACKBAR_CLOSE}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error};
 
@@ -231,6 +244,15 @@ const userProfileReducer = (state: State, action: DispatchAction): State => {
         ...state,
         isLoading: action.payload,
       };
+    case ReducerActions.SNACKBAR_SHOW:
+      return {
+        ...state,
+        snackbar: {
+          severity: action.payload.severity,
+          message: action.payload.message,
+          open: true,
+        },
+      };
     case ReducerActions.SNACKBAR_CLOSE:
       // Snackbar schliessen
       return {
@@ -250,7 +272,9 @@ const userProfileReducer = (state: State, action: DispatchAction): State => {
         error: action.payload,
       };
     default:
-      throw new Error(`Unbekannter ActionType: ${(action as {type: unknown}).type}`);
+      throw new Error(
+        `Unbekannter ActionType: ${(action as {type: unknown}).type}`,
+      );
   }
 };
 
@@ -317,9 +341,13 @@ const UserProfilePage = () => {
     if (!authUser) return;
     database.donations
       .getMyDonations(authUser)
-      .then((result) => setDonations(
-        result.filter((donation) => COUNTABLE_DONATION_STATUSES.includes(donation.status)),
-      ))
+      .then((result) =>
+        setDonations(
+          result.filter((donation) =>
+            COUNTABLE_DONATION_STATUSES.includes(donation.status),
+          ),
+        ),
+      )
       .catch((error) => {
         if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
           Sentry.captureException(toError(error));
@@ -404,64 +432,65 @@ const UserProfilePage = () => {
   /** Maximale Dateigrösse für Profilbilder (10 MB). */
   const MAX_FILE_SIZE = 10 * 1024 * 1024;
 
-  const onPictureUpload = React.useCallback(async (
-    event: React.ChangeEvent<HTMLInputElement>,
-  ) => {
-    const selectedFile = event.target.files?.[0];
-    if (!selectedFile) return;
+  const onPictureUpload = React.useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const selectedFile = event.target.files?.[0];
+      if (!selectedFile) return;
 
-    // MIME-Typ und Dateigrösse validieren
-    if (!ALLOWED_MIME_TYPES.includes(selectedFile.type)) {
+      // MIME-Typ und Dateigrösse validieren
+      if (!ALLOWED_MIME_TYPES.includes(selectedFile.type)) {
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: new Error(TEXT_IMAGE_FORMAT_NOT_SUPPORTED),
+        });
+        return;
+      }
+      if (selectedFile.size > MAX_FILE_SIZE) {
+        dispatch({
+          type: ReducerActions.GENERIC_ERROR,
+          payload: new Error(TEXT_IMAGE_TOO_LARGE),
+        });
+        return;
+      }
+
+      // Sofort eine lokale Preview anzeigen
+      const previewUrl = URL.createObjectURL(selectedFile);
       dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: new Error(TEXT_IMAGE_FORMAT_NOT_SUPPORTED),
-      });
-      return;
-    }
-    if (selectedFile.size > MAX_FILE_SIZE) {
-      dispatch({
-        type: ReducerActions.GENERIC_ERROR,
-        payload: new Error(TEXT_IMAGE_TOO_LARGE),
-      });
-      return;
-    }
-
-    // Sofort eine lokale Preview anzeigen
-    const previewUrl = URL.createObjectURL(selectedFile);
-    dispatch({
-      type: ReducerActions.USER_PICTURE_UPLOAD_START,
-      payload: previewUrl,
-    });
-
-    try {
-      // Bild sofort in Supabase Storage hochladen (upsert überschreibt alte Datei)
-      const publicUrl = await User.uploadPicture({
-        database,
-        file: selectedFile,
-        authUser: authUser!,
-      });
-      dispatch({
-        type: ReducerActions.USER_PICTURE_UPLOAD_SUCCESS,
-        payload: publicUrl,
+        type: ReducerActions.USER_PICTURE_UPLOAD_START,
+        payload: previewUrl,
       });
 
-      // Feed-Eintrag: Profilbild geändert
-      postActivityFeed({
-        database,
-        feed: {
-          feedType: FeedType.profilePictureChanged,
-          sourceObjectType: "user",
-          sourceObjectUid: authUser!.uid,
-        },
-        authUser: authUser!,
-        context: "Profilbild geändert",
-      });
-    } catch (error) {
-      dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
-    } finally {
-      URL.revokeObjectURL(previewUrl);
-    }
-  }, [authUser, database]);
+      try {
+        // Bild sofort in Supabase Storage hochladen (upsert überschreibt alte Datei)
+        const publicUrl = await User.uploadPicture({
+          database,
+          file: selectedFile,
+          authUser: authUser!,
+        });
+        dispatch({
+          type: ReducerActions.USER_PICTURE_UPLOAD_SUCCESS,
+          payload: publicUrl,
+        });
+
+        // Feed-Eintrag: Profilbild geändert
+        postActivityFeed({
+          database,
+          feed: {
+            feedType: FeedType.profilePictureChanged,
+            sourceObjectType: "user",
+            sourceObjectUid: authUser!.uid,
+          },
+          authUser: authUser!,
+          context: "Profilbild geändert",
+        });
+      } catch (error) {
+        dispatch({type: ReducerActions.GENERIC_ERROR, payload: error as Error});
+      } finally {
+        URL.revokeObjectURL(previewUrl);
+      }
+    },
+    [authUser, database],
+  );
   /* ------------------------------------------
   // Bild löschen
   // ------------------------------------------ */
@@ -489,6 +518,19 @@ const UserProfilePage = () => {
         });
       });
   }, [authUser, database, customDialog]);
+  /* ------------------------------------------
+  // Zahlungsangaben Snackbar Handler
+  // ------------------------------------------ */
+  const handlePaymentDetailsSuccess = React.useCallback((message: string) => {
+    dispatch({
+      type: ReducerActions.SNACKBAR_SHOW,
+      payload: {severity: "success", message},
+    });
+  }, []);
+  const handlePaymentDetailsError = React.useCallback((error: Error) => {
+    dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+  }, []);
+
   /* ------------------------------------------
   // Snackback schliessen
   // ------------------------------------------ */
@@ -550,6 +592,12 @@ const UserProfilePage = () => {
                 onFieldChange={onChangeField}
               />
               <AchievedRewardsCard publicProfile={state.userProfile} />
+              <UserPaymentDetailsCard
+                firstName={state.userProfile.firstName}
+                lastName={state.userProfile.lastName}
+                onSuccess={handlePaymentDetailsSuccess}
+                onError={handlePaymentDetailsError}
+              />
               {donations.length > 0 && (
                 <DonationsCard
                   donations={donations}
@@ -589,54 +637,56 @@ interface PageHeaderProps {
  * @param onSaveClick - Callback für den Speichern-Button.
  * @param onPasswordChangeClick - Callback für den Passwort-Button.
  */
-const PageHeader = React.memo(({
-  authUser,
-  editMode,
-  onEditClick,
-  onSaveClick,
-  onPasswordChangeClick,
-}: PageHeaderProps) => {
-  return (
-    <React.Fragment>
-      <PageTitle
-        title={TEXT_HELLO_NAME(authUser.publicProfile.displayName)}
-        subTitle={TEXT_SHOW_US_WHO_YOU_ARE}
-      />
-      <ButtonRow
-        key="buttons_header"
-        buttons={[
-          {
-            id: "edit",
-            hero: true,
-            visible: true,
-            label: TEXT_EDIT,
-            variant: "contained",
-            color: "primary",
-            onClick: onEditClick,
-          },
-          {
-            id: "save",
-            hero: true,
-            label: TEXT_SAVE,
-            variant: "contained",
-            color: "primary",
-            onClick: onSaveClick,
-            visible: editMode,
-          },
-          {
-            id: "pw_change",
-            hero: true,
-            visible: true,
-            label: TEXT_CHANGE_MAIL_PASSWORD,
-            variant: "outlined",
-            color: "primary",
-            onClick: onPasswordChangeClick,
-          },
-        ]}
-      />
-    </React.Fragment>
-  );
-});
+const PageHeader = React.memo(
+  ({
+    authUser,
+    editMode,
+    onEditClick,
+    onSaveClick,
+    onPasswordChangeClick,
+  }: PageHeaderProps) => {
+    return (
+      <React.Fragment>
+        <PageTitle
+          title={TEXT_HELLO_NAME(authUser.publicProfile.displayName)}
+          subTitle={TEXT_SHOW_US_WHO_YOU_ARE}
+        />
+        <ButtonRow
+          key="buttons_header"
+          buttons={[
+            {
+              id: "edit",
+              hero: true,
+              visible: true,
+              label: TEXT_EDIT,
+              variant: "contained",
+              color: "primary",
+              onClick: onEditClick,
+            },
+            {
+              id: "save",
+              hero: true,
+              label: TEXT_SAVE,
+              variant: "contained",
+              color: "primary",
+              onClick: onSaveClick,
+              visible: editMode,
+            },
+            {
+              id: "pw_change",
+              hero: true,
+              visible: true,
+              label: TEXT_CHANGE_MAIL_PASSWORD,
+              variant: "outlined",
+              color: "primary",
+              onClick: onPasswordChangeClick,
+            },
+          ]}
+        />
+      </React.Fragment>
+    );
+  },
+);
 PageHeader.displayName = "PageHeader";
 /* ===================================================================
 // ============================ Person Card  =========================
@@ -663,136 +713,140 @@ interface ProfileCardProps {
  * @param onDelete - Callback für das Löschen des Profilbilds.
  * @param onNewsletterReceiveChange - Callback für die Newsletter-Präferenz.
  */
-const ProfileCard = React.memo(({
-  userProfile,
-  previewPictureUrl,
-  isLoadingPicture,
-  editMode,
-  onFieldChange,
-  onUpload,
-  onDelete,
-  onNewsletterReceiveChange,
-}: ProfileCardProps) => {
-  const classes = useCustomStyles();
-  const theme = useTheme();
+const ProfileCard = React.memo(
+  ({
+    userProfile,
+    previewPictureUrl,
+    isLoadingPicture,
+    editMode,
+    onFieldChange,
+    onUpload,
+    onDelete,
+    onNewsletterReceiveChange,
+  }: ProfileCardProps) => {
+    const classes = useCustomStyles();
+    const theme = useTheme();
 
-  return (
-    <Card sx={classes.card}>
-      <Box component={"div"} style={{position: "relative"}}>
-        <CardMedia
-          sx={classes.cardMedia}
-          image={
-            previewPictureUrl
-              ? previewPictureUrl
-              : userProfile.pictureSrc
-                ? getImageUrl(userProfile.pictureSrc, ImageSize.PROFILE_CARD)
-                : ImageRepository.getEnvironmentRelatedPicture()
-                    .CARD_PLACEHOLDER_MEDIA
-          }
-          title={
-            userProfile.firstName && userProfile.lastName
-              ? userProfile.firstName + " " + userProfile.lastName
-              : userProfile.displayName
-          }
-        />
-        <Box
-          component={"div"}
-          sx={classes.textOnCardMediaImage}
-          style={{
-            display: "flex",
-            flexDirection: "row",
-            flexWrap: "nowrap",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <Typography sx={classes.userProfileCardNameOnImage} variant="h2">
-            {userProfile.firstName && userProfile.lastName
-              ? userProfile.firstName + " " + userProfile.lastName
-              : userProfile.displayName}
-          </Typography>
-          {editMode && (
-            <Box
-              component={"div"}
-              style={{
-                display: "flex",
-                alignContent: "center",
-                gap: theme.spacing(2),
-                marginRight: theme.spacing(2),
-              }}
-            >
-              <input
-                accept="image/*"
-                style={classes.imageButtonInput}
-                id="icon-button-file"
-                type="file"
-                onChange={onUpload}
-              />
-              <label htmlFor="icon-button-file">
-                <Fab component="span" color="primary" size="small">
-                  <PhotoCameraIcon />
-                </Fab>
-              </label>
-              {userProfile.pictureSrc && (
-                <Fab component="span" size="small" onClick={onDelete}>
-                  <DeleteIcon />
-                </Fab>
-              )}
-            </Box>
-          )}
+    return (
+      <Card sx={classes.card}>
+        <Box component={"div"} style={{position: "relative"}}>
+          <CardMedia
+            sx={classes.cardMedia}
+            image={
+              previewPictureUrl
+                ? previewPictureUrl
+                : userProfile.pictureSrc
+                  ? getImageUrl(userProfile.pictureSrc, ImageSize.PROFILE_CARD)
+                  : ImageRepository.getEnvironmentRelatedPicture()
+                      .CARD_PLACEHOLDER_MEDIA
+            }
+            title={
+              userProfile.firstName && userProfile.lastName
+                ? userProfile.firstName + " " + userProfile.lastName
+                : userProfile.displayName
+            }
+          />
+          <Box
+            component={"div"}
+            sx={classes.textOnCardMediaImage}
+            style={{
+              display: "flex",
+              flexDirection: "row",
+              flexWrap: "nowrap",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <Typography sx={classes.userProfileCardNameOnImage} variant="h2">
+              {userProfile.firstName && userProfile.lastName
+                ? userProfile.firstName + " " + userProfile.lastName
+                : userProfile.displayName}
+            </Typography>
+            {editMode && (
+              <Box
+                component={"div"}
+                style={{
+                  display: "flex",
+                  alignContent: "center",
+                  gap: theme.spacing(2),
+                  marginRight: theme.spacing(2),
+                }}
+              >
+                <input
+                  accept="image/*"
+                  style={classes.imageButtonInput}
+                  id="icon-button-file"
+                  type="file"
+                  onChange={onUpload}
+                />
+                <label htmlFor="icon-button-file">
+                  <Fab component="span" color="primary" size="small">
+                    <PhotoCameraIcon />
+                  </Fab>
+                </label>
+                {userProfile.pictureSrc && (
+                  <Fab component="span" size="small" onClick={onDelete}>
+                    <DeleteIcon />
+                  </Fab>
+                )}
+              </Box>
+            )}
+          </Box>
         </Box>
-      </Box>
-      {isLoadingPicture && <LinearProgress />}
-      <CardContent sx={classes.cardContent}>
-        <List>
-          <FormListItem
-            id={"firstName"}
-            key={"firstName"}
-            value={userProfile.firstName}
-            label={TEXT_FIRSTNAME}
-            editMode={editMode}
-            onChange={onFieldChange}
-            maxLength={100}
-          />
-          <FormListItem
-            id={"lastName"}
-            key={"lastName"}
-            value={userProfile.lastName}
-            label={TEXT_LASTNAME}
-            editMode={editMode}
-            onChange={onFieldChange}
-            maxLength={100}
-          />
-          <FormListItem
-            id={"email"}
-            key={"email"}
-            value={userProfile.email}
-            label={TEXT_EMAIL}
-            disabled={true}
-            editMode={editMode}
-            onChange={onFieldChange}
-          />
-          <FormListItem
-            id={"noLogins"}
-            key={"noLogins"}
-            value={userProfile.noLogins}
-            label={TEXT_NO_LOGINS}
-            disabled={true}
-          />
-          <FormListItem
-            id={"newsletterOptOut"}
-            key={"newsletterOptOut"}
-            type="switch"
-            checked={!userProfile.newsletterOptOut}
-            onChange={(event) => onNewsletterReceiveChange(event.target.checked)}
-            label={TEXT_NEWSLETTER_RECEIVE}
-            disabled={!editMode}
-          />
-        </List>
-      </CardContent>
-    </Card>
-  );
-});
+        {isLoadingPicture && <LinearProgress />}
+        <CardContent sx={classes.cardContent}>
+          <List>
+            <FormListItem
+              id={"firstName"}
+              key={"firstName"}
+              value={userProfile.firstName}
+              label={TEXT_FIRSTNAME}
+              editMode={editMode}
+              onChange={onFieldChange}
+              maxLength={100}
+            />
+            <FormListItem
+              id={"lastName"}
+              key={"lastName"}
+              value={userProfile.lastName}
+              label={TEXT_LASTNAME}
+              editMode={editMode}
+              onChange={onFieldChange}
+              maxLength={100}
+            />
+            <FormListItem
+              id={"email"}
+              key={"email"}
+              value={userProfile.email}
+              label={TEXT_EMAIL}
+              disabled={true}
+              editMode={editMode}
+              onChange={onFieldChange}
+            />
+            <FormListItem
+              id={"noLogins"}
+              key={"noLogins"}
+              value={userProfile.noLogins}
+              label={TEXT_NO_LOGINS}
+              disabled={true}
+            />
+            <FormListItem
+              id={"newsletterOptOut"}
+              key={"newsletterOptOut"}
+              type="switch"
+              checked={!userProfile.newsletterOptOut}
+              onChange={(event) =>
+                onNewsletterReceiveChange(event.target.checked)
+              }
+              label={TEXT_NEWSLETTER_RECEIVE}
+              disabled={!editMode}
+            />
+          </List>
+        </CardContent>
+      </Card>
+    );
+  },
+);
 ProfileCard.displayName = "ProfileCard";
 /* ===================================================================
 // ======================== Public Profile Card  =====================
@@ -809,61 +863,59 @@ interface PublicProfileCardProps {
  * @param editMode - Ob der Bearbeitungsmodus aktiv ist.
  * @param onFieldChange - Callback für Feldänderungen.
  */
-const PublicProfileCard = React.memo(({
-  userProfile,
-  editMode,
-  onFieldChange,
-}: PublicProfileCardProps) => {
-  const classes = useCustomStyles();
+const PublicProfileCard = React.memo(
+  ({userProfile, editMode, onFieldChange}: PublicProfileCardProps) => {
+    const classes = useCustomStyles();
 
-  return (
-    <Card sx={classes.card}>
-      <CardContent sx={classes.cardContent}>
-        <Typography gutterBottom={true} variant="h5" component="h2">
-          {TEXT_INTRODUCE_YOURSELF}
-        </Typography>
-        <List>
-          <FormListItem
-            id={"displayName"}
-            key={"displayName"}
-            value={userProfile.displayName}
-            label={TEXT_DISPLAYNAME}
-            icon={<AssignmentIndIcon fontSize="small" />}
-            required={true}
-            editMode={editMode}
-            onChange={onFieldChange}
-            maxLength={100}
-          />
-          <FormListItem
-            id={"motto"}
-            key={"motto"}
-            value={userProfile.motto}
-            label={TEXT_MOTTO}
-            icon={<LocalActivityIcon fontSize="small" />}
-            editMode={editMode}
-            onChange={onFieldChange}
-            maxLength={500}
-          />
-          <FormListItem
-            id={"memberSince"}
-            key={"memberSince"}
-            value={
-              userProfile.memberSince instanceof Date
-                ? userProfile.memberSince.toLocaleString("de-CH", {
-                    year: "numeric",
-                    month: "2-digit",
-                    day: "2-digit",
-                  })
-                : ""
-            }
-            label={TEXT_ON_BOARD_SINCE}
-            icon={<HowToRegIcon fontSize="small" />}
-          />
-        </List>
-      </CardContent>
-    </Card>
-  );
-});
+    return (
+      <Card sx={classes.card}>
+        <CardContent sx={classes.cardContent}>
+          <Typography gutterBottom={true} variant="h5" component="h2">
+            {TEXT_INTRODUCE_YOURSELF}
+          </Typography>
+          <List>
+            <FormListItem
+              id={"displayName"}
+              key={"displayName"}
+              value={userProfile.displayName}
+              label={TEXT_DISPLAYNAME}
+              icon={<AssignmentIndIcon fontSize="small" />}
+              required={true}
+              editMode={editMode}
+              onChange={onFieldChange}
+              maxLength={100}
+            />
+            <FormListItem
+              id={"motto"}
+              key={"motto"}
+              value={userProfile.motto}
+              label={TEXT_MOTTO}
+              icon={<LocalActivityIcon fontSize="small" />}
+              editMode={editMode}
+              onChange={onFieldChange}
+              maxLength={500}
+            />
+            <FormListItem
+              id={"memberSince"}
+              key={"memberSince"}
+              value={
+                userProfile.memberSince instanceof Date
+                  ? userProfile.memberSince.toLocaleString("de-CH", {
+                      year: "numeric",
+                      month: "2-digit",
+                      day: "2-digit",
+                    })
+                  : ""
+              }
+              label={TEXT_ON_BOARD_SINCE}
+              icon={<HowToRegIcon fontSize="small" />}
+            />
+          </List>
+        </CardContent>
+      </Card>
+    );
+  },
+);
 PublicProfileCard.displayName = "PublicProfileCard";
 /* ===================================================================
 // ========================= Gefundene Schätze =======================
@@ -876,19 +928,21 @@ interface AchievedRewardsCardProps {
  *
  * @param publicProfile - Das öffentliche Benutzerprofil mit Statistiken.
  */
-const AchievedRewardsCard = React.memo(({publicProfile}: AchievedRewardsCardProps) => {
-  const classes = useCustomStyles();
-  return (
-    <Card>
-      <CardContent sx={classes.cardContent}>
-        <Typography gutterBottom={true} variant="h5" component="h2">
-          {TEXT_FOUND_TREASURES}
-        </Typography>
-        <AchievedRewardsList userProfile={publicProfile} />
-      </CardContent>
-    </Card>
-  );
-});
+const AchievedRewardsCard = React.memo(
+  ({publicProfile}: AchievedRewardsCardProps) => {
+    const classes = useCustomStyles();
+    return (
+      <Card>
+        <CardContent sx={classes.cardContent}>
+          <Typography gutterBottom={true} variant="h5" component="h2">
+            {TEXT_FOUND_TREASURES}
+          </Typography>
+          <AchievedRewardsList userProfile={publicProfile} />
+        </CardContent>
+      </Card>
+    );
+  },
+);
 AchievedRewardsCard.displayName = "AchievedRewardsCard";
 
 /* ===================================================================
@@ -908,72 +962,74 @@ interface DonationsCardProps {
  * @param authUser - Der angemeldete Benutzer (für PDF-Generierung).
  * @param onError - Callback bei Fehlern während der PDF-Generierung.
  */
-const DonationsCard = React.memo(({donations, authUser, onError}: DonationsCardProps) => {
-  const classes = useCustomStyles();
+const DonationsCard = React.memo(
+  ({donations, authUser, onError}: DonationsCardProps) => {
+    const classes = useCustomStyles();
 
-  const handleDownloadReceipt = async (donation: DonationDomain) => {
-    try {
-      await generateAndDownloadPdf(
-        <DonationReceiptPdf donation={donation} authUser={authUser} />,
-        `Spendenquittung${donation.eventName ? ` ${donation.eventName}` : ""}.pdf`,
-        (error) => onError?.(error),
-        {donationId: donation.id},
-      );
-    } catch (error) {
-      Sentry.captureException(error);
-      onError?.(error as Error);
-    }
-  };
+    const handleDownloadReceipt = async (donation: DonationDomain) => {
+      try {
+        await generateAndDownloadPdf(
+          <DonationReceiptPdf donation={donation} authUser={authUser} />,
+          `Spendenquittung${donation.eventName ? ` ${donation.eventName}` : ""}.pdf`,
+          (error) => onError?.(error),
+          {donationId: donation.id},
+        );
+      } catch (error) {
+        Sentry.captureException(error);
+        onError?.(error as Error);
+      }
+    };
 
-  return (
-    <Card>
-      <CardContent sx={classes.cardContent}>
-        <Typography gutterBottom variant="h5" component="h2">
-          Meine Spenden
-        </Typography>
-        <TableContainer>
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Datum</TableCell>
-                <TableCell align="right">Betrag</TableCell>
-                <TableCell>Anlass</TableCell>
-                <TableCell align="center">Quittung</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {donations.map((donation) => (
-                <TableRow key={donation.id}>
-                  <TableCell>
-                    {donation.paidAt?.toLocaleDateString("de-CH", {
-                      year: "numeric",
-                      month: "2-digit",
-                      day: "2-digit",
-                    }) ?? "—"}
-                  </TableCell>
-                  <TableCell align="right">
-                    CHF {(donation.amountInCents / 100).toFixed(2)}
-                  </TableCell>
-                  <TableCell>{donation.eventName || "—"}</TableCell>
-                  <TableCell align="center">
-                    <Tooltip title="Quittung herunterladen">
-                      <IconButton
-                        size="small"
-                        onClick={() => handleDownloadReceipt(donation)}
-                      >
-                        <FileDownloadIcon fontSize="small" />
-                      </IconButton>
-                    </Tooltip>
-                  </TableCell>
+    return (
+      <Card>
+        <CardContent sx={classes.cardContent}>
+          <Typography gutterBottom variant="h5" component="h2">
+            Meine Spenden
+          </Typography>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Datum</TableCell>
+                  <TableCell align="right">Betrag</TableCell>
+                  <TableCell>Anlass</TableCell>
+                  <TableCell align="center">Quittung</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </TableContainer>
-      </CardContent>
-    </Card>
-  );
-});
+              </TableHead>
+              <TableBody>
+                {donations.map((donation) => (
+                  <TableRow key={donation.id}>
+                    <TableCell>
+                      {donation.paidAt?.toLocaleDateString("de-CH", {
+                        year: "numeric",
+                        month: "2-digit",
+                        day: "2-digit",
+                      }) ?? "—"}
+                    </TableCell>
+                    <TableCell align="right">
+                      CHF {(donation.amountInCents / 100).toFixed(2)}
+                    </TableCell>
+                    <TableCell>{donation.eventName || "—"}</TableCell>
+                    <TableCell align="center">
+                      <Tooltip title="Quittung herunterladen">
+                        <IconButton
+                          size="small"
+                          onClick={() => handleDownloadReceipt(donation)}
+                        >
+                          <FileDownloadIcon fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </CardContent>
+      </Card>
+    );
+  },
+);
 DonationsCard.displayName = "DonationsCard";
 
 export {UserProfilePage};
