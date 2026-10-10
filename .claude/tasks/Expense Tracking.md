@@ -2718,8 +2718,10 @@ Ziel: Die Küche sieht während des Lagers auf einen Blick, wo sie steht: ob ein
 | Story | Inhalt | Ort | Neue Abhängigkeit |
 |---|---|---|---|
 | **6.1** | Hochrechnung pro Budget (`Budget.projectSpending`) + Anzeige auf der `BudgetCard` | Übersicht | — |
-| **6.2** | Ansicht "Auswertung" + Währungsauswahl + Kennzahl-Kacheln: Gesamttotal, Ø/Teilnehmer:in, Ausgaben ohne Beleg, Top-5-Ausgaben | Auswertung | — |
-| **6.3** | Ausgabenverlauf (`LineChart`): kumuliert pro Lagertag, Soll-Referenzlinie, Budget-Auswahl | Auswertung | `@mui/x-charts@^7.29` |
+| **6.2a** | Ansicht "Auswertung" + Währungsauswahl + Kennzahl-Kacheln: Gesamttotal, Ø/Teilnehmer:in, Ausgaben ohne Beleg, Top-5-Ausgaben | Auswertung | — |
+| **6.2b** | Budget-Auswahl für die Auswertung (Chips, pro Gerät im `localStorage`) | Auswertung | — |
+| **6.2c** | Filter "Nur ohne Beleg" in der Ausgabenliste, Sprung aus der Kachel | Ausgaben | — |
+| **6.3** | Ausgabenverlauf (`LineChart`): kumuliert pro Lagertag, Soll-Referenzlinie (Budget-Auswahl aus 6.2b) | Auswertung | `@mui/x-charts@^7.29` |
 | **6.4** | Verteilung nach Budget (`PieChart` als Donut) | Auswertung | — |
 | **6.5** | Ø pro Mahlzeit (Menüplan als Prop von `event.tsx` durchreichen) | Auswertung | — |
 
@@ -2900,10 +2902,636 @@ Der Vergleich über `YYYY-MM-DD`-Strings ist lexikografisch korrekt und unabhän
 
 ---
 
-### Story 6.2 – 6.5 (Umriss, wird vor Start ausdetailliert)
+### **Story 6.2 — Ansicht "Auswertung" mit Kennzahl-Kacheln** (aufgeteilt in 6.2a, 6.2b, 6.2c)
 
-- **6.2 — Ansicht "Auswertung" + Kennzahl-Kacheln.** `ExpenseStatistics` (neue Datei, Entscheidung 9) mit `getCurrenciesInUse` (inkl. Vorauswahl-Regel aus Entscheidung 5), `sumForCurrency`, `averagePerParticipant` (Gesamttotal ÷ `groupConfiguration.totalPortions`; bei 0 Teilnehmenden `null` → Hinweis "Gruppenkonfiguration fehlt"), `countWithoutAttachment`, `topExpenses(expenses, currency, limit = 5)`. UI: dritter Toggle, Kacheln (MUI `Card`, Grid xs 12 / sm 6 / md 3), Top-5 als Liste. Ein Klick auf "Ausgaben ohne Beleg" wechselt in die Ausgaben-Ansicht **und filtert sie auf Ausgaben ohne Beleg** (entschieden 2026-10-10): sichtbarer, entfernbarer Filter-`Chip` "Nur ohne Beleg" über der Liste, Filter-Zustand in der Seite (nicht in der URL), wird beim Wechsel zurück in Übersicht/Auswertung zurückgesetzt. Budget-Gruppen ohne passende Ausgaben werden im gefilterten Zustand ausgeblendet. Ist der Umfang zu gross, wird der Filter als eigenes Paket 6.2b abgetrennt. Issue: "Top-Ausgaben budgetübergreifend **oder gefiltert**" → Budgetfilter erst in 6.3 einführen (dort nötig) und für Top-5 wiederverwenden.
-- **6.3 — Ausgabenverlauf.** `npm install @mui/x-charts@^7.29` (Entscheidung 7). `ExpenseStatistics.cumulativeByCampDay({expenses, budget | null, currency, campDays})` → eine Zahl pro Lagertag. Ausgaben vor dem Lager fliessen in Tag 1, Ausgaben in Zeitscheiben-Lücken in den nächsten Lagertag, Ausgaben nach Lagerende in den letzten Tag (sonst fehlen sie in der kumulierten Summe). Soll-Linie: `Soll × Tag / Lagertage`, bei "alle Budgets" die Summe der Sollbeträge der Budgets in der gewählten Währung. Ist-Linie nur bis heute (danach `null`, damit die Linie nicht flach in die Zukunft läuft). Budget-Auswahl (`Select`: "Alle Budgets" + jedes Budget). Jest-Mock für das Diagramm, auch in `expenseTracking.test.tsx` (Entscheidung 8).
+> **Lesehilfe.** Diese Story ist ausführlicher als 6.1: Zu jedem Schritt steht *was* zu tun ist, *wo* im bestehenden Code das Vorbild liegt und *warum* es so gemacht wird. Abschnitte, die mit **Offen** markiert sind, bitte vor dem Coden beantworten (kurz im Chat reicht). Alles andere ist entschieden; Widerspruch ist trotzdem willkommen.
+
+#### Worum es geht (in zwei Sätzen)
+
+Die Abrechnungsseite bekommt neben "Übersicht" und "Ausgaben" eine dritte Ansicht "Auswertung". Dort stehen vier Kacheln mit Kennzahlen über **die ausgewählten Budgets** (Gesamttotal, Ø pro Teilnehmer:in, Anzahl Ausgaben ohne Beleg, Top-5-Ausgaben). Die Köchin wählt, welche Budgets zählen (z.B. ohne "Material", das nichts mit der Küche zu tun hat). Ein Klick auf "ohne Beleg" springt in die Ausgabenliste und zeigt dort nur noch die Ausgaben ohne Beleg.
+
+#### Warum drei Pakete
+
+| Paket | Inhalt | Warum getrennt |
+|---|---|---|
+| **6.2a** | `ExpenseStatistics` (reine Funktionen + Tests), neue Komponente `ExpenseEvaluation`, dritter Toggle, Währungsauswahl, vier Kacheln | Neue Datei, neue Ansicht, keine Änderung an bestehendem Verhalten. Lässt sich für sich reviewen und committen. |
+| **6.2b** | Budget-Auswahl (Chips), gespeichert pro Gerät im `localStorage` | Eigenes Thema mit eigenem Risiko: Speicher, der fehlen, kaputt sein oder werfen kann. 6.2a rechnet zuerst über alle Budgets; 6.2b schiebt nur einen Filter davor. |
+| **6.2c** | Filter "Nur ohne Beleg" in der Ausgabenliste + Sprung aus der Kachel | Ändert **bestehende** Komponenten (`ExpenseList`, Seite). Anderes Risiko (Regression in der Liste), andere Tests. Lehre aus Epic 1: ein Paket = ein Ziel. |
+
+In 6.2a zählen noch alle Budgets, die Auswahl kommt mit 6.2b. Die Kachel "Ohne Beleg" ist bis 6.2c **nicht klickbar**.
+
+#### Was am Ende auf dem Bildschirm steht
+
+Desktop (md und grösser), Auswertung gewählt, Ausgaben in CHF und EUR vorhanden:
+
+```
+[ Übersicht | Ausgaben | Auswertung ]                      (kein "Neu"-Button)
+
+Budgets: [✓ Küche] [✓ Grosseinkauf] [ Material ]   ← ab 6.2b, nur bei ≥ 2 Budgets
+2 von 3 Budgets berücksichtigt
+Währung: [ CHF | EUR ]
+Ausgaben in EUR sind hier nicht enthalten.        ← nur, wenn es andere Währungen gibt
+
+┌ Gesamtausgaben ─┐ ┌ Ø pro Teilnehmer:in ┐ ┌ Ohne Beleg ─────┐
+│ CHF 2'340.50    │ │ CHF 97.52           │ │ 3 Ausgaben  ⚠   │
+│ 14 Ausgaben     │ │ bisher CHF 13.93    │ │ alle Budgets    │
+│                 │ │ pro Person & Tag    │ │ und Währungen   │
+│                 │ │ 24 TN · 7 Lagertage │ │                 │
+└─────────────────┘ └─────────────────────┘ └─────────────────┘
+┌ Grösste Ausgaben ─────────────────────────────────────────────┐
+│ 🛒 Grosseinkauf Migros     03.07.2026          CHF 1'200.00   │
+│ 🍳 Gas-Flasche             05.07.2026            CHF 89.00    │
+│ …                                                (max. 5)     │
+└───────────────────────────────────────────────────────────────┘
+```
+
+Mobile (xs): Jede Kachel volle Breite, untereinander. Toggle-Leiste bricht um, falls sie nicht in eine Zeile passt.
+
+Die drei Zahl-Kacheln stehen in einer Zeile (`Grid size={{xs: 12, sm: 4}}`), die Top-5-Liste darunter über die volle Breite (`size={{xs: 12}}`). Abweichung vom Umriss ("md 3"): Eine Liste mit fünf Zeilen passt nicht in ein Viertel der Breite.
+
+#### Wie die Daten fliessen (nichts Neues laden)
+
+```
+useExpenseTrackingData ──► state.expenses ──┐   (schon geladen, schon live über Realtime)
+                          state.budgets ────┤
+event.tsx ──► groupConfiguration ───────────┤
+                                            ▼
+                expenseTracking.tsx  (Seite, rechnet NICHTS Neues aus)
+                                            │ Props
+                                            ▼
+                ExpenseEvaluation  (neue Komponente, eigene Datei)
+                   │  useMemo
+                   ▼
+                ExpenseStatistics.*  (reine Funktionen, kein React, kein Supabase)
+```
+
+Warum die Berechnung in `ExpenseEvaluation` und nicht in der Seite: `expenseTracking.tsx` hat schon 927 Zeilen. Die Seite reicht nur Rohdaten durch; alles, was nur die Auswertung braucht, lebt in der Auswertung. Gleiches Muster wie `PayeeBalanceAccordion`, das `Expense.sumByPayee` selbst aufruft (`payeeBalanceAccordion.tsx:50`).
+
+Weil alles aus `state.expenses` abgeleitet wird, ist die Auswertung **automatisch live**: Erfasst eine andere Köchin eine Ausgabe, lädt der bestehende Realtime-Hook neu, `state.expenses` bekommt eine neue Referenz, `useMemo` rechnet neu. Kein eigener Realtime-Code.
+
+#### Bestehende Bausteine, die du brauchst
+
+| Baustein | Wo | Wofür in 6.2 |
+|---|---|---|
+| `ExpenseTrackingView` | `expenseTracking.tsx:98` | Typ um `"evaluation"` erweitern |
+| `handleViewChange` | `expenseTracking.tsx:305` | Bleibt für 6.2a unverändert; in 6.2c setzt er den Filter zurück |
+| Toolbar mit `ToggleButtonGroup` und "Neu"-Button | `expenseTracking.tsx:806–847` | dritter `ToggleButton`; der Button-Ternary wird zu "Übersicht → Budget, Ausgaben → Ausgabe, Auswertung → nichts" |
+| Ansicht-Ternary | `expenseTracking.tsx:848–883` | wird zu drei Fällen (siehe Schritt 4) |
+| `expenseGroups`-Memo | `expenseTracking.tsx:279` | 6.2c: hier wird gefiltert |
+| `handleEditExpense(expenseId)` | `expenseTracking.tsx:353` | Klick auf eine Top-5-Zeile öffnet denselben Bearbeiten-Dialog wie in der Liste |
+| `groupConfiguration.totalPortions` | `groupConfiguration.class.ts` | Teilnehmerzahl. Summe der Portionen aller Diäten = eine Portion pro Person. Dieselbe Zahl, mit der `Budget.getTargetAmountInCents` den Sollbetrag rechnet, also konsistent mit den Budget-Karten. |
+| `formatAmountFromCents(cents, currency)` | `src/components/Shared/utils/currencyUtils.ts` | jede Betragsanzeige |
+| `AVAILABLE_CURRENCIES` | gleiche Datei | **nicht** für die Währungsauswahl verwenden, siehe Entscheidung W2 |
+| `BUDGET_ICON_MAP` | `budgetIcons.ts` | Icon des Budgets in der Top-5-Zeile (wie `ExpenseGroupHeader` in `expenseList.tsx`) |
+| `Expense.sortByDateDescending` | `expense.class.ts` | Vorbild für einen stabilen Sortiervergleich mit `localeCompare(…, "de")` |
+| `classes.expenseRowPrimary`, `expenseRowAmount` | `expenseTracking.styles.ts` | Top-5-Zeile sieht aus wie eine Zeile der Ausgabenliste (Bezeichnung links, Betrag rechts) |
+| `expectedAmount`-Helfer | `__tests__/budgetCard.test.tsx` | Betrags-Asserts mit `toHaveTextContent` (geschütztes Leerzeichen, Lehre aus 6.1) |
+
+---
+
+### **Paket 6.2a — Statistik-Funktionen + Ansicht "Auswertung"**
+
+#### Fachliche Entscheidungen
+
+**W1 — Welche Währungen gibt es?** Nur die Währungen, in denen es **Ausgaben** gibt. Budgets ohne Ausgaben spielen keine Rolle, weil alle Kennzahlen aus Ausgaben bestehen.
+
+**W2 — Vorauswahl.** Die Währung mit den **meisten Ausgaben (Anzahl, nicht Betrag)**. Gleichstand: CHF, falls beteiligt, sonst alphabetisch. Keine Ausgaben: CHF.
+*Warum Anzahl statt Betrag:* Ein Lager in Frankreich mit einem CHF-Grosseinkauf von 1'500 vorab und 30 kleinen EUR-Einkäufen vor Ort lebt in EUR. Die Anzahl zeigt, in welcher Währung die Küche tatsächlich arbeitet.
+*Warum nicht `AVAILABLE_CURRENCIES`:* Das ist die Liste der *wählbaren* Währungen im Dialog. Ein Toggle "EUR" ohne EUR-Ausgaben zeigt nur Nullen.
+
+**W3 — Wann der Währungs-Toggle erscheint.** Nur bei **mehr als einer** Währung in den Ausgaben. Bei genau einer Währung steht weder Toggle noch Hinweis; das ist der Normalfall (fast alle Lager nur CHF).
+
+**W4 — Gewählte Währung verschwindet.** Die Köchin wählt EUR, eine andere Köchin löscht die letzte EUR-Ausgabe. Dann fällt die Auswahl auf die Vorauswahl (W2) zurück. Umsetzung **ohne `useEffect`**:
+
+```ts
+// null = «keine bewusste Wahl», dann gilt die Vorauswahl
+const [chosenCurrency, setChosenCurrency] = React.useState<string | null>(null);
+const selectedCurrency =
+  chosenCurrency && currencies.includes(chosenCurrency)
+    ? chosenCurrency
+    : defaultCurrency;
+```
+
+*Warum kein `useEffect`, der den State zurücksetzt:* Ein Effekt läuft erst *nach* dem Rendern. Es gäbe einen Frame mit einer Währung, die nicht mehr existiert, plus einen zweiten Render. Den Wert beim Rendern abzuleiten ist kürzer und hat diesen Zwischenzustand nicht. Kommt die EUR-Ausgabe zurück (Undo, Realtime), ist EUR automatisch wieder gewählt, weil `chosenCurrency` noch "EUR" ist. Das ist gewollt.
+
+**W5 — Zustand der Währungsauswahl.** Lokaler State in `ExpenseEvaluation`. Wechselt man in "Übersicht" und zurück, wird die Komponente neu gemountet und die Auswahl steht wieder auf der Vorauswahl. Akzeptiert: Die Vorauswahl ist in > 95 % der Fälle das, was man will. Nicht in `localStorage`, nicht in die URL.
+
+**K1 — Gesamtausgaben.** Summe aller Ausgaben in der gewählten Währung, **über alle Budgets**. Darunter klein: Anzahl dieser Ausgaben ("14 Ausgaben"; Einzahl "1 Ausgabe").
+
+**K2 — Ø pro Teilnehmer:in.** `Math.round(Gesamtausgaben ÷ totalPortions)`, in Rappen. Darunter die Zeile "pro Person & Tag" (siehe unten) und klein, womit gerechnet wurde: "24 TN · 7 Lagertage".
+- `totalPortions` 0 (Gruppenkonfiguration nicht ausgefüllt) → `null` → Kachel zeigt statt der Zahl: "Erfasse die Teilnehmenden in der Gruppenkonfiguration." Nie `Infinity`, nie `NaN` (Epic-Entscheidung 10).
+- In 6.2a über alle Budgets. Ab 6.2b nur über die ausgewählten (z.B. ohne "Material").
+- **Zweite Zeile "pro Person & Tag"** (O1, entschieden 2026-10-10: ja). `Math.round(Gesamtausgaben ÷ totalPortions ÷ event.numberOfDays)`. Geteilt wird durch **alle** Lagertage, nicht durch die bisher vergangenen. *Warum:* Durch die vergangenen Tage geteilt, wird der Grosseinkauf vor dem Lager an Tag 2 auf zwei Tage verteilt, und der Wert sieht dreimal zu hoch aus. Durch alle Tage geteilt, heisst der Wert "so viel haben wir pro Person und Tag *bisher verbraucht*, gemessen am ganzen Lager". An Tag 3 von 7 steht dort z.B. CHF 4.20 bei einem Ansatz von CHF 8.50, und das ist richtig gelesen wie der Fortschrittsbalken: noch Luft. Darum steht "bisher" im Text, damit niemand es als Tagesdurchschnitt liest. `event.numberOfDays` statt `getEventDateList(...).length`, weil `Budget.getTargetAmountInCents` den Sollbetrag damit rechnet: So sind Ansatz und Ist direkt vergleichbar.
+  - `numberOfDays` 0 (Anlass ohne Daten) → nur diese Zeile entfällt, die Zeile "pro Person" bleibt.
+  - Kein Vergleich mit dem Ansatz eines "pro Person & Tag"-Budgets in der Kachel: Es kann mehrere solche Budgets mit verschiedenen Ansätzen geben. Den Vergleich pro Budget zeigt die Budget-Karte.
+
+**K3 — Ausgaben ohne Beleg.** Anzahl Ausgaben mit `attachmentPath === null`, **alle Währungen** (Epic-Entscheidung 5, Ausnahme). Darum steht unter der Zahl klein "alle Budgets und Währungen" (Budgets ab 6.2b, siehe B4), sonst wirkt es wie ein Fehler, wenn die Zahl beim Wechsel gleich bleibt.
+- Anzahl > 0 → Zahl + Icon `ReportProblemOutlined` in `warning.main`. Gleiches Icon wie das "Beleg fehlt"-Icon in der Liste (`expenseList.tsx`), damit man die Verbindung sieht.
+- Anzahl 0 → "Alle Ausgaben haben einen Beleg." in `success.main` mit `CheckCircleOutlined`. Positive Rückmeldung, kein leerer Zustand.
+- Text nicht nur über Farbe: "3 Ausgaben ohne Beleg" ist auch ohne Farbe verständlich.
+
+**K4 — Top-5-Ausgaben.** Die 5 grössten Einzelposten in der gewählten Währung, budgetübergreifend.
+- Sortierung: Betrag absteigend; bei gleichem Betrag neueres Datum zuerst; dann Bezeichnung (`localeCompare(…, "de")`). *Warum so genau:* Ohne festen Tie-Breaker hängt die Reihenfolge gleicher Beträge von der Ladereihenfolge ab und kann nach jedem Realtime-Reload springen.
+- Weniger als 5 Ausgaben → so viele, wie es gibt. Keine Ausgabe in der Währung → Kachel erscheint nicht (siehe K5).
+- Zeile: Budget-Icon, Bezeichnung, Datum, Betrag. Klick öffnet den Bearbeiten-Dialog (`handleEditExpense`, schon vorhanden; O2, entschieden 2026-10-10: ja). *Warum klickbar:* Der häufigste Grund, die grössten Posten anzusehen, ist "stimmt der Betrag?" (Tippfehler 1200 statt 12.00). Kein neuer Code nötig, nur ein Callback durchreichen.
+- "Gefiltert" aus dem Issue (pro Budget) → kommt mit der Budget-Auswahl in 6.2b.
+
+**K5 — Leere Zustände** (O3, entschieden 2026-10-10: ein Satz statt Kacheln mit Nullen).
+- **Keine einzige Ausgabe:** Die ganze Ansicht zeigt nur einen Satz: "Sobald ihr Ausgaben erfasst, siehst du hier die Auswertung." Keine Kacheln mit CHF 0.00. *Warum nicht vier leere Kacheln:* Vier Nullen sagen nichts, ein Satz erklärt den Zustand.
+- Gibt es Ausgaben, gibt es auch in der gewählten Währung mindestens eine (W1/W2). Die Kacheln sind dann also nie leer. Der Test deckt es trotzdem ab.
+
+**K6 — Rundung.** Nur der Durchschnitt wird gerundet (`Math.round` auf ganze Rappen), wie die Hochrechnung in 6.1. Summen von Integer-Rappen sind exakt.
+
+#### Schnittstelle `expenseStatistics.class.ts` (neue Datei)
+
+```ts
+/**
+ * Kennzahlen über alle Ausgaben eines Anlasses (Auswertung, Epic 6).
+ * Reine Funktionen: kein React, kein Supabase. Summiert nie über Währungen.
+ */
+export class ExpenseStatistics {
+  /** Währungen mit Ausgaben, häufigste zuerst, plus Vorauswahl (W1, W2). */
+  static getCurrenciesInUse(expenses: ExpenseDomain[]): CurrenciesInUse;
+
+  /** Nur die Ausgaben einer Währung. Basis für alle anderen Kennzahlen. */
+  static filterByCurrency(expenses: ExpenseDomain[], currency: string): ExpenseDomain[];
+
+  /** Summe in Rappen. Erwartet bereits nach Währung gefilterte Ausgaben. */
+  static sumAmountInCents(expenses: ExpenseDomain[]): number;
+
+  /** Ø pro Teilnehmer:in in Rappen, `null` bei 0 Teilnehmenden (K2). */
+  static averagePerParticipant(totalAmountInCents: number, participantCount: number): number | null;
+
+  /** Bisher verbraucht pro Person und Tag, über alle Lagertage (K2). `null` bei 0 Teilnehmenden oder 0 Tagen. */
+  static averagePerParticipantAndDay(totalAmountInCents: number, participantCount: number, campDayCount: number): number | null;
+
+  /** Anzahl Ausgaben ohne Beleg, alle Währungen (K3). */
+  static countWithoutAttachment(expenses: ExpenseDomain[]): number;
+
+  /** Die `limit` grössten Ausgaben, stabil sortiert (K4). Gibt eine neue Liste zurück. */
+  static topExpenses(expenses: ExpenseDomain[], limit = 5): ExpenseDomain[];
+}
+```
+
+Abweichung vom Umriss: `sumForCurrency(expenses, currency)` wird zu `filterByCurrency` + `sumAmountInCents`. *Warum:* Gesamttotal, Anzahl, Top-5 (und später 6.3–6.5) brauchen alle zuerst "nur CHF". Einmal filtern und das Ergebnis weitergeben ist klarer, als jede Funktion intern selbst filtern zu lassen. `averagePerParticipant` bekommt deshalb auch schon die Summe statt der Ausgaben: Die Komponente hat sie ohnehin, und die Funktion wird trivial testbar (zwei Zahlen rein, eine raus).
+
+Neuer Typ in `expense.types.ts` (bei den View-Modellen):
+
+```ts
+/** Ergebnis von `ExpenseStatistics.getCurrenciesInUse`. */
+export type CurrenciesInUse = {
+  /** Währungscodes mit mindestens einer Ausgabe, häufigste zuerst. */
+  currencies: string[];
+  /** Vorausgewählte Währung (W2). «CHF», wenn es keine Ausgaben gibt. */
+  defaultCurrency: string;
+};
+```
+
+Code-Skizze für die einzige nicht triviale Funktion (nicht abschreiben, selbst bauen):
+
+```ts
+static getCurrenciesInUse(expenses: ExpenseDomain[]): CurrenciesInUse {
+  const countByCurrency = new Map<string, number>();
+  for (const expense of expenses) {
+    countByCurrency.set(expense.currency, (countByCurrency.get(expense.currency) ?? 0) + 1);
+  }
+  const currencies = [...countByCurrency.keys()].sort((currencyA, currencyB) =>
+    ExpenseStatistics.compareCurrencyUsage(currencyA, currencyB, countByCurrency),
+  );
+  return {currencies, defaultCurrency: currencies[0] ?? DEFAULT_CURRENCY};
+}
+```
+
+`compareCurrencyUsage` (privat): erst Anzahl absteigend, dann CHF vor allen anderen, dann alphabetisch. So ist `currencies[0]` automatisch die Vorauswahl und die Toggle-Reihenfolge ist dieselbe Logik, nicht eine zweite. `DEFAULT_CURRENCY = "CHF"` gibt es noch nicht (geprüft: "CHF" steht hart in `budgetDetailDialog.tsx:70` und `DonationResult.tsx:98`) → neben `AVAILABLE_CURRENCIES` in `currencyUtils.ts` anlegen. Die zwei bestehenden Stellen nicht anfassen (Minimal Impact), sondern in `tech-debt.md` notieren.
+
+#### Komponente `expenseEvaluation.tsx` (neue Datei)
+
+```ts
+type ExpenseEvaluationProps = {
+  /** Alle Ausgaben des Anlasses (ungefiltert, alle Währungen). */
+  expenses: ExpenseDomain[];
+  /** Alle Budgets, für Icon und Name in der Top-5-Liste. */
+  budgets: BudgetDomain[];
+  /** `groupConfiguration.totalPortions`. Nur die Zahl, nicht die ganze Konfiguration. */
+  participantCount: number;
+  /** `event.numberOfDays`, gleiche Grundlage wie der Sollbetrag der Budgets. */
+  campDayCount: number;
+  /** Öffnet den Bearbeiten-Dialog (Klick auf eine Top-5-Zeile). */
+  handleEditClick: (expenseId: string) => void;
+};
+```
+
+*Warum `participantCount: number` statt `groupConfiguration`:* Die Komponente braucht eine Zahl. Mit der ganzen Klasse wird jeder Test gezwungen, eine `EventGroupConfiguration` zu bauen, und die Komponente hängt an einer Struktur, die sie nicht nutzt.
+
+Aufbau (Richtwert < 250 Zeilen):
+
+- `ExpenseEvaluation` (exportiert): Leerer Zustand (K5), Währungsauswahl (W3/W4), `useMemo` für die Kennzahlen, Grid mit den Kacheln.
+- `StatisticTile` (nicht exportiert): gemeinsamer Rahmen einer Zahl-Kachel: Titel, grosse Zahl oder Hinweistext, kleine Zeile darunter. Die drei Zahl-Kacheln unterscheiden sich nur im Inhalt; ohne gemeinsamen Rahmen entsteht dreimal dasselbe JSX.
+- `TopExpensesTile` (nicht exportiert): die Liste.
+
+Ein `useMemo` für alles, was von der Währung abhängt:
+
+```ts
+const statistics = React.useMemo(() => {
+  const expensesInCurrency = ExpenseStatistics.filterByCurrency(expenses, selectedCurrency);
+  const totalAmountInCents = ExpenseStatistics.sumAmountInCents(expensesInCurrency);
+  return {
+    expenseCount: expensesInCurrency.length,
+    totalAmountInCents,
+    averagePerParticipantInCents: ExpenseStatistics.averagePerParticipant(totalAmountInCents, participantCount),
+    averagePerParticipantAndDayInCents: ExpenseStatistics.averagePerParticipantAndDay(totalAmountInCents, participantCount, campDayCount),
+    topExpenses: ExpenseStatistics.topExpenses(expensesInCurrency),
+  };
+}, [expenses, selectedCurrency, participantCount, campDayCount]);
+```
+
+`countWithoutAttachment` hängt nicht von der Währung ab → eigenes `useMemo` nur auf `[expenses]`. (Beides ist billig, `useMemo` hier vor allem als Lesehilfe: "das wird abgeleitet, nicht gespeichert".)
+
+Kachel-Rahmen: `Card variant="outlined"` mit dem Radius der Budget-Karten. Style `evaluationTile` in `expenseTracking.styles.ts` an `budgetCard` anlehnen (12px Radius, `divider`-Rahmen, `height: "100%"`, damit die drei Kacheln einer Zeile gleich hoch sind).
+
+Ansage für Screenreader: Die grosse Zahl ist ein `Typography variant="h5"` mit `component="p"`, der Titel `variant="subtitle2"`. Keine Überschriften-Hierarchie (`h1`–`h6` als Element) für Kacheln, sonst springt die Dokumentgliederung.
+
+#### Anbindung in `expenseTracking.tsx`
+
+1. `type ExpenseTrackingView = "overview" | "expenses" | "evaluation";` und JSDoc darüber nachziehen (dort steht noch "(folgt) Ausgabenliste").
+2. Dritter `ToggleButton value="evaluation"` mit `TEXT_EXPENSE_TRACKING_EVALUATION`.
+3. Button-Weiche: Heute `view === "overview" ? Budget-Button : Ausgabe-Button`. Mit drei Ansichten wird der `else`-Zweig falsch (Auswertung würde "Neue Ausgabe" zeigen). → Zwei explizite Bedingungen: `{view === "overview" && …}` und `{view === "expenses" && …}`.
+4. Ansicht-Weiche: verschachtelter Ternary mit drei Fällen ist schwer lesbar. → Drei `{view === … && (…)}`-Blöcke untereinander. (Wer möchte: kleine `renderView()`-Funktion mit `switch`. Beides okay; keinen verschachtelten Ternary.)
+5. `<ExpenseEvaluation expenses={state.expenses ?? []} budgets={state.budgets ?? []} participantCount={groupConfiguration.totalPortions} campDayCount={event.numberOfDays} handleEditClick={handleEditExpense} />`
+
+Toolbar auf Mobile: `budgetToolbar` bekommt `flexWrap: "wrap"` und `gap: theme.spacing(1)`. Auf 360 px Breite prüfen. Passen die drei Toggles allein nicht in eine Zeile ("Übersicht", "Ausgaben", "Auswertung" ≈ 300 px bei `size="small"`), stattdessen `ToggleButtonGroup` mit `fullWidth` auf xs. Das im Browser entscheiden, nicht vorab.
+
+#### Texte (`src/constants/text/expenseTracking.ts`)
+
+| Konstante | Text |
+|---|---|
+| `EXPENSE_TRACKING_EVALUATION` | "Auswertung" |
+| `EVALUATION_NO_EXPENSES` | "Sobald ihr Ausgaben erfasst, siehst du hier die Auswertung." |
+| `EVALUATION_CURRENCY` | "Währung" (Beschriftung + `aria-label` der Toggle-Gruppe) |
+| `EVALUATION_OTHER_CURRENCIES_EXCLUDED(currencies: string[])` | "Ausgaben in EUR sind hier nicht enthalten." / bei mehreren: "Ausgaben in EUR und USD …" |
+| `EVALUATION_TOTAL` | "Gesamtausgaben" |
+| `EVALUATION_EXPENSE_COUNT(count: number)` | "1 Ausgabe" / "14 Ausgaben" |
+| `EVALUATION_AVERAGE_PER_PARTICIPANT` | "Ø pro Teilnehmer:in" |
+| `EVALUATION_PER_PARTICIPANT_AND_DAY_SO_FAR(amountInCents: number, currency: string)` | "bisher CHF 13.93 pro Person & Tag" |
+| `EVALUATION_CALCULATION_BASIS(participants: number, days: number)` | "24 TN · 7 Lagertage" (Einzahl: "1 Lagertag") |
+| `EVALUATION_PARTICIPANTS_MISSING` | "Erfasse die Teilnehmenden in der Gruppenkonfiguration." |
+| `EVALUATION_WITHOUT_RECEIPT` | "Ohne Beleg" |
+| `EVALUATION_WITHOUT_RECEIPT_COUNT(count: number)` | "1 Ausgabe ohne Beleg" / "3 Ausgaben ohne Beleg" |
+| `EVALUATION_ALL_RECEIPTS_PRESENT` | "Alle Ausgaben haben einen Beleg." |
+| `EVALUATION_ALL_CURRENCIES` | "alle Währungen" |
+| `EVALUATION_TOP_EXPENSES` | "Grösste Ausgaben" |
+
+Funktions-Texte nach dem Muster von `DAY_X_OF_Y_IN_EVENT` (Pfeilfunktion mit Rückgabetyp `string`). Einzahl/Mehrzahl in der Text-Funktion lösen, nicht in der Komponente.
+
+#### Dateien 6.2a
+
+| Datei | Änderung |
+|---|---|
+| `src/components/Event/ExpenseTracking/expenseStatistics.class.ts` (neu) | Klasse `ExpenseStatistics` |
+| `src/components/Event/ExpenseTracking/expense.types.ts` | Typ `CurrenciesInUse` |
+| `src/components/Event/ExpenseTracking/expenseEvaluation.tsx` (neu) | `ExpenseEvaluation`, `StatisticTile`, `TopExpensesTile` |
+| `src/components/Event/ExpenseTracking/expenseTracking.tsx` | View-Typ, dritter Toggle, Button-/Ansicht-Weiche |
+| `src/constants/text/expenseTracking.ts` | Texte oben |
+| `src/constants/styles/expenseTracking.styles.ts` | `evaluationTile`, `budgetToolbar` mit `flexWrap`/`gap` |
+| `src/components/Shared/utils/currencyUtils.ts` | `DEFAULT_CURRENCY` |
+| `__tests__/expenseStatistics.class.test.ts` (neu) | reine Funktionen |
+| `__tests__/expenseEvaluation.test.tsx` (neu) | Anzeige |
+| `__tests__/expenseTracking.test.tsx` | Toggle "Auswertung", kein "Neu"-Button |
+
+#### Tests 6.2a
+
+**`expenseStatistics.class.test.ts`** — Ausgaben aus `__mocks__/expense.mock.ts` mit `{...expense, id, currency, amountInCents, date: parseLocalDate("2026-07-05")}` bauen. Eine kleine Fabrik-Funktion `createExpense(overrides)` oben in der Testdatei spart viel Wiederholung.
+
+`getCurrenciesInUse`
+- keine Ausgaben → `{currencies: [], defaultCurrency: "CHF"}`
+- nur CHF → `["CHF"]`, `"CHF"`
+- 2 × EUR, 1 × CHF → `["EUR", "CHF"]`, `"EUR"` (Anzahl entscheidet)
+- 1 × EUR à 1'000, 2 × CHF à 1 → `"CHF"` (Anzahl, **nicht** Betrag)
+- Gleichstand 1 × EUR, 1 × CHF → `"CHF"` (in beiden Eingabe-Reihenfolgen testen, sonst ist der Test zufällig grün)
+- Gleichstand 1 × USD, 1 × EUR → `"EUR"` (alphabetisch)
+
+`filterByCurrency` / `sumAmountInCents`
+- gemischte Währungen → nur die gewählte
+- leere Liste → `[]` bzw. `0`
+
+`averagePerParticipant`
+- 240000 ÷ 24 → 10000
+- 1000 ÷ 3 → 333 (gerundet); 2000 ÷ 3 → 667 (aufgerundet)
+- Teilnehmende 0 → `null`
+- Summe 0, Teilnehmende 10 → 0 (nicht `null`: gültige Aussage)
+
+`averagePerParticipantAndDay`
+- 168000 ÷ 24 ÷ 7 → 1000
+- 1000 ÷ 3 ÷ 1 → 333 (gerundet, erst am Schluss runden, nicht nach jeder Division: 100000 ÷ 3 ÷ 3 → 11111, nicht `Math.round(Math.round(100000/3)/3)`)
+- Teilnehmende 0 → `null`; Lagertage 0 → `null`
+
+`countWithoutAttachment`
+- gemischt (2 ohne, 1 mit) → 2
+- verschiedene Währungen zählen alle
+
+`topExpenses`
+- 7 Ausgaben → genau 5, absteigend nach Betrag
+- 3 Ausgaben → 3
+- gleicher Betrag, verschiedenes Datum → neueres zuerst
+- gleicher Betrag und Datum → alphabetisch nach Bezeichnung
+- Eingabe-Array bleibt unverändert (`expect(input).toEqual(kopieVorher)`): `sort` sortiert in place, darum `[...expenses].sort(…)`. Klassischer Fehler, der sonst die Reihenfolge der Ausgabenliste mitverändert.
+
+**`expenseEvaluation.test.tsx`** — reine Anzeige, Props direkt, keine Contexts (wie `budgetCard.test.tsx`). `expectedAmount`-Helfer von dort übernehmen (kopieren ist hier okay; wird er ein drittes Mal gebraucht, in eine Test-Utility verschieben).
+- keine Ausgaben → Hinweistext, keine Kachel
+- nur CHF → kein Währungs-Toggle, kein "nicht enthalten"-Hinweis
+- CHF + EUR → Toggle sichtbar, Vorauswahl gemäss W2, Hinweis nennt die andere Währung
+- Klick auf EUR → Gesamttotal wechselt auf EUR-Summe, "Ohne Beleg" bleibt gleich
+- `participantCount` 0 → Hinweis "Gruppenkonfiguration", kein Betrag, auch keine "pro Person & Tag"-Zeile
+- `campDayCount` 0 → "pro Person"-Betrag da, "pro Person & Tag"-Zeile fehlt
+- alle mit Beleg → "Alle Ausgaben haben einen Beleg."
+- Top-5: Reihenfolge der Zeilen (`within(list).getAllByRole("button")` o.ä.) und Klick ruft `handleEditClick` mit der richtigen ID
+- **W4:** mit CHF + EUR rendern, EUR wählen, dann mit `rerender` nur noch CHF-Ausgaben übergeben → zeigt CHF, kein Absturz, kein Toggle
+
+**`expenseTracking.test.tsx`**
+- Toggle "Auswertung" zeigt die Auswertung (`data-testid="expense-tracking-evaluation"`)
+- In der Auswertung gibt es weder "Neues Budget" noch "Neue Ausgabe"
+- Bestehender Test "Toggle Button wechselt die Ansicht" (Zeile ~341) bleibt grün
+
+#### Mutationsproben 6.2a
+
+1. In `compareCurrencyUsage` die CHF-Regel entfernen → Test "Gleichstand EUR/CHF" muss in einer der beiden Reihenfolgen rot werden.
+2. In `topExpenses` `[...expenses].sort` durch `expenses.sort` ersetzen → Test "Eingabe bleibt unverändert" muss rot werden.
+3. In `ExpenseEvaluation` die Ableitung `currencies.includes(chosenCurrency)` entfernen → W4-Test muss rot werden.
+
+#### Im Browser ansehen (DEV gegen `supabase-db-test`)
+
+1. Anlass ohne Ausgaben → Auswertung zeigt nur den Hinweissatz.
+2. Drei CHF-Ausgaben, eine davon mit Beleg → Gesamttotal, Ø, "2 Ausgaben ohne Beleg", Top-5 mit drei Zeilen. Kein Währungs-Toggle.
+3. Eine EUR-Ausgabe dazu → Toggle erscheint, CHF vorausgewählt, Hinweis "Ausgaben in EUR …". EUR wählen → Zahlen wechseln, "ohne Beleg" bleibt.
+4. EUR gewählt lassen; im zweiten Fenster (andere Köchin) die EUR-Ausgabe löschen → erstes Fenster springt auf CHF, Toggle verschwindet.
+5. Gruppenkonfiguration auf 0 Teilnehmende → Hinweis statt Ø. Zurück auf 24 → Ø erscheint live. Anlass um einen Tag verlängern → "pro Person & Tag" und "7 Lagertage" ändern sich.
+6. Klick auf eine Top-5-Zeile → Bearbeiten-Dialog, Betrag ändern, speichern → Top-5 sortiert sich neu.
+7. **Mobile (xs, 360 px):** Toolbar bricht sauber um, Kacheln untereinander, lange Bezeichnung in der Top-5-Zeile wird abgeschnitten (`noWrap`), Betrag bleibt sichtbar.
+
+**Definition of Done 6.2a:** `npx tsc --noEmit`, `npx jest expenseStatistics expenseEvaluation expenseTracking --watchAll=false`, `npm run lint` grün; Mutationsproben 1–3 bestätigt; Browser-Rundlauf Desktop **und** Mobile inkl. Zweit-Köchin (Punkt 4).
+
+---
+
+### **Paket 6.2b — Budget-Auswahl für die Auswertung**
+
+#### Worum es geht
+
+Nicht jede Ausgabe gehört zur Küche. Die Küche kauft oft Dinge für das ganze Lager ein (z.B. Material für die Lagerleitung, Spielmaterial), meist in einem eigenen Budget ohne Sollbetrag. Diese Ausgaben müssen erfasst werden, weil sie in die Abrechnung gehören. In der Auswertung verfälschen sie aber die Kennzahlen: Ø pro Teilnehmer:in ist dann nicht mehr "was kostet uns das Essen". → Die Köchin wählt, **welche Budgets in die Auswertung einfliessen**.
+
+```
+Budgets:  [✓ 🍳 Küche] [✓ 🛒 Grosseinkauf] [ 🎨 Material ] [ 🏕 Lagerleitung ]
+2 von 4 Budgets berücksichtigt
+Währung:  [ CHF | EUR ]
+… Kacheln wie in 6.2a, aber nur mit Ausgaben aus «Küche» und «Grosseinkauf» …
+```
+
+Ein `Chip` pro Budget (Icon + Name). Ausgewählt = `variant="filled" color="primary"`, abgewählt = `variant="outlined"`. Klick schaltet um.
+
+#### Fachliche Entscheidungen
+
+**B1 — Vorauswahl: alle Budgets** (entschieden 2026-10-10). Nichts wird still ausgeblendet. Wer "Material" nicht drin haben will, wählt es einmal ab.
+
+**B2 — Gespeichert pro Gerät im `localStorage`** (entschieden 2026-10-10). Kein Teilen zwischen Köch:innen, keine Migration. Folge, bewusst akzeptiert: Zwei Köch:innen können für dasselbe Lager unterschiedliche Durchschnitte sehen. Reicht das in der Praxis nicht, wäre eine Spalte `event_budgets.include_in_statistics` der saubere nächste Schritt (gleiche Überlegung wie bei den Mahlzeitentypen in 6.5).
+
+**B3 — Gespeichert werden die *abgewählten* Budget-IDs, nicht die ausgewählten.** Das ist die wichtigste Entscheidung dieses Pakets, weil eine einzige Regel drei Fälle ohne Sonderlogik löst:
+
+| Fall | Gespeichert: ausgewählte IDs | Gespeichert: abgewählte IDs |
+|---|---|---|
+| Nichts gespeichert (erster Besuch, privates Fenster) | Sonderfall "leer heisst alle" nötig | leer = nichts abgewählt = alle ✓ |
+| Neues Budget angelegt (auch von anderer Köchin) | fehlt in der Liste → wäre **abgewählt**, widerspricht B1 | nicht in der Liste → ausgewählt ✓ |
+| Abgewähltes Budget gelöscht | — | ID bleibt liegen, passt auf nichts, harmlos ✓ |
+
+**B4 — Was der Auswahl folgt und was nicht.**
+- **Folgt:** Gesamtausgaben, Ø pro Teilnehmer:in (beide Zeilen), Top-5 **und die Währungsliste** (W1/W2). Die Währungen werden aus den Ausgaben der *ausgewählten* Budgets bestimmt. Sonst steht ein EUR-Toggle da, obwohl alle EUR-Ausgaben in einem abgewählten Budget liegen, und EUR zeigt nur Nullen.
+- **Folgt nicht:** "Ohne Beleg". Das ist eine Aufgabe (jede Ausgabe braucht für die Abrechnung einen Beleg), keine Statistik. Auch eine Material-Quittung muss da sein. Untertitel der Kachel darum "alle Budgets und Währungen" statt nur "alle Währungen". Der Sprung in die gefilterte Liste (6.2c) zeigt entsprechend auch alle Budgets.
+- **Später:** 6.3–6.5 nutzen dieselbe Auswahl (siehe Umriss unten). Es gibt keine zweite Budget-Auswahl.
+
+**B5 — Reihenfolge der Verarbeitung.** Erst nach Budget filtern, dann Währungen bestimmen, dann nach Währung filtern, dann rechnen:
+
+```ts
+const expensesOfSelectedBudgets = React.useMemo(
+  () => ExpenseStatistics.excludeBudgets(expenses, excludedBudgetIds),
+  [expenses, excludedBudgetIds],
+);
+const {currencies, defaultCurrency} = React.useMemo(
+  () => ExpenseStatistics.getCurrenciesInUse(expensesOfSelectedBudgets),
+  [expensesOfSelectedBudgets],
+);
+// … W4-Ableitung von selectedCurrency, dann das statistics-Memo aus 6.2a,
+// das jetzt expensesOfSelectedBudgets statt expenses bekommt
+```
+
+Der Rest von 6.2a bleibt unverändert. Er bekommt nur eine kleinere Liste.
+
+**B6 — Leere Zustände** (zusätzlich zu K5 aus 6.2a):
+- **Kein Budget ausgewählt** → anstelle der Kacheln: "Wähle mindestens ein Budget aus." Die Chips bleiben sichtbar, damit man es beheben kann.
+- **Ausgewählte Budgets haben keine Ausgaben** (andere schon) → anstelle der Kacheln: "In den gewählten Budgets gibt es noch keine Ausgaben." Nicht CHF 0.00 in drei Kacheln.
+- **Gar keine Ausgaben** → weiterhin nur der Satz aus K5, ohne Chips (nichts zu wählen).
+
+**B7 — Chips nur ab zwei Budgets.** Bei einem Budget gibt es nichts zu wählen. Die Zeile "2 von 4 Budgets berücksichtigt" erscheint nur, wenn nicht alle ausgewählt sind. Chips in derselben Reihenfolge wie die Budget-Karten in der Übersicht (`state.budgets`).
+
+**B8 — Lesen und Schreiben im `localStorage`.**
+- Schlüssel: `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_BUDGETS}_${eventId}` mit neuem Enum-Wert `EXPENSE_EVALUATION_EXCLUDED_BUDGETS = "expenseEvaluationExcludedBudgets"` in `src/constants/localStorage.ts`. Pro Anlass, weil Budget-IDs pro Anlass sind.
+- Wert: JSON-Array von Strings.
+- **Jeder Zugriff in `try/catch`.** `localStorage` wirft im privaten Modus mancher Browser, bei vollem Speicher oder wenn Cookies blockiert sind. Kaputter Inhalt (`JSON.parse` wirft, oder es ist kein Array von Strings) zählt als "nichts gespeichert". Ein Fehler hier darf nie die Auswertung blockieren, und nach Sentry gehört er auch nicht: Das ist kein Bug, sondern eine Browser-Einstellung.
+- **Nicht `LocalStorageHandler`** (`src/components/Shared/localStorageHandler.class.ts`) verwenden: Er fängt keine Fehler, erlaubt nur Objekte (kein Array) und arbeitet mit `any`. → In `tech-debt.md` notieren, nicht hier umbauen.
+- **Lesen** einmal beim Mounten über einen Lazy-Initializer `useState(() => readExcludedIds(key))`. *Warum Lazy:* Ohne Funktion würde `localStorage` bei jedem Render gelesen und das Ergebnis weggeworfen.
+- **Schreiben** im Klick-Handler, nicht in einem `useEffect` auf den State. *Warum:* Gespeichert wird nur, was die Köchin bewusst geändert hat. Ein Effekt würde schon beim ersten Render die leere Vorauswahl zurückschreiben.
+
+**B9 — Ein kleiner, wiederverwendbarer Hook.** `useStoredIdSet(storageKey: string)` → `{ids: Set<string>, toggleId: (id: string) => void}` in `src/components/Shared/useStoredIdSet.ts`. Er weiss nichts von Budgets, nur "eine Menge von IDs unter diesem Schlüssel". *Warum generisch:* 6.5 braucht dasselbe für die Mahlzeitentypen (dort ebenfalls "abgewählte" speichern, B3 gilt genauso). Gebaut wird trotzdem nur, was 6.2b braucht, keine Extra-Optionen auf Vorrat.
+
+Bekannte Grenze: Ändert sich `storageKey` bei montierter Komponente, liest der Hook nicht neu. Kommt nicht vor, weil ein anderer Anlass die ganze Seite neu montiert. In der JSDoc vermerken.
+
+#### Schnittstellen
+
+`expenseStatistics.class.ts`, neue Methode:
+
+```ts
+/** Ausgaben ohne die abgewählten Budgets (B3). Gibt eine neue Liste zurück. */
+static excludeBudgets(expenses: ExpenseDomain[], excludedBudgetIds: Set<string>): ExpenseDomain[];
+```
+
+`ExpenseEvaluation` bekommt zusätzlich `eventId: string` (für den Speicherschlüssel). Die Budgets hat sie seit 6.2a schon.
+
+#### Texte
+
+| Konstante | Text |
+|---|---|
+| `EVALUATION_BUDGETS` | "Budgets" (Beschriftung + `aria-label` der Chip-Gruppe) |
+| `EVALUATION_BUDGETS_SELECTED(selected: number, total: number)` | "2 von 4 Budgets berücksichtigt" |
+| `EVALUATION_NO_BUDGET_SELECTED` | "Wähle mindestens ein Budget aus." |
+| `EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS` | "In den gewählten Budgets gibt es noch keine Ausgaben." |
+| `EVALUATION_ALL_CURRENCIES` (aus 6.2a) | wird zu "alle Budgets und Währungen" |
+
+Barrierefreiheit: Jeder Chip bekommt `aria-pressed={isSelected}`. So hört ein Screenreader "ausgewählt / nicht ausgewählt", die Farbe allein reicht nicht.
+
+#### Dateien 6.2b
+
+| Datei | Änderung |
+|---|---|
+| `src/components/Shared/useStoredIdSet.ts` (neu) | Hook inkl. `try/catch` und Validierung |
+| `src/constants/localStorage.ts` | `EXPENSE_EVALUATION_EXCLUDED_BUDGETS` |
+| `expenseStatistics.class.ts` | `excludeBudgets` |
+| `expenseEvaluation.tsx` | Chips, Prop `eventId`, Reihenfolge B5, leere Zustände B6 |
+| `expenseTracking.tsx` | `eventId={event.uid}` durchreichen |
+| `src/constants/text/expenseTracking.ts` | Texte oben |
+| `.claude/docs/tech-debt.md` | `LocalStorageHandler` ohne Fehlerbehandlung, nur Objekte, `any` |
+| `src/components/Shared/__tests__/useStoredIdSet.test.ts` (neu) | Hook |
+| `__tests__/expenseStatistics.class.test.ts`, `__tests__/expenseEvaluation.test.tsx` | erweitern |
+
+#### Tests 6.2b
+
+`useStoredIdSet.test.ts` (mit `renderHook` aus `@testing-library/react`; in `beforeEach` `localStorage.clear()`):
+- nichts gespeichert → leere Menge
+- gespeichertes `["a","b"]` → Menge mit a und b
+- kaputtes JSON (`"{nicht json"`) → leere Menge, kein Fehler
+- gültiges JSON, aber kein String-Array (`{"a":1}`, `[1,2]`) → leere Menge
+- `getItem` wirft (`jest.spyOn(Storage.prototype, "getItem").mockImplementation(() => { throw new Error("blocked"); })`) → leere Menge; danach `mockRestore()`
+- `setItem` wirft → `toggleId` ändert den State trotzdem (Auswahl gilt für diese Sitzung), kein Fehler
+- `toggleId("a")` zweimal → zuerst drin und gespeichert, dann weg und gespeichert
+- unterschiedliche Schlüssel beeinflussen sich nicht (Anlass A vs. B)
+
+`expenseStatistics.class.test.ts`, `excludeBudgets`:
+- leere Menge → alle Ausgaben
+- ein Budget ausgeschlossen → dessen Ausgaben fehlen, Rest unverändert
+- unbekannte ID in der Menge (gelöschtes Budget) → keine Wirkung
+
+`expenseEvaluation.test.tsx` (zwei Budgets: Küche CHF, Material CHF + EUR):
+- ein Budget → keine Chips
+- Material abwählen → Gesamttotal nur noch Küche, Top-5 ohne Material-Zeilen
+- Material abwählen → EUR-Toggle verschwindet (B4, Währungen aus der Auswahl)
+- Material abwählen → "Ohne Beleg" unverändert
+- beide abwählen → "Wähle mindestens ein Budget aus.", Chips noch da
+- nur ein Budget ohne Ausgaben gewählt → "In den gewählten Budgets …"
+- im `localStorage` vorab Material als abgewählt eingetragen → beim Rendern bereits abgewählt
+- neues Budget in den Props (Rerender), das nicht im Speicher steht → ausgewählt (B3)
+
+#### Mutationsproben 6.2b
+
+1. Im Hook *ausgewählte* statt abgewählte IDs behandeln (Logik in `excludeBudgets` umdrehen) → Test "neues Budget ist ausgewählt" muss rot werden.
+2. `try/catch` um `getItem` entfernen → Test "`getItem` wirft" muss rot werden.
+3. In `ExpenseEvaluation` `getCurrenciesInUse(expenses)` statt `(expensesOfSelectedBudgets)` → Test "EUR-Toggle verschwindet" muss rot werden.
+
+#### Im Browser ansehen
+
+1. Vier Budgets, Ausgaben in allen. "Material" abwählen → Zahlen ändern sich, darunter "3 von 4 Budgets berücksichtigt".
+2. Seite neu laden → Material bleibt abgewählt.
+3. Zweites Fenster (andere Köchin, anderes Gerät/Profil) → dort ist alles ausgewählt (B2, gewollt).
+4. Im zweiten Fenster ein neues Budget mit Ausgabe anlegen → im ersten Fenster erscheint es **ausgewählt**.
+5. Abgewähltes Budget leeren und löschen → kein Fehler, Chip verschwindet.
+6. Privates Fenster → funktioniert, Auswahl gilt bis zum Schliessen bzw. bis zum Neuladen.
+7. DevTools → Application → Local Storage: Schlüssel enthält die `eventId`, Wert ist ein Array der abgewählten IDs.
+8. **Mobile (xs):** Chips brechen um, keine horizontale Scrollleiste, Tippziele gross genug.
+
+**Definition of Done 6.2b:** `npx tsc --noEmit`, `npx jest useStoredIdSet expenseStatistics expenseEvaluation --watchAll=false`, `npm run lint` grün; Mutationsproben 1–3 bestätigt; Browser-Rundlauf Desktop **und** Mobile, Punkte 2–4 ausdrücklich.
+
+---
+
+### **Paket 6.2c — Filter "Nur ohne Beleg"**
+
+#### Was passiert
+
+Klick auf die Kachel "Ohne Beleg" (nur wenn Anzahl > 0) → Ansicht wechselt auf "Ausgaben", über der Liste steht ein `Chip` "Nur ohne Beleg ✕", die Liste zeigt nur Ausgaben ohne Beleg. Klick auf ✕ oder Wechsel in eine andere Ansicht → Filter weg.
+
+#### Fachliche Entscheidungen
+
+**F1 — Wo der Filter-Zustand lebt.** `const [showOnlyMissingReceipts, setShowOnlyMissingReceipts] = React.useState(false)` in der **Seite**. *Warum dort:* Zwei Geschwister-Komponenten brauchen ihn: `ExpenseEvaluation` setzt ihn (Klick auf die Kachel), `ExpenseList` zeigt das Ergebnis. Der gemeinsame Elternteil ist die Seite ("lifting state up"). Nicht in der URL: Der Filter ist ein kurzer Arbeitsschritt, kein Link, den man teilt.
+
+**F2 — Wo gefiltert wird.** **Vor** dem Gruppieren, im bestehenden `expenseGroups`-Memo (`expenseTracking.tsx:279`):
+
+```ts
+const expenseGroups = React.useMemo<ExpenseGroup[]>(() => {
+  const visibleExpenses = showOnlyMissingReceipts
+    ? (state.expenses ?? []).filter((expense) => expense.attachmentPath === null)
+    : (state.expenses ?? []);
+  return Expense.groupByBudget(visibleExpenses, state.budgets ?? []);
+}, [state.expenses, state.budgets, showOnlyMissingReceipts]);
+```
+
+*Warum vor dem Gruppieren und nicht in `ExpenseList`:* `groupByBudget` rechnet die Summen im Gruppenkopf. Filtert man danach, stünde im Kopf "Küche CHF 1'500" über zwei Zeilen à CHF 20. Filtert man davor, passen Kopf und Zeilen zusammen. Budget-Gruppen ohne passende Ausgaben verschwinden von selbst, weil `ExpenseList` leere Gruppen schon heute ausblendet (`expenseList.tsx`, `groupsWithExpenses`).
+
+*Warum `ExpenseList` den Filter nicht kennt:* Sie bleibt reine Darstellung ("berechnet selbst nichts", steht in ihrer JSDoc). Sie bekommt nur einen anderen Leertext (F4).
+
+**F3 — Zurücksetzen.** In `handleViewChange`: `setShowOnlyMissingReceipts(false)` bei jedem Ansichtswechsel. Die Kachel ruft eine neue Funktion `handleShowMissingReceipts` auf, die **zuerst** die Ansicht wechselt und **dann** den Filter setzt, beide im selben Event-Handler (React fasst beide `setState` zu einem Render zusammen, kein Flackern).
+
+**F4 — Gefiltert, aber leer.** Die letzte fehlende Quittung wird hochgeladen, während der Filter aktiv ist → Liste leer. Text dann nicht "Noch keine Ausgaben." (falsch), sondern "Alle Ausgaben haben einen Beleg." `ExpenseList` bekommt dafür eine optionale Prop `emptyText?: string` mit dem bisherigen Text als Standard. Der Filter bleibt aktiv, bis man ihn entfernt; so sieht man, dass die Arbeit erledigt ist.
+
+**F5 — "Neue Ausgabe" bei aktivem Filter.** Bleibt möglich. Eine neue Ausgabe ohne Beleg erscheint in der gefilterten Liste, eine mit Beleg nicht. Richtig so, kein Sonderfall.
+
+**F6 — Kachel klickbar machen.** `CardActionArea` um den Inhalt der Kachel, nur wenn Anzahl > 0. Bei 0 gibt es nichts zu filtern; eine klickbare Kachel, die zu einer leeren Liste führt, wäre verwirrend. `ExpenseEvaluation` bekommt dafür die Prop `handleShowMissingReceipts: () => void`.
+
+#### Dateien 6.2c
+
+| Datei | Änderung |
+|---|---|
+| `expenseTracking.tsx` | State, `expenseGroups`-Memo, `handleViewChange`, `handleShowMissingReceipts`, `Chip` über der Liste |
+| `expenseEvaluation.tsx` | Prop `handleShowMissingReceipts`, `CardActionArea` |
+| `expenseList.tsx` | optionale Prop `emptyText` |
+| `src/constants/text/expenseTracking.ts` | `FILTER_ONLY_MISSING_RECEIPTS` ("Nur ohne Beleg"); für den Leertext `EVALUATION_ALL_RECEIPTS_PRESENT` wiederverwenden |
+| Tests | siehe unten |
+
+#### Tests 6.2c
+
+`expenseTracking.test.tsx` (neues `describe("Filter: nur ohne Beleg")`; Ausgaben mit und ohne `attachmentPath` in **zwei** Budgets):
+- Klick auf Kachel → Ansicht "Ausgaben", Chip sichtbar, nur Zeilen ohne Beleg
+- Gruppenkopf zeigt die Summe **nur der sichtbaren** Ausgaben
+- Budget, dessen Ausgaben alle einen Beleg haben → Gruppenkopf nicht sichtbar
+- ✕ am Chip → alle Ausgaben wieder sichtbar
+- Wechsel auf "Übersicht" und zurück auf "Ausgaben" → Filter weg
+- gefiltert und keine Treffer → "Alle Ausgaben haben einen Beleg."
+
+`expenseEvaluation.test.tsx`:
+- Anzahl > 0: Klick ruft `handleShowMissingReceipts`
+- Anzahl 0: kein klickbares Element (`queryByRole("button", {name: …})` ist `null`)
+
+`expenseList.test.tsx`:
+- ohne `emptyText` → bisheriger Text (Regressionsschutz); mit → der übergebene
+
+#### Mutationsproben 6.2c
+
+1. Filter in `expenseGroups` **nach** `groupByBudget` statt davor anwenden (Gruppen-Expenses filtern) → Test "Gruppenkopf zeigt Summe der sichtbaren Ausgaben" muss rot werden.
+2. `setShowOnlyMissingReceipts(false)` aus `handleViewChange` entfernen → Test "Wechsel setzt Filter zurück" muss rot werden.
+3. `showOnlyMissingReceipts` aus den `useMemo`-Dependencies entfernen → Test "Klick auf Kachel filtert" muss rot werden. (Hier lässt sich die Dependency per Jest prüfen, anders als in 6.1, weil der Filter über einen Klick in derselben Seite gesetzt wird.)
+
+#### Im Browser ansehen
+
+1. Auswertung → Kachel "3 Ausgaben ohne Beleg" anklicken → Ausgabenliste mit Chip, drei Zeilen, Gruppenköpfe stimmen.
+2. Eine davon öffnen, Beleg hochladen, speichern → Zeile verschwindet aus der gefilterten Liste.
+3. Die letzten zwei ebenso → "Alle Ausgaben haben einen Beleg."
+4. Zweites Fenster: neue Ausgabe ohne Beleg erfassen → erscheint im ersten Fenster in der gefilterten Liste.
+5. Chip ✕ → volle Liste. Erneut filtern, auf "Übersicht" wechseln, zurück auf "Ausgaben" → ungefiltert.
+6. **Mobile (xs):** Chip und Toolbar überlagern sich nicht, Chip-✕ gross genug zum Tippen.
+
+**Definition of Done 6.2c:** `npx tsc --noEmit`, `npx jest expenseEvaluation expenseList expenseTracking --watchAll=false`, `npm run lint` grün; Mutationsproben 1–3 bestätigt; Browser-Rundlauf Desktop **und** Mobile inkl. Zweit-Köchin.
+
+---
+
+#### Typische Stolperfallen (aus Epic 1–6.1 gesammelt)
+
+- **`Array.prototype.sort` sortiert in place.** `state.expenses` direkt zu sortieren verändert den Reducer-State und damit die Reihenfolge in der Liste. Immer `[...array].sort(…)`.
+- **Geschütztes Leerzeichen in Beträgen.** `formatAmountFromCents` liefert "CHF 1’200.00" mit ` `; im Test `expectedAmount` verwenden (Lehre 6.1).
+- **`useMemo`-Dependencies.** Jeder Wert, der in der Funktion gelesen wird, gehört in die Liste. `participantCount` vergessen → Ø bleibt nach Änderung der Gruppenkonfiguration stehen.
+- **Rules of Hooks.** Der leere Zustand (K5) ist ein früher `return`. Alle `useState`/`useMemo` müssen **davor** stehen. ESLint merkt es in diesem Projekt nicht, es stürzt erst zur Laufzeit ab, sobald die erste Ausgabe erfasst wird (Pre-Commit-Checkliste).
+- **Währung im Test.** Mock-Ausgaben sind CHF. Für Mehrwährungs-Tests `currency` explizit setzen, sonst testet man aus Versehen nur den Ein-Währungs-Fall.
+- **`localStorage` kann werfen** (6.2b). Nicht nur kaputtes JSON, auch der Zugriff selbst. Immer `try/catch`, nie Sentry.
+- **Kein Analytics-Event für Ansichtswechsel.** Die bestehenden Toggles tracken auch nichts. Falls gewünscht: eigenes Thema, nicht in dieser Story.
+
+#### Helpcenter
+
+Wie bei 6.1: Absatz "Auswertung" (welche Kennzahlen, Budget-Auswahl pro Gerät, Währungsauswahl, Filter ohne Beleg) wird gesammelt am Ende von Epic 6 geschrieben.
+
+#### Entschieden (2026-10-10)
+
+- **O1** — "Ø pro Person & Tag": **ja**, geteilt durch alle Lagertage, beschriftet mit "bisher" (K2).
+- **O2** — Top-5-Zeilen öffnen den Bearbeiten-Dialog: **ja** (K4).
+- **O3** — Ohne Ausgaben ein Satz statt Kacheln mit Nullen: **ja** (K5).
+- **Budget-Auswahl** (Nutzer-Ergänzung): neues Paket 6.2b. Alle Budgets vorausgewählt, Auswahl pro Gerät im `localStorage`.
+
+---
+
+### Story 6.3 – 6.5 (Umriss, wird vor Start ausdetailliert)
+
+- **6.3 — Ausgabenverlauf.** `npm install @mui/x-charts@^7.29` (Entscheidung 7). `ExpenseStatistics.cumulativeByCampDay({expenses, budget | null, currency, campDays})` → eine Zahl pro Lagertag. Ausgaben vor dem Lager fliessen in Tag 1, Ausgaben in Zeitscheiben-Lücken in den nächsten Lagertag, Ausgaben nach Lagerende in den letzten Tag (sonst fehlen sie in der kumulierten Summe). Soll-Linie: `Soll × Tag / Lagertage`, siehe Budget-Auswahl unten. Ist-Linie nur bis heute (danach `null`, damit die Linie nicht flach in die Zukunft läuft). Keine eigene Budget-Auswahl mehr: Das Diagramm nutzt die Auswahl aus 6.2b; die Soll-Linie ist die Summe der Sollbeträge der *ausgewählten* Budgets in der gewählten Währung. Jest-Mock für das Diagramm, auch in `expenseTracking.test.tsx` (Entscheidung 8).
 - **6.4 — Verteilung nach Budget.** `ExpenseStatistics.shareByBudget(expenses, budgets, currency)` → `{budgetId, name, amountInCents}[]`, Budgets ohne Ausgaben weggelassen, absteigend. `PieChart` mit `innerRadius` (Donut), Legende unter dem Diagramm auf Mobile. Farben aus dem MUI-Theme, nicht hart codiert.
 - **6.5 — Ø pro Mahlzeit.** `event.tsx` reicht `state.menuplan` als Prop durch. Entschieden (2026-10-10):
   - **Problem:** Hauptmahlzeiten (Zmorge, Zmittag, Znacht) und kleine Mahlzeiten (Zvieri, Dessert …) kosten sehr unterschiedlich viel. Ein Durchschnitt über alle wäre verzerrt. Mahlzeitentyp-Namen sind freier Text pro Anlass.
@@ -2914,7 +3542,7 @@ Der Vergleich über `YYYY-MM-DD`-Strings ist lexikografisch korrekt und unabhän
   - **Auswahl merken:** pro Anlass im `localStorage` (Key mit `eventId`). Reine Ansichtseinstellung pro Gerät, wird nicht zwischen Köch:innen geteilt, keine Migration. Zugriffe in `try/catch`; ohne Speicher gilt die Vorauswahl. Gemerkte Typ-UIDs, die es im Menüplan nicht mehr gibt, werden ignoriert. Neue Typen sind standardmässig ausgewählt. Reicht das in der Praxis nicht, wäre ein Flag "Hauptmahlzeit" auf `event_meal_types` der saubere nächste Schritt (Migration + Menüplan-UI).
   - **Reine Funktion:** `ExpenseStatistics.countPlannedMeals(menuplan, selectedMealTypeUids)` mit Tests (leere Slots, nicht ausgewählte Typen, keine Typen ausgewählt → 0).
   - Ohne geplante Mahlzeiten, ohne ausgewählten Typ oder ohne Teilnehmende → Hinweis statt Zahl (Entscheidung 10).
-  - *Vor Start klären:* **Für welches Budget?** Issue: "nur für Essen/Küche". Vorschlag: für Budgets mit Icon `kitchen` oder `groceries`, angezeigt, wenn in der Budget-Auswahl aus 6.3 ein solches Budget gewählt ist.
+  - **Für welches Budget?** Erledigt durch 6.2b: Gerechnet wird über die ausgewählten Budgets. Wer nur das Essen sehen will, wählt die übrigen ab. Für die gemerkten Mahlzeitentypen `useStoredIdSet` aus 6.2b wiederverwenden (auch dort die *abgewählten* speichern).
 
 ## Epic 7 — PDF-Abrechnung
 
