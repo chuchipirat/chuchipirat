@@ -468,6 +468,7 @@ const UserProfilePage = () => {
   const onPictureDelete = React.useCallback(async () => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       text: TEXT_CONFIRM_DELETE_PICTURE,
       title: TEXT_DELETE_PICTURE,
       buttonTextConfirm: TEXT_DELETE,

@@ -185,6 +185,7 @@ const SystemMessageOverviewPage = () => {
   const onDelete = async (uid: string) => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       text: TEXT_DELETE_SYSTEM_MESSAGE_CONFIRMATION,
       title: TEXT_DELETE_SYSTEM_MESSAGE,
       buttonTextConfirm: TEXT_DELETE,

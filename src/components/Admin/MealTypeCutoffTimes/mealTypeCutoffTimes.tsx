@@ -59,6 +59,7 @@ import {
   MEAL_TYPE_CUTOFF_INVALID_TIME_FORMAT as TEXT_INVALID_TIME_FORMAT,
   SAVE as TEXT_SAVE,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
+  DELETE as TEXT_DELETE,
 } from "../../../constants/text";
 
 /** Prüft, ob eine Zeitangabe dem Format "HH:MM" (24h) entspricht. */
@@ -287,6 +288,8 @@ const MealTypeCutoffTimesPage = () => {
 
       const confirmed = await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
+        buttonTextConfirm: TEXT_DELETE,
         title: TEXT_DELETE_CONFIRM,
         text: `«${cutoff.names.join(", ")}»`,
       });

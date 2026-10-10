@@ -498,6 +498,7 @@ const MealTypeRow = memo(function MealTypeRow({
     ) {
       const isConfirmed = await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
         text: TEXT_ALL_RECIPES_AND_VALUES_WILL_BE_DELETED,
         title: `⚠️  ${TEXT_ATTENTION}`,
         buttonTextConfirm: TEXT_DELETE,
