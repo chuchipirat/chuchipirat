@@ -8,7 +8,7 @@ Ziel: Löschen/Verwerfen sieht anders aus als Bestätigen, und Enter löscht nic
 - [x] 2. `customDialog.tsx`: an `ConfirmDialog` weitergeben
 - [x] 3. `ConfirmDialog.tsx`: bei `destructive` Bestätigen-Button `variant="contained" color="error"` (gleiches Bild wie `ConfirmSecure`), `autoFocus` auf **Abbrechen** statt Bestätigen. Ohne Flag unverändert
 - [x] 4. Tests `Shared/dialogs/__tests__/ConfirmDialog.test.tsx` (neu): Fokus auf Abbrechen + Enter löst kein `onConfirm` aus; ohne Flag Fokus auf Bestätigen (bisheriges Verhalten); Mutationsprobe
-- [x] 5. 17 Aufrufer (14 auf `develop` erledigt; 3 auf `feature/expense-tracking` offen, siehe Review) mit `destructive: true`:
+- [x] 5. 17 Aufrufer (14 auf `develop`, 3 auf `feature/expense-tracking`) mit `destructive: true`:
   - Löschen: Kommentar (`recipe.view.tsx:2544`), Spendenziel-Abschnitt (`donationGoals.tsx:296`), Essens-Cutoff (`mealTypeCutoffTimes.tsx:289`), Feeds (`overviewFeeds.tsx:300`), Systemmeldung (`systemMessageOverview.tsx:187`), Profilbild (`userProfile.tsx:499`), Zahlungsangaben (`userPaymentDetailsCard.tsx:166`), Produkt (`products.tsx:257`), Material (`materials.tsx:518`), Menüplan (`useMenuplanHandlers.tsx:385`, `menuplan.mealTypeRows.tsx:500`), Budget (`expenseTracking.tsx:612`), Ausgabe (`expenseTracking.tsx:649`), Anlass-Bild (`eventInfo.tsx:302`), geplante Tage löschen (`event.tsx:1770`)
   - Änderungen verwerfen: `recipe.edit.tsx:1429`, `groupConfiguration.tsx:304`
   - Bei den 4 Löschdialogen ohne Button-Text (Spendenziel, Cutoff, Produkt, Material) zusätzlich `buttonTextConfirm: TEXT_DELETE`, sonst steht «OK» auf einem roten Button
@@ -35,9 +35,10 @@ Ziel: Löschen/Verwerfen sieht anders aus als Bestätigen, und Enter löscht nic
 
 ### Offen
 
-- [ ] Browser-Prüfung Desktop + Mobile (Löschdialog: rot, Fokus auf Abbrechen, Enter bricht ab; ein normaler Dialog unverändert)
-- [ ] PR gegen `develop`
-- [ ] Nach Merge in `develop` und Rebase von `feature/expense-tracking`: `destructive: true` + ggf. `buttonTextConfirm` für Zahlungsangaben, Budget und Ausgabe nachziehen (vorher kompiliert es dort nicht, das Flag fehlt)
+- [x] Browser-Prüfung lokal (Mobile, Zahlungsangaben löschen): roter Button ✓, Enter löscht nicht ✓. Fokus landet im **Dev**-Build auf dem Dialog-Container statt auf «Abbrechen» (StrictMode-Doppeleffekt + MUI-FocusTrap, `FocusTrap.js:116-146`), betrifft nur Dev. Produktions-Build lokal nicht prüfbar (Port 3001 friert in der Chrome-Erweiterung ein)
+- [ ] Auf TEST bestätigen: «Abbrechen» hat den Fokus, Enter schliesst ohne zu löschen
+- [x] PR gegen `develop`: #243
+- [x] Auf `feature/expense-tracking` per Cherry-pick übernommen, Zahlungsangaben, Budget und Ausgabe mit `destructive: true` (2767 Tests grün). Nach Merge von #243 beim Rebase auf `develop` fällt das Duplikat weg
 
 ---
 
