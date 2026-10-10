@@ -24,6 +24,7 @@ const CUSTOM_DIALOG_INITIAL_STATE: State = {
   subtitle: "",
   buttonTextConfirm: "",
   buttonTextCancel: "",
+  destructive: false,
   options: [],
 };
 
@@ -71,6 +72,7 @@ type State = {
   subtitle: string;
   buttonTextConfirm: string;
   buttonTextCancel: string;
+  destructive: boolean;
   deletionDialogProperties?: DeletionDialogProperties;
   singleTextInputProperties?: SingleTextInputProperties;
   options: Option[];
@@ -93,6 +95,11 @@ interface DialogContentProps {
   subtitle?: string;
   buttonTextConfirm?: string;
   buttonTextCancel?: string;
+  /**
+   * Nur `DialogType.Confirm`: Die Bestätigung löscht oder verwirft etwas.
+   * Bestätigen-Button wird rot, der Fokus startet auf "Abbrechen".
+   */
+  destructive?: boolean;
   deletionDialogProperties?: DeletionDialogProperties;
   singleTextInputProperties?: SingleTextInputProperties;
   options?: Option[];
@@ -178,6 +185,7 @@ export const useCustomDialog = () => {
     subtitle,
     buttonTextCancel,
     buttonTextConfirm,
+    destructive,
     deletionDialogProperties,
     singleTextInputProperties,
     options,
@@ -191,6 +199,7 @@ export const useCustomDialog = () => {
         subtitle: subtitle ? subtitle : "",
         buttonTextConfirm: buttonTextConfirm ? buttonTextConfirm : TEXT_OK,
         buttonTextCancel: buttonTextCancel ? buttonTextCancel : TEXT_CANCEL,
+        destructive: destructive ?? false,
         deletionDialogProperties: deletionDialogProperties,
         singleTextInputProperties: singleTextInputProperties,
         options: options,

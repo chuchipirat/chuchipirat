@@ -46,6 +46,7 @@ import {
   SHOW_ALL_PRODUCTS as TEXT_SHOW_ALL_PRODUCTS,
   SHOW_ONLY_NEWEST_PRODUCTS as TEXT_SHOW_ONLY_NEWEST_PRODUCTS,
   CONVERT_TO_MATERIAL as TEXT_CONVERT_TO_MATERIAL,
+  DELETE as TEXT_DELETE,
 } from "../../constants/text";
 import {
   QA_CHECKED as TEXT_QA_CHECKED,
@@ -255,6 +256,8 @@ const ProductsPage = () => {
 
       const confirmed = await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
+        buttonTextConfirm: TEXT_DELETE,
         title: TEXT_DELETE_PRODUCT_CONFIRM(product.name),
         text: dialogText,
       });

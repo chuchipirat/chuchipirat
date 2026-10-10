@@ -42,6 +42,7 @@ import {
   MATERIAL_TYPE_USAGE as TEXT_MATERIAL_TYPE_USAGE,
   USABLE as TEXT_USABLE,
   SAVE_SUCCESS as TEXT_SAVE_SUCCESS,
+  DELETE as TEXT_DELETE,
 } from "../../constants/text";
 import {
   QA_CHECKED as TEXT_QA_CHECKED,
@@ -516,6 +517,8 @@ const MaterialPage = () => {
 
       const confirmed = await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
+        buttonTextConfirm: TEXT_DELETE,
         title: TEXT_DELETE_MATERIAL_CONFIRM(material.name),
         text: dialogText,
       });

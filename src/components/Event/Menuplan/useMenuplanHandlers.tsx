@@ -136,6 +136,7 @@ export interface UseMenuplanHandlersParams {
     text: string;
     title: string;
     buttonTextConfirm?: string;
+    destructive?: boolean;
   }) => Promise<unknown>;
   dialogs: UseMenuplanDialogsReturn;
   userDidChangeDnD: React.MutableRefObject<boolean>;
@@ -383,6 +384,7 @@ export function useMenuplanHandlers({
         case Action.DELETE:
           isConfirmed = (await customDialog({
             dialogType: DialogType.Confirm,
+            destructive: true,
             text: TEXT_ALL_MEAL_AND_VALUES_WILL_BE_DELETED,
             title: `\u26a0\ufe0f  ${TEXT_ATTENTION}`,
             buttonTextConfirm: TEXT_DELETE,

@@ -1768,6 +1768,7 @@ const EventPage = () => {
     ) {
       const userInput = (await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
         title: TEXT_ATTENTION_ABOUT_TO_DELETE_PLANED_DAYS,
         text: TEXT_DELETION_AFFECTS_PLANED_DAYS,
         buttonTextConfirm: TEXT_PROCEED,
