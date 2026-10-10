@@ -63,7 +63,7 @@ export type BudgetDomain = {
  * @param targetAmountInCents - absoluter Budgetbetrag
  * @param spentAmountInCents - bereits ausgegebener Betrag
  * @param otherCurrenciesSpent - Ausgaben in anderen Währungen
- *@param percentage - prozentuale Ausnutzung des Budgets;
+ * @param percentage - prozentuale Ausnutzung des Budgets;
  */
 
 export type BudgetWithProgress = {
@@ -72,6 +72,19 @@ export type BudgetWithProgress = {
   spentAmountInCents: number;
   otherCurrenciesSpent: Record<string, number>[];
   percentage: number;
+  /** `null`, wenn keine Hochrechnung möglich ist (vor dem Lager, ab dem letzten Lagertag). */
+  projection: BudgetProjection | null;
+};
+/**
+ * Lineare Hochrechnung der Ausgaben eines Budgets bis Lagerende.
+ * @param projectedAmountInCents - Voraussichtliche Endsumme in Rappen (Budgetwährung).
+ * @param elapsedCampDays - Bereits vergangene Lagertage inkl. heute (≥ 1).
+ * @param totalCampDays - Anzahl Lagertage gesamt (> elapsedCampDays).
+ */
+export type BudgetProjection = {
+  projectedAmountInCents: number;
+  elapsedCampDays: number;
+  totalCampDays: number;
 };
 
 /* =====================================================================

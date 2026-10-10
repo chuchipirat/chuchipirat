@@ -16,8 +16,15 @@ import {
   NEW_BUDGET as TEXT_NEW_BUDGET,
   SPENT_AMOUNT as TEXT_SPENT_AMOUNT,
   OF_LIMIT as TEXT_OF_LIMIT,
+  PROJECTION_TILL_EVENT_END as TEXT_PROJECTION_TILL_EVENT_END,
+  DAY_X_OF_Y_IN_EVENT as TEXT_DAY_X_OF_Y_IN_EVENT,
+  PROJECTION_ABOVE_BUDGET as TEXT_PROJECTION_ABOVE_BUDGET,
 } from "../../../constants/text/expenseTracking";
-import {EditOutlined, AddOutlined} from "@mui/icons-material";
+import {
+  EditOutlined,
+  AddOutlined,
+  TrendingUpOutlined,
+} from "@mui/icons-material";
 
 import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
 import {useCustomStyles} from "../../../constants/styles";
@@ -67,6 +74,12 @@ export const BudgetCard = ({
     : budgetWithProgress.budget.amountInCents
       ? `${TEXT_BUDGET_TYPE_FIXED_AMOUNT}: ${formatAmountFromCents(budgetWithProgress.budget.amountInCents, budgetWithProgress.budget.currency)}`
       : TEXT_BUDGET_TYPE_FIXED_AMOUNT;
+
+  const isProjectedOverBudget =
+    budgetWithProgress.projection !== null &&
+    budgetWithProgress.targetAmountInCents > 0 &&
+    budgetWithProgress.projection.projectedAmountInCents >
+      budgetWithProgress.targetAmountInCents;
 
   return (
     <Card
@@ -128,6 +141,7 @@ export const BudgetCard = ({
           )}
         </Typography>
       </Box>
+
       {budgetWithProgress.otherCurrenciesSpent.map((currency) => {
         const [key, value] = Object.entries(currency)[0];
 
@@ -152,6 +166,44 @@ export const BudgetCard = ({
                   budgetWithProgress.budget.currency,
                 )
               : TEXT_BUDGET_TARGET_AMOUNT_MISSING}
+          </Typography>
+        </Box>
+      )}
+      {budgetWithProgress.projection !== null && (
+        <Box sx={classes.budgetProjection}>
+          <Box sx={classes.budgetProjectionRow}>
+            {isProjectedOverBudget && (
+              <TrendingUpOutlined fontSize="small" color="warning" />
+            )}
+            <Typography
+              variant="body2"
+              sx={
+                isProjectedOverBudget
+                  ? classes.budgetProjectionWarning
+                  : undefined
+              }
+            >
+              {TEXT_PROJECTION_TILL_EVENT_END}{" "}
+              {formatAmountFromCents(
+                budgetWithProgress.projection.projectedAmountInCents,
+                budgetWithProgress.budget.currency,
+              )}
+            </Typography>
+          </Box>
+          {isProjectedOverBudget && (
+            <Typography
+              variant="caption"
+              sx={classes.budgetProjectionWarning}
+              component="p"
+            >
+              {TEXT_PROJECTION_ABOVE_BUDGET}
+            </Typography>
+          )}
+          <Typography variant="caption" color="text.secondary" component="p">
+            {TEXT_DAY_X_OF_Y_IN_EVENT(
+              budgetWithProgress.projection.elapsedCampDays,
+              budgetWithProgress.projection.totalCampDays,
+            )}
           </Typography>
         </Box>
       )}
