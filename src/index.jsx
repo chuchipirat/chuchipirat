@@ -17,7 +17,11 @@ import DatabaseService from "./components/Database/DatabaseService";
 import {ErrorPage} from "./components/500/500";
 import {Utils} from "./components/Shared/utils.class";
 import {initAnalytics} from "./components/Analytics/analyticsService";
-import {CHUNK_LOAD_ERROR_PATTERNS, isChunkLoadError} from "./utils/errorUtils";
+import {
+  CHUNK_LOAD_ERROR_PATTERNS,
+  isChunkLoadError,
+  redactSupabaseErrorDetails,
+} from "./utils/errorUtils";
 import {LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/de";
@@ -59,8 +63,10 @@ Sentry.init({
   integrations: [
     Sentry.browserTracingIntegration({shouldCreateSpanForRequest}),
     Sentry.replayIntegration({
-      // Alle Eingaben sichtbar lassen (keine sensiblen Daten in der App),
-      // nur Passwortfelder werden explizit maskiert via CSS-Selektor.
+      // Eingaben und Texte sichtbar lassen, damit Replays beim Debuggen
+      // helfen. Passwortfelder werden per CSS-Selektor maskiert; Bereiche mit
+      // sensiblen Daten (z.B. IBAN, Adresse) tragen `data-sentry-block` und
+      // erscheinen im Replay nur als graue Fläche.
       maskAllInputs: false,
       maskAllText: false,
       blockAllMedia: false,
@@ -105,6 +111,8 @@ Sentry.init({
   replaysSessionSampleRate: 0.1,
   replaysOnErrorSampleRate: 1.0,
   enableLogs: true,
+  // Supabase-Fehler enthalten in `details` ganze Zeilen (z.B. IBAN)
+  beforeSend: redactSupabaseErrorDetails,
 });
 
 // Umami Analytics initialisieren (cookie-freies, datenschutzkonformes Tracking)

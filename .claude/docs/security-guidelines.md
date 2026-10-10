@@ -194,6 +194,16 @@ $$;
 
 ---
 
+## Sentry and Sensitive Data
+
+Sentry receives error events and Session Replays (10 % of sessions, 100 % on error). Replays record text and input values **unmasked** (`src/index.jsx`), so they are useful for debugging.
+
+- **Sensitive data in the UI** (IBAN, address, other personal data beyond name/email): put `data-sentry-block` on the smallest element that wraps it. It appears as a grey box in replays. Example: `PaymentDetailsForm`, `UserPaymentDetailsCard`.
+- **Supabase errors**: repositories throw the raw PostgREST object; its `details` can contain the full row (`Failing row contains (…)`). `redactSupabaseErrorDetails` (`src/utils/errorUtils.ts`, wired as `beforeSend`) removes `details` and `hint` centrally — do not remove or bypass it.
+- Never put sensitive values into `extra`, breadcrumbs, `console.*` (console logs are sent to Sentry) or analytics events.
+
+---
+
 ## Checklist for New Features
 
 When implementing a new form, repository, or upload:
@@ -205,6 +215,7 @@ When implementing a new form, repository, or upload:
 - [ ] Re-authentication required before sensitive changes (email/password)
 - [ ] No `dangerouslySetInnerHTML` with user-controlled content
 - [ ] DB functions using dynamic SQL have an allowlist guard
+- [ ] Sensitive data in the UI wrapped in `data-sentry-block`
 
 ## Known Security Decisions
 

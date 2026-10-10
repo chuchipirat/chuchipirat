@@ -247,3 +247,40 @@ export function captureUnexpectedError(
   if (isTransientNetworkError(error) || isMissingSessionError(error)) return;
   Sentry.captureException(toError(error), extra ? {extra} : undefined);
 }
+
+/**
+ * Felder eines Supabase-/PostgREST-Fehlers, die Zeileninhalte enthalten können
+ * (z.B. `details: "Failing row contains (…, <IBAN>, …)"` bei verletztem CHECK
+ * oder `"Key (email)=(…) already exists."` bei verletztem UNIQUE).
+ */
+const ROW_DATA_ERROR_FIELDS = ["details", "hint"] as const;
+
+/** Ersatzwert für entfernte Felder — zeigt in Sentry, dass etwas da war. */
+const REDACTED = "[entfernt]";
+
+/**
+ * Entfernt Zeileninhalte aus einem als einfaches Objekt geworfenen
+ * Supabase-Fehler, bevor das Event an Sentry geht.
+ *
+ * Die Repositories werfen den PostgREST-Fehler unverändert weiter (kein
+ * `Error`, sondern `{code, details, hint, message}`). Sentry hängt solche
+ * Objekte vollständig als `extra.__serialized__` ans Event — inklusive
+ * `details`, das bei Constraint-Verletzungen die ganze Zeile enthält.
+ * `code` und `message` bleiben erhalten, sie reichen zum Debuggen.
+ *
+ * @param event - Das Sentry-Event (wird direkt angepasst).
+ * @returns Dasselbe Event ohne Zeileninhalte.
+ * @example
+ * Sentry.init({beforeSend: redactSupabaseErrorDetails});
+ */
+export function redactSupabaseErrorDetails<
+  T extends {extra?: Record<string, unknown>},
+>(event: T): T {
+  const serialized = event.extra?.__serialized__;
+  if (!isRecordLike(serialized)) return event;
+
+  ROW_DATA_ERROR_FIELDS.forEach((field) => {
+    if (serialized[field]) serialized[field] = REDACTED;
+  });
+  return event;
+}

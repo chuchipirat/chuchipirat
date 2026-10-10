@@ -7,6 +7,7 @@ import {
   isMissingSessionError,
   isRlsViolationError,
   isTransientNetworkError,
+  redactSupabaseErrorDetails,
   toError,
 } from "../errorUtils";
 
@@ -375,5 +376,61 @@ describe("captureUnexpectedError", () => {
     captureUnexpectedError(error);
 
     expect(Sentry.captureException).toHaveBeenCalledWith(error, undefined);
+  });
+});
+
+/* ===================================================================
+// ======================== redactSupabaseErrorDetails ===============
+// =================================================================== */
+
+describe("redactSupabaseErrorDetails", () => {
+  test("entfernt details und hint, behält code und message", () => {
+    const event = {
+      extra: {
+        __serialized__: {
+          code: "23514",
+          message: 'new row violates check constraint "iban_check"',
+          details: "Failing row contains (uid, Teststrasse 1, CH93 0076)",
+          hint: "irgendein Hinweis",
+        },
+      },
+    };
+
+    const result = redactSupabaseErrorDetails(event);
+
+    expect(result.extra.__serialized__).toEqual({
+      code: "23514",
+      message: 'new row violates check constraint "iban_check"',
+      details: "[entfernt]",
+      hint: "[entfernt]",
+    });
+  });
+
+  test("lässt leere Felder unverändert (null bleibt sichtbar)", () => {
+    const event = {
+      extra: {__serialized__: {code: "42P01", details: null, hint: null}},
+    };
+
+    redactSupabaseErrorDetails(event);
+
+    expect(event.extra.__serialized__).toEqual({
+      code: "42P01",
+      details: null,
+      hint: null,
+    });
+  });
+
+  test("lässt Events ohne serialisiertes Objekt unverändert", () => {
+    const withoutExtra: {message: string; extra?: Record<string, unknown>} = {
+      message: "boom",
+    };
+    const withOtherExtra = {extra: {context: "Test"}};
+
+    expect(redactSupabaseErrorDetails(withoutExtra)).toEqual({
+      message: "boom",
+    });
+    expect(redactSupabaseErrorDetails(withOtherExtra)).toEqual({
+      extra: {context: "Test"},
+    });
   });
 });
