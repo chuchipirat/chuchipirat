@@ -3562,6 +3562,7 @@ Wie bei 6.1: Absatz "Auswertung" (welche Kennzahlen, Budget-Auswahl pro Gerät, 
   `__tests__/` und `__mocks__/` wandern jeweils mit in den Unterordner.
 - **Reines Verschieben** wie Paket 2.1: `git mv`, Importe nachziehen, keine Verhaltensänderung, ein Commit (`refactor(abrechnung): …`). Danach `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` grün; Importe von ausserhalb prüfen (`grep -rn "ExpenseTracking/" src`).
 - `architecture.md` um den Hinweis ergänzen, dass grosse Feature-Ordner nach Unterthema aufgeteilt werden.
+- **Styles und Texte werden hier *nicht* geordnet**, sondern einmal am Ende in Epic 10 (entschieden 2026-10-11, siehe dort). Bis dahin neue Einträge in beiden Dateien als Block pro Epic mit Kopfkommentar anhängen (z.B. `// PDF-Abrechnung (Epic 7)`), damit das spätere Ordnen einfach bleibt.
 
 ## Epic 7 — PDF-Abrechnung
 
@@ -3600,6 +3601,11 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
 _Wird vor Start verfeinert. Grober Zuschnitt:_
 
 - 10.1 Voller Regressionslauf (`tsc`, `lint`, `test`), Mobile/Tablet-Check aller neuen Screens.
+- **10.x Styles und Texte ordnen** (entschieden 2026-10-11): einmal am Ende, wenn alle Einträge aus Epic 7–9 bekannt sind; vorher wäre es doppelte Arbeit. Je Datei ein eigener Commit (`refactor(abrechnung): …`), **reines Umsortieren, Umbenennen und Löschen von Unbenutztem, keine Werte ändern**. `tsc` findet jede vergessene Umbenennung.
+  - **Gemeinsame Abschnitte** für beide Dateien, in der Reihenfolge der Bildschirme (und passend zu den Unterordnern): Seite/Toolbar · Budget-Karte inkl. Hochrechnung · Budget-Dialog · Ausgabenliste · Ausgaben-Dialog (Formular, zahlende Instanz, Beleg) · Zahlende Instanz/Übersicht · Auswertung · PDF-Abrechnung · Export. Kopfkommentar im bestehenden Format (`/* ---- // Titel // ---- */` wie in `src/constants/styles.ts` bzw. `/* ==== */` wie oben in der Textdatei).
+  - **Styles** (`src/constants/styles/expenseTracking.styles.ts`): Präfix vereinheitlichen `statistics*` → `evaluation*` (heute zwei Präfixe für dieselbe Ansicht); `budgetProjection*` zur Budget-Karte (liegt heute am Dateiende); innerhalb eines Abschnitts Container vor Kindern, Varianten (`…Selected`, `…Over`) direkt nach dem Grundstil. Prüfen: Anzahl Einträge vorher = nachher (`grep -cE "^  [a-zA-Z]+:" …`), Sichtprüfung aller Ansichten im Browser.
+  - **Texte** (`src/constants/text/expenseTracking.ts`): Präfixe pro Bereich vereinheitlichen, z.B. `NO_EXPENSES_FOR_STATS` → `EVALUATION_NO_EXPENSES`, `DAY_X_OF_Y_IN_EVENT` → `PROJECTION_DAY_X_OF_Y`. Unbenutzte Konstanten löschen (Stand 2026-10-11: `BELEG`, `DELETE_BELEG` — zugleich deutsche Bezeichner und Duplikate von `EXPENSE_RECEIPT`/`REMOVE_EXPENSE_RECEIPT` — sowie `BUDGET_TYPE_PER_PERSON_PER_DAY_AMOUNT`). Prüfskript für Unbenutztes: jede exportierte Konstante per `grep -rnw` ausserhalb der Datei suchen. Texte, die auch in `src/constants/text/` anderer Bereiche vorkommen (`CANCEL`, `SAVE` …), bleiben dort.
+  - **Grösse prüfen:** Ist eine der beiden Dateien danach über ca. 500 Zeilen, entlang der Abschnitte aufteilen (z.B. `expenseTrackingBudget.styles.ts`, `…Evaluation…`). Darunter bleibt es je eine Datei.
 - 10.2 Finaler PR gegen `develop` + Release-Notes-Text.
 
 ---
