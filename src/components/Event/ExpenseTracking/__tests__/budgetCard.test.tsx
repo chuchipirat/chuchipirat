@@ -1,7 +1,7 @@
 /**
  * Unit-Tests für die Budget-Karte (budgetCard.tsx).
  *
- * Schwerpunkt: Anzeige der Hochrechnung bis Lagerende inkl. Warnfall
+ * Schwerpunkt: Anzeige der Hochrechnung bis Anlassende inkl. Warnfall
  * (Story 6.1). Reine Anzeige-Komponente, darum ohne Contexts.
  */
 import {fireEvent, render, screen} from "@testing-library/react";
@@ -90,13 +90,13 @@ describe("BudgetCard, Hochrechnung", () => {
     expect(
       screen.queryByText(TEXT_PROJECTION_TILL_EVENT_END, {exact: false}),
     ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Lagertag/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Anlasstag/)).not.toBeInTheDocument();
     expect(
       screen.queryByText(TEXT_PROJECTION_ABOVE_BUDGET),
     ).not.toBeInTheDocument();
   });
 
-  test("Hochrechnung unter Soll: Betrag und Lagertag sichtbar, keine Warnung", () => {
+  test("Hochrechnung unter Soll: Betrag und Anlasstag sichtbar, keine Warnung", () => {
     renderBudgetCard(
       createBudgetWithProgress({projection: projectionBelowTarget}),
     );
