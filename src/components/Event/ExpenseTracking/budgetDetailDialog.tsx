@@ -15,6 +15,8 @@ import {
   MenuItem,
   FormLabel,
   ButtonBase,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 import {
   BUDGET_TYPE_FIXED_AMOUNT as TEXT_BUDGET_TYPE_FIXED_AMOUNT,
@@ -127,6 +129,11 @@ export const BudgetDetailDialog: React.FC<BudgetDetailDialogProps> = ({
       : INITIAL_FORM_STATE;
 
   const classes = useCustomStyles();
+  // Auf kleinen Bildschirmen im Vollbild: mehr Platz für das Formular, und
+  // die Tastatur verdeckt nicht den halben Dialog (Muster wie
+  // userPaymentDetailsDialog.tsx)
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const [touched, setTouched] = React.useState(false);
   const [formState, setFormState] = useState<BudgetDetailDialogState>(
     budgetToFormState(budget),
@@ -189,7 +196,13 @@ export const BudgetDetailDialog: React.FC<BudgetDetailDialogProps> = ({
     formState.icon != null;
 
   return (
-    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      fullWidth
+      maxWidth="sm"
+      fullScreen={fullScreen}
+    >
       <DialogTitle>{budget ? TEXT_BUDGET : TEXT_NEW_BUDGET}</DialogTitle>
       <DialogContent>
         <TextField
