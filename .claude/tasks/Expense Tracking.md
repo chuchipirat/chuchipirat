@@ -3274,9 +3274,14 @@ Funktions-Texte nach dem Muster von `DAY_X_OF_Y_IN_EVENT` (Pfeilfunktion mit Rü
 
 ### **Paket 6.2b — Budget-Auswahl für die Auswertung**
 
+> **Stand nach 6.2a (2026-10-11), gilt vor den Details unten:**
+> - `ExpenseStatistics.excludeBudgets(expenses, excludedBudgetIds: string[])` und die Verarbeitungsreihenfolge aus B5 sind **schon umgesetzt**. In `ExpenseEvaluation` steht als Platzhalter `const [excludedBudgetIds] = React.useState<string[]>([]);` — genau diese Zeile ersetzt 6.2b durch den Hook.
+> - **Array statt `Set`:** Der Hook liefert `ids: string[]` (nicht `Set<string>`), passend zu `excludeBudgets`. Grund: lässt sich direkt als JSON speichern, und bei einer Handvoll Budgets spielt `includes` gegenüber `Set.has` keine Rolle.
+> - «Ohne Beleg» ist in 6.2a keine Kachel geworden, sondern ein `Alert` oberhalb der Kennzahlen. Er steht damit sichtbar ausserhalb der Budget- und Währungsauswahl; ein Zusatztext «alle Budgets und Währungen» ist nicht nötig.
+
 #### Worum es geht
 
-Nicht jede Ausgabe gehört zur Küche. Die Küche kauft oft Dinge für das ganze Lager ein (z.B. Material für die Lagerleitung, Spielmaterial), meist in einem eigenen Budget ohne Sollbetrag. Diese Ausgaben müssen erfasst werden, weil sie in die Abrechnung gehören. In der Auswertung verfälschen sie aber die Kennzahlen: Ø pro Teilnehmer:in ist dann nicht mehr "was kostet uns das Essen". → Die Köchin wählt, **welche Budgets in die Auswertung einfliessen**.
+Nicht jede Ausgabe gehört zur Küche. Die Küche kauft oft Dinge für den ganzen Anlass ein (z.B. Material für die Lagerleitung, Spielmaterial), meist in einem eigenen Budget ohne Sollbetrag. Diese Ausgaben müssen erfasst werden, weil sie in die Abrechnung gehören. In der Auswertung verfälschen sie aber die Kennzahlen: Ø pro Teilnehmer:in ist dann nicht mehr "was kostet uns das Essen". → Die Köchin wählt, **welche Budgets in die Auswertung einfliessen**.
 
 ```
 Budgets:  [✓ 🍳 Küche] [✓ 🛒 Grosseinkauf] [ 🎨 Material ] [ 🏕 Lagerleitung ]
@@ -3291,7 +3296,7 @@ Ein `Chip` pro Budget (Icon + Name). Ausgewählt = `variant="filled" color="prim
 
 **B1 — Vorauswahl: alle Budgets** (entschieden 2026-10-10). Nichts wird still ausgeblendet. Wer "Material" nicht drin haben will, wählt es einmal ab.
 
-**B2 — Gespeichert pro Gerät im `localStorage`** (entschieden 2026-10-10). Kein Teilen zwischen Köch:innen, keine Migration. Folge, bewusst akzeptiert: Zwei Köch:innen können für dasselbe Lager unterschiedliche Durchschnitte sehen. Reicht das in der Praxis nicht, wäre eine Spalte `event_budgets.include_in_statistics` der saubere nächste Schritt (gleiche Überlegung wie bei den Mahlzeitentypen in 6.5).
+**B2 — Gespeichert pro Gerät im `localStorage`** (entschieden 2026-10-10). Kein Teilen zwischen Köch:innen, keine Migration. Folge, bewusst akzeptiert: Zwei Köch:innen können für denselben Anlass unterschiedliche Durchschnitte sehen. Reicht das in der Praxis nicht, wäre eine Spalte `event_budgets.include_in_statistics` der saubere nächste Schritt (gleiche Überlegung wie bei den Mahlzeitentypen in 6.5).
 
 **B3 — Gespeichert werden die *abgewählten* Budget-IDs, nicht die ausgewählten.** Das ist die wichtigste Entscheidung dieses Pakets, weil eine einzige Regel drei Fälle ohne Sonderlogik löst:
 
@@ -3303,7 +3308,7 @@ Ein `Chip` pro Budget (Icon + Name). Ausgewählt = `variant="filled" color="prim
 
 **B4 — Was der Auswahl folgt und was nicht.**
 - **Folgt:** Gesamtausgaben, Ø pro Teilnehmer:in (beide Zeilen), Top-5 **und die Währungsliste** (W1/W2). Die Währungen werden aus den Ausgaben der *ausgewählten* Budgets bestimmt. Sonst steht ein EUR-Toggle da, obwohl alle EUR-Ausgaben in einem abgewählten Budget liegen, und EUR zeigt nur Nullen.
-- **Folgt nicht:** "Ohne Beleg". Das ist eine Aufgabe (jede Ausgabe braucht für die Abrechnung einen Beleg), keine Statistik. Auch eine Material-Quittung muss da sein. Untertitel der Kachel darum "alle Budgets und Währungen" statt nur "alle Währungen". Der Sprung in die gefilterte Liste (6.2c) zeigt entsprechend auch alle Budgets.
+- **Folgt nicht:** "Ohne Beleg". Das ist eine Aufgabe (jede Ausgabe braucht für die Abrechnung einen Beleg), keine Statistik. Auch eine Material-Quittung muss da sein. Der `Alert` aus 6.2a zählt darum weiterhin `expenses` (alle Budgets), nicht die gefilterte Liste. Der Sprung in die gefilterte Liste (6.2c) zeigt entsprechend auch alle Budgets.
 - **Später:** 6.3–6.5 nutzen dieselbe Auswahl (siehe Umriss unten). Es gibt keine zweite Budget-Auswahl.
 
 **B5 — Reihenfolge der Verarbeitung.** Erst nach Budget filtern, dann Währungen bestimmen, dann nach Währung filtern, dann rechnen:
@@ -3338,7 +3343,7 @@ Der Rest von 6.2a bleibt unverändert. Er bekommt nur eine kleinere Liste.
 - **Lesen** einmal beim Mounten über einen Lazy-Initializer `useState(() => readExcludedIds(key))`. *Warum Lazy:* Ohne Funktion würde `localStorage` bei jedem Render gelesen und das Ergebnis weggeworfen.
 - **Schreiben** im Klick-Handler, nicht in einem `useEffect` auf den State. *Warum:* Gespeichert wird nur, was die Köchin bewusst geändert hat. Ein Effekt würde schon beim ersten Render die leere Vorauswahl zurückschreiben.
 
-**B9 — Ein kleiner, wiederverwendbarer Hook.** `useStoredIdSet(storageKey: string)` → `{ids: Set<string>, toggleId: (id: string) => void}` in `src/components/Shared/useStoredIdSet.ts`. Er weiss nichts von Budgets, nur "eine Menge von IDs unter diesem Schlüssel". *Warum generisch:* 6.5 braucht dasselbe für die Mahlzeitentypen (dort ebenfalls "abgewählte" speichern, B3 gilt genauso). Gebaut wird trotzdem nur, was 6.2b braucht, keine Extra-Optionen auf Vorrat.
+**B9 — Ein kleiner, wiederverwendbarer Hook.** `useStoredIdSet(storageKey: string)` → `{ids: string[], toggleId: (id: string) => void}` in `src/components/Shared/useStoredIdSet.ts`. Er weiss nichts von Budgets, nur "eine Menge von IDs unter diesem Schlüssel". *Warum generisch:* 6.5 braucht dasselbe für die Mahlzeitentypen (dort ebenfalls "abgewählte" speichern, B3 gilt genauso). Gebaut wird trotzdem nur, was 6.2b braucht, keine Extra-Optionen auf Vorrat.
 
 Bekannte Grenze: Ändert sich `storageKey` bei montierter Komponente, liest der Hook nicht neu. Kommt nicht vor, weil ein anderer Anlass die ganze Seite neu montiert. In der JSDoc vermerken.
 
@@ -3348,7 +3353,8 @@ Bekannte Grenze: Ändert sich `storageKey` bei montierter Komponente, liest der 
 
 ```ts
 /** Ausgaben ohne die abgewählten Budgets (B3). Gibt eine neue Liste zurück. */
-static excludeBudgets(expenses: ExpenseDomain[], excludedBudgetIds: Set<string>): ExpenseDomain[];
+// bereits in 6.2a umgesetzt
+static excludeBudgets(expenses: ExpenseDomain[], excludedBudgetIds: string[]): ExpenseDomain[];
 ```
 
 `ExpenseEvaluation` bekommt zusätzlich `eventId: string` (für den Speicherschlüssel). Die Budgets hat sie seit 6.2a schon.
@@ -3361,7 +3367,6 @@ static excludeBudgets(expenses: ExpenseDomain[], excludedBudgetIds: Set<string>)
 | `EVALUATION_BUDGETS_SELECTED(selected: number, total: number)` | "2 von 4 Budgets berücksichtigt" |
 | `EVALUATION_NO_BUDGET_SELECTED` | "Wähle mindestens ein Budget aus." |
 | `EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS` | "In den gewählten Budgets gibt es noch keine Ausgaben." |
-| `EVALUATION_ALL_CURRENCIES` (aus 6.2a) | wird zu "alle Budgets und Währungen" |
 
 Barrierefreiheit: Jeder Chip bekommt `aria-pressed={isSelected}`. So hört ein Screenreader "ausgewählt / nicht ausgewählt", die Farbe allein reicht nicht.
 
@@ -3431,11 +3436,11 @@ Barrierefreiheit: Jeder Chip bekommt `aria-pressed={isSelected}`. So hört ein S
 
 #### Was passiert
 
-Klick auf die Kachel "Ohne Beleg" (nur wenn Anzahl > 0) → Ansicht wechselt auf "Ausgaben", über der Liste steht ein `Chip` "Nur ohne Beleg ✕", die Liste zeigt nur Ausgaben ohne Beleg. Klick auf ✕ oder Wechsel in eine andere Ansicht → Filter weg.
+Klick auf «Anzeigen» im `Alert` «3 Ausgaben ohne Beleg» (der Alert erscheint nur bei Anzahl > 0) → Ansicht wechselt auf "Ausgaben", über der Liste steht ein `Chip` "Nur ohne Beleg ✕", die Liste zeigt nur Ausgaben ohne Beleg. Klick auf ✕ oder Wechsel in eine andere Ansicht → Filter weg.
 
 #### Fachliche Entscheidungen
 
-**F1 — Wo der Filter-Zustand lebt.** `const [showOnlyMissingReceipts, setShowOnlyMissingReceipts] = React.useState(false)` in der **Seite**. *Warum dort:* Zwei Geschwister-Komponenten brauchen ihn: `ExpenseEvaluation` setzt ihn (Klick auf die Kachel), `ExpenseList` zeigt das Ergebnis. Der gemeinsame Elternteil ist die Seite ("lifting state up"). Nicht in der URL: Der Filter ist ein kurzer Arbeitsschritt, kein Link, den man teilt.
+**F1 — Wo der Filter-Zustand lebt.** `const [showOnlyMissingReceipts, setShowOnlyMissingReceipts] = React.useState(false)` in der **Seite**. *Warum dort:* Zwei Geschwister-Komponenten brauchen ihn: `ExpenseEvaluation` setzt ihn («Anzeigen» im Alert), `ExpenseList` zeigt das Ergebnis. Der gemeinsame Elternteil ist die Seite ("lifting state up"). Nicht in der URL: Der Filter ist ein kurzer Arbeitsschritt, kein Link, den man teilt.
 
 **F2 — Wo gefiltert wird.** **Vor** dem Gruppieren, im bestehenden `expenseGroups`-Memo (`expenseTracking.tsx:279`):
 
@@ -3452,20 +3457,20 @@ const expenseGroups = React.useMemo<ExpenseGroup[]>(() => {
 
 *Warum `ExpenseList` den Filter nicht kennt:* Sie bleibt reine Darstellung ("berechnet selbst nichts", steht in ihrer JSDoc). Sie bekommt nur einen anderen Leertext (F4).
 
-**F3 — Zurücksetzen.** In `handleViewChange`: `setShowOnlyMissingReceipts(false)` bei jedem Ansichtswechsel. Die Kachel ruft eine neue Funktion `handleShowMissingReceipts` auf, die **zuerst** die Ansicht wechselt und **dann** den Filter setzt, beide im selben Event-Handler (React fasst beide `setState` zu einem Render zusammen, kein Flackern).
+**F3 — Zurücksetzen.** In `handleViewChange`: `setShowOnlyMissingReceipts(false)` bei jedem Ansichtswechsel. Der «Anzeigen»-Button im Alert ruft eine neue Funktion `handleShowMissingReceipts` auf, die **zuerst** die Ansicht wechselt und **dann** den Filter setzt, beide im selben Event-Handler (React fasst beide `setState` zu einem Render zusammen, kein Flackern).
 
 **F4 — Gefiltert, aber leer.** Die letzte fehlende Quittung wird hochgeladen, während der Filter aktiv ist → Liste leer. Text dann nicht "Noch keine Ausgaben." (falsch), sondern "Alle Ausgaben haben einen Beleg." `ExpenseList` bekommt dafür eine optionale Prop `emptyText?: string` mit dem bisherigen Text als Standard. Der Filter bleibt aktiv, bis man ihn entfernt; so sieht man, dass die Arbeit erledigt ist.
 
 **F5 — "Neue Ausgabe" bei aktivem Filter.** Bleibt möglich. Eine neue Ausgabe ohne Beleg erscheint in der gefilterten Liste, eine mit Beleg nicht. Richtig so, kein Sonderfall.
 
-**F6 — Kachel klickbar machen.** `CardActionArea` um den Inhalt der Kachel, nur wenn Anzahl > 0. Bei 0 gibt es nichts zu filtern; eine klickbare Kachel, die zu einer leeren Liste führt, wäre verwirrend. `ExpenseEvaluation` bekommt dafür die Prop `handleShowMissingReceipts: () => void`.
+**F6 — Aktion im `Alert`** (angepasst 2026-10-11, weil «Ohne Beleg» in 6.2a ein `Alert` statt einer Kachel wurde). `action={<Button color="inherit" size="small" onClick={handleShowMissingReceipts}>Anzeigen</Button>}` am bestehenden `Alert`. Der Alert erscheint nur bei Anzahl > 0, eine Prüfung für 0 entfällt also. `ExpenseEvaluation` bekommt dafür die Prop `handleShowMissingReceipts: () => void`; Text `EVALUATION_SHOW_MISSING_RECEIPTS` («Anzeigen»).
 
 #### Dateien 6.2c
 
 | Datei | Änderung |
 |---|---|
 | `expenseTracking.tsx` | State, `expenseGroups`-Memo, `handleViewChange`, `handleShowMissingReceipts`, `Chip` über der Liste |
-| `expenseEvaluation.tsx` | Prop `handleShowMissingReceipts`, `CardActionArea` |
+| `expenseEvaluation.tsx` | Prop `handleShowMissingReceipts`, `action` am `Alert` |
 | `expenseList.tsx` | optionale Prop `emptyText` |
 | `src/constants/text/expenseTracking.ts` | `FILTER_ONLY_MISSING_RECEIPTS` ("Nur ohne Beleg"); für den Leertext `EVALUATION_ALL_RECEIPTS_PRESENT` wiederverwenden |
 | Tests | siehe unten |
@@ -3473,7 +3478,7 @@ const expenseGroups = React.useMemo<ExpenseGroup[]>(() => {
 #### Tests 6.2c
 
 `expenseTracking.test.tsx` (neues `describe("Filter: nur ohne Beleg")`; Ausgaben mit und ohne `attachmentPath` in **zwei** Budgets):
-- Klick auf Kachel → Ansicht "Ausgaben", Chip sichtbar, nur Zeilen ohne Beleg
+- Klick auf «Anzeigen» im Alert → Ansicht "Ausgaben", Chip sichtbar, nur Zeilen ohne Beleg
 - Gruppenkopf zeigt die Summe **nur der sichtbaren** Ausgaben
 - Budget, dessen Ausgaben alle einen Beleg haben → Gruppenkopf nicht sichtbar
 - ✕ am Chip → alle Ausgaben wieder sichtbar
@@ -3481,8 +3486,8 @@ const expenseGroups = React.useMemo<ExpenseGroup[]>(() => {
 - gefiltert und keine Treffer → "Alle Ausgaben haben einen Beleg."
 
 `expenseEvaluation.test.tsx`:
-- Anzahl > 0: Klick ruft `handleShowMissingReceipts`
-- Anzahl 0: kein klickbares Element (`queryByRole("button", {name: …})` ist `null`)
+- Klick auf «Anzeigen» im Alert ruft `handleShowMissingReceipts` genau einmal auf
+- Anzahl 0: kein Alert, also auch kein «Anzeigen» (`queryByRole("button", {name: "Anzeigen"})` ist `null`)
 
 `expenseList.test.tsx`:
 - ohne `emptyText` → bisheriger Text (Regressionsschutz); mit → der übergebene
@@ -3491,11 +3496,11 @@ const expenseGroups = React.useMemo<ExpenseGroup[]>(() => {
 
 1. Filter in `expenseGroups` **nach** `groupByBudget` statt davor anwenden (Gruppen-Expenses filtern) → Test "Gruppenkopf zeigt Summe der sichtbaren Ausgaben" muss rot werden.
 2. `setShowOnlyMissingReceipts(false)` aus `handleViewChange` entfernen → Test "Wechsel setzt Filter zurück" muss rot werden.
-3. `showOnlyMissingReceipts` aus den `useMemo`-Dependencies entfernen → Test "Klick auf Kachel filtert" muss rot werden. (Hier lässt sich die Dependency per Jest prüfen, anders als in 6.1, weil der Filter über einen Klick in derselben Seite gesetzt wird.)
+3. `showOnlyMissingReceipts` aus den `useMemo`-Dependencies entfernen → Test "«Anzeigen» filtert" muss rot werden. (Hier lässt sich die Dependency per Jest prüfen, anders als in 6.1, weil der Filter über einen Klick in derselben Seite gesetzt wird.)
 
 #### Im Browser ansehen
 
-1. Auswertung → Kachel "3 Ausgaben ohne Beleg" anklicken → Ausgabenliste mit Chip, drei Zeilen, Gruppenköpfe stimmen.
+1. Auswertung → im Alert «3 Ausgaben ohne Beleg» auf «Anzeigen» klicken → Ausgabenliste mit Chip, drei Zeilen, Gruppenköpfe stimmen.
 2. Eine davon öffnen, Beleg hochladen, speichern → Zeile verschwindet aus der gefilterten Liste.
 3. Die letzten zwei ebenso → "Alle Ausgaben haben einen Beleg."
 4. Zweites Fenster: neue Ausgabe ohne Beleg erfassen → erscheint im ersten Fenster in der gefilterten Liste.
