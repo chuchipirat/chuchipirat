@@ -57,7 +57,7 @@ export class Budget {
    *
    * @param budget - Das Budget.
    * @param participantCount - Anzahl Teilnehmer:innen des Events.
-   * @param dayCount - Anzahl Lagertage.
+   * @param dayCount - Anzahl Anlasstage.
    * @returns Sollbetrag in Rappen.
    */
   static getTargetAmountInCents = (
@@ -121,8 +121,8 @@ export class Budget {
   /**
    * Hochrechnung wie viel am Ende des Anlasses ausgegeben wird.
    * Dabei wird unterschieden zwischen den initialen Kosten und den laufenden Kosten
-   * - Laufend = Ausgaben vom ersten Lagertag bis heute
-   * - alles andere (vor dem Lager, vorausdatiert, nach Lagerende) zählt einmal fest.
+   * - Laufend = Ausgaben vom ersten Anlasstag bis heute
+   * - alles andere (vor dem Anlass, vorausdatiert, nach Anlassende) zählt einmal fest.
    *
    * Beispiel Anlass mit 7 Tagen, Heute ist Tag 3, CHF 1'200 ausgegeben vor dem Anlass
    * CHF 300 während des Anlasses:
@@ -134,8 +134,8 @@ export class Budget {
    * @param expenses - Ausgaben
    * @param campDays - Liste der Anlass-Tage
    * @param today - Stichtag Heute
-   * @returns Die Hochrechnung der Ausgaben, `null` vor dem ersten Lagertag,
-   *  ab dem letzten Lagertag und ohne Lagertage
+   * @returns Die Hochrechnung der Ausgaben, `null` vor dem ersten Anlasstag,
+   *  ab dem letzten Anlasstag und ohne Anlasstage
    */
   static projectSpending = ({
     budget,
@@ -181,7 +181,7 @@ export class Budget {
    *
    * @param expenses - Ausgaben
    * @param budget - Das Budget
-   * @param firstCampDayKey - Erster Lagertag im Format YYYY-MM-DD
+   * @param firstCampDayKey - Erster Anlasstag im Format YYYY-MM-DD
    * @param todayKey - Heute im Format YYYY-MM-DD
    * @returns Die gesplitteten Kosten als `runningAmountInCents`und `fixedAmountInCents`
    */
