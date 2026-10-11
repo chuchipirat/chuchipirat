@@ -3544,9 +3544,31 @@ Wie bei 6.1: Absatz "Auswertung" (welche Kennzahlen, Budget-Auswahl pro Gerät, 
   - Ohne geplante Mahlzeiten, ohne ausgewählten Typ oder ohne Teilnehmende → Hinweis statt Zahl (Entscheidung 10).
   - **Für welches Budget?** Erledigt durch 6.2b: Gerechnet wird über die ausgewählten Budgets. Wer nur das Essen sehen will, wählt die übrigen ab. Für die gemerkten Mahlzeitentypen `useStoredIdSet` aus 6.2b wiederverwenden (auch dort die *abgewählten* speichern).
 
+## Zwischenschritt vor Epic 7 — Ordner `ExpenseTracking/` nach Unterthema aufteilen
+
+**Erst nach Abschluss von Epic 6, vor dem ersten Paket von Epic 7** (entschieden 2026-10-10). Grund: Epic 7 bringt mehrere Dateien auf einmal (Datenaufbereitung, PDF-Dokument, Dialog), danach wird der flache Ordner unübersichtlich.
+
+- **Nach Unterthema, nicht nach Dateityp** (kein `types/`, `classes/`, `ui/`): Was zusammen geändert wird, liegt zusammen; die Endung (`.class.ts`, `.types.ts`, `.tsx`) zeigt den Typ schon.
+- Zielstruktur:
+  ```
+  ExpenseTracking/
+    expenseTracking.tsx, useExpenseTrackingData.ts, expenseTracking.reducer.ts
+    Budget/      budget.class.ts, budget.types.ts, budgetCard.tsx, budgetDetailDialog.tsx, budgetIcons.ts
+    Expense/     expense.class.ts, expense.types.ts, expenseList.tsx, expenseDetailDialog.tsx, payeeBalanceAccordion.tsx
+    Evaluation/  expenseStatistics.class.ts, expenseEvaluation.tsx
+    Report/      (Epic 7, PDF)
+    Export/      (Epic 8, CSV/ZIP)
+  ```
+  `__tests__/` und `__mocks__/` wandern jeweils mit in den Unterordner.
+- **Reines Verschieben** wie Paket 2.1: `git mv`, Importe nachziehen, keine Verhaltensänderung, ein Commit (`refactor(abrechnung): …`). Danach `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` grün; Importe von ausserhalb prüfen (`grep -rn "ExpenseTracking/" src`).
+- `architecture.md` um den Hinweis ergänzen, dass grosse Feature-Ordner nach Unterthema aufgeteilt werden.
+
 ## Epic 7 — PDF-Abrechnung
 
 _Wird vor Start verfeinert. Grober Zuschnitt:_
+
+- **Vorab (vor Verfeinerung):** Zwischenschritt «Ordner aufteilen» oben erledigt? Sonst zuerst das.
+- **Idee aus 2026-10-10, beim Verfeinern entscheiden:** PDF-Erstellung als Aktion statt als vierte Ansicht. Button bzw. Menü "Exportieren" (PDF, später CSV/ZIP aus Epic 8) in der Toolbar, öffnet einen Dialog (Modus → Kommentare ja/nein → Adresse/IBAN falls fehlend → generieren). Zusätzlich Abkürzung pro Person im `PayeeBalanceAccordion` ("Abrechnung für … erstellen"). Eine eigene Ansicht nur, falls eine "Bereit für die Abrechnung?"-Übersicht (pro Person: Summe, fehlende Belege, IBAN vorhanden) gewünscht wird.
 
 - 7.1 Reine Datenaufbereitung für Modus A (pro Person) und Modus B (pro Person + Budget), mit
   Tests.

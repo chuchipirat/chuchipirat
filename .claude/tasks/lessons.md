@@ -17,3 +17,11 @@
 **Rule**: Write new code already in the project style instead of formatting afterwards. If formatting is needed, use `npx prettier --no-bracket-spacing` and only on files where the diff afterwards shows nothing but my own lines.
 
 **How to apply**: After any formatter run, check `git diff --stat` and the removed lines (`git diff | grep "^-"`) before going on. Untracked files can't be restored from git — never format those blind.
+
+## 2026-10-11: UI wording is "Anlass", never "Lager"
+
+**What happened**: My Epic 6 plans and JSDoc used "Lagertag", "Lagerende", "vor dem Lager". In review I even asked the user to change their correct "Anlasstage" to "Lagertage". The app uses "Anlass" consistently (~35× in `src/constants/text`).
+
+**Rule**: User-facing texts, plans and German comments say "Anlass", "Anlasstag", "Anlassende". English identifiers (`campDays`) may stay.
+
+**How to apply**: Before proposing UI wording, grep `src/constants/text` for the existing term instead of using my own vocabulary.

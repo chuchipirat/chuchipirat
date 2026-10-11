@@ -221,6 +221,12 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   4. `Shared/utils.class.ts` aufteilen: statische Methoden thematisch in einzelne Funktions-Module unter `src/utils/` (z.B. `urlUtils.ts`, `validationUtils.ts`, Datum → `dateUtils.ts`), Sammelklasse danach entfernen. Grösster Brocken (64 Importer) — schrittweise, pro Thema ein Commit; dabei auf Überschneidungen mit `dateUtils.ts` achten.
   **Priorität:** tief · **Komplexität:** klein (Schritte 1–3), mittel (Schritt 4)
 
+- **Datumsanzeige `de-CH` dreifach kopiert** (gefunden bei Story 6.2a, 2026-10-11) — `expense.date.toLocaleString("de-CH", {year: "numeric", month: "2-digit", day: "2-digit"})` steht identisch in `Event/ExpenseTracking/expenseList.tsx`, `payeeBalanceAccordion.tsx` und `expenseEvaluation.tsx` (Top-5-Liste). Einen Helfer `formatDisplayDate(date)` in `src/utils/dateUtils.ts` anlegen (mit Test) und die drei Stellen darauf umstellen. Spätestens vor Epic 7 (PDF), weil die Abrechnung das Datum erneut formatiert.
+  **Priorität:** tief · **Komplexität:** klein
+
+- **Fixe Währung «CHF» noch hart codiert** (gefunden bei Story 6.2a, 2026-10-11) — Seit 6.2a gibt es `DEFAULT_CURRENCY` in `Shared/utils/currencyUtils.ts`. `"CHF"` steht aber noch direkt in `Event/ExpenseTracking/budgetDetailDialog.tsx` (Vorbelegung neues Budget) und `Donate/DonationResult.tsx`. Auf die Konstante umstellen.
+  **Priorität:** tief · **Komplexität:** klein
+
 ## Architecture
 
 - **`src/components/Shared/customDialogContext.tsx`** — Modul-Level `resolveCallback` Variable ist fragil bei gleichzeitigen Dialogen. Funktioniert in der Praxis (App zeigt nur einen Dialog gleichzeitig), aber ein `useRef`-basiertes Rewrite wäre robuster. Würde 26 Konsumenten betreffen.
