@@ -48,13 +48,25 @@ export type PayeeBalance = {
   expenses: ExpenseDomain[];
   totalsByCurrency: Record<string, number>;
 };
+
+/**
+ * Währungen, die im Einsatz sind
+ *
+ * @param currencies - Währungscodes mit mindestens einer Ausgabe, häufigste zuerst.
+ * @param defaultCurrency - Vorausgewählte Währung. «CHF», wenn es keine Ausgaben gibt.
+ */
+export type CurrenciesInUse = {
+  currencies: string[];
+  defaultCurrency: string;
+};
+
 /* =====================================================================
 // Domain-Modelle (camelCase, werden in der App verwendet)
 // ===================================================================== */
 
 /**
  * Domain-Modell einer Ausgabe (camelCase).
- * *
+ *
  * @param id - Eindeutige ID des Budgets.
  * @param eventId - Event-ID des Budgets.
  * @param budgetType - Typ des Budgets.
@@ -69,7 +81,6 @@ export type PayeeBalance = {
  * @param attachmentPath - Pfad zur Beleg-Datei (falls vorhanden).
  * @param attachmentOriginalFilename - Original-Dateiname der Beleg-Datei (falls vorhanden).
  */
-
 export type ExpenseDomain = {
   id: string;
   eventId: string;

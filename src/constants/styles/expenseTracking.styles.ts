@@ -80,11 +80,27 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     color: theme.palette.text.secondary,
     cursor: "pointer",
   },
-  budgetToolbar: {
+  expenseTrackingToolbar: {
     display: "flex",
+    flexWrap: "wrap",
     justifyContent: "space-between",
     alignItems: "center",
+    gap: theme.spacing(1.5),
     marginBottom: theme.spacing(2),
+  },
+  expenseToolbarToggleGroup: {
+    display: "flex",
+    width: "100%",
+    "& .MuiToggleButton-root": {flex: 1},
+    [theme.breakpoints.up("sm")]: {
+      display: "inline-flex",
+      width: "auto",
+      "& .MuiToggleButton-root": {flex: "none"},
+    },
+  },
+  expenseToolbarAction: {
+    width: "100%",
+    [theme.breakpoints.up("sm")]: {width: "auto"},
   },
   budgetFormAmountRow: {
     display: "flex",
@@ -259,5 +275,48 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
   budgetProjectionWarning: {
     color: theme.palette.warning.main,
     fontWeight: 500,
+  },
+  evaluationTile: {
+    height: "100%",
+    padding: theme.spacing(2),
+    borderRadius: "12px",
+    display: "flex",
+    flexDirection: "column",
+    gap: theme.spacing(0.5),
+  },
+  evaluationTileValueRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    marginTop: theme.spacing(0.5),
+  },
+  evaluationTileHint: {
+    marginTop: theme.spacing(1),
+  },
+  evaluationTopExpenseIcon: {
+    minWidth: theme.spacing(4),
+  },
+  statisticsMissingReceiptsAlert: {
+    marginBottom: theme.spacing(2),
+  },
+  statisticsSectionHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: theme.spacing(1),
+    marginBottom: theme.spacing(1.5),
+  },
+  statisticsCurrencyChips: {
+    display: "flex",
+    gap: theme.spacing(1),
+  },
+  statisticsCurrencyChipSelected: {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: alpha(theme.palette.primary.main, 0.12),
+    color: theme.palette.primary.main,
+  },
+  statisticsOtherCurrenciesHint: {
+    marginTop: theme.spacing(-1), // näher an die Chips, zu denen er gehört
+    marginBottom: theme.spacing(1.5),
   },
 });
