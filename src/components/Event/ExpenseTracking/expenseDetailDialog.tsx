@@ -54,6 +54,8 @@ import {
   Typography,
   IconButton,
   Tooltip,
+  useTheme,
+  useMediaQuery,
 } from "@mui/material";
 
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -213,6 +215,11 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
               ?.currency ?? "",
         };
   const classes = useCustomStyles();
+  // Auf kleinen Bildschirmen im Vollbild: mehr Platz für das Formular, und
+  // die Tastatur verdeckt nicht den halben Dialog (Muster wie
+  // userPaymentDetailsDialog.tsx)
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const [touched, setTouched] = React.useState(false);
   const [formState, setFormState] = useState<ExpenseDetailDialogState>(
     expenseToFormState(expense),
@@ -343,7 +350,13 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
       : cooks;
 
   return (
-    <Dialog open={open} onClose={handleClose} fullWidth maxWidth="sm">
+    <Dialog
+      open={open}
+      onClose={handleClose}
+      fullWidth
+      maxWidth="sm"
+      fullScreen={fullScreen}
+    >
       <DialogTitle>{expense ? TEXT_EXPENSE : TEXT_NEW_EXPENSE}</DialogTitle>
 
       <DialogContent>
