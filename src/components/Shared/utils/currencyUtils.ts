@@ -1,5 +1,5 @@
 // Schweizer Franken (Hauptwährung der App) + Euro (häufigste Fremdwährung
-// bei grenznahen Lagern) — bei Bedarf um weitere Währungen erweitern.
+// bei grenznahen Anlässen) — bei Bedarf um weitere Währungen erweitern.
 export const AVAILABLE_CURRENCIES = ["CHF", "EUR"];
 
 /**

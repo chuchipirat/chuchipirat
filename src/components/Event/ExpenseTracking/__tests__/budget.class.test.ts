@@ -113,7 +113,7 @@ describe("Budget.getSpentAmounts", () => {
   });
 });
 describe("Budget.projectSpending", () => {
-  // Testlager: 7 Tage, 5.–11. Juli 2026
+  // Testanlass: 7 Tage, 5.–11. Juli 2026
 
   const campDaysMock: Date[] = [
     parseLocalDate("2026-07-05"),
@@ -125,7 +125,7 @@ describe("Budget.projectSpending", () => {
     parseLocalDate("2026-07-11"),
   ];
 
-  test("Vor dem Lager, Hochrechnung ist `null`", () => {
+  test("Vor dem Anlass, Hochrechnung ist `null`", () => {
     expect(
       Budget.projectSpending({
         expenses: [],
@@ -135,7 +135,7 @@ describe("Budget.projectSpending", () => {
       }),
     ).toBeNull();
   });
-  test("Erster Lagertag", () => {
+  test("Erster Anlasstag", () => {
     const expenseMock: ExpenseDomain[] = [
       {...expense, date: parseLocalDate("2026-07-05"), amountInCents: 10000},
     ];
@@ -151,7 +151,7 @@ describe("Budget.projectSpending", () => {
     expect(projectSpending?.elapsedCampDays).toEqual(1);
     expect(projectSpending?.totalCampDays).toEqual(7);
   });
-  test("Mitte Lager, mit mehreren Ausgaben", () => {
+  test("Mitte des Anlasses, mit mehreren Ausgaben", () => {
     const expenseMock: ExpenseDomain[] = [
       {...expense, date: parseLocalDate("2026-07-05"), amountInCents: 10000},
       {...expense, date: parseLocalDate("2026-07-06"), amountInCents: 20000},
@@ -205,7 +205,7 @@ describe("Budget.projectSpending", () => {
     expect(projectSpending?.elapsedCampDays).toEqual(3);
     expect(projectSpending?.totalCampDays).toEqual(7);
   });
-  test("Letzter Lagertag = `null;` nach dem Lager =`null`", () => {
+  test("Letzter Anlasstag = `null;` nach dem Anlass =`null`", () => {
     const expenseMock: ExpenseDomain[] = [
       {...expense, date: parseLocalDate("2026-07-03"), amountInCents: 120000},
       {...expense, date: parseLocalDate("2026-07-05"), amountInCents: 10000},
@@ -275,7 +275,7 @@ describe("Budget.projectSpending", () => {
     expect(projectSpending?.elapsedCampDays).toEqual(3);
     expect(projectSpending?.totalCampDays).toEqual(7);
   });
-  test("Keine Ausgaben, im Lager = Hochrechnung 0", () => {
+  test("Keine Ausgaben, während des Anlasses = Hochrechnung 0", () => {
     const projectSpending = Budget.projectSpending({
       expenses: [],
       budget: budget,
@@ -287,7 +287,7 @@ describe("Budget.projectSpending", () => {
     expect(projectSpending?.elapsedCampDays).toEqual(3);
     expect(projectSpending?.totalCampDays).toEqual(7);
   });
-  test("Leere Lagertage = `null`", () => {
+  test("Leere Anlasstage = `null`", () => {
     const expenseMock: ExpenseDomain[] = [
       {...expense, date: parseLocalDate("2026-07-03"), amountInCents: 120000},
       {...expense, date: parseLocalDate("2026-07-05"), amountInCents: 10000},
@@ -373,7 +373,7 @@ describe("Budget.projectSpending", () => {
     });
 
     test("Tage über die Umstellung hinweg werden korrekt gezählt", () => {
-      // Lager 23.10.–1.11.2026 (10 Tage); der 25.10. hat 25 Stunden
+      // Anlass 23.10.–1.11.2026 (10 Tage); der 25.10. hat 25 Stunden
       const campDaysAcrossDst: Date[] = [
         "2026-10-23",
         "2026-10-24",

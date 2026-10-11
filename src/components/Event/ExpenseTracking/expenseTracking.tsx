@@ -225,7 +225,7 @@ const EventExpenseTrackingPage = ({
 
   /* ------------------------------------------
   // Sollbetrag und Ausschöpfung je Budget ableiten
-  // (nicht im State speichern: Teilnehmerzahl und Lagertage ändern sich live
+  // (nicht im State speichern: Teilnehmerzahl und Anlasstage ändern sich live
   // über die Gruppenkonfiguration, der Sollbetrag muss dann mitziehen)
   // ------------------------------------------ */
   const expenseTotals = React.useMemo(

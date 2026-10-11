@@ -72,14 +72,14 @@ export type BudgetWithProgress = {
   spentAmountInCents: number;
   otherCurrenciesSpent: Record<string, number>[];
   percentage: number;
-  /** `null`, wenn keine Hochrechnung möglich ist (vor dem Lager, ab dem letzten Lagertag). */
+  /** `null`, wenn keine Hochrechnung möglich ist (vor dem Anlass, ab dem letzten Anlasstag). */
   projection: BudgetProjection | null;
 };
 /**
- * Lineare Hochrechnung der Ausgaben eines Budgets bis Lagerende.
+ * Lineare Hochrechnung der Ausgaben eines Budgets bis Anlassende.
  * @param projectedAmountInCents - Voraussichtliche Endsumme in Rappen (Budgetwährung).
- * @param elapsedCampDays - Bereits vergangene Lagertage inkl. heute (≥ 1).
- * @param totalCampDays - Anzahl Lagertage gesamt (> elapsedCampDays).
+ * @param elapsedCampDays - Bereits vergangene Anlasstage inkl. heute (≥ 1).
+ * @param totalCampDays - Anzahl Anlasstage gesamt (> elapsedCampDays).
  */
 export type BudgetProjection = {
   projectedAmountInCents: number;
