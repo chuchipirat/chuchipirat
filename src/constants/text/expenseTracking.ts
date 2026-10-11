@@ -69,6 +69,7 @@ export const NEW_BUDGET = "Neues Budget";
 export const BUDGET = "Budget";
 export const EXPENSE_TRACKING_OVERVIEW = "Übersicht";
 export const EXPENSE_TRACKING_EXPENSES = "Ausgaben";
+export const EXPENSE_TRACKING_EVALUATION = "Auswertung";
 export const BUDGET_NAME = "Name";
 export const PLEASE_PROVIDE_NAME = "Bitte einen Namen angeben.";
 export const PLEASE_PROVIDE_AMOUNT = "Bitte einen gültigen Betrag angeben.";
@@ -145,3 +146,77 @@ export const DAY_X_OF_Y_IN_EVENT = (
   totalDays: number,
 ): string => `Stand Anlasstag ${elapsedDays} von ${totalDays}`;
 export const PROJECTION_ABOVE_BUDGET = "Voraussichtlich über Budget";
+
+/** Hinweis in der Auswertung, solange es noch keine Ausgaben gibt. */
+export const NO_EXPENSES_FOR_STATS =
+  "Sobald ihr Ausgaben erfasst, siehst du hier die Auswertung.";
+
+export const EVALUATION_TOTAL = "Gesamtausgaben";
+/**
+ * Anzahl Ausgaben unter dem Gesamttotal, mit Einzahl/Mehrzahl.
+ *
+ * @param expenseCount - Anzahl Ausgaben in der gewählten Währung.
+ * @returns z.B. «1 Ausgabe» oder «14 Ausgaben».
+ */
+export const EVALUATION_EXPENSE_COUNT = (expenseCount: number): string =>
+  `${expenseCount} ${expenseCount === 1 ? "Ausgabe" : "Ausgaben"}`;
+export const EVALUATION_AVERAGE_PER_PARTICIPANT = "Ø pro Person";
+/** Hinweis statt Ø, wenn die Gruppenkonfiguration keine Teilnehmenden hat. */
+export const EVALUATION_PARTICIPANTS_MISSING =
+  "Erfasse die Teilnehmenden in der Gruppenkonfiguration.";
+/**
+ * Zweite Zeile der Ø-Kachel: bisher verbraucht pro Person und Tag, gemessen
+ * an allen Anlasstagen («bisher», damit es nicht als Tagesdurchschnitt gelesen wird).
+ *
+ * @param averagePerParticipantAndDayInCents - Betrag pro Person und Tag in Rappen.
+ * @param currency - ISO-4217-Währungscode.
+ * @returns z.B. «bisher CHF 13.93 pro Person & Tag».
+ */
+export const EVALUATION_PER_PARTICIPANT_AND_DAY_SO_FAR = (
+  averagePerParticipantAndDayInCents: number,
+  currency: string,
+): string =>
+  `bisher ${formatAmountFromCents(averagePerParticipantAndDayInCents, currency)} pro Person & Tag`;
+/**
+ * Rechengrundlage der Ø-Kachel, damit sichtbar ist, womit gerechnet wurde.
+ *
+ * @param participantCount - Anzahl Teilnehmende.
+ * @param campDayCount - Anzahl Anlasstage; bei 0 entfällt dieser Teil.
+ * @returns z.B. «24 Personen · 7 Anlasstage».
+ */
+export const EVALUATION_CALCULATION_BASIS = (
+  participantCount: number,
+  campDayCount: number,
+): string =>
+  `${participantCount} ${participantCount === 1 ? "Person" : "Personen"}${campDayCount > 0 ? ` · ${campDayCount} ${campDayCount === 1 ? "Anlasstag" : "Anlasstage"}` : ""}`;
+/**
+ * Warnhinweis zu fehlenden Belegen (über alle Budgets und Währungen), mit Einzahl/Mehrzahl.
+ *
+ * @param receiptCount - Anzahl Ausgaben ohne Beleg.
+ * @returns z.B. «1 Ausgabe ohne Beleg» oder «3 Ausgaben ohne Beleg».
+ */
+export const EVALUATION_WITHOUT_RECEIPT_COUNT = (
+  receiptCount: number,
+): string =>
+  `${receiptCount} ${receiptCount === 1 ? "Ausgabe" : "Ausgaben"} ohne Beleg`;
+export const EVALUATION_TOP_EXPENSES = "Grösste Ausgaben";
+export const EVALUATION_KEYFIGURES = "Kennzahlen";
+/** Screenreader-Beschriftung der Währungs-Chips in der Auswertung. */
+export const EVALUATION_CURRENCY_FILTER_ARIA_LABEL = "Währungsfilter";
+/**
+ * Hinweis unter der Währungsauswahl: Welche Währungen in den Kennzahlen
+ * nicht enthalten sind (keine Umrechnung, nie über Währungen summiert).
+ *
+ * @param currencies - Nicht gewählte Währungscodes, mindestens einer.
+ * @returns z.B. «Ausgaben in EUR sind hier nicht enthalten.» oder
+ *   «Ausgaben in EUR und USD sind hier nicht enthalten.»
+ */
+export const EVALUATION_OTHER_CURRENCIES_EXCLUDED = (
+  currencies: string[],
+): string => {
+  const currencyList =
+    currencies.length === 1
+      ? currencies[0]
+      : `${currencies.slice(0, -1).join(", ")} und ${currencies[currencies.length - 1]}`;
+  return `Ausgaben in ${currencyList} sind hier nicht enthalten.`;
+};

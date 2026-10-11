@@ -31,6 +31,7 @@ import {
   NEW_BUDGET as TEXT_NEW_BUDGET,
   EXPENSE_TRACKING_OVERVIEW as TEXT_EXPENSE_TRACKING_OVERVIEW,
   EXPENSE_TRACKING_EXPENSES as TEXT_EXPENSE_TRACKING_EXPENSES,
+  EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
   DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
   DELETE_BUDGET_SIMPLE as TEXT_DELETE_BUDGET_SIMPLE,
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
@@ -93,9 +94,10 @@ import {
 } from "./expenseDetailDialog";
 import {PayeeBalanceAccordion} from "./payeeBalanceAccordion";
 import {getEventDateList} from "../Menuplan/menuplanService";
+import {ExpenseEvaluation} from "./expenseEvaluation";
 
-/** Ansicht der Abrechnungsseite: Budget-Übersicht oder (folgt) Ausgabenliste. */
-type ExpenseTrackingView = "overview" | "expenses";
+/** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
+type ExpenseTrackingView = "overview" | "expenses" | "evaluation";
 
 /**
  * Übersetzt die Formulareingaben des Ausgaben-Dialogs in ein `ExpenseDomain`-
@@ -803,13 +805,15 @@ const EventExpenseTrackingPage = ({
         </Card>
         {hasDonation === true && (
           <Box data-testid="expense-tracking-unlocked">
-            <Box sx={classes.budgetToolbar}>
+            <Box sx={classes.expenseTrackingToolbar}>
               <ToggleButtonGroup
                 value={view}
                 exclusive
                 onChange={handleViewChange}
                 size="small"
                 color="primary"
+                fullWidth
+                sx={classes.expenseToolbarToggleGroup}
               >
                 <ToggleButton value="overview">
                   {TEXT_EXPENSE_TRACKING_OVERVIEW}
@@ -817,22 +821,28 @@ const EventExpenseTrackingPage = ({
                 <ToggleButton value="expenses">
                   {TEXT_EXPENSE_TRACKING_EXPENSES}
                 </ToggleButton>
+                <ToggleButton value="evaluation">
+                  {TEXT_EXPENSE_TRACKING_EVALUATION}
+                </ToggleButton>
               </ToggleButtonGroup>
               {view === "overview" ? (
                 <Button
+                  fullWidth
                   variant="contained"
                   color="primary"
                   startIcon={<AddOutlined />}
                   onClick={handleOpenCreateBudgetDialog}
+                  sx={classes.expenseToolbarAction}
                 >
                   {TEXT_NEW_BUDGET}
                 </Button>
-              ) : (
+              ) : view === "expenses" ? (
                 <Tooltip
                   title={hasNoBudgets ? TEXT_PLEASE_CREATE_BUDGET_FIRST : ""}
                 >
-                  <span>
+                  <Box component="span" sx={classes.expenseToolbarAction}>
                     <Button
+                      fullWidth
                       variant="contained"
                       color="primary"
                       startIcon={<AddOutlined />}
@@ -841,9 +851,9 @@ const EventExpenseTrackingPage = ({
                     >
                       {TEXT_NEW_EXPENSE}
                     </Button>
-                  </span>
+                  </Box>
                 </Tooltip>
-              )}
+              ) : null}
             </Box>
             {view === "overview" ? (
               <React.Fragment>
@@ -873,12 +883,20 @@ const EventExpenseTrackingPage = ({
                   cooks={event.cooks}
                 />
               </React.Fragment>
-            ) : (
+            ) : view === "expenses" ? (
               <ExpenseList
                 expenseGroups={expenseGroups}
                 highlightedExpenseIds={highlightedExpenseIds}
                 handleEditClick={handleEditExpense}
                 getAttachmentUrl={handleGetAttachmentUrl}
+              />
+            ) : (
+              <ExpenseEvaluation
+                expenses={state.expenses ?? []}
+                budgets={state.budgets ?? []}
+                participantCount={groupConfiguration.totalPortions}
+                campDayCount={event.numberOfDays}
+                handleEditClick={handleEditExpense}
               />
             )}
           </Box>

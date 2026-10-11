@@ -35,6 +35,9 @@ import {expense as mockExpense} from "../__mocks__/expense.mock";
 import {REALTIME_RECONNECTING as TEXT_REALTIME_RECONNECTING} from "../../../../constants/text";
 import {
   NEW_BUDGET as TEXT_NEW_BUDGET,
+  NEW_EXPENSE as TEXT_NEW_EXPENSE,
+  EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
+  NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
   DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
@@ -350,6 +353,43 @@ describe("EventExpenseTrackingPage", () => {
     expect(
       await screen.findByTestId("expense-tracking-expenses-list"),
     ).toBeInTheDocument();
+  });
+});
+describe("EventExpenseTrackingPage: Ansicht Auswertung", () => {
+  test("Toggle «Auswertung» zeigt die Auswertung mit den Ausgaben des Anlasses", async () => {
+    await renderUnlockedPage(
+      [kitchenBudget],
+      [{...mockExpense, id: "expense-1", budgetId: kitchenBudget.id}],
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+
+    expect(
+      await screen.findByTestId("expense-tracking-evaluation"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("evaluation-top-expense-expense-1"),
+    ).toBeInTheDocument();
+  });
+
+  test("in der Auswertung gibt es weder «Neues Budget» noch «Neue Ausgabe»", async () => {
+    await renderUnlockedPage([kitchenBudget]);
+
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+
+    expect(
+      await screen.findByText(TEXT_NO_EXPENSES_FOR_STATS),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {name: TEXT_NEW_BUDGET}),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {name: TEXT_NEW_EXPENSE}),
+    ).not.toBeInTheDocument();
   });
 });
 describe("Budget-Cards werden richtig dargestellt", () => {
