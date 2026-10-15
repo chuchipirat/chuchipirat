@@ -18,6 +18,7 @@ import {
   SnackbarCloseReason,
   Tooltip,
   Divider,
+  Chip,
 } from "@mui/material";
 import {Event} from "../Event/event.class";
 
@@ -43,6 +44,8 @@ import {
   OK as TEXT_OK,
   PLEASE_CREATE_BUDGET_FIRST as TEXT_PLEASE_CREATE_BUDGET_FIRST,
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
+  ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
+  ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
 } from "../../../constants/text";
 
 import {
@@ -179,6 +182,8 @@ const EventExpenseTrackingPage = ({
       expense: null,
       open: false,
     });
+  const [showOnlyMissingReceipts, setShowOnlyMissingReceipts] =
+    React.useState(false);
   const realtime = useRealtimeConnectionStatus();
 
   const classes = useCustomStyles();
@@ -278,10 +283,14 @@ const EventExpenseTrackingPage = ({
     eventDays,
   ]);
 
-  const expenseGroups = React.useMemo<ExpenseGroup[]>(
-    () => Expense.groupByBudget(state.expenses ?? [], state.budgets ?? []),
-    [state.expenses, state.budgets],
-  );
+  const expenseGroups = React.useMemo<ExpenseGroup[]>(() => {
+    const visibleExpenses = showOnlyMissingReceipts
+      ? (state.expenses ?? []).filter(
+          (expense) => expense.attachmentPath === null,
+        )
+      : (state.expenses ?? []);
+    return Expense.groupByBudget(visibleExpenses, state.budgets ?? []);
+  }, [state.expenses, state.budgets, showOnlyMissingReceipts]);
 
   /* ------------------------------------------
   // Navigation-Handler
@@ -310,6 +319,7 @@ const EventExpenseTrackingPage = ({
   ) => {
     if (newView !== null) {
       setView(newView);
+      setShowOnlyMissingReceipts(false);
     }
   };
   /* ------------------------------------------
@@ -719,6 +729,7 @@ const EventExpenseTrackingPage = ({
       open: true,
     });
   };
+
   /* ------------------------------------------
   // Snackbar-Handler
   // ------------------------------------------ */
@@ -742,7 +753,24 @@ const EventExpenseTrackingPage = ({
   // UI Steuerung
   // ------------------------------------------ */
   const hasNoBudgets = !state.budgets || state.budgets.length === 0;
-
+  /* ------------------------------------------
+  // Filter «Nur ohne Beleg»
+  // ------------------------------------------ */
+  /**
+   * Springt aus der Auswertung in die Ausgabenliste und zeigt dort nur die
+   * Ausgaben ohne Beleg. Beide `setState` im selben Handler, damit React sie
+   * zu einem Render zusammenfasst (kein kurzes Aufblitzen der vollen Liste).
+   */
+  const handleShowMissingReceipts = () => {
+    setShowOnlyMissingReceipts(true);
+    setView("expenses");
+  };
+  /**
+   * Entfernt den Filter «Nur ohne Beleg» (✕ am Chip), die Ansicht bleibt.
+   */
+  const handleDeleteMissingReceiptFilter = () => {
+    setShowOnlyMissingReceipts(false);
+  };
   return (
     <React.Fragment>
       <Stack spacing={2}>
@@ -884,12 +912,28 @@ const EventExpenseTrackingPage = ({
                 />
               </React.Fragment>
             ) : view === "expenses" ? (
-              <ExpenseList
-                expenseGroups={expenseGroups}
-                highlightedExpenseIds={highlightedExpenseIds}
-                handleEditClick={handleEditExpense}
-                getAttachmentUrl={handleGetAttachmentUrl}
-              />
+              <>
+                {/* Ganzer Chip klickbar: das ✕ allein ist auf Mobile zu klein zum Tippen */}
+                {showOnlyMissingReceipts && (
+                  <Chip
+                    onClick={handleDeleteMissingReceiptFilter}
+                    onDelete={handleDeleteMissingReceiptFilter}
+                    label={TEXT_ONLY_WITHOUT_RECEIPT}
+                    sx={classes.expenseListFilterChip}
+                  />
+                )}
+                <ExpenseList
+                  expenseGroups={expenseGroups}
+                  highlightedExpenseIds={highlightedExpenseIds}
+                  emptyText={
+                    showOnlyMissingReceipts
+                      ? TEXT_ALL_EXPENSES_HAVE_A_RECEIPT
+                      : undefined
+                  }
+                  handleEditClick={handleEditExpense}
+                  getAttachmentUrl={handleGetAttachmentUrl}
+                />
+              </>
             ) : (
               <ExpenseEvaluation
                 eventId={event.uid}
@@ -898,6 +942,7 @@ const EventExpenseTrackingPage = ({
                 participantCount={groupConfiguration.totalPortions}
                 campDayCount={event.numberOfDays}
                 handleEditClick={handleEditExpense}
+                handleShowMissingReceipts={handleShowMissingReceipts}
               />
             )}
           </Box>

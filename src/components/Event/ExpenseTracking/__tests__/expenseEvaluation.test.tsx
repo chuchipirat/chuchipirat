@@ -49,6 +49,7 @@ import {
   EVALUATION_BUDGET_FILTER_ARIA_LABEL as TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL,
   EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
 } from "../../../../constants/text/expenseTracking";
+import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
 
 /**
  * Formatiert einen Betrag wie die Ansicht, aber mit normalem Leerzeichen.
@@ -110,13 +111,15 @@ beforeEach(() => {
  *
  * @param expenses - Ausgaben des Anlasses.
  * @param overrides - Weitere Props, die vom Standard abweichen sollen.
- * @returns Render-Ergebnis und Mock des Bearbeiten-Klicks.
+ * @returns Render-Ergebnis sowie Mocks des Bearbeiten-Klicks und des
+ *   Sprungs in die Liste der fehlenden Belege.
  */
 const renderEvaluation = (
   expenses: ExpenseDomain[],
   overrides: Partial<React.ComponentProps<typeof ExpenseEvaluation>> = {},
 ) => {
   const handleEditClick = jest.fn();
+  const handleShowMissingReceipts = jest.fn();
   const props = {
     eventId: EVENT_ID,
     expenses,
@@ -124,10 +127,11 @@ const renderEvaluation = (
     participantCount: 24,
     campDayCount: 7,
     handleEditClick,
+    handleShowMissingReceipts,
     ...overrides,
   };
   const view = render(<ExpenseEvaluation {...props} />);
-  return {view, props, handleEditClick};
+  return {view, props, handleEditClick, handleShowMissingReceipts};
 };
 
 /**
@@ -382,6 +386,30 @@ describe("ExpenseEvaluation, fehlende Belege", () => {
     ]);
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  test("«Anzeigen» im Hinweis ruft handleShowMissingReceipts genau einmal auf", () => {
+    const {handleShowMissingReceipts} = renderEvaluation([
+      createExpense({id: "e1"}),
+    ]);
+
+    fireEvent.click(
+      within(screen.getByRole("alert")).getByRole("button", {
+        name: TEXT_SHOW,
+      }),
+    );
+
+    expect(handleShowMissingReceipts).toHaveBeenCalledTimes(1);
+  });
+
+  test("alle Belege vorhanden: auch kein «Anzeigen»", () => {
+    renderEvaluation([
+      createExpense({id: "e1", attachmentPath: "evt/expenses/e1.pdf"}),
+    ]);
+
+    expect(
+      screen.queryByRole("button", {name: TEXT_SHOW}),
+    ).not.toBeInTheDocument();
   });
 });
 

@@ -189,6 +189,9 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     flexShrink: 0,
     fontWeight: 500,
   },
+  expenseListFilterChip: {
+    marginBottom: theme.spacing(1),
+  },
   noExpensesHint: {
     textAlign: "center",
     color: theme.palette.text.secondary,

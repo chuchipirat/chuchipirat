@@ -131,7 +131,7 @@ export class ExpenseStatistics {
    * ExpenseStatistics.countWithoutAttachment(expenses) // 3
    */
   static countWithoutAttachment(expenses: ExpenseDomain[]): number {
-    return expenses.filter((expense) => !expense.attachmentPath).length;
+    return expenses.filter((expense) => expense.attachmentPath === null).length;
   }
 
   /**
