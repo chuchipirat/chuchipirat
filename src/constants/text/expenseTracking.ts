@@ -260,3 +260,7 @@ export const EVALUATION_SCOPE_NOTE_BUDGETS = (budgetNames: string[]): string =>
 /** Ersetzt die Kacheln, wenn die gewählten Budgets keine Ausgaben haben (B6). */
 export const EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS =
   "Keine Ausgabe in der Budgetauswahl.";
+/** Chip über der Ausgabenliste, solange der Filter «ohne Beleg» aktiv ist. */
+export const ONLY_WITHOUT_RECEIPT = "Nur ohne Beleg";
+/** Leere Ausgabenliste bei aktivem Filter «ohne Beleg»: Arbeit erledigt. */
+export const ALL_EXPENSES_HAVE_A_RECEIPT = "Alle Ausgaben haben einen Beleg.";

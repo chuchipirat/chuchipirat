@@ -22,6 +22,7 @@ import {ExpenseDomain} from "./expense.types";
 import {BudgetDomain} from "./budget.types";
 
 import {
+  SHOW as TEXT_SHOW,
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
   EVALUATION_TOTAL as TEXT_EVALUATION_TOTAL,
   EVALUATION_EXPENSE_COUNT as TEXT_EVALUATION_EXPENSE_COUNT,
@@ -39,7 +40,7 @@ import {
   EVALUATION_SCOPE_NOTE_CURRENCIES as TEXT_EVALUATION_SCOPE_NOTE_CURRENCIES,
   EVALUATION_SCOPE_NOTE_BUDGETS as TEXT_EVALUATION_SCOPE_NOTE_BUDGETS,
   EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
-} from "../../../constants/text/expenseTracking";
+} from "../../../constants/text";
 import {useCustomStyles} from "../../../constants/styles";
 import {ExpenseStatistics} from "./expenseStatistics.class";
 import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
@@ -59,6 +60,8 @@ import {ArrowDropDown} from "@mui/icons-material";
  * @param campDayCount - Anzahl Anlasstage (`event.numberOfDays`), gleiche
  *   Grundlage wie der Sollbetrag der Budgets.
  * @param handleEditClick - Öffnet den Bearbeiten-Dialog (Klick auf eine Top-5-Zeile).
+ * @param handleShowMissingReceipts - Wechselt in die Ausgabenliste und zeigt
+ *   dort nur Ausgaben ohne Beleg («Anzeigen» im Beleg-Hinweis).
  */
 type ExpenseEvaluationProps = {
   eventId: string;
@@ -67,6 +70,7 @@ type ExpenseEvaluationProps = {
   participantCount: number;
   campDayCount: number;
   handleEditClick: (expenseId: string) => void;
+  handleShowMissingReceipts: () => void;
 };
 /**
  * Ansicht «Auswertung» der Abrechnungsseite: Kennzahlen über die Ausgaben
@@ -92,6 +96,7 @@ type ExpenseEvaluationProps = {
  *   participantCount={groupConfiguration.totalPortions}
  *   campDayCount={event.numberOfDays}
  *   handleEditClick={handleEditExpense}
+ *   handleShowMissingReceipts={handleShowMissingReceipts}
  * />
  */
 export const ExpenseEvaluation = ({
@@ -101,6 +106,7 @@ export const ExpenseEvaluation = ({
   participantCount,
   campDayCount,
   handleEditClick,
+  handleShowMissingReceipts,
 }: ExpenseEvaluationProps) => {
   const classes = useCustomStyles();
 
@@ -191,7 +197,19 @@ export const ExpenseEvaluation = ({
   return (
     <Box data-testid="expense-tracking-evaluation">
       {missingReceiptCount > 0 && (
-        <Alert severity="warning" sx={classes.statisticsMissingReceiptsAlert}>
+        <Alert
+          severity="warning"
+          sx={classes.statisticsMissingReceiptsAlert}
+          action={
+            <Button
+              color="inherit"
+              size="small"
+              onClick={handleShowMissingReceipts}
+            >
+              {TEXT_SHOW}
+            </Button>
+          }
+        >
           {TEXT_EVALUATION_WITHOUT_RECEIPT_COUNT(missingReceiptCount)}
         </Alert>
       )}

@@ -41,7 +41,10 @@ import {
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
   DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
+  ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
+  ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
 } from "../../../../constants/text/expenseTracking";
+import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
 import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
 import {ExpenseDetailDialogState} from "../expenseDetailDialog";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
@@ -390,6 +393,181 @@ describe("EventExpenseTrackingPage: Ansicht Auswertung", () => {
     expect(
       screen.queryByRole("button", {name: TEXT_NEW_EXPENSE}),
     ).not.toBeInTheDocument();
+  });
+});
+describe("EventExpenseTrackingPage: Filter «Nur ohne Beleg»", () => {
+  // Küche: eine Ausgabe ohne, eine mit Beleg. Motto: nur mit Beleg, damit
+  // sein Gruppenkopf im gefilterten Zustand verschwinden muss.
+  const kitchenMissing: ExpenseDomain = {
+    ...mockExpense,
+    id: "kitchen-missing",
+    budgetId: kitchenBudget.id,
+    label: "Migros",
+    amountInCents: 500,
+    currency: "CHF",
+    attachmentPath: null,
+  };
+  const kitchenWithReceipt: ExpenseDomain = {
+    ...mockExpense,
+    id: "kitchen-receipt",
+    budgetId: kitchenBudget.id,
+    label: "Coop",
+    amountInCents: 2000,
+    currency: "CHF",
+    attachmentPath: "evt-1/expenses/kitchen-receipt.pdf",
+  };
+  const mottoWithReceipt: ExpenseDomain = {
+    ...mockExpense,
+    id: "motto-receipt",
+    budgetId: mottoBudget.id,
+    label: "Bastelmaterial",
+    amountInCents: 3000,
+    currency: "CHF",
+    attachmentPath: "evt-1/expenses/motto-receipt.pdf",
+  };
+
+  /**
+   * Rendert die Seite mit beiden Budgets und allen drei Ausgaben, wechselt in
+   * die Auswertung und klickt im Beleg-Hinweis auf «Anzeigen».
+   *
+   * @returns Rückgabe von `renderUnlockedPage` (u.a. `onChange` für Realtime).
+   */
+  const openFilteredList = async () => {
+    const rendered = await renderUnlockedPage(
+      [kitchenBudget, mottoBudget],
+      [kitchenMissing, kitchenWithReceipt, mottoWithReceipt],
+    );
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("alert")).getByRole("button", {
+        name: TEXT_SHOW,
+      }),
+    );
+    return rendered;
+  };
+
+  test("«Anzeigen» wechselt zu den Ausgaben, zeigt Chip und nur Zeilen ohne Beleg", async () => {
+    await openFilteredList();
+
+    expect(
+      await screen.findByTestId("expense-tracking-expenses-list"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(TEXT_ONLY_WITHOUT_RECEIPT)).toBeInTheDocument();
+    expect(screen.getByTestId("expense-kitchen-missing")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-kitchen-receipt"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-motto-receipt"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Gruppenkopf zeigt die Summe nur der sichtbaren Ausgaben", async () => {
+    await openFilteredList();
+
+    const kitchenHeader = await screen.findByTestId(
+      `budget-subheader-${kitchenBudget.id}`,
+    );
+    expect(
+      within(kitchenHeader).getByText(
+        normalizer(formatAmountFromCents(500, "CHF")),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(kitchenHeader).queryByText(
+        normalizer(formatAmountFromCents(2500, "CHF")),
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Budget, dessen Ausgaben alle einen Beleg haben, hat keinen Gruppenkopf", async () => {
+    await openFilteredList();
+
+    await screen.findByTestId("expense-tracking-expenses-list");
+    expect(
+      screen.queryByTestId(`budget-subheader-${mottoBudget.id}`),
+    ).not.toBeInTheDocument();
+  });
+
+  test("✕ am Chip zeigt wieder alle Ausgaben", async () => {
+    await openFilteredList();
+
+    // MUI rendert das ✕ eines Chips mit `onDelete` als CancelIcon
+    fireEvent.click(await screen.findByTestId("CancelIcon"));
+
+    expect(
+      screen.queryByText(TEXT_ONLY_WITHOUT_RECEIPT),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("expense-kitchen-receipt")).toBeInTheDocument();
+    expect(screen.getByTestId("expense-motto-receipt")).toBeInTheDocument();
+  });
+
+  test("Tippen auf den Chip selbst entfernt den Filter (grössere Fläche als ✕)", async () => {
+    await openFilteredList();
+
+    fireEvent.click(
+      await screen.findByRole("button", {name: TEXT_ONLY_WITHOUT_RECEIPT}),
+    );
+
+    expect(
+      screen.queryByText(TEXT_ONLY_WITHOUT_RECEIPT),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("expense-kitchen-receipt")).toBeInTheDocument();
+  });
+
+  test("Wechsel auf «Übersicht» und zurück setzt den Filter zurück", async () => {
+    await openFilteredList();
+    await screen.findByText(TEXT_ONLY_WITHOUT_RECEIPT);
+
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(
+      await screen.findByTestId("expense-kitchen-receipt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_ONLY_WITHOUT_RECEIPT),
+    ).not.toBeInTheDocument();
+  });
+
+  test("erneuter Klick auf die aktive Ansicht «Ausgaben» lässt den Filter stehen", async () => {
+    await openFilteredList();
+    await screen.findByText(TEXT_ONLY_WITHOUT_RECEIPT);
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(screen.getByText(TEXT_ONLY_WITHOUT_RECEIPT)).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-kitchen-receipt"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("letzter Beleg nachgereicht (Realtime): «Alle Ausgaben haben einen Beleg.»", async () => {
+    const {onChange} = await openFilteredList();
+    await screen.findByTestId("expense-kitchen-missing");
+
+    // Eine andere Sitzung lädt den fehlenden Beleg hoch; der Reload liefert
+    // beide Tabellen neu (siehe Realtime-Tests der Ausgaben).
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {...kitchenMissing, attachmentPath: "evt-1/expenses/kitchen-missing.pdf"},
+      kitchenWithReceipt,
+      mottoWithReceipt,
+    ]);
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(
+      await screen.findByText(TEXT_ALL_EXPENSES_HAVE_A_RECEIPT),
+    ).toBeInTheDocument();
+    // Filter bleibt aktiv, damit sichtbar ist, dass die Arbeit erledigt ist (F4)
+    expect(screen.getByText(TEXT_ONLY_WITHOUT_RECEIPT)).toBeInTheDocument();
   });
 });
 describe("Budget-Cards werden richtig dargestellt", () => {

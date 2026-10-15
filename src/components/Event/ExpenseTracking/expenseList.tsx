@@ -32,12 +32,16 @@ import {ReceiptLongOutlined, ReportProblemOutlined} from "@mui/icons-material";
  * @param highlightedExpenseIds - IDs von Ausgaben, die eine andere Sitzung
  *   gerade angelegt oder geändert hat (Paket 2.8) — die betroffene Zeile
  *   leuchtet kurz auf (`classes.remoteChangeGlow`).
+ * @param emptyText - Hinweis, wenn keine Gruppe Ausgaben enthält. Standard:
+ *   «Noch keine Ausgaben.» Bei aktivem Filter übergibt die Seite einen
+ *   passenderen Text (es gibt Ausgaben, nur keine, die den Filter erfüllen).
  * @param handleEditClick - Callback bei Klick auf eine Zeile, liefert die ID
  *   der angeklickten Ausgabe.
  */
 interface ExpenseListProps {
   expenseGroups: ExpenseGroup[];
   highlightedExpenseIds: Set<string>;
+  emptyText?: string;
   handleEditClick: (expenseId: string) => void;
   getAttachmentUrl: (attachmentPath: string) => string;
 }
@@ -55,6 +59,7 @@ interface ExpenseListProps {
 export const ExpenseList = ({
   expenseGroups,
   highlightedExpenseIds,
+  emptyText = TEXT_NO_EXPENSES_YET,
   handleEditClick,
   getAttachmentUrl,
 }: ExpenseListProps) => {
@@ -65,9 +70,7 @@ export const ExpenseList = ({
   return (
     <List data-testid="expense-tracking-expenses-list">
       {groupsWithExpenses.length === 0 ? (
-        <Typography sx={classes.noExpensesHint}>
-          {TEXT_NO_EXPENSES_YET}
-        </Typography>
+        <Typography sx={classes.noExpensesHint}>{emptyText}</Typography>
       ) : (
         groupsWithExpenses.map((group, index) => (
           <React.Fragment key={"expense_budget_" + group.budget.id}>

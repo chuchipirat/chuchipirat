@@ -3452,7 +3452,7 @@ Reine Funktionen (ohne Rendern): `getBudgetFilterLabel` (alle / eines / Teilausw
 
 ---
 
-### **Paket 6.2c — Filter "Nur ohne Beleg"**
+### **Paket 6.2c — Filter "Nur ohne Beleg"** ✅ erledigt
 
 #### Was passiert
 
@@ -3527,7 +3527,26 @@ const expenseGroups = React.useMemo<ExpenseGroup[]>(() => {
 5. Chip ✕ → volle Liste. Erneut filtern, auf "Übersicht" wechseln, zurück auf "Ausgaben" → ungefiltert.
 6. **Mobile (xs):** Chip und Toolbar überlagern sich nicht, Chip-✕ gross genug zum Tippen.
 
-**Definition of Done 6.2c:** `npx tsc --noEmit`, `npx jest expenseEvaluation expenseList expenseTracking --watchAll=false`, `npm run lint` grün; Mutationsproben 1–3 bestätigt; Browser-Rundlauf Desktop **und** Mobile inkl. Zweit-Köchin.
+#### Abweichungen nach Abgleich mit dem Code (Stand nach 6.2b, 2026-10-15)
+
+- **A1 — Gleiche Bedingung für Zählen und Filtern.** F2 filtert mit `attachmentPath === null`, der Alert zählt aber mit `!expense.attachmentPath` (`expenseStatistics.class.ts:134`). Bei `""` würden Zahl und Liste auseinanderlaufen. Umgesetzt: `countWithoutAttachment` prüft jetzt ebenfalls `attachmentPath === null`, beide Stellen verwenden dieselbe Bedingung (das Repository liefert nur `null` oder einen Pfad).
+- **A2 — Leertext.** `EVALUATION_ALL_RECEIPTS_PRESENT` gibt es nicht mehr (seit «Ohne Beleg» in 6.2a ein Alert ist). Neuer Text `ALL_EXPENSES_HAVE_A_RECEIPT` = «Alle Ausgaben haben einen Beleg.»
+- **A3 — Erneuter Klick auf «Ausgaben».** Die `ToggleButtonGroup` liefert dann `null`; das ist kein Ansichtswechsel. Der Filter bleibt, nur ein echter Wechsel setzt ihn zurück.
+
+#### Umsetzung 6.2c
+
+- [x] 1. `expenseStatistics.class.ts`: `countWithoutAttachment` auf `=== null` umgestellt (A1)
+- [x] 2. Texte: `ONLY_WITHOUT_RECEIPT` («Nur ohne Beleg»), `ALL_EXPENSES_HAVE_A_RECEIPT`, `SHOW` («Anzeigen», in `shared.ts`)
+- [x] 3. `expenseList.tsx`: optionale Prop `emptyText` (Standard `TEXT_NO_EXPENSES_YET`), JSDoc ergänzen
+- [x] 4. `expenseEvaluation.tsx`: Prop `handleShowMissingReceipts`, `action`-Button am Alert (F6), JSDoc + `@example`
+- [x] 5. `expenseTracking.tsx`: State (F1), Filter vor `groupByBudget` inkl. Dependency (F2), Reset in `handleViewChange` (F3, A3), `handleShowMissingReceipts`, `Chip` mit `onDelete` zwischen Toolbar und Liste nur bei `view === "expenses"` und aktivem Filter, `emptyText` bei aktivem Filter (F4)
+- [x] 6. Style `expenseListFilterChip` (Abstand nach unten) in `expenseTracking.styles.ts`
+- [x] 7. Tests gemäss «Tests 6.2c» (+1 für A3: erneuter Klick auf «Ausgaben» lässt den Filter stehen; Leer-Fall über Realtime-Reload)
+- [x] 8. Mutationsproben 1–3 rot wie erwartet; zusätzlich A3 (Reset ausserhalb von `if`) → Test «erneuter Klick» rot
+- [x] 9. Verifikation: tsc, Jest (253 grün), Lint ok; Browser Desktop 1280 und Mobile (xs, Fenster min. 500 px) Punkte 1, 3, 5, 6 ok, keine Konsolenfehler. Punkte 2/4 (Beleg einer anderen Sitzung) über lokales DB-Update simuliert: Zeile verschwindet live, Leertext erscheint, Chip bleibt; Gegenrichtung ebenso. Beleg-Upload per Dialog nicht im Browser geprüft (Datei-Upload über die Erweiterung nicht möglich), durch Jest abgedeckt. Befund Mobile: ✕ am Chip (~20 px) zu klein zum Tippen → ganzer Chip klickbar (`onClick` zusätzlich zu `onDelete`), Test + Mutationsprobe
+- [ ] 10. Commit `feat(abrechnung): Filter «Nur ohne Beleg» in der Ausgabenliste (Story 6.2c)`
+
+**Definition of Done 6.2c:** `npx tsc --noEmit`, `npx jest expenseStatistics expenseEvaluation expenseList expenseTracking --watchAll=false`, `npm run lint` grün; Mutationsproben 1–3 bestätigt; Browser-Rundlauf Desktop **und** Mobile inkl. Zweit-Köchin.
 
 ---
 

@@ -193,6 +193,7 @@ export const RENAME = "Umbenennen";
 export const DELETE = "Löschen";
 export const CANCEL = "Abbrechen";
 export const CREATE = "Erstellen";
+export const SHOW = "Anzeigen";
 export const EDIT = "anpassen";
 export const NAME = "Name";
 export const CLOSE = "Schliessen";

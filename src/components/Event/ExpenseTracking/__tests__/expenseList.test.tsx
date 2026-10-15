@@ -12,7 +12,10 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import {NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET} from "../../../../constants/text";
+import {
+  NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET,
+  ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
+} from "../../../../constants/text";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 
 const normalizer = getDefaultNormalizer();
@@ -44,6 +47,30 @@ describe("ExpenseList, Standard Funktionalität ", () => {
     );
 
     expect(screen.getByText(TEXT_NO_EXPENSES_YET)).toBeInTheDocument();
+  });
+  test("Keine Ausgaben mit emptyText: übergebener Text statt Standardtext", () => {
+    const mockExpenseGroup: ExpenseGroup[] = [
+      {
+        budget: budget,
+        expenses: [],
+        totalsByCurrency: {},
+      },
+    ];
+
+    render(
+      <ExpenseList
+        expenseGroups={mockExpenseGroup}
+        handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
+        emptyText={TEXT_ALL_EXPENSES_HAVE_A_RECEIPT}
+        getAttachmentUrl={jest.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(TEXT_ALL_EXPENSES_HAVE_A_RECEIPT),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(TEXT_NO_EXPENSES_YET)).not.toBeInTheDocument();
   });
   test("Reihenfolge der Gruppen und Ausgaben entspricht der Reihenfolge der ExpenseGroup", () => {
     const mockExpenseGroup: ExpenseGroup[] = [
