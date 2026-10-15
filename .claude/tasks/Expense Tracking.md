@@ -2719,7 +2719,7 @@ Ziel: Die Küche sieht während des Lagers auf einen Blick, wo sie steht: ob ein
 |---|---|---|---|
 | **6.1** | Hochrechnung pro Budget (`Budget.projectSpending`) + Anzeige auf der `BudgetCard` | Übersicht | — |
 | **6.2a** | Ansicht "Auswertung" + Währungsauswahl + Kennzahl-Kacheln: Gesamttotal, Ø/Teilnehmer:in, Ausgaben ohne Beleg, Top-5-Ausgaben | Auswertung | — |
-| **6.2b** | Budget-Auswahl für die Auswertung (Chips, pro Gerät im `localStorage`) | Auswertung | — |
+| **6.2b** | Budget-Auswahl für die Auswertung (Button mit Dropdown, pro Gerät im `localStorage`) | Auswertung | — |
 | **6.2c** | Filter "Nur ohne Beleg" in der Ausgabenliste, Sprung aus der Kachel | Ausgaben | — |
 | **6.3** | Ausgabenverlauf (`LineChart`): kumuliert pro Lagertag, Soll-Referenzlinie (Budget-Auswahl aus 6.2b) | Auswertung | `@mui/x-charts@^7.29` |
 | **6.4** | Verteilung nach Budget (`PieChart` als Donut) | Auswertung | — |
@@ -2915,7 +2915,7 @@ Die Abrechnungsseite bekommt neben "Übersicht" und "Ausgaben" eine dritte Ansic
 | Paket | Inhalt | Warum getrennt |
 |---|---|---|
 | **6.2a** | `ExpenseStatistics` (reine Funktionen + Tests), neue Komponente `ExpenseEvaluation`, dritter Toggle, Währungsauswahl, vier Kacheln | Neue Datei, neue Ansicht, keine Änderung an bestehendem Verhalten. Lässt sich für sich reviewen und committen. |
-| **6.2b** | Budget-Auswahl (Chips), gespeichert pro Gerät im `localStorage` | Eigenes Thema mit eigenem Risiko: Speicher, der fehlen, kaputt sein oder werfen kann. 6.2a rechnet zuerst über alle Budgets; 6.2b schiebt nur einen Filter davor. |
+| **6.2b** | Budget-Auswahl (Button mit Dropdown), gespeichert pro Gerät im `localStorage` | Eigenes Thema mit eigenem Risiko: Speicher, der fehlen, kaputt sein oder werfen kann. 6.2a rechnet zuerst über alle Budgets; 6.2b schiebt nur einen Filter davor. |
 | **6.2c** | Filter "Nur ohne Beleg" in der Ausgabenliste + Sprung aus der Kachel | Ändert **bestehende** Komponenten (`ExpenseList`, Seite). Anderes Risiko (Regression in der Liste), andere Tests. Lehre aus Epic 1: ein Paket = ein Ziel. |
 
 In 6.2a zählen noch alle Budgets, die Auswahl kommt mit 6.2b. Die Kachel "Ohne Beleg" ist bis 6.2c **nicht klickbar**.
@@ -2989,7 +2989,7 @@ Weil alles aus `state.expenses` abgeleitet wird, ist die Auswertung **automatisc
 
 ---
 
-### **Paket 6.2a — Statistik-Funktionen + Ansicht "Auswertung"**
+### **Paket 6.2a — Statistik-Funktionen + Ansicht "Auswertung"** ✅ erledigt
 
 #### Fachliche Entscheidungen
 
@@ -3272,12 +3272,20 @@ Funktions-Texte nach dem Muster von `DAY_X_OF_Y_IN_EVENT` (Pfeilfunktion mit Rü
 
 ---
 
-### **Paket 6.2b — Budget-Auswahl für die Auswertung**
+### **Paket 6.2b — Budget-Auswahl für die Auswertung** ✅ erledigt
 
 > **Stand nach 6.2a (2026-10-11), gilt vor den Details unten:**
 > - `ExpenseStatistics.excludeBudgets(expenses, excludedBudgetIds: string[])` und die Verarbeitungsreihenfolge aus B5 sind **schon umgesetzt**. In `ExpenseEvaluation` steht als Platzhalter `const [excludedBudgetIds] = React.useState<string[]>([]);` — genau diese Zeile ersetzt 6.2b durch den Hook.
 > - **Array statt `Set`:** Der Hook liefert `ids: string[]` (nicht `Set<string>`), passend zu `excludeBudgets`. Grund: lässt sich direkt als JSON speichern, und bei einer Handvoll Budgets spielt `includes` gegenüber `Set.has` keine Rolle.
 > - «Ohne Beleg» ist in 6.2a keine Kachel geworden, sondern ein `Alert` oberhalb der Kennzahlen. Er steht damit sichtbar ausserhalb der Budget- und Währungsauswahl; ein Zusatztext «alle Budgets und Währungen» ist nicht nötig.
+>
+> **Umsetzung 6.2b (2026-10-15), weicht von den Chips unten ab:** Statt einer Chip-Reihe gibt es einen **Button mit Dropdown** (`BudgetFilter` in `expenseEvaluation.tsx`). *Warum:* Bei vier und mehr Budgets bricht eine Chip-Reihe auf Mobile mehrzeilig um und drückt die Kennzahlen nach unten; der Button braucht immer eine Zeile und steht neben den Währungs-Chips. Wo unten noch "Chip" steht, gilt das Folgende:
+> - **Button:** Beschriftung «Alle Budgets», bei genau einem Budget dessen Name, sonst «2 von 4 Budgets» (`getBudgetFilterLabel`). Hervorgehoben (Primärfarbe), sobald ein Filter aktiv ist. `aria-haspopup="menu"`, `aria-expanded`.
+> - **Menü:** zuoberst «Alle Budgets» (setzt die Abwahl zurück, über `clearIds`; deaktiviert, wenn schon alle gewählt sind), Trenner, dann ein Eintrag pro Budget mit Checkbox, Icon und Name. Einträge mit `role="menuitemcheckbox"` und `aria-checked` statt `aria-pressed`.
+> - **Das letzte ausgewählte Budget ist deaktiviert** und lässt sich nicht abwählen. Damit entfällt der leere Zustand «Kein Budget ausgewählt» aus B6 im Normalfall.
+> - **Hinweiszeile statt «2 von 4 Budgets berücksichtigt»:** Unter den Filtern steht, was fehlt, ein Satz pro Filter (`getStatisticsScopeNote`): «Ausgaben in EUR sind hier nicht enthalten. Nicht berücksichtigte Budgets: Material und Lagerbau.» Ersetzt auch den Währungshinweis aus 6.2a (`EVALUATION_OTHER_CURRENCIES_EXCLUDED` entfällt).
+> - **Ein einziger leerer Zustand:** Sind in der Auswahl keine Ausgaben (`expensesOfSelectedBudgets.length === 0`), steht statt der Kacheln «Keine Ausgabe in der Budgetauswahl.» Das deckt auch den Randfall ab, dass alle noch gewählten Budgets gelöscht wurden (z.B. A und B abgewählt, eine andere Köchin löscht C): Dann ist nichts ausgewählt, die Liste leer, und im Menü sind alle Einträge wieder aktiv.
+> - **Hook:** zusätzlich `clearIds()` (leert State und Speicher), für «Alle Budgets».
 
 #### Worum es geht
 
@@ -3343,7 +3351,7 @@ Der Rest von 6.2a bleibt unverändert. Er bekommt nur eine kleinere Liste.
 - **Lesen** einmal beim Mounten über einen Lazy-Initializer `useState(() => readExcludedIds(key))`. *Warum Lazy:* Ohne Funktion würde `localStorage` bei jedem Render gelesen und das Ergebnis weggeworfen.
 - **Schreiben** im Klick-Handler, nicht in einem `useEffect` auf den State. *Warum:* Gespeichert wird nur, was die Köchin bewusst geändert hat. Ein Effekt würde schon beim ersten Render die leere Vorauswahl zurückschreiben.
 
-**B9 — Ein kleiner, wiederverwendbarer Hook.** `useStoredIdSet(storageKey: string)` → `{ids: string[], toggleId: (id: string) => void}` in `src/components/Shared/useStoredIdSet.ts`. Er weiss nichts von Budgets, nur "eine Menge von IDs unter diesem Schlüssel". *Warum generisch:* 6.5 braucht dasselbe für die Mahlzeitentypen (dort ebenfalls "abgewählte" speichern, B3 gilt genauso). Gebaut wird trotzdem nur, was 6.2b braucht, keine Extra-Optionen auf Vorrat.
+**B9 — Ein kleiner, wiederverwendbarer Hook.** `useStoredIdSet(storageKey: string)` → `{ids: string[], toggleId: (id: string) => void, clearIds: () => void}` in `src/hooks/useStoredIdSet.ts`. Er weiss nichts von Budgets, nur "eine Menge von IDs unter diesem Schlüssel". *Warum generisch:* 6.5 braucht dasselbe für die Mahlzeitentypen (dort ebenfalls "abgewählte" speichern, B3 gilt genauso). Gebaut wird trotzdem nur, was 6.2b braucht, keine Extra-Optionen auf Vorrat.
 
 Bekannte Grenze: Ändert sich `storageKey` bei montierter Komponente, liest der Hook nicht neu. Kommt nicht vor, weil ein anderer Anlass die ganze Seite neu montiert. In der JSDoc vermerken.
 
@@ -3363,25 +3371,30 @@ static excludeBudgets(expenses: ExpenseDomain[], excludedBudgetIds: string[]): E
 
 | Konstante | Text |
 |---|---|
-| `EVALUATION_BUDGETS` | "Budgets" (Beschriftung + `aria-label` der Chip-Gruppe) |
-| `EVALUATION_BUDGETS_SELECTED(selected: number, total: number)` | "2 von 4 Budgets berücksichtigt" |
-| `EVALUATION_NO_BUDGET_SELECTED` | "Wähle mindestens ein Budget aus." |
-| `EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS` | "In den gewählten Budgets gibt es noch keine Ausgaben." |
+| `EVALUATION_BUDGET_FILTER_ALL` | "Alle Budgets" (Button-Beschriftung und Menüeintrag) |
+| `EVALUATION_BUDGET_FILTER_PARTIAL(selected, total)` | "2 von 4 Budgets" |
+| `EVALUATION_BUDGET_FILTER_ARIA_LABEL(selectionLabel)` | "Budgets für die Auswertung auswählen, aktuell: 2 von 4 Budgets" (enthält die Auswahl, weil `aria-label` die sichtbare Beschriftung ersetzt) |
+| `EVALUATION_SCOPE_NOTE_CURRENCIES(currencies)` | "Ausgaben in EUR und USD sind hier nicht enthalten." (ersetzt `EVALUATION_OTHER_CURRENCIES_EXCLUDED`) |
+| `EVALUATION_SCOPE_NOTE_BUDGETS(budgetNames)` | "Nicht berücksichtigte Budgets: Material und Lagerbau." |
+| `EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS` | "Keine Ausgabe in der Budgetauswahl." |
 
-Barrierefreiheit: Jeder Chip bekommt `aria-pressed={isSelected}`. So hört ein Screenreader "ausgewählt / nicht ausgewählt", die Farbe allein reicht nicht.
+Beide Hinweise nutzen den Helfer `joinWithAnd` (Aufzählung mit «und» vor dem letzten Eintrag).
+
+Barrierefreiheit: Die Menüeinträge haben `role="menuitemcheckbox"` und `aria-checked={isSelected}`. So hört ein Screenreader "ausgewählt / nicht ausgewählt", die Farbe allein reicht nicht. Die Hinweiszeile ist eine `aria-live="polite"`-Region, damit eine Änderung der Auswahl angesagt wird.
 
 #### Dateien 6.2b
 
 | Datei | Änderung |
 |---|---|
-| `src/components/Shared/useStoredIdSet.ts` (neu) | Hook inkl. `try/catch` und Validierung |
+| `src/hooks/useStoredIdSet.ts` (neu) | Hook inkl. `try/catch` und Validierung |
 | `src/constants/localStorage.ts` | `EXPENSE_EVALUATION_EXCLUDED_BUDGETS` |
 | `expenseStatistics.class.ts` | `excludeBudgets` |
-| `expenseEvaluation.tsx` | Chips, Prop `eventId`, Reihenfolge B5, leere Zustände B6 |
+| `expenseEvaluation.tsx` | `BudgetFilter` (Button + Menü), `getBudgetFilterLabel`, `getStatisticsScopeNote`, Prop `eventId`, Reihenfolge B5, leerer Zustand B6 |
 | `expenseTracking.tsx` | `eventId={event.uid}` durchreichen |
 | `src/constants/text/expenseTracking.ts` | Texte oben |
+| `src/constants/styles/expenseTracking.styles.ts` | `statisticsFilterBar`, `statisticsFilterButton(Active)`, `statisticsFilterMenuPaper` |
 | `.claude/docs/tech-debt.md` | `LocalStorageHandler` ohne Fehlerbehandlung, nur Objekte, `any` |
-| `src/components/Shared/__tests__/useStoredIdSet.test.ts` (neu) | Hook |
+| `src/hooks/__tests__/useStoredIdSet.test.ts` (neu) | Hook |
 | `__tests__/expenseStatistics.class.test.ts`, `__tests__/expenseEvaluation.test.tsx` | erweitern |
 
 #### Tests 6.2b
@@ -3395,6 +3408,7 @@ Barrierefreiheit: Jeder Chip bekommt `aria-pressed={isSelected}`. So hört ein S
 - `setItem` wirft → `toggleId` ändert den State trotzdem (Auswahl gilt für diese Sitzung), kein Fehler
 - `toggleId("a")` zweimal → zuerst drin und gespeichert, dann weg und gespeichert
 - unterschiedliche Schlüssel beeinflussen sich nicht (Anlass A vs. B)
+- `clearIds()` nach zwei gespeicherten IDs → State leer, Speicher `[]`; wirft `setItem`, ist der State trotzdem leer
 
 `expenseStatistics.class.test.ts`, `excludeBudgets`:
 - leere Menge → alle Ausgaben
@@ -3402,14 +3416,19 @@ Barrierefreiheit: Jeder Chip bekommt `aria-pressed={isSelected}`. So hört ein S
 - unbekannte ID in der Menge (gelöschtes Budget) → keine Wirkung
 
 `expenseEvaluation.test.tsx` (zwei Budgets: Küche CHF, Material CHF + EUR):
-- ein Budget → keine Chips
-- Material abwählen → Gesamttotal nur noch Küche, Top-5 ohne Material-Zeilen
-- Material abwählen → EUR-Toggle verschwindet (B4, Währungen aus der Auswahl)
-- Material abwählen → "Ohne Beleg" unverändert
-- beide abwählen → "Wähle mindestens ein Budget aus.", Chips noch da
-- nur ein Budget ohne Ausgaben gewählt → "In den gewählten Budgets …"
+- ein Budget → kein Budget-Filter-Button
+- Button öffnen → Menü mit «Alle Budgets» (deaktiviert) und je einem `menuitemcheckbox` pro Budget, alle `aria-checked="true"`
+- Material abwählen → Gesamttotal nur noch Küche, Top-5 ohne Material-Zeilen, Button zeigt «Küche»
+- Material abwählen → EUR-Chip verschwindet (B4, Währungen aus der Auswahl)
+- Material abwählen → Hinweis «Nicht berücksichtigte Budgets: Material.»; "Ohne Beleg" unverändert
+- nur noch ein Budget gewählt → dessen Menüeintrag ist deaktiviert
+- «Alle Budgets» im Menü → wieder alles gewählt, Hinweis weg, Button «Alle Budgets»
+- nur ein Budget ohne Ausgaben gewählt → «Keine Ausgabe in der Budgetauswahl.» statt der Kacheln
 - im `localStorage` vorab Material als abgewählt eingetragen → beim Rendern bereits abgewählt
 - neues Budget in den Props (Rerender), das nicht im Speicher steht → ausgewählt (B3)
+- bestehende 6.2a-Tests mit `EVALUATION_OTHER_CURRENCIES_EXCLUDED` auf `EVALUATION_SCOPE_NOTE_CURRENCIES` umstellen
+
+Reine Funktionen (ohne Rendern): `getBudgetFilterLabel` (alle / eines / Teilauswahl) und `getStatisticsScopeNote` (nichts ausgeblendet → `null`, nur Währung, nur Budgets, beides). Text-Helfer `joinWithAnd` indirekt über die Texte: ein, zwei, drei Einträge.
 
 #### Mutationsproben 6.2b
 
@@ -3419,14 +3438,15 @@ Barrierefreiheit: Jeder Chip bekommt `aria-pressed={isSelected}`. So hört ein S
 
 #### Im Browser ansehen
 
-1. Vier Budgets, Ausgaben in allen. "Material" abwählen → Zahlen ändern sich, darunter "3 von 4 Budgets berücksichtigt".
+1. Vier Budgets, Ausgaben in allen. Im Dropdown "Material" abwählen → Zahlen ändern sich, Button zeigt «3 von 4 Budgets», darunter «Nicht berücksichtigte Budgets: Material.»
 2. Seite neu laden → Material bleibt abgewählt.
 3. Zweites Fenster (andere Köchin, anderes Gerät/Profil) → dort ist alles ausgewählt (B2, gewollt).
 4. Im zweiten Fenster ein neues Budget mit Ausgabe anlegen → im ersten Fenster erscheint es **ausgewählt**.
-5. Abgewähltes Budget leeren und löschen → kein Fehler, Chip verschwindet.
+5. Abgewähltes Budget leeren und löschen → kein Fehler, Eintrag verschwindet aus dem Menü, Button und Hinweis stimmen.
+5a. Bis auf ein Budget alles abwählen → dessen Eintrag ist deaktiviert. «Alle Budgets» → alles wieder gewählt.
 6. Privates Fenster → funktioniert, Auswahl gilt bis zum Schliessen bzw. bis zum Neuladen.
 7. DevTools → Application → Local Storage: Schlüssel enthält die `eventId`, Wert ist ein Array der abgewählten IDs.
-8. **Mobile (xs):** Chips brechen um, keine horizontale Scrollleiste, Tippziele gross genug.
+8. **Mobile (xs):** Button und Währungs-Chips brechen sauber um, langer Budgetname wird gekürzt (…), keine horizontale Scrollleiste, Menüeinträge gross genug zum Tippen.
 
 **Definition of Done 6.2b:** `npx tsc --noEmit`, `npx jest useStoredIdSet expenseStatistics expenseEvaluation --watchAll=false`, `npm run lint` grün; Mutationsproben 1–3 bestätigt; Browser-Rundlauf Desktop **und** Mobile, Punkte 2–4 ausdrücklich.
 

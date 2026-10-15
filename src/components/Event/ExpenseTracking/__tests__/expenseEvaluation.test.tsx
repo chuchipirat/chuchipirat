@@ -4,17 +4,33 @@
  * Reine Anzeige-Komponente (Story 6.2a), darum ohne Contexts: Props direkt.
  * Schwerpunkte: leerer Zustand, Währungsauswahl inkl. Rückfall (W4),
  * Kennzahl-Kacheln, Hinweis auf fehlende Belege und die Top-5-Liste.
+ * Story 6.2b: Budget-Filter (Button mit Dropdown, `BudgetFilter`), die
+ * Hilfsfunktionen für Beschriftung und Hinweiszeile sowie das Zusammenspiel
+ * mit Kennzahlen, Währungen und LocalStorage.
  */
 import React from "react";
-import {fireEvent, render, screen, within} from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import {ExpenseEvaluation} from "../expenseEvaluation";
+import {
+  BudgetFilter,
+  ExpenseEvaluation,
+  getBudgetFilterLabel,
+  getStatisticsScopeNote,
+} from "../expenseEvaluation";
+import {BudgetDomain} from "../budget.types";
 import {ExpenseDomain} from "../expense.types";
 import {expense} from "../__mocks__/expense.mock";
 import {budget, budget2} from "../__mocks__/budget.mock";
 import {parseLocalDate} from "../../../../utils/dateUtils";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {LocalStorageKey} from "../../../../constants/localStorage";
 
 import {
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
@@ -26,7 +42,12 @@ import {
   EVALUATION_CALCULATION_BASIS as TEXT_EVALUATION_CALCULATION_BASIS,
   EVALUATION_WITHOUT_RECEIPT_COUNT as TEXT_EVALUATION_WITHOUT_RECEIPT_COUNT,
   EVALUATION_CURRENCY_FILTER_ARIA_LABEL as TEXT_EVALUATION_CURRENCY_FILTER_ARIA_LABEL,
-  EVALUATION_OTHER_CURRENCIES_EXCLUDED as TEXT_EVALUATION_OTHER_CURRENCIES_EXCLUDED,
+  EVALUATION_SCOPE_NOTE_CURRENCIES as TEXT_EVALUATION_SCOPE_NOTE_CURRENCIES,
+  EVALUATION_SCOPE_NOTE_BUDGETS as TEXT_EVALUATION_SCOPE_NOTE_BUDGETS,
+  EVALUATION_BUDGET_FILTER_ALL as TEXT_EVALUATION_BUDGET_FILTER_ALL,
+  EVALUATION_BUDGET_FILTER_PARTIAL as TEXT_EVALUATION_BUDGET_FILTER_PARTIAL,
+  EVALUATION_BUDGET_FILTER_ARIA_LABEL as TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL,
+  EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
 } from "../../../../constants/text/expenseTracking";
 
 /**
@@ -69,6 +90,21 @@ const createExpense = (
 
 const budgets = [budget, budget2];
 
+/** Drittes Budget für Teilauswahlen («2 von 3 Budgets»). */
+const budget3: BudgetDomain = {
+  ...budget,
+  id: "budget-id-003",
+  name: "Material",
+};
+
+const EVENT_ID = "event-id-001";
+const STORAGE_KEY = `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_BUDGETS}_${EVENT_ID}`;
+
+// Die Budget-Auswahl wird pro Gerät gespeichert: jeder Test startet leer
+beforeEach(() => {
+  localStorage.clear();
+});
+
 /**
  * Rendert die Auswertung mit Standardwerten (24 Personen, 7 Anlasstage).
  *
@@ -82,6 +118,7 @@ const renderEvaluation = (
 ) => {
   const handleEditClick = jest.fn();
   const props = {
+    eventId: EVENT_ID,
     expenses,
     budgets,
     participantCount: 24,
@@ -106,6 +143,53 @@ const getTile = (title: string): HTMLElement => {
     throw new Error(`Kachel «${title}» nicht gefunden`);
   }
   return tile;
+};
+
+/**
+ * Screenreader-Name des Budget-Filter-Buttons unabhängig von der Auswahl
+ * (der Name endet mit der aktuellen Auswahl).
+ */
+const BUDGET_FILTER_BUTTON_NAME = new RegExp(
+  `^${TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL("").trim()}`,
+);
+
+/**
+ * Liefert den Button des Budget-Filters.
+ *
+ * @returns Der Button, der das Budget-Menü öffnet.
+ */
+const getBudgetFilterButton = (): HTMLElement =>
+  screen.getByRole("button", {name: BUDGET_FILTER_BUTTON_NAME});
+
+/**
+ * Liefert den Menüeintrag eines Budgets (Menü muss offen sein).
+ *
+ * @param budgetName - Name des Budgets.
+ * @returns Der Eintrag mit `role="menuitemcheckbox"`.
+ */
+const getBudgetMenuItem = (budgetName: string): HTMLElement =>
+  screen.getByRole("menuitemcheckbox", {name: new RegExp(budgetName)});
+
+/**
+ * Öffnet das Budget-Menü, klickt die gegebenen Einträge und schliesst das
+ * Menü wieder (Escape), damit der Rest der Seite für Abfragen nach Rolle
+ * nicht mehr `aria-hidden` ist.
+ *
+ * @param menuItemNames - Namen der Einträge, in Klick-Reihenfolge.
+ */
+const clickBudgetMenuItems = async (menuItemNames: string[]) => {
+  fireEvent.click(getBudgetFilterButton());
+  for (const menuItemName of menuItemNames) {
+    fireEvent.click(
+      menuItemName === TEXT_EVALUATION_BUDGET_FILTER_ALL
+        ? screen.getByRole("menuitem", {name: menuItemName})
+        : getBudgetMenuItem(menuItemName),
+    );
+  }
+  fireEvent.keyDown(screen.getByRole("menu"), {key: "Escape"});
+  await waitFor(() =>
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument(),
+  );
 };
 
 describe("ExpenseEvaluation, leerer Zustand", () => {
@@ -153,7 +237,7 @@ describe("ExpenseEvaluation, Währungsauswahl", () => {
       within(currencyGroup).getByRole("button", {name: "EUR"}),
     ).toHaveAttribute("aria-pressed", "false");
     expect(
-      screen.getByText(TEXT_EVALUATION_OTHER_CURRENCIES_EXCLUDED(["EUR"])),
+      screen.getByText(TEXT_EVALUATION_SCOPE_NOTE_CURRENCIES(["EUR"])),
     ).toBeInTheDocument();
     expect(getTile(TEXT_EVALUATION_TOTAL)).toHaveTextContent(
       expectedAmount(15000, "CHF"),
@@ -169,7 +253,7 @@ describe("ExpenseEvaluation, Währungsauswahl", () => {
     expect(totalTile).toHaveTextContent(expectedAmount(3000, "EUR"));
     expect(totalTile).toHaveTextContent(TEXT_EVALUATION_EXPENSE_COUNT(1));
     expect(
-      screen.getByText(TEXT_EVALUATION_OTHER_CURRENCIES_EXCLUDED(["CHF"])),
+      screen.getByText(TEXT_EVALUATION_SCOPE_NOTE_CURRENCIES(["CHF"])),
     ).toBeInTheDocument();
     expect(screen.getByRole("button", {name: "EUR"})).toHaveAttribute(
       "aria-pressed",
@@ -347,5 +431,362 @@ describe("ExpenseEvaluation, grösste Ausgaben", () => {
 
     expect(handleEditClick).toHaveBeenCalledTimes(1);
     expect(handleEditClick).toHaveBeenCalledWith("e1");
+  });
+});
+
+describe("getBudgetFilterLabel", () => {
+  test("alle Budgets gewählt → «Alle Budgets»", () => {
+    expect(getBudgetFilterLabel([budget, budget2], 2)).toBe(
+      TEXT_EVALUATION_BUDGET_FILTER_ALL,
+    );
+  });
+
+  test("genau ein Budget gewählt → dessen Name", () => {
+    expect(getBudgetFilterLabel([budget2], 3)).toBe(budget2.name);
+  });
+
+  test("Teilauswahl mit mehreren → «2 von 3 Budgets»", () => {
+    expect(getBudgetFilterLabel([budget, budget2], 3)).toBe(
+      TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(2, 3),
+    );
+    expect(TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(2, 3)).toBe("2 von 3 Budgets");
+  });
+});
+
+describe("getStatisticsScopeNote", () => {
+  test("nichts ausgeblendet → null", () => {
+    expect(getStatisticsScopeNote([], [])).toBeNull();
+  });
+
+  test("nur andere Währungen → nur Währungssatz", () => {
+    expect(getStatisticsScopeNote(["EUR"], [])).toBe(
+      "Ausgaben in EUR sind hier nicht enthalten.",
+    );
+  });
+
+  test("nur abgewählte Budgets → nur Budgetsatz, Aufzählung mit «und»", () => {
+    expect(getStatisticsScopeNote([], ["Motto", "Material", "Lagerbau"])).toBe(
+      "Nicht berücksichtigte Budgets: Motto, Material und Lagerbau.",
+    );
+  });
+
+  test("beides → zuerst Währungen, dann Budgets", () => {
+    expect(getStatisticsScopeNote(["EUR", "USD"], ["Motto"])).toBe(
+      "Ausgaben in EUR und USD sind hier nicht enthalten. " +
+        "Nicht berücksichtigte Budgets: Motto.",
+    );
+  });
+});
+
+describe("BudgetFilter", () => {
+  /**
+   * Rendert den Budget-Filter mit drei Budgets.
+   *
+   * @param deselectedBudgetIds - Abgewählte Budget-IDs.
+   * @returns Mocks der beiden Callbacks.
+   */
+  const renderBudgetFilter = (deselectedBudgetIds: string[] = []) => {
+    const onToggleBudget = jest.fn();
+    const onSelectAllBudgets = jest.fn();
+    render(
+      <BudgetFilter
+        budgets={[budget, budget2, budget3]}
+        deselectedBudgetIds={deselectedBudgetIds}
+        onToggleBudget={onToggleBudget}
+        onSelectAllBudgets={onSelectAllBudgets}
+      />,
+    );
+    return {onToggleBudget, onSelectAllBudgets};
+  };
+
+  test("Button zeigt die Auswahl und ist als Menü-Auslöser ausgezeichnet", () => {
+    renderBudgetFilter([budget3.id]);
+
+    const button = getBudgetFilterButton();
+    expect(button).toHaveTextContent(
+      TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(2, 3),
+    );
+    expect(button).toHaveAccessibleName(
+      TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL(
+        TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(2, 3),
+      ),
+    );
+    expect(button).toHaveAttribute("aria-haspopup", "menu");
+    expect(button).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("menu")).not.toBeInTheDocument();
+  });
+
+  test("unbekannte ID (gelöschtes Budget) zählt nicht als abgewählt", () => {
+    renderBudgetFilter(["deleted-budget-id"]);
+
+    expect(getBudgetFilterButton()).toHaveTextContent(
+      TEXT_EVALUATION_BUDGET_FILTER_ALL,
+    );
+  });
+
+  test("Klick öffnet das Menü: «Alle Budgets» und ein Eintrag pro Budget", () => {
+    renderBudgetFilter([budget3.id]);
+
+    fireEvent.click(getBudgetFilterButton());
+
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    expect(screen.getAllByRole("menuitemcheckbox")).toHaveLength(3);
+    expect(getBudgetMenuItem(budget.name)).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(getBudgetMenuItem(budget2.name)).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+    expect(getBudgetMenuItem(budget3.name)).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
+  });
+
+  test("Klick auf einen Eintrag meldet die Budget-ID", () => {
+    const {onToggleBudget} = renderBudgetFilter();
+    fireEvent.click(getBudgetFilterButton());
+
+    fireEvent.click(getBudgetMenuItem(budget2.name));
+
+    expect(onToggleBudget).toHaveBeenCalledTimes(1);
+    expect(onToggleBudget).toHaveBeenCalledWith(budget2.id);
+  });
+
+  test("alle gewählt → «Alle Budgets» deaktiviert", () => {
+    renderBudgetFilter();
+    fireEvent.click(getBudgetFilterButton());
+
+    expect(
+      screen.getByRole("menuitem", {name: TEXT_EVALUATION_BUDGET_FILTER_ALL}),
+    ).toHaveAttribute("aria-disabled", "true");
+  });
+
+  test("Filter aktiv → «Alle Budgets» aktiv und meldet den Klick", () => {
+    const {onSelectAllBudgets} = renderBudgetFilter([budget2.id]);
+    fireEvent.click(getBudgetFilterButton());
+
+    const selectAllItem = screen.getByRole("menuitem", {
+      name: TEXT_EVALUATION_BUDGET_FILTER_ALL,
+    });
+    expect(selectAllItem).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(selectAllItem);
+
+    expect(onSelectAllBudgets).toHaveBeenCalledTimes(1);
+  });
+
+  test("letztes gewähltes Budget ist deaktiviert, die abgewählten nicht", () => {
+    renderBudgetFilter([budget2.id, budget3.id]);
+    fireEvent.click(getBudgetFilterButton());
+
+    expect(getBudgetMenuItem(budget.name)).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(getBudgetMenuItem(budget2.name)).not.toHaveAttribute(
+      "aria-disabled",
+    );
+    expect(getBudgetMenuItem(budget3.name)).not.toHaveAttribute(
+      "aria-disabled",
+    );
+  });
+});
+
+describe("ExpenseEvaluation, Budget-Filter", () => {
+  // Küche: CHF 100 + CHF 50; Motto: CHF 30 + EUR 20 (alle ohne Beleg)
+  const kitchenAndThemeExpenses = [
+    createExpense({id: "kitchen-1", amountInCents: 10000}),
+    createExpense({id: "kitchen-2", amountInCents: 5000}),
+    createExpense({id: "theme-1", amountInCents: 3000, budgetId: budget2.id}),
+    createExpense({
+      id: "theme-eur",
+      amountInCents: 2000,
+      budgetId: budget2.id,
+      currency: "EUR",
+    }),
+  ];
+
+  test("nur ein Budget → kein Budget-Filter", () => {
+    renderEvaluation([createExpense({id: "kitchen-1"})], {budgets: [budget]});
+
+    expect(
+      screen.queryByRole("button", {
+        name: BUDGET_FILTER_BUTTON_NAME,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Vorauswahl: alle Budgets, kein Budget-Hinweis", () => {
+    renderEvaluation(kitchenAndThemeExpenses);
+
+    expect(getBudgetFilterButton()).toHaveTextContent(
+      TEXT_EVALUATION_BUDGET_FILTER_ALL,
+    );
+    expect(getTile(TEXT_EVALUATION_TOTAL)).toHaveTextContent(
+      expectedAmount(18000, "CHF"),
+    );
+    expect(
+      screen.queryByText(/Nicht berücksichtigte Budgets/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Motto abwählen → Kennzahlen und Top-5 nur noch Küche, Button zeigt «Küche»", async () => {
+    renderEvaluation(kitchenAndThemeExpenses);
+
+    await clickBudgetMenuItems([budget2.name]);
+
+    const totalTile = getTile(TEXT_EVALUATION_TOTAL);
+    expect(totalTile).toHaveTextContent(expectedAmount(15000, "CHF"));
+    expect(totalTile).toHaveTextContent(TEXT_EVALUATION_EXPENSE_COUNT(2));
+    const rows = within(
+      screen.getByTestId("evaluation-top-expenses"),
+    ).getAllByTestId(/^evaluation-top-expense-/);
+    expect(rows.map((row) => row.dataset.testid)).toEqual([
+      "evaluation-top-expense-kitchen-1",
+      "evaluation-top-expense-kitchen-2",
+    ]);
+    expect(getBudgetFilterButton()).toHaveTextContent(budget.name);
+  });
+
+  test("Motto abwählen → EUR-Chip verschwindet (Währungen aus der Auswahl, B4)", async () => {
+    renderEvaluation(kitchenAndThemeExpenses);
+    expect(
+      screen.getByRole("group", {
+        name: TEXT_EVALUATION_CURRENCY_FILTER_ARIA_LABEL,
+      }),
+    ).toBeInTheDocument();
+
+    await clickBudgetMenuItems([budget2.name]);
+
+    expect(
+      screen.queryByRole("group", {
+        name: TEXT_EVALUATION_CURRENCY_FILTER_ARIA_LABEL,
+      }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/sind hier nicht enthalten/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Motto abwählen → Hinweis nennt das Budget, «Ohne Beleg» bleibt gleich", async () => {
+    renderEvaluation(kitchenAndThemeExpenses);
+
+    await clickBudgetMenuItems([budget2.name]);
+
+    expect(
+      screen.getByText(TEXT_EVALUATION_SCOPE_NOTE_BUDGETS([budget2.name])),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      TEXT_EVALUATION_WITHOUT_RECEIPT_COUNT(4),
+    );
+  });
+
+  test("Hinweiszeile ist eine Live-Region, auch solange sie leer ist", async () => {
+    renderEvaluation([createExpense({id: "kitchen-1"})]);
+    const liveRegion = screen
+      .getByTestId("expense-tracking-evaluation")
+      .querySelector("[aria-live='polite']");
+    expect(liveRegion).toBeInTheDocument();
+    expect(liveRegion).toBeEmptyDOMElement();
+
+    await clickBudgetMenuItems([budget2.name]);
+
+    expect(liveRegion).toHaveTextContent(
+      TEXT_EVALUATION_SCOPE_NOTE_BUDGETS([budget2.name]),
+    );
+  });
+
+  test("«Alle Budgets» → wieder alles gewählt, Hinweis weg", async () => {
+    renderEvaluation(kitchenAndThemeExpenses);
+    await clickBudgetMenuItems([budget2.name]);
+
+    await clickBudgetMenuItems([TEXT_EVALUATION_BUDGET_FILTER_ALL]);
+
+    expect(getBudgetFilterButton()).toHaveTextContent(
+      TEXT_EVALUATION_BUDGET_FILTER_ALL,
+    );
+    expect(getTile(TEXT_EVALUATION_TOTAL)).toHaveTextContent(
+      expectedAmount(18000, "CHF"),
+    );
+    expect(
+      screen.queryByText(/Nicht berücksichtigte Budgets/),
+    ).not.toBeInTheDocument();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual([]);
+  });
+
+  test("nur ein Budget ohne Ausgaben gewählt → Hinweis statt Kacheln", async () => {
+    renderEvaluation([createExpense({id: "kitchen-1"})]);
+
+    await clickBudgetMenuItems([budget.name]);
+
+    expect(
+      screen.getByText(TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(TEXT_EVALUATION_TOTAL)).not.toBeInTheDocument();
+    expect(getBudgetFilterButton()).toBeInTheDocument();
+  });
+
+  test("Abwahl wird unter dem Schlüssel des Anlasses gespeichert", async () => {
+    renderEvaluation(kitchenAndThemeExpenses);
+
+    await clickBudgetMenuItems([budget2.name]);
+
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "null")).toEqual([
+      budget2.id,
+    ]);
+  });
+
+  test("gespeicherte Abwahl gilt schon beim ersten Rendern", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([budget2.id]));
+
+    renderEvaluation(kitchenAndThemeExpenses);
+
+    expect(getBudgetFilterButton()).toHaveTextContent(budget.name);
+    expect(getTile(TEXT_EVALUATION_TOTAL)).toHaveTextContent(
+      expectedAmount(15000, "CHF"),
+    );
+  });
+
+  test("Abwahl eines anderen Anlasses hat keine Wirkung", () => {
+    localStorage.setItem(
+      `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_BUDGETS}_other-event`,
+      JSON.stringify([budget2.id]),
+    );
+
+    renderEvaluation(kitchenAndThemeExpenses);
+
+    expect(getBudgetFilterButton()).toHaveTextContent(
+      TEXT_EVALUATION_BUDGET_FILTER_ALL,
+    );
+  });
+
+  test("neues Budget (Rerender, nicht im Speicher) ist ausgewählt (B3)", () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify([budget2.id]));
+    const {view, props} = renderEvaluation(kitchenAndThemeExpenses);
+
+    // Eine andere Köchin legt «Material» mit einer Ausgabe an (Realtime)
+    view.rerender(
+      <ExpenseEvaluation
+        {...props}
+        budgets={[budget, budget2, budget3]}
+        expenses={[
+          ...kitchenAndThemeExpenses,
+          createExpense({
+            id: "material-1",
+            amountInCents: 1000,
+            budgetId: budget3.id,
+          }),
+        ]}
+      />,
+    );
+
+    expect(getBudgetFilterButton()).toHaveTextContent(
+      TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(2, 3),
+    );
+    expect(getTile(TEXT_EVALUATION_TOTAL)).toHaveTextContent(
+      expectedAmount(16000, "CHF"),
+    );
   });
 });

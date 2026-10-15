@@ -892,6 +892,7 @@ const EventExpenseTrackingPage = ({
               />
             ) : (
               <ExpenseEvaluation
+                eventId={event.uid}
                 expenses={state.expenses ?? []}
                 budgets={state.budgets ?? []}
                 participantCount={groupConfiguration.totalPortions}

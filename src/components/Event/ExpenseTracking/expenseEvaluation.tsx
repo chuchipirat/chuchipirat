@@ -3,13 +3,18 @@ import React from "react";
 import {
   Alert,
   Box,
+  Button,
   Card,
+  Checkbox,
   Chip,
+  Divider,
   Grid,
   List,
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Typography,
 } from "@mui/material";
 
@@ -28,24 +33,35 @@ import {
   EVALUATION_TOP_EXPENSES as TEXT_EVALUATION_TOP_EXPENSES,
   EVALUATION_KEYFIGURES as TEXT_EVALUATION_KEYFIGURES,
   EVALUATION_CURRENCY_FILTER_ARIA_LABEL as TEXT_EVALUATION_CURRENCY_FILTER_ARIA_LABEL,
-  EVALUATION_OTHER_CURRENCIES_EXCLUDED as TEXT_EVALUATION_OTHER_CURRENCIES_EXCLUDED,
+  EVALUATION_BUDGET_FILTER_ALL as TEXT_EVALUATION_BUDGET_FILTER_ALL,
+  EVALUATION_BUDGET_FILTER_PARTIAL as TEXT_EVALUATION_BUDGET_FILTER_PARTIAL,
+  EVALUATION_BUDGET_FILTER_ARIA_LABEL as TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL,
+  EVALUATION_SCOPE_NOTE_CURRENCIES as TEXT_EVALUATION_SCOPE_NOTE_CURRENCIES,
+  EVALUATION_SCOPE_NOTE_BUDGETS as TEXT_EVALUATION_SCOPE_NOTE_BUDGETS,
+  EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
 } from "../../../constants/text/expenseTracking";
 import {useCustomStyles} from "../../../constants/styles";
 import {ExpenseStatistics} from "./expenseStatistics.class";
 import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
 import {BUDGET_ICON_MAP} from "./budgetIcons";
+import {useStoredIdSet} from "../../../hooks/useStoredIdSet";
+import {LocalStorageKey} from "../../../constants/localStorage";
+import {ArrowDropDown} from "@mui/icons-material";
 
 /**
  * Props für {@link ExpenseEvaluation}.
  *
+ * @param eventId - ID des Anlasses, Teil des Speicherschlüssels der Budget-Auswahl.
  * @param expenses - Alle Ausgaben des Anlasses (ungefiltert, alle Währungen).
- * @param budgets - Alle Budgets des Anlasses, für Icon und Name in der Top-5-Liste.
+ * @param budgets - Alle Budgets des Anlasses, für Budget-Filter sowie Icon und
+ *   Name in der Top-5-Liste.
  * @param participantCount - Anzahl Teilnehmende (`groupConfiguration.totalPortions`).
  * @param campDayCount - Anzahl Anlasstage (`event.numberOfDays`), gleiche
  *   Grundlage wie der Sollbetrag der Budgets.
  * @param handleEditClick - Öffnet den Bearbeiten-Dialog (Klick auf eine Top-5-Zeile).
  */
 type ExpenseEvaluationProps = {
+  eventId: string;
   expenses: ExpenseDomain[];
   budgets: BudgetDomain[];
   participantCount: number;
@@ -79,6 +95,7 @@ type ExpenseEvaluationProps = {
  * />
  */
 export const ExpenseEvaluation = ({
+  eventId,
   expenses,
   budgets,
   participantCount,
@@ -91,8 +108,14 @@ export const ExpenseEvaluation = ({
   const [chosenCurrency, setChosenCurrency] = React.useState<string | null>(
     null,
   );
-  // Platzhalter bis 6.2b (dort ersetzt durch useStoredIdSet)
-  const [excludedBudgetIds] = React.useState<string[]>([]);
+
+  const {
+    ids: excludedBudgetIds,
+    toggleId: toggleBudget,
+    clearIds,
+  } = useStoredIdSet(
+    `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_BUDGETS}_${eventId}`,
+  );
 
   // nur Ausgaben der ausgewählten Budgets
   const expensesOfSelectedBudgets = React.useMemo(
@@ -149,7 +172,13 @@ export const ExpenseEvaluation = ({
     () => ExpenseStatistics.countWithoutAttachment(expenses),
     [expenses],
   );
-
+  const excludedBudgetNames = budgets
+    .filter((budget) => excludedBudgetIds.includes(budget.id))
+    .map((budget) => budget.name);
+  const scopeNote = getStatisticsScopeNote(
+    otherCurrencies,
+    excludedBudgetNames,
+  );
   // --- Früher Ausstieg erst NACH allen Hooks
   if (expenses.length === 0) {
     return (
@@ -167,23 +196,18 @@ export const ExpenseEvaluation = ({
         </Alert>
       )}
 
-      <Box sx={classes.statisticsSectionHeader}>
-        <Box>
-          <Typography variant="subtitle2" color="text.secondary">
-            {TEXT_EVALUATION_KEYFIGURES}
-          </Typography>
-          {otherCurrencies.length > 0 && (
-            <Typography
-              variant="caption"
-              color="text.secondary"
-              component="p"
-              sx={classes.statisticsOtherCurrenciesHint}
-            >
-              {TEXT_EVALUATION_OTHER_CURRENCIES_EXCLUDED(otherCurrencies)}
-            </Typography>
-          )}
-        </Box>
-        {/* Währungs-Chips nur bei mehr als einer Währung */}
+      <Typography variant="subtitle2" color="text.secondary" component="h2">
+        {TEXT_EVALUATION_KEYFIGURES}
+      </Typography>
+      <Box sx={classes.statisticsFilterBar}>
+        {budgets.length > 1 && (
+          <BudgetFilter
+            budgets={budgets}
+            deselectedBudgetIds={excludedBudgetIds}
+            onToggleBudget={toggleBudget}
+            onSelectAllBudgets={clearIds}
+          />
+        )}
         {currencies.length > 1 && (
           <Box
             role="group"
@@ -213,53 +237,70 @@ export const ExpenseEvaluation = ({
         )}
       </Box>
 
-      <Grid container spacing={2}>
-        <Grid size={{xs: 12, sm: 6}}>
-          <StatisticTile
-            title={TEXT_EVALUATION_TOTAL}
-            value={formatAmountFromCents(
-              statistics.totalAmountInCents,
-              selectedCurrency,
-            )}
-            details={[TEXT_EVALUATION_EXPENSE_COUNT(statistics.expenseCount)]}
-          />
-        </Grid>
+      <Box sx={classes.statisticsScopeNote} aria-live="polite">
+        {scopeNote && (
+          <Typography variant="caption" color="text.secondary">
+            {scopeNote}
+          </Typography>
+        )}
+      </Box>
 
-        <Grid size={{xs: 12, sm: 6}}>
-          <StatisticTile
-            title={TEXT_EVALUATION_AVERAGE_PER_PARTICIPANT}
-            hint={
-              statistics.averagePerParticipantInCents === null
-                ? TEXT_EVALUATION_PARTICIPANTS_MISSING
-                : undefined
-            }
-            value={formatAmountFromCents(
-              statistics.averagePerParticipantInCents ?? 0,
-              selectedCurrency,
-            )}
-            details={[
-              // «pro Person & Tag» entfällt bei 0 Anlasstagen (null)
-              ...(statistics.averagePerParticipantAndDayInCents !== null
-                ? [
-                    TEXT_EVALUATION_PER_PARTICIPANT_AND_DAY_SO_FAR(
-                      statistics.averagePerParticipantAndDayInCents,
-                      selectedCurrency,
-                    ),
-                  ]
-                : []),
-              TEXT_EVALUATION_CALCULATION_BASIS(participantCount, campDayCount),
-            ]}
-          />
-        </Grid>
+      {expensesOfSelectedBudgets.length === 0 ? (
+        <Typography color="text.secondary">
+          {TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS}
+        </Typography>
+      ) : (
+        <Grid container spacing={2}>
+          <Grid size={{xs: 12, sm: 6}}>
+            <StatisticTile
+              title={TEXT_EVALUATION_TOTAL}
+              value={formatAmountFromCents(
+                statistics.totalAmountInCents,
+                selectedCurrency,
+              )}
+              details={[TEXT_EVALUATION_EXPENSE_COUNT(statistics.expenseCount)]}
+            />
+          </Grid>
 
-        <Grid size={{xs: 12}}>
-          <TopExpensesTile
-            expenses={statistics.topExpenses}
-            budgets={budgets}
-            handleEditClick={handleEditClick}
-          />
+          <Grid size={{xs: 12, sm: 6}}>
+            <StatisticTile
+              title={TEXT_EVALUATION_AVERAGE_PER_PARTICIPANT}
+              hint={
+                statistics.averagePerParticipantInCents === null
+                  ? TEXT_EVALUATION_PARTICIPANTS_MISSING
+                  : undefined
+              }
+              value={formatAmountFromCents(
+                statistics.averagePerParticipantInCents ?? 0,
+                selectedCurrency,
+              )}
+              details={[
+                // «pro Person & Tag» entfällt bei 0 Anlasstagen (null)
+                ...(statistics.averagePerParticipantAndDayInCents !== null
+                  ? [
+                      TEXT_EVALUATION_PER_PARTICIPANT_AND_DAY_SO_FAR(
+                        statistics.averagePerParticipantAndDayInCents,
+                        selectedCurrency,
+                      ),
+                    ]
+                  : []),
+                TEXT_EVALUATION_CALCULATION_BASIS(
+                  participantCount,
+                  campDayCount,
+                ),
+              ]}
+            />
+          </Grid>
+
+          <Grid size={{xs: 12}}>
+            <TopExpensesTile
+              expenses={statistics.topExpenses}
+              budgets={budgets}
+              handleEditClick={handleEditClick}
+            />
+          </Grid>
         </Grid>
-      </Grid>
+      )}
     </Box>
   );
 };
@@ -408,5 +449,154 @@ const TopExpensesTile = ({
         })}
       </List>
     </Card>
+  );
+};
+
+/**
+ * Liefert die Beschriftung des Budget-Filters passend zur aktuellen Auswahl.
+ *
+ * @param selectedBudgets - Aktuell berücksichtigte Budgets.
+ * @param totalBudgetCount - Anzahl aller Budgets des Anlasses.
+ * @returns "Alle Budgets", der Budgetname bei genau einer Auswahl oder "2 von 3 Budgets".
+ */
+export const getBudgetFilterLabel = (
+  selectedBudgets: BudgetDomain[],
+  totalBudgetCount: number,
+): string => {
+  if (selectedBudgets.length === totalBudgetCount) {
+    return TEXT_EVALUATION_BUDGET_FILTER_ALL;
+  }
+  if (selectedBudgets.length === 1) {
+    return selectedBudgets[0].name;
+  }
+  return TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(
+    selectedBudgets.length,
+    totalBudgetCount,
+  );
+};
+
+/**
+ * Erzeugt den Hinweistext, was in den Kennzahlen nicht enthalten ist. Ein
+ * Satz pro Filter, damit sichtbar bleibt, warum eine Zahl kleiner ist.
+ *
+ * @param excludedCurrencies - Durch die Währungsauswahl ausgeblendete Währungen.
+ * @param excludedBudgetNames - Namen der durch den Budget-Filter ausgeblendeten Budgets.
+ * @returns Hinweistext oder null, wenn nichts ausgeblendet ist.
+ * @example
+ * getStatisticsScopeNote(["EUR"], ["Material"])
+ * // «Ausgaben in EUR sind hier nicht enthalten. Nicht berücksichtigte Budgets: Material.»
+ */
+export const getStatisticsScopeNote = (
+  excludedCurrencies: string[],
+  excludedBudgetNames: string[],
+): string | null => {
+  const sentences: string[] = [];
+  if (excludedCurrencies.length > 0) {
+    sentences.push(TEXT_EVALUATION_SCOPE_NOTE_CURRENCIES(excludedCurrencies));
+  }
+  if (excludedBudgetNames.length > 0) {
+    sentences.push(TEXT_EVALUATION_SCOPE_NOTE_BUDGETS(excludedBudgetNames));
+  }
+  return sentences.length > 0 ? sentences.join(" ") : null;
+};
+
+/**
+ * Props für {@link BudgetFilter}.
+ *
+ * @param budgets - Alle Budgets des Anlasses, in der Reihenfolge der Übersicht.
+ * @param deselectedBudgetIds - IDs der abgewählten Budgets (B3). Unbekannte IDs
+ *   (gelöschte Budgets) werden ignoriert.
+ * @param onToggleBudget - Wählt das angeklickte Budget ab bzw. wieder aus.
+ * @param onSelectAllBudgets - Wählt alle Budgets wieder aus (leert die Abwahl).
+ */
+type BudgetFilterProps = {
+  budgets: BudgetDomain[];
+  deselectedBudgetIds: string[];
+  onToggleBudget: (budgetId: string) => void;
+  onSelectAllBudgets: () => void;
+};
+
+/**
+ * Button mit Dropdown, um die Budgets der Auswertung zu wählen. Die
+ * Beschriftung zeigt die aktuelle Auswahl («Alle Budgets», ein Budgetname
+ * oder «2 von 4 Budgets»). Das letzte ausgewählte Budget lässt sich nicht
+ * abwählen, damit die Auswertung nie ganz leer ist.
+ *
+ * @param props - Siehe {@link BudgetFilterProps}.
+ */
+export const BudgetFilter = ({
+  budgets,
+  deselectedBudgetIds,
+  onToggleBudget,
+  onSelectAllBudgets,
+}: BudgetFilterProps) => {
+  const classes = useCustomStyles();
+  const [anchorElement, setAnchorElement] = React.useState<HTMLElement | null>(
+    null,
+  );
+
+  const selectedBudgets = budgets.filter(
+    (budget) => !deselectedBudgetIds.includes(budget.id),
+  );
+  const isFilterActive = selectedBudgets.length < budgets.length;
+  const selectionLabel = getBudgetFilterLabel(selectedBudgets, budgets.length);
+
+  return (
+    <>
+      <Button
+        variant="outlined"
+        size="small"
+        endIcon={<ArrowDropDown />}
+        onClick={(clickEvent) => setAnchorElement(clickEvent.currentTarget)}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(anchorElement)}
+        aria-label={TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL(selectionLabel)}
+        sx={[
+          classes.statisticsFilterButton,
+          isFilterActive && classes.statisticsFilterButtonActive,
+        ]}
+      >
+        <Typography component="span" variant="inherit" noWrap>
+          {selectionLabel}
+        </Typography>
+      </Button>
+
+      <Menu
+        anchorEl={anchorElement}
+        open={Boolean(anchorElement)}
+        onClose={() => setAnchorElement(null)}
+        slotProps={{paper: {sx: classes.statisticsFilterMenuPaper}}}
+      >
+        <MenuItem onClick={onSelectAllBudgets} disabled={!isFilterActive}>
+          <ListItemText>{TEXT_EVALUATION_BUDGET_FILTER_ALL}</ListItemText>
+        </MenuItem>
+        <Divider />
+        {budgets.map((budget) => {
+          const BudgetIconComponent = BUDGET_ICON_MAP[budget.icon];
+          const isSelected = !deselectedBudgetIds.includes(budget.id);
+          const isLastSelected = isSelected && selectedBudgets.length === 1;
+          return (
+            <MenuItem
+              key={budget.id}
+              role="menuitemcheckbox"
+              aria-checked={isSelected}
+              disabled={isLastSelected}
+              onClick={() => onToggleBudget(budget.id)}
+            >
+              <Checkbox
+                edge="start"
+                checked={isSelected}
+                disableRipple
+                tabIndex={-1}
+              />
+              <ListItemIcon>
+                <BudgetIconComponent fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>{budget.name}</ListItemText>
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
   );
 };
