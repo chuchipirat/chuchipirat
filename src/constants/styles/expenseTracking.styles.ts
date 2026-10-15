@@ -299,13 +299,6 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
   statisticsMissingReceiptsAlert: {
     marginBottom: theme.spacing(2),
   },
-  statisticsSectionHeader: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: theme.spacing(1),
-    marginBottom: theme.spacing(1.5),
-  },
   statisticsCurrencyChips: {
     display: "flex",
     gap: theme.spacing(1),
@@ -315,8 +308,30 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     backgroundColor: alpha(theme.palette.primary.main, 0.12),
     color: theme.palette.primary.main,
   },
-  statisticsOtherCurrenciesHint: {
+  statisticsScopeNote: {
     marginTop: theme.spacing(-1), // näher an die Chips, zu denen er gehört
     marginBottom: theme.spacing(1.5),
+  },
+  statisticsFilterBar: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing(1),
+    marginBottom: theme.spacing(1.5),
+  },
+  statisticsFilterButton: {
+    maxWidth: "100%",
+    minWidth: 0,
+    borderRadius: "16px",
+    textTransform: "none", // Budgetnamen nicht in Grossbuchstaben verändern
+  },
+  statisticsFilterButtonActive: {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: alpha(theme.palette.primary.main, 0.12),
+  },
+  statisticsFilterMenuPaper: {
+    maxHeight: "360px", // bei vielen Budgets scrollbar
+    minWidth: "240px",
   },
 });

@@ -203,20 +203,60 @@ export const EVALUATION_TOP_EXPENSES = "Grösste Ausgaben";
 export const EVALUATION_KEYFIGURES = "Kennzahlen";
 /** Screenreader-Beschriftung der Währungs-Chips in der Auswertung. */
 export const EVALUATION_CURRENCY_FILTER_ARIA_LABEL = "Währungsfilter";
+
 /**
- * Hinweis unter der Währungsauswahl: Welche Währungen in den Kennzahlen
- * nicht enthalten sind (keine Umrechnung, nie über Währungen summiert).
+ * Verbindet Einträge zu einer lesbaren Aufzählung mit «und» vor dem letzten.
+ *
+ * @param items - Einträge, mindestens einer.
+ * @returns z.B. «EUR», «EUR und USD» oder «Küche, Material und Lagerbau».
+ */
+const joinWithAnd = (items: string[]): string =>
+  items.length === 1
+    ? items[0]
+    : `${items.slice(0, -1).join(", ")} und ${items[items.length - 1]}`;
+/** Beschriftung des Budget-Filters, wenn alle Budgets berücksichtigt sind (auch Menüeintrag zum Zurücksetzen). */
+export const EVALUATION_BUDGET_FILTER_ALL = "Alle Budgets";
+/**
+ * Beschriftung des Budget-Filters bei einer Teilauswahl (mehr als ein Budget).
+ *
+ * @param selectedCount - Anzahl berücksichtigter Budgets.
+ * @param totalCount - Anzahl aller Budgets des Anlasses.
+ * @returns z.B. «2 von 4 Budgets».
+ */
+export const EVALUATION_BUDGET_FILTER_PARTIAL = (
+  selectedCount: number,
+  totalCount: number,
+): string => `${selectedCount} von ${totalCount} Budgets`;
+/**
+ * Screenreader-Beschriftung des Budget-Filter-Buttons. Enthält die aktuelle
+ * Auswahl, weil `aria-label` die sichtbare Beschriftung ersetzt und diese
+ * sonst nicht vorgelesen würde.
+ *
+ * @param selectionLabel - Sichtbare Beschriftung (`getBudgetFilterLabel`).
+ * @returns z.B. «Budgets für die Auswertung auswählen, aktuell: 2 von 4 Budgets».
+ */
+export const EVALUATION_BUDGET_FILTER_ARIA_LABEL = (
+  selectionLabel: string,
+): string => `Budgets für die Auswertung auswählen, aktuell: ${selectionLabel}`;
+/**
+ * Hinweis unter den Filtern: Welche Währungen in den Kennzahlen nicht
+ * enthalten sind (keine Umrechnung, nie über Währungen summiert).
  *
  * @param currencies - Nicht gewählte Währungscodes, mindestens einer.
- * @returns z.B. «Ausgaben in EUR sind hier nicht enthalten.» oder
- *   «Ausgaben in EUR und USD sind hier nicht enthalten.»
+ * @returns z.B. «Ausgaben in EUR und USD sind hier nicht enthalten.»
  */
-export const EVALUATION_OTHER_CURRENCIES_EXCLUDED = (
+export const EVALUATION_SCOPE_NOTE_CURRENCIES = (
   currencies: string[],
-): string => {
-  const currencyList =
-    currencies.length === 1
-      ? currencies[0]
-      : `${currencies.slice(0, -1).join(", ")} und ${currencies[currencies.length - 1]}`;
-  return `Ausgaben in ${currencyList} sind hier nicht enthalten.`;
-};
+): string =>
+  `Ausgaben in ${joinWithAnd(currencies)} sind hier nicht enthalten.`;
+/**
+ * Hinweis unter den Filtern: Welche Budgets abgewählt sind.
+ *
+ * @param budgetNames - Namen der abgewählten Budgets, mindestens einer.
+ * @returns z.B. «Nicht berücksichtigte Budgets: Material und Lagerbau.»
+ */
+export const EVALUATION_SCOPE_NOTE_BUDGETS = (budgetNames: string[]): string =>
+  `Nicht berücksichtigte Budgets: ${joinWithAnd(budgetNames)}.`;
+/** Ersetzt die Kacheln, wenn die gewählten Budgets keine Ausgaben haben (B6). */
+export const EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS =
+  "Keine Ausgabe in der Budgetauswahl.";
