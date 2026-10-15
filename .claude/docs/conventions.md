@@ -15,6 +15,11 @@ Consult this file for project-wide conventions that don't fit into architecture,
 - **Material UI (MUI) only** — do not introduce other UI frameworks
 - All components must be responsive: desktop/tablet for camp preparation, mobile for on-site use during the camp
 
+## JSX
+
+- Fragments: use the short form `<>…</>` in new code. Use `<React.Fragment key={…}>` only where a `key` is needed (fragments inside `.map()`), since the short form cannot take one.
+- Existing `React.Fragment` without a `key` is not migration debt; leave it unless the surrounding code is being rewritten anyway.
+
 ## Error Logging
 
 - All error logging goes through **Sentry**

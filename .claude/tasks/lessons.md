@@ -25,3 +25,11 @@
 **Rule**: User-facing texts, plans and German comments say "Anlass", "Anlasstag", "Anlassende". English identifiers (`campDays`) may stay.
 
 **How to apply**: Before proposing UI wording, grep `src/constants/text` for the existing term instead of using my own vocabulary.
+
+## 2026-10-15: Expense-Tracking plans go into the story file, not todo.md
+
+**What happened**: For package 6.2c I prepended the plan to `.claude/tasks/todo.md`, following the global "write plan to todo.md" rule. The user wants feature work on expense tracking tracked only in `.claude/tasks/Expense Tracking.md`.
+
+**Rule**: For the expense-tracking feature, plans, checklists, deviations and review notes go into the matching package section of `Expense Tracking.md`. Do not touch `todo.md` for this feature.
+
+**How to apply**: Before writing a plan, check whether the feature has its own story/task file in `.claude/tasks/`; if so, plan there.
