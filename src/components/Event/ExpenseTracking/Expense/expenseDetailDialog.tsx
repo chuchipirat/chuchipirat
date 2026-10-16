@@ -1,6 +1,6 @@
 import React, {useState} from "react";
 
-import {NEW_EXPENSE as TEXT_NEW_EXPENSE} from "../../../constants/text/expenseTracking";
+import {NEW_EXPENSE as TEXT_NEW_EXPENSE} from "../../../../constants/text/expenseTracking";
 
 import {
   CANCEL as TEXT_CANCEL,
@@ -36,7 +36,7 @@ import {
   ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
   SHOW_EXPENSE_RECEIPT as TEXT_SHOW_EXPENSE_RECEIPT,
   UNDO_REMOVE_EXPENSE_RECEIPT as TEXT_UNDO_REMOVE_EXPENSE_RECEIPT,
-} from "../../../constants/text";
+} from "../../../../constants/text";
 
 import {
   Button,
@@ -69,12 +69,12 @@ import {
 import {
   AVAILABLE_CURRENCIES,
   parseAmountToCents,
-} from "../../Shared/utils/currencyUtils";
+} from "../../../Shared/utils/currencyUtils";
 import {DatePicker} from "@mui/x-date-pickers";
-import {useCustomStyles} from "../../../constants/styles";
+import {useCustomStyles} from "../../../../constants/styles";
 import dayjs, {Dayjs} from "dayjs";
-import {BudgetDomain} from "./budget.types";
-import {Cook} from "../Event/event.class";
+import {BudgetDomain} from "../Budget/budget.types";
+import {Cook} from "../../Event/event.class";
 import {
   CloudUploadOutlined,
   DeleteOutlined,

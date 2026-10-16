@@ -10,14 +10,14 @@ import "@testing-library/jest-dom";
 import {BudgetCard} from "../budgetCard";
 import {budget} from "../__mocks__/budget.mock";
 import {BudgetProjection, BudgetWithProgress} from "../budget.types";
-import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 
 import {
   EDIT_BUDGET as TEXT_EDIT_BUDGET,
   PROJECTION_TILL_EVENT_END as TEXT_PROJECTION_TILL_EVENT_END,
   DAY_X_OF_Y_IN_EVENT as TEXT_DAY_X_OF_Y_IN_EVENT,
   PROJECTION_ABOVE_BUDGET as TEXT_PROJECTION_ABOVE_BUDGET,
-} from "../../../../constants/text/expenseTracking";
+} from "../../../../../constants/text/expenseTracking";
 
 // MUI-Icons rendern ein <svg data-testid="<Name>Icon">
 const PROJECTION_WARNING_ICON_TEST_ID = "TrendingUpOutlinedIcon";

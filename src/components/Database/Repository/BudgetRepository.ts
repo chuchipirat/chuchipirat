@@ -12,7 +12,7 @@ import {SupabaseClient} from "@supabase/supabase-js";
 import {
   BudgetDomain,
   BudgetRow,
-} from "../../Event/ExpenseTracking/budget.types";
+} from "../../Event/ExpenseTracking/Budget/budget.types";
 import {StorageObjectProperty} from "../../Shared/sessionStorageHandler.class";
 import {BaseRepository} from "./BaseRepository";
 import {STORAGE_OBJECT_PROPERTY} from "../../Shared/sessionStorageHandler.class";

@@ -1,5 +1,5 @@
 import {SnackbarState} from "../../Shared/customSnackbar";
-import {BudgetDomain} from "./budget.types";
+import {BudgetDomain} from "./Budget/budget.types";
 import {
   BUDGET_SAVED as TEXT_BUDGET_SAVED,
   BUDGET_UPDATED as TEXT_BUDGET_UPDATED,
@@ -8,7 +8,7 @@ import {
   EXPENSE_UPDATED as TEXT_EXPENSE_UPDATED,
   EXPENSE_DELETED as TEXT_EXPENSE_DELETED,
 } from "../../../constants/text/expenseTracking";
-import {ExpenseDomain} from "./expense.types";
+import {ExpenseDomain} from "./Expense/expense.types";
 
 /** Aktionen, die der Reducer der Abrechnungsseite verarbeitet. */
 export enum ReducerActions {

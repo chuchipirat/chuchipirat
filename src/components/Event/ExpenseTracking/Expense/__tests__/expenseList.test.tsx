@@ -1,7 +1,7 @@
 import {ExpenseGroup} from "../expense.types";
 import {Expense} from "../expense.class";
 import {ExpenseList} from "../expenseList";
-import {budget, budget2} from "../__mocks__/budget.mock";
+import {budget, budget2} from "../../Budget/__mocks__/budget.mock";
 import {expense, expenseChf, expenseEur} from "../__mocks__/expense.mock";
 import {
   fireEvent,
@@ -15,8 +15,8 @@ import "@testing-library/jest-dom";
 import {
   NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET,
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
-} from "../../../../constants/text";
-import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+} from "../../../../../constants/text";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 
 const normalizer = getDefaultNormalizer();
 

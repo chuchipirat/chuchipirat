@@ -6,7 +6,7 @@ import {
   PLEASE_PROVIDE_AMOUNT as TEXT_PLEASE_PROVIDE_AMOUNT,
   PLEASE_PROVIDE_ICON as TEXT_PLEASE_PROVIDE_ICON,
   PLEASE_PROVIDE_NAME as TEXT_PLEASE_PROVIDE_NAME,
-} from "../../../../constants/text/expenseTracking";
+} from "../../../../../constants/text/expenseTracking";
 import {BudgetDetailDialog} from "../budgetDetailDialog";
 import {BudgetIcon} from "../budget.types";
 

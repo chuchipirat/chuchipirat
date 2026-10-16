@@ -10,7 +10,7 @@ import {
   ExpenseDomain,
   ExpensePayeeType,
   ExpenseRow,
-} from "../../../Event/ExpenseTracking/expense.types";
+} from "../../../Event/ExpenseTracking/Expense/expense.types";
 import {STORAGE_OBJECT_PROPERTY} from "../../../Shared/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Session/authUser.class";

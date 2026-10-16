@@ -60,9 +60,9 @@ import {
   NavigationValuesContext,
 } from "../../Navigation/navigationContext";
 import {Action} from "../../../constants/actions";
-import {Budget} from "./budget.class";
+import {Budget} from "./Budget/budget.class";
 import {useAuthUser} from "../../Session/authUserContext";
-import {BudgetWithProgress, BudgetDomain} from "./budget.types";
+import {BudgetWithProgress, BudgetDomain} from "./Budget/budget.types";
 import {CustomSnackbar} from "../../Shared/customSnackbar";
 import {AlertMessage} from "../../Shared/AlertMessage";
 
@@ -77,27 +77,27 @@ import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
 import {ReducerActions} from "./expenseTracking.reducer";
-import {BudgetCard, AddBudgetCard} from "./budgetCard";
+import {BudgetCard, AddBudgetCard} from "./Budget/budgetCard";
 import {
   BudgetDetailDialog,
   BudgetDetailDialogState,
-} from "./budgetDetailDialog";
-import {Expense} from "./expense.class";
+} from "./Budget/budgetDetailDialog";
+import {Expense} from "./Expense/expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
-import {ExpenseList} from "./expenseList";
+import {ExpenseList} from "./Expense/expenseList";
 import {
   ExpenseDomain,
   ExpenseGroup,
   ExpensePayeeType,
   ATTACHMENT_MIME_TO_EXTENSION,
-} from "./expense.types";
+} from "./Expense/expense.types";
 import {
   ExpenseDetailDialog,
   ExpenseDetailDialogState,
-} from "./expenseDetailDialog";
-import {PayeeBalanceAccordion} from "./payeeBalanceAccordion";
+} from "./Expense/expenseDetailDialog";
+import {PayeeBalanceAccordion} from "./Expense/payeeBalanceAccordion";
 import {getEventDateList} from "../Menuplan/menuplanService";
-import {ExpenseEvaluation} from "./expenseEvaluation";
+import {ExpenseEvaluation} from "./Evaluation/expenseEvaluation";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
 type ExpenseTrackingView = "overview" | "expenses" | "evaluation";

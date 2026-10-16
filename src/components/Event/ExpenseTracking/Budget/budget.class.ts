@@ -1,4 +1,4 @@
-import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
+import {FieldValidationError} from "../../../Shared/fieldValidation.error.class";
 import {
   BudgetDomain,
   BudgetIcon,
@@ -11,9 +11,9 @@ import {
   PLEASE_PROVIDE_AMOUNT as TEXT_PLEASE_PROVIDE_AMOUNT,
   PROVIDE_BUDGET_TYPE as TEXT_PROVIDE_BUDGET_TYPE,
   BUDGET_ICON_INVALID as TEXT_BUDGET_ICON_INVALID,
-} from "../../../constants/text";
-import {ExpenseDomain, ExpenseTotalsByBudget} from "./expense.types";
-import {formatLocalDate} from "../../../utils/dateUtils";
+} from "../../../../constants/text";
+import {ExpenseDomain, ExpenseTotalsByBudget} from "../Expense/expense.types";
+import {formatLocalDate} from "../../../../utils/dateUtils";
 
 /**
  * Domain-Klasse für das Budget eines Events.

@@ -19,6 +19,22 @@ UI Component  →  Domain Service (.class.ts)  →  Repository
 | **Domain Service** | `src/components/<Feature>/<entity>.class.ts` | Validation, transformations, computed values, factories | **No**              |
 | **UI Component**   | `src/components/<Feature>/<component>.tsx`   | Rendering, user interaction, state management           | Via `useDatabase()` |
 
+## Large Feature Folders
+
+When a feature folder grows beyond roughly 15 files, split it **by sub-topic, not by file type** (no `types/`, `classes/`, `ui/` folders): files that change together live together, and the suffix (`.class.ts`, `.types.ts`, `.tsx`) already shows the kind of file. `__tests__/` and `__mocks__/` move into the sub-folder with their files. The page component, its reducer and its data hook stay at the top level.
+
+Example (`src/components/Event/ExpenseTracking/`, split before Epic 7 of the expense tracking):
+
+```
+ExpenseTracking/
+  expenseTracking.tsx, expenseTracking.reducer.ts, useExpenseTrackingData.ts
+  Budget/      budget.class.ts, budget.types.ts, budgetCard.tsx, …
+  Expense/     expense.class.ts, expense.types.ts, expenseList.tsx, …
+  Evaluation/  expenseStatistics.class.ts, expenseEvaluation.tsx, charts, …
+```
+
+Do the split as a pure move (`git mv` + updated imports, no behaviour change) in its own commit.
+
 ## Repository Architecture
 
 The Supabase persistence layer follows this structure:

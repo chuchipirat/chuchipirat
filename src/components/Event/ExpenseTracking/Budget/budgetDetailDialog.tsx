@@ -34,15 +34,15 @@ import {
   SAVE as TEXT_SAVE,
   DELETE as TEXT_DELETE,
   AMOUNT as TEXT_AMOUNT,
-} from "../../../constants/text";
+} from "../../../../constants/text";
 
 import {BudgetDomain, BudgetIcon, BudgetType} from "./budget.types";
 import {BUDGET_ICON_MAP} from "./budgetIcons";
-import {useCustomStyles} from "../../../constants/styles";
+import {useCustomStyles} from "../../../../constants/styles";
 import {
   AVAILABLE_CURRENCIES,
   parseAmountToCents,
-} from "../../Shared/utils/currencyUtils";
+} from "../../../Shared/utils/currencyUtils";
 
 import DeleteIcon from "@mui/icons-material/Delete";
 

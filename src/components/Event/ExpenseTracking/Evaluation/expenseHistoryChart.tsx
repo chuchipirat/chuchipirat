@@ -9,9 +9,9 @@ import {
   EVALUATION_HISTORY_SUMMARY as TEXT_EVALUATION_HISTORY_SUMMARY,
   EVALUATION_HISTORY_ACTUAL as TEXT_EVALUATION_HISTORY_ACTUAL,
   EVALUATION_HISTORY_TARGET as TEXT_EVALUATION_HISTORY_TARGET,
-} from "../../../constants/text";
-import {useCustomStyles} from "../../../constants/styles";
-import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
+} from "../../../../constants/text";
+import {useCustomStyles} from "../../../../constants/styles";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import type {AxisConfig} from "@mui/x-charts/models";
 
 /**

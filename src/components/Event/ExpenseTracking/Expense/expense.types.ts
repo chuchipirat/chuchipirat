@@ -1,4 +1,4 @@
-import {BudgetDomain} from "./budget.types";
+import {BudgetDomain} from "../Budget/budget.types";
 
 /** Erlaubte MIME-Typen für Ausgaben-Belege (PDF oder Bild). */
 export const ACCEPTED_ATTACHMENT_TYPES = [

@@ -4068,7 +4068,7 @@ Die Bedingung `>= 2` steht zweimal → als `const showBudgetShares = …` einmal
   - Ohne geplante Mahlzeiten, ohne ausgewählten Typ oder ohne Teilnehmende → Hinweis statt Zahl (Entscheidung 10).
   - **Für welches Budget?** Erledigt durch 6.2b: Gerechnet wird über die ausgewählten Budgets. Wer nur das Essen sehen will, wählt die übrigen ab. Für die gemerkten Mahlzeitentypen `useStoredIdSet` aus 6.2b wiederverwenden (auch dort die *abgewählten* speichern).
 
-## Zwischenschritt vor Epic 7 — Ordner `ExpenseTracking/` nach Unterthema aufteilen
+## Zwischenschritt vor Epic 7 — Ordner `ExpenseTracking/` nach Unterthema aufteilen (in Arbeit)
 
 **Erst nach Abschluss von Epic 6, vor dem ersten Paket von Epic 7** (entschieden 2026-10-10). Grund: Epic 7 bringt mehrere Dateien auf einmal (Datenaufbereitung, PDF-Dokument, Dialog), danach wird der flache Ordner unübersichtlich.
 
@@ -4087,6 +4087,14 @@ Die Bedingung `>= 2` steht zweimal → als `const showBudgetShares = …` einmal
 - **Reines Verschieben** wie Paket 2.1: `git mv`, Importe nachziehen, keine Verhaltensänderung, ein Commit (`refactor(abrechnung): …`). Danach `npx tsc --noEmit`, `npx jest ExpenseTracking --watchAll=false`, `npm run lint` grün; Importe von ausserhalb prüfen (`grep -rn "ExpenseTracking/" src`).
 - `architecture.md` um den Hinweis ergänzen, dass grosse Feature-Ordner nach Unterthema aufgeteilt werden.
 - **Styles und Texte werden hier *nicht* geordnet**, sondern einmal am Ende in Epic 10 (entschieden 2026-10-11, siehe dort). Bis dahin neue Einträge in beiden Dateien als Block pro Epic mit Kopfkommentar anhängen (z.B. `// PDF-Abrechnung (Epic 7)`), damit das spätere Ordnen einfach bleibt.
+
+#### Umsetzung (gestartet 2026-10-16, vor Story 6.5)
+
+Vorgezogen auf Wunsch des Nutzers; 6.5 kommt danach direkt in `Evaluation/`. Zwei Commits statt einem, damit das reine Verschieben getrennt prüfbar bleibt:
+
+- [x] 1. **Verschieben** per Skript (27 Dateien `git mv`, relative Importe in 31 Dateien neu berechnet, auch `jest.mock`/`requireActual`), plus die zwei Diagramme aus 6.3/6.4 nach `Evaluation/`. `budget.mock.ts` → `Budget/__mocks__/`, `expense.mock.ts` → `Expense/__mocks__/`. Geprüft: `tsc` grün, `.tsx`-Prüfung über das ganze Repo vorher/nachher gleich viele (bestehende) Fehler und keine fehlenden Module, ganze Jest-Suite 229/2966 grün, Lint 0 Fehler, Importe von ausserhalb nur noch Repositories (`*.types`) und `event.tsx`. `architecture.md` um «Large Feature Folders» ergänzt, Pfade in `tech-debt.md` nachgezogen. Commit `refactor(abrechnung): Ordner ExpenseTracking nach Unterthema aufteilen`.
+- [ ] 2. **`expenseEvaluation.tsx` aufteilen** (Tech-Debt, 677 Zeilen): `BudgetFilter`, `StatisticTile`, `TopExpensesTile` in eigene Dateien unter `Evaluation/`; Nicht-Komponenten-Exporte (`getBudgetFilterLabel`, `getStatisticsScopeNote`, `assignShareColors`) in `.ts`-Dateien, damit Vite Fast Refresh nicht mehr abbricht. Reines Verschieben, Tests mitziehen. Commit `refactor(abrechnung): expenseEvaluation.tsx aufteilen`.
+- [ ] 3. Browser-Rundlauf (Übersicht, Ausgaben, Auswertung) + Konsole.
 
 ## Epic 7 — PDF-Abrechnung
 

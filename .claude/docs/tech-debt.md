@@ -154,7 +154,7 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`src/components/Recipe/recipe.view.tsx`** (2'648 LOC) — Kommentare, Bewertungen, Skalierungsbereiche in separate Dateien extrahieren.
   **Priorität:** tief · **Komplexität:** gross
 
-- **`src/components/Event/ExpenseTracking/expenseEvaluation.tsx`** (gefunden bei Story 6.3, 2026-10-16) — über dem Richtwert von 500 Zeilen (677 nach Story 6.4): enthält neben der Ansicht `BudgetFilter`, `StatisticTile`, `TopExpensesTile` und zwei Hilfsfunktionen. `BudgetFilter` (inkl. `getBudgetFilterLabel`) und `TopExpensesTile` in eigene Dateien unter `Evaluation/` auslagern — im Zwischenschritt «Ordner `ExpenseTracking/` aufteilen» vor Epic 7, nicht vorher.
+- **`src/components/Event/ExpenseTracking/Evaluation/expenseEvaluation.tsx`** (gefunden bei Story 6.3, 2026-10-16) — über dem Richtwert von 500 Zeilen (677 nach Story 6.4): enthält neben der Ansicht `BudgetFilter`, `StatisticTile`, `TopExpensesTile` und zwei Hilfsfunktionen. `BudgetFilter` (inkl. `getBudgetFilterLabel`) und `TopExpensesTile` in eigene Dateien unter `Evaluation/` auslagern — im Zwischenschritt «Ordner `ExpenseTracking/` aufteilen» vor Epic 7, nicht vorher.
   **Priorität:** mittel · **Komplexität:** klein
 
 ## Type Safety
@@ -224,10 +224,10 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   4. `Shared/utils.class.ts` aufteilen: statische Methoden thematisch in einzelne Funktions-Module unter `src/utils/` (z.B. `urlUtils.ts`, `validationUtils.ts`, Datum → `dateUtils.ts`), Sammelklasse danach entfernen. Grösster Brocken (64 Importer) — schrittweise, pro Thema ein Commit; dabei auf Überschneidungen mit `dateUtils.ts` achten.
   **Priorität:** tief · **Komplexität:** klein (Schritte 1–3), mittel (Schritt 4)
 
-- **Datumsanzeige `de-CH` dreifach kopiert** (gefunden bei Story 6.2a, 2026-10-11) — `expense.date.toLocaleString("de-CH", {year: "numeric", month: "2-digit", day: "2-digit"})` steht identisch in `Event/ExpenseTracking/expenseList.tsx`, `payeeBalanceAccordion.tsx` und `expenseEvaluation.tsx` (Top-5-Liste). Einen Helfer `formatDisplayDate(date)` in `src/utils/dateUtils.ts` anlegen (mit Test) und die drei Stellen darauf umstellen. Spätestens vor Epic 7 (PDF), weil die Abrechnung das Datum erneut formatiert.
+- **Datumsanzeige `de-CH` dreifach kopiert** (gefunden bei Story 6.2a, 2026-10-11) — `expense.date.toLocaleString("de-CH", {year: "numeric", month: "2-digit", day: "2-digit"})` steht identisch in `Event/ExpenseTracking/Expense/expenseList.tsx`, `Expense/payeeBalanceAccordion.tsx` und `Evaluation/expenseEvaluation.tsx` (Top-5-Liste). Einen Helfer `formatDisplayDate(date)` in `src/utils/dateUtils.ts` anlegen (mit Test) und die drei Stellen darauf umstellen. Spätestens vor Epic 7 (PDF), weil die Abrechnung das Datum erneut formatiert.
   **Priorität:** tief · **Komplexität:** klein
 
-- **Fixe Währung «CHF» noch hart codiert** (gefunden bei Story 6.2a, 2026-10-11) — Seit 6.2a gibt es `DEFAULT_CURRENCY` in `Shared/utils/currencyUtils.ts`. `"CHF"` steht aber noch direkt in `Event/ExpenseTracking/budgetDetailDialog.tsx` (Vorbelegung neues Budget) und `Donate/DonationResult.tsx`. Auf die Konstante umstellen.
+- **Fixe Währung «CHF» noch hart codiert** (gefunden bei Story 6.2a, 2026-10-11) — Seit 6.2a gibt es `DEFAULT_CURRENCY` in `Shared/utils/currencyUtils.ts`. `"CHF"` steht aber noch direkt in `Event/ExpenseTracking/Budget/budgetDetailDialog.tsx` (Vorbelegung neues Budget) und `Donate/DonationResult.tsx`. Auf die Konstante umstellen.
   **Priorität:** tief · **Komplexität:** klein
 
 ## Architecture
