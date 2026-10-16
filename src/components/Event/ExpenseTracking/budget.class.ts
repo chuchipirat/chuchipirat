@@ -132,7 +132,7 @@ export class Budget {
    * Hochrechnung = 190000 (CHF 1'900)
    * @param budget - Das Budget.
    * @param expenses - Ausgaben
-   * @param campDays - Liste der Anlass-Tage
+   * @param eventDays - Liste der Anlass-Tage
    * @param today - Stichtag Heute
    * @returns Die Hochrechnung der Ausgaben, `null` vor dem ersten Anlasstag,
    *  ab dem letzten Anlasstag und ohne Anlasstage
@@ -140,40 +140,40 @@ export class Budget {
   static projectSpending = ({
     budget,
     expenses,
-    campDays,
+    eventDays,
     today,
   }: {
     budget: BudgetDomain;
     expenses: ExpenseDomain[];
-    campDays: Date[];
+    eventDays: Date[];
     today: Date;
   }): BudgetProjection | null => {
     const todayKey = formatLocalDate(today);
-    const campDayKeys = campDays.map((day) => formatLocalDate(day));
-    const elapsedCampDays = campDayKeys.filter(
+    const eventDayKeys = eventDays.map((day) => formatLocalDate(day));
+    const elapsedEventDays = eventDayKeys.filter(
       (dayKey) => dayKey <= todayKey,
     ).length;
 
-    if (elapsedCampDays < 1 || elapsedCampDays >= campDayKeys.length)
+    if (elapsedEventDays < 1 || elapsedEventDays >= eventDayKeys.length)
       return null;
 
-    const firstCampDayKey = campDayKeys[0];
+    const firstEventDayKey = eventDayKeys[0];
 
     const {runningAmountInCents, fixedAmountInCents} =
       Budget.splitFixedAndRunningExpenses({
         expenses,
         budget,
-        firstCampDayKey,
+        firstEventDayKey,
         todayKey,
       });
 
     return {
       projectedAmountInCents: Math.round(
-        (runningAmountInCents / elapsedCampDays) * campDays.length +
+        (runningAmountInCents / elapsedEventDays) * eventDays.length +
           fixedAmountInCents,
       ),
-      elapsedCampDays,
-      totalCampDays: campDays.length,
+      elapsedEventDays,
+      totalEventDays: eventDays.length,
     };
   };
   /**
@@ -181,19 +181,19 @@ export class Budget {
    *
    * @param expenses - Ausgaben
    * @param budget - Das Budget
-   * @param firstCampDayKey - Erster Anlasstag im Format YYYY-MM-DD
+   * @param firstEventDayKey - Erster Anlasstag im Format YYYY-MM-DD
    * @param todayKey - Heute im Format YYYY-MM-DD
    * @returns Die gesplitteten Kosten als `runningAmountInCents`und `fixedAmountInCents`
    */
   private static splitFixedAndRunningExpenses = ({
     expenses,
     budget,
-    firstCampDayKey,
+    firstEventDayKey,
     todayKey,
   }: {
     expenses: ExpenseDomain[];
     budget: BudgetDomain;
-    firstCampDayKey: string;
+    firstEventDayKey: string;
     todayKey: string;
   }) => {
     let fixedAmountInCents = 0;
@@ -208,7 +208,7 @@ export class Budget {
         continue;
       const expenseDayKey = formatLocalDate(expense.date);
 
-      if (expenseDayKey >= firstCampDayKey && expenseDayKey <= todayKey) {
+      if (expenseDayKey >= firstEventDayKey && expenseDayKey <= todayKey) {
         runningAmountInCents += expense.amountInCents;
       } else {
         fixedAmountInCents += expense.amountInCents;

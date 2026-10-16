@@ -269,7 +269,7 @@ const EventExpenseTrackingPage = ({
         projection: Budget.projectSpending({
           budget,
           expenses: state.expenses ?? [],
-          campDays: eventDays,
+          eventDays,
           today: new Date(),
         }),
       };
@@ -940,9 +940,10 @@ const EventExpenseTrackingPage = ({
                 expenses={state.expenses ?? []}
                 budgets={state.budgets ?? []}
                 participantCount={groupConfiguration.totalPortions}
-                campDayCount={event.numberOfDays}
+                eventDays={eventDays}
                 handleEditClick={handleEditExpense}
                 handleShowMissingReceipts={handleShowMissingReceipts}
+                today={new Date()}
               />
             )}
           </Box>

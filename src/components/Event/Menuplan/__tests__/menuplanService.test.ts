@@ -1010,6 +1010,21 @@ describe("getEventDateList", () => {
     // Nur 1 Tag — der zweite Eintrag ist Epoch und wird gefiltert
     expect(dates).toHaveLength(1);
   });
+
+  it("sollte gleich viele Tage liefern wie Event.defineEventDuration", () => {
+    // Die Abrechnung rechnet Sollbeträge mit event.numberOfDays (Budget-Karten)
+    // und mit getEventDateList().length (Auswertung, Story 6.3) — beide
+    // müssen übereinstimmen, auch mit Lücke und Platzhalter-Zeitscheibe.
+    const dateSlices = [
+      {uid: "d1", pos: 1, from: new Date(2026, 6, 6), to: new Date(2026, 6, 8)},
+      {uid: "d2", pos: 2, from: new Date(2026, 6, 10), to: new Date(2026, 6, 12)},
+      {uid: "d3", pos: 3, from: new Date(1970, 0, 1), to: new Date(1970, 0, 1)},
+    ];
+    const event = buildEvent({dates: dateSlices});
+
+    expect(getEventDateList({event})).toHaveLength(6);
+    expect(Event.defineEventDuration(dateSlices)).toBe(6);
+  });
 });
 
 describe("adjustMenuplanWithNewDays", () => {

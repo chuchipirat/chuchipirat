@@ -3573,9 +3573,255 @@ Wie bei 6.1: Absatz "Auswertung" (welche Kennzahlen, Budget-Auswahl pro Gerät, 
 
 ---
 
-### Story 6.3 – 6.5 (Umriss, wird vor Start ausdetailliert)
+### **Story 6.3 — Ausgabenverlauf (Liniendiagramm)** ✅ erledigt
 
-- **6.3 — Ausgabenverlauf.** `npm install @mui/x-charts@^7.29` (Entscheidung 7). `ExpenseStatistics.cumulativeByCampDay({expenses, budget | null, currency, campDays})` → eine Zahl pro Lagertag. Ausgaben vor dem Lager fliessen in Tag 1, Ausgaben in Zeitscheiben-Lücken in den nächsten Lagertag, Ausgaben nach Lagerende in den letzten Tag (sonst fehlen sie in der kumulierten Summe). Soll-Linie: `Soll × Tag / Lagertage`, siehe Budget-Auswahl unten. Ist-Linie nur bis heute (danach `null`, damit die Linie nicht flach in die Zukunft läuft). Keine eigene Budget-Auswahl mehr: Das Diagramm nutzt die Auswahl aus 6.2b; die Soll-Linie ist die Summe der Sollbeträge der *ausgewählten* Budgets in der gewählten Währung. Jest-Mock für das Diagramm, auch in `expenseTracking.test.tsx` (Entscheidung 8).
+> Ausgearbeitet 2026-10-15 nach Abgleich mit dem Code (Stand nach 6.2c). Alle Punkte entschieden.
+
+#### Worum es geht
+
+In der Auswertung erscheint unter den Kennzahl-Kacheln ein Liniendiagramm: x-Achse = Anlasstage, y-Achse = Betrag. Die **Ist-Linie** zeigt die kumulierten Ausgaben bis heute, die gestrichelte **Soll-Linie** wie viel bis zu diesem Tag linear verbraucht sein dürfte. Beide folgen der Budget- und Währungsauswahl aus 6.2a/b. Erstes Diagramm im Projekt, also kommt mit dieser Story auch `@mui/x-charts`.
+
+```
+Ausgabenverlauf
+CHF
+2'400 ┤                                   ╱ ─ ─  Soll
+1'800 ┤                         ╱ ─ ─ ─
+1'200 ┤●━━━━━━●━━━━━━●     ─ ─              ━━  Ist
+  600 ┤   ─ ─ ─ ─
+    0 ┼──────┬──────┬──────┬──────┬──────┬──────┬
+     05.07. 06.07. 07.07. 08.07. 09.07. 10.07. 11.07.
+Stand Anlasstag 3 von 7: CHF 1'350.00 ausgegeben, Soll bis heute CHF 1'028.57.
+```
+
+#### Abweichungen vom Umriss (nach Abgleich mit dem Code)
+
+- **U1 — Kein `budget`/`currency`-Parameter mehr.** Seit 6.2b filtert `ExpenseEvaluation` schon nach Budget (`expensesOfSelectedBudgets`) und Währung (`filterByCurrency`). Die neue Funktion bekommt die fertig gefilterte Liste, wie `sumAmountInCents` und `topExpenses` auch. Eine zweite Filterstelle wäre eine zweite Stelle, die auseinanderlaufen kann (Lehre A1 aus 6.2c).
+- **U2 — `today` kommt dazu.** Die Ist-Linie endet heute (Umriss), also braucht die Funktion den Stichtag als Parameter (Epic-6-Entscheidung 3).
+- **U3 — Neue Datei für das Diagramm.** `expenseEvaluation.tsx` hat schon 620 Zeilen (Richtwert 500). Das Diagramm kommt als eigene Komponente `ExpenseHistoryChart` in `expenseHistoryChart.tsx`. Die Aufteilung von `expenseEvaluation.tsx` selbst (z.B. `BudgetFilter` in eine eigene Datei) gehört in den Zwischenschritt «Ordner aufteilen», nicht hierher → in `tech-debt.md` notieren.
+
+#### Fachliche Entscheidungen
+
+**V1 — Zuordnung jeder Ausgabe zu einem Anlasstag** (aus dem Umriss, präzisiert):
+- vor dem ersten Anlasstag → Tag 1 (Grosseinkauf),
+- an einem Tag zwischen zwei Zeitscheiben → nächster Anlasstag,
+- nach dem letzten Anlasstag → letzter Anlasstag,
+- **nach heute** (vorausdatiert) → **heute** bzw. der letzte Anlasstag ≤ heute (entschieden, O1).
+
+Umsetzung über `YYYY-MM-DD`-Schlüssel (`formatLocalDate`), wie `projectSpending` in 6.1: Index des ersten Anlasstags mit `dayKey >= expenseKey`, sonst der letzte; danach auf den letzten sichtbaren Index begrenzen (`Math.min`). Nie über Millisekunden rechnen (Zeitumstellung, Entscheidung 4).
+
+**V2 — Ist-Linie nur bis heute.** Werte für Anlasstage mit `dayKey <= todayKey`, danach `null` (x-charts zeichnet dort keine Linie). Folgen:
+- vor dem Anlass: alles `null` → statt Diagramm ein Satz (V6),
+- nach dem Anlass: alle Tage haben einen Wert,
+- heute in einer Lücke zwischen Zeitscheiben: Linie endet am letzten vergangenen Anlasstag.
+
+**Invariante:** Der letzte Ist-Wert ist gleich der Kachel «Gesamtausgaben» (gleiche Liste, nichts geht verloren). Dafür sorgen V1 (vorher/Lücke/nachher) und die Begrenzung auf heute. Eigener Test, und das ist der Grund für O1.
+
+**V3 — Soll-Linie.** Summe der Sollbeträge der **ausgewählten** Budgets **in der gewählten Währung**, linear verteilt: Wert an Tag *i* (1-basiert) = `Math.round(Soll × i / Anlasstage)`. Der letzte Wert ist exakt der Sollbetrag (kein Rundungsrest). Sollbeträge über `Budget.getTargetAmountInCents` (gleiche Rechnung wie die Budget-Karten, also auch «pro Person & Tag» richtig). Budgets in einer anderen Währung zählen nicht, auch wenn sie ausgewählt sind (Entscheidung 5: nie über Währungen summieren).
+- Sollsumme 0 (nur Budgets ohne Sollbetrag ausgewählt) → **keine** Soll-Linie, nur Ist. Kein Hinweistext nötig, die Legende zeigt nur «Ist».
+- Bekannter Effekt, bewusst akzeptiert: Ein Grosseinkauf vor dem Anlass lässt die Ist-Linie an Tag 1 über die Soll-Linie springen. Das ist richtig (das Geld ist weg) und im Hilfetext erklärt; die Hochrechnung auf der Budget-Karte (6.1) ist die Kennzahl, die das berücksichtigt.
+
+**V4 — Anlasstage als Liste statt Anzahl.** `ExpenseEvaluation` bekommt `eventDays: Date[]` (das schon vorhandene `eventDays`-Memo der Seite, `getEventDateList`) **statt** `eventDayCount: number`. Die Anzahl ist `eventDays.length`. *Warum ersetzen statt ergänzen:* Zwei Props für dieselbe Information können auseinanderlaufen. `event.numberOfDays` (`Event.defineEventDuration`) und `getEventDateList` überspringen beide die Platzhalter-Zeitscheiben und zählen gleich; beim Umstellen mit einem Anlass aus zwei Zeitscheiben im Browser gegenprüfen. Entschieden (O2).
+Achtung, Bezug zu 6.2a (K2): Dort wurde bewusst `event.numberOfDays` gewählt, weil `Budget.getTargetAmountInCents` (Budget-Karten) damit rechnet. Die Auswertung rechnet ab jetzt auch den Sollbetrag selbst (V3), und zwar mit `eventDays.length`. Das ist nur konsistent, solange beide Zahlen gleich sind → in `expenseTracking.test.tsx` einen Fall mit zwei Zeitscheiben ergänzen, der `getEventDateList({event}).length === event.numberOfDays` prüft. Weichen sie je ab, ist das ein Bug in einer der beiden Funktionen, kein Grund für zwei Props.
+
+**V5 — «Heute» kommt von der Seite.** Neue Prop `today: Date` an `ExpenseEvaluation` und weiter an das Diagramm (Entscheidung 3). In Memos nicht `today` als Dependency (jedes Render ein neues Objekt), sondern `todayKey = formatLocalDate(today)`.
+
+**V6 — Leere Zustände** (Entscheidung 10), anstelle des Diagramms ein Satz in der Diagramm-Karte:
+- keine Anlasstage (`eventDays.length === 0`) → «Lege zuerst die Daten des Anlasses fest, dann erscheint hier der Verlauf.»
+- heute vor dem ersten Anlasstag → «Der Verlauf beginnt am ersten Anlasstag.» (Die Kacheln darüber zeigen den Grosseinkauf schon.)
+- keine Ausgaben in der Auswahl → behandelt schon der bestehende leere Zustand aus 6.2b (die Karte wird gar nicht gerendert).
+
+**V7 — Darstellung.**
+- `LineChart` aus `@mui/x-charts/LineChart` (Pfad-Import, nicht das Paket-Root, damit nur das Liniendiagramm im Bundle landet).
+- x-Achse: `scaleType: "point"`, Daten = `eventDays`, Beschriftung `dd.MM.` (`toLocaleDateString("de-CH", {day: "2-digit", month: "2-digit"})`). Lücken zwischen Zeitscheiben erscheinen nicht als eigene Punkte (Entscheidung 2). Bei langen Anlässen auf Mobile blendet `tickLabelInterval: "auto"` (Standard) überlappende Beschriftungen aus → im Browser prüfen.
+- y-Achse: Betrag ohne Währung und ohne Rappen (`1'200`), Tooltip mit `formatAmountFromCents(…, currency)`.
+- Ist: durchgezogen, Theme-Farbe `primary.main`, Punkte sichtbar. Soll: gestrichelt (`strokeDasharray` über die Klasse `.MuiLineElement-series-target` im `sx`, Style in `expenseTracking.styles.ts`), Theme-Farbe `text.secondary`, ohne Punkte. Farben aus `useTheme()`, nicht hart codiert.
+- Höhe fest (z.B. 280 px), Breite passt sich an (ohne `width`-Prop füllt x-charts v7 den Container).
+- **Textzeile unter dem Diagramm** (`caption`): «Stand Anlasstag 3 von 7: CHF 1'350.00 ausgegeben, Soll bis heute CHF 1'028.57.» Ohne Soll nur der erste Teil; nach dem Anlass «Anlasstag 7 von 7». *Warum:* Das SVG ist für Screenreader nicht lesbar, und auf dem Handy liest man die Zahl schneller als die Kurve. Zugleich ist diese Zeile die gut testbare Ausgabe der Komponente.
+- Platz: eigene `Grid size={{xs: 12}}` **zwischen** den Zahl-Kacheln und der Top-5-Liste.
+
+**V8 — Jest** (Entscheidung 8): `@mui/x-charts/LineChart` wird in **allen drei** Testdateien gemockt, die das Diagramm indirekt rendern (`expenseHistoryChart`, `expenseEvaluation`, `expenseTracking`). Eine Fake-Komponente `LineChart` rendert `<div data-testid="line-chart">` und legt ihre Props in einer `jest.fn()` ab, damit Tests `series` und `xAxis` prüfen können. Gemeinsame Fake-Datei `__mocks__/lineChart.mock.tsx`, eingebunden mit `jest.mock("@mui/x-charts/LineChart", () => require("../__mocks__/lineChart.mock"))` (die Factory darf keine importierten Variablen nutzen, `require` innerhalb ist erlaubt). Vorher einmal ohne Mock laufen lassen und die Fehlermeldung im Review notieren: Bestätigt (oder widerlegt) die ESM-Annahme aus Entscheidung 8.
+
+#### Entschieden (2026-10-15)
+
+- **O1 — Vorausdatierte Ausgaben** (Datum nach heute): **in den heutigen Punkt** (V1). Damit gilt «letzter Ist-Punkt = Gesamtausgaben».
+- **O2 — `eventDayCount` durch `eventDays` ersetzen** (V4): **ja.** Kleine Änderung an 6.2a (Prop + Tests), dafür nur eine Quelle für die Anlasstage in der Auswertung.
+
+#### Schnittstellen
+
+`expenseStatistics.class.ts`, zwei neue Methoden:
+
+```ts
+/**
+ * Kumulierte Ausgaben pro Anlasstag bis heute (V1, V2). Erwartet Ausgaben
+ * einer Währung (vorher filterByCurrency).
+ * @returns Ein Wert pro Anlasstag, `null` für Tage nach heute; leere Liste ohne Anlasstage.
+ */
+static cumulativeByEventDay({expenses, eventDays, today}: {
+  expenses: ExpenseDomain[];
+  eventDays: Date[];   // getEventDateList, aufsteigend
+  today: Date;
+}): (number | null)[];
+
+/**
+ * Lineare Soll-Linie (V3): Tag i = Math.round(Soll × i / n), letzter Wert = Soll.
+ * @returns Ein Wert pro Anlasstag, leere Liste bei 0 Anlasstagen.
+ */
+static targetLineByEventDay(targetAmountInCents: number, eventDayCount: number): number[];
+
+/**
+ * Summe der Sollbeträge der nicht abgewählten Budgets in einer Währung (V3).
+ */
+static sumTargetAmountInCents({budgets, excludedBudgetIds, currency, participantCount, eventDayCount}: {…}): number;
+```
+
+`cumulativeByEventDay` bleibt unter 20 Zeilen, wenn die Zuordnung «Ausgabe → Tagesindex» als private Hilfsmethode `getEventDayIndex(expenseKey, eventDayKeys, lastVisibleIndex)` ausgelagert wird. `sumTargetAmountInCents` importiert `Budget` (Domain-Klasse → Domain-Klasse, kein Zirkel: `budget.class.ts` importiert `ExpenseStatistics` nicht; prüfen).
+
+`expenseHistoryChart.tsx` (neu):
+
+```ts
+type ExpenseHistoryChartProps = {
+  eventDays: Date[];
+  actualValues: (number | null)[];   // cumulativeByEventDay
+  targetValues: number[] | null;     // null = keine Soll-Linie (V3)
+  currency: string;
+  todayKey: string;                  // für «Stand Anlasstag x von n» und V6
+};
+```
+
+Die Komponente rechnet nicht selbst, sie bekommt fertige Reihen (gleiches Muster wie `StatisticTile`). Gerechnet wird im bestehenden `statistics`-Memo von `ExpenseEvaluation`, das um `history: {actualValues, targetValues}` wächst, Dependencies um `eventDays`, `todayKey`, `budgets`, `excludedBudgetIds` ergänzt.
+
+`ExpenseEvaluation`: Props `eventDays: Date[]` (statt `eventDayCount`) und `today: Date`. `expenseTracking.tsx` reicht `eventDays={eventDays}` und `today={new Date()}` durch.
+
+#### Texte (`src/constants/text/expenseTracking.ts`, Block «Auswertung: Verlauf (6.3)»)
+
+| Konstante | Text |
+|---|---|
+| `EVALUATION_HISTORY_TITLE` | «Ausgabenverlauf» |
+| `EVALUATION_HISTORY_ACTUAL` | «Ist» (Legende) |
+| `EVALUATION_HISTORY_TARGET` | «Soll» (Legende) |
+| `EVALUATION_HISTORY_SUMMARY(day, total, actual, target \| null)` | «Stand Anlasstag 3 von 7: CHF 1'350.00 ausgegeben, Soll bis heute CHF 1'028.57.» (ohne Soll nur bis «ausgegeben.») |
+| `EVALUATION_HISTORY_NOT_STARTED` | «Der Verlauf beginnt am ersten Anlasstag.» |
+| `EVALUATION_HISTORY_NO_EVENT_DAYS` | «Lege zuerst die Daten des Anlasses fest, dann erscheint hier der Verlauf.» |
+
+Vor dem Anlegen in `src/constants/text` nach bestehenden Begriffen greppen (Lehre «Anlass»).
+
+#### Dateien 6.3
+
+| Datei | Änderung |
+|---|---|
+| `package.json`, `package-lock.json` | `@mui/x-charts@^7.29` (aktuell 7.29.1). Danach `npm ls @mui/x-internals` → genau eine Version (Entscheidung 7) |
+| `expenseStatistics.class.ts` | `cumulativeByEventDay`, `targetLineByEventDay`, `sumTargetAmountInCents`, private `getEventDayIndex` |
+| `expenseHistoryChart.tsx` (neu) | Diagramm-Karte inkl. leere Zustände und Textzeile |
+| `expenseEvaluation.tsx` | Props `eventDays`/`today`, `history` im `statistics`-Memo, neue `Grid`-Zeile, JSDoc + `@example` nachziehen |
+| `expenseTracking.tsx` | `eventDays={eventDays}`, `today={new Date()}` statt `eventDayCount` |
+| `src/constants/text/expenseTracking.ts` | Texte oben |
+| `src/constants/styles/expenseTracking.styles.ts` | `evaluationHistoryChart` (gestrichelte Soll-Linie, Höhe/Abstand) — Präfix `evaluation*` (Epic-10-Vorgabe) |
+| `__mocks__/lineChart.mock.tsx` (neu) | Fake-`LineChart` mit Props-Recorder |
+| `__tests__/expenseStatistics.class.test.ts` | Tests der drei Funktionen |
+| `__tests__/expenseHistoryChart.test.tsx` (neu) | Anzeige-Tests |
+| `__tests__/expenseEvaluation.test.tsx` | Mock einbinden, `eventDayCount` → `eventDays`, Integrationsfälle |
+| `__tests__/expenseTracking.test.tsx` | Mock einbinden |
+| `.claude/docs/tech-debt.md` | `expenseEvaluation.tsx` > 500 Zeilen (U3); `@mui/x-*` gemeinsam auf v8 heben (Entscheidung 7) |
+
+#### Tests 6.3
+
+Testanlass wie 6.1: 7 Tage, 5.–11.7.2026, CHF, heute 7.7., alle Daten über `parseLocalDate`.
+
+`expenseStatistics.class.test.ts`, `cumulativeByEventDay`:
+- keine Anlasstage → `[]`
+- keine Ausgaben, heute 7.7. → `[0, 0, 0, null, null, null, null]`
+- 5.7. CHF 10, 7.7. CHF 20 → `[1000, 1000, 3000, null, …]`
+- Ausgabe 3.7. (vor dem Anlass) → in Tag 1
+- zwei Zeitscheiben 6.–8.7. und 10.–12.7., heute 12.7., Ausgabe am 9.7. → in Tag 4 (10.7.)
+- heute 13.7. (nach dem Anlass), Ausgabe am 13.7. → im letzten Tag; kein `null`
+- **vorausdatiert:** heute 7.7., Ausgabe am 10.7. → im 7.7. (O1)
+- **Invariante:** gemischte Ausgaben (vorher, Lücke, nachher, vorausdatiert) → letzter Nicht-`null`-Wert = `sumAmountInCents(expenses)`
+- heute 4.7. (vor dem Anlass) → nur `null`
+- heute in der Lücke (9.7. bei zwei Zeitscheiben) → Werte bis 8.7., ab 10.7. `null`
+- Uhrzeit egal: heute 7.7. 23:59 = 7.7. 00:00
+- Zeitumstellung: Anlass 23.10.–1.11.2026, heute 27.10. → genau 5 Nicht-`null`-Werte (`TZ=Europe/Zurich` wie in 6.1)
+- Eingabe bleibt unverändert (Länge/Reihenfolge von `expenses`)
+
+`targetLineByEventDay`: 7 Tage, Soll 7000 → `[1000, 2000, …, 7000]`; Soll 1000 bei 3 Tagen → letzter Wert genau 1000; 0 Tage → `[]`.
+
+`sumTargetAmountInCents`: fix + pro Person & Tag (24 TN, 7 Tage) richtig summiert; abgewähltes Budget fehlt; Budget in EUR fehlt bei Währung CHF; keine Budgets → 0.
+
+`expenseHistoryChart.test.tsx` (Mock aus V8):
+- Reihen werden unverändert an `series` übergeben; x-Achse hat 7 Einträge
+- `targetValues: null` → nur eine Serie, Textzeile ohne «Soll»
+- Textzeile «Stand Anlasstag 3 von 7: …» mit Beträgen (`expectedAmount`-Helfer aus 6.1)
+- heute vor dem Anlass → «Der Verlauf beginnt …», kein `line-chart`
+- keine Anlasstage → Hinweis, kein `line-chart`
+
+`expenseEvaluation.test.tsx`:
+- Diagramm erscheint mit Ausgaben; nicht im leeren Zustand
+- Währung auf EUR wechseln → Ist-Reihe enthält nur EUR-Beträge, Soll nur aus EUR-Budgets (bzw. keine Soll-Linie)
+- Budget abwählen → Ist- und Soll-Reihe ohne dieses Budget
+- bestehende Tests: `eventDayCount={7}` → `eventDays={…7 Tage…}`, `today` setzen
+
+`expenseTracking.test.tsx`: nur den Mock einbinden, bestehende Tests bleiben grün.
+
+#### Mutationsproben 6.3
+
+1. In `getEventDayIndex` Ausgaben vor dem Anlass verwerfen statt in Tag 1 → «vor dem Anlass» und Invariante rot.
+2. Begrenzung auf heute (`Math.min`) entfernen → «vorausdatiert» und Invariante rot.
+3. In `sumTargetAmountInCents` den Währungsfilter entfernen → «Budget in EUR fehlt» rot.
+4. In `ExpenseEvaluation` `expenses` statt `expensesOfSelectedBudgets` für den Verlauf → «Budget abwählen» rot.
+
+#### Im Browser ansehen (DEV gegen `supabase-db-test`)
+
+Test-Anlass so legen, dass heute ein mittlerer Anlasstag ist (wie 6.1).
+1. Budgets «Küche» CHF 500 fix und «Grosseinkauf» pro Person & Tag; Ausgaben vor dem Anlass, gestern, heute → Ist-Linie bis heute, Soll gestrichelt bis zum letzten Tag, letzter Ist-Punkt = Kachel «Gesamtausgaben».
+2. Tooltip: Datum + Beträge mit Währung.
+3. Budget abwählen → beide Linien ändern sich; Budget ohne Soll allein auswählen → keine Soll-Linie.
+4. EUR-Ausgabe erfassen, auf EUR wechseln → Linien in EUR.
+5. Zweites Fenster (andere Köchin): Ausgabe erfassen → Diagramm aktualisiert sich live.
+6. Anlass mit zwei Zeitscheiben → Achse ohne Lückentage; Anzahl Tage = Kachel «Ø pro Person» (V4 gegenprüfen).
+7. Anlass in die Zukunft → «Der Verlauf beginnt am ersten Anlasstag.»; in die Vergangenheit → ganze Linie.
+8. **Mobile (xs):** Diagramm nicht breiter als der Bildschirm, Achsenbeschriftung überlappt nicht (14-Tage-Anlass), Legende lesbar, Tooltip per Tippen erreichbar.
+9. Konsole ohne Fehler/Warnungen; Netzwerk-Tab: Bundle wächst nur um das Liniendiagramm (Grösse vorher/nachher im Review notieren, `npm run build`).
+
+#### Umsetzung 6.3
+
+- [x] 0. O1 und O2 entschieden (2026-10-15)
+- [x] 1. `@mui/x-charts@^7.29.1` installiert; `npm ls @mui/x-internals` → genau eine Version (7.29.0, von allen drei `@mui/x-*` geteilt)
+- [x] 2. `ExpenseStatistics`: `cumulativeByEventDay`, `targetLineByEventDay`, `sumTargetAmountInCents` (nutzt `Budget.getTargetAmountInCents`), private `getEventDayIndex` + Tests; Mutationsproben 1–3
+- [x] 3. Texte und Style
+- [x] 4. Chart-Mock — **abweichend von V8**, siehe Abschluss-Review
+- [x] 5. `ExpenseHistoryChart` + Tests
+- [x] 6. `ExpenseEvaluation`: Props `eventDays`/`today` statt `eventDayCount` (O2), `history` im `statistics`-Memo, `Grid`-Zeile über volle Breite; bestehende Tests umgestellt; Integrationstests; Mutationsprobe 4
+- [x] 7. `expenseTracking.tsx` angebunden (`eventDays`, `today={new Date()}`); kein Mock in `expenseTracking.test.tsx` nötig
+- [x] 8. `tech-debt.md`: `expenseEvaluation.tsx` > 500 Zeilen (U3), `@mui/x-*` gemeinsam auf v8
+- [x] 9. Verifikation, siehe Abschluss-Review
+- [x] 10. Commit `feat(abrechnung): Ausgabenverlauf als Liniendiagramm (Story 6.3)`
+
+**Abschluss-Review (2026-10-16):**
+
+- **Bezeichner:** alle `camp…` → `event…` umbenannt, auch im Code aus 6.1 (`BudgetProjection.elapsedEventDays`/`totalEventDays`, `projectSpending({eventDays})`) und in den Fixtures. Grund: Der Code spricht immer vom Anlass (`event`), nie von «camp».
+- **`tsc` prüft keine `.tsx`-Dateien** (`tsconfig.json` → `include: ["./src/**/*.ts"]`, `noImplicitAny: false`, schon in `tech-debt.md`). `npx tsc --noEmit` war deshalb grün, obwohl `expenseEvaluation.tsx` falsch geschrieben importierte (`./ExpenseHistoryChart` statt `./expenseHistoryChart` — macOS findet die Datei trotzdem, Linux/CI nicht) und `EVALUATION_HISTORY_SUMMARY` zwei untypisierte Parameter hatte. Gefunden mit einer temporären Konfiguration (`extends` + `include` der Feature-`.tsx` + `noImplicitAny: true`). Bis der Tech-Debt-Punkt erledigt ist: diese Prüfung vor jedem Commit in Epic 6–10 laufen lassen.
+- **V8 widerlegt:** `@mui/x-charts` 7.29 läuft in Jest **ohne** Mock (`@mui/x-charts-vendor` liefert d3 als CommonJS; keine `transformIgnorePatterns` nötig). Gemockt wird trotzdem, aber nur, um die Props zu prüfen (jsdom hat kein Layout): in `expenseHistoryChart.test.tsx` und `expenseEvaluation.test.tsx` nach bestehendem Muster (`mockLineChart = jest.fn()` + Inline-Factory) statt einer gemeinsamen `__mocks__`-Datei mit `require`. `expenseTracking.test.tsx` braucht keinen Mock.
+- **Konsistenz O2:** neuer Test in `menuplanService.test.ts`: zwei Zeitscheiben mit Lücke + Platzhalter → `getEventDateList().length` = `Event.defineEventDuration()` = 6.
+- **Bug im Review gefunden und behoben:** `currency={chosenCurrency ?? ""}` statt `selectedCurrency`. Im Normalfall (nur CHF) ist `chosenCurrency` immer `null` → `Intl.NumberFormat` mit `""` wirft beim ersten Tooltip einen `RangeError`. Test «Textzeile in der gewählten Währung (auch ohne Klick auf eine Währung)» deckt das ab.
+- **Tests:** `expenseStatistics.class.test.ts` +21 (u.a. Invariante «letzter Ist-Wert = Summe», Lücke, vorausdatiert, Zeitumstellung mit `TZ=Europe/Zurich`), `expenseHistoryChart.test.tsx` neu (12), `expenseEvaluation.test.tsx` +6, `menuplanService.test.ts` +1. Lehre: `structuredClone` ist in Jest per JSON gepolyfillt und macht aus `Date` einen String → Kopien von Ausgaben mit `{...expense, date: new Date(expense.date)}`.
+- **Mutationsproben 1–4** rot wie erwartet (Quelldateien vorher gesichert, danach byte-gleich zurück): 1 → «vor dem Anlass» + Invariante, 2 → «vorausdatiert» + Invariante, 3 → «Budget in anderer Währung fehlt», 4 → vier Tests in «Ausgabenverlauf». Nicht per Jest prüfbar: `excludedBudgetIds` in den Memo-Dependencies (ändert sich immer zusammen mit `expensesOfSelectedBudgets`).
+- **Verifikation:** `tsc` grün, `npm run lint` 0 Fehler (231 bestehende Warnungen, keine in geänderten Dateien), `.tsx`-Zusatzprüfung ohne Befund, **ganze Jest-Suite 228/228 Dateien, 2933/2933 Tests grün**.
+- **Browser** (DEV gegen `supabase-db-test`, «Anlass mit Spende», 8.–11.10.2026, heute nach dem Anlass): Ist 103 → 103 → 103 → 203 (zwei Vorab-Einkäufe an Tag 1, Ausgabe vom 15.10. am letzten Tag), letzter Punkt = Kachel CHF 203.00; Soll CHF 691.00 = Küche 8.00 × 20 × 4 + Motto 50 + Test 1 («Leer» abgewählt); Tooltip «So., 11.10.» mit CHF-Beträgen; Textzeile stimmt. Mobile (500 px, kleinste Fensterbreite): keine horizontale Scrollleiste, Textzeile bricht sauber um. Konsole ohne Fehler/Warnungen.
+- **Nicht im Browser geprüft:** Anlass mitten im Lauf und vor Beginn (dafür müssten die Daten des Test-Anlasses verschoben werden), Zweit-Köchin live, 14-Tage-Anlass auf Mobile, Bundle-Grösse vorher/nachher. Die Zustände sind durch Jest abgedeckt.
+- **Offen, klein (Nutzer):**
+  - ✅ (2026-10-16) `curve: "linear"` in beiden Serien (x-charts glättet sonst mit `monotoneX`, und der Verlauf sah nach allmählichem Anstieg aus), mit Test. `buildSeries` gibt jetzt `LineChartProps["series"]` zurück und baut die Serien per `push`: Im bedingten Spread wurde `"linear"` zu `string` verbreitert.
+  - ✅ (2026-10-16) `AxisValueFormatterContext` nicht mehr aus `@mui/x-charts/internals`, sondern aus der öffentlichen `AxisConfig` abgeleitet; `Theme` aus `@mui/material` statt `@mui/system` (sonst ist `palette` untypisiert).
+  - ✅ (2026-10-16) Soll-Linie mit Fläche («Budgetraum»): `area: true` an der Soll-Serie, Füllung `alpha(primary.main, 0.08)` über `.MuiAreaElement-series-target` (ohne Override füllt x-charts deckend in der Linienfarbe). Linie bleibt `text.secondary` gestrichelt. *Warum nicht Farbe:* Brand-Lime hat auf Weiss 1.2:1 Kontrast, `primary.light` ist im Prod-Dark-Theme `#fff`, Orange bedeutet auf der Budget-Karte schon «Warnung». Im Browser (Light) geprüft; Dark Mode nicht, weil das Theme der Systemeinstellung folgt. Idee für später (eigenes Paket): Ist-Linie in `warning.main`, sobald sie heute über dem Soll liegt.
+  - ✅ `expenseHistoryChart.tsx`: verwaistes `{" "}` und veralteter Kommentar entfernt (Nutzer).
+  - ✅ Textzeile nach Anlassende: «Soll gesamt» statt «Soll bis heute» (ab dem letzten Anlasstag). Erste Umsetzung liess den Soll-Teil dort ganz weg — genau dann, wenn der Vergleich am meisten zählt. Beim Umbauen war ein Template-Literal über zwei Zeilen umgebrochen: Zeilenumbruch + Einzug landeten im Text (im Browser unsichtbar, im String falsch). Drei Tests für `EVALUATION_HISTORY_SUMMARY` mit exaktem Text.
+  - Textzeile nach dem Anlass sagt «Soll bis heute» — nach Anlassende eher «Soll gesamt». Eigener Text oder bewusst so lassen?
+- **Helpcenter:** gesammelt am Ende von Epic 6.
+
+**Definition of Done 6.3:** wie oben unter 9; Mutationsproben 1–4 rot/grün bestätigt; Browser-Rundlauf inkl. Zweit-Köchin und Mobile; eine Version von `@mui/x-internals`.
+
+---
+
+### Story 6.4 – 6.5 (Umriss, wird vor Start ausdetailliert)
+
 - **6.4 — Verteilung nach Budget.** `ExpenseStatistics.shareByBudget(expenses, budgets, currency)` → `{budgetId, name, amountInCents}[]`, Budgets ohne Ausgaben weggelassen, absteigend. `PieChart` mit `innerRadius` (Donut), Legende unter dem Diagramm auf Mobile. Farben aus dem MUI-Theme, nicht hart codiert.
 - **6.5 — Ø pro Mahlzeit.** `event.tsx` reicht `state.menuplan` als Prop durch. Entschieden (2026-10-10):
   - **Problem:** Hauptmahlzeiten (Zmorge, Zmittag, Znacht) und kleine Mahlzeiten (Zvieri, Dessert …) kosten sehr unterschiedlich viel. Ein Durchschnitt über alle wäre verzerrt. Mahlzeitentyp-Namen sind freier Text pro Anlass.
@@ -3650,6 +3896,8 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
   - **Styles** (`src/constants/styles/expenseTracking.styles.ts`): Präfix vereinheitlichen `statistics*` → `evaluation*` (heute zwei Präfixe für dieselbe Ansicht); `budgetProjection*` zur Budget-Karte (liegt heute am Dateiende); innerhalb eines Abschnitts Container vor Kindern, Varianten (`…Selected`, `…Over`) direkt nach dem Grundstil. Prüfen: Anzahl Einträge vorher = nachher (`grep -cE "^  [a-zA-Z]+:" …`), Sichtprüfung aller Ansichten im Browser.
   - **Texte** (`src/constants/text/expenseTracking.ts`): Präfixe pro Bereich vereinheitlichen, z.B. `NO_EXPENSES_FOR_STATS` → `EVALUATION_NO_EXPENSES`, `DAY_X_OF_Y_IN_EVENT` → `PROJECTION_DAY_X_OF_Y`. Unbenutzte Konstanten löschen (Stand 2026-10-11: `BELEG`, `DELETE_BELEG` — zugleich deutsche Bezeichner und Duplikate von `EXPENSE_RECEIPT`/`REMOVE_EXPENSE_RECEIPT` — sowie `BUDGET_TYPE_PER_PERSON_PER_DAY_AMOUNT`). Prüfskript für Unbenutztes: jede exportierte Konstante per `grep -rnw` ausserhalb der Datei suchen. Texte, die auch in `src/constants/text/` anderer Bereiche vorkommen (`CANCEL`, `SAVE` …), bleiben dort.
   - **Grösse prüfen:** Ist eine der beiden Dateien danach über ca. 500 Zeilen, entlang der Abschnitte aufteilen (z.B. `expenseTrackingBudget.styles.ts`, `…Evaluation…`). Darunter bleibt es je eine Datei.
+  - Helpcenter Seiten erstellen.
+
 - 10.2 Finaler PR gegen `develop` + Release-Notes-Text.
 
 ---

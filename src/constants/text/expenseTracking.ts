@@ -181,14 +181,14 @@ export const EVALUATION_PER_PARTICIPANT_AND_DAY_SO_FAR = (
  * Rechengrundlage der Ø-Kachel, damit sichtbar ist, womit gerechnet wurde.
  *
  * @param participantCount - Anzahl Teilnehmende.
- * @param campDayCount - Anzahl Anlasstage; bei 0 entfällt dieser Teil.
+ * @param eventDayCount - Anzahl Anlasstage; bei 0 entfällt dieser Teil.
  * @returns z.B. «24 Personen · 7 Anlasstage».
  */
 export const EVALUATION_CALCULATION_BASIS = (
   participantCount: number,
-  campDayCount: number,
+  eventDayCount: number,
 ): string =>
-  `${participantCount} ${participantCount === 1 ? "Person" : "Personen"}${campDayCount > 0 ? ` · ${campDayCount} ${campDayCount === 1 ? "Anlasstag" : "Anlasstage"}` : ""}`;
+  `${participantCount} ${participantCount === 1 ? "Person" : "Personen"}${eventDayCount > 0 ? ` · ${eventDayCount} ${eventDayCount === 1 ? "Anlasstag" : "Anlasstage"}` : ""}`;
 /**
  * Warnhinweis zu fehlenden Belegen (über alle Budgets und Währungen), mit Einzahl/Mehrzahl.
  *
@@ -264,3 +264,51 @@ export const EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS =
 export const ONLY_WITHOUT_RECEIPT = "Nur ohne Beleg";
 /** Leere Ausgabenliste bei aktivem Filter «ohne Beleg»: Arbeit erledigt. */
 export const ALL_EXPENSES_HAVE_A_RECEIPT = "Alle Ausgaben haben einen Beleg.";
+
+/** Titel der Diagramm-Karte in der Auswertung (Story 6.3). */
+export const EVALUATION_HISTORY_TITLE = "Ausgabenverlauf";
+/** Legende und Tooltip: kumulierte Ausgaben bis heute. */
+export const EVALUATION_HISTORY_ACTUAL = "Ist";
+/** Legende und Tooltip: linear verteilter Sollbetrag der ausgewählten Budgets. */
+export const EVALUATION_HISTORY_TARGET = "Soll";
+/**
+ * Textzeile unter dem Ausgabenverlauf mit dem aktuellen Stand. Ersetzt für
+ * Screenreader das Diagramm und ist auf dem Handy schneller gelesen.
+ *
+ * @param day - Letzter Anlasstag mit Ist-Wert (heute bzw. letzter Anlasstag), 1-basiert.
+ * @param dayCount - Anzahl Anlasstage.
+ * @param currency - Währung der Beträge (ISO-4217-Code).
+ * @param actual - Kumulierte Ausgaben bis zu diesem Tag in Rappen.
+ * @param target - Soll bis zu diesem Tag in Rappen; `null` ohne Sollbetrag,
+ *   dann entfällt der zweite Teil. Am letzten Anlasstag (und danach) als
+ *   «Soll gesamt», weil «bis heute» nach Anlassende nicht mehr stimmt.
+ * @returns z.B. «Stand Anlasstag 3 von 7: CHF 1’350.00 ausgegeben, Soll bis heute CHF 1’028.57.»
+ * @example
+ * EVALUATION_HISTORY_SUMMARY(3, 7, "CHF", 135000, 102857)
+ * // «Stand Anlasstag 3 von 7: CHF 1’350.00 ausgegeben, Soll bis heute CHF 1’028.57.»
+ * EVALUATION_HISTORY_SUMMARY(4, 4, "CHF", 20300, 69100)
+ * // «Stand Anlasstag 4 von 4: CHF 203.00 ausgegeben, Soll gesamt CHF 691.00.»
+ * EVALUATION_HISTORY_SUMMARY(3, 7, "CHF", 135000, null)
+ * // «Stand Anlasstag 3 von 7: CHF 1’350.00 ausgegeben.»
+ */
+export const EVALUATION_HISTORY_SUMMARY = (
+  day: number,
+  dayCount: number,
+  currency: string,
+  actual: number,
+  target: number | null,
+): string => {
+  // Template-Literals einzeilig: ein Zeilenumbruch darin landet samt Einzug im Text
+  const targetLabel = day < dayCount ? "Soll bis heute" : "Soll gesamt";
+  const targetPart =
+    target === null
+      ? ""
+      : `, ${targetLabel} ${formatAmountFromCents(target, currency)}`;
+  return `Stand Anlasstag ${day} von ${dayCount}: ${formatAmountFromCents(actual, currency)} ausgegeben${targetPart}.`;
+};
+/** Ersetzt das Diagramm, solange heute vor dem ersten Anlasstag liegt. */
+export const EVALUATION_HISTORY_NOT_STARTED =
+  "Der Verlauf beginnt am ersten Anlasstag.";
+/** Ersetzt das Diagramm, solange der Anlass keine Daten (Zeitscheiben) hat. */
+export const EVALUATION_HISTORY_NO_EVENT_DAYS =
+  "Lege zuerst die Daten des Anlasses fest, dann erscheint hier der Verlauf.";

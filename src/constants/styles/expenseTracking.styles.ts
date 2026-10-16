@@ -337,4 +337,13 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     maxHeight: "360px", // bei vielen Budgets scrollbar
     minWidth: "240px",
   },
+  evaluationHistoryChart: {
+    // gestrichelte Soll-Linie; x-charts vergibt pro Serie die Klasse `MuiLineElement-series-<id>`
+    "& .MuiLineElement-series-target": {strokeDasharray: "6 4"},
+    // heller «Budgetraum» unter der Soll-Linie, aus primary abgeleitet: passt
+    // in Light/Dark und zum lila TEST-Theme. Sonst füllt x-charts deckend in der Linienfarbe.
+    "& .MuiAreaElement-series-target": {
+      fill: alpha(theme.palette.primary.main, 0.08),
+    },
+  },
 });

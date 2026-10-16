@@ -55,14 +55,14 @@ const createBudgetWithProgress = (
 
 const projectionBelowTarget: BudgetProjection = {
   projectedAmountInCents: 70000,
-  elapsedCampDays: 3,
-  totalCampDays: 7,
+  elapsedEventDays: 3,
+  totalEventDays: 7,
 };
 
 const projectionAboveTarget: BudgetProjection = {
   projectedAmountInCents: 148000,
-  elapsedCampDays: 3,
-  totalCampDays: 7,
+  elapsedEventDays: 3,
+  totalEventDays: 7,
 };
 
 /**

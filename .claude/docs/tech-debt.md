@@ -154,6 +154,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`src/components/Recipe/recipe.view.tsx`** (2'648 LOC) — Kommentare, Bewertungen, Skalierungsbereiche in separate Dateien extrahieren.
   **Priorität:** tief · **Komplexität:** gross
 
+- **`src/components/Event/ExpenseTracking/expenseEvaluation.tsx`** (gefunden bei Story 6.3, 2026-10-16) — über dem Richtwert von 500 Zeilen: enthält neben der Ansicht `BudgetFilter`, `StatisticTile`, `TopExpensesTile` und zwei Hilfsfunktionen. `BudgetFilter` (inkl. `getBudgetFilterLabel`) und `TopExpensesTile` in eigene Dateien unter `Evaluation/` auslagern — im Zwischenschritt «Ordner `ExpenseTracking/` aufteilen» vor Epic 7, nicht vorher.
+  **Priorität:** mittel · **Komplexität:** klein
+
 ## Type Safety
 
 - **`tsconfig.json` prüft keine `.tsx`-Dateien** — `include` ist `["./src/**/*.ts", "../functions/**/*.ts"]`, enthält kein `*.tsx`-Pattern. `npx tsc --noEmit` (lokal wie im CI-`typecheck`-Job, `.github/workflows/ci.yml`) hat dadurch noch nie eine einzige React-Komponente typgeprüft. Bestätigt reale, dadurch unentdeckte Fehler: `App.tsx` übergibt eine `themeLight`-Prop, die auf `OverrideFeedbackConfiguration` nicht existiert; `Recipe/dialogRecipeQuickView.tsx` ruft `Recipe.getRecipe(...)` auf, eine Methode, die auf der Klasse gar nicht existiert (Datei ist allerdings unerreichbar — keine Importer, keine Route); `Temp/temp.tsx` und `Temp/templates.tsx` haben mehrere echte Typfehler (ebenfalls unerreichbar, keine Route). Fix: `.tsx` zu `include` hinzufügen und die dadurch aufgedeckten Fehler in einer eigenen Aufräum-PR beheben — nicht nebenbei in einer fachfremden Änderung, da unklar ist, wie viele Fehler insgesamt auftauchen.
@@ -294,6 +297,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   **Priorität:** tief · **Komplexität:** klein
 
 ## Other
+
+- **`@mui/x-*` gemeinsam auf v8 heben** (Story 6.3, 2026-10-16) — `@mui/x-charts` (7.29), `@mui/x-data-grid` (7.29) und `@mui/x-date-pickers` (7.29) teilen sich `@mui/x-internals`; deshalb bewusst alle auf v7. Ein Upgrade nur gemeinsam (zwei Kopien von `x-internals` im Bundle vermeiden), mit Migrationsleitfaden der MUI-X-Doku. Bei v8 prüfen: `expenseHistoryChart.tsx` leitet `AxisValueFormatterContext` aus `AxisConfig` ab (in v7 nicht öffentlich exportiert, in v8 evtl. direkt importierbar) und stylt die Soll-Linie über die Klasse `.MuiLineElement-series-target`.
+  **Priorität:** tief · **Komplexität:** mittel
 
 - **Duplikate Produkte in `products`-Tabelle** — Mind. 7 Produkte existieren als zwei separate DB-Zeilen mit identischem Namen, aber unterschiedlicher `uid` (bestätigt: Äpfel, Birnen, Diverse Früchte, Frühstücksflocken, Mascarpone vegan, Rotkabis, Weisswein alkoholfrei — siehe [[RC-001 Rezept erstellen]]). Hat einen React-Key-Kollisions-Bug im Produkt-Autocomplete verursacht (behoben via `getOptionKey`), macht Produktauswahl in Zutaten-/Einkaufslisten aber weiterhin für Nutzer verwirrend (zwei identisch benannte, evtl. unterschiedlich klassifizierte Einträge zur Auswahl). Bereinigung (Duplikate zusammenführen oder eindeutig benennen) erfordert Prüfung, ob beide Zeilen bereits in Rezepten/Einkaufslisten referenziert werden.
   **Priorität:** mittel · **Komplexität:** mittel

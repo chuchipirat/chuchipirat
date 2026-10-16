@@ -1,4 +1,7 @@
+import {formatLocalDate} from "../../../utils/dateUtils";
 import {DEFAULT_CURRENCY} from "../../Shared/utils/currencyUtils";
+import {Budget} from "./budget.class";
+import {BudgetDomain} from "./budget.types";
 import {CurrenciesInUse, ExpenseDomain} from "./expense.types";
 
 /**
@@ -105,7 +108,7 @@ export class ExpenseStatistics {
    *
    * @param totalAmountInCents - Summe der Ausgaben in Rappen (eine Währung).
    * @param participantCount - Anzahl Teilnehmende aus der Gruppenkonfiguration.
-   * @param campDayCount - Anzahl Anlasstage (`event.numberOfDays`).
+   * @param eventDayCount - Anzahl Anlasstage (`event.numberOfDays`).
    * @returns Betrag pro Person und Tag in Rappen, `null` bei 0 Teilnehmenden
    *   oder 0 Anlasstagen.
    * @example
@@ -114,11 +117,11 @@ export class ExpenseStatistics {
   static averagePerParticipantAndDay(
     totalAmountInCents: number,
     participantCount: number,
-    campDayCount: number,
+    eventDayCount: number,
   ): number | null {
-    if (participantCount === 0 || campDayCount === 0) return null;
+    if (participantCount === 0 || eventDayCount === 0) return null;
 
-    return Math.round(totalAmountInCents / campDayCount / participantCount);
+    return Math.round(totalAmountInCents / eventDayCount / participantCount);
   }
 
   /**
@@ -185,7 +188,168 @@ export class ExpenseStatistics {
       (expense) => !excludedBudgetIds.includes(expense.budgetId),
     );
   }
+  /**
+   * Kumulierte Ausgaben pro Anlasstag bis heute. Erwartet Ausgaben
+   * einer Währung (vorher filterByCurrency).
+   * @param expenses - Alle betroffnen Ausgaben
+   * @param eventDays - Liste der AnlassTage
+   * @param today: - Stichtag heute
+   * @returns Ein Wert pro Anlasstag, `null` für Tage nach heute; leere Liste ohne Anlasstage.
+   */
+  static cumulativeByEventDay({
+    expenses,
+    eventDays,
+    today,
+  }: {
+    expenses: ExpenseDomain[];
+    eventDays: Date[];
+    today: Date;
+  }): (number | null)[] {
+    if (eventDays.length === 0) {
+      return [];
+    }
 
+    const eventDayKeys = eventDays.map((day) => formatLocalDate(day));
+    const todayKey = formatLocalDate(today);
+
+    // eventDays ist aufsteigend sortiert, also ist die Anzahl ≤ heute zugleich der Index + 1
+    const lastVisibleIndex =
+      eventDayKeys.filter((dayKey) => dayKey <= todayKey).length - 1;
+
+    const dailyTotals = new Array<number>(eventDayKeys.length).fill(0);
+
+    if (lastVisibleIndex < 0) return eventDayKeys.map(() => null);
+
+    expenses.forEach((expense) => {
+      const dayIndex = ExpenseStatistics.getEventDayIndex(
+        formatLocalDate(expense.date),
+        eventDayKeys,
+        lastVisibleIndex,
+      );
+      dailyTotals[dayIndex] += expense.amountInCents;
+    });
+
+    let runningTotal = 0;
+    return dailyTotals.map((dailyTotal, dayIndex) => {
+      if (dayIndex > lastVisibleIndex) return null;
+      runningTotal += dailyTotal;
+      return runningTotal;
+    });
+  }
+
+  /**
+   * Berechnet die Soll-Linie des Ausgabenverlaufs: der Sollbetrag linear
+   * über die Anlasstage verteilt. Tag i (1-basiert) = `Math.round(Soll × i / n)`.
+   * Jeder Tag wird direkt berechnet statt aufsummiert, damit sich keine
+   * Rundungsfehler ansammeln und der letzte Wert genau dem Sollbetrag entspricht.
+   *
+   * @param targetAmountInCents - Summe der Sollbeträge der ausgewählten Budgets
+   *   in Rappen (`sumTargetAmountInCents`).
+   * @param eventDayCount - Anzahl Anlasstage.
+   * @returns Ein Wert pro Anlasstag in Rappen, leere Liste bei 0 Anlasstagen.
+   * @example
+   * ExpenseStatistics.targetLineByEventDay(7000, 7) // [1000, 2000, 3000, 4000, 5000, 6000, 7000]
+   * ExpenseStatistics.targetLineByEventDay(1000, 3) // [333, 667, 1000]
+   */
+  static targetLineByEventDay(
+    targetAmountInCents: number,
+    eventDayCount: number,
+  ): number[] {
+    // erst multiplizieren, dann teilen: Der letzte Tag ist genau Soll × n / n = Soll, ohne Rundungsrest
+    return Array.from({length: eventDayCount}, (_value, dayIndex) =>
+      Math.round((targetAmountInCents * (dayIndex + 1)) / eventDayCount),
+    );
+  }
+
+  /**
+   * Summiert die Sollbeträge der ausgewählten Budgets in einer Währung, als
+   * Endpunkt der Soll-Linie im Ausgabenverlauf. Der Sollbetrag je Budget kommt
+   * aus `Budget.getTargetAmountInCents`, damit Auswertung und Budget-Karten
+   * dasselbe Soll zeigen. Budgets in anderen Währungen zählen nicht, auch wenn
+   * sie ausgewählt sind: Über Währungen wird nie summiert.
+   *
+   * @param budgets - Alle Budgets des Anlasses.
+   * @param excludedBudgetIds - IDs der abgewählten Budgets (Budget-Auswahl der Auswertung).
+   * @param currency - Gewählte Währung (ISO-4217-Code, z.B. «CHF»).
+   * @param participantCount - Anzahl Teilnehmende (`groupConfiguration.totalPortions`).
+   * @param eventDayCount - Anzahl Anlasstage.
+   * @returns Summe der Sollbeträge in Rappen, 0 ohne passende Budgets.
+   * @example
+   * // «Küche» fix CHF 500, «Essen» CHF 10 pro Person & Tag, 24 Personen, 7 Tage
+   * ExpenseStatistics.sumTargetAmountInCents({
+   *   budgets,
+   *   excludedBudgetIds: [],
+   *   currency: "CHF",
+   *   participantCount: 24,
+   *   eventDayCount: 7,
+   * }) // 50000 + 1000 × 24 × 7 = 218000
+   */
+  static sumTargetAmountInCents({
+    budgets,
+    excludedBudgetIds,
+    currency,
+    participantCount,
+    eventDayCount,
+  }: {
+    budgets: BudgetDomain[];
+    excludedBudgetIds: string[];
+    currency: string;
+    participantCount: number;
+    eventDayCount: number;
+  }): number {
+    return budgets
+      .filter(
+        (budget) =>
+          !excludedBudgetIds.includes(budget.id) &&
+          budget.currency === currency,
+      )
+      .reduce(
+        (total, budget) =>
+          total +
+          Budget.getTargetAmountInCents(
+            budget,
+            participantCount,
+            eventDayCount,
+          ),
+        0,
+      );
+  }
+
+  /**
+   * Ordnet eine Ausgabe dem Anlasstag zu, in dessen Punkt sie im
+   * Ausgabenverlauf zählt. Jede Ausgabe bekommt genau einen Tag, damit der
+   * letzte Wert des Verlaufs der Summe aller Ausgaben entspricht:
+   * - vor dem ersten Anlasstag → erster Anlasstag (z.B. Grosseinkauf),
+   * - zwischen zwei Zeitscheiben → nächster Anlasstag,
+   * - nach dem letzten Anlasstag → letzter Anlasstag,
+   * - nach heute (vorausdatiert) → letzter Anlasstag bis heute.
+   *
+   * Verglichen wird über `YYYY-MM-DD`-Schlüssel, damit Uhrzeit und
+   * Zeitumstellung keine Rolle spielen.
+   *
+   * @param expenseKey - Datum der Ausgabe als `YYYY-MM-DD` (`formatLocalDate`).
+   * @param eventDayKeys - Alle Anlasstage als `YYYY-MM-DD`, aufsteigend sortiert, nicht leer.
+   * @param lastVisibleIndex - Index des letzten Anlasstags bis und mit heute.
+   * @returns Index in `eventDayKeys`, höchstens `lastVisibleIndex`. Liegt heute
+   *   vor dem Anlass (`lastVisibleIndex` = -1), ist auch das Ergebnis -1.
+   * @example
+   * // Anlasstage 05.07.–07.07., heute 06.07.
+   * ExpenseStatistics.getEventDayIndex("2026-07-01", eventDayKeys, 1) // 0 (vorher)
+   * ExpenseStatistics.getEventDayIndex("2026-07-09", eventDayKeys, 1) // 1 (begrenzt auf heute)
+   */
+  private static getEventDayIndex(
+    expenseKey: string,
+    eventDayKeys: string[],
+    lastVisibleIndex: number,
+  ): number {
+    // erster Anlasstag am oder nach dem Ausgabedatum: deckt «vorher» (→ 0) und «Lücke» (→ nächster Tag) ab
+    const nextDayIndex = eventDayKeys.findIndex(
+      (dayKey) => dayKey >= expenseKey,
+    );
+    const dayIndex =
+      nextDayIndex === -1 ? eventDayKeys.length - 1 : nextDayIndex; // nach dem Anlass
+    return Math.min(dayIndex, lastVisibleIndex); // vorausdatiert → heute (O1)
+  }
   /**
    * Sortier-Vergleich für Währungscodes: häufigste zuerst, bei Gleichstand
    * CHF vor allen anderen, sonst alphabetisch. Bestimmt damit sowohl die

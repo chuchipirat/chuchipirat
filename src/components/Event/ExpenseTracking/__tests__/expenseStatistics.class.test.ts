@@ -3,10 +3,14 @@
  *
  * Reine Funktionen der Auswertung (Story 6.2a): Währungen und Vorauswahl,
  * Filter, Summen, Durchschnitte, fehlende Belege und grösste Ausgaben.
+ * Story 6.3: kumulierter Ausgabenverlauf pro Anlasstag, Soll-Linie und
+ * Summe der Sollbeträge.
  */
 import {ExpenseStatistics} from "../expenseStatistics.class";
 import {ExpenseDomain} from "../expense.types";
 import {expense} from "../__mocks__/expense.mock";
+import {budget} from "../__mocks__/budget.mock";
+import {BudgetDomain, BudgetType} from "../budget.types";
 import {parseLocalDate} from "../../../../utils/dateUtils";
 
 /**
@@ -357,5 +361,340 @@ describe("ExpenseStatistics.excludeBudgets", () => {
         ["budget-deleted"],
       ),
     ).toEqual([kitchenExpense, materialExpense]);
+  });
+});
+
+/**
+ * Wandelt `YYYY-MM-DD`-Schlüssel in Anlasstage (lokale Mitternacht, wie
+ * `getEventDateList`).
+ *
+ * @param dayKeys - Tage als `YYYY-MM-DD`, aufsteigend.
+ * @returns Anlasstage als `Date`.
+ */
+const toEventDays = (dayKeys: string[]): Date[] =>
+  dayKeys.map((dayKey) => parseLocalDate(dayKey));
+
+/** Anlass mit 7 Tagen, 5.–11. Juli 2026. */
+const SEVEN_EVENT_DAYS = toEventDays([
+  "2026-07-05",
+  "2026-07-06",
+  "2026-07-07",
+  "2026-07-08",
+  "2026-07-09",
+  "2026-07-10",
+  "2026-07-11",
+]);
+
+/** Anlass aus zwei Zeitscheiben (6.–8.7. und 10.–12.7.), der 9.7. ist eine Lücke. */
+const TWO_TIMESLICE_EVENT_DAYS = toEventDays([
+  "2026-07-06",
+  "2026-07-07",
+  "2026-07-08",
+  "2026-07-10",
+  "2026-07-11",
+  "2026-07-12",
+]);
+
+describe("ExpenseStatistics.cumulativeByEventDay", () => {
+  /**
+   * Ruft die Funktion mit dem 7-Tage-Anlass auf.
+   *
+   * @param expenses - Ausgaben einer Währung.
+   * @param todayKey - Stichtag als `YYYY-MM-DD`.
+   * @returns Kumulierte Werte pro Anlasstag.
+   */
+  const cumulate = (expenses: ExpenseDomain[], todayKey: string) =>
+    ExpenseStatistics.cumulativeByEventDay({
+      expenses,
+      eventDays: SEVEN_EVENT_DAYS,
+      today: parseLocalDate(todayKey),
+    });
+
+  test("keine Anlasstage → leere Liste", () => {
+    expect(
+      ExpenseStatistics.cumulativeByEventDay({
+        expenses: [createExpense({id: "e1"})],
+        eventDays: [],
+        today: parseLocalDate("2026-07-07"),
+      }),
+    ).toEqual([]);
+  });
+
+  test("keine Ausgaben → 0 bis heute, danach null", () => {
+    expect(cumulate([], "2026-07-07")).toEqual([
+      0,
+      0,
+      0,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  test("Ausgaben werden pro Tag aufsummiert", () => {
+    const expenses = [
+      createExpense({id: "e1", date: parseLocalDate("2026-07-05"), amountInCents: 1000}),
+      createExpense({id: "e2", date: parseLocalDate("2026-07-07"), amountInCents: 2000}),
+    ];
+
+    expect(cumulate(expenses, "2026-07-07")).toEqual([
+      1000,
+      1000,
+      3000,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  test("Ausgabe vor dem Anlass (Grosseinkauf) zählt an Tag 1", () => {
+    const expenses = [
+      createExpense({id: "e1", date: parseLocalDate("2026-07-03"), amountInCents: 120000}),
+    ];
+
+    expect(cumulate(expenses, "2026-07-07").slice(0, 3)).toEqual([
+      120000, 120000, 120000,
+    ]);
+  });
+
+  test("Ausgabe in einer Lücke zwischen Zeitscheiben zählt am nächsten Anlasstag", () => {
+    const actualValues = ExpenseStatistics.cumulativeByEventDay({
+      expenses: [
+        createExpense({id: "e1", date: parseLocalDate("2026-07-09"), amountInCents: 500}),
+      ],
+      eventDays: TWO_TIMESLICE_EVENT_DAYS,
+      today: parseLocalDate("2026-07-12"),
+    });
+
+    // 6., 7., 8. Juli ohne Ausgabe, ab 10. Juli (Index 3) mit
+    expect(actualValues).toEqual([0, 0, 0, 500, 500, 500]);
+  });
+
+  test("Ausgabe nach dem Anlass zählt am letzten Anlasstag; nach dem Anlass kein null", () => {
+    const expenses = [
+      createExpense({id: "e1", date: parseLocalDate("2026-07-13"), amountInCents: 700}),
+    ];
+
+    expect(cumulate(expenses, "2026-07-13")).toEqual([0, 0, 0, 0, 0, 0, 700]);
+  });
+
+  test("vorausdatierte Ausgabe zählt heute (O1)", () => {
+    const expenses = [
+      createExpense({id: "e1", date: parseLocalDate("2026-07-10"), amountInCents: 900}),
+    ];
+
+    expect(cumulate(expenses, "2026-07-07")).toEqual([
+      0,
+      0,
+      900,
+      null,
+      null,
+      null,
+      null,
+    ]);
+  });
+
+  test("letzter Wert entspricht der Summe aller Ausgaben (Invariante)", () => {
+    const expenses = [
+      createExpense({id: "before", date: parseLocalDate("2026-07-01"), amountInCents: 100000}),
+      createExpense({id: "gap", date: parseLocalDate("2026-07-09"), amountInCents: 2500}),
+      createExpense({id: "after", date: parseLocalDate("2026-07-20"), amountInCents: 1300}),
+      createExpense({id: "today", date: parseLocalDate("2026-07-10"), amountInCents: 4200}),
+    ];
+
+    const actualValues = ExpenseStatistics.cumulativeByEventDay({
+      expenses,
+      eventDays: TWO_TIMESLICE_EVENT_DAYS,
+      today: parseLocalDate("2026-07-10"),
+    });
+    const lastActualValue = actualValues.filter((value) => value !== null).pop();
+
+    expect(lastActualValue).toEqual(
+      ExpenseStatistics.sumAmountInCents(expenses),
+    );
+  });
+
+  test("heute vor dem Anlass → nur null", () => {
+    const expenses = [
+      createExpense({id: "e1", date: parseLocalDate("2026-07-03"), amountInCents: 120000}),
+    ];
+
+    expect(cumulate(expenses, "2026-07-04")).toEqual(
+      new Array(7).fill(null),
+    );
+  });
+
+  test("heute in der Lücke zwischen Zeitscheiben → Werte bis zum letzten vergangenen Anlasstag", () => {
+    const actualValues = ExpenseStatistics.cumulativeByEventDay({
+      expenses: [
+        createExpense({id: "e1", date: parseLocalDate("2026-07-07"), amountInCents: 300}),
+      ],
+      eventDays: TWO_TIMESLICE_EVENT_DAYS,
+      today: parseLocalDate("2026-07-09"),
+    });
+
+    expect(actualValues).toEqual([0, 300, 300, null, null, null]);
+  });
+
+  test("Uhrzeit von heute spielt keine Rolle", () => {
+    const expenses = [createExpense({id: "e1", amountInCents: 1000})];
+    const atMidnight = ExpenseStatistics.cumulativeByEventDay({
+      expenses,
+      eventDays: SEVEN_EVENT_DAYS,
+      today: new Date(2026, 6, 7, 0, 0),
+    });
+    const beforeMidnight = ExpenseStatistics.cumulativeByEventDay({
+      expenses,
+      eventDays: SEVEN_EVENT_DAYS,
+      today: new Date(2026, 6, 7, 23, 59),
+    });
+
+    expect(beforeMidnight).toEqual(atMidnight);
+  });
+
+  test("Eingabe bleibt unverändert", () => {
+    const expenses = [
+      createExpense({id: "e2", date: parseLocalDate("2026-07-06")}),
+      createExpense({id: "e1", date: parseLocalDate("2026-07-05")}),
+    ];
+    // keine structuredClone: Der Jest-Polyfill (JSON) macht aus Date einen String
+    const expensesBefore = expenses.map((expense) => ({
+      ...expense,
+      date: new Date(expense.date),
+    }));
+
+    cumulate(expenses, "2026-07-07");
+
+    expect(expenses).toEqual(expensesBefore);
+  });
+
+  describe("Zeitumstellung im Anlass", () => {
+    // Wie in budget.class.test.ts: Die Umstellung (25.10.2026) wirkt nur in
+    // einer Zeitzone mit Sommerzeit, darum Europe/Zurich setzen und zurücksetzen.
+    const originalTimeZone = process.env.TZ;
+    beforeAll(() => {
+      process.env.TZ = "Europe/Zurich";
+    });
+    afterAll(() => {
+      process.env.TZ = originalTimeZone;
+    });
+
+    test("Tage über die Umstellung hinweg: genau 5 Werte bis heute", () => {
+      const eventDaysAcrossDst = toEventDays([
+        "2026-10-23",
+        "2026-10-24",
+        "2026-10-25",
+        "2026-10-26",
+        "2026-10-27",
+        "2026-10-28",
+        "2026-10-29",
+        "2026-10-30",
+        "2026-10-31",
+        "2026-11-01",
+      ]);
+
+      const actualValues = ExpenseStatistics.cumulativeByEventDay({
+        expenses: [
+          createExpense({id: "e1", date: parseLocalDate("2026-10-26"), amountInCents: 800}),
+        ],
+        eventDays: eventDaysAcrossDst,
+        today: parseLocalDate("2026-10-27"),
+      });
+
+      expect(actualValues.filter((value) => value !== null)).toEqual([
+        0, 0, 0, 800, 800,
+      ]);
+    });
+  });
+});
+
+describe("ExpenseStatistics.targetLineByEventDay", () => {
+  test("Soll linear verteilt, letzter Wert = Soll", () => {
+    expect(ExpenseStatistics.targetLineByEventDay(7000, 7)).toEqual([
+      1000, 2000, 3000, 4000, 5000, 6000, 7000,
+    ]);
+  });
+
+  test("gerundet auf ganze Rappen, ohne Rundungsrest am letzten Tag", () => {
+    expect(ExpenseStatistics.targetLineByEventDay(1000, 3)).toEqual([
+      333, 667, 1000,
+    ]);
+  });
+
+  test("0 Anlasstage → leere Liste", () => {
+    expect(ExpenseStatistics.targetLineByEventDay(7000, 0)).toEqual([]);
+  });
+});
+
+describe("ExpenseStatistics.sumTargetAmountInCents", () => {
+  const kitchenBudget: BudgetDomain = {
+    ...budget,
+    id: "budget-kitchen",
+    budgetType: BudgetType.FIXED_AMOUNT,
+    amountInCents: 50000,
+    currency: "CHF",
+  };
+  const foodBudget: BudgetDomain = {
+    ...budget,
+    id: "budget-food",
+    budgetType: BudgetType.PER_PERSON_PER_DAY,
+    amountInCents: 1000,
+    currency: "CHF",
+  };
+  const euroBudget: BudgetDomain = {
+    ...budget,
+    id: "budget-euro",
+    budgetType: BudgetType.FIXED_AMOUNT,
+    amountInCents: 30000,
+    currency: "EUR",
+  };
+
+  /**
+   * Ruft die Funktion mit 24 Personen und 7 Anlasstagen auf.
+   *
+   * @param budgets - Budgets des Anlasses.
+   * @param excludedBudgetIds - Abgewählte Budget-IDs.
+   * @param currency - Gewählte Währung.
+   * @returns Summe der Sollbeträge in Rappen.
+   */
+  const sumTargets = (
+    budgets: BudgetDomain[],
+    excludedBudgetIds: string[] = [],
+    currency = "CHF",
+  ) =>
+    ExpenseStatistics.sumTargetAmountInCents({
+      budgets,
+      excludedBudgetIds,
+      currency,
+      participantCount: 24,
+      eventDayCount: 7,
+    });
+
+  test("fix + pro Person & Tag werden summiert", () => {
+    // 50000 + 1000 × 24 × 7
+    expect(sumTargets([kitchenBudget, foodBudget])).toEqual(218000);
+  });
+
+  test("abgewähltes Budget fehlt", () => {
+    expect(sumTargets([kitchenBudget, foodBudget], [foodBudget.id])).toEqual(
+      50000,
+    );
+  });
+
+  test("Budget in anderer Währung fehlt", () => {
+    expect(sumTargets([kitchenBudget, euroBudget])).toEqual(50000);
+    expect(sumTargets([kitchenBudget, euroBudget], [], "EUR")).toEqual(30000);
+  });
+
+  test("Budget ohne Sollbetrag zählt 0", () => {
+    expect(
+      sumTargets([kitchenBudget, {...foodBudget, amountInCents: null}]),
+    ).toEqual(50000);
+  });
+
+  test("keine Budgets → 0", () => {
+    expect(sumTargets([])).toEqual(0);
   });
 });
