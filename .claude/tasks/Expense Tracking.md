@@ -2684,7 +2684,7 @@ const handleSave = async (input: UserPaymentDetailsDomain) => {
 - **Akzeptiert:** IBAN-Prüfsumme nur in der App, siehe Entscheidung 7 in Story 5.1.
 - **Offen:** Nach dem Deploy auf TEST ein Replay mit geöffneter Card/Dialog in Sentry ansehen (graue Flächen statt IBAN), lokal nicht prüfbar (Sentry in DEV aus).
 
-## Epic 6 — Dashboard & Kennzahlen
+## Epic 6 — Dashboard & Kennzahlen ✅ erledigt
 
 Ziel: Die Küche sieht während des Lagers auf einen Blick, wo sie steht: ob ein Budget voraussichtlich reicht, wie sich die Ausgaben über die Lagertage entwickeln, wie sie sich auf die Budgets verteilen, und welche Kennzahlen (Ø pro Teilnehmer:in / Mahlzeit, grösste Posten, fehlende Belege) Handlungsbedarf zeigen. Grundlage im Issue: Abschnitt "Übersicht / Dashboard" und "Kennzahlen & Diagramme".
 
@@ -4055,7 +4055,206 @@ Die Bedingung `>= 2` steht zweimal → als `const showBudgetShares = …` einmal
 
 ---
 
-### Story 6.5 (Umriss, wird vor Start ausdetailliert)
+### **Story 6.5 — Ø pro Mahlzeit** ✅ erledigt
+
+> Ausgearbeitet 2026-10-16 nach Abgleich mit dem Code (Stand nach dem Ordner-Split). O1 und O2 entschieden 2026-10-16. Die Entscheidungen aus dem Umriss (2026-10-10) gelten weiter, ausser wo unten eine Abweichung steht.
+
+#### Worum es geht
+
+Eine dritte Kennzahl-Kachel «Ø pro Mahlzeit»: Ausgaben der Auswahl geteilt durch die eingeplanten Mahlzeiten, und in der zweiten Zeile pro Person und Mahlzeit, damit Anlässe verschiedener Grösse vergleichbar sind. In der Kachel stehen die Mahlzeitentypen des Menüplans als Chips. Die Köchin wählt damit, welche zählen, z.B. nur Zmorge, Zmittag und Znacht, ohne Zvieri und Dessert.
+
+```
+┌ Gesamtausgaben ─────┐ ┌ Ø pro Person ───────┐ ┌ Ø pro Mahlzeit ──────────────┐
+│ CHF 303.00          │ │ CHF 15.15           │ │ CHF 25.25                    │
+│ 4 Ausgaben          │ │ bisher CHF 3.79 pro │ │ bisher CHF 1.26 pro Person & │
+│                     │ │ Person & Tag        │ │ Mahlzeit                     │
+│                     │ │ 20 Personen · 4 …   │ │ 12 Mahlzeiten · 20 Personen  │
+│                     │ │                     │ │ (Zmorge)(Zmittag)(Znacht)    │
+│                     │ │                     │ │ ( Zvieri )  ← abgewählt      │
+└─────────────────────┘ └─────────────────────┘ └──────────────────────────────┘
+```
+
+#### Was der Code vorgibt (Abgleich)
+
+- **Der Menüplan ist schon geladen.** `event.tsx` lädt `state.menuplan` beim Öffnen des Anlasses, unabhängig vom Tab, und hält ihn per Realtime aktuell. Die Abrechnungsseite bekommt ihn bisher nicht: Prop `menuplan` neu in `EventExpenseTrackingPage` → `ExpenseEvaluation`. Keine neue Abfrage, keine Migration.
+- **Jeder Tag × Mahlzeitentyp ist eine `Meal`**, auch leer (`createMenuplan`/`addMealType` legen sie mit einem leeren Menü an). Eine `Meal` kann mehrere Menüs haben (`menuOrder`), jedes mit `mealRecipeOrder`, `productOrder`, `materialOrder`.
+- **Während des Ladens** ist der Menüplan `createEmptyMenuplan()` mit `uid: ""`.
+- **Testdaten lokal:** Von 79 Mahlzeiten mit Inhalt haben 8 nur Produkte und kein Rezept (auch Zmittag), 9 nur Material → darum zählen Produkte mit (O1).
+
+#### Abweichungen vom Umriss
+
+- **U1 — Abgewählte statt ausgewählte Typen als Parameter:** `countPlannedMeals(menuplan, excludedMealTypeIds)`. Gleich wie `excludeBudgets` und wie `useStoredIdSet` speichert; neue Typen zählen damit automatisch mit.
+- **U2 — Ohne Teilnehmende entfällt nur die zweite Zeile**, nicht die ganze Zahl. «Ø pro Mahlzeit» braucht keine Personenzahl; der Hinweis «Erfasse die Teilnehmenden …» steht schon auf der Kachel «Ø pro Person».
+- **U3 — Eigene Komponente** `mealAverageTile.tsx` in `Evaluation/` (wie 6.3/6.4). `StatisticTile` bekommt ein optionales `children` für die Chips, damit die Kachel gleich aussieht wie die anderen.
+- **U4 — Menüplan noch nicht geladen** (`uid === ""`): Kachel ausblenden statt «nichts eingeplant» zu zeigen. Sonst blitzt beim Öffnen kurz ein falscher Hinweis auf.
+
+#### Fachliche Entscheidungen
+
+**M1 — Was eine Mahlzeit ist:** eine `Meal` eines ausgewählten Typs, in deren Menüs mindestens ein Rezept **oder** Produkt eingeplant ist (entschieden, O1). Material allein zählt nicht. Mehrere Menüs in derselben Mahlzeit zählen einmal. Leere Slots zählen nicht. Mahlzeiten eines Typs, der nicht mehr in `mealTypes.order` steht, zählen nicht (Rest nach Löschen).
+
+**M2 — Durch alle eingeplanten Mahlzeiten teilen, nicht nur die bis heute** (entschieden, O2). Gleiche Logik wie «pro Person & Tag» (6.2a, K2): Der Grosseinkauf vor dem Anlass würde sonst die ersten Mahlzeiten aufblähen. Darum steht «bisher» in der zweiten Zeile.
+
+**M3 — Zwei Zahlen**, beide auf ganze Rappen gerundet, erst am Schluss:
+- Hauptzahl «Ø pro Mahlzeit» = Total ÷ Mahlzeiten,
+- zweite Zeile «bisher … pro Person & Mahlzeit» = Total ÷ Mahlzeiten ÷ Teilnehmende,
+- dritte Zeile Rechengrundlage «12 Mahlzeiten · 20 Personen» (wie «20 Personen · 4 Anlasstage»).
+
+**M4 — Chips für die Mahlzeitentypen**, in Menüplan-Reihenfolge (`mealTypes.order`). Vorauswahl: alle. Ausgewählt = gleiche Optik wie die Währungs-Chips (`statisticsCurrencyChipSelected`, `aria-pressed`). **Der letzte ausgewählte Typ lässt sich nicht abwählen** (Chip `disabled`), wie beim Budget-Filter: Eine Kachel ohne Auswahl wäre eine Sackgasse.
+
+**M5 — Auswahl pro Anlass und Gerät merken:** `useStoredIdSet` mit Schlüssel `LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_MEAL_TYPES` + `_${eventId}`. Unbekannte IDs (gelöschte Typen) ignoriert `countPlannedMeals` von selbst. Neue Typen sind ausgewählt.
+
+**M6 — Hinweis statt Zahl**, Chips bleiben sichtbar (damit man die Auswahl ändern kann):
+- keine eingeplante Mahlzeit der ausgewählten Typen → «Für die gewählten Mahlzeiten ist im Menüplan noch nichts eingeplant.»
+- Menüplan ohne Mahlzeitentypen → Kachel ausblenden (kommt praktisch nicht vor; jeder neue Anlass hat Standard-Typen).
+
+**M7 — Budget-Auswahl gilt auch hier** (wie im Umriss): Wer nur das Essen sehen will, wählt Material, Motto usw. oben ab. Kein eigener Budget-Filter in der Kachel.
+
+**M8 — Grid:** drei Kacheln nebeneinander ab `md` (`md: 4`); auf `sm` die ersten zwei nebeneinander (`sm: 6`), «Ø pro Mahlzeit» darunter über die volle Breite (`sm: 12`), weil die Chips Platz brauchen; auf `xs` untereinander.
+
+#### Entschieden (2026-10-16)
+
+- **O1 — Zählen Mahlzeiten mit nur Produkten?** → **Ja: Rezept oder Produkt zählt, Material allein nicht.** Der Umriss sagt «mindestens ein Rezept». Im Code werden Früchte, Brot oder Joghurt oft als Produkt statt als Rezept eingeplant; lokal hat jede zehnte Mahlzeit mit Inhalt nur Produkte, auch Zmittag. Diese Mahlzeiten nicht zu zählen, macht den Durchschnitt zu hoch. **Empfehlung: Rezept oder Produkt zählt, Material allein nicht** (Teller und Gaskartusche sind keine Mahlzeit). Alternative: wie im Umriss nur Rezepte.
+- **O2 — Durch alle eingeplanten Mahlzeiten oder nur die bis heute?** → **Alle eingeplanten Mahlzeiten.** **Empfehlung: alle** (M2), gleich wie «pro Person & Tag». Alternative: nur bis heute. Das ergibt mitten im Anlass den Tagesbetrag, aber vor dem Anlass wäre die Zahl unbrauchbar (0 Mahlzeiten), und Vorab-Einkäufe blähen sie auf.
+
+#### Schnittstellen
+
+`expenseStatistics.class.ts` (`Evaluation/`):
+
+```ts
+/** Zählt die eingeplanten Mahlzeiten der nicht abgewählten Typen (M1). */
+static countPlannedMeals(menuplan: MenuplanData, excludedMealTypeIds: string[]): number;
+
+/** Ø pro Mahlzeit in Rappen, `null` bei 0 Mahlzeiten. */
+static averagePerMeal(totalAmountInCents: number, mealCount: number): number | null;
+
+/** Ø pro Person und Mahlzeit in Rappen, `null` bei 0 Mahlzeiten oder 0 Teilnehmenden. */
+static averagePerParticipantAndMeal(totalAmountInCents: number, mealCount: number, participantCount: number): number | null;
+```
+
+`countPlannedMeals` unter 20 Zeilen mit einer privaten Hilfe `hasPlannedFood(meal, menuplan)` (O1: `mealRecipeOrder` oder `productOrder` nicht leer, über alle Menüs der Mahlzeit; fehlende Menü-UIDs überspringen).
+
+`mealAverageTile.tsx` (neu):
+
+```ts
+type MealAverageTileProps = {
+  mealTypes: MealType[];               // in Menüplan-Reihenfolge
+  excludedMealTypeIds: string[];
+  onToggleMealType: (mealTypeId: string) => void;
+  mealCount: number;
+  averagePerMealInCents: number | null;
+  averagePerParticipantAndMealInCents: number | null;
+  participantCount: number;
+  currency: string;
+};
+```
+
+Rechnet nichts. Die Werte kommen aus dem `statistics`-Memo von `ExpenseEvaluation` (neue Dependencies `menuplan`, `excludedMealTypeIds`).
+
+`ExpenseEvaluation`: neue Props `menuplan: MenuplanData`; zweites `useStoredIdSet` für die Mahlzeitentypen; Memo um `mealCount`, `averagePerMealInCents`, `averagePerParticipantAndMealInCents` ergänzen; `mealTypes` = `mealTypes.order.map(uid → entries[uid])` (eigenes Memo, nur vom Menüplan abhängig). `showMealAverage = menuplan.uid !== "" && mealTypes.length > 0` (U4, M6).
+
+`EventExpenseTrackingPage`: Prop `menuplan: MenuplanData`, durchgereicht; `event.tsx` übergibt `state.menuplan`.
+
+`StatisticTile`: optionales `children?: React.ReactNode`, unter den Detailzeilen; erscheint auch, wenn `hint` gesetzt ist.
+
+#### Texte (Block «Auswertung: Ø pro Mahlzeit (6.5)»)
+
+| Konstante | Text |
+|---|---|
+| `EVALUATION_AVERAGE_PER_MEAL` | «Ø pro Mahlzeit» |
+| `EVALUATION_PER_PARTICIPANT_AND_MEAL_SO_FAR(amount, currency)` | «bisher CHF 1.26 pro Person & Mahlzeit» |
+| `EVALUATION_MEAL_BASIS(mealCount, participantCount)` | «12 Mahlzeiten · 20 Personen», Einzahl «1 Mahlzeit» / «1 Person»; ohne Teilnehmende nur «12 Mahlzeiten» |
+| `EVALUATION_NO_PLANNED_MEALS` | «Für die gewählten Mahlzeiten ist im Menüplan noch nichts eingeplant.» |
+| `EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL` | «Mahlzeiten für den Durchschnitt auswählen» (Gruppe der Chips) |
+
+`LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_MEAL_TYPES = "expenseEvaluationExcludedMealTypes"`.
+
+#### Dateien 6.5
+
+| Datei | Änderung |
+|---|---|
+| `Evaluation/expenseStatistics.class.ts` | `countPlannedMeals` (+ private `hasPlannedFood`), `averagePerMeal`, `averagePerParticipantAndMeal` |
+| `Evaluation/mealAverageTile.tsx` (neu) | Kachel mit Chips |
+| `Evaluation/statisticTile.tsx` | `children` |
+| `Evaluation/expenseEvaluation.tsx` | Prop `menuplan`, Speicher, Memo, Grid |
+| `expenseTracking.tsx` | Prop `menuplan` durchreichen |
+| `Event/Event/event.tsx` | `menuplan={state.menuplan}` |
+| `src/constants/localStorage.ts`, `…/text/expenseTracking.ts`, `…/styles/expenseTracking.styles.ts` | Schlüssel, Texte, ggf. Chip-Zeile |
+| Tests | siehe unten |
+
+#### Tests 6.5
+
+`expenseStatistics.class.test.ts`, `countPlannedMeals` (Fixture: 2 Tage × Zmorge/Zmittag/Zvieri, gebaut mit `createMeal`/`createMenu` aus `menuplanService`):
+- leerer Menüplan → 0
+- Mahlzeit mit Rezept zählt, leerer Slot nicht
+- nur Produkt zählt, nur Material nicht (O1)
+- zwei Menüs in derselben Mahlzeit → 1
+- abgewählter Typ zählt nicht; alle abgewählt → 0
+- Mahlzeit eines Typs, der nicht mehr in `mealTypes.order` steht → zählt nicht
+- unbekannte ID in `excludedMealTypeIds` → ignoriert
+
+`averagePerMeal` / `averagePerParticipantAndMeal`: Rundung erst am Schluss (z.B. 10000 ÷ 3 ÷ 7), `null` bei 0.
+
+`mealAverageTile.test.tsx` (neu):
+- Hauptzahl, zweite Zeile, Rechengrundlage
+- ohne Teilnehmende keine zweite Zeile, Grundlage nur «12 Mahlzeiten»
+- `mealCount` 0 → Hinweis, Chips bleiben
+- Chips in Menüplan-Reihenfolge, `aria-pressed` je nach Auswahl, Klick ruft `onToggleMealType`
+- letzter ausgewählter Chip `disabled`
+
+`expenseEvaluation.test.tsx`:
+- Kachel zeigt Total ÷ eingeplante Mahlzeiten
+- Zvieri abwählen → weniger Mahlzeiten, höherer Ø; Auswahl in LocalStorage unter dem Event-Schlüssel; nach erneutem Rendern noch abgewählt
+- Budget abwählen → Ø nur aus den übrigen Budgets
+- Menüplan nicht geladen (`uid: ""`) → keine Kachel
+- Menüplan ändert sich (neues Rezept, re-render mit neuem Prop) → Zahl folgt (Realtime)
+
+`expenseTracking.test.tsx`: Prop `menuplan` in `defaultProps`; reicht durch.
+
+#### Mutationsproben 6.5
+
+1. In `hasPlannedFood` nur `mealRecipeOrder` prüfen → «nur Produkt zählt» rot (O1).
+2. `excludedMealTypeIds` in `countPlannedMeals` ignorieren → «Zvieri abwählen» rot.
+3. In `averagePerParticipantAndMeal` zweimal runden → Rundungstest rot.
+4. `menuplan` aus den Memo-Dependencies entfernen → Realtime-Test rot.
+
+#### Im Browser ansehen
+
+1. «Anlass mit Spende»: Kachel neben den zwei anderen (Desktop), Zahl = Total ÷ Mahlzeiten mit Rezept/Produkt im Menüplan (von Hand nachzählen).
+2. Einen Typ abwählen → Zahl ändert sich; Seite neu laden → Auswahl bleibt; letzter Chip nicht abwählbar.
+3. Im Menüplan-Tab ein Rezept in einen leeren Slot ziehen, zurück zur Auswertung → Mahlzeit mehr.
+4. Ohne Rezepte in den gewählten Typen → Hinweis, Chips bleiben.
+5. `sm` (~700 px): zwei Kacheln oben, «Ø pro Mahlzeit» volle Breite; Mobile 400 px: Chips brechen um, keine horizontale Scrollleiste.
+6. Konsole ohne Fehler/Warnungen.
+
+#### Umsetzung 6.5
+
+- [x] 0. O1 und O2 entschieden (2026-10-16)
+- [x] 1. Statistik-Funktionen + Tests (Mutationsproben 1–3)
+- [x] 2. Texte, `LocalStorageKey`, Styles
+- [x] 3. `StatisticTile.children`, `MealAverageTile` + Tests
+- [x] 4. Prop `menuplan` durch `event.tsx` → `EventExpenseTrackingPage` → `ExpenseEvaluation`; Memo, Grid; Integrationstests (Mutationsprobe 4)
+- [x] 5. Verifikation: `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking menuplanService --watchAll=false`, `npm run lint`, Browser Desktop + `sm` + Mobile
+- [x] 6. Commit `feat(abrechnung): Ø pro Mahlzeit in der Auswertung (Story 6.5)`
+
+**Definition of Done 6.5:** wie unter 6; Mutationsproben 1–4 bestätigt; Zahl im Browser von Hand nachgezählt.
+
+**Abschluss-Review (2026-10-16, Umsetzung durch Claude auf Wunsch des Nutzers):**
+
+- **Abweichung vom Plan:** Die Mahlzeiten-Zahlen stehen in einem **eigenen Memo** (`mealStatistics`), nicht im grossen `statistics`-Memo. So rechnet eine Realtime-Änderung am Menüplan (z.B. Drag & Drop einer zweiten Köchin) nur diese Kachel neu, nicht Verlauf und Donut. Mutationsprobe 4 gilt für dieses Memo.
+- **Test-Fixture** `Evaluation/__mocks__/menuplan.mock.ts` (`buildMenuplan`, `LOADING_MENUPLAN`), genutzt in Statistik-, Auswertungs- und Seiten-Tests, statt `menuplanService` zu laden (zieht Event, Recipe, Sentry nach). Bestehende Auswertungs-Tests rendern standardmässig mit `LOADING_MENUPLAN` (keine Kachel) und bleiben dadurch unverändert.
+- **Tests:** `expenseStatistics.class.test.ts` +13, `mealAverageTile.test.tsx` neu (8), `expenseEvaluation.test.tsx` +5, `expenseTracking.test.tsx` +1 (Menüplan wird durchgereicht).
+- **Mutationsproben 1–4** rot wie erwartet (Dateien gesichert, danach byte-gleich zurück): 1 → «nur Produkt zählt», 2 → «abgewählter Typ zählt nicht», 3 → «Rundung nur einmal (50 ÷ 3 ÷ 2)», 4 → «Menüplan ändert sich (Realtime)».
+- **Verifikation:** `tsc` grün, `.tsx`-Zusatzprüfung ohne Befund, Lint 0 Fehler (231 bestehende Warnungen, keine in neuem Code), **ganze Jest-Suite 232/232 Dateien, 2993/2993 Tests grün**.
+- **Browser** (DEV gegen `supabase-db-test`, «Anlass mit Spende», 3 Typen × 4 Tage; inzwischen vom Nutzer 3 Mahlzeiten mit Rezept und 2 nur mit Produkt eingeplant, per SQL nachgezählt):
+  - 5 Mahlzeiten, CHF 303.00 ÷ 5 = **CHF 60.60**, ÷ 20 Personen = CHF 3.03 pro Person & Mahlzeit; die zwei Produkt-Mahlzeiten zählen (O1).
+  - Znacht abgewählt → 3 Mahlzeiten, CHF 101.00 / 5.05; nach Neuladen noch abgewählt. Nur Zmorge → «1 Mahlzeit», CHF 303.00, Zmorge-Chip gesperrt.
+  - **Realtime:** Produkt per SQL in den leeren Zmorge vom 9.10. eingefügt → Kachel ohne Neuladen 2 Mahlzeiten, CHF 151.50; Zeile wieder gelöscht → zurück auf 1. Auswahl danach zurückgesetzt (LocalStorage-Schlüssel entfernt).
+  - Layout: 1000 px drei Kacheln nebeneinander, 700 px zwei oben + «Ø pro Mahlzeit» volle Breite, 400 px untereinander; Chips einzeilig, keine horizontale Scrollleiste. Dark Mode (Systemeinstellung war dunkel): Chips gut lesbar.
+  - Konsole bei frischem Laden ohne Fehler/Warnungen. (Die x-charts-Meldung «ChartContainer does not have `width`» kommt nur in den iframe-Breitentests, wie in 6.4.)
+  - **Nicht im Browser geprüft:** Hinweis «nichts eingeplant» (alle drei Typen haben im Test-Anlass Mahlzeiten; dafür hätten Menüplan-Einträge des Nutzers entfernt werden müssen). Durch Jest abgedeckt.
+- **Helpcenter:** gesammelt am Ende von Epic 6.
+
+#### Umriss 6.5 (2026-10-10, zur Referenz)
 
 - **6.5 — Ø pro Mahlzeit.** `event.tsx` reicht `state.menuplan` als Prop durch. Entschieden (2026-10-10):
   - **Problem:** Hauptmahlzeiten (Zmorge, Zmittag, Znacht) und kleine Mahlzeiten (Zvieri, Dessert …) kosten sehr unterschiedlich viel. Ein Durchschnitt über alle wäre verzerrt. Mahlzeitentyp-Namen sind freier Text pro Anlass.

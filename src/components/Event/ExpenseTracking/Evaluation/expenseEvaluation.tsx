@@ -7,6 +7,8 @@ import {BudgetDomain} from "../Budget/budget.types";
 import {ExpenseHistoryChart} from "./expenseHistoryChart";
 import {ExpenseBudgetShareChart} from "./expenseBudgetShareChart";
 import {StatisticTile} from "./statisticTile";
+import {MealAverageTile} from "./mealAverageTile";
+import {MenuplanData} from "../../Menuplan/menuplan.types";
 import {TopExpensesTile} from "./topExpensesTile";
 import {BudgetFilter} from "./budgetFilter";
 import {getStatisticsScopeNote} from "./evaluationLabels";
@@ -45,6 +47,8 @@ import {formatLocalDate, parseLocalDate} from "../../../../utils/dateUtils";
  *   für den Sollbetrag der «pro Person & Tag»-Budgets.
  * @param today - Stichtag «heute», von der Seite übergeben, damit die
  *   Berechnungen testbar bleiben. Nur der Kalendertag zählt.
+ * @param menuplan - Menüplan des Anlasses, für «Ø pro Mahlzeit». Solange er
+ *   lädt (`uid` leer), entfällt die Kachel.
  * @param handleEditClick - Öffnet den Bearbeiten-Dialog (Klick auf eine Top-5-Zeile).
  * @param handleShowMissingReceipts - Wechselt in die Ausgabenliste und zeigt
  *   dort nur Ausgaben ohne Beleg («Anzeigen» im Beleg-Hinweis).
@@ -56,16 +60,18 @@ type ExpenseEvaluationProps = {
   participantCount: number;
   eventDays: Date[];
   today: Date;
+  menuplan: MenuplanData;
   handleEditClick: (expenseId: string) => void;
   handleShowMissingReceipts: () => void;
 };
 /**
  * Ansicht «Auswertung» der Abrechnungsseite: Kennzahlen über die Ausgaben
- * der ausgewählten Budgets (Gesamtausgaben, Ø pro Person, Verlauf, Verteilung nach Budget, grösste Ausgaben)
- * in einer Währung, plus ein Hinweis auf Ausgaben ohne Beleg.
+ * der ausgewählten Budgets (Gesamtausgaben, Ø pro Person, Ø pro Mahlzeit,
+ * Verlauf, Verteilung nach Budget, grösste Ausgaben) in einer Währung, plus
+ * ein Hinweis auf Ausgaben ohne Beleg.
  *
  * Lädt selbst nichts: Alle Werte werden bei jedem Render aus den Props
- * (Ausgaben, Budgets, Gruppengrösse, Anlasstage) und der gewählten Währung
+ * (Ausgaben, Budgets, Gruppengrösse, Anlasstage, Menüplan) und der gewählten Währung
  * abgeleitet. Dadurch ist die Ansicht automatisch live, sobald die Seite
  * über Realtime neue Ausgaben erhält.
  *
@@ -83,6 +89,7 @@ type ExpenseEvaluationProps = {
  *   participantCount={groupConfiguration.totalPortions}
  *   eventDays={eventDays}
  *   today={new Date()}
+ *   menuplan={menuplan}
  *   handleEditClick={handleEditExpense}
  *   handleShowMissingReceipts={handleShowMissingReceipts}
  * />
@@ -94,6 +101,7 @@ export const ExpenseEvaluation = ({
   participantCount,
   eventDays,
   today,
+  menuplan,
   handleEditClick,
   handleShowMissingReceipts,
 }: ExpenseEvaluationProps) => {
@@ -110,6 +118,9 @@ export const ExpenseEvaluation = ({
     clearIds,
   } = useStoredIdSet(
     `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_BUDGETS}_${eventId}`,
+  );
+  const {ids: excludedMealTypeIds, toggleId: toggleMealType} = useStoredIdSet(
+    `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_MEAL_TYPES}_${eventId}`,
   );
 
   // nur Ausgaben der ausgewählten Budgets
@@ -196,6 +207,45 @@ export const ExpenseEvaluation = ({
   ]);
   // ein einziges Stück wäre ein voller Ring mit «100 %» ohne Aussage
   const showBudgetShares = statistics.budgetShares.length >= 2;
+
+  // Mahlzeitentypen in Menüplan-Reihenfolge; Einträge ohne Typ (kurz bei Realtime) weglassen
+  const mealTypes = React.useMemo(
+    () =>
+      menuplan.mealTypes.order
+        .map((mealTypeId) => menuplan.mealTypes.entries[mealTypeId])
+        .filter((mealType) => mealType !== undefined),
+    [menuplan],
+  );
+  // eigenes Memo: Realtime-Änderungen am Menüplan rechnen nur diese Kachel neu
+  const mealStatistics = React.useMemo(() => {
+    const mealCount = ExpenseStatistics.countPlannedMeals(
+      menuplan,
+      excludedMealTypeIds,
+    );
+    return {
+      mealCount,
+      averagePerMealInCents: ExpenseStatistics.averagePerMeal(
+        statistics.totalAmountInCents,
+        mealCount,
+      ),
+      averagePerParticipantAndMealInCents:
+        ExpenseStatistics.averagePerParticipantAndMeal(
+          statistics.totalAmountInCents,
+          mealCount,
+          participantCount,
+        ),
+    };
+  }, [
+    menuplan,
+    excludedMealTypeIds,
+    statistics.totalAmountInCents,
+    participantCount,
+  ]);
+  // solange der Menüplan lädt, ist er leer: kein falscher Hinweis «nichts eingeplant»
+  const showMealAverage = menuplan.uid !== "" && mealTypes.length > 0;
+  const keyFigureTileSize = showMealAverage
+    ? {xs: 12, sm: 6, md: 4}
+    : {xs: 12, sm: 6};
   // Belege fehlen: alle Budgets, alle Währungen (Aufgabe, keine Statistik)
   const missingReceiptCount = React.useMemo(
     () => ExpenseStatistics.countWithoutAttachment(expenses),
@@ -291,7 +341,7 @@ export const ExpenseEvaluation = ({
         </Typography>
       ) : (
         <Grid container spacing={2}>
-          <Grid size={{xs: 12, sm: 6}}>
+          <Grid size={keyFigureTileSize}>
             <StatisticTile
               title={TEXT_EVALUATION_TOTAL}
               value={formatAmountFromCents(
@@ -302,7 +352,7 @@ export const ExpenseEvaluation = ({
             />
           </Grid>
 
-          <Grid size={{xs: 12, sm: 6}}>
+          <Grid size={keyFigureTileSize}>
             <StatisticTile
               title={TEXT_EVALUATION_AVERAGE_PER_PARTICIPANT}
               hint={
@@ -331,6 +381,23 @@ export const ExpenseEvaluation = ({
               ]}
             />
           </Grid>
+          {showMealAverage && (
+            // auf sm volle Breite: die Chips brauchen Platz
+            <Grid size={{xs: 12, sm: 12, md: 4}}>
+              <MealAverageTile
+                mealTypes={mealTypes}
+                excludedMealTypeIds={excludedMealTypeIds}
+                onToggleMealType={toggleMealType}
+                mealCount={mealStatistics.mealCount}
+                averagePerMealInCents={mealStatistics.averagePerMealInCents}
+                averagePerParticipantAndMealInCents={
+                  mealStatistics.averagePerParticipantAndMealInCents
+                }
+                participantCount={participantCount}
+                currency={selectedCurrency}
+              />
+            </Grid>
+          )}
           <Grid size={{xs: 12}}>
             <ExpenseHistoryChart
               eventDays={eventDays}

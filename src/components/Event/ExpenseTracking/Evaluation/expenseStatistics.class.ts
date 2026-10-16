@@ -4,6 +4,7 @@ import {Budget} from "../Budget/budget.class";
 import {BudgetDomain} from "../Budget/budget.types";
 import {BudgetShare, CurrenciesInUse, ExpenseDomain} from "../Expense/expense.types";
 import {EVALUATION_SHARE_OTHERS as TEXT_EVALUATION_SHARE_OTHERS} from "../../../../constants/text";
+import {Meal, MenuplanData} from "../../Menuplan/menuplan.types";
 
 /** Ein Stück der Verteilung vor der Prozentrechnung (siehe `shareByBudget`). */
 type BudgetShareWithoutPercent = Omit<BudgetShare, "sharePercent">;
@@ -126,6 +127,77 @@ export class ExpenseStatistics {
     if (participantCount === 0 || eventDayCount === 0) return null;
 
     return Math.round(totalAmountInCents / eventDayCount / participantCount);
+  }
+
+  /**
+   * Berechnet den Durchschnitt pro eingeplanter Mahlzeit, gerundet auf ganze Rappen.
+   *
+   * @param totalAmountInCents - Summe der Ausgaben in Rappen (eine Währung).
+   * @param mealCount - Anzahl eingeplanter Mahlzeiten (`countPlannedMeals`).
+   * @returns Ø pro Mahlzeit in Rappen, `null` bei 0 Mahlzeiten.
+   * @example
+   * ExpenseStatistics.averagePerMeal(30300, 12) // 2525
+   * ExpenseStatistics.averagePerMeal(30300, 0)  // null
+   */
+  static averagePerMeal(
+    totalAmountInCents: number,
+    mealCount: number,
+  ): number | null {
+    if (mealCount === 0) return null;
+
+    return Math.round(totalAmountInCents / mealCount);
+  }
+
+  /**
+   * Berechnet, was bisher pro Person und Mahlzeit verbraucht wurde, gemessen
+   * an **allen** eingeplanten Mahlzeiten. Vergleichbar zwischen Anlässen
+   * verschiedener Grösse. Gerundet wird erst am Schluss auf ganze Rappen.
+   *
+   * @param totalAmountInCents - Summe der Ausgaben in Rappen (eine Währung).
+   * @param mealCount - Anzahl eingeplanter Mahlzeiten (`countPlannedMeals`).
+   * @param participantCount - Anzahl Teilnehmende aus der Gruppenkonfiguration.
+   * @returns Betrag pro Person und Mahlzeit in Rappen, `null` bei 0 Mahlzeiten
+   *   oder 0 Teilnehmenden.
+   * @example
+   * ExpenseStatistics.averagePerParticipantAndMeal(30300, 12, 20) // 126
+   */
+  static averagePerParticipantAndMeal(
+    totalAmountInCents: number,
+    mealCount: number,
+    participantCount: number,
+  ): number | null {
+    if (mealCount === 0 || participantCount === 0) return null;
+
+    return Math.round(totalAmountInCents / mealCount / participantCount);
+  }
+
+  /**
+   * Zählt die eingeplanten Mahlzeiten für «Ø pro Mahlzeit». Eine Mahlzeit
+   * (Tag × Mahlzeitentyp) zählt, wenn in einem ihrer Menüs mindestens ein
+   * Rezept oder Produkt eingeplant ist; Material allein ist keine Mahlzeit.
+   * Mehrere Menüs in derselben Mahlzeit zählen einmal. Mahlzeiten eines Typs,
+   * der nicht mehr in `mealTypes.order` steht, zählen nicht.
+   *
+   * @param menuplan - Menüplan des Anlasses.
+   * @param excludedMealTypeIds - UIDs der abgewählten Mahlzeitentypen;
+   *   unbekannte UIDs (gelöschte Typen) bewirken nichts.
+   * @returns Anzahl eingeplanter Mahlzeiten, 0 bei leerem Menüplan.
+   * @example
+   * // Zmorge und Znacht an 2 Tagen eingeplant, Zvieri abgewählt
+   * ExpenseStatistics.countPlannedMeals(menuplan, [zvieriUid]) // 4
+   */
+  static countPlannedMeals(
+    menuplan: MenuplanData,
+    excludedMealTypeIds: string[],
+  ): number {
+    const countedMealTypeIds = menuplan.mealTypes.order.filter(
+      (mealTypeId) => !excludedMealTypeIds.includes(mealTypeId),
+    );
+    return Object.values(menuplan.meals).filter(
+      (meal) =>
+        countedMealTypeIds.includes(meal.mealType) &&
+        ExpenseStatistics.hasPlannedFood(meal, menuplan),
+    ).length;
   }
 
   /**
@@ -369,6 +441,25 @@ export class ExpenseStatistics {
         (slice.amountInCents / totalAmountInCents) * 100,
       ),
     }));
+  }
+
+  /**
+   * Prüft, ob in einem der Menüs einer Mahlzeit ein Rezept oder Produkt
+   * eingeplant ist. Menü-UIDs ohne Menü (kurz nach Realtime-Änderungen)
+   * werden übersprungen.
+   *
+   * @param meal - Zu prüfende Mahlzeit.
+   * @param menuplan - Menüplan mit den Menüs.
+   * @returns `true`, wenn mindestens ein Rezept oder Produkt eingeplant ist.
+   */
+  private static hasPlannedFood(meal: Meal, menuplan: MenuplanData): boolean {
+    return meal.menuOrder.some((menueUid) => {
+      const menue = menuplan.menues[menueUid];
+      return (
+        menue !== undefined &&
+        (menue.mealRecipeOrder.length > 0 || menue.productOrder.length > 0)
+      );
+    });
   }
 
   /**

@@ -6,4 +6,5 @@ export enum LocalStorageKey {
   VERSION = "version",
   USE_ORIGINAL_COLOR_SCHEME = "useOriginalColorScheme",
   EXPENSE_EVALUATION_EXCLUDED_BUDGETS = "expenseEvaluationExcludedBudgets",
+  EXPENSE_EVALUATION_EXCLUDED_MEAL_TYPES = "expenseEvaluationExcludedMealTypes",
 }

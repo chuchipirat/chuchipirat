@@ -31,12 +31,17 @@ import AuthUser from "../../../Session/authUser.class";
 import {BudgetType, BudgetIcon} from "../Budget/budget.types";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
 import {budget2, budget as mockBudget} from "../Budget/__mocks__/budget.mock";
+import {
+  buildMenuplan,
+  LOADING_MENUPLAN,
+} from "../Evaluation/__mocks__/menuplan.mock";
 import {expense as mockExpense} from "../Expense/__mocks__/expense.mock";
 import {REALTIME_RECONNECTING as TEXT_REALTIME_RECONNECTING} from "../../../../constants/text";
 import {
   NEW_BUDGET as TEXT_NEW_BUDGET,
   NEW_EXPENSE as TEXT_NEW_EXPENSE,
   EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
+  EVALUATION_AVERAGE_PER_MEAL as TEXT_EVALUATION_AVERAGE_PER_MEAL,
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
   DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
@@ -180,6 +185,7 @@ const renderEventExpenseTrackingPage = (
   const defaultProps = {
     event: mockEvent as any,
     groupConfiguration: mockGroupConfiguration as EventGroupConfiguration,
+    menuplan: LOADING_MENUPLAN,
     database: mockDatabase,
   };
 
@@ -254,17 +260,19 @@ const selectAttachmentFile = (file: File) => {
  *
  * @param initialBudgets Budgets, die der Erstlade-Aufruf liefert.
  * @param expenses Bisher ausgegebene Beträge je Budget-ID  und Währung (in Rappen).
+ * @param pageOverrides Props der Seite, die vom Standard abweichen (z.B. `menuplan`).
  * @returns Render-Ergebnis sowie `onChange` und `onStatusChange` der Seite.
  */
 const renderUnlockedPage = async (
   initialBudgets: unknown[] = [],
   expenses: ExpenseDomain[] = [],
+  pageOverrides: Record<string, unknown> = {},
 ) => {
   mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
   mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce(initialBudgets);
   mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce(expenses);
 
-  const view = renderEventExpenseTrackingPage();
+  const view = renderEventExpenseTrackingPage(pageOverrides);
   await waitFor(() =>
     expect(mockDatabase.budgets.subscribeToBudgets).toHaveBeenCalled(),
   );
@@ -375,6 +383,28 @@ describe("EventExpenseTrackingPage: Ansicht Auswertung", () => {
     expect(
       screen.getByTestId("evaluation-top-expense-expense-1"),
     ).toBeInTheDocument();
+  });
+
+  test("Menüplan wird an die Auswertung durchgereicht (Kachel «Ø pro Mahlzeit»)", async () => {
+    await renderUnlockedPage(
+      [kitchenBudget],
+      [{...mockExpense, id: "expense-1", budgetId: kitchenBudget.id}],
+      {
+        menuplan: buildMenuplan(
+          ["zmorge"],
+          [{date: "2026-07-05", mealType: "zmorge", menues: ["recipe"]}],
+        ),
+      },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+
+    expect(
+      await screen.findByText(TEXT_EVALUATION_AVERAGE_PER_MEAL),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^1 Mahlzeit/)).toBeInTheDocument();
   });
 
   test("in der Auswertung gibt es weder «Neues Budget» noch «Neue Ausgabe»", async () => {

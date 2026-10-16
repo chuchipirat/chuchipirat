@@ -9,6 +9,7 @@
  * mit Kennzahlen, Währungen und LocalStorage.
  * Story 6.3: Reihen des Ausgabenverlaufs folgen Budget- und Währungsauswahl.
  * Story 6.4: Verteilung nach Budget (Sichtbarkeit, Layout, Farben bleiben stabil).
+ * Story 6.5: Ø pro Mahlzeit (Menüplan, Auswahl der Mahlzeitentypen, Realtime).
  */
 import React from "react";
 import {
@@ -32,6 +33,7 @@ import {parseLocalDate} from "../../../../../utils/dateUtils";
 import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 import {LocalStorageKey} from "../../../../../constants/localStorage";
 import {getChartCategoryColors} from "../../../../App/customTheme";
+import {buildMenuplan, LOADING_MENUPLAN} from "../__mocks__/menuplan.mock";
 
 import {
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
@@ -51,6 +53,8 @@ import {
   EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
   EVALUATION_SHARE_TITLE as TEXT_EVALUATION_SHARE_TITLE,
   EVALUATION_TOP_EXPENSES as TEXT_EVALUATION_TOP_EXPENSES,
+  EVALUATION_AVERAGE_PER_MEAL as TEXT_EVALUATION_AVERAGE_PER_MEAL,
+  EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL as TEXT_EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL,
 } from "../../../../../constants/text/expenseTracking";
 import {SHOW as TEXT_SHOW} from "../../../../../constants/text/shared";
 
@@ -189,6 +193,8 @@ const renderEvaluation = (
     participantCount: 24,
     eventDays: EVENT_DAYS,
     today: TODAY,
+    // Standard: Menüplan lädt noch → keine Kachel «Ø pro Mahlzeit» (eigene Tests unten)
+    menuplan: LOADING_MENUPLAN,
     handleEditClick,
     handleShowMissingReceipts,
     ...overrides,
@@ -1040,5 +1046,116 @@ describe("ExpenseEvaluation, Verteilung nach Budget", () => {
 
     await clickBudgetMenuItems([budget2.name]);
     expect(getColorByLabel().get("Motto")).toEqual(LIGHT_COLORS.categories[1]);
+  });
+});
+
+describe("ExpenseEvaluation, Ø pro Mahlzeit", () => {
+  const MEAL_TYPE_IDS = ["zmorge", "zmittag", "zvieri"];
+  // 2 Tage × Zmorge (Rezept), Zmittag (Rezept), Zvieri (Produkt) = 6 Mahlzeiten
+  const MEALS = ["2026-07-05", "2026-07-06"].flatMap((date) => [
+    {date, mealType: "zmorge", menues: ["recipe" as const]},
+    {date, mealType: "zmittag", menues: ["recipe" as const]},
+    {date, mealType: "zvieri", menues: ["product" as const]},
+  ]);
+  const MENUPLAN = buildMenuplan(MEAL_TYPE_IDS, MEALS);
+  const MEAL_TYPE_STORAGE_KEY = `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_MEAL_TYPES}_${EVENT_ID}`;
+  // Küche CHF 100, Motto CHF 50 → CHF 150
+  const mealExpenses = [
+    createExpense({id: "kitchen-1", amountInCents: 10000}),
+    createExpense({id: "theme-1", amountInCents: 5000, budgetId: budget2.id}),
+  ];
+
+  /**
+   * Liefert die Kachel «Ø pro Mahlzeit».
+   *
+   * @returns Das Kachel-Element.
+   */
+  const getMealTile = (): HTMLElement =>
+    getTile(TEXT_EVALUATION_AVERAGE_PER_MEAL);
+
+  /**
+   * Liefert den Chip eines Mahlzeitentyps in der Kachel.
+   *
+   * @param name - Name des Mahlzeitentyps (im Mock = UID).
+   * @returns Der Chip (Rolle `button`).
+   */
+  const getMealTypeChip = (name: string): HTMLElement =>
+    within(
+      screen.getByRole("group", {
+        name: TEXT_EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL,
+      }),
+    ).getByRole("button", {name});
+
+  test("Total ÷ eingeplante Mahlzeiten, Kachel neben den anderen (md: 4)", () => {
+    renderEvaluation(mealExpenses, {menuplan: MENUPLAN});
+
+    const mealTile = getMealTile();
+    // 15000 ÷ 6 = 2500; pro Person (24): 15000 ÷ 6 ÷ 24 = 104.17 → 104
+    expect(mealTile).toHaveTextContent(expectedAmount(2500, "CHF"));
+    expect(normalizeSpaces(mealTile.textContent ?? "")).toContain(
+      `bisher ${expectedAmount(104, "CHF")} pro Person & Mahlzeit`,
+    );
+    expect(mealTile).toHaveTextContent("6 Mahlzeiten · 24 Personen");
+    expect(mealTile.closest(".MuiGrid-root")).toHaveClass("MuiGrid-grid-md-4");
+    expect(getTile(TEXT_EVALUATION_TOTAL).closest(".MuiGrid-root")).toHaveClass(
+      "MuiGrid-grid-md-4",
+    );
+  });
+
+  test("Zvieri abwählen → weniger Mahlzeiten, Auswahl gespeichert und nach neuem Rendern noch da", () => {
+    const {view} = renderEvaluation(mealExpenses, {menuplan: MENUPLAN});
+
+    fireEvent.click(getMealTypeChip("zvieri"));
+
+    // 15000 ÷ 4 = 3750
+    expect(getMealTile()).toHaveTextContent(expectedAmount(3750, "CHF"));
+    expect(getMealTile()).toHaveTextContent("4 Mahlzeiten");
+    expect(
+      JSON.parse(localStorage.getItem(MEAL_TYPE_STORAGE_KEY) ?? "[]"),
+    ).toEqual(["zvieri"]);
+
+    view.unmount();
+    renderEvaluation(mealExpenses, {menuplan: MENUPLAN});
+    expect(getMealTypeChip("zvieri")).toHaveAttribute("aria-pressed", "false");
+    expect(getMealTile()).toHaveTextContent("4 Mahlzeiten");
+  });
+
+  test("Budget abwählen → Ø nur aus den übrigen Budgets", async () => {
+    renderEvaluation(mealExpenses, {menuplan: MENUPLAN});
+
+    await clickBudgetMenuItems([budget2.name]);
+
+    // 10000 ÷ 6 = 1666.67 → 1667
+    expect(getMealTile()).toHaveTextContent(expectedAmount(1667, "CHF"));
+  });
+
+  test("Menüplan lädt noch → keine Kachel, Kacheln wie bisher (sm: 6)", () => {
+    renderEvaluation(mealExpenses, {menuplan: LOADING_MENUPLAN});
+
+    expect(
+      screen.queryByText(TEXT_EVALUATION_AVERAGE_PER_MEAL),
+    ).not.toBeInTheDocument();
+    expect(
+      getTile(TEXT_EVALUATION_TOTAL).closest(".MuiGrid-root"),
+    ).not.toHaveClass("MuiGrid-grid-md-4");
+  });
+
+  test("Menüplan ändert sich (Realtime) → Zahl folgt", () => {
+    const {view, props} = renderEvaluation(mealExpenses, {menuplan: MENUPLAN});
+
+    view.rerender(
+      <ExpenseEvaluation
+        {...props}
+        menuplan={buildMenuplan(MEAL_TYPE_IDS, [
+          ...MEALS,
+          {date: "2026-07-07", mealType: "zmorge", menues: ["recipe"]},
+          {date: "2026-07-07", mealType: "zmittag", menues: ["recipe"]},
+        ])}
+      />,
+    );
+
+    // 15000 ÷ 8 = 1875
+    expect(getMealTile()).toHaveTextContent(expectedAmount(1875, "CHF"));
+    expect(getMealTile()).toHaveTextContent("8 Mahlzeiten");
   });
 });
