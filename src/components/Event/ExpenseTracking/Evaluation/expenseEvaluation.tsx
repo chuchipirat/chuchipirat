@@ -18,8 +18,8 @@ import {
   Typography,
 } from "@mui/material";
 
-import {ExpenseDomain} from "./expense.types";
-import {BudgetDomain} from "./budget.types";
+import {ExpenseDomain} from "../Expense/expense.types";
+import {BudgetDomain} from "../Budget/budget.types";
 import {ExpenseHistoryChart} from "./expenseHistoryChart";
 import {ExpenseBudgetShareChart} from "./expenseBudgetShareChart";
 import {
@@ -41,15 +41,15 @@ import {
   EVALUATION_SCOPE_NOTE_CURRENCIES as TEXT_EVALUATION_SCOPE_NOTE_CURRENCIES,
   EVALUATION_SCOPE_NOTE_BUDGETS as TEXT_EVALUATION_SCOPE_NOTE_BUDGETS,
   EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
-} from "../../../constants/text";
-import {useCustomStyles} from "../../../constants/styles";
+} from "../../../../constants/text";
+import {useCustomStyles} from "../../../../constants/styles";
 import {ExpenseStatistics} from "./expenseStatistics.class";
-import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
-import {BUDGET_ICON_MAP} from "./budgetIcons";
-import {useStoredIdSet} from "../../../hooks/useStoredIdSet";
-import {LocalStorageKey} from "../../../constants/localStorage";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {BUDGET_ICON_MAP} from "../Budget/budgetIcons";
+import {useStoredIdSet} from "../../../../hooks/useStoredIdSet";
+import {LocalStorageKey} from "../../../../constants/localStorage";
 import {ArrowDropDown} from "@mui/icons-material";
-import {formatLocalDate, parseLocalDate} from "../../../utils/dateUtils";
+import {formatLocalDate, parseLocalDate} from "../../../../utils/dateUtils";
 
 /**
  * Props für {@link ExpenseEvaluation}.

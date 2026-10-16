@@ -15,10 +15,10 @@ import {
   assignShareColors,
   ExpenseBudgetShareChart,
 } from "../expenseBudgetShareChart";
-import {BudgetShare} from "../expense.types";
-import {getChartCategoryColors} from "../../../App/customTheme";
-import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
-import {EVALUATION_SHARE_TITLE as TEXT_EVALUATION_SHARE_TITLE} from "../../../../constants/text/expenseTracking";
+import {BudgetShare} from "../../Expense/expense.types";
+import {getChartCategoryColors} from "../../../../App/customTheme";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
+import {EVALUATION_SHARE_TITLE as TEXT_EVALUATION_SHARE_TITLE} from "../../../../../constants/text/expenseTracking";
 
 /**
  * Mock: PieChart — jsdom hat kein Layout, ein gerendertes SVG lässt sich

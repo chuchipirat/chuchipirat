@@ -12,11 +12,11 @@ import {
   PLEASE_PROVIDE_AMOUNT as TEXT_PLEASE_PROVIDE_AMOUNT,
   PROVIDE_BUDGET_TYPE as TEXT_PROVIDE_BUDGET_TYPE,
   BUDGET_ICON_INVALID as TEXT_BUDGET_ICON_INVALID,
-} from "../../../../constants/text";
-import {expenseTotalsByBudget} from "../__mocks__/expense.mock";
-import {parseLocalDate} from "../../../../utils/dateUtils";
-import {ExpenseDomain} from "../expense.types";
-import {expense} from "../__mocks__/expense.mock";
+} from "../../../../../constants/text";
+import {expenseTotalsByBudget} from "../../Expense/__mocks__/expense.mock";
+import {parseLocalDate} from "../../../../../utils/dateUtils";
+import {ExpenseDomain} from "../../Expense/expense.types";
+import {expense} from "../../Expense/__mocks__/expense.mock";
 
 describe("Budget.checkBudgetData", () => {
   test("Budget.checkBudgetData(), kein Name", () => {

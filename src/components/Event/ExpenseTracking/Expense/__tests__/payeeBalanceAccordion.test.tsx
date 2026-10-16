@@ -10,14 +10,14 @@ import {
 import "@testing-library/jest-dom";
 import {expense, expenseChf} from "../__mocks__/expense.mock";
 import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
-import {Cook} from "../../Event/event.class";
-import {cook1, cook2} from "../../Event/__mocks__/event.mock";
-import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {Cook} from "../../../Event/event.class";
+import {cook1, cook2} from "../../../Event/__mocks__/event.mock";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 
 import {
   FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
   SHOW_EXPENSES as TEXT_SHOW_EXPENSES,
-} from "../../../../constants/text";
+} from "../../../../../constants/text";
 
 const cooksMock: Cook[] = [{...cook1}, {...cook2}];
 const normalizer = getDefaultNormalizer();

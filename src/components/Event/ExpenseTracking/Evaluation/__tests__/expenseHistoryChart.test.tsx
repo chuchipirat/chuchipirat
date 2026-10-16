@@ -11,8 +11,8 @@ import "@testing-library/jest-dom";
 import type {LineChartProps} from "@mui/x-charts/LineChart";
 
 import {ExpenseHistoryChart} from "../expenseHistoryChart";
-import {parseLocalDate} from "../../../../utils/dateUtils";
-import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {parseLocalDate} from "../../../../../utils/dateUtils";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 
 import {
   EVALUATION_HISTORY_SUMMARY as TEXT_EVALUATION_HISTORY_SUMMARY,
@@ -21,7 +21,7 @@ import {
   EVALUATION_HISTORY_TITLE as TEXT_EVALUATION_HISTORY_TITLE,
   EVALUATION_HISTORY_ACTUAL as TEXT_EVALUATION_HISTORY_ACTUAL,
   EVALUATION_HISTORY_TARGET as TEXT_EVALUATION_HISTORY_TARGET,
-} from "../../../../constants/text/expenseTracking";
+} from "../../../../../constants/text/expenseTracking";
 
 /**
  * Mock: LineChart — jsdom hat kein Layout, ein gerendertes SVG lässt sich

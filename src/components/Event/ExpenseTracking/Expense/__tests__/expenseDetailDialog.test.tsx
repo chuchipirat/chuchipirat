@@ -1,8 +1,8 @@
 import {fireEvent, render, screen, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {ExpenseDetailDialog} from "../expenseDetailDialog";
-import {BudgetDomain} from "../budget.types";
-import {budget, budget2} from "../__mocks__/budget.mock";
+import {BudgetDomain} from "../../Budget/budget.types";
+import {budget, budget2} from "../../Budget/__mocks__/budget.mock";
 import {expense} from "../__mocks__/expense.mock";
 import {
   PLEASE_PROVIDE_LABEL as TEXT_PLEASE_PROVIDE_LABEL,
@@ -16,10 +16,10 @@ import {
   DROP_ATTACHMENT_HINT as TEXT_DROP_ATTACHMENT_HINT,
   ATTACHMENT_INVALID_TYPE as TEXT_ATTACHMENT_INVALID_TYPE,
   ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
-} from "../../../../constants/text";
+} from "../../../../../constants/text";
 import dayjs from "dayjs";
-import {Cook} from "../../Event/event.class";
-import {cook1, cook2} from "../../Event/__mocks__/event.mock";
+import {Cook} from "../../../Event/event.class";
+import {cook1, cook2} from "../../../Event/__mocks__/event.mock";
 
 jest.mock("@mui/x-date-pickers", () => ({
   DatePicker: (props: any) => (

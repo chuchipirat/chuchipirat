@@ -19,15 +19,15 @@ import {
   PROJECTION_TILL_EVENT_END as TEXT_PROJECTION_TILL_EVENT_END,
   DAY_X_OF_Y_IN_EVENT as TEXT_DAY_X_OF_Y_IN_EVENT,
   PROJECTION_ABOVE_BUDGET as TEXT_PROJECTION_ABOVE_BUDGET,
-} from "../../../constants/text/expenseTracking";
+} from "../../../../constants/text/expenseTracking";
 import {
   EditOutlined,
   AddOutlined,
   TrendingUpOutlined,
 } from "@mui/icons-material";
 
-import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
-import {useCustomStyles} from "../../../constants/styles";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {useCustomStyles} from "../../../../constants/styles";
 
 import {BudgetWithProgress, BudgetType} from "./budget.types";
 import {BUDGET_ICON_MAP} from "./budgetIcons";

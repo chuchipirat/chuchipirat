@@ -11,7 +11,7 @@ import {SupabaseClient} from "@supabase/supabase-js";
 import {
   ExpenseDomain,
   ExpenseRow,
-} from "../../Event/ExpenseTracking/expense.types";
+} from "../../Event/ExpenseTracking/Expense/expense.types";
 import {StorageObjectProperty} from "../../Shared/sessionStorageHandler.class";
 import {BaseRepository} from "./BaseRepository";
 import {STORAGE_OBJECT_PROPERTY} from "../../Shared/sessionStorageHandler.class";

@@ -11,7 +11,7 @@ import {
   BudgetIcon,
   BudgetRow,
   BudgetType,
-} from "../../../Event/ExpenseTracking/budget.types";
+} from "../../../Event/ExpenseTracking/Budget/budget.types";
 import {STORAGE_OBJECT_PROPERTY} from "../../../Shared/sessionStorageHandler.class";
 import {createSupabaseMock} from "../__mocks__/supabaseMock";
 import {AuthUser} from "../../../Session/authUser.class";

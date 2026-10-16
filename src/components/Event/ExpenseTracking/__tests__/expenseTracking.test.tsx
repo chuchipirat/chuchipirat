@@ -28,10 +28,10 @@ import {
 import {getHelpPageUrl} from "../../../Navigation/helpCenter";
 import {AuthUserContext} from "../../../Session/authUserContext";
 import AuthUser from "../../../Session/authUser.class";
-import {BudgetType, BudgetIcon} from "../budget.types";
+import {BudgetType, BudgetIcon} from "../Budget/budget.types";
 import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
-import {budget2, budget as mockBudget} from "../__mocks__/budget.mock";
-import {expense as mockExpense} from "../__mocks__/expense.mock";
+import {budget2, budget as mockBudget} from "../Budget/__mocks__/budget.mock";
+import {expense as mockExpense} from "../Expense/__mocks__/expense.mock";
 import {REALTIME_RECONNECTING as TEXT_REALTIME_RECONNECTING} from "../../../../constants/text";
 import {
   NEW_BUDGET as TEXT_NEW_BUDGET,
@@ -45,8 +45,8 @@ import {
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
 } from "../../../../constants/text/expenseTracking";
 import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
-import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
-import {ExpenseDetailDialogState} from "../expenseDetailDialog";
+import {ExpenseDomain, ExpensePayeeType} from "../Expense/expense.types";
+import {ExpenseDetailDialogState} from "../Expense/expenseDetailDialog";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import dayjs from "dayjs";
 import * as Sentry from "@sentry/react";

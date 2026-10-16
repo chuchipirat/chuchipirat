@@ -1,4 +1,4 @@
-import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
+import {FieldValidationError} from "../../../Shared/fieldValidation.error.class";
 import {
   ExpenseDomain,
   ExpenseGroup,
@@ -16,8 +16,8 @@ import {
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
   PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
   PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
-} from "../../../constants/text/expenseTracking";
-import {BudgetDomain} from "./budget.types";
+} from "../../../../constants/text/expenseTracking";
+import {BudgetDomain} from "../Budget/budget.types";
 
 /**
  * Erlaubtes Format eines Währungscodes: genau drei Grossbuchstaben (ISO 4217,

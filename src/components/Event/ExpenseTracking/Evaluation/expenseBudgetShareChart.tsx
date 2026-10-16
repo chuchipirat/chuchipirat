@@ -15,13 +15,13 @@ import {PieChart} from "@mui/x-charts/PieChart";
 import {
   EVALUATION_SHARE_TITLE as TEXT_EVALUATION_SHARE_TITLE,
   EVALUATION_SHARE_DETAIL as TEXT_EVALUATION_SHARE_DETAIL,
-} from "../../../constants/text";
-import {useCustomStyles} from "../../../constants/styles";
+} from "../../../../constants/text";
+import {useCustomStyles} from "../../../../constants/styles";
 import {
   ChartCategoryColors,
   getChartCategoryColors,
-} from "../../App/customTheme";
-import {BudgetShare} from "./expense.types";
+} from "../../../App/customTheme";
+import {BudgetShare} from "../Expense/expense.types";
 
 /**
  * Props für {@link ExpenseBudgetShareChart}.

@@ -1,9 +1,9 @@
-import {formatLocalDate} from "../../../utils/dateUtils";
-import {DEFAULT_CURRENCY} from "../../Shared/utils/currencyUtils";
-import {Budget} from "./budget.class";
-import {BudgetDomain} from "./budget.types";
-import {BudgetShare, CurrenciesInUse, ExpenseDomain} from "./expense.types";
-import {EVALUATION_SHARE_OTHERS as TEXT_EVALUATION_SHARE_OTHERS} from "../../../constants/text";
+import {formatLocalDate} from "../../../../utils/dateUtils";
+import {DEFAULT_CURRENCY} from "../../../Shared/utils/currencyUtils";
+import {Budget} from "../Budget/budget.class";
+import {BudgetDomain} from "../Budget/budget.types";
+import {BudgetShare, CurrenciesInUse, ExpenseDomain} from "../Expense/expense.types";
+import {EVALUATION_SHARE_OTHERS as TEXT_EVALUATION_SHARE_OTHERS} from "../../../../constants/text";
 
 /** Ein Stück der Verteilung vor der Prozentrechnung (siehe `shareByBudget`). */
 type BudgetShareWithoutPercent = Omit<BudgetShare, "sharePercent">;

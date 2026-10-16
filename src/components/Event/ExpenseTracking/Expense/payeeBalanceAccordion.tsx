@@ -12,17 +12,17 @@ import {
 
 import {Expense} from "./expense.class";
 import {ExpenseDomain, ExpensePayeeType} from "./expense.types";
-import {Cook} from "../Event/event.class";
+import {Cook} from "../../Event/event.class";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 import {
   FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
   OPEN_AMOUNTS_PER_PERSON as TEXT_OPEN_AMOUNTS_PER_PERSON,
   SHOW_EXPENSES as TEXT_SHOW_EXPENSES,
-} from "../../../constants/text";
+} from "../../../../constants/text";
 import {Box} from "@mui/system";
-import {useCustomStyles} from "../../../constants/styles";
-import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
+import {useCustomStyles} from "../../../../constants/styles";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 
 /**
  * Props für {@link PayeeBalanceAccordion}.

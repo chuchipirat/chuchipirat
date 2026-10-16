@@ -10,10 +10,10 @@ import {
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
   PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
   PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
-} from "../../../../constants/text";
+} from "../../../../../constants/text";
 import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
-import {BudgetDomain} from "../budget.types";
-import {FieldValidationError} from "../../../Shared/fieldValidation.error.class";
+import {BudgetDomain} from "../../Budget/budget.types";
+import {FieldValidationError} from "../../../../Shared/fieldValidation.error.class";
 
 const expenses: ExpenseDomain[] = [
   {

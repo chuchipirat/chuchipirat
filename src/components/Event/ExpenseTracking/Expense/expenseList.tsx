@@ -12,15 +12,15 @@ import {
 import {ExpenseDomain, ExpenseGroup} from "./expense.types";
 
 import {Box} from "@mui/system";
-import {BUDGET_ICON_MAP} from "./budgetIcons";
-import {useCustomStyles} from "../../../constants/styles";
-import {formatAmountFromCents} from "../../Shared/utils/currencyUtils";
+import {BUDGET_ICON_MAP} from "../Budget/budgetIcons";
+import {useCustomStyles} from "../../../../constants/styles";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 
 import {
   NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET,
   SHOW_EXPENSE_RECEIPT as TEXT_SHOW_EXPENSE_RECEIPT,
   EXPENSE_RECEIPT_MISSING as TEXT_EXPENSE_RECEIPT_MISSING,
-} from "../../../constants/text/expenseTracking";
+} from "../../../../constants/text/expenseTracking";
 import {ReceiptLongOutlined, ReportProblemOutlined} from "@mui/icons-material";
 
 /**

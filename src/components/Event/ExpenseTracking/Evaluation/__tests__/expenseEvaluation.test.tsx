@@ -28,14 +28,14 @@ import {
   getBudgetFilterLabel,
   getStatisticsScopeNote,
 } from "../expenseEvaluation";
-import {BudgetDomain} from "../budget.types";
-import {ExpenseDomain} from "../expense.types";
-import {expense} from "../__mocks__/expense.mock";
-import {budget, budget2} from "../__mocks__/budget.mock";
-import {parseLocalDate} from "../../../../utils/dateUtils";
-import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
-import {LocalStorageKey} from "../../../../constants/localStorage";
-import {getChartCategoryColors} from "../../../App/customTheme";
+import {BudgetDomain} from "../../Budget/budget.types";
+import {ExpenseDomain} from "../../Expense/expense.types";
+import {expense} from "../../Expense/__mocks__/expense.mock";
+import {budget, budget2} from "../../Budget/__mocks__/budget.mock";
+import {parseLocalDate} from "../../../../../utils/dateUtils";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
+import {LocalStorageKey} from "../../../../../constants/localStorage";
+import {getChartCategoryColors} from "../../../../App/customTheme";
 
 import {
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
@@ -55,8 +55,8 @@ import {
   EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
   EVALUATION_SHARE_TITLE as TEXT_EVALUATION_SHARE_TITLE,
   EVALUATION_TOP_EXPENSES as TEXT_EVALUATION_TOP_EXPENSES,
-} from "../../../../constants/text/expenseTracking";
-import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
+} from "../../../../../constants/text/expenseTracking";
+import {SHOW as TEXT_SHOW} from "../../../../../constants/text/shared";
 
 /**
  * Mock: LineChart (Ausgabenverlauf, Story 6.3) — jsdom hat kein Layout, das

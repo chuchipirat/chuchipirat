@@ -7,11 +7,11 @@
  * Summe der Sollbeträge.
  */
 import {ExpenseStatistics} from "../expenseStatistics.class";
-import {ExpenseDomain} from "../expense.types";
-import {expense} from "../__mocks__/expense.mock";
-import {budget} from "../__mocks__/budget.mock";
-import {BudgetDomain, BudgetType} from "../budget.types";
-import {parseLocalDate} from "../../../../utils/dateUtils";
+import {ExpenseDomain} from "../../Expense/expense.types";
+import {expense} from "../../Expense/__mocks__/expense.mock";
+import {budget} from "../../Budget/__mocks__/budget.mock";
+import {BudgetDomain, BudgetType} from "../../Budget/budget.types";
+import {parseLocalDate} from "../../../../../utils/dateUtils";
 
 /**
  * Baut eine Test-Ausgabe auf Basis des Standard-Mocks (CHF, ohne Beleg).

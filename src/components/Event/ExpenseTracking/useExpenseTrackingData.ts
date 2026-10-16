@@ -12,9 +12,9 @@ import {
 } from "./expenseTracking.reducer";
 import {useAuthUser} from "../../Session/authUserContext";
 import {Event} from "../Event/event.class";
-import {BudgetDomain} from "./budget.types";
-import {ExpenseDomain} from "./expense.types";
-import {Expense} from "./expense.class";
+import {BudgetDomain} from "./Budget/budget.types";
+import {ExpenseDomain} from "./Expense/expense.types";
+import {Expense} from "./Expense/expense.class";
 
 /** Parameter für {@link useExpenseTrackingData}. */
 type UseExpenseTrackingDataParams = {
