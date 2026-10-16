@@ -23,7 +23,7 @@ jest.mock("../../Shared/utils.class", () => {
   };
 });
 
-import {getTheme} from "../customTheme";
+import {getChartCategoryColors, getTheme} from "../customTheme";
 import {LocalStorageKey} from "../../../constants/localStorage";
 
 describe("getTheme", () => {
@@ -91,5 +91,23 @@ describe("getTheme", () => {
     localStorage.setItem(LocalStorageKey.USE_ORIGINAL_COLOR_SCHEME, "false");
     const palette = getTheme(false);
     expect((palette.primary as {main: string}).main).toBe("#6a1b9a");
+  });
+});
+
+describe("getChartCategoryColors", () => {
+  test.each(["light", "dark"] as const)(
+    "%s: fünf Kategorien plus «Übrige», alle verschieden",
+    (mode) => {
+      const {categories, others} = getChartCategoryColors(mode);
+
+      expect(categories).toHaveLength(5);
+      expect(new Set([...categories, others]).size).toEqual(6);
+    },
+  );
+
+  test("Light und Dark haben eigene Farben", () => {
+    expect(getChartCategoryColors("light").categories).not.toEqual(
+      getChartCategoryColors("dark").categories,
+    );
   });
 });

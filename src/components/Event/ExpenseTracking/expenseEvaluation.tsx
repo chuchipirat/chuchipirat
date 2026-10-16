@@ -21,6 +21,7 @@ import {
 import {ExpenseDomain} from "./expense.types";
 import {BudgetDomain} from "./budget.types";
 import {ExpenseHistoryChart} from "./expenseHistoryChart";
+import {ExpenseBudgetShareChart} from "./expenseBudgetShareChart";
 import {
   SHOW as TEXT_SHOW,
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
@@ -55,7 +56,8 @@ import {formatLocalDate, parseLocalDate} from "../../../utils/dateUtils";
  *
  * @param eventId - ID des Anlasses, Teil des Speicherschlüssels der Budget-Auswahl.
  * @param expenses - Alle Ausgaben des Anlasses (ungefiltert, alle Währungen).
- * @param budgets - Alle Budgets des Anlasses, für Budget-Filter sowie Icon und
+ * @param budgets - Alle Budgets des Anlasses, für Budget-Filter, Sollbetrag,
+ *   Verteilung nach Budget (Reihenfolge bestimmt die Farben) sowie Icon und
  *   Name in der Top-5-Liste.
  * @param participantCount - Anzahl Teilnehmende (`groupConfiguration.totalPortions`).
  * @param eventDays - Alle Anlasstage, aufsteigend (`getEventDateList`). Achse
@@ -79,7 +81,7 @@ type ExpenseEvaluationProps = {
 };
 /**
  * Ansicht «Auswertung» der Abrechnungsseite: Kennzahlen über die Ausgaben
- * der ausgewählten Budgets (Gesamtausgaben, Ø pro Person, grösste Ausgaben)
+ * der ausgewählten Budgets (Gesamtausgaben, Ø pro Person, Verlauf, Verteilung nach Budget, grösste Ausgaben)
  * in einer Währung, plus ein Hinweis auf Ausgaben ohne Beleg.
  *
  * Lädt selbst nichts: Alle Werte werden bei jedem Render aus den Props
@@ -183,6 +185,10 @@ export const ExpenseEvaluation = ({
           eventDays.length,
         ),
       topExpenses: ExpenseStatistics.topExpenses(expensesInCurrency),
+      budgetShares: ExpenseStatistics.shareByBudget(
+        expensesInCurrency,
+        budgets,
+      ),
       history: {
         actualValues: ExpenseStatistics.cumulativeByEventDay({
           expenses: expensesInCurrency,
@@ -208,6 +214,8 @@ export const ExpenseEvaluation = ({
     budgets,
     excludedBudgetIds,
   ]);
+  // ein einziges Stück wäre ein voller Ring mit «100 %» ohne Aussage
+  const showBudgetShares = statistics.budgetShares.length >= 2;
   // Belege fehlen: alle Budgets, alle Währungen (Aufgabe, keine Statistik)
   const missingReceiptCount = React.useMemo(
     () => ExpenseStatistics.countWithoutAttachment(expenses),
@@ -351,7 +359,15 @@ export const ExpenseEvaluation = ({
               currency={selectedCurrency}
             />
           </Grid>
-          <Grid size={{xs: 12}}>
+          {showBudgetShares && (
+            <Grid size={{xs: 12, md: 5}}>
+              <ExpenseBudgetShareChart
+                shares={statistics.budgetShares}
+                currency={selectedCurrency}
+              />
+            </Grid>
+          )}
+          <Grid size={{xs: 12, md: showBudgetShares ? 7 : 12}}>
             <TopExpensesTile
               expenses={statistics.topExpenses}
               budgets={budgets}

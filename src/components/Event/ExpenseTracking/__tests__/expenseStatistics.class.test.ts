@@ -434,8 +434,16 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
 
   test("Ausgaben werden pro Tag aufsummiert", () => {
     const expenses = [
-      createExpense({id: "e1", date: parseLocalDate("2026-07-05"), amountInCents: 1000}),
-      createExpense({id: "e2", date: parseLocalDate("2026-07-07"), amountInCents: 2000}),
+      createExpense({
+        id: "e1",
+        date: parseLocalDate("2026-07-05"),
+        amountInCents: 1000,
+      }),
+      createExpense({
+        id: "e2",
+        date: parseLocalDate("2026-07-07"),
+        amountInCents: 2000,
+      }),
     ];
 
     expect(cumulate(expenses, "2026-07-07")).toEqual([
@@ -451,7 +459,11 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
 
   test("Ausgabe vor dem Anlass (Grosseinkauf) zählt an Tag 1", () => {
     const expenses = [
-      createExpense({id: "e1", date: parseLocalDate("2026-07-03"), amountInCents: 120000}),
+      createExpense({
+        id: "e1",
+        date: parseLocalDate("2026-07-03"),
+        amountInCents: 120000,
+      }),
     ];
 
     expect(cumulate(expenses, "2026-07-07").slice(0, 3)).toEqual([
@@ -462,7 +474,11 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
   test("Ausgabe in einer Lücke zwischen Zeitscheiben zählt am nächsten Anlasstag", () => {
     const actualValues = ExpenseStatistics.cumulativeByEventDay({
       expenses: [
-        createExpense({id: "e1", date: parseLocalDate("2026-07-09"), amountInCents: 500}),
+        createExpense({
+          id: "e1",
+          date: parseLocalDate("2026-07-09"),
+          amountInCents: 500,
+        }),
       ],
       eventDays: TWO_TIMESLICE_EVENT_DAYS,
       today: parseLocalDate("2026-07-12"),
@@ -474,7 +490,11 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
 
   test("Ausgabe nach dem Anlass zählt am letzten Anlasstag; nach dem Anlass kein null", () => {
     const expenses = [
-      createExpense({id: "e1", date: parseLocalDate("2026-07-13"), amountInCents: 700}),
+      createExpense({
+        id: "e1",
+        date: parseLocalDate("2026-07-13"),
+        amountInCents: 700,
+      }),
     ];
 
     expect(cumulate(expenses, "2026-07-13")).toEqual([0, 0, 0, 0, 0, 0, 700]);
@@ -482,7 +502,11 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
 
   test("vorausdatierte Ausgabe zählt heute (O1)", () => {
     const expenses = [
-      createExpense({id: "e1", date: parseLocalDate("2026-07-10"), amountInCents: 900}),
+      createExpense({
+        id: "e1",
+        date: parseLocalDate("2026-07-10"),
+        amountInCents: 900,
+      }),
     ];
 
     expect(cumulate(expenses, "2026-07-07")).toEqual([
@@ -498,10 +522,26 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
 
   test("letzter Wert entspricht der Summe aller Ausgaben (Invariante)", () => {
     const expenses = [
-      createExpense({id: "before", date: parseLocalDate("2026-07-01"), amountInCents: 100000}),
-      createExpense({id: "gap", date: parseLocalDate("2026-07-09"), amountInCents: 2500}),
-      createExpense({id: "after", date: parseLocalDate("2026-07-20"), amountInCents: 1300}),
-      createExpense({id: "today", date: parseLocalDate("2026-07-10"), amountInCents: 4200}),
+      createExpense({
+        id: "before",
+        date: parseLocalDate("2026-07-01"),
+        amountInCents: 100000,
+      }),
+      createExpense({
+        id: "gap",
+        date: parseLocalDate("2026-07-09"),
+        amountInCents: 2500,
+      }),
+      createExpense({
+        id: "after",
+        date: parseLocalDate("2026-07-20"),
+        amountInCents: 1300,
+      }),
+      createExpense({
+        id: "today",
+        date: parseLocalDate("2026-07-10"),
+        amountInCents: 4200,
+      }),
     ];
 
     const actualValues = ExpenseStatistics.cumulativeByEventDay({
@@ -509,7 +549,9 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
       eventDays: TWO_TIMESLICE_EVENT_DAYS,
       today: parseLocalDate("2026-07-10"),
     });
-    const lastActualValue = actualValues.filter((value) => value !== null).pop();
+    const lastActualValue = actualValues
+      .filter((value) => value !== null)
+      .pop();
 
     expect(lastActualValue).toEqual(
       ExpenseStatistics.sumAmountInCents(expenses),
@@ -518,18 +560,24 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
 
   test("heute vor dem Anlass → nur null", () => {
     const expenses = [
-      createExpense({id: "e1", date: parseLocalDate("2026-07-03"), amountInCents: 120000}),
+      createExpense({
+        id: "e1",
+        date: parseLocalDate("2026-07-03"),
+        amountInCents: 120000,
+      }),
     ];
 
-    expect(cumulate(expenses, "2026-07-04")).toEqual(
-      new Array(7).fill(null),
-    );
+    expect(cumulate(expenses, "2026-07-04")).toEqual(new Array(7).fill(null));
   });
 
   test("heute in der Lücke zwischen Zeitscheiben → Werte bis zum letzten vergangenen Anlasstag", () => {
     const actualValues = ExpenseStatistics.cumulativeByEventDay({
       expenses: [
-        createExpense({id: "e1", date: parseLocalDate("2026-07-07"), amountInCents: 300}),
+        createExpense({
+          id: "e1",
+          date: parseLocalDate("2026-07-07"),
+          amountInCents: 300,
+        }),
       ],
       eventDays: TWO_TIMESLICE_EVENT_DAYS,
       today: parseLocalDate("2026-07-09"),
@@ -597,7 +645,11 @@ describe("ExpenseStatistics.cumulativeByEventDay", () => {
 
       const actualValues = ExpenseStatistics.cumulativeByEventDay({
         expenses: [
-          createExpense({id: "e1", date: parseLocalDate("2026-10-26"), amountInCents: 800}),
+          createExpense({
+            id: "e1",
+            date: parseLocalDate("2026-10-26"),
+            amountInCents: 800,
+          }),
         ],
         eventDays: eventDaysAcrossDst,
         today: parseLocalDate("2026-10-27"),
@@ -696,5 +748,173 @@ describe("ExpenseStatistics.sumTargetAmountInCents", () => {
 
   test("keine Budgets → 0", () => {
     expect(sumTargets([])).toEqual(0);
+  });
+});
+
+describe("ExpenseStatistics.shareByBudget", () => {
+  /**
+   * Baut ein Test-Budget mit sprechender ID.
+   *
+   * @param id - Budget-ID.
+   * @param name - Budgetname.
+   * @returns Vollständiges Budget.
+   */
+  const createBudget = (id: string, name: string): BudgetDomain => ({
+    ...budget,
+    id,
+    name,
+  });
+  const kitchenBudget = createBudget("budget-kitchen", "Küche");
+  const themeBudget = createBudget("budget-theme", "Motto");
+  const materialBudget = createBudget("budget-material", "Material");
+  const BUDGETS = [kitchenBudget, themeBudget, materialBudget];
+
+  test("keine Ausgaben → leere Liste", () => {
+    expect(ExpenseStatistics.shareByBudget([], BUDGETS)).toEqual([]);
+  });
+
+  test("zwei Budgets → absteigend, mit Betrag, Anteil und Farbe nach Budget-Position", () => {
+    const shares = ExpenseStatistics.shareByBudget(
+      [
+        createExpense({budgetId: kitchenBudget.id, amountInCents: 5000}),
+        createExpense({budgetId: themeBudget.id, amountInCents: 10000}),
+        createExpense({budgetId: themeBudget.id, amountInCents: 5000}),
+      ],
+      BUDGETS,
+    );
+
+    expect(shares).toEqual([
+      {
+        id: themeBudget.id,
+        label: "Motto",
+        amountInCents: 15000,
+        sharePercent: 75,
+        colorIndex: 1,
+        groupedBudgetNames: [],
+      },
+      {
+        id: kitchenBudget.id,
+        label: "Küche",
+        amountInCents: 5000,
+        sharePercent: 25,
+        colorIndex: 0,
+        groupedBudgetNames: [],
+      },
+    ]);
+  });
+
+  test("Budget ohne Ausgaben fehlt", () => {
+    const shares = ExpenseStatistics.shareByBudget(
+      [createExpense({budgetId: kitchenBudget.id, amountInCents: 5000})],
+      BUDGETS,
+    );
+
+    expect(shares.map((share) => share.id)).toEqual([kitchenBudget.id]);
+  });
+
+  test("gleicher Betrag → Reihenfolge der Budgets", () => {
+    const shares = ExpenseStatistics.shareByBudget(
+      [
+        createExpense({budgetId: materialBudget.id, amountInCents: 5000}),
+        createExpense({budgetId: kitchenBudget.id, amountInCents: 5000}),
+      ],
+      BUDGETS,
+    );
+
+    expect(shares.map((share) => share.label)).toEqual(["Küche", "Material"]);
+  });
+
+  test("Ausgabe mit unbekannter Budget-ID wird übersprungen", () => {
+    const shares = ExpenseStatistics.shareByBudget(
+      [
+        createExpense({budgetId: kitchenBudget.id, amountInCents: 5000}),
+        createExpense({budgetId: "budget-unknown", amountInCents: 5000}),
+      ],
+      BUDGETS,
+    );
+
+    expect(shares).toHaveLength(1);
+    // Anteil nur über die bekannten Budgets
+    expect(shares[0].sharePercent).toEqual(100);
+  });
+
+  test("sehr kleiner Anteil → 0 (die Anzeige macht «< 1 %» daraus)", () => {
+    const shares = ExpenseStatistics.shareByBudget(
+      [
+        createExpense({budgetId: kitchenBudget.id, amountInCents: 99900}),
+        createExpense({budgetId: themeBudget.id, amountInCents: 100}),
+      ],
+      BUDGETS,
+    );
+
+    expect(shares.map((share) => share.sharePercent)).toEqual([100, 0]);
+  });
+
+  describe("mehr Budgets als Stücke", () => {
+    const SIX_BUDGETS = ["A", "B", "C", "D", "E", "F"].map((name) =>
+      createBudget(`budget-${name}`, name),
+    );
+    /** Beträge in Rappen, Budget A am grössten, F am kleinsten. */
+    const AMOUNTS = [40000, 30000, 15000, 10000, 3000, 2000];
+    const SIX_EXPENSES = SIX_BUDGETS.map((sixBudget, budgetIndex) =>
+      createExpense({
+        budgetId: sixBudget.id,
+        amountInCents: AMOUNTS[budgetIndex],
+      }),
+    );
+
+    test("sechs Budgets → vier einzeln + «Übrige» mit den zwei kleinsten", () => {
+      const shares = ExpenseStatistics.shareByBudget(SIX_EXPENSES, SIX_BUDGETS);
+
+      expect(shares.map((share) => share.label)).toEqual([
+        "A",
+        "B",
+        "C",
+        "D",
+        "Übrige (2 Budgets)",
+      ]);
+      expect(shares[4]).toEqual({
+        id: "others",
+        label: "Übrige (2 Budgets)",
+        amountInCents: 5000,
+        // aus der Summe gerechnet (5000 / 100000), nicht 3 % + 2 % gerundet
+        sharePercent: 5,
+        colorIndex: null,
+        groupedBudgetNames: ["E", "F"],
+      });
+    });
+
+    test("«Übrige»-Anteil wird nach dem Zusammenfassen gerundet", () => {
+      // E und F je 0.4 % → einzeln gerundet 0 + 0, zusammen 0.8 % → 1
+      const shares = ExpenseStatistics.shareByBudget(
+        SIX_BUDGETS.map((sixBudget, budgetIndex) =>
+          createExpense({
+            budgetId: sixBudget.id,
+            amountInCents: [40000, 30000, 19200, 10000, 400, 400][budgetIndex],
+          }),
+        ),
+        SIX_BUDGETS,
+      );
+
+      expect(shares[4].sharePercent).toEqual(1);
+    });
+
+    test("genau fünf Budgets → fünf einzeln, kein «Übrige»", () => {
+      const shares = ExpenseStatistics.shareByBudget(
+        SIX_EXPENSES.slice(0, 5),
+        SIX_BUDGETS,
+      );
+
+      expect(shares).toHaveLength(5);
+      expect(shares.map((share) => share.id)).not.toContain("others");
+    });
+
+    test("Summe aller Stücke = Summe der Ausgaben", () => {
+      const shares = ExpenseStatistics.shareByBudget(SIX_EXPENSES, SIX_BUDGETS);
+
+      expect(
+        shares.reduce((total, share) => total + share.amountInCents, 0),
+      ).toEqual(ExpenseStatistics.sumAmountInCents(SIX_EXPENSES));
+    });
   });
 });

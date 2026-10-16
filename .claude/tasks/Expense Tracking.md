@@ -3820,9 +3820,243 @@ Test-Anlass so legen, dass heute ein mittlerer Anlasstag ist (wie 6.1).
 
 ---
 
-### Story 6.4 – 6.5 (Umriss, wird vor Start ausdetailliert)
+### **Story 6.4 — Verteilung nach Budget (Donut)** ✅ erledigt
 
-- **6.4 — Verteilung nach Budget.** `ExpenseStatistics.shareByBudget(expenses, budgets, currency)` → `{budgetId, name, amountInCents}[]`, Budgets ohne Ausgaben weggelassen, absteigend. `PieChart` mit `innerRadius` (Donut), Legende unter dem Diagramm auf Mobile. Farben aus dem MUI-Theme, nicht hart codiert.
+> Ausgearbeitet 2026-10-16 nach Abgleich mit dem Code (Stand nach 6.3). Abschnitte mit **Offen** bitte vor dem Coden beantworten, alles andere ist entschieden.
+
+#### Worum es geht
+
+Eine neue Karte «Verteilung nach Budget» zeigt als Donut, wie sich die Ausgaben der Auswahl auf die Budgets verteilen. Daneben (Desktop) bzw. darunter (Mobile) steht eine Legende als Liste: Farbe, Budgetname, Betrag, Anteil in Prozent. Die Karte folgt wie alles in der Auswertung der Budget- und Währungsauswahl.
+
+```
+┌ Verteilung nach Budget ──────────┐ ┌ Grösste Ausgaben ────────────────┐
+│        ▄▄███▄▄                   │ │ Teds            15.10.  CHF 100  │
+│      ██▀     ▀██    ■ Küche      │ │ Migros          01.10.  CHF 100  │
+│     ██         ██     CHF 203.00 │ │ …                                │
+│      ██▄     ▄██      78 %       │ │                                  │
+│        ▀▀███▀▀      ■ Motto      │ │                                  │
+│                       CHF 57.00  │ │                                  │
+│                       22 %       │ │                                  │
+└──────────────────────────────────┘ └──────────────────────────────────┘
+```
+
+#### Abweichungen vom Umriss (nach Abgleich mit dem Code)
+
+- **U1 — Kein `currency`-Parameter.** Wie in 6.3 (U1): `shareByBudget` bekommt die schon nach Budget und Währung gefilterte Liste (`expensesInCurrency` aus dem `statistics`-Memo). Eine zweite Filterstelle könnte auseinanderlaufen.
+- **U2 — Eigene Legende statt der von x-charts.** Die eingebaute Legende ist SVG: Sie bricht lange Budgetnamen nicht um, überlappt auf schmalen Bildschirmen und zeigt keine Beträge. Stattdessen `slotProps={{legend: {hidden: true}}}` und eine MUI-`List` neben dem Donut. *Warum:* Sie ist responsiv, für Screenreader lesbar (Textalternative zum Diagramm, gleiche Rolle wie die Textzeile in 6.3), zeigt Betrag und Anteil und ist einfach zu testen.
+- **U3 — Eigene Datei** `expenseBudgetShareChart.tsx`, weil `expenseEvaluation.tsx` schon über 500 Zeilen hat (Tech-Debt aus 6.3).
+
+#### Fachliche Entscheidungen
+
+**D1 — Ein Stück pro Budget mit Ausgaben**, absteigend nach Betrag; bei gleichem Betrag in der Reihenfolge der Budgets (wie die Budget-Karten in der Übersicht), damit die Reihenfolge nach einem Realtime-Reload nicht springt. Budgets ohne Ausgaben in der Auswahl fehlen (ein Stück mit 0 % ist nicht sichtbar, nur eine Legendenzeile mit «CHF 0.00»).
+
+**D2 — Ausgaben, deren Budget (noch) fehlt, werden übersprungen.** `budget_id` ist `NOT NULL` mit Fremdschlüssel; der Fall entsteht nur kurz, wenn Realtime die Ausgaben vor den Budgets nachlädt (gleicher Fall wie in `TopExpensesTile`). Kein eigenes Stück «Unbekannt», aber in der JSDoc vermerkt. Folge: In diesem kurzen Moment ist die Summe der Stücke kleiner als die Gesamtausgaben. Bewusst akzeptiert.
+
+**D3 — Anteil in ganzen Prozent**, `Math.round(Betrag / Summe × 100)`. Die gerundeten Werte können zusammen 99 oder 101 ergeben; das ist üblich und wird nicht ausgeglichen (ein Ausgleich verfälscht einzelne Werte). Ein Anteil unter 0.5 % erscheint als «< 1 %», nicht als «0 %». Gerechnet wird im Stück-Objekt (`sharePercent`), damit Legende und Tooltip denselben Wert zeigen.
+
+**D4 — Wann die Karte erscheint:** erst ab **zwei** Stücken. Mit einem einzigen Budget wäre es ein voller Ring mit «100 %», der nichts zeigt. Dann entfällt die Karte ganz, und die Top-5-Liste nimmt die volle Breite ein. Kein Hinweistext: Die Ein-Budget-Auswahl ist bewusst gewählt und im Budget-Filter sichtbar.
+
+**D5 — Höchstens fünf Stücke, der Rest als «Übrige».** Mehr als fünf Farben lassen sich nicht mehr sicher unterscheiden (siehe D6), und schmale Stücke sind ohnehin nicht lesbar. Ab sechs Budgets mit Ausgaben: die vier grössten einzeln, alle weiteren zusammengefasst als fünftes Stück «Übrige (3 Budgets)» in neutralem Grau. Die Legende zeigt bei «Übrige» die Namen in einer zweiten Zeile, damit nichts versteckt ist.
+
+**D6 — Farben.** Das Theme hat keine Kategorienfarben: Primär/Sekundär sind die Marke, `warning`/`error`/`success` sind Bedeutungen (Orange heisst auf der Budget-Karte «bald überschritten»). Das Brand-Lime hat auf Weiss nur 1.2:1. → Eine kleine **Kategorienpalette im Theme-Modul** (`customTheme.ts`, Funktion `getChartCategoryColors(mode)`), aus den MUI-Farbobjekten (`@mui/material/colors`), nicht als Hex im Code:
+
+| Rolle | Light | Dark |
+|---|---|---|
+| 1 | `teal[700]` #00796b (5.3:1) | `teal[300]` #4db6ac |
+| 2 | `orange[900]` #e65100 (3.8:1) | `amber[300]` #ffd54f |
+| 3 | `indigo[400]` #5c6bc0 (4.9:1) | `indigo[200]` #9fa8da |
+| 4 | `pink[400]` #ec407a (3.8:1) | `pink[200]` #f48fb1 |
+| 5 | `lightGreen[800]` #558b2f (4.1:1) | `lightGreen[400]` #9ccc65 |
+| Übrige | `blueGrey[300]` #90a4ae | `blueGrey[500]` #607d8b |
+
+Geprüft (2026-10-16, Skript im Chat): alle fünf Kategorienfarben ≥ 3:1 gegen den Hintergrund (WCAG 1.4.11), und kleinster Farbabstand ΔE ≥ 10 auch bei simulierter Deuteranopie/Protanopie. Zusätzlich ist die Farbe nie die einzige Information: Die Legende nennt Name, Betrag und Anteil.
+
+Entschieden (O1): diese Palette, nicht die eingebaute x-charts-Palette.
+
+**D7 — Farbe hängt am Budget, nicht am Rang.** Farbe = Position des Budgets in `budgets` (Reihenfolge der Übersicht), nicht Position im Donut. *Warum:* Sonst wechselt «Küche» die Farbe, sobald «Motto» grösser wird, oder beim Wechsel der Währung bzw. beim Abwählen eines Budgets. Folge: Ab dem sechsten Budget wiederholen sich Farben in der Palette — aber das kommt nur vor, wenn mehr als fünf Budgets Ausgaben haben, und dann greift D5 («Übrige» ist grau, die vier grössten behalten ihre Farbe). Bei Wiederholung innerhalb der vier grössten (z.B. Budget 1 und 6) bekommt das spätere Budget die nächste freie Farbe (entschieden, O2).
+
+**D8 — Keine Beschriftung auf den Stücken, kein Text in der Mitte.** Prozentzahlen in schmalen Stücken überlappen; die Legende zeigt alles. Der Donut ist die Form, die Legende ist die Information. Tooltip beim Hover/Tippen: Budgetname, Betrag, Anteil.
+
+#### Entschieden (2026-10-16)
+
+- **O1 — Palette:** die **eigene Palette** `getChartCategoryColors(mode)` (D6), nicht `blueberryTwilight`. Passt zur App und ist auf Kontrast und Farbschwäche geprüft.
+- **O2 — Farbkollision bei mehr als fünf Budgets:** Wenn Budget 1 und Budget 6 beide unter den vier grössten sind, bekommt das **spätere Budget die nächste freie Farbe** der Palette (nur für diese Anzeige, `assignShareColors`). Bewusste Ausnahme von D7, nur in diesem seltenen Fall.
+
+#### Schnittstellen
+
+`expense.types.ts`:
+
+```ts
+/**
+ * Ein Stück der Verteilung nach Budget (Story 6.4).
+ */
+export type BudgetShare = {
+  /** Budget-ID oder `"others"` für das zusammengefasste Stück (D5). */
+  id: string;
+  /** Budgetname bzw. «Übrige (3 Budgets)». */
+  label: string;
+  /** Summe der Ausgaben dieses Stücks in Rappen. */
+  amountInCents: number;
+  /** Anteil in ganzen Prozent (D3). */
+  sharePercent: number;
+  /** Index des Budgets in `budgets` für die Farbe (D7); `null` bei «Übrige». */
+  colorIndex: number | null;
+  /** Namen der zusammengefassten Budgets, nur bei «Übrige». */
+  groupedBudgetNames: string[];
+};
+```
+
+`expenseStatistics.class.ts`:
+
+```ts
+/**
+ * Verteilung der Ausgaben auf die Budgets (D1–D5). Erwartet Ausgaben einer Währung.
+ */
+static shareByBudget(
+  expenses: ExpenseDomain[],
+  budgets: BudgetDomain[],
+  maxSlices = 5,
+): BudgetShare[];
+```
+
+Unter 20 Zeilen mit zwei privaten Hilfen: `sumByBudget` (Map Budget-ID → Betrag, D2) und `groupSmallShares` (D5). Der Anteil wird **nach** dem Zusammenfassen gerechnet.
+
+`customTheme.ts`:
+
+```ts
+/** Kategorienfarben für Diagramme (D6). Index = Rolle; der letzte Eintrag ist «Übrige». */
+export const getChartCategoryColors = (mode: "light" | "dark"): {categories: string[]; others: string};
+```
+
+`expenseBudgetShareChart.tsx` (neu):
+
+```ts
+type ExpenseBudgetShareChartProps = {
+  shares: BudgetShare[];   // fertig aus dem statistics-Memo
+  currency: string;
+};
+```
+
+Die Komponente holt die Farben über `useTheme().palette.mode` + `getChartCategoryColors`. O2 (Kollision) löst eine kleine reine Funktion `assignShareColors(shares, palette)` in derselben Datei, exportiert und getestet.
+
+`ExpenseEvaluation`: `statistics`-Memo um `budgetShares: ExpenseStatistics.shareByBudget(expensesInCurrency, budgets)` ergänzen (Dependency `budgets` ist seit 6.3 schon drin). Grid nach den Kacheln und dem Verlauf:
+
+```tsx
+{statistics.budgetShares.length >= 2 && (
+  <Grid size={{xs: 12, md: 5}}>
+    <ExpenseBudgetShareChart shares={statistics.budgetShares} currency={selectedCurrency} />
+  </Grid>
+)}
+<Grid size={{xs: 12, md: statistics.budgetShares.length >= 2 ? 7 : 12}}>
+  <TopExpensesTile … />
+</Grid>
+```
+
+Die Bedingung `>= 2` steht zweimal → als `const showBudgetShares = …` einmal berechnen.
+
+#### Darstellung
+
+- `PieChart` aus `@mui/x-charts/PieChart`, eine Serie: `innerRadius: "60%"`, `paddingAngle: 1`, `cornerRadius: 3`, `highlightScope: {fade: "global", highlight: "item"}` (Hover hebt ein Stück hervor), `valueFormatter` mit Betrag + Anteil, `slotProps={{legend: {hidden: true}}}`, `margin` klein, Höhe fest ~200 px.
+- Layout in der Karte: `Stack direction={{xs: "column", sm: "row"}}` — Donut und Legende nebeneinander ab `sm`, untereinander auf Mobile. Donut hat feste Breite (200 px), die Legende den Rest.
+- Legende: `List dense`, pro Stück ein `ListItem` mit Farbpunkt (`Box` 12×12, `borderRadius: "50%"`, `aria-hidden`), primär Name (`noWrap`), sekundär «CHF 203.00 · 78 %». Bei «Übrige» zusätzlich die Namen.
+- Styles in `expenseTracking.styles.ts` mit Präfix `evaluation…` (`evaluationShareLayout`, `evaluationShareLegendDot`).
+
+#### Texte (Block «Auswertung: Verteilung (6.4)»)
+
+| Konstante | Text |
+|---|---|
+| `EVALUATION_SHARE_TITLE` | «Verteilung nach Budget» |
+| `EVALUATION_SHARE_OTHERS(count)` | «Übrige (3 Budgets)» |
+| `EVALUATION_SHARE_PERCENT(percent)` | «78 %», bei 0 «< 1 %» (D3); normales Leerzeichen vor «%», wie in den übrigen Texten |
+| `EVALUATION_SHARE_DETAIL(amount, percent)` | «CHF 203.00 · 78 %» |
+
+#### Dateien 6.4
+
+| Datei | Änderung |
+|---|---|
+| `src/components/App/customTheme.ts` | `getChartCategoryColors` (D6) |
+| `expense.types.ts` | `BudgetShare` |
+| `expenseStatistics.class.ts` | `shareByBudget` + private `sumByBudget`, `groupSmallShares` |
+| `expenseBudgetShareChart.tsx` (neu) | Karte mit Donut und Legende, `assignShareColors` |
+| `expenseEvaluation.tsx` | `budgetShares` im Memo, `showBudgetShares`, Grid-Zeile |
+| `src/constants/text/expenseTracking.ts`, `…/styles/expenseTracking.styles.ts` | Texte, Styles |
+| Tests | siehe unten |
+
+#### Tests 6.4
+
+`expenseStatistics.class.test.ts`, `shareByBudget` (Budgets Küche, Motto, Material in dieser Reihenfolge):
+- keine Ausgaben → `[]`
+- zwei Budgets → absteigend, Beträge, Anteile (z.B. 15000/5000 → 75 / 25), `colorIndex` = Position in `budgets`
+- Budget ohne Ausgaben fehlt
+- gleicher Betrag → Reihenfolge der Budgets (D1)
+- Ausgabe mit unbekannter Budget-ID wird übersprungen (D2)
+- kleiner Anteil (1 von 1000) → `sharePercent` 0 (die Anzeige macht «< 1 %» daraus)
+- sechs Budgets mit Ausgaben → vier einzeln + «Übrige» mit Summe der zwei kleinsten, `groupedBudgetNames`, `colorIndex: null`
+- genau fünf Budgets → fünf einzeln, kein «Übrige»
+- Summe aller Stücke = Summe der Ausgaben (Invariante, ohne D2-Fall)
+
+`src/components/App/__tests__/customTheme.test.ts` (besteht, erweitern): `getChartCategoryColors` liefert je Modus fünf Kategorien + «Übrige», alle verschieden.
+
+`expenseBudgetShareChart.test.tsx` (neu, `PieChart` gemockt wie `LineChart` in 6.3):
+- `series[0].data` hat pro Stück `id`, `value`, `label`, `color`; `innerRadius` gesetzt; eingebaute Legende `hidden`
+- Legende zeigt Name, «CHF … · 78 %» je Stück, in Donut-Reihenfolge
+- Anteil 0 → «< 1 %»
+- «Übrige» zeigt die zusammengefassten Namen und die graue Farbe
+- `assignShareColors`: ohne Kollision Farbe nach `colorIndex`; Budget 1 und 6 unter den Stücken → zweites bekommt die nächste freie Farbe (O2)
+
+`expenseEvaluation.test.tsx`:
+- zwei Budgets mit Ausgaben → Karte sichtbar, Top-5 daneben
+- nur ein Budget mit Ausgaben (oder Motto abgewählt) → keine Karte
+- Währung wechseln → Stücke nur aus EUR-Ausgaben
+- Farbe von «Küche» bleibt beim Abwählen von «Motto» und Wiederwählen gleich (D7)
+
+#### Mutationsproben 6.4
+
+1. Sortierung in `shareByBudget` entfernen → «absteigend» rot.
+2. `colorIndex` aus der Position im Donut statt in `budgets` → «Farbe bleibt beim Abwählen gleich» rot.
+3. Anteil vor dem Zusammenfassen statt danach rechnen → «Übrige»-Test (Anteil des Übrige-Stücks) rot.
+4. `showBudgetShares` auf `>= 1` → «nur ein Budget → keine Karte» rot.
+
+#### Im Browser ansehen
+
+1. «Anlass mit Spende»: Küche und Motto mit Ausgaben → Donut mit zwei Stücken, Legende mit Beträgen und Anteilen, Summe = Gesamtausgaben.
+2. Hover über ein Stück → hervorgehoben, Tooltip mit Name, Betrag, Anteil.
+3. Motto abwählen → Karte verschwindet, Top-5 über die volle Breite. Wieder anwählen → Küche hat dieselbe Farbe wie vorher.
+4. Sechs Budgets mit Ausgaben anlegen → vier Stücke + «Übrige» grau mit Namen.
+5. Dark Mode (Systemeinstellung umstellen): Farben gut sichtbar.
+6. **Mobile (xs):** Donut über der Legende, lange Budgetnamen gekürzt (…), keine horizontale Scrollleiste.
+7. Konsole ohne Fehler/Warnungen.
+
+#### Umsetzung 6.4
+
+- [x] 0. O1 und O2 entschieden (2026-10-16)
+- [x] 1. `getChartCategoryColors` + Test
+- [x] 2. `BudgetShare`, `shareByBudget` + Tests (Mutationsproben 1 + 3)
+- [x] 3. Texte und Styles
+- [x] 4. `ExpenseBudgetShareChart` inkl. `assignShareColors` + Tests
+- [x] 5. `ExpenseEvaluation`: Memo, `showBudgetShares`, Grid; Integrationstests (Mutationsproben 2 + 4)
+- [x] 6. Verifikation: `npx tsc --noEmit`, `.tsx`-Zusatzprüfung (siehe Abschluss 6.3), `npx jest expenseStatistics expenseBudgetShareChart expenseEvaluation customTheme --watchAll=false`, `npm run lint`, Browser Desktop + Mobile + Dark
+- [ ] 7. Commit `feat(abrechnung): Verteilung nach Budget als Donut (Story 6.4)`
+
+**Abschluss-Review (2026-10-16):**
+
+- **Umsetzung:** Gebaut von Claude auf Wunsch des Nutzers (ganze Story), nach Plan. `shareByBudget` mit drei privaten Hilfen (`sumByBudget`, `groupSmallShares`, `sumOfSlices`); D2 ergibt sich von selbst, weil nur Budgets aus `budgets` ein Stück bekommen und die Summe aus den Stücken gerechnet wird.
+- **Abweichung U4 — Umbruch nach Kartenbreite statt `direction={{xs: "column", sm: "row"}}`.** Im Browser bei 920–1000 px (`md`) gefunden: Die Karte hat dort nur 5/12 Breite (~350 px), neben dem 200-px-Donut blieben der Legende ~110 px, Namen wurden gekürzt und «CHF 203.00 · 57 %» brach um. Jetzt `Stack direction="row"` mit `flexWrap: "wrap"` und Legende `flex: "1 1 150px"`: Passt sie nicht daneben, rutscht sie darunter, unabhängig vom Breakpoint. Geprüft bei 400 / 900 / 920 / 1000 / 1100 px: nichts abgeschnitten (ausser bewusst lange Namen mit «…»), kein Umbruch in der Betragszeile.
+- **O2 im Browser bestätigt:** Mit sieben Budgets (drei temporäre) bekam «Zelt» (Position 5 → Palettenfarbe 0 wie Küche) die nächste freie Farbe (Orange). Vergabe in Budget-Reihenfolge, nicht nach Grösse: Das frühere Budget behält immer seine Farbe, auch wenn das spätere grösser ist (eigener Test).
+- **Farben folgen der Reihenfolge von `budgets`**, und die ist im App-State alphabetisch (Küche, Leer, Motto, Test), nicht nach Erstellung. Darum ist Motto Indigo (Position 2), nicht Orange.
+- **Tests:** `customTheme.test.ts` +3, `expenseStatistics.class.test.ts` +10 (inkl. «Übrige»-Anteil nach dem Zusammenfassen gerundet: 0.4 % + 0.4 % → 1 %, nicht 0 + 0), `expenseBudgetShareChart.test.tsx` neu (11, inkl. Dark-Palette über `ThemeProvider`), `expenseEvaluation.test.tsx` +6.
+- **Mutationsproben 1–4** rot wie erwartet (Dateien gesichert, danach byte-gleich zurück): 1 → «absteigend», 3 → «Übrige-Anteil nach dem Zusammenfassen», 2 → «Farbe hängt am Budget», 4 → «nur ein Budget → keine Karte» + «Motto abwählen».
+- **Verifikation:** `tsc` grün, `.tsx`-Zusatzprüfung ohne Befund, `npm run lint` 0 Fehler (231 bestehende Warnungen, keine in geänderten Dateien), **ganze Jest-Suite 229/229 Dateien, 2966/2966 Tests grün**.
+- **Browser** (DEV gegen `supabase-db-test`, «Anlass mit Spende», Testausgaben mit Präfix «6.4-Test» und drei temporäre Budgets, danach gelöscht; Budget-Auswahl wiederhergestellt): Donut + Legende 78 / 22 / 1 % (Summe 101 %, D3), Summe = Gesamtausgaben; Hover hebt das Stück hervor, Tooltip «Motto CHF 57.00 · 22 %»; Motto ab- und wieder anwählen → Farben bleiben; eine Auswahl mit einem Budget → Karte weg, Top-5 volle Breite (Jest); sechs Budgets mit Ausgaben → vier + «Übrige (2 Budgets)» grau mit Namen; Mobile 400 px: Donut zentriert über der Legende, keine horizontale Scrollleiste, langer Name mit «…»; **Dark Mode** (per `matchMedia`-Patch in einem iframe, weil das Theme der Systemeinstellung folgt): dunkle Palette aktiv, Farben gut sichtbar. Konsole bei frischem Laden ohne Fehler/Warnungen.
+- **Hinweise:** Vite meldet beim Hot Reload «Could not Fast Refresh (`assignShareColors` export is incompatible)», nur Debug-Ausgabe, gleiches Muster wie `getBudgetFilterLabel` in `expenseEvaluation.tsx`. Beim Ordner-Split vor Epic 7 Hilfsfunktionen aus Komponenten-Dateien in eigene Dateien verschieben. `prettier` hat im Repo keine Konfiguration; die bestehenden Dateien sind ohne Leerzeichen in `{…}` formatiert → neue Dateien nur mit `npx prettier --no-bracket-spacing` formatieren.
+- **Helpcenter:** gesammelt am Ende von Epic 6.
+
+**Definition of Done 6.4:** wie unter 6; Mutationsproben 1–4 bestätigt; Farben im Light- und Dark-Modus im Browser geprüft.
+
+---
+
+### Story 6.5 (Umriss, wird vor Start ausdetailliert)
+
 - **6.5 — Ø pro Mahlzeit.** `event.tsx` reicht `state.menuplan` als Prop durch. Entschieden (2026-10-10):
   - **Problem:** Hauptmahlzeiten (Zmorge, Zmittag, Znacht) und kleine Mahlzeiten (Zvieri, Dessert …) kosten sehr unterschiedlich viel. Ein Durchschnitt über alle wäre verzerrt. Mahlzeitentyp-Namen sind freier Text pro Anlass.
   - **Lösung: Die Köchin wählt, welche Mahlzeitentypen zählen.** Die Kachel zeigt alle Mahlzeitentypen des Menüplans (`menuplan.mealTypes`, in Menüplan-Reihenfolge) als auswählbare `Chip`s. Vorauswahl: **alle ausgewählt**.

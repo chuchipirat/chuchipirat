@@ -312,3 +312,45 @@ export const EVALUATION_HISTORY_NOT_STARTED =
 /** Ersetzt das Diagramm, solange der Anlass keine Daten (Zeitscheiben) hat. */
 export const EVALUATION_HISTORY_NO_EVENT_DAYS =
   "Lege zuerst die Daten des Anlasses fest, dann erscheint hier der Verlauf.";
+
+/** Titel der Donut-Karte in der Auswertung (Story 6.4). */
+export const EVALUATION_SHARE_TITLE = "Verteilung nach Budget";
+/**
+ * Bezeichnung des zusammengefassten Stücks, wenn mehr Budgets Ausgaben haben,
+ * als der Donut Stücke zeigt.
+ *
+ * @param count - Anzahl zusammengefasster Budgets (immer mindestens 2).
+ * @returns z.B. «Übrige (3 Budgets)».
+ * @example
+ * EVALUATION_SHARE_OTHERS(3) // «Übrige (3 Budgets)»
+ */
+export const EVALUATION_SHARE_OTHERS = (count: number): string =>
+  `Übrige (${count} Budgets)`;
+/**
+ * Anteil eines Stücks in ganzen Prozent. Ein auf 0 gerundeter Anteil steht
+ * als «< 1 %», weil das Budget ja Ausgaben hat.
+ *
+ * @param percent - Anteil in ganzen Prozent (`BudgetShare.sharePercent`).
+ * @returns z.B. «78 %», bei 0 «< 1 %».
+ * @example
+ * EVALUATION_SHARE_PERCENT(78) // «78 %»
+ * EVALUATION_SHARE_PERCENT(0)  // «< 1 %»
+ */
+export const EVALUATION_SHARE_PERCENT = (percent: number): string =>
+  percent === 0 ? "< 1 %" : `${percent} %`;
+/**
+ * Zweite Zeile eines Legendeneintrags und Tooltip-Wert: Betrag und Anteil.
+ *
+ * @param amountInCents - Betrag des Stücks in Rappen.
+ * @param currency - Währung (ISO-4217-Code).
+ * @param percent - Anteil in ganzen Prozent.
+ * @returns z.B. «CHF 203.00 · 78 %».
+ * @example
+ * EVALUATION_SHARE_DETAIL(20300, "CHF", 78) // «CHF 203.00 · 78 %»
+ */
+export const EVALUATION_SHARE_DETAIL = (
+  amountInCents: number,
+  currency: string,
+  percent: number,
+): string =>
+  `${formatAmountFromCents(amountInCents, currency)} · ${EVALUATION_SHARE_PERCENT(percent)}`;

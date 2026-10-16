@@ -8,6 +8,7 @@
  * Hilfsfunktionen für Beschriftung und Hinweiszeile sowie das Zusammenspiel
  * mit Kennzahlen, Währungen und LocalStorage.
  * Story 6.3: Reihen des Ausgabenverlaufs folgen Budget- und Währungsauswahl.
+ * Story 6.4: Verteilung nach Budget (Sichtbarkeit, Layout, Farben bleiben stabil).
  */
 import React from "react";
 import {
@@ -19,6 +20,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 import type {LineChartProps} from "@mui/x-charts/LineChart";
+import type {PieChartProps} from "@mui/x-charts/PieChart";
 
 import {
   BudgetFilter,
@@ -33,6 +35,7 @@ import {budget, budget2} from "../__mocks__/budget.mock";
 import {parseLocalDate} from "../../../../utils/dateUtils";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import {LocalStorageKey} from "../../../../constants/localStorage";
+import {getChartCategoryColors} from "../../../App/customTheme";
 
 import {
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
@@ -50,6 +53,8 @@ import {
   EVALUATION_BUDGET_FILTER_PARTIAL as TEXT_EVALUATION_BUDGET_FILTER_PARTIAL,
   EVALUATION_BUDGET_FILTER_ARIA_LABEL as TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL,
   EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS as TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS,
+  EVALUATION_SHARE_TITLE as TEXT_EVALUATION_SHARE_TITLE,
+  EVALUATION_TOP_EXPENSES as TEXT_EVALUATION_TOP_EXPENSES,
 } from "../../../../constants/text/expenseTracking";
 import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
 
@@ -75,6 +80,26 @@ const getLastHistorySeries = () => {
   const series = (mockLineChart.mock.lastCall[0] as LineChartProps).series;
   return {actualValues: series[0].data, targetValues: series[1]?.data ?? null};
 };
+
+/**
+ * Mock: PieChart (Verteilung nach Budget, Story 6.4) — wie beim LineChart
+ * hält die Fake-Komponente ihre Props fest.
+ */
+const mockPieChart = jest.fn();
+jest.mock("@mui/x-charts/PieChart", () => ({
+  PieChart: (props: PieChartProps) => {
+    mockPieChart(props);
+    return <div data-testid="pie-chart" />;
+  },
+}));
+
+/**
+ * Liefert die Stücke des zuletzt gerenderten Donuts.
+ *
+ * @returns Pro Stück `id`, `value`, `label` und `color`.
+ */
+const getLastShareSlices = () =>
+  (mockPieChart.mock.lastCall[0] as PieChartProps).series[0].data;
 
 /**
  * Formatiert einen Betrag wie die Ansicht, aber mit normalem Leerzeichen.
@@ -143,6 +168,7 @@ const STORAGE_KEY = `${LocalStorageKey.EXPENSE_EVALUATION_EXCLUDED_BUDGETS}_${EV
 beforeEach(() => {
   localStorage.clear();
   mockLineChart.mockClear();
+  mockPieChart.mockClear();
 });
 
 /**
@@ -936,5 +962,131 @@ describe("ExpenseEvaluation, Ausgabenverlauf", () => {
     expect(screen.getByText(/^Stand Anlasstag 3 von 7:/)).toHaveTextContent(
       expectedAmount(18000, "CHF"),
     );
+  });
+});
+
+describe("ExpenseEvaluation, Verteilung nach Budget", () => {
+  const LIGHT_COLORS = getChartCategoryColors("light");
+  // Material (CHF 200) > Küche (CHF 100) > Motto (CHF 50), Motto zusätzlich EUR 20
+  const shareExpenses = [
+    createExpense({id: "kitchen-1", amountInCents: 10000}),
+    createExpense({id: "theme-1", amountInCents: 5000, budgetId: budget2.id}),
+    createExpense({
+      id: "material-1",
+      amountInCents: 20000,
+      budgetId: budget3.id,
+    }),
+    createExpense({
+      id: "theme-eur",
+      amountInCents: 2000,
+      budgetId: budget2.id,
+      currency: "EUR",
+    }),
+  ];
+  const threeBudgets = [budget, budget2, budget3];
+
+  /**
+   * Liefert die Grid-Spalte, in der eine Karte steckt.
+   *
+   * @param title - Titel der Karte.
+   * @returns Das umgebende `Grid`-Element.
+   */
+  const getGridItem = (title: string): Element | null =>
+    getTile(title).closest(".MuiGrid-root");
+
+  test("zwei Budgets mit Ausgaben → Karte sichtbar, Top-5 daneben", () => {
+    renderEvaluation(shareExpenses.slice(0, 2));
+
+    expect(screen.getByText(TEXT_EVALUATION_SHARE_TITLE)).toBeInTheDocument();
+    expect(getGridItem(TEXT_EVALUATION_SHARE_TITLE)).toHaveClass(
+      "MuiGrid-grid-md-5",
+    );
+    expect(getGridItem(TEXT_EVALUATION_TOP_EXPENSES)).toHaveClass(
+      "MuiGrid-grid-md-7",
+    );
+  });
+
+  test("nur ein Budget mit Ausgaben → keine Karte, Top-5 über die volle Breite", () => {
+    renderEvaluation([createExpense({id: "kitchen-1"})]);
+
+    expect(
+      screen.queryByText(TEXT_EVALUATION_SHARE_TITLE),
+    ).not.toBeInTheDocument();
+    expect(getGridItem(TEXT_EVALUATION_TOP_EXPENSES)).toHaveClass(
+      "MuiGrid-grid-md-12",
+    );
+  });
+
+  test("Motto abwählen → bei nur noch Küche verschwindet die Karte", async () => {
+    renderEvaluation(shareExpenses.slice(0, 2));
+
+    await clickBudgetMenuItems([budget2.name]);
+
+    expect(
+      screen.queryByText(TEXT_EVALUATION_SHARE_TITLE),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Stücke absteigend, Summe = Gesamtausgaben", () => {
+    renderEvaluation(shareExpenses, {budgets: threeBudgets});
+
+    const slices = getLastShareSlices();
+    expect(slices.map((slice) => slice.label)).toEqual([
+      "Material",
+      "Küche",
+      "Motto",
+    ]);
+    expect(slices.reduce((total, slice) => total + slice.value, 0)).toEqual(
+      35000,
+    );
+  });
+
+  test("Wechsel auf EUR → Stücke nur aus EUR-Ausgaben", () => {
+    renderEvaluation(
+      [
+        ...shareExpenses,
+        createExpense({
+          id: "kitchen-eur",
+          amountInCents: 1000,
+          currency: "EUR",
+        }),
+      ],
+      {budgets: threeBudgets},
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "EUR"}));
+
+    expect(
+      getLastShareSlices().map((slice) => [slice.label, slice.value]),
+    ).toEqual([
+      ["Motto", 2000],
+      ["Küche", 1000],
+    ]);
+  });
+
+  test("Farbe hängt am Budget: bleibt beim Ab- und Anwählen von Motto gleich", async () => {
+    renderEvaluation(shareExpenses, {budgets: threeBudgets});
+    /**
+     * Liefert die Farbe je Budgetname im zuletzt gerenderten Donut.
+     *
+     * @returns Map Budgetname → Farbe.
+     */
+    const getColorByLabel = () =>
+      new Map(getLastShareSlices().map((slice) => [slice.label, slice.color]));
+
+    // Material ist das grösste Stück, behält aber die Farbe seiner Budget-Position
+    expect(getColorByLabel().get("Küche")).toEqual(LIGHT_COLORS.categories[0]);
+    expect(getColorByLabel().get("Material")).toEqual(
+      LIGHT_COLORS.categories[2],
+    );
+
+    await clickBudgetMenuItems([budget2.name]);
+    expect(getColorByLabel().get("Küche")).toEqual(LIGHT_COLORS.categories[0]);
+    expect(getColorByLabel().get("Material")).toEqual(
+      LIGHT_COLORS.categories[2],
+    );
+
+    await clickBudgetMenuItems([budget2.name]);
+    expect(getColorByLabel().get("Motto")).toEqual(LIGHT_COLORS.categories[1]);
   });
 });
