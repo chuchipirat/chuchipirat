@@ -97,6 +97,7 @@ import {
 } from "./Expense/expenseDetailDialog";
 import {PayeeBalanceAccordion} from "./Expense/payeeBalanceAccordion";
 import {getEventDateList} from "../Menuplan/menuplanService";
+import {MenuplanData} from "../Menuplan/menuplan.types";
 import {ExpenseEvaluation} from "./Evaluation/expenseEvaluation";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
@@ -148,6 +149,8 @@ interface EventExpenseTrackingPageProps {
   event: Event;
   /** Gruppenzusammenstellung */
   groupConfiguration: EventGroupConfiguration;
+  /** Menüplan des Anlasses (für «Ø pro Mahlzeit» in der Auswertung). */
+  menuplan: MenuplanData;
   /** Datenbank-Service für Supabase-Zugriffe. */
   database: DatabaseService;
 }
@@ -166,6 +169,7 @@ interface EventExpenseTrackingPageProps {
 const EventExpenseTrackingPage = ({
   event,
   groupConfiguration,
+  menuplan,
   database,
 }: EventExpenseTrackingPageProps) => {
   const navigationValuesContext = React.useContext(NavigationValuesContext);
@@ -944,6 +948,7 @@ const EventExpenseTrackingPage = ({
                 handleEditClick={handleEditExpense}
                 handleShowMissingReceipts={handleShowMissingReceipts}
                 today={new Date()}
+                menuplan={menuplan}
               />
             )}
           </Box>

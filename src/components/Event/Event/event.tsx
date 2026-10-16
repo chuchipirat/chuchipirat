@@ -2423,6 +2423,7 @@ const EventPage = () => {
               <EventExpenseTrackingPage
                 event={state.event}
                 groupConfiguration={state.groupConfig}
+                menuplan={state.menuplan}
                 database={database}
               />
             </Container>

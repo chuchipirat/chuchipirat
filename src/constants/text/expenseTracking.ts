@@ -354,3 +354,47 @@ export const EVALUATION_SHARE_DETAIL = (
   percent: number,
 ): string =>
   `${formatAmountFromCents(amountInCents, currency)} · ${EVALUATION_SHARE_PERCENT(percent)}`;
+
+/** Titel der Kachel «Ø pro Mahlzeit» in der Auswertung (Story 6.5). */
+export const EVALUATION_AVERAGE_PER_MEAL = "Ø pro Mahlzeit";
+/**
+ * Zweite Zeile der Kachel «Ø pro Mahlzeit»: bisher verbraucht pro Person und
+ * Mahlzeit, gemessen an allen eingeplanten Mahlzeiten («bisher», wie bei
+ * «pro Person & Tag»).
+ *
+ * @param averagePerParticipantAndMealInCents - Betrag pro Person und Mahlzeit in Rappen.
+ * @param currency - ISO-4217-Währungscode.
+ * @returns z.B. «bisher CHF 1.26 pro Person & Mahlzeit».
+ * @example
+ * EVALUATION_PER_PARTICIPANT_AND_MEAL_SO_FAR(126, "CHF") // «bisher CHF 1.26 pro Person & Mahlzeit»
+ */
+export const EVALUATION_PER_PARTICIPANT_AND_MEAL_SO_FAR = (
+  averagePerParticipantAndMealInCents: number,
+  currency: string,
+): string =>
+  `bisher ${formatAmountFromCents(averagePerParticipantAndMealInCents, currency)} pro Person & Mahlzeit`;
+/**
+ * Rechengrundlage der Kachel «Ø pro Mahlzeit», damit sichtbar ist, womit
+ * gerechnet wurde. Ohne Teilnehmende nur die Mahlzeiten.
+ *
+ * @param mealCount - Anzahl eingeplanter Mahlzeiten.
+ * @param participantCount - Anzahl Teilnehmende.
+ * @returns z.B. «12 Mahlzeiten · 20 Personen», «1 Mahlzeit · 1 Person» oder «12 Mahlzeiten».
+ * @example
+ * EVALUATION_MEAL_BASIS(12, 20) // «12 Mahlzeiten · 20 Personen»
+ * EVALUATION_MEAL_BASIS(12, 0)  // «12 Mahlzeiten»
+ */
+export const EVALUATION_MEAL_BASIS = (
+  mealCount: number,
+  participantCount: number,
+): string => {
+  const mealPart = `${mealCount} ${mealCount === 1 ? "Mahlzeit" : "Mahlzeiten"}`;
+  const participantPart = `${participantCount} ${participantCount === 1 ? "Person" : "Personen"}`;
+  return participantCount > 0 ? `${mealPart} · ${participantPart}` : mealPart;
+};
+/** Ersetzt die Zahl, wenn für die gewählten Mahlzeitentypen nichts eingeplant ist. */
+export const EVALUATION_NO_PLANNED_MEALS =
+  "Für die gewählten Mahlzeiten ist im Menüplan noch nichts eingeplant.";
+/** Screenreader-Beschriftung der Mahlzeitentyp-Chips. */
+export const EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL =
+  "Mahlzeiten für den Durchschnitt auswählen";

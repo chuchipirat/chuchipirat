@@ -12,6 +12,7 @@ import {expense} from "../../Expense/__mocks__/expense.mock";
 import {budget} from "../../Budget/__mocks__/budget.mock";
 import {BudgetDomain, BudgetType} from "../../Budget/budget.types";
 import {parseLocalDate} from "../../../../../utils/dateUtils";
+import {buildMenuplan} from "../__mocks__/menuplan.mock";
 
 /**
  * Baut eine Test-Ausgabe auf Basis des Standard-Mocks (CHF, ohne Beleg).
@@ -916,5 +917,120 @@ describe("ExpenseStatistics.shareByBudget", () => {
         shares.reduce((total, share) => total + share.amountInCents, 0),
       ).toEqual(ExpenseStatistics.sumAmountInCents(SIX_EXPENSES));
     });
+  });
+});
+
+describe("ExpenseStatistics.averagePerMeal", () => {
+  test("Total ÷ Mahlzeiten, auf ganze Rappen gerundet", () => {
+    expect(ExpenseStatistics.averagePerMeal(30300, 12)).toEqual(2525);
+    expect(ExpenseStatistics.averagePerMeal(10000, 3)).toEqual(3333);
+  });
+
+  test("0 Mahlzeiten → null", () => {
+    expect(ExpenseStatistics.averagePerMeal(30300, 0)).toBeNull();
+  });
+});
+
+describe("ExpenseStatistics.averagePerParticipantAndMeal", () => {
+  test("Total ÷ Mahlzeiten ÷ Teilnehmende", () => {
+    expect(
+      ExpenseStatistics.averagePerParticipantAndMeal(30300, 12, 20),
+    ).toEqual(126);
+  });
+
+  test("Rundung nur einmal (50 ÷ 3 ÷ 2 = 8.33 → 8, nicht 17 ÷ 2 = 8.5 → 9)", () => {
+    expect(ExpenseStatistics.averagePerParticipantAndMeal(50, 3, 2)).toEqual(8);
+  });
+
+  test("0 Mahlzeiten oder 0 Teilnehmende → null", () => {
+    expect(
+      ExpenseStatistics.averagePerParticipantAndMeal(30300, 0, 20),
+    ).toBeNull();
+    expect(
+      ExpenseStatistics.averagePerParticipantAndMeal(30300, 12, 0),
+    ).toBeNull();
+  });
+});
+
+describe("ExpenseStatistics.countPlannedMeals", () => {
+  const MEAL_TYPES = ["zmorge", "zmittag", "zvieri"];
+
+  test("leerer Menüplan → 0", () => {
+    expect(
+      ExpenseStatistics.countPlannedMeals(buildMenuplan([], []), []),
+    ).toEqual(0);
+  });
+
+  test("Mahlzeit mit Rezept zählt, leerer Slot nicht", () => {
+    const menuplan = buildMenuplan(MEAL_TYPES, [
+      {date: "2026-07-05", mealType: "zmorge", menues: ["recipe"]},
+      {date: "2026-07-05", mealType: "zmittag", menues: ["empty"]},
+      {date: "2026-07-06", mealType: "zmorge", menues: []},
+    ]);
+
+    expect(ExpenseStatistics.countPlannedMeals(menuplan, [])).toEqual(1);
+  });
+
+  test("nur Produkt zählt, nur Material nicht", () => {
+    const menuplan = buildMenuplan(MEAL_TYPES, [
+      {date: "2026-07-05", mealType: "zvieri", menues: ["product"]},
+      {date: "2026-07-06", mealType: "zvieri", menues: ["material"]},
+    ]);
+
+    expect(ExpenseStatistics.countPlannedMeals(menuplan, [])).toEqual(1);
+  });
+
+  test("zwei Menüs in derselben Mahlzeit zählen einmal", () => {
+    const menuplan = buildMenuplan(MEAL_TYPES, [
+      {date: "2026-07-05", mealType: "zmittag", menues: ["recipe", "product"]},
+    ]);
+
+    expect(ExpenseStatistics.countPlannedMeals(menuplan, [])).toEqual(1);
+  });
+
+  test("abgewählter Typ zählt nicht, alle abgewählt → 0", () => {
+    const menuplan = buildMenuplan(MEAL_TYPES, [
+      {date: "2026-07-05", mealType: "zmorge", menues: ["recipe"]},
+      {date: "2026-07-05", mealType: "zvieri", menues: ["product"]},
+      {date: "2026-07-06", mealType: "zvieri", menues: ["product"]},
+    ]);
+
+    expect(ExpenseStatistics.countPlannedMeals(menuplan, ["zvieri"])).toEqual(
+      1,
+    );
+    expect(ExpenseStatistics.countPlannedMeals(menuplan, MEAL_TYPES)).toEqual(
+      0,
+    );
+  });
+
+  test("Mahlzeit eines Typs, der nicht mehr im Menüplan steht, zählt nicht", () => {
+    const menuplan = buildMenuplan(
+      ["zmorge"],
+      [
+        {date: "2026-07-05", mealType: "zmorge", menues: ["recipe"]},
+        {date: "2026-07-05", mealType: "deleted-type", menues: ["recipe"]},
+      ],
+    );
+
+    expect(ExpenseStatistics.countPlannedMeals(menuplan, [])).toEqual(1);
+  });
+
+  test("unbekannte abgewählte ID bewirkt nichts", () => {
+    const menuplan = buildMenuplan(MEAL_TYPES, [
+      {date: "2026-07-05", mealType: "zmorge", menues: ["recipe"]},
+    ]);
+
+    expect(
+      ExpenseStatistics.countPlannedMeals(menuplan, ["deleted-type"]),
+    ).toEqual(1);
+  });
+
+  test("Menü-UID ohne Menü wird übersprungen", () => {
+    const menuplan = buildMenuplan(MEAL_TYPES, [
+      {date: "2026-07-05", mealType: "zmorge", menues: ["recipe"]},
+    ]);
+    menuplan.meals["2026-07-05-zmorge"].menuOrder.unshift("missing-menue");
+
+    expect(ExpenseStatistics.countPlannedMeals(menuplan, [])).toEqual(1);
   });
 });

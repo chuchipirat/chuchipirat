@@ -10,12 +10,15 @@ import {useCustomStyles} from "../../../../constants/styles";
  * @param value - Grosse Hauptzahl, bereits formatiert. Wird ignoriert, wenn `hint` gesetzt ist.
  * @param details - Kleine Zeilen unter der Zahl (Anzahl, Rechengrundlage…), bereits formatiert.
  * @param hint - Erklärender Satz statt der Zahl, wenn es (noch) nichts zu zeigen gibt.
+ * @param children - Bedienelemente unter den Zeilen (z.B. Auswahl-Chips); auch
+ *   mit `hint` sichtbar, damit sich die Auswahl ändern lässt.
  */
 type StatisticTileProps = {
   title: string;
   value?: string;
   details?: string[];
   hint?: string;
+  children?: React.ReactNode;
 };
 
 /**
@@ -30,6 +33,7 @@ export const StatisticTile = ({
   value,
   details = [],
   hint,
+  children,
 }: StatisticTileProps) => {
   const classes = useCustomStyles();
 
@@ -61,6 +65,7 @@ export const StatisticTile = ({
           ))}
         </React.Fragment>
       )}
+      {children}
     </Card>
   );
 };

@@ -374,4 +374,10 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
   evaluationShareGroupedNames: {
     display: "block", // eigene Zeile unter Betrag und Anteil
   },
+  evaluationMealTypeChips: {
+    display: "flex",
+    flexWrap: "wrap", // viele Mahlzeitentypen brechen auf schmalen Kacheln um
+    gap: theme.spacing(1),
+    marginTop: theme.spacing(1.5),
+  },
 });
