@@ -346,4 +346,32 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
       fill: alpha(theme.palette.primary.main, 0.08),
     },
   },
+  evaluationShareLayout: {
+    // Umbruch nach der Breite der Karte statt nach Breakpoints: Die Karte ist
+    // je nach Grid-Spalte schmal (md: 5/12), auch wenn der Bildschirm breit ist
+    flexWrap: "wrap",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: theme.spacing(2),
+    marginTop: theme.spacing(1),
+  },
+  evaluationShareChart: {
+    flexShrink: 0, // Donut behält seine Grösse, die Legende nimmt den Rest
+  },
+  evaluationShareLegend: {
+    // passt neben den Donut erst ab 150px, sonst bricht sie darunter um
+    flex: "1 1 150px",
+    minWidth: 0, // erlaubt das Kürzen langer Budgetnamen (noWrap) im Flex-Layout
+  },
+  evaluationShareLegendIcon: {
+    minWidth: theme.spacing(3),
+  },
+  evaluationShareLegendDot: {
+    width: 12,
+    height: 12,
+    borderRadius: "50%",
+  },
+  evaluationShareGroupedNames: {
+    display: "block", // eigene Zeile unter Betrag und Anteil
+  },
 });

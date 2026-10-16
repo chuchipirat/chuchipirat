@@ -154,7 +154,7 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`src/components/Recipe/recipe.view.tsx`** (2'648 LOC) — Kommentare, Bewertungen, Skalierungsbereiche in separate Dateien extrahieren.
   **Priorität:** tief · **Komplexität:** gross
 
-- **`src/components/Event/ExpenseTracking/expenseEvaluation.tsx`** (gefunden bei Story 6.3, 2026-10-16) — über dem Richtwert von 500 Zeilen: enthält neben der Ansicht `BudgetFilter`, `StatisticTile`, `TopExpensesTile` und zwei Hilfsfunktionen. `BudgetFilter` (inkl. `getBudgetFilterLabel`) und `TopExpensesTile` in eigene Dateien unter `Evaluation/` auslagern — im Zwischenschritt «Ordner `ExpenseTracking/` aufteilen» vor Epic 7, nicht vorher.
+- **`src/components/Event/ExpenseTracking/expenseEvaluation.tsx`** (gefunden bei Story 6.3, 2026-10-16) — über dem Richtwert von 500 Zeilen (677 nach Story 6.4): enthält neben der Ansicht `BudgetFilter`, `StatisticTile`, `TopExpensesTile` und zwei Hilfsfunktionen. `BudgetFilter` (inkl. `getBudgetFilterLabel`) und `TopExpensesTile` in eigene Dateien unter `Evaluation/` auslagern — im Zwischenschritt «Ordner `ExpenseTracking/` aufteilen» vor Epic 7, nicht vorher.
   **Priorität:** mittel · **Komplexität:** klein
 
 ## Type Safety

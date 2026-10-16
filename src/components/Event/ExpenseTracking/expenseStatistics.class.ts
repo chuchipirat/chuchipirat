@@ -2,7 +2,11 @@ import {formatLocalDate} from "../../../utils/dateUtils";
 import {DEFAULT_CURRENCY} from "../../Shared/utils/currencyUtils";
 import {Budget} from "./budget.class";
 import {BudgetDomain} from "./budget.types";
-import {CurrenciesInUse, ExpenseDomain} from "./expense.types";
+import {BudgetShare, CurrenciesInUse, ExpenseDomain} from "./expense.types";
+import {EVALUATION_SHARE_OTHERS as TEXT_EVALUATION_SHARE_OTHERS} from "../../../constants/text";
+
+/** Ein Stück der Verteilung vor der Prozentrechnung (siehe `shareByBudget`). */
+type BudgetShareWithoutPercent = Omit<BudgetShare, "sharePercent">;
 
 /**
  * Kennzahlen über die Ausgaben eines Anlasses (Ansicht «Auswertung», Epic 6).
@@ -313,6 +317,114 @@ export class ExpenseStatistics {
           ),
         0,
       );
+  }
+
+  /**
+   * Verteilt die Ausgaben auf die Budgets, für den Donut der Auswertung.
+   * Erwartet Ausgaben einer Währung (vorher `filterByCurrency`).
+   *
+   * - Ein Stück pro Budget mit Ausgaben, grösstes zuerst; bei gleichem Betrag
+   *   in der Reihenfolge von `budgets`, damit nach einem Realtime-Reload nichts springt.
+   * - Ausgaben, deren Budget (noch) nicht in `budgets` ist, werden übersprungen
+   *   (kurzer Moment, wenn Realtime die Ausgaben vor den Budgets nachlädt).
+   * - Mehr als `maxSlices` Budgets: die grössten einzeln, der Rest als «Übrige».
+   * - Der Anteil wird nach dem Zusammenfassen gerechnet, damit «Übrige» seinen
+   *   eigenen gerundeten Anteil bekommt statt einer Summe gerundeter Anteile.
+   *
+   * @param expenses - Ausgaben einer Währung.
+   * @param budgets - Alle Budgets des Anlasses, in der Reihenfolge der Übersicht.
+   * @param maxSlices - Höchstzahl Stücke inklusive «Übrige» (Standard 5).
+   * @returns Stücke absteigend nach Betrag, leer ohne Ausgaben.
+   * @example
+   * // Küche CHF 150, Motto CHF 50
+   * ExpenseStatistics.shareByBudget(expensesInChf, budgets)
+   * // [{label: "Küche", sharePercent: 75, colorIndex: 0, …}, {label: "Motto", sharePercent: 25, colorIndex: 1, …}]
+   */
+  static shareByBudget(
+    expenses: ExpenseDomain[],
+    budgets: BudgetDomain[],
+    maxSlices = 5,
+  ): BudgetShare[] {
+    const amountByBudgetId = ExpenseStatistics.sumByBudget(expenses);
+    const slices = budgets
+      .map((budget, budgetIndex) => ({
+        id: budget.id,
+        label: budget.name,
+        amountInCents: amountByBudgetId.get(budget.id) ?? 0,
+        colorIndex: budgetIndex,
+        groupedBudgetNames: [],
+      }))
+      .filter((slice) => slice.amountInCents > 0)
+      .sort(
+        (sliceA, sliceB) =>
+          sliceB.amountInCents - sliceA.amountInCents ||
+          sliceA.colorIndex - sliceB.colorIndex,
+      );
+    const groupedSlices = ExpenseStatistics.groupSmallShares(slices, maxSlices);
+
+    const totalAmountInCents = ExpenseStatistics.sumOfSlices(groupedSlices);
+    return groupedSlices.map((slice) => ({
+      ...slice,
+      sharePercent: Math.round(
+        (slice.amountInCents / totalAmountInCents) * 100,
+      ),
+    }));
+  }
+
+  /**
+   * Summiert die Beträge je Budget.
+   *
+   * @param expenses - Ausgaben einer Währung.
+   * @returns Map Budget-ID → Summe in Rappen.
+   */
+  private static sumByBudget(expenses: ExpenseDomain[]): Map<string, number> {
+    const amountByBudgetId = new Map<string, number>();
+    expenses.forEach((expense) => {
+      amountByBudgetId.set(
+        expense.budgetId,
+        (amountByBudgetId.get(expense.budgetId) ?? 0) + expense.amountInCents,
+      );
+    });
+    return amountByBudgetId;
+  }
+
+  /**
+   * Fasst die kleinsten Stücke zu «Übrige» zusammen, wenn es mehr als
+   * `maxSlices` gibt. Bleibt die Anzahl darunter, kommen die Stücke unverändert zurück.
+   *
+   * @param slices - Stücke, absteigend nach Betrag sortiert.
+   * @param maxSlices - Höchstzahl Stücke inklusive «Übrige».
+   * @returns Die `maxSlices - 1` grössten Stücke plus «Übrige», sonst `slices`.
+   */
+  private static groupSmallShares(
+    slices: BudgetShareWithoutPercent[],
+    maxSlices: number,
+  ): BudgetShareWithoutPercent[] {
+    if (slices.length <= maxSlices) return slices;
+
+    const keptSlices = slices.slice(0, maxSlices - 1);
+    const groupedSlices = slices.slice(maxSlices - 1);
+    return [
+      ...keptSlices,
+      {
+        id: "others",
+        label: TEXT_EVALUATION_SHARE_OTHERS(groupedSlices.length),
+        amountInCents: ExpenseStatistics.sumOfSlices(groupedSlices),
+        // «Übrige» ist immer grau, nicht in der Farbe eines Budgets
+        colorIndex: null,
+        groupedBudgetNames: groupedSlices.map((slice) => slice.label),
+      },
+    ];
+  }
+
+  /**
+   * Summiert die Beträge von Stücken der Verteilung.
+   *
+   * @param slices - Stücke der Verteilung.
+   * @returns Summe in Rappen.
+   */
+  private static sumOfSlices(slices: BudgetShareWithoutPercent[]): number {
+    return slices.reduce((total, slice) => total + slice.amountInCents, 0);
   }
 
   /**

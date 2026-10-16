@@ -60,6 +60,26 @@ export type CurrenciesInUse = {
   defaultCurrency: string;
 };
 
+/**
+ * Ein Stück der Verteilung nach Budget in der Auswertung (Story 6.4).
+ *
+ * @param id - Budget-ID oder `"others"` für das zusammengefasste Stück «Übrige».
+ * @param label - Budgetname bzw. «Übrige (3 Budgets)».
+ * @param amountInCents - Summe der Ausgaben dieses Stücks in Rappen.
+ * @param sharePercent - Anteil an der Summe aller Stücke in ganzen Prozent.
+ * @param colorIndex - Position des Budgets in `budgets`, bestimmt die Farbe
+ *   (bleibt beim Ab- und Anwählen anderer Budgets gleich); `null` bei «Übrige».
+ * @param groupedBudgetNames - Namen der zusammengefassten Budgets, nur bei «Übrige».
+ */
+export type BudgetShare = {
+  id: string;
+  label: string;
+  amountInCents: number;
+  sharePercent: number;
+  colorIndex: number | null;
+  groupedBudgetNames: string[];
+};
+
 /* =====================================================================
 // Domain-Modelle (camelCase, werden in der App verwendet)
 // ===================================================================== */
