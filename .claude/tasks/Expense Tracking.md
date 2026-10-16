@@ -2727,6 +2727,8 @@ Ziel: Die Küche sieht während des Lagers auf einen Blick, wo sie steht: ob ein
 
 Danach: Rückblick Epic 6, Helpcenter-Seite `docs/event/expensetracking.md` um "Auswertung" ergänzen (kann in 6.5 oder als eigener Schritt passieren).
 
+**Helpcenter Epic 6 ✅ (2026-10-16):** In `docs/event/expensetracking.md` (Seite vom Nutzer angelegt, Helpcenter-Branch `feature/expense-tracking`) die Abschnitte «Hochrechnung pro Budget» (6.1) und «Auswertung» geschrieben: Budget-/Währungsauswahl, Kennzahlen inkl. «Welche Mahlzeiten zählen?», Ausgabenverlauf, Verteilung nach Budget, Grösste Ausgaben, Fehlende Belege. Danach auf Wunsch des Nutzers auch Epic 1–5 ergänzt (Freischalten, Budgets inkl. Karte/Hochrechnung/Löschen, Ausgaben, «Wer hat bezahlt?», Belege, Ausgabenliste, Beträge pro Person mit Link auf `profile.md#zahlungsangaben` aus Epic 5, gemeinsames Arbeiten). 8 Screenshot-Marker `<!-- 📸 SCREENSHOT: … → /docs/event/images/expensetracking_*.png -->` für den Nutzer. Jekyll-Build und Prettier grün, nicht committet. Ab Epic 7 wird die Seite nach jedem Epic ergänzt; der Belege-Hinweis erwähnt bewusst noch keinen Download (kommt mit Epic 7/8).
+
 ---
 
 ### **Story 6.1 — Hochrechnung pro Budget** ✅ erledigt
