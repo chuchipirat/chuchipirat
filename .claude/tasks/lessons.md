@@ -33,3 +33,11 @@
 **Rule**: For the expense-tracking feature, plans, checklists, deviations and review notes go into the matching package section of `Expense Tracking.md`. Do not touch `todo.md` for this feature.
 
 **How to apply**: Before writing a plan, check whether the feature has its own story/task file in `.claude/tasks/`; if so, plan there.
+
+## 2026-10-16: Identifiers say "event", never "camp"
+
+**What happened**: The 6.1–6.3 plans and my code sketches used `campDays`, `campDayKeys`, `elapsedCampDays`, `cumulativeByCampDay` etc. The user had these renamed throughout: the code always talks about the *event*, never about a camp.
+
+**Rule**: English identifiers use `event` (`eventDays`, `eventDayCount`, `getEventDayIndex`), matching the German "Anlass" in UI and comments. Never `camp`, also not in plan sketches or test fixtures.
+
+**How to apply**: Before naming anything, grep for the existing term (`grep -rn "eventDay" src`). Also my comments in code sketches must be German, even when I post them only in chat — the user copies them into the code.
