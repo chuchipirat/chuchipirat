@@ -4068,7 +4068,7 @@ Die Bedingung `>= 2` steht zweimal → als `const showBudgetShares = …` einmal
   - Ohne geplante Mahlzeiten, ohne ausgewählten Typ oder ohne Teilnehmende → Hinweis statt Zahl (Entscheidung 10).
   - **Für welches Budget?** Erledigt durch 6.2b: Gerechnet wird über die ausgewählten Budgets. Wer nur das Essen sehen will, wählt die übrigen ab. Für die gemerkten Mahlzeitentypen `useStoredIdSet` aus 6.2b wiederverwenden (auch dort die *abgewählten* speichern).
 
-## Zwischenschritt vor Epic 7 — Ordner `ExpenseTracking/` nach Unterthema aufteilen (in Arbeit)
+## Zwischenschritt vor Epic 7 — Ordner `ExpenseTracking/` nach Unterthema aufteilen ✅ erledigt
 
 **Erst nach Abschluss von Epic 6, vor dem ersten Paket von Epic 7** (entschieden 2026-10-10). Grund: Epic 7 bringt mehrere Dateien auf einmal (Datenaufbereitung, PDF-Dokument, Dialog), danach wird der flache Ordner unübersichtlich.
 
@@ -4093,8 +4093,8 @@ Die Bedingung `>= 2` steht zweimal → als `const showBudgetShares = …` einmal
 Vorgezogen auf Wunsch des Nutzers; 6.5 kommt danach direkt in `Evaluation/`. Zwei Commits statt einem, damit das reine Verschieben getrennt prüfbar bleibt:
 
 - [x] 1. **Verschieben** per Skript (27 Dateien `git mv`, relative Importe in 31 Dateien neu berechnet, auch `jest.mock`/`requireActual`), plus die zwei Diagramme aus 6.3/6.4 nach `Evaluation/`. `budget.mock.ts` → `Budget/__mocks__/`, `expense.mock.ts` → `Expense/__mocks__/`. Geprüft: `tsc` grün, `.tsx`-Prüfung über das ganze Repo vorher/nachher gleich viele (bestehende) Fehler und keine fehlenden Module, ganze Jest-Suite 229/2966 grün, Lint 0 Fehler, Importe von ausserhalb nur noch Repositories (`*.types`) und `event.tsx`. `architecture.md` um «Large Feature Folders» ergänzt, Pfade in `tech-debt.md` nachgezogen. Commit `refactor(abrechnung): Ordner ExpenseTracking nach Unterthema aufteilen`.
-- [ ] 2. **`expenseEvaluation.tsx` aufteilen** (Tech-Debt, 677 Zeilen): `BudgetFilter`, `StatisticTile`, `TopExpensesTile` in eigene Dateien unter `Evaluation/`; Nicht-Komponenten-Exporte (`getBudgetFilterLabel`, `getStatisticsScopeNote`, `assignShareColors`) in `.ts`-Dateien, damit Vite Fast Refresh nicht mehr abbricht. Reines Verschieben, Tests mitziehen. Commit `refactor(abrechnung): expenseEvaluation.tsx aufteilen`.
-- [ ] 3. Browser-Rundlauf (Übersicht, Ausgaben, Auswertung) + Konsole.
+- [x] 2. **`expenseEvaluation.tsx` aufteilen** (Tech-Debt, 677 → 361 Zeilen): `statisticTile.tsx`, `topExpensesTile.tsx`, `budgetFilter.tsx` (Komponenten), `evaluationLabels.ts` (`getBudgetFilterLabel`, `getStatisticsScopeNote`) und `shareColors.ts` (`assignShareColors` aus dem Donut) — Nicht-Komponenten-Exporte in `.ts`-Dateien, damit Vite Fast Refresh nicht mehr abbricht. Code per Skript zeilengenau ausgeschnitten; geprüft, dass ausser Importen nur `export` an den zwei bisher privaten Komponenten neu ist. Tests der reinen Funktionen in `evaluationLabels.test.ts` und `shareColors.test.ts` verschoben; `BudgetFilter`-Tests bleiben in `expenseEvaluation.test.tsx` (teilen sich dort die Menü-Hilfen). Ganze Suite 231 Dateien / 2966 Tests (gleich viele Tests wie vorher), Lint 0 Fehler. Tech-Debt-Eintrag entfernt; neu notiert: MUI-`Popover`-`console.error` in jsdom (bestand schon vorher, 47× in `expenseEvaluation.test.tsx`). Commit `refactor(abrechnung): expenseEvaluation.tsx aufteilen`.
+- [x] 3. Browser-Rundlauf (DEV): Übersicht (5 Karten), Ausgabenliste, Auswertung mit allen Karten, Budget-Filter-Menü, Top-5-Zeile öffnet den Bearbeiten-Dialog (ohne Speichern geschlossen). Konsole bei frischem Laden ohne Fehler/Warnungen.
 
 ## Epic 7 — PDF-Abrechnung
 

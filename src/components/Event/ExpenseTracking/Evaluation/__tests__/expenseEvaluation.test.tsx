@@ -22,12 +22,8 @@ import "@testing-library/jest-dom";
 import type {LineChartProps} from "@mui/x-charts/LineChart";
 import type {PieChartProps} from "@mui/x-charts/PieChart";
 
-import {
-  BudgetFilter,
-  ExpenseEvaluation,
-  getBudgetFilterLabel,
-  getStatisticsScopeNote,
-} from "../expenseEvaluation";
+import {ExpenseEvaluation} from "../expenseEvaluation";
+import {BudgetFilter} from "../budgetFilter";
 import {BudgetDomain} from "../../Budget/budget.types";
 import {ExpenseDomain} from "../../Expense/expense.types";
 import {expense} from "../../Expense/__mocks__/expense.mock";
@@ -526,50 +522,6 @@ describe("ExpenseEvaluation, grösste Ausgaben", () => {
 
     expect(handleEditClick).toHaveBeenCalledTimes(1);
     expect(handleEditClick).toHaveBeenCalledWith("e1");
-  });
-});
-
-describe("getBudgetFilterLabel", () => {
-  test("alle Budgets gewählt → «Alle Budgets»", () => {
-    expect(getBudgetFilterLabel([budget, budget2], 2)).toBe(
-      TEXT_EVALUATION_BUDGET_FILTER_ALL,
-    );
-  });
-
-  test("genau ein Budget gewählt → dessen Name", () => {
-    expect(getBudgetFilterLabel([budget2], 3)).toBe(budget2.name);
-  });
-
-  test("Teilauswahl mit mehreren → «2 von 3 Budgets»", () => {
-    expect(getBudgetFilterLabel([budget, budget2], 3)).toBe(
-      TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(2, 3),
-    );
-    expect(TEXT_EVALUATION_BUDGET_FILTER_PARTIAL(2, 3)).toBe("2 von 3 Budgets");
-  });
-});
-
-describe("getStatisticsScopeNote", () => {
-  test("nichts ausgeblendet → null", () => {
-    expect(getStatisticsScopeNote([], [])).toBeNull();
-  });
-
-  test("nur andere Währungen → nur Währungssatz", () => {
-    expect(getStatisticsScopeNote(["EUR"], [])).toBe(
-      "Ausgaben in EUR sind hier nicht enthalten.",
-    );
-  });
-
-  test("nur abgewählte Budgets → nur Budgetsatz, Aufzählung mit «und»", () => {
-    expect(getStatisticsScopeNote([], ["Motto", "Material", "Lagerbau"])).toBe(
-      "Nicht berücksichtigte Budgets: Motto, Material und Lagerbau.",
-    );
-  });
-
-  test("beides → zuerst Währungen, dann Budgets", () => {
-    expect(getStatisticsScopeNote(["EUR", "USD"], ["Motto"])).toBe(
-      "Ausgaben in EUR und USD sind hier nicht enthalten. " +
-        "Nicht berücksichtigte Budgets: Motto.",
-    );
   });
 });
 

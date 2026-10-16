@@ -2,8 +2,8 @@
  * Unit-Tests für die Karte «Verteilung nach Budget» (expenseBudgetShareChart.tsx).
  *
  * Reine Anzeige-Komponente (Story 6.4), darum ohne Contexts: Props direkt.
- * Schwerpunkte: Daten, die an den Donut gehen, die Legende und die
- * Farbzuordnung (`assignShareColors`).
+ * Schwerpunkte: Daten, die an den Donut gehen, und die Legende. Die
+ * Farbzuordnung selbst testet `shareColors.test.ts`.
  */
 import React from "react";
 import {render, screen, within} from "@testing-library/react";
@@ -11,10 +11,7 @@ import "@testing-library/jest-dom";
 import {createTheme, ThemeProvider} from "@mui/material/styles";
 import type {PieChartProps} from "@mui/x-charts/PieChart";
 
-import {
-  assignShareColors,
-  ExpenseBudgetShareChart,
-} from "../expenseBudgetShareChart";
+import {ExpenseBudgetShareChart} from "../expenseBudgetShareChart";
 import {BudgetShare} from "../../Expense/expense.types";
 import {getChartCategoryColors} from "../../../../App/customTheme";
 import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
@@ -204,35 +201,5 @@ describe("ExpenseBudgetShareChart, Legende", () => {
     expect(screen.getByTestId("evaluation-share-dot-others")).toHaveStyle({
       backgroundColor: LIGHT_COLORS.others,
     });
-  });
-});
-
-describe("assignShareColors", () => {
-  test("ohne Kollision Farbe nach Budget-Position, nicht nach Rang", () => {
-    // Motto (Budget 2) ist grösser und steht vorne, behält aber Farbe 2
-    expect(
-      assignShareColors([THEME_SHARE, KITCHEN_SHARE], LIGHT_COLORS),
-    ).toEqual([LIGHT_COLORS.categories[1], LIGHT_COLORS.categories[0]]);
-  });
-
-  test("Budget 1 und 6 im Donut → Budget 6 bekommt die nächste freie Farbe", () => {
-    const sixthShare = createShare({id: "budget-6", colorIndex: 5});
-    // Budget 6 steht als grösstes Stück vorne; Budget 1 behält trotzdem Farbe 1
-    expect(
-      assignShareColors([sixthShare, KITCHEN_SHARE, THEME_SHARE], LIGHT_COLORS),
-    ).toEqual([
-      LIGHT_COLORS.categories[2],
-      LIGHT_COLORS.categories[0],
-      LIGHT_COLORS.categories[1],
-    ]);
-  });
-
-  test("«Übrige» immer grau", () => {
-    expect(
-      assignShareColors(
-        [KITCHEN_SHARE, createShare({id: "others", colorIndex: null})],
-        LIGHT_COLORS,
-      ),
-    ).toEqual([LIGHT_COLORS.categories[0], LIGHT_COLORS.others]);
   });
 });
