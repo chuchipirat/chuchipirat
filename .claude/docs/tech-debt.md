@@ -154,9 +154,6 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`src/components/Recipe/recipe.view.tsx`** (2'648 LOC) — Kommentare, Bewertungen, Skalierungsbereiche in separate Dateien extrahieren.
   **Priorität:** tief · **Komplexität:** gross
 
-- **`src/components/Event/ExpenseTracking/Evaluation/expenseEvaluation.tsx`** (gefunden bei Story 6.3, 2026-10-16) — über dem Richtwert von 500 Zeilen (677 nach Story 6.4): enthält neben der Ansicht `BudgetFilter`, `StatisticTile`, `TopExpensesTile` und zwei Hilfsfunktionen. `BudgetFilter` (inkl. `getBudgetFilterLabel`) und `TopExpensesTile` in eigene Dateien unter `Evaluation/` auslagern — im Zwischenschritt «Ordner `ExpenseTracking/` aufteilen» vor Epic 7, nicht vorher.
-  **Priorität:** mittel · **Komplexität:** klein
-
 ## Type Safety
 
 - **`tsconfig.json` prüft keine `.tsx`-Dateien** — `include` ist `["./src/**/*.ts", "../functions/**/*.ts"]`, enthält kein `*.tsx`-Pattern. `npx tsc --noEmit` (lokal wie im CI-`typecheck`-Job, `.github/workflows/ci.yml`) hat dadurch noch nie eine einzige React-Komponente typgeprüft. Bestätigt reale, dadurch unentdeckte Fehler: `App.tsx` übergibt eine `themeLight`-Prop, die auf `OverrideFeedbackConfiguration` nicht existiert; `Recipe/dialogRecipeQuickView.tsx` ruft `Recipe.getRecipe(...)` auf, eine Methode, die auf der Klasse gar nicht existiert (Datei ist allerdings unerreichbar — keine Importer, keine Route); `Temp/temp.tsx` und `Temp/templates.tsx` haben mehrere echte Typfehler (ebenfalls unerreichbar, keine Route). Fix: `.tsx` zu `include` hinzufügen und die dadurch aufgedeckten Fehler in einer eigenen Aufräum-PR beheben — nicht nebenbei in einer fachfremden Änderung, da unklar ist, wie viele Fehler insgesamt auftauchen.
@@ -224,7 +221,7 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   4. `Shared/utils.class.ts` aufteilen: statische Methoden thematisch in einzelne Funktions-Module unter `src/utils/` (z.B. `urlUtils.ts`, `validationUtils.ts`, Datum → `dateUtils.ts`), Sammelklasse danach entfernen. Grösster Brocken (64 Importer) — schrittweise, pro Thema ein Commit; dabei auf Überschneidungen mit `dateUtils.ts` achten.
   **Priorität:** tief · **Komplexität:** klein (Schritte 1–3), mittel (Schritt 4)
 
-- **Datumsanzeige `de-CH` dreifach kopiert** (gefunden bei Story 6.2a, 2026-10-11) — `expense.date.toLocaleString("de-CH", {year: "numeric", month: "2-digit", day: "2-digit"})` steht identisch in `Event/ExpenseTracking/Expense/expenseList.tsx`, `Expense/payeeBalanceAccordion.tsx` und `Evaluation/expenseEvaluation.tsx` (Top-5-Liste). Einen Helfer `formatDisplayDate(date)` in `src/utils/dateUtils.ts` anlegen (mit Test) und die drei Stellen darauf umstellen. Spätestens vor Epic 7 (PDF), weil die Abrechnung das Datum erneut formatiert.
+- **Datumsanzeige `de-CH` dreifach kopiert** (gefunden bei Story 6.2a, 2026-10-11) — `expense.date.toLocaleString("de-CH", {year: "numeric", month: "2-digit", day: "2-digit"})` steht identisch in `Event/ExpenseTracking/Expense/expenseList.tsx`, `Expense/payeeBalanceAccordion.tsx` und `Evaluation/topExpensesTile.tsx` (Top-5-Liste). Einen Helfer `formatDisplayDate(date)` in `src/utils/dateUtils.ts` anlegen (mit Test) und die drei Stellen darauf umstellen. Spätestens vor Epic 7 (PDF), weil die Abrechnung das Datum erneut formatiert.
   **Priorität:** tief · **Komplexität:** klein
 
 - **Fixe Währung «CHF» noch hart codiert** (gefunden bei Story 6.2a, 2026-10-11) — Seit 6.2a gibt es `DEFAULT_CURRENCY` in `Shared/utils/currencyUtils.ts`. `"CHF"` steht aber noch direkt in `Event/ExpenseTracking/Budget/budgetDetailDialog.tsx` (Vorbelegung neues Budget) und `Donate/DonationResult.tsx`. Auf die Konstante umstellen.
@@ -297,6 +294,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   **Priorität:** tief · **Komplexität:** klein
 
 ## Other
+
+- **Testausgabe «Make sure the element is present in the document or that it's not display none.»** (gefunden beim Ordner-Split vor Epic 7, 2026-10-16) — MUI `Popover` (Menü/Popover mit `anchorEl`) meldet in jsdom ein `console.error`, weil das Ankerelement kein Layout hat. Tritt u.a. in `Evaluation/__tests__/expenseEvaluation.test.tsx` (47×, Budget-Filter-Menü), `Expense/__tests__/expenseDetailDialog.test.tsx`, `Budget/__tests__/budgetDetailDialog.test.tsx` und `__tests__/expenseTracking.test.tsx` auf. Tests sind grün, aber das Rauschen verdeckt echte Fehler. Lösung: in `jestSetup.ts` `Element.prototype.getBoundingClientRect` für Anker sinnvoll stubben oder die Meldung gezielt filtern.
+  **Priorität:** tief · **Komplexität:** klein
 
 - **`@mui/x-*` gemeinsam auf v8 heben** (Story 6.3, 2026-10-16) — `@mui/x-charts` (7.29), `@mui/x-data-grid` (7.29) und `@mui/x-date-pickers` (7.29) teilen sich `@mui/x-internals`; deshalb bewusst alle auf v7. Ein Upgrade nur gemeinsam (zwei Kopien von `x-internals` im Bundle vermeiden), mit Migrationsleitfaden der MUI-X-Doku. Bei v8 prüfen: `expenseHistoryChart.tsx` leitet `AxisValueFormatterContext` aus `AxisConfig` ab (in v7 nicht öffentlich exportiert, in v8 evtl. direkt importierbar) und stylt die Soll-Linie über die Klasse `.MuiLineElement-series-target`.
   **Priorität:** tief · **Komplexität:** mittel
