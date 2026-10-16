@@ -20,7 +20,7 @@ import {
 
 import {ExpenseDomain} from "./expense.types";
 import {BudgetDomain} from "./budget.types";
-
+import {ExpenseHistoryChart} from "./expenseHistoryChart";
 import {
   SHOW as TEXT_SHOW,
   NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
@@ -48,6 +48,7 @@ import {BUDGET_ICON_MAP} from "./budgetIcons";
 import {useStoredIdSet} from "../../../hooks/useStoredIdSet";
 import {LocalStorageKey} from "../../../constants/localStorage";
 import {ArrowDropDown} from "@mui/icons-material";
+import {formatLocalDate, parseLocalDate} from "../../../utils/dateUtils";
 
 /**
  * Props für {@link ExpenseEvaluation}.
@@ -57,8 +58,11 @@ import {ArrowDropDown} from "@mui/icons-material";
  * @param budgets - Alle Budgets des Anlasses, für Budget-Filter sowie Icon und
  *   Name in der Top-5-Liste.
  * @param participantCount - Anzahl Teilnehmende (`groupConfiguration.totalPortions`).
- * @param campDayCount - Anzahl Anlasstage (`event.numberOfDays`), gleiche
- *   Grundlage wie der Sollbetrag der Budgets.
+ * @param eventDays - Alle Anlasstage, aufsteigend (`getEventDateList`). Achse
+ *   des Ausgabenverlaufs; ihre Anzahl ist Grundlage für Ø pro Person & Tag und
+ *   für den Sollbetrag der «pro Person & Tag»-Budgets.
+ * @param today - Stichtag «heute», von der Seite übergeben, damit die
+ *   Berechnungen testbar bleiben. Nur der Kalendertag zählt.
  * @param handleEditClick - Öffnet den Bearbeiten-Dialog (Klick auf eine Top-5-Zeile).
  * @param handleShowMissingReceipts - Wechselt in die Ausgabenliste und zeigt
  *   dort nur Ausgaben ohne Beleg («Anzeigen» im Beleg-Hinweis).
@@ -68,7 +72,8 @@ type ExpenseEvaluationProps = {
   expenses: ExpenseDomain[];
   budgets: BudgetDomain[];
   participantCount: number;
-  campDayCount: number;
+  eventDays: Date[];
+  today: Date;
   handleEditClick: (expenseId: string) => void;
   handleShowMissingReceipts: () => void;
 };
@@ -94,7 +99,8 @@ type ExpenseEvaluationProps = {
  *   expenses={state.expenses ?? []}
  *   budgets={state.budgets ?? []}
  *   participantCount={groupConfiguration.totalPortions}
- *   campDayCount={event.numberOfDays}
+ *   eventDays={eventDays}
+ *   today={new Date()}
  *   handleEditClick={handleEditExpense}
  *   handleShowMissingReceipts={handleShowMissingReceipts}
  * />
@@ -104,7 +110,8 @@ export const ExpenseEvaluation = ({
   expenses,
   budgets,
   participantCount,
-  campDayCount,
+  eventDays,
+  today,
   handleEditClick,
   handleShowMissingReceipts,
 }: ExpenseEvaluationProps) => {
@@ -143,6 +150,7 @@ export const ExpenseEvaluation = ({
   const otherCurrencies = currencies.filter(
     (currency) => currency !== selectedCurrency,
   );
+  const todayKey = formatLocalDate(today);
 
   // alle Kennzahlen in der gewählten Währung
   const statistics = React.useMemo(() => {
@@ -152,6 +160,15 @@ export const ExpenseEvaluation = ({
     );
     const totalAmountInCents =
       ExpenseStatistics.sumAmountInCents(expensesInCurrency);
+
+    const targetAmountInCents = ExpenseStatistics.sumTargetAmountInCents({
+      budgets,
+      excludedBudgetIds,
+      currency: selectedCurrency,
+      participantCount,
+      eventDayCount: eventDays.length,
+    });
+
     return {
       expenseCount: expensesInCurrency.length,
       totalAmountInCents,
@@ -163,15 +180,33 @@ export const ExpenseEvaluation = ({
         ExpenseStatistics.averagePerParticipantAndDay(
           totalAmountInCents,
           participantCount,
-          campDayCount,
+          eventDays.length,
         ),
       topExpenses: ExpenseStatistics.topExpenses(expensesInCurrency),
+      history: {
+        actualValues: ExpenseStatistics.cumulativeByEventDay({
+          expenses: expensesInCurrency,
+          eventDays,
+          today: parseLocalDate(todayKey),
+        }),
+        // ohne Sollbetrag keine Soll-Linie
+        targetValues:
+          targetAmountInCents > 0
+            ? ExpenseStatistics.targetLineByEventDay(
+                targetAmountInCents,
+                eventDays.length,
+              )
+            : null,
+      },
     };
   }, [
     expensesOfSelectedBudgets,
     selectedCurrency,
     participantCount,
-    campDayCount,
+    eventDays,
+    todayKey,
+    budgets,
+    excludedBudgetIds,
   ]);
   // Belege fehlen: alle Budgets, alle Währungen (Aufgabe, keine Statistik)
   const missingReceiptCount = React.useMemo(
@@ -185,7 +220,6 @@ export const ExpenseEvaluation = ({
     otherCurrencies,
     excludedBudgetNames,
   );
-  // --- Früher Ausstieg erst NACH allen Hooks
   if (expenses.length === 0) {
     return (
       <Typography sx={classes.centerCenter} color="text.secondary">
@@ -304,12 +338,19 @@ export const ExpenseEvaluation = ({
                   : []),
                 TEXT_EVALUATION_CALCULATION_BASIS(
                   participantCount,
-                  campDayCount,
+                  eventDays.length,
                 ),
               ]}
             />
           </Grid>
-
+          <Grid size={{xs: 12}}>
+            <ExpenseHistoryChart
+              eventDays={eventDays}
+              actualValues={statistics.history.actualValues}
+              targetValues={statistics.history.targetValues}
+              currency={selectedCurrency}
+            />
+          </Grid>
           <Grid size={{xs: 12}}>
             <TopExpensesTile
               expenses={statistics.topExpenses}

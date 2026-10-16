@@ -115,7 +115,7 @@ describe("Budget.getSpentAmounts", () => {
 describe("Budget.projectSpending", () => {
   // Testanlass: 7 Tage, 5.–11. Juli 2026
 
-  const campDaysMock: Date[] = [
+  const eventDaysMock: Date[] = [
     parseLocalDate("2026-07-05"),
     parseLocalDate("2026-07-06"),
     parseLocalDate("2026-07-07"),
@@ -130,7 +130,7 @@ describe("Budget.projectSpending", () => {
       Budget.projectSpending({
         expenses: [],
         budget,
-        campDays: campDaysMock,
+        eventDays: eventDaysMock,
         today: parseLocalDate("2026-06-01"),
       }),
     ).toBeNull();
@@ -143,13 +143,13 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-05"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(70000);
-    expect(projectSpending?.elapsedCampDays).toEqual(1);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(1);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   test("Mitte des Anlasses, mit mehreren Ausgaben", () => {
     const expenseMock: ExpenseDomain[] = [
@@ -160,13 +160,13 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(70000);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   test("Vorab-Einkauf wird nicht hochgerechnet", () => {
     const expenseMock: ExpenseDomain[] = [
@@ -178,13 +178,13 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(190000);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   test("Vorausdatierte Ausgabe zählt fest", () => {
     const expenseMock: ExpenseDomain[] = [
@@ -197,13 +197,13 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(195000);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   test("Letzter Anlasstag = `null;` nach dem Anlass =`null`", () => {
     const expenseMock: ExpenseDomain[] = [
@@ -214,7 +214,7 @@ describe("Budget.projectSpending", () => {
     let projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-11"),
     });
     expect(projectSpending).toBeNull();
@@ -222,7 +222,7 @@ describe("Budget.projectSpending", () => {
     projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-31"),
     });
     expect(projectSpending).toBeNull();
@@ -243,13 +243,13 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(190000);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   test("Anderes Budget ignoriert", () => {
     const expenseMock: ExpenseDomain[] = [
@@ -267,25 +267,25 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(190000);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   test("Keine Ausgaben, während des Anlasses = Hochrechnung 0", () => {
     const projectSpending = Budget.projectSpending({
       expenses: [],
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(0);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   test("Leere Anlasstage = `null`", () => {
     const expenseMock: ExpenseDomain[] = [
@@ -297,7 +297,7 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: [],
+      eventDays: [],
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).toBeNull();
@@ -310,7 +310,7 @@ describe("Budget.projectSpending", () => {
       {...expense, date: parseLocalDate("2026-07-09"), amountInCents: 30000},
     ];
 
-    const campDaysWithTimeslice: Date[] = [
+    const eventDaysWithTimeslice: Date[] = [
       parseLocalDate("2026-07-06"),
       parseLocalDate("2026-07-07"),
       parseLocalDate("2026-07-08"),
@@ -322,13 +322,13 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysWithTimeslice,
+      eventDays: eventDaysWithTimeslice,
       today: parseLocalDate("2026-07-10"),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(205000);
-    expect(projectSpending?.elapsedCampDays).toEqual(4);
-    expect(projectSpending?.totalCampDays).toEqual(6);
+    expect(projectSpending?.elapsedEventDays).toEqual(4);
+    expect(projectSpending?.totalEventDays).toEqual(6);
   });
   test("Uhrzeit egal", () => {
     const expenseMock: ExpenseDomain[] = [
@@ -340,24 +340,24 @@ describe("Budget.projectSpending", () => {
     let projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: new Date(2026, 6, 7, 23, 59, 59),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(190000);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
 
     projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: new Date(2026, 6, 7, 0, 0, 0),
     });
     expect(projectSpending).not.toBeNull();
     expect(projectSpending?.projectedAmountInCents).toEqual(190000);
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
-    expect(projectSpending?.totalCampDays).toEqual(7);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
+    expect(projectSpending?.totalEventDays).toEqual(7);
   });
   describe("Zeitumstellung im Anlass", () => {
     // Die Zeitumstellung (25.10.2026, 03:00 → 02:00) wirkt nur in einer
@@ -374,7 +374,7 @@ describe("Budget.projectSpending", () => {
 
     test("Tage über die Umstellung hinweg werden korrekt gezählt", () => {
       // Anlass 23.10.–1.11.2026 (10 Tage); der 25.10. hat 25 Stunden
-      const campDaysAcrossDst: Date[] = [
+      const eventDaysAcrossDst: Date[] = [
         "2026-10-23",
         "2026-10-24",
         "2026-10-25",
@@ -393,12 +393,12 @@ describe("Budget.projectSpending", () => {
       const projectSpending = Budget.projectSpending({
         expenses: expenseMock,
         budget: budget,
-        campDays: campDaysAcrossDst,
+        eventDays: eventDaysAcrossDst,
         today: parseLocalDate("2026-10-27"),
       });
       expect(projectSpending).not.toBeNull();
-      expect(projectSpending?.elapsedCampDays).toEqual(5);
-      expect(projectSpending?.totalCampDays).toEqual(10);
+      expect(projectSpending?.elapsedEventDays).toEqual(5);
+      expect(projectSpending?.totalEventDays).toEqual(10);
       // 10000 ÷ 5 × 10
       expect(projectSpending?.projectedAmountInCents).toEqual(20000);
     });
@@ -411,11 +411,11 @@ describe("Budget.projectSpending", () => {
     const projectSpending = Budget.projectSpending({
       expenses: expenseMock,
       budget: budget,
-      campDays: campDaysMock,
+      eventDays: eventDaysMock,
       today: parseLocalDate("2026-07-07"),
     });
     expect(projectSpending).not.toBeNull();
-    expect(projectSpending?.elapsedCampDays).toEqual(3);
+    expect(projectSpending?.elapsedEventDays).toEqual(3);
     // 1 ÷ 3 × 7 = 2.33… → auf ganze Rappen gerundet
     expect(projectSpending?.projectedAmountInCents).toEqual(2);
     expect(Number.isInteger(projectSpending?.projectedAmountInCents)).toBe(

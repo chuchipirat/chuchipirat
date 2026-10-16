@@ -78,13 +78,13 @@ export type BudgetWithProgress = {
 /**
  * Lineare Hochrechnung der Ausgaben eines Budgets bis Anlassende.
  * @param projectedAmountInCents - Voraussichtliche Endsumme in Rappen (Budgetwährung).
- * @param elapsedCampDays - Bereits vergangene Anlasstage inkl. heute (≥ 1).
- * @param totalCampDays - Anzahl Anlasstage gesamt (> elapsedCampDays).
+ * @param elapsedEventDays - Bereits vergangene Anlasstage inkl. heute (≥ 1).
+ * @param totalEventDays - Anzahl Anlasstage gesamt (> elapsedEventDays).
  */
 export type BudgetProjection = {
   projectedAmountInCents: number;
-  elapsedCampDays: number;
-  totalCampDays: number;
+  elapsedEventDays: number;
+  totalEventDays: number;
 };
 
 /* =====================================================================

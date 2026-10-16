@@ -201,8 +201,8 @@ export const BudgetCard = ({
           )}
           <Typography variant="caption" color="text.secondary" component="p">
             {TEXT_DAY_X_OF_Y_IN_EVENT(
-              budgetWithProgress.projection.elapsedCampDays,
-              budgetWithProgress.projection.totalCampDays,
+              budgetWithProgress.projection.elapsedEventDays,
+              budgetWithProgress.projection.totalEventDays,
             )}
           </Typography>
         </Box>
