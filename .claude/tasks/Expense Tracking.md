@@ -4299,6 +4299,187 @@ Vorgezogen auf Wunsch des Nutzers; 6.5 kommt danach direkt in `Evaluation/`. Zwe
 
 ## Epic 7 — PDF-Abrechnung
 
+> Verfeinert 2026-10-16 nach Abgleich mit Issue #86 und dem Code (Stand nach Epic 6 und Ordner-Split). O1–O3 entschieden 2026-10-16, dazu E11 (Leerseiten für Papierbelege) vom Nutzer. Jede Story wird wie in Epic 6 vor dem Start ausdetailliert.
+
+Ziel: Auf Knopfdruck eine fertige Abrechnung als PDF: Tabelle der Ausgaben mit laufender Belegnummer, Summen pro Währung, Adresse/IBAN für die Rückerstattung und die Belege als nummerierter Anhang. Beliebig oft neu erzeugbar, nichts wird gespeichert oder gesperrt (Issue: «kein gespeicherter Zustand»).
+
+### Was der Code vorgibt (Abgleich)
+
+- **PDF-Muster vorhanden:** `@react-pdf/renderer` 4.3 + `generateAndDownloadPdf()` (`Shared/pdfUtils.ts`, Fehler → Sentry + Callback) + gemeinsame `Header`/`Footer` (`Shared/pdfComponents.tsx`, chuchipirat-Layout) + `pdfTokens.ts`. Vorbilder: `DonationReceiptPdf.tsx`, `materialListPdf.tsx`; Optionen-Dialog als Vorbild: `dialogMenuplanPdfOptions.tsx`.
+- **PDF-Belege lassen sich mit `@react-pdf/renderer` nicht einbetten.** Es kann Bilder (JPEG/PNG) zeichnen, aber keine fremden PDF-Seiten übernehmen. Belege sind laut Issue «PDF oder Bild». → siehe **O2**.
+- **Bankdaten sieht nur die Person selbst** (RLS `user_payment_details_select`: `user_id = auth.uid()`, bewusst ohne Admin). Vorbefüllen aus dem Profil geht also **nur für die eigene Abrechnung**. Für andere Köch:innen und neue Personen gibt es nur das leere Formular (so auch im Issue: «eventspezifisch als reines Eingabefeld»).
+- **`PaymentDetailsForm`** (`User/paymentDetailsForm.tsx`) wurde in 5.3 für die Wiederverwendung gebaut (IBAN-Prüfung, Formatierung, `data-sentry-block`).
+- **Belege** liegen im Bucket `media` unter `events/<eventId>/expenses/…`, die App holt sie über `getPublicUrl` → `fetch()` im Browser geht ohne neue Server-Logik.
+- **Zahlende Instanz:** `Expense.sumByPayee` fasst `new_person` mit exakt gleichem Namen zusammen, ignoriert `no_refund_needed`; Anzeigename über `event.cooks`, sonst «Ehemalige Person». Wiederverwenden für die Gruppierung im PDF.
+- **Ordner:** neu `ExpenseTracking/Report/` (Zielstruktur aus dem Ordner-Split). Texte/Styles als Block «PDF-Abrechnung (Epic 7)» anhängen (Regel bis Epic 10).
+
+### Entscheidungen (vorab, mit Begründung)
+
+**E1 — Aktion statt vierter Ansicht (entschieden, O3).** Button `Abrechnung erstellen` in der Titelkarte «Abrechnung» (`CardHeader`, Slot `action`, rechts vom Titel), damit er in allen drei Ansichten sichtbar ist. Nur sichtbar, wenn freigeschaltet; deaktiviert, solange es keine Ausgabe gibt. Öffnet einen Dialog. Keine zusätzliche Abkürzung im `PayeeBalanceAccordion` (die Personenwahl im Dialog reicht). *Warum:* Das PDF ist ein Ergebnis, kein Ort, an dem man arbeitet. Epic 8 (CSV/ZIP) kann später denselben Knopf nutzen (dann als Menü).
+
+**E2 — Modi als erweiterbare Liste** (Issue: «Struktur so anlegen, dass später weitere Modi ergänzt werden können»): `ReportMode = "per_person" | "per_person_and_budget"` (String-Enum), die Datenaufbereitung bekommt den Modus als Parameter, das Dokument rendert nur die fertige Struktur. Modus A = eine Tabelle pro Person über alle Budgets; Modus B = pro Person je Budget eine Tabelle mit Zwischensumme.
+
+**E3 — Belegnummer = laufende Nummer im Dokument**, in der Reihenfolge der Tabelle (Person → [Budget] → Datum, bei gleichem Datum nach Bezeichnung). Ausgaben mit Beleg bekommen eine Nummer. Ausgaben **ohne** Beleg bekommen nur dann eine Nummer, wenn im Dialog «Leerseiten für fehlende Belege» an ist (E11); sonst steht «–» (Issue: «mit leerer Belegnummer»). Die Nummer ist pro erzeugtem PDF stabil, nicht in der DB gespeichert (kein Zustand). *Folge:* Wer später ändert und neu erzeugt, bekommt neue Nummern. Bewusst so (Issue: beliebig oft neu generierbar). Epic 8 muss für CSV/ZIP dieselbe Nummerierungsfunktion nutzen.
+
+**E4 — Summen pro Währung, keine Umrechnung** (wie überall): pro Person (Modus A) bzw. pro Person und Budget plus Personentotal (Modus B), je Währung eine Zeile.
+
+**E5 — Belege als Anhang nach der Tabelle**, jeder Beleg auf eigener Seite mit Kopfzeile «Beleg 3 · 12.07.2026 · Grosseinkauf Migros · CHF 182.40», damit eine ausgedruckte Seite für sich verständlich bleibt. Bilder werden vor dem Einbetten im Browser verkleinert (längste Seite ~2000 px, JPEG ~0.8). *Warum:* Handyfotos bis 10 MB würden das PDF sonst auf zig MB aufblähen (Mail-Anhang). PDF-Belege: siehe **O2**.
+
+**E6 — Ein Beleg lässt sich nicht laden** (gelöscht, Netz weg): PDF wird trotzdem erzeugt, an seiner Stelle steht eine Seite «Beleg 3 konnte nicht geladen werden», und nach dem Download erscheint ein Hinweis. *Warum:* Ein einzelner kaputter Beleg darf die ganze Abrechnung nicht blockieren; Sentry bekommt den Fehler (ohne Inhalt).
+
+**E7 — Adresse/IBAN im Dialog, nicht Pflicht.** Eigene Abrechnung: vorbefüllt aus dem Profil, falls hinterlegt; sonst leeres `PaymentDetailsForm` mit Checkbox «Angaben fürs nächste Mal speichern» (Opt-in laut Issue → speichert über das bestehende Repository). Andere Person: leeres Formular, **keine** Speicheroption (fremde Bankdaten dürfen wir nicht speichern). Leere Felder → im PDF stehen Linien zum Ausfüllen von Hand. Nichts davon landet ausser im PDF irgendwo (kein Event-Speicher), `data-sentry-block` am Formular (Regel aus 5.3).
+
+**E8 — Kommentare optional** (Checkbox im Dialog, Standard: aus). Kommentar erscheint als zweite, kleinere Zeile unter der Bezeichnung.
+
+**E9 — Dateiname** `Abrechnung <Anlass> <Person>.pdf` (Leerzeichen wie bei den bestehenden PDFs, z.B. «Menueplan Sommerlager.pdf»), bei mehreren Personen `Abrechnung <Anlass>.pdf`.
+
+**E11 — Leerseiten für Papierbelege (Idee Nutzer, 2026-10-16).** Viele Quittungen gibt es nur auf Papier. Option im Dialog «Leerseiten für fehlende Belege einfügen», nur sichtbar, wenn in der Auswahl Ausgaben ohne Beleg sind (mit Anzahl: «3 Ausgaben ohne Beleg»). Standard: **an**. Dann bekommt jede Ausgabe ohne Beleg eine Belegnummer und im Anhang an ihrer Stelle eine Seite mit derselben Kopfzeile wie ein echter Beleg («Beleg 4 · 09.07.2026 · Bäckerei · CHF 23.50») und einem grossen, gestrichelten Feld «Beleg hier aufkleben». So lässt sich das PDF ausdrucken, die Papierquittung aufkleben, und die Nummer in der Tabelle stimmt mit der Seite überein. *Warum Standard an:* Ohne Nummer weiss bei der Kasse niemand, welche Papierquittung zu welcher Zeile gehört; wer nur digital einreicht, schaltet es ab. Auch für E6 (Beleg lädt nicht) dieselbe Seite verwenden, mit anderem Text («Beleg konnte nicht geladen werden»).
+
+**E10 — Fortschritt sichtbar.** Belege laden kann bei 30 Fotos dauern: Im Dialog `Erstellen` → Fortschritt «Belege werden geladen (7 von 23)», Dialog bleibt offen bis zum Download. Keine Web-Worker (Aufwand), aber Bilder nacheinander laden, nicht alle gleichzeitig (Speicher auf dem Handy).
+
+### Neuer Zuschnitt
+
+- **7.1 Datenaufbereitung (rein, ohne UI):** `ExpenseReport.build({expenses, budgets, cooks, payees, mode, includeComments})` in `Report/expenseReport.class.ts` → Abschnitte pro Person (und Budget), Zeilen mit Belegnummer, Summen pro Währung, Liste der Belege in Nummernreihenfolge. `ReportMode`, Typen in `Report/expenseReport.types.ts`. Viele Tests (Nummerierung, Sortierung, Währungen, neue Personen gleichen Namens, «Ehemalige Person», ohne Rückerstattung).
+- **7.2 PDF-Dokument + Dialog (ohne Belege, ohne IBAN):** `Report/expenseReportPdf.tsx` mit Kopf/Fuss, Personenblock, Tabelle(n), Summen; `Report/expenseReportDialog.tsx` (Person bzw. «Alle Personen», Modus, Kommentare, Leerseiten-Option schon sichtbar ab 7.3); Button in der Titelkarte; Download über `generateAndDownloadPdf`. Ab hier ist die Abrechnung schon nutzbar.
+- **7.3 Belege als Anhang:** Laden, Bilder verkleinern, Belegseiten, Leerseiten für Papierbelege, Fortschritt, Fehlerseite (E5, E6, E10, E11); PDF-Belege mit `pdf-lib` (O2).
+- **7.4 Adresse/IBAN-Schritt:** Prefill für die eigene Abrechnung, Opt-in-Speichern, leeres Formular für andere, Linien im PDF (E7).
+- **Abschluss:** Helpcenter-Abschnitt «Abrechnung erstellen» auf `docs/event/expensetracking.md`, Browser-Rundlauf mit echten Fotos und PDF-Belegen, PDF-Grösse prüfen.
+
+### Entschieden (2026-10-16)
+
+- **O1 — Eine Abrechnung pro Person oder eine für alle?** → **Empfehlung angenommen: eine Person oder «Alle Personen». Standard: die angemeldete Person** (falls sie Ausgaben hat, sonst die erste Person mit Ausgaben). Das Issue sagt bei Modus A «alle Ausgaben einer Person» und zugleich, dass «Keine Rückerstattung» in der Abrechnung «als eigene Gruppe» auftaucht, also beides. **Empfehlung:** Im Dialog wählt man **eine Person** (Standard: du selbst, sonst die erste) **oder «Alle Personen»**.
+  - Eine Person: Spesenabrechnung zum Einreichen bei der Lagerleitung bzw. Kasse, mit Adresse/IBAN dieser Person und nur ihren Belegen.
+  - Alle Personen: Gesamtabrechnung der Küche für die Kasse, ein Abschnitt pro Person plus Gruppe «Ohne Rückerstattung», alle Belege durchnummeriert. **Ohne** Adresse/IBAN-Schritt (bei 6 Personen sechs Formulare wären mühsam, und fremde IBANs kennen wir nicht); im PDF stehen pro Person Linien für IBAN.
+  - Alternative: nur «eine Person» (einfacher, aber die Kasse bekommt dann x einzelne PDFs und «ohne Rückerstattung» hat keinen Platz).
+- **O2 — PDF-Belege mit `pdf-lib` anhängen?** → **Ja, wenn nötig** (ist es: react-pdf kann keine PDF-Seiten einbetten). Nur beim Erstellen nachgeladen. Ohne zweite Bibliothek könnten nur Bild-Belege ins PDF; PDF-Rechnungen (z.B. Online-Bestellungen) fehlten. **Empfehlung:** `pdf-lib` als neue Abhängigkeit, nur beim Erstellen nachgeladen (`import()`, kein Einfluss auf die normale Ladezeit). Ablauf: react-pdf erzeugt Tabelle + Bild-Belege, `pdf-lib` hängt die Seiten der PDF-Belege an der richtigen Stelle an und stempelt die Kopfzeile «Beleg 3 …» darauf. Alternative: PDF-Belege nur in der Tabelle referenzieren und auf den ZIP-Export (Epic 8) verweisen.
+- **O3 — Wo steht der Knopf?** → **In der Titelkarte «Abrechnung»** (Entscheid Nutzer), sichtbar in allen Ansichten, siehe E1. Ursprüngliche Empfehlung war Toolbar «Übersicht» + Accordion. Alternative: Menü «Exportieren» mit PDF jetzt und CSV/ZIP ab Epic 8 (ein Knopf für alles, dafür ein Klick mehr).
+
+### **Story 7.1 — Datenaufbereitung der Abrechnung** ✅ erledigt
+
+> Ausgearbeitet 2026-10-16. Reine Logik, kein UI, kein PDF. Ergebnis ist eine fertige Struktur, die 7.2 nur noch zeichnet und 7.3 für den Anhang nutzt.
+
+#### Worum es geht
+
+Aus Ausgaben, Budgets und Köch:innen wird eine `ExpenseReport`-Struktur: Abschnitte pro Person (und je nach Modus pro Budget), Zeilen mit Belegnummer, Summen pro Währung und die Liste der Anhang-Seiten in Nummernreihenfolge. Alles, was in der Abrechnung «gerechnet» wird, passiert hier und ist mit Jest prüfbar.
+
+#### Entscheidungen
+
+**R1 — Personen-Schlüssel wie `Expense.sumByPayee`:** `payeeUserId ?? payeeName`. Damit gruppieren Dialog, PDF und die Übersicht «Ausgegebene Beträge pro Person» gleich (neue Personen mit exakt gleichem Namen = eine Person). Für «Keine Rückerstattung» ein fester Schlüssel `NO_REFUND_PAYEE_KEY = "no_refund"`.
+
+**R2 — Anzeigename** wie im Accordion: Köch:in aus `event.cooks` → `displayName`; nicht mehr im Team → «Ehemalige Person»; neue Person → ihr Name; ohne Rückerstattung → «Ohne Rückerstattung». Die Auflösung kommt aus einer gemeinsamen Funktion, die auch das Accordion nutzt (Duplikat vermeiden, Accordion umstellen, mit bestehenden Tests abgesichert).
+
+**R3 — Reihenfolge:**
+- Personen alphabetisch nach Anzeigename (`localeCompare(…, "de")`), «Ohne Rückerstattung» immer zuletzt.
+- Modus B: Budgets innerhalb einer Person in der Reihenfolge von `budgets` (wie in der Übersicht).
+- Zeilen: Datum aufsteigend, bei gleichem Datum Bezeichnung, dann ID (fester Tie-Breaker, damit die Nummern bei gleichen Daten nicht springen).
+
+**R4 — Belegnummern** in einem eigenen Durchgang **nach** dem Sortieren über das ganze Dokument (E3): mit Beleg immer eine Nummer; ohne Beleg nur bei `includeMissingReceiptPages` (E11), sonst `null`. Jede Nummer erzeugt genau einen Eintrag in `receipts` (Anhang-Seite): `attachmentPath` gesetzt = echter Beleg, `null` = Leerseite «Beleg hier aufkleben».
+
+**R5 — Summen pro Währung** als sortierte Liste (`{currency, amountInCents}[]`), CHF zuerst, dann alphabetisch, damit PDF und Tests eine feste Reihenfolge haben. Pro Gruppe (Modus B: pro Budget), pro Person und bei «Alle Personen» ein Gesamttotal. Das Gesamttotal **enthält** «Ohne Rückerstattung» (alles Ausgegebene), dazu separat «davon zurückzuerstatten» (ohne diese Gruppe), weil die Kasse genau diese Zahl überweisen muss.
+
+**R6 — Fehlendes Budget** (kurz bei Realtime): Budgetname «Unbekanntes Budget», nicht weglassen. In einer Abrechnung darf keine Ausgabe still verschwinden (anders als im Donut, D2 aus 6.4).
+
+**R7 — Auswahl einer Person ohne Ausgaben** (z.B. Standard = ich, ich habe aber nichts bezahlt): `getDefaultPayeeKey` liefert dann die erste Person mit Ausgaben; der Dialog (7.2) bietet nur Personen **mit** Ausgaben an.
+
+#### Schnittstellen
+
+`Report/expenseReport.types.ts`:
+
+```ts
+export enum ReportMode {
+  PER_PERSON = "per_person",
+  PER_PERSON_AND_BUDGET = "per_person_and_budget",
+}
+/** Für wen die Abrechnung ist: eine Person (Schlüssel aus R1) oder alle. */
+export type ReportPayeeSelection = {kind: "single"; payeeKey: string} | {kind: "all"};
+export type ReportOptions = {
+  mode: ReportMode;
+  payeeSelection: ReportPayeeSelection;
+  includeComments: boolean;
+  includeMissingReceiptPages: boolean;
+};
+export type CurrencyTotal = {currency: string; amountInCents: number};
+export type ReportRow = {
+  expenseId: string; date: Date; label: string; comment: string | null;
+  budgetName: string; amountInCents: number; currency: string;
+  receiptNumber: number | null;
+};
+/** Modus A: eine Gruppe ohne Titel; Modus B: eine Gruppe pro Budget. */
+export type ReportGroup = {budgetName: string | null; rows: ReportRow[]; totals: CurrencyTotal[]};
+export type ReportPayeeSection = {
+  payeeKey: string; displayName: string; isNoRefund: boolean;
+  payeeUserId: string | null;          // für den IBAN-Schritt in 7.4 (eigene Abrechnung?)
+  groups: ReportGroup[]; totals: CurrencyTotal[];
+};
+export type ReportReceipt = {
+  receiptNumber: number; expenseId: string; attachmentPath: string | null;
+  date: Date; label: string; amountInCents: number; currency: string;
+};
+export type ExpenseReport = {
+  mode: ReportMode; includeComments: boolean;
+  sections: ReportPayeeSection[]; receipts: ReportReceipt[];
+  grandTotals: CurrencyTotal[] | null;     // nur bei «Alle Personen»
+  refundTotals: CurrencyTotal[] | null;    // dito, ohne «Ohne Rückerstattung»
+};
+export type ReportPayeeOption = {payeeKey: string; displayName: string; expenseCount: number};
+```
+
+`Report/expenseReport.class.ts` (statische Methoden, je unter 20 Zeilen):
+
+```ts
+static build(params: {expenses; budgets; cooks; options: ReportOptions}): ExpenseReport;
+static getPayeeOptions(expenses, cooks): ReportPayeeOption[];          // für den Dialog, sortiert wie R3
+static getDefaultPayeeKey(options: ReportPayeeOption[], authUserId: string): string | null; // R7
+static countMissingReceipts(expenses, payeeSelection): number;         // für die Option E11
+// privat: filterBySelection, buildSection, buildGroups, sortRows, numberReceipts, sumByCurrency
+```
+
+Gemeinsame Namensauflösung (R2): `Expense.getPayeeKey(expense)` und `Expense.getPayeeDisplayName(expense, cooks)` in `Expense/expense.class.ts`; `PayeeBalanceAccordion` nutzt sie danach auch.
+
+Texte: `REPORT_NO_REFUND_GROUP = "Ohne Rückerstattung"`, `REPORT_UNKNOWN_BUDGET = "Unbekanntes Budget"` (Block «PDF-Abrechnung (Epic 7)»).
+
+#### Tests 7.1 (`Report/__tests__/expenseReport.class.test.ts`)
+
+Fixture: Küche/Motto/Material, Köch:innen Anna (= angemeldet) und Ben, neue Person «Lagerleitung», eine Ausgabe «ohne Rückerstattung», eine Ausgabe in EUR.
+
+- `build`, eine Person, Modus A: nur ihre Ausgaben, Datum aufsteigend, Budgetname je Zeile, Summen pro Währung (CHF vor EUR)
+- Modus B: eine Gruppe pro Budget in Budget-Reihenfolge, Zwischensummen, Personentotal = Summe der Gruppen
+- Belegnummern laufen über das ganze Dokument (Person 1: 1–3, Person 2: 4–5); ohne Beleg `null`; mit `includeMissingReceiptPages` Nummer + Leerseite (`attachmentPath: null`) an der richtigen Stelle
+- `receipts` in Nummernreihenfolge, Länge = Anzahl vergebener Nummern
+- gleiches Datum → Bezeichnung, dann ID (Nummern stabil)
+- «Alle Personen»: Personen alphabetisch, «Ohne Rückerstattung» zuletzt; `grandTotals` mit, `refundTotals` ohne diese Gruppe
+- neue Personen mit exakt gleichem Namen → ein Abschnitt; abweichende Schreibweise → zwei
+- Köchin nicht mehr im Team → «Ehemalige Person»
+- unbekanntes Budget → «Unbekanntes Budget», Ausgabe bleibt drin
+- `includeComments: false` → Kommentar trotzdem in den Daten (das PDF entscheidet), Flag im Ergebnis
+- `getPayeeOptions`: nur Personen mit Ausgaben, Anzahl stimmt, «Ohne Rückerstattung» nicht als Person wählbar (nur über «Alle»)
+- `getDefaultPayeeKey`: angemeldete Person mit Ausgaben → sie; ohne Ausgaben → erste Option; keine Optionen → `null`
+- `countMissingReceipts`: nur in der Auswahl
+- Eingabe bleibt unverändert (`expenses` nicht sortiert, Lehre aus 6.2a)
+
+`expense.class.test.ts`: `getPayeeKey`, `getPayeeDisplayName` (alle vier Fälle). `payeeBalanceAccordion.test.tsx` bleibt unverändert grün.
+
+#### Mutationsproben 7.1
+
+1. Nummerierung vor dem Sortieren → «Belegnummern laufen über das ganze Dokument» rot.
+2. Tie-Breaker nach Bezeichnung entfernen → «gleiches Datum» rot.
+3. `refundTotals` mit «Ohne Rückerstattung» rechnen → «Alle Personen» rot.
+4. Leerseiten-Option ignorieren → Test mit `includeMissingReceiptPages` rot.
+
+#### Umsetzung 7.1
+
+- [x] 1. `Expense.getPayeeKey` / `getPayeeDisplayName` + Tests; Accordion darauf umstellen (Tests grün)
+- [ ] 2. Typen + Texte
+- [ ] 3. `ExpenseReport` + Tests (Mutationsproben 1–4)
+- [ ] 4. Verifikation: `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking --watchAll=false`, `npm run lint`
+- [ ] 5. Commit `feat(abrechnung): Datenaufbereitung für die PDF-Abrechnung (Story 7.1)`
+
+**Definition of Done 7.1:** alle Tests grün, Mutationsproben 1–4 bestätigt, keine UI-Änderung ausser der gemeinsamen Namensauflösung im Accordion (Browser kurz: Accordion zeigt dieselben Namen wie vorher).
+
+### Offen aus dem alten Umriss (erledigt durch die Punkte oben)
+
+<details><summary>Umriss 2026-10-10 (zur Referenz)</summary>
+
 _Wird vor Start verfeinert. Grober Zuschnitt:_
 
 - **Vorab (vor Verfeinerung):** Zwischenschritt «Ordner aufteilen» oben erledigt? Sonst zuerst das.
@@ -4310,6 +4491,8 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
   `generateAndDownloadPdf()`-Anbindung (Vorbild `DonationReceiptPdf.tsx`).
 - 7.3 Adress-/IBAN-Eingabeschritt vor Generierung (Prefill aus Profil bei Opt-in, sonst leeres
   Formular + Speicher-Checkbox), nummerierte Belege als Anhang.
+
+</details>
 
 ## Epic 8 — Export (CSV/ZIP)
 
