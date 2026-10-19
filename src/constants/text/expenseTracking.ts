@@ -398,3 +398,5 @@ export const EVALUATION_NO_PLANNED_MEALS =
 /** Screenreader-Beschriftung der Mahlzeitentyp-Chips. */
 export const EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL =
   "Mahlzeiten für den Durchschnitt auswählen";
+export const REPORT_NO_REFUND_GROUP = "Ohne Rückerstattung";
+export const REPORT_UNKNOWN_BUDGET = "Unbekanntes Budget";

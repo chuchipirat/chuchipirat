@@ -11,12 +11,11 @@ import {
 } from "@mui/material";
 
 import {Expense} from "./expense.class";
-import {ExpenseDomain, ExpensePayeeType} from "./expense.types";
+import {ExpenseDomain} from "./expense.types";
 import {Cook} from "../../Event/event.class";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 
 import {
-  FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
   OPEN_AMOUNTS_PER_PERSON as TEXT_OPEN_AMOUNTS_PER_PERSON,
   SHOW_EXPENSES as TEXT_SHOW_EXPENSES,
 } from "../../../../constants/text";
@@ -57,11 +56,7 @@ export const PayeeBalanceAccordion = ({
   const rows = balances
     .map((balance) => ({
       ...balance,
-      displayName:
-        balance.payeeType === ExpensePayeeType.EXISTING_USER
-          ? (cooks.find((cook) => cook.uid === balance.payeeUserId)
-              ?.displayName ?? TEXT_FORMER_EVENT_COOK)
-          : (balance.payeeName ?? ""),
+      displayName: Expense.getPayeeDisplayName(balance, cooks),
     }))
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "de"));
 

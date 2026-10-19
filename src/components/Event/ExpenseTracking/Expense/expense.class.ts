@@ -2,8 +2,10 @@ import {FieldValidationError} from "../../../Shared/fieldValidation.error.class"
 import {
   ExpenseDomain,
   ExpenseGroup,
+  ExpensePayee,
   ExpensePayeeType,
   ExpenseTotalsByBudget,
+  NO_REFUND_PAYEE_KEY,
   PayeeBalance,
 } from "./expense.types";
 
@@ -16,8 +18,11 @@ import {
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
   PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
   PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
+  REPORT_NO_REFUND_GROUP as TEXT_REPORT_NO_REFUND_GROUP,
+  FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
 } from "../../../../constants/text/expenseTracking";
 import {BudgetDomain} from "../Budget/budget.types";
+import {Cook} from "../../Event/event.class";
 
 /**
  * Erlaubtes Format eines Währungscodes: genau drei Grossbuchstaben (ISO 4217,
@@ -202,5 +207,52 @@ export class Expense {
       ...balance,
       expenses: Expense.sortByDateDescending(balance.expenses),
     }));
+  }
+  /**
+   * Liefert den Schlüssel, unter dem eine Ausgabe einer Person zugeordnet
+   * wird. Gleiche Regel wie `sumByPayee`: bestehende Köch:innen über ihre
+   * User-ID, neue Personen über den exakten Namen (kein Fuzzy-Matching).
+   * Alle Ausgaben ohne Rückerstattung teilen sich einen festen Schlüssel.
+   *
+   * @param payee - Ausgabe oder Personen-Saldo (nur die Payee-Felder zählen).
+   * @returns Schlüssel der zahlenden Person bzw. `NO_REFUND_PAYEE_KEY`.
+   * @example
+   * Expense.getPayeeKey({
+   *   payeeType: ExpensePayeeType.NEW_PERSON,
+   *   payeeUserId: null,
+   *   payeeName: "Felix",
+   * }) // "Felix"
+   */
+  static getPayeeKey(payee: ExpensePayee): string {
+    if (payee.payeeType === ExpensePayeeType.NO_REFUND_NEEDED) {
+      return NO_REFUND_PAYEE_KEY;
+    }
+    return payee.payeeUserId ?? payee.payeeName ?? "";
+  }
+  /**
+   * Liefert den Anzeigenamen der zahlenden Person für Übersicht und
+   * Abrechnung.
+   *
+   * @param payee - Ausgabe oder Personen-Saldo (nur die Payee-Felderzählen).
+   * @param cooks - Köch:innen des Anlasses (`event.cooks`).
+   * @returns Name der Köch:in, «Ehemalige Person» wenn sie nicht mehr im
+   *   Team ist, den erfassten Namen einer neuen Person oder «Ohne
+   *   Rückerstattung».
+   * @example
+   * Expense.getPayeeDisplayName(expense, event.cooks) // "Felix"
+   */
+  static getPayeeDisplayName(payee: ExpensePayee, cooks: Cook[]): string {
+    switch (payee.payeeType) {
+      case ExpensePayeeType.NO_REFUND_NEEDED:
+        return TEXT_REPORT_NO_REFUND_GROUP;
+      case ExpensePayeeType.EXISTING_USER:
+        // aus dem Team entfernt: der Name lässt sich nicht mehr auflösen
+        return (
+          cooks.find((cook) => cook.uid === payee.payeeUserId)?.displayName ??
+          TEXT_FORMER_EVENT_COOK
+        );
+      case ExpensePayeeType.NEW_PERSON:
+        return payee.payeeName ?? "";
+    }
   }
 }

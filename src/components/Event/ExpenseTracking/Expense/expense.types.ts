@@ -80,6 +80,18 @@ export type BudgetShare = {
   groupedBudgetNames: string[];
 };
 
+export const NO_REFUND_PAYEE_KEY = "no_refund";
+
+/**
+ * Die Felder einer Ausgabe, die festlegen, wer sie bezahlt hat. Passt auf
+ * `ExpenseDomain` und auf `PayeeBalance`, damit Abrechnung und Accordion
+ * dieselbe Auflösung nutzen.
+ */
+export type ExpensePayee = Pick<
+  ExpenseDomain,
+  "payeeType" | "payeeUserId" | "payeeName"
+>;
+
 /* =====================================================================
 // Domain-Modelle (camelCase, werden in der App verwendet)
 // ===================================================================== */
