@@ -10,10 +10,18 @@ import {
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
   PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
   PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
+  REPORT_NO_REFUND_GROUP as TEXT_REPORT_NO_REFUND_GROUP,
+  FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
 } from "../../../../../constants/text";
-import {ExpenseDomain, ExpensePayeeType} from "../expense.types";
+import {
+  ExpenseDomain,
+  ExpensePayeeType,
+  NO_REFUND_PAYEE_KEY,
+} from "../expense.types";
 import {BudgetDomain} from "../../Budget/budget.types";
 import {FieldValidationError} from "../../../../Shared/fieldValidation.error.class";
+import {Cook} from "../../../Event/event.class";
+import {cook1, cook2} from "../../../Event/__mocks__/event.mock";
 
 const expenses: ExpenseDomain[] = [
   {
@@ -461,5 +469,81 @@ describe("Expense.sumByPayee", () => {
       "expense-id-001",
       "expense-id-003",
     ]);
+  });
+});
+describe("Expense.getPayeeKey", () => {
+  test("ID der zahlenden Person zurückgeben", () => {
+    const expenseMock = {...expense};
+
+    expect(Expense.getPayeeKey(expenseMock)).toEqual("payee-id-001");
+  });
+  test("Keine Rückerstattung als Option, kein UID", () => {
+    const expenseMock = {
+      ...expense,
+      payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+      payeeUserId: "",
+    };
+
+    expect(Expense.getPayeeKey(expenseMock)).toEqual(NO_REFUND_PAYEE_KEY);
+  });
+  test("Typ neue Person", () => {
+    const expenseMock: ExpenseDomain = {
+      ...expense,
+      payeeType: ExpensePayeeType.NEW_PERSON,
+      payeeUserId: null,
+      payeeName: "Laura",
+    };
+
+    expect(Expense.getPayeeKey(expenseMock)).toEqual("Laura");
+  });
+});
+describe("Expense.getPayeeDisplayName", () => {
+  test("Zahlungstyp: Keine Rückerstattung", () => {
+    const cooksMock: Cook[] = [{...cook1}, {...cook2}];
+    const expenseMock = {
+      ...expense,
+      payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+      payeeUserId: "",
+    };
+
+    expect(Expense.getPayeeDisplayName(expenseMock, cooksMock)).toEqual(
+      TEXT_REPORT_NO_REFUND_GROUP,
+    );
+  });
+  test("Zahlungstyp: Köch*in", () => {
+    const cooksMock: Cook[] = [{...cook1}, {...cook2}];
+    const expenseMock = {
+      ...expense,
+      payeeType: ExpensePayeeType.EXISTING_USER,
+      payeeUserId: cook2.uid,
+    };
+
+    expect(Expense.getPayeeDisplayName(expenseMock, cooksMock)).toEqual(
+      cook2.displayName,
+    );
+  });
+  test("Zahlungstyp: Köch*in, die*der nicht mehr im Team ist", () => {
+    const cooksMock: Cook[] = [{...cook1}, {...cook2}];
+    const expenseMock = {
+      ...expense,
+      payeeType: ExpensePayeeType.EXISTING_USER,
+      payeeUserId: "user-uid-not-part-of-the-team-anymore",
+    };
+
+    expect(Expense.getPayeeDisplayName(expenseMock, cooksMock)).toEqual(
+      TEXT_FORMER_EVENT_COOK,
+    );
+  });
+
+  test("Zahlungstyp: Neue Person", () => {
+    const cooksMock: Cook[] = [{...cook1}, {...cook2}];
+    const expenseMock = {
+      ...expense,
+      payeeType: ExpensePayeeType.NEW_PERSON,
+      payeeUserId: null,
+      payeeName: "Max",
+    };
+
+    expect(Expense.getPayeeDisplayName(expenseMock, cooksMock)).toEqual("Max");
   });
 });
