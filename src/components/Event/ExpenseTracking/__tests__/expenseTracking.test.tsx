@@ -2734,6 +2734,9 @@ describe("transformInputToExpenseDomain", () => {
     payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
     payeeUserId: null,
     payeeName: "",
+    attachmentFile: null,
+    attachmentPath: null,
+    removeAttachment: false,
   };
 
   test("ignoriert eine stehengebliebene payeeUserId, wenn payeeType NEW_PERSON ist", () => {
