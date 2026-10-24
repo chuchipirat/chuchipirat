@@ -19,6 +19,11 @@ import {
   Tooltip,
   Divider,
   Chip,
+  CircularProgress,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from "@mui/material";
 import {Event} from "../Event/event.class";
 
@@ -46,6 +51,9 @@ import {
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
   ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
+  CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
+  CREATE_EXPENSE_REPORT_NO_EXPENSES as TEXT_CREATE_EXPENSE_REPORT_NO_EXPENSES,
+  EXPORT as TEXT_EXPORT,
 } from "../../../constants/text";
 
 import {
@@ -66,7 +74,12 @@ import {BudgetWithProgress, BudgetDomain} from "./Budget/budget.types";
 import {CustomSnackbar} from "../../Shared/customSnackbar";
 import {AlertMessage} from "../../Shared/AlertMessage";
 
-import {AddOutlined} from "@mui/icons-material";
+import {
+  AddOutlined,
+  ArrowDropDown,
+  FileDownloadOutlined,
+  PictureAsPdfOutlined,
+} from "@mui/icons-material";
 
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {trackEvent} from "../../Analytics/analyticsService";
@@ -95,10 +108,12 @@ import {
   ExpenseDetailDialog,
   ExpenseDetailDialogState,
 } from "./Expense/expenseDetailDialog";
+import {ExpenseReportDialog} from "./Report/expenseReportDialog";
 import {PayeeBalanceAccordion} from "./Expense/payeeBalanceAccordion";
 import {getEventDateList} from "../Menuplan/menuplanService";
 import {MenuplanData} from "../Menuplan/menuplan.types";
 import {ExpenseEvaluation} from "./Evaluation/expenseEvaluation";
+import {ReportOptions} from "./Report/expenseReport.types";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
 type ExpenseTrackingView = "overview" | "expenses" | "evaluation";
@@ -186,6 +201,15 @@ const EventExpenseTrackingPage = ({
       expense: null,
       open: false,
     });
+  /** Dialog «Abrechnung erstellen»; `key` zählt pro Öffnen hoch. */
+  const [reportDialog, setReportDialog] = React.useState({
+    open: false,
+    key: 0,
+  });
+  /** Ein Export läuft: Knopf «Exportieren» zeigt Fortschritt und ist gesperrt. */
+  const [isExporting, setIsExporting] = React.useState(false);
+  const [exportMenuAnchor, setExportMenuAnchor] =
+    React.useState<HTMLElement | null>(null);
   const [showOnlyMissingReceipts, setShowOnlyMissingReceipts] =
     React.useState(false);
   const realtime = useRealtimeConnectionStatus();
@@ -212,6 +236,7 @@ const EventExpenseTrackingPage = ({
     null,
   );
   const defaultBudgetId = lastUsedBudgetId ?? state.budgets?.[0]?.id ?? null;
+  const hasExpenses = (state.expenses?.length ?? 0) > 0;
 
   /* ------------------------------------------
   // Spende für dieses Event laden
@@ -733,6 +758,47 @@ const EventExpenseTrackingPage = ({
       open: true,
     });
   };
+  /** Öffnet den Dialog «Abrechnung erstellen» mit frischem Zustand. */
+  const handleOpenReportDialog = () => {
+    setExportMenuAnchor(null);
+    setReportDialog((previous) => ({open: true, key: previous.key + 1}));
+  };
+  /** Schliesst den Dialog «Abrechnung erstellen». */
+  const handleCloseReportDialog = () => {
+    setReportDialog((previous) => ({...previous, open: false}));
+  };
+  /**
+   * Erstellt die Abrechnung und startet den Download. Das PDF-Modul wird
+   * erst hier nachgeladen. Fehler beim Erstellen meldet
+   * `generateAndDownloadPdf` selbst an Sentry, darum nur anzeigen.
+   * Während des Exports ist der Knopf «Exportieren» gesperrt.
+   *
+   * @param options - Im Dialog gewählte Optionen.
+   */
+  const handleCreateReport = async (options: ReportOptions) => {
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "expenseReport"});
+    setIsExporting(true);
+    try {
+      const {downloadExpenseReport} =
+        await import("./Report/downloadExpenseReport");
+      await downloadExpenseReport({
+        expenses: state.expenses ?? [],
+        budgets: state.budgets ?? [],
+        event,
+        authUser: authUser!,
+        options,
+        onError: (error) =>
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+      });
+    } catch (error) {
+      // nur das Nachladen kann werfen (z.B. Chunk nach einem Deploy weg)
+      handleError(error, "Abrechnung erstellen");
+    } finally {
+      // auch nach einem Fehler, sonst bliebe der Knopf gesperrt
+      setIsExporting(false);
+    }
+    handleCloseReportDialog();
+  };
 
   /* ------------------------------------------
   // Snackbar-Handler
@@ -795,6 +861,56 @@ const EventExpenseTrackingPage = ({
               hasDonation || hasDonation === null
                 ? TEXT_EXPENSE_TRACKING
                 : TEXT_EXPENSE_TRACKING_NOT_ACTIVE
+            }
+            action={
+              hasDonation === true ? (
+                // Tooltip braucht ein Element, das Maus-Events liefert;
+                // ein deaktivierter Button tut das nicht
+                <Tooltip
+                  title={
+                    hasExpenses ? "" : TEXT_CREATE_EXPENSE_REPORT_NO_EXPENSES
+                  }
+                >
+                  <Box component="span">
+                    <Button
+                      variant="outlined"
+                      disabled={!hasExpenses || isExporting}
+                      startIcon={
+                        isExporting ? (
+                          <CircularProgress size={16} />
+                        ) : (
+                          <FileDownloadOutlined />
+                        )
+                      }
+                      endIcon={<ArrowDropDown />}
+                      onClick={(clickEvent) =>
+                        setExportMenuAnchor(clickEvent.currentTarget)
+                      }
+                      aria-haspopup="menu"
+                      aria-expanded={Boolean(exportMenuAnchor)}
+                    >
+                      {TEXT_EXPORT}
+                    </Button>
+
+                    <Menu
+                      anchorEl={exportMenuAnchor}
+                      open={Boolean(exportMenuAnchor)}
+                      onClose={() => setExportMenuAnchor(null)}
+                      anchorOrigin={{vertical: "bottom", horizontal: "right"}}
+                      transformOrigin={{vertical: "top", horizontal: "right"}}
+                    >
+                      <MenuItem onClick={handleOpenReportDialog}>
+                        <ListItemIcon>
+                          <PictureAsPdfOutlined fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>
+                          {TEXT_CREATE_EXPENSE_REPORT}
+                        </ListItemText>
+                      </MenuItem>
+                    </Menu>
+                  </Box>
+                </Tooltip>
+              ) : null
             }
           />
           <CardContent>
@@ -984,6 +1100,16 @@ const EventExpenseTrackingPage = ({
         }
         getAttachmentUrl={handleGetAttachmentUrl}
       />
+      <ExpenseReportDialog
+        key={reportDialog.key}
+        open={reportDialog.open}
+        expenses={state.expenses ?? []}
+        cooks={event.cooks}
+        authUserId={authUser!.uid}
+        onCreate={handleCreateReport}
+        onClose={handleCloseReportDialog}
+      />
+
       <CustomSnackbar
         message={state.snackbar.message}
         severity={state.snackbar.severity}

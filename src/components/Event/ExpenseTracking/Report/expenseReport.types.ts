@@ -15,7 +15,8 @@ export enum ReportMode {
  * `Expense.getPayeeKey`) oder alle.
  */
 export type ReportPayeeSelection =
-  {kind: "single"; payeeKey: string} | {kind: "all"};
+  | {kind: "single"; payeeKey: string}
+  | {kind: "all"};
 
 /**
  * Im Dialog gewählte Optionen.
@@ -130,6 +131,8 @@ export type ReportReceipt = {
  *   bei «Alle Personen», sonst `null`.
  * @param refundTotals - Davon zurückzuerstatten (ohne «Ohne
  *   Rückerstattung»); nur bei «Alle Personen», sonst `null`.
+ * @param payeeDisplayName - Anzeigename der gewählten Person; `null` bei
+ *   «Alle Personen» (für Titel und Dateiname).
  */
 export type ExpenseReportData = {
   mode: ReportMode;
@@ -138,6 +141,7 @@ export type ExpenseReportData = {
   receipts: ReportReceipt[];
   grandTotals: CurrencyTotal[] | null;
   refundTotals: CurrencyTotal[] | null;
+  payeeDisplayName: string | null;
 };
 /**
  * Eine Person in der Auswahl des Dialogs.

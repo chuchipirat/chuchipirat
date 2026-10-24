@@ -380,4 +380,8 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     gap: theme.spacing(1),
     marginTop: theme.spacing(1.5),
   },
+  /* PDF-Abrechnung */
+  expenseReportDialogContent: {
+    paddingTop: theme.spacing(1), // sonst schneidet DialogContent das Label des ersten Feldes ab
+  },
 });

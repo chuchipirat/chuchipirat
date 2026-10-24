@@ -114,6 +114,9 @@ export class ExpenseReport {
             ),
           )
         : null,
+      // bei einer Person gibt es genau eine Sektion (oder keine, falls die
+      // Person inzwischen keine Ausgaben mehr hat)
+      payeeDisplayName: isAllPayees ? null : (sections[0]?.displayName ?? null),
     };
   }
   /**

@@ -1,0 +1,151 @@
+/**
+ * Stildefinitionen für die PDF-Abrechnung.
+ *
+ * Gleiche Gestaltung wie Materialliste und Menüplan (Teal-Akzent, dünner
+ * Titel), damit alle chuchipirat-PDFs zusammenpassen.
+ *
+ * Wird von `ExpenseTracking/Report/expenseReportPdf.tsx` verwendet.
+ */
+import {StyleSheet} from "@react-pdf/renderer";
+import {APP_PRIMARY} from "../stylesMaterialListPdf";
+import {PDF_TOKENS} from "../pdfTokens";
+
+/** Gemeinsame Schrift aller Tabellenzellen. */
+const CELL_BASE = {
+  fontFamily: PDF_TOKENS.fontFamily,
+  fontStyle: "normal" as const,
+  fontWeight: PDF_TOKENS.fontWeight.normal,
+  fontSize: 10,
+  paddingVertical: 3,
+  paddingHorizontal: 2,
+};
+
+export const pdfStyles = StyleSheet.create({
+  /* ── Seite und Titel ────────────────────────── */
+  body: {
+    paddingTop: PDF_TOKENS.margin.top,
+    paddingBottom: PDF_TOKENS.margin.bottom,
+    paddingHorizontal: PDF_TOKENS.margin.horizontal,
+  },
+  title: {
+    fontSize: 28,
+    textAlign: "center",
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.thin,
+    marginBottom: 4,
+  },
+  titleUnderline: {
+    borderBottomWidth: 1,
+    borderBottomColor: APP_PRIMARY,
+    borderBottomStyle: "solid",
+    marginBottom: 4,
+  },
+  subTitle: {
+    fontSize: 14,
+    textAlign: "center",
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.thin,
+    marginBottom: 4,
+  },
+  infoSectionDivider: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#00606433", // APP_PRIMARY mit ~20% Deckkraft
+    borderBottomStyle: "solid",
+    marginBottom: 8,
+  },
+
+  /* ── Personen und Budgets ───────────────────── */
+  section: {
+    marginTop: 14,
+  },
+  payeeHeading: {
+    fontSize: 14,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+  },
+  noRefundHint: {
+    fontSize: PDF_TOKENS.fontSize.small,
+    fontFamily: PDF_TOKENS.fontFamily,
+    color: PDF_TOKENS.color.gray,
+    marginTop: 2,
+  },
+  groupHeading: {
+    fontSize: 11,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    marginTop: 8,
+  },
+  table: {
+    marginTop: 4,
+  },
+
+  /* ── Tabelle ────────────────────────────────── */
+  tableHeaderRow: {
+    flexDirection: "row",
+    borderBottomWidth: 0.5,
+    borderBottomColor: APP_PRIMARY,
+    borderBottomStyle: "solid",
+  },
+  tableHeaderCell: {
+    ...CELL_BASE,
+    fontSize: PDF_TOKENS.fontSize.small,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+  },
+  tableRow: {
+    flexDirection: "row",
+    ...PDF_TOKENS.borderBottomThin,
+  },
+  cell: {
+    ...CELL_BASE,
+  },
+  /** Kommentar als zweite, kleinere Zeile unter der Bezeichnung (E8). */
+  comment: {
+    ...CELL_BASE,
+    paddingTop: 0,
+    fontSize: 8,
+    color: PDF_TOKENS.color.gray,
+  },
+
+  /* ── Spaltenbreiten (Summe je Modus = 100%) ─── */
+  colReceipt: {width: "8%", textAlign: "center"},
+  colDate: {width: "14%"},
+  /** Modus A: Platz für die Budgetspalte lassen. */
+  colLabel: {width: "46%"},
+  /** Modus B: keine Budgetspalte, Bezeichnung breiter. */
+  colLabelWide: {width: "62%"},
+  colBudget: {width: "16%"},
+  colAmount: {width: "16%", textAlign: "right"},
+
+  /* ── Summen ─────────────────────────────────── */
+  totalRow: {
+    flexDirection: "row",
+  },
+  /** Beschriftung über alle Spalten ausser «Betrag». */
+  totalLabel: {...CELL_BASE, width: "84%", textAlign: "right"},
+  totalLabelBold: {
+    ...CELL_BASE,
+    width: "84%",
+    textAlign: "right",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+  },
+  totalAmount: {...CELL_BASE, width: "16%", textAlign: "right"},
+  totalAmountBold: {
+    ...CELL_BASE,
+    width: "16%",
+    textAlign: "right",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+  },
+  grandTotalBlock: {
+    marginTop: 20,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: APP_PRIMARY,
+    borderTopStyle: "solid",
+  },
+});

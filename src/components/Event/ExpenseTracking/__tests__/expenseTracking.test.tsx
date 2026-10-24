@@ -48,6 +48,8 @@ import {
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
   ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
+  CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
+  EXPORT as TEXT_EXPORT,
 } from "../../../../constants/text/expenseTracking";
 import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
 import {ExpenseDomain, ExpensePayeeType} from "../Expense/expense.types";
@@ -55,6 +57,8 @@ import {ExpenseDetailDialogState} from "../Expense/expenseDetailDialog";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import dayjs from "dayjs";
 import * as Sentry from "@sentry/react";
+import {downloadExpenseReport} from "../Report/downloadExpenseReport";
+import {ReportMode} from "../Report/expenseReport.types";
 /**
  * Mock: customDialog — die Tests steuern, was die Nutzer:in «antwortet».
  * `jest.mock` muss auf oberster Ebene der Datei stehen: Es wird vor den
@@ -85,6 +89,15 @@ jest.mock("@mui/x-date-pickers", () => ({
       {props.slotProps?.textField?.helperText}
     </div>
   ),
+}));
+
+/**
+ * Mock: PDF-Modul der Abrechnung. Die Seite lädt es per `import()` nach
+ * (Story 7.2, P6); so muss dieser Test react-pdf nicht mocken und prüft nur,
+ * was die Seite übergibt.
+ */
+jest.mock("../Report/downloadExpenseReport", () => ({
+  downloadExpenseReport: jest.fn(),
 }));
 
 const normalizer = getDefaultNormalizer();
@@ -2717,6 +2730,214 @@ describe("EventExpenseTrackingPage: Hervorhebung von Fremdänderungen", () => {
     expect(hasRemoteChangeGlow(screen.getByTestId(kitchenBudget.id))).toBe(
       false,
     );
+  });
+});
+
+/* =====================================================================
+// Abrechnung als PDF (Story 7.2)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
+  /** Ausgabe des einzigen Kochs im `mockEvent` (Max Muster). */
+  const cookExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-report-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: "user-123",
+  };
+  const mockedDownloadExpenseReport = jest.mocked(downloadExpenseReport);
+
+  beforeEach(() => {
+    mockedDownloadExpenseReport.mockReset().mockResolvedValue(undefined);
+  });
+
+  /** Knopf «Exportieren» in der Titelkarte. */
+  const getExportButton = () =>
+    screen.getByRole("button", {name: TEXT_EXPORT});
+
+  /**
+   * Öffnet über «Exportieren» den Dialog «Abrechnung erstellen».
+   *
+   * @returns Der Dialog.
+   */
+  const openReportDialog = async () => {
+    fireEvent.click(getExportButton());
+    fireEvent.click(
+      await screen.findByRole("menuitem", {name: TEXT_CREATE_EXPENSE_REPORT}),
+    );
+    return screen.findByRole("dialog", {name: TEXT_CREATE_EXPENSE_REPORT});
+  };
+
+  /** Wartet, bis der Dialog geschlossen ist. */
+  const waitForReportDialogClosed = () =>
+    waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {name: TEXT_CREATE_EXPENSE_REPORT}),
+      ).not.toBeInTheDocument(),
+    );
+
+  test("gesperrte Ansicht: kein Knopf «Exportieren»", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    await screen.findByTestId("expense-tracking-locked");
+    expect(
+      screen.queryByRole("button", {name: TEXT_EXPORT}),
+    ).not.toBeInTheDocument();
+  });
+
+  test("ohne Ausgaben deaktiviert, mit Ausgaben aktiv", async () => {
+    const {expensesOnChange} = await renderUnlockedPage([kitchenBudget], []);
+
+    await waitFor(() => expect(getExportButton()).toBeDisabled());
+
+    // eine Ausgabe trifft per Realtime ein
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      cookExpense,
+    ]);
+    await act(async () => {
+      await expensesOnChange();
+    });
+
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+  });
+
+  test("«Erstellen» übergibt Ausgaben, Budgets, Anlass und Optionen und schliesst den Dialog", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledTimes(1);
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expenses: [cookExpense],
+        budgets: [kitchenBudget],
+        event: mockEvent,
+        authUser: mockAuthUser,
+        options: {
+          mode: ReportMode.PER_PERSON,
+          payeeSelection: {kind: "single", payeeKey: "user-123"},
+          includeComments: false,
+          includeMissingReceiptPages: false,
+        },
+      }),
+    );
+    await waitForReportDialogClosed();
+  });
+
+  test("Fehler beim Erstellen erscheint oben auf der Seite", async () => {
+    mockedDownloadExpenseReport.mockImplementationOnce(async ({onError}) => {
+      onError(new Error("PDF konnte nicht erstellt werden"));
+    });
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitForReportDialogClosed();
+  });
+
+  test("Knopf bleibt nach dem Erstellen nutzbar", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+    await waitForReportDialogClosed();
+
+    expect(getExportButton()).toBeEnabled();
+  });
+
+  test("während des Exports: Knopf gesperrt mit Fortschritt, danach wieder frei", async () => {
+    let finishDownload: () => void = () => {};
+    mockedDownloadExpenseReport.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishDownload = resolve;
+        }),
+    );
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    // Der offene Dialog setzt die Seite auf aria-hidden, darum `hidden: true`
+    const exportButton = screen.getByRole("button", {
+      name: TEXT_EXPORT,
+      hidden: true,
+    });
+    expect(exportButton).toBeDisabled();
+    expect(
+      within(exportButton).getByRole("progressbar", {hidden: true}),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      finishDownload();
+    });
+    await waitForReportDialogClosed();
+
+    expect(getExportButton()).toBeEnabled();
+    expect(
+      within(getExportButton()).queryByRole("progressbar"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Fehler beim Nachladen: Knopf wieder frei", async () => {
+    mockedDownloadExpenseReport.mockRejectedValueOnce(
+      new Error("Chunk nicht gefunden"),
+    );
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+    await waitForReportDialogClosed();
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(getExportButton()).toBeEnabled();
+  });
+
+  test("erneutes Öffnen startet mit der Vorauswahl (P8)", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    // «Alle Personen» wählen und abbrechen
+    let dialog = await openReportDialog();
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Für wen?"}),
+    );
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: "Alle Personen",
+      }),
+    );
+    expect(
+      within(dialog).getByRole("combobox", {name: "Für wen?"}),
+    ).toHaveTextContent("Alle Personen");
+    fireEvent.click(within(dialog).getByRole("button", {name: "Abbrechen"}));
+    await waitForReportDialogClosed();
+
+    dialog = await openReportDialog();
+
+    expect(
+      within(dialog).getByRole("combobox", {name: "Für wen?"}),
+    ).toHaveTextContent("Max Muster (1 Ausgabe)");
   });
 });
 

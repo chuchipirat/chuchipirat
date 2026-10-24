@@ -294,6 +294,9 @@ describe("ExpenseReport.build, eine Person, Modus A", () => {
     expect(campLeadReport.sections[0].payeeUserId).toBeNull();
     expect(rowIdsOf(campLeadReport.sections[0])).toEqual(["camp-lead-butcher"]);
   });
+  test("DisplayName wird richtig gesetzt", () => {
+    expect(report.payeeDisplayName).toEqual("Anna");
+  });
 });
 
 describe("ExpenseReport.build, Modus B", () => {
@@ -410,6 +413,11 @@ describe("ExpenseReport.build, Belegnummern", () => {
       ["id-a", 2],
       ["id-b", 3],
     ]);
+  });
+  test("DisplayName wird richtig gesetzt", () => {
+    const report = buildReport();
+
+    expect(report.payeeDisplayName).toBeNull();
   });
 });
 

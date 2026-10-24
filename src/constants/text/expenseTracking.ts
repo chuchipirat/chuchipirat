@@ -400,3 +400,54 @@ export const EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL =
   "Mahlzeiten für den Durchschnitt auswählen";
 export const REPORT_NO_REFUND_GROUP = "Ohne Rückerstattung";
 export const REPORT_UNKNOWN_BUDGET = "Unbekanntes Budget";
+/* =====================================================================
+// PDF-Abrechnung 
+// ===================================================================== */
+export const CREATE_EXPENSE_REPORT = "Abrechnung erstellen (PDF)";
+export const CREATE_EXPENSE_REPORT_NO_EXPENSES = "Erfasse zuerst eine Ausgabe.";
+export const REPORT_PAYEE_SELECTION = "Für wen?";
+export const REPORT_ALL_PAYEES = "Alle Personen";
+
+/**
+ * Eintrag einer Person in der Auswahl.
+ *
+ * @param displayName - Anzeigename der Person.
+ * @param expenseCount - Anzahl ihrer Ausgaben.
+ * @returns z.B. «Anna (3 Ausgaben)».
+ */
+export const REPORT_PAYEE_OPTION = (
+  displayName: string,
+  expenseCount: number,
+): string =>
+  `${displayName} (${expenseCount} ${expenseCount === 1 ? "Ausgabe" : "Ausgaben"})`;
+
+/** Beschriftung der Modus-Auswahl. */
+export const REPORT_MODE = "Aufbau";
+export const REPORT_MODE_PER_PERSON = "Eine Tabelle";
+export const REPORT_MODE_PER_PERSON_DESCRIPTION =
+  "Alle Ausgaben in einer Tabelle, das Budget steht pro Zeile.";
+export const REPORT_MODE_PER_PERSON_AND_BUDGET = "Pro Budget";
+export const REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION =
+  "Eine Tabelle pro Budget, mit Zwischensumme.";
+
+export const REPORT_INCLUDE_COMMENTS = "Kommentare anzeigen";
+export const REPORT_TITLE = "Abrechnung";
+export const REPORT_COLUMN_RECEIPT = "Beleg";
+export const REPORT_NO_RECEIPT_NUMBER = "–";
+
+/**
+ * Beschriftung einer Summenzeile.
+ *
+ * @param name - Person oder Budget.
+ * @returns z.B. «Total Anna».
+ */
+export const REPORT_TOTAL_OF = (name: string): string => `Total ${name}`;
+
+export const REPORT_GRAND_TOTAL = "Gesamttotal";
+export const REPORT_REFUND_TOTAL = "davon zurückzuerstatten";
+export const REPORT_NO_REFUND_HINT =
+  "Diese Ausgaben werden niemandem zurückerstattet.";
+export const EXPORT = "Exportieren";
+export const EXPORT_EXCEL = "Ausgaben als Excel";
+export const DOWNLOAD_RECEIPTS_ZIP = "Belege als ZIP";
+export const NO_RECEIPTS_AVAILABLE = "Keine Belege vorhanden";
