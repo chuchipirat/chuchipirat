@@ -4476,6 +4476,1302 @@ Fixture: Küche/Motto/Material, Köch:innen Anna (= angemeldet) und Ben, neue Pe
 
 **Definition of Done 7.1:** alle Tests grün, Mutationsproben 1–4 bestätigt, keine UI-Änderung ausser der gemeinsamen Namensauflösung im Accordion (Browser kurz: Accordion zeigt dieselben Namen wie vorher).
 
+### **Story 7.2 — PDF-Dokument und Dialog (ohne Belege, ohne IBAN)**
+
+> Geplant 2026-10-19. Code-Abschnitte sind vollständig (inkl. JSDoc) und zum Übernehmen gedacht; Begründungen stehen jeweils davor.
+
+#### Worum es geht
+
+Ab dieser Story ist die Abrechnung nutzbar: Knopf in der Titelkarte → Dialog (Person, Aufbau, Kommentare) → PDF mit Tabelle(n), Summen und Gesamttotal. Die Belegnummern stehen schon in der Tabelle; der Anhang mit den Belegen kommt in 7.3, Adresse/IBAN in 7.4.
+
+#### Bausteine und Datenfluss
+
+```
+expenseTracking.tsx
+ ├─ Knopf «Abrechnung erstellen» (CardHeader action)        → öffnet Dialog
+ ├─ ExpenseReportDialog (Report/expenseReportDialog.tsx)    → liefert ReportOptions
+ └─ handleCreateReport(options)
+      └─ import("./Report/downloadExpenseReport")           (nachgeladen)
+           ├─ ExpenseReport.build(...)                       (7.1)
+           ├─ <ExpenseReportPdf report=… />                  (Report/expenseReportPdf.tsx)
+           └─ generateAndDownloadPdf(..., getReportFileName(...))
+```
+
+| Datei | neu/geändert | Inhalt |
+|---|---|---|
+| `Report/expenseReport.types.ts`, `expenseReport.class.ts` | geändert | `payeeDisplayName` im Ergebnis (P1) |
+| `Report/expenseReportLabels.ts` | neu | Titel, Untertitel, Dateiname, Datum, Modus-Beschriftungen |
+| `constants/stylesExpenseReportPdf.ts` | neu | PDF-Styles (Muster `stylesMaterialListPdf.ts`) |
+| `Report/expenseReportPdf.tsx` | neu | das Dokument |
+| `Report/downloadExpenseReport.tsx` | neu | Aufbereiten + PDF + Download (ab 7.3 auch Belege laden) |
+| `Report/expenseReportDialog.tsx` | neu | Optionen-Dialog |
+| `expenseTracking.tsx` | geändert | Knopf, Dialog-State, Handler |
+| `constants/text/expenseTracking.ts` | geändert | Texte, Block «PDF-Abrechnung (Epic 7)» |
+| `constants/styles/expenseTracking.styles.ts` | geändert | ein Style für den Dialog |
+
+#### Entscheidungen
+
+**P1 — Anzeigename der gewählten Person ins Ergebnis.** Titel und Dateiname brauchen «Anna» bzw. nichts bei «Alle Personen». Statt das an drei Stellen aus `sections[0]` oder `grandTotals !== null` abzuleiten, liefert `build` ein Feld `payeeDisplayName: string | null`. *Warum:* Eine Stelle entscheidet, PDF und Dateiname lesen nur. `grandTotals !== null` als «heisst Alle Personen» wäre eine versteckte Kopplung.
+
+**P2 — Belegnummern schon in 7.2 in der Tabelle**, obwohl der Anhang erst in 7.3 kommt. *Warum:* Die Nummerierung ist fertig (7.1) und die Spalte ändert sich in 7.3 nicht mehr; so ist das PDF-Layout jetzt final und 7.3 hängt nur Seiten an. `includeMissingReceiptPages` bleibt in 7.2 fest `false` (Schalter erst mit den Leerseiten in 7.3, sonst gäbe es Nummern ohne Seite).
+
+**P3 — Spalten.** Modus A: `Beleg | Datum | Bezeichnung | Budget | Betrag`. Modus B: ohne «Budget» (steht als Tabellentitel darüber), dafür breitere Bezeichnung. Kommentar als zweite, kleinere graue Zeile unter der Bezeichnung (E8), nicht als eigene Spalte (lange Kommentare würden alle Zeilen hoch machen).
+
+**P4 — Summen.** Modus A: Gruppentotal = Personentotal, darum nur einmal «Total Anna». Modus B: «Total Küche» unter jeder Tabelle, dann «Total Anna». Mehrere Währungen = mehrere Zeilen, Beschriftung nur in der ersten. Bei «Alle Personen» am Ende «Gesamttotal» und «davon zurückzuerstatten» (immer beide, auch wenn gleich: die Kasse sucht genau diese Zeile).
+
+**P5 — Seitenumbrüche.** Eine Seite mit `wrap`, kein Seitenumbruch pro Person (bei 6 Personen mit je 3 Ausgaben wären das 6 halbleere Seiten). Dafür: Zeilen und Summenblöcke `wrap={false}` (nie zerschnitten), Personen- und Budgetüberschriften mit `minPresenceAhead`, damit keine Überschrift allein unten auf einer Seite steht. Der Tabellenkopf wird bei langen Tabellen auf der Folgeseite nicht wiederholt (react-pdf kann `fixed` nur seitenweit, nicht pro Tabelle); bewusst so, die Spalten sind selbsterklärend.
+
+**P6 — PDF nachladen (`import()`).** `handleCreateReport` lädt `downloadExpenseReport` erst beim Klick. *Warum:* (a) In 7.3 kommt `pdf-lib` dazu, das soll nur beim Erstellen geladen werden (O2). (b) `expenseTracking.test.tsx` müsste sonst `@react-pdf/renderer` mocken (ESM, siehe `DonationReceiptPdf.test.tsx`); so mockt der Test nur `downloadExpenseReport`. Vorbild im Code: `CopyEventDialog.tsx` (`await import("../../Shared/imageResize")`).
+
+**P7 — Fehler.** `generateAndDownloadPdf` meldet selbst an Sentry und ruft `onError`. Darum `onError` → direkt `dispatch(GENERIC_ERROR)`, **nicht** `handleError` (sonst doppelt in Sentry). Nur das Nachladen selbst (Chunk nach einem Deploy weg) kann werfen → `handleError(error, "Abrechnung erstellen")`. Dialog schliesst in beiden Fällen, der Fehler steht oben auf der Seite.
+
+**P8 — Dialog-Zustand beim Öffnen frisch.** Die Vorauswahl hängt an den Ausgaben (wer hat bezahlt?). Statt eines `useEffect`, der beim Öffnen zurücksetzt, bekommt der Dialog einen `key`, der bei jedem Öffnen hochzählt → React baut ihn neu, `useState` startet mit der aktuellen Vorauswahl. *Warum:* Das ist das von React empfohlene Muster («Resetting all state when a prop changes»), ohne Effekt-Abhängigkeiten, die man vergessen kann; die Schliess-Animation bleibt erhalten (der Dialog wird beim Schliessen nicht entfernt, erst beim nächsten Öffnen ersetzt).
+
+**P9 — Auswahlwerte mit Präfix.** Das Auswahlfeld kennt nur Strings. «Alle Personen» = `"all"`, eine Person = `"payee:" + payeeKey`. *Warum:* Schlüssel neuer Personen sind frei erfasste Namen; ohne Präfix fiele eine Person namens «all» mit «Alle Personen» zusammen. Index statt Schlüssel geht nicht: Ändert sich die Liste per Realtime, während der Dialog offen ist, zeigt derselbe Index plötzlich auf eine andere Person.
+
+**P10 — Gewählte Person verschwindet (Realtime).** Löscht jemand die letzte Ausgabe der gewählten Person, während der Dialog offen ist, fällt die Auswahl auf die Vorauswahl zurück (abgeleiteter Wert, kein Effekt). Sonst entstünde ein leeres PDF.
+
+**P11 — Knopf in der Titelkarte** (E1): nur bei `hasDonation === true`, deaktiviert ohne Ausgaben, mit Tooltip «Erfasse zuerst eine Ausgabe.» (gleiches Muster wie «Neue Ausgabe» ohne Budget: `Tooltip` → `Box component="span"` → `Button`, weil ein deaktivierter Button keine Maus-Events für den Tooltip liefert). `size="small"`, `variant="outlined"` wie der Spendenquittungs-Knopf in `eventInfo.tsx`. Im Browser auf 360 px prüfen; passt «Abrechnung erstellen» neben «Abrechnung» nicht, auf `xs` nur das Icon mit `aria-label` (Fallback, nur falls nötig).
+
+#### Code
+
+##### 1. Ergebnis um `payeeDisplayName` ergänzen (P1)
+
+`Report/expenseReport.types.ts`, in `ExpenseReportData` (Feld + Zeile im JSDoc):
+
+```ts
+ * @param payeeDisplayName - Anzeigename der gewählten Person; `null` bei
+ *   «Alle Personen» (für Titel und Dateiname).
+```
+
+```ts
+  payeeDisplayName: string | null;
+```
+
+`Report/expenseReport.class.ts`, im `return` von `build`:
+
+```ts
+      // bei einer Person gibt es genau eine Sektion (oder keine, falls die
+      // Person inzwischen keine Ausgaben mehr hat)
+      payeeDisplayName: isAllPayees
+        ? null
+        : (sections[0]?.displayName ?? null),
+```
+
+Tests in `expenseReport.class.test.ts`: «eine Person, Modus A» → `payeeDisplayName === "Anna"`; «Alle Personen» → `null`.
+
+##### 2. Texte (`constants/text/expenseTracking.ts`)
+
+Kopfkommentar über die zwei bestehenden `REPORT_*`-Konstanten setzen, Neues darunter:
+
+```ts
+/* =====================================================================
+// PDF-Abrechnung (Epic 7)
+// ===================================================================== */
+export const REPORT_NO_REFUND_GROUP = "Ohne Rückerstattung";
+export const REPORT_UNKNOWN_BUDGET = "Unbekanntes Budget";
+/** Knopf in der Titelkarte und Titel des Dialogs (Story 7.2). */
+export const CREATE_EXPENSE_REPORT = "Abrechnung erstellen";
+/** Tooltip am deaktivierten Knopf, solange es keine Ausgabe gibt. */
+export const CREATE_EXPENSE_REPORT_NO_EXPENSES = "Erfasse zuerst eine Ausgabe.";
+/** Beschriftung der Personenauswahl im Dialog. */
+export const REPORT_PAYEE_SELECTION = "Für wen?";
+/** Option für die Gesamtabrechnung aller Personen. */
+export const REPORT_ALL_PAYEES = "Alle Personen";
+/**
+ * Eintrag einer Person in der Auswahl.
+ *
+ * @param displayName - Anzeigename der Person.
+ * @param expenseCount - Anzahl ihrer Ausgaben.
+ * @returns z.B. «Anna (3 Ausgaben)».
+ */
+export const REPORT_PAYEE_OPTION = (
+  displayName: string,
+  expenseCount: number,
+): string =>
+  `${displayName} (${expenseCount} ${expenseCount === 1 ? "Ausgabe" : "Ausgaben"})`;
+/** Beschriftung der Modus-Auswahl. */
+export const REPORT_MODE = "Aufbau";
+export const REPORT_MODE_PER_PERSON = "Eine Tabelle";
+export const REPORT_MODE_PER_PERSON_DESCRIPTION =
+  "Alle Ausgaben in einer Tabelle, das Budget steht pro Zeile.";
+export const REPORT_MODE_PER_PERSON_AND_BUDGET = "Pro Budget";
+export const REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION =
+  "Eine Tabelle pro Budget, mit Zwischensumme.";
+/** Schalter für die Kommentarzeile unter der Bezeichnung (E8). */
+export const REPORT_INCLUDE_COMMENTS = "Kommentare anzeigen";
+/** Titel im PDF und Anfang des Dateinamens (E9). */
+export const REPORT_TITLE = "Abrechnung";
+/** Spaltentitel der Belegnummer. */
+export const REPORT_COLUMN_RECEIPT = "Beleg";
+/** Platzhalter für eine Zeile ohne Belegnummer (E3). */
+export const REPORT_NO_RECEIPT_NUMBER = "–";
+/**
+ * Beschriftung einer Summenzeile.
+ *
+ * @param name - Person oder Budget.
+ * @returns z.B. «Total Anna».
+ */
+export const REPORT_TOTAL_OF = (name: string): string => `Total ${name}`;
+/** Summe über alle Personen inkl. «Ohne Rückerstattung». */
+export const REPORT_GRAND_TOTAL = "Gesamttotal";
+/** Summe ohne «Ohne Rückerstattung»: was die Kasse überweist. */
+export const REPORT_REFUND_TOTAL = "davon zurückzuerstatten";
+/** Hinweis unter der Überschrift der Gruppe «Ohne Rückerstattung». */
+export const REPORT_NO_REFUND_HINT =
+  "Diese Ausgaben werden niemandem zurückerstattet.";
+```
+
+Wiederverwendet statt dupliziert: `DATE`, `LABEL`, `BUDGET`, `AMOUNT`, `CANCEL`, `CREATE`, `SUFFIX_PDF`, `APP_NAME`.
+
+##### 3. Beschriftungen (`Report/expenseReportLabels.ts`)
+
+Reine Funktionen in einer `.ts`-Datei (Lehre aus dem Split: Nicht-Komponenten-Exporte in `.tsx` brechen Fast Refresh). 7.3 braucht `formatReportDate` für die Kopfzeile der Belegseiten.
+
+```ts
+import {
+  REPORT_ALL_PAYEES as TEXT_REPORT_ALL_PAYEES,
+  REPORT_MODE_PER_PERSON as TEXT_REPORT_MODE_PER_PERSON,
+  REPORT_MODE_PER_PERSON_DESCRIPTION as TEXT_REPORT_MODE_PER_PERSON_DESCRIPTION,
+  REPORT_MODE_PER_PERSON_AND_BUDGET as TEXT_REPORT_MODE_PER_PERSON_AND_BUDGET,
+  REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION as TEXT_REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION,
+  REPORT_TITLE as TEXT_REPORT_TITLE,
+  SUFFIX_PDF as TEXT_SUFFIX_PDF,
+} from "../../../../constants/text";
+import {ReportMode} from "./expenseReport.types";
+
+/**
+ * Beschriftung und Erklärung eines Modus.
+ *
+ * @param label - Kurzer Name (Radio-Button, Untertitel im PDF).
+ * @param description - Ein Satz zur Erklärung im Dialog.
+ */
+export type ReportModeLabel = {label: string; description: string};
+
+/**
+ * Beschriftungen aller Modi. Als `Record`, damit ein neuer Modus (E2) ohne
+ * Beschriftung nicht kompiliert.
+ */
+export const REPORT_MODE_LABELS: Record<ReportMode, ReportModeLabel> = {
+  [ReportMode.PER_PERSON]: {
+    label: TEXT_REPORT_MODE_PER_PERSON,
+    description: TEXT_REPORT_MODE_PER_PERSON_DESCRIPTION,
+  },
+  [ReportMode.PER_PERSON_AND_BUDGET]: {
+    label: TEXT_REPORT_MODE_PER_PERSON_AND_BUDGET,
+    description: TEXT_REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION,
+  },
+};
+
+/**
+ * Titel der Abrechnung (PDF-Metadaten und Basis des Dateinamens):
+ * «Abrechnung <Anlass> <Person>», bei «Alle Personen» ohne Person (E9).
+ *
+ * @param eventName - Name des Anlasses.
+ * @param payeeDisplayName - Gewählte Person, `null` bei «Alle Personen».
+ * @returns z.B. «Abrechnung Sommerlager 2026 Anna».
+ * @example
+ * getReportTitle("Sommerlager 2026", null) // "Abrechnung Sommerlager 2026"
+ */
+export const getReportTitle = (
+  eventName: string,
+  payeeDisplayName: string | null,
+): string =>
+  // leere Teile weglassen, damit keine doppelten Leerzeichen entstehen
+  [TEXT_REPORT_TITLE, eventName, payeeDisplayName]
+    .filter((part) => part !== null && part !== "")
+    .join(" ");
+
+/**
+ * Dateiname der Abrechnung (E9), Leerzeichen wie bei den anderen PDFs.
+ *
+ * @param eventName - Name des Anlasses.
+ * @param payeeDisplayName - Gewählte Person, `null` bei «Alle Personen».
+ * @returns z.B. «Abrechnung Sommerlager 2026 Anna.pdf».
+ * @example
+ * getReportFileName("Sommerlager 2026", "Anna") // "Abrechnung Sommerlager 2026 Anna.pdf"
+ */
+export const getReportFileName = (
+  eventName: string,
+  payeeDisplayName: string | null,
+): string => getReportTitle(eventName, payeeDisplayName) + TEXT_SUFFIX_PDF;
+
+/**
+ * Untertitel unter «Abrechnung»: für wen und in welchem Aufbau.
+ *
+ * @param payeeDisplayName - Gewählte Person, `null` bei «Alle Personen».
+ * @param mode - Modus der Abrechnung.
+ * @returns z.B. «Anna · Pro Budget».
+ */
+export const getReportSubtitle = (
+  payeeDisplayName: string | null,
+  mode: ReportMode,
+): string =>
+  `${payeeDisplayName ?? TEXT_REPORT_ALL_PAYEES} · ${REPORT_MODE_LABELS[mode].label}`;
+
+/**
+ * Datum einer Ausgabe im PDF, Schweizer Format.
+ *
+ * @param date - Datum der Ausgabe.
+ * @returns z.B. «09.07.2026».
+ */
+export const formatReportDate = (date: Date): string =>
+  date.toLocaleDateString("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+```
+
+##### 4. PDF-Styles (`constants/stylesExpenseReportPdf.ts`)
+
+Gleiche Optik wie Materialliste/Menüplan (Teal-Akzent, dünner Titel). Zellen mit `padding` statt `margin`: In react-pdf (Yoga) zählt `padding` zur Breite, `margin` nicht. Mit `width: "16%"` plus `margin` würde die Zeile breiter als 100 %.
+
+```ts
+/**
+ * Stildefinitionen für die PDF-Abrechnung (Epic 7).
+ *
+ * Gleiche Gestaltung wie Materialliste und Menüplan (Teal-Akzent, dünner
+ * Titel), damit alle chuchipirat-PDFs zusammenpassen.
+ *
+ * Wird von `ExpenseTracking/Report/expenseReportPdf.tsx` verwendet.
+ */
+import {StyleSheet} from "@react-pdf/renderer";
+import {PDF_TOKENS} from "./pdfTokens";
+import {APP_PRIMARY} from "./stylesMaterialListPdf";
+
+/** Gemeinsame Schrift aller Tabellenzellen. */
+const CELL_BASE = {
+  fontFamily: PDF_TOKENS.fontFamily,
+  fontStyle: "normal" as const,
+  fontWeight: PDF_TOKENS.fontWeight.normal,
+  fontSize: 10,
+  paddingVertical: 3,
+  paddingHorizontal: 2,
+};
+
+export const pdfStyles = StyleSheet.create({
+  /* ── Seite und Titel ────────────────────────── */
+  body: {
+    paddingTop: PDF_TOKENS.margin.top,
+    paddingBottom: PDF_TOKENS.margin.bottom,
+    paddingHorizontal: PDF_TOKENS.margin.horizontal,
+  },
+  title: {
+    fontSize: 28,
+    textAlign: "center",
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.thin,
+    marginBottom: 4,
+  },
+  titleUnderline: {
+    borderBottomWidth: 1,
+    borderBottomColor: APP_PRIMARY,
+    borderBottomStyle: "solid",
+    marginBottom: 4,
+  },
+  subTitle: {
+    fontSize: 14,
+    textAlign: "center",
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.thin,
+    marginBottom: 4,
+  },
+  infoSectionDivider: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: "#00606433", // APP_PRIMARY mit ~20% Deckkraft
+    borderBottomStyle: "solid",
+    marginBottom: 8,
+  },
+
+  /* ── Personen und Budgets ───────────────────── */
+  section: {
+    marginTop: 14,
+  },
+  payeeHeading: {
+    fontSize: 14,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+  },
+  noRefundHint: {
+    fontSize: PDF_TOKENS.fontSize.small,
+    fontFamily: PDF_TOKENS.fontFamily,
+    color: PDF_TOKENS.color.gray,
+    marginTop: 2,
+  },
+  groupHeading: {
+    fontSize: 11,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    marginTop: 8,
+  },
+  table: {
+    marginTop: 4,
+  },
+
+  /* ── Tabelle ────────────────────────────────── */
+  tableHeaderRow: {
+    flexDirection: "row",
+    borderBottomWidth: 0.5,
+    borderBottomColor: APP_PRIMARY,
+    borderBottomStyle: "solid",
+  },
+  tableHeaderCell: {
+    ...CELL_BASE,
+    fontSize: PDF_TOKENS.fontSize.small,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+  },
+  tableRow: {
+    flexDirection: "row",
+    ...PDF_TOKENS.borderBottomThin,
+  },
+  cell: {
+    ...CELL_BASE,
+  },
+  /** Kommentar als zweite, kleinere Zeile unter der Bezeichnung (E8). */
+  comment: {
+    ...CELL_BASE,
+    paddingTop: 0,
+    fontSize: 8,
+    color: PDF_TOKENS.color.gray,
+  },
+
+  /* ── Spaltenbreiten (Summe je Modus = 100%) ─── */
+  colReceipt: {width: "8%", textAlign: "center"},
+  colDate: {width: "14%"},
+  /** Modus A: Platz für die Budgetspalte lassen. */
+  colLabel: {width: "46%"},
+  /** Modus B: keine Budgetspalte, Bezeichnung breiter. */
+  colLabelWide: {width: "62%"},
+  colBudget: {width: "16%"},
+  colAmount: {width: "16%", textAlign: "right"},
+
+  /* ── Summen ─────────────────────────────────── */
+  totalRow: {
+    flexDirection: "row",
+  },
+  /** Beschriftung über alle Spalten ausser «Betrag». */
+  totalLabel: {...CELL_BASE, width: "84%", textAlign: "right"},
+  totalLabelBold: {
+    ...CELL_BASE,
+    width: "84%",
+    textAlign: "right",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+  },
+  totalAmount: {...CELL_BASE, width: "16%", textAlign: "right"},
+  totalAmountBold: {
+    ...CELL_BASE,
+    width: "16%",
+    textAlign: "right",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+  },
+  grandTotalBlock: {
+    marginTop: 20,
+    paddingTop: 6,
+    borderTopWidth: 1,
+    borderTopColor: APP_PRIMARY,
+    borderTopStyle: "solid",
+  },
+});
+```
+
+##### 5. Das Dokument (`Report/expenseReportPdf.tsx`)
+
+Nur Zeichnen, kein Rechnen. Zwei Fallen aus den bestehenden PDFs:
+- **Kein leerer String ausserhalb von `<Text>`** (`DonationReceiptPdf.test.tsx`: `{comment && …}` mit `""` rendert `""` als Kind → react-pdf bricht ab). Darum überall Ternary mit `: null`.
+- **Schriften registrieren:** `import "../../../Shared/pdfFontRegistration";` wie in `materialListPdf.tsx`, sonst fehlt Roboto (und damit «’» als Tausendertrenner von `Intl`).
+
+```tsx
+import React from "react";
+import {Document, Page, View, Text} from "@react-pdf/renderer";
+import "../../../Shared/pdfFontRegistration";
+
+import AuthUser from "../../../Session/authUser.class";
+import {Footer, Header} from "../../../Shared/pdfComponents";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {pdfStyles as styles} from "../../../../constants/stylesExpenseReportPdf";
+import {
+  AMOUNT as TEXT_AMOUNT,
+  APP_NAME as TEXT_APP_NAME,
+  BUDGET as TEXT_BUDGET,
+  DATE as TEXT_DATE,
+  LABEL as TEXT_LABEL,
+  REPORT_COLUMN_RECEIPT as TEXT_REPORT_COLUMN_RECEIPT,
+  REPORT_GRAND_TOTAL as TEXT_REPORT_GRAND_TOTAL,
+  REPORT_NO_RECEIPT_NUMBER as TEXT_REPORT_NO_RECEIPT_NUMBER,
+  REPORT_NO_REFUND_HINT as TEXT_REPORT_NO_REFUND_HINT,
+  REPORT_REFUND_TOTAL as TEXT_REPORT_REFUND_TOTAL,
+  REPORT_TITLE as TEXT_REPORT_TITLE,
+  REPORT_TOTAL_OF as TEXT_REPORT_TOTAL_OF,
+} from "../../../../constants/text";
+import {
+  CurrencyTotal,
+  ExpenseReportData,
+  ReportGroup,
+  ReportMode,
+  ReportPayeeSection,
+  ReportRow,
+} from "./expenseReport.types";
+import {
+  formatReportDate,
+  getReportSubtitle,
+  getReportTitle,
+} from "./expenseReportLabels";
+
+/**
+ * Mindestplatz (pt) nach einer Überschrift auf derselben Seite, damit
+ * keine Personen- oder Budgetüberschrift allein unten steht (P5).
+ */
+const MIN_PRESENCE_AHEAD = 40;
+
+/**
+ * Props für {@link ExpenseReportPdf}.
+ *
+ * @param report - Fertige Abrechnung aus `ExpenseReport.build`.
+ * @param eventName - Name des Anlasses (Kopfzeile, Titel).
+ * @param authUser - Angemeldete Person (Fusszeile «erstellt von»).
+ * @param generatedAt - Zeitpunkt der Erstellung (Fusszeile).
+ */
+type ExpenseReportPdfProps = {
+  report: ExpenseReportData;
+  eventName: string;
+  authUser: AuthUser;
+  generatedAt: Date;
+};
+
+/**
+ * PDF-Dokument der Abrechnung (Story 7.2): Titel, pro Person eine oder
+ * mehrere Tabellen mit Summen und bei «Alle Personen» das Gesamttotal.
+ * Zeichnet nur die fertige Struktur, rechnet selbst nichts. Belege (7.3)
+ * und Zahlungsangaben (7.4) folgen.
+ *
+ * @param props - Siehe {@link ExpenseReportPdfProps}.
+ * @returns Das react-pdf-Dokument.
+ * @example
+ * <ExpenseReportPdf
+ *   report={ExpenseReport.build({expenses, budgets, cooks, options})}
+ *   eventName={event.name}
+ *   authUser={authUser}
+ *   generatedAt={new Date()}
+ * />
+ */
+export const ExpenseReportPdf = ({
+  report,
+  eventName,
+  authUser,
+  generatedAt,
+}: ExpenseReportPdfProps) => {
+  const title = getReportTitle(eventName, report.payeeDisplayName);
+
+  return (
+    <Document
+      author={authUser.publicProfile.displayName}
+      creator={TEXT_APP_NAME}
+      title={title}
+      subject={title}
+    >
+      <Page size="A4" style={styles.body}>
+        <Header text={eventName} uid="expenseReport" />
+        <Text style={styles.title}>{TEXT_REPORT_TITLE}</Text>
+        <View style={styles.titleUnderline} />
+        <Text style={styles.subTitle}>
+          {getReportSubtitle(report.payeeDisplayName, report.mode)}
+        </Text>
+        <View style={styles.infoSectionDivider} />
+        {report.sections.map((section) => (
+          <PayeeSectionBlock
+            key={section.payeeKey}
+            section={section}
+            mode={report.mode}
+            includeComments={report.includeComments}
+          />
+        ))}
+        {report.grandTotals !== null && report.refundTotals !== null ? (
+          <View style={styles.grandTotalBlock} wrap={false}>
+            <TotalRows
+              label={TEXT_REPORT_GRAND_TOTAL}
+              totals={report.grandTotals}
+              isBold
+            />
+            <TotalRows
+              label={TEXT_REPORT_REFUND_TOTAL}
+              totals={report.refundTotals}
+            />
+          </View>
+        ) : null}
+        <Footer
+          uid="expenseReport"
+          actualDate={generatedAt}
+          authUser={authUser}
+        />
+      </Page>
+    </Document>
+  );
+};
+
+/**
+ * Props für {@link PayeeSectionBlock}.
+ *
+ * @param section - Block einer Person.
+ * @param mode - Modus der Abrechnung.
+ * @param includeComments - Kommentarzeilen zeigen.
+ */
+type PayeeSectionBlockProps = {
+  section: ReportPayeeSection;
+  mode: ReportMode;
+  includeComments: boolean;
+};
+
+/**
+ * Block einer Person: Überschrift, Tabelle(n) und Personentotal. In
+ * Modus A ist das Gruppentotal gleich dem Personentotal und wird darum
+ * nur einmal gezeigt (P4).
+ *
+ * @param props - Siehe {@link PayeeSectionBlockProps}.
+ */
+const PayeeSectionBlock = ({
+  section,
+  mode,
+  includeComments,
+}: PayeeSectionBlockProps) => (
+  <View style={styles.section}>
+    <Text style={styles.payeeHeading} minPresenceAhead={MIN_PRESENCE_AHEAD}>
+      {section.displayName}
+    </Text>
+    {section.isNoRefund ? (
+      <Text style={styles.noRefundHint}>{TEXT_REPORT_NO_REFUND_HINT}</Text>
+    ) : null}
+    {section.groups.map((group, groupIndex) => (
+      <ReportTable
+        // Gruppen kennen keine Budget-ID; Index ist stabil (statisches Dokument)
+        key={`${groupIndex}_${group.budgetName}`}
+        group={group}
+        mode={mode}
+        includeComments={includeComments}
+      />
+    ))}
+    <TotalRows
+      label={TEXT_REPORT_TOTAL_OF(section.displayName)}
+      totals={section.totals}
+      isBold
+    />
+  </View>
+);
+
+/**
+ * Props für {@link ReportTable}.
+ *
+ * @param group - Eine Tabelle (Modus B: ein Budget).
+ * @param mode - Modus der Abrechnung.
+ * @param includeComments - Kommentarzeilen zeigen.
+ */
+type ReportTableProps = {
+  group: ReportGroup;
+  mode: ReportMode;
+  includeComments: boolean;
+};
+
+/**
+ * Eine Tabelle: in Modus B mit Budget als Titel und Zwischensumme,
+ * in Modus A ohne beides.
+ *
+ * @param props - Siehe {@link ReportTableProps}.
+ */
+const ReportTable = ({group, mode, includeComments}: ReportTableProps) => (
+  <View style={styles.table}>
+    {group.budgetName !== null ? (
+      <Text style={styles.groupHeading} minPresenceAhead={MIN_PRESENCE_AHEAD}>
+        {group.budgetName}
+      </Text>
+    ) : null}
+    <ReportTableHeader mode={mode} />
+    {group.rows.map((row) => (
+      <ReportTableRow
+        key={row.expenseId}
+        row={row}
+        mode={mode}
+        includeComments={includeComments}
+      />
+    ))}
+    {group.budgetName !== null ? (
+      <TotalRows
+        label={TEXT_REPORT_TOTAL_OF(group.budgetName)}
+        totals={group.totals}
+      />
+    ) : null}
+  </View>
+);
+
+/**
+ * Spaltenköpfe; die Budgetspalte gibt es nur in Modus A (P3).
+ *
+ * @param props.mode - Modus der Abrechnung.
+ */
+const ReportTableHeader = ({mode}: {mode: ReportMode}) => {
+  const showBudgetColumn = mode === ReportMode.PER_PERSON;
+
+  return (
+    <View style={styles.tableHeaderRow} wrap={false}>
+      <Text style={[styles.tableHeaderCell, styles.colReceipt]}>
+        {TEXT_REPORT_COLUMN_RECEIPT}
+      </Text>
+      <Text style={[styles.tableHeaderCell, styles.colDate]}>{TEXT_DATE}</Text>
+      <Text
+        style={[
+          styles.tableHeaderCell,
+          showBudgetColumn ? styles.colLabel : styles.colLabelWide,
+        ]}
+      >
+        {TEXT_LABEL}
+      </Text>
+      {showBudgetColumn ? (
+        <Text style={[styles.tableHeaderCell, styles.colBudget]}>
+          {TEXT_BUDGET}
+        </Text>
+      ) : null}
+      <Text style={[styles.tableHeaderCell, styles.colAmount]}>
+        {TEXT_AMOUNT}
+      </Text>
+    </View>
+  );
+};
+
+/**
+ * Props für {@link ReportTableRow}.
+ *
+ * @param row - Die Zeile.
+ * @param mode - Modus der Abrechnung (Budgetspalte ja/nein).
+ * @param includeComments - Kommentarzeile zeigen.
+ */
+type ReportTableRowProps = {
+  row: ReportRow;
+  mode: ReportMode;
+  includeComments: boolean;
+};
+
+/**
+ * Eine Ausgabe. Wird nie über zwei Seiten verteilt (`wrap={false}`, P5).
+ * Ohne Belegnummer steht «–» (E3).
+ *
+ * @param props - Siehe {@link ReportTableRowProps}.
+ */
+const ReportTableRow = ({row, mode, includeComments}: ReportTableRowProps) => {
+  const showBudgetColumn = mode === ReportMode.PER_PERSON;
+
+  return (
+    <View style={styles.tableRow} wrap={false}>
+      <Text style={[styles.cell, styles.colReceipt]}>
+        {row.receiptNumber !== null
+          ? String(row.receiptNumber)
+          : TEXT_REPORT_NO_RECEIPT_NUMBER}
+      </Text>
+      <Text style={[styles.cell, styles.colDate]}>
+        {formatReportDate(row.date)}
+      </Text>
+      <View style={showBudgetColumn ? styles.colLabel : styles.colLabelWide}>
+        <Text style={styles.cell}>{row.label}</Text>
+        {/* Ternary statt &&: ein leerer Kommentar ("") darf nicht als Kind landen */}
+        {includeComments && row.comment ? (
+          <Text style={styles.comment}>{row.comment}</Text>
+        ) : null}
+      </View>
+      {showBudgetColumn ? (
+        <Text style={[styles.cell, styles.colBudget]}>{row.budgetName}</Text>
+      ) : null}
+      <Text style={[styles.cell, styles.colAmount]}>
+        {formatAmountFromCents(row.amountInCents, row.currency)}
+      </Text>
+    </View>
+  );
+};
+
+/**
+ * Props für {@link TotalRows}.
+ *
+ * @param label - Beschriftung, z.B. «Total Anna».
+ * @param totals - Summen pro Währung (CHF zuerst).
+ * @param isBold - Fett für Personen- und Gesamttotal.
+ */
+type TotalRowsProps = {
+  label: string;
+  totals: CurrencyTotal[];
+  isBold?: boolean;
+};
+
+/**
+ * Summenzeilen, eine pro Währung. Die Beschriftung steht nur in der
+ * ersten Zeile, weitere Währungen folgen darunter (P4).
+ *
+ * @param props - Siehe {@link TotalRowsProps}.
+ */
+const TotalRows = ({label, totals, isBold = false}: TotalRowsProps) => (
+  <View wrap={false}>
+    {totals.map((total, index) => (
+      <View key={total.currency} style={styles.totalRow}>
+        <Text style={isBold ? styles.totalLabelBold : styles.totalLabel}>
+          {index === 0 ? label : ""}
+        </Text>
+        <Text style={isBold ? styles.totalAmountBold : styles.totalAmount}>
+          {formatAmountFromCents(total.amountInCents, total.currency)}
+        </Text>
+      </View>
+    ))}
+  </View>
+);
+```
+
+(`""` in `{index === 0 ? label : ""}` ist erlaubt: Es steht **innerhalb** von `<Text>`.)
+
+##### 6. Erstellen und herunterladen (`Report/downloadExpenseReport.tsx`)
+
+Die einzige Stelle, die Daten, Dokument und Download zusammenbringt. Die Seite lädt sie per `import()` (P6); 7.3 ergänzt hier das Laden der Belege und `pdf-lib`, ohne dass sich Seite oder Dialog ändern.
+
+```tsx
+import React from "react";
+
+import AuthUser from "../../../Session/authUser.class";
+import {generateAndDownloadPdf} from "../../../Shared/pdfUtils";
+import {Event} from "../../Event/event.class";
+import {BudgetDomain} from "../Budget/budget.types";
+import {ExpenseDomain} from "../Expense/expense.types";
+import {ExpenseReport} from "./expenseReport.class";
+import {ReportOptions} from "./expenseReport.types";
+import {ExpenseReportPdf} from "./expenseReportPdf";
+import {getReportFileName} from "./expenseReportLabels";
+
+/**
+ * Eingaben für {@link downloadExpenseReport}.
+ *
+ * @param expenses - Alle Ausgaben des Anlasses.
+ * @param budgets - Alle Budgets des Anlasses, in Anzeigereihenfolge.
+ * @param event - Der Anlass (Name, Köch:innen, UID für Sentry).
+ * @param authUser - Angemeldete Person (Fusszeile).
+ * @param options - Im Dialog gewählte Optionen.
+ * @param onError - Wird bei einem Fehler aufgerufen; Sentry ist dann
+ *   bereits informiert (`generateAndDownloadPdf`).
+ */
+export type DownloadExpenseReportParams = {
+  expenses: ExpenseDomain[];
+  budgets: BudgetDomain[];
+  event: Event;
+  authUser: AuthUser;
+  options: ReportOptions;
+  onError: (error: Error) => void;
+};
+
+/**
+ * Erstellt die Abrechnung als PDF und startet den Download. Wirft nicht:
+ * Fehler gehen an Sentry und an `onError`.
+ *
+ * @param params - Siehe {@link DownloadExpenseReportParams}.
+ * @returns Promise, das nach dem Download (oder Fehler) erfüllt ist.
+ * @example
+ * const {downloadExpenseReport} = await import("./Report/downloadExpenseReport");
+ * await downloadExpenseReport({expenses, budgets, event, authUser, options, onError});
+ */
+export const downloadExpenseReport = async ({
+  expenses,
+  budgets,
+  event,
+  authUser,
+  options,
+  onError,
+}: DownloadExpenseReportParams): Promise<void> => {
+  const report = ExpenseReport.build({
+    expenses,
+    budgets,
+    cooks: event.cooks,
+    options,
+  });
+
+  await generateAndDownloadPdf(
+    <ExpenseReportPdf
+      report={report}
+      eventName={event.name}
+      authUser={authUser}
+      generatedAt={new Date()}
+    />,
+    getReportFileName(event.name, report.payeeDisplayName),
+    onError,
+    {eventUid: event.uid, mode: options.mode},
+  );
+};
+```
+
+##### 7. Dialog (`Report/expenseReportDialog.tsx`)
+
+Hilfsfunktionen für die Auswahlwerte (P9) bleiben **privat** in der Datei (kein Export aus `.tsx`, Fast Refresh) und werden über die Oberfläche getestet.
+
+```tsx
+import React from "react";
+import {
+  Box,
+  Button,
+  CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  Divider,
+  FormControl,
+  FormControlLabel,
+  FormLabel,
+  MenuItem,
+  Radio,
+  RadioGroup,
+  Stack,
+  Switch,
+  TextField,
+  Typography,
+} from "@mui/material";
+import {PictureAsPdfOutlined} from "@mui/icons-material";
+
+import {
+  CANCEL as TEXT_CANCEL,
+  CREATE as TEXT_CREATE,
+  CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
+  REPORT_ALL_PAYEES as TEXT_REPORT_ALL_PAYEES,
+  REPORT_INCLUDE_COMMENTS as TEXT_REPORT_INCLUDE_COMMENTS,
+  REPORT_MODE as TEXT_REPORT_MODE,
+  REPORT_PAYEE_OPTION as TEXT_REPORT_PAYEE_OPTION,
+  REPORT_PAYEE_SELECTION as TEXT_REPORT_PAYEE_SELECTION,
+} from "../../../../constants/text";
+import {useCustomStyles} from "../../../../constants/styles";
+import {Cook} from "../../Event/event.class";
+import {ExpenseDomain} from "../Expense/expense.types";
+import {ExpenseReport} from "./expenseReport.class";
+import {
+  ReportMode,
+  ReportOptions,
+  ReportPayeeOption,
+  ReportPayeeSelection,
+} from "./expenseReport.types";
+import {REPORT_MODE_LABELS} from "./expenseReportLabels";
+
+/** Wert der Option «Alle Personen» im Auswahlfeld. */
+const ALL_PAYEES_VALUE = "all";
+/**
+ * Präfix der Werte einzelner Personen (P9): Schlüssel neuer Personen sind
+ * frei erfasste Namen, ohne Präfix fiele «all» mit «Alle Personen» zusammen.
+ */
+const PAYEE_VALUE_PREFIX = "payee:";
+
+/**
+ * Wandelt eine Auswahl in den Wert des Auswahlfelds.
+ *
+ * @param selection - Person oder «Alle Personen».
+ * @returns Wert für `TextField select`.
+ */
+const toPayeeSelectValue = (selection: ReportPayeeSelection): string =>
+  selection.kind === "all"
+    ? ALL_PAYEES_VALUE
+    : PAYEE_VALUE_PREFIX + selection.payeeKey;
+
+/**
+ * Wandelt einen Wert des Auswahlfelds zurück in eine Auswahl.
+ *
+ * @param value - Wert aus `TextField select`.
+ * @returns Person oder «Alle Personen».
+ */
+const toPayeeSelection = (value: string): ReportPayeeSelection =>
+  value.startsWith(PAYEE_VALUE_PREFIX)
+    ? {kind: "single", payeeKey: value.slice(PAYEE_VALUE_PREFIX.length)}
+    : {kind: "all"};
+
+/**
+ * Vorauswahl (O1/R7): angemeldete Person, sonst die erste, ohne Personen
+ * «Alle Personen».
+ *
+ * @param payeeOptions - Personen mit Ausgaben.
+ * @param authUserId - UID der angemeldeten Person.
+ * @returns Wert für das Auswahlfeld.
+ */
+const getDefaultPayeeValue = (
+  payeeOptions: ReportPayeeOption[],
+  authUserId: string,
+): string => {
+  const defaultPayeeKey = ExpenseReport.getDefaultPayeeKey(
+    payeeOptions,
+    authUserId,
+  );
+  return defaultPayeeKey === null
+    ? ALL_PAYEES_VALUE
+    : toPayeeSelectValue({kind: "single", payeeKey: defaultPayeeKey});
+};
+
+/**
+ * Props für {@link ExpenseReportDialog}.
+ *
+ * @param open - Dialog sichtbar.
+ * @param expenses - Alle Ausgaben des Anlasses (live, für die Personen).
+ * @param cooks - Köch:innen des Anlasses, für die Anzeigenamen.
+ * @param authUserId - UID der angemeldeten Person (Vorauswahl).
+ * @param onCreate - Erstellt das PDF; der Dialog wartet darauf und zeigt
+ *   solange einen Fortschritt.
+ * @param onClose - Schliesst den Dialog (Abbrechen, Klick daneben).
+ */
+type ExpenseReportDialogProps = {
+  open: boolean;
+  expenses: ExpenseDomain[];
+  cooks: Cook[];
+  authUserId: string;
+  onCreate: (options: ReportOptions) => Promise<void>;
+  onClose: () => void;
+};
+
+/**
+ * Dialog «Abrechnung erstellen»: für wen (eine Person oder alle), Aufbau
+ * (eine Tabelle oder pro Budget) und Kommentare ja/nein (Standard: nein,
+ * E8). Startet beim Öffnen frisch, dafür setzt die Seite bei jedem Öffnen
+ * einen neuen `key` (P8). Während des Erstellens lässt er sich nicht
+ * schliessen.
+ *
+ * @param props - Siehe {@link ExpenseReportDialogProps}.
+ * @returns Der Dialog.
+ * @example
+ * <ExpenseReportDialog
+ *   key={reportDialog.key}
+ *   open={reportDialog.open}
+ *   expenses={state.expenses ?? []}
+ *   cooks={event.cooks}
+ *   authUserId={authUser!.uid}
+ *   onCreate={handleCreateReport}
+ *   onClose={handleCloseReportDialog}
+ * />
+ */
+export const ExpenseReportDialog = ({
+  open,
+  expenses,
+  cooks,
+  authUserId,
+  onCreate,
+  onClose,
+}: ExpenseReportDialogProps) => {
+  const classes = useCustomStyles();
+  const modeLabelId = React.useId();
+  const payeeOptions = React.useMemo(
+    () => ExpenseReport.getPayeeOptions(expenses, cooks),
+    [expenses, cooks],
+  );
+  const [payeeValue, setPayeeValue] = React.useState(() =>
+    getDefaultPayeeValue(payeeOptions, authUserId),
+  );
+  const [mode, setMode] = React.useState(ReportMode.PER_PERSON);
+  const [includeComments, setIncludeComments] = React.useState(false);
+  const [isCreating, setIsCreating] = React.useState(false);
+
+  // P10: verschwindet die gewählte Person per Realtime, gilt wieder die
+  // Vorauswahl (abgeleitet statt Effekt, kein leeres PDF)
+  const isPayeeAvailable =
+    payeeValue === ALL_PAYEES_VALUE ||
+    payeeOptions.some(
+      (option) => PAYEE_VALUE_PREFIX + option.payeeKey === payeeValue,
+    );
+  const selectedPayeeValue = isPayeeAvailable
+    ? payeeValue
+    : getDefaultPayeeValue(payeeOptions, authUserId);
+
+  /** Übergibt die Optionen und wartet, bis das PDF erstellt ist. */
+  const handleCreate = async () => {
+    setIsCreating(true);
+    try {
+      await onCreate({
+        mode,
+        payeeSelection: toPayeeSelection(selectedPayeeValue),
+        includeComments,
+        includeMissingReceiptPages: false, // Schalter kommt mit 7.3 (E11, P2)
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onClose={isCreating ? undefined : onClose}
+      maxWidth="xs"
+      fullWidth
+    >
+      <DialogTitle>{TEXT_CREATE_EXPENSE_REPORT}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={3} sx={classes.expenseReportDialogContent}>
+          <TextField
+            select
+            fullWidth
+            label={TEXT_REPORT_PAYEE_SELECTION}
+            value={selectedPayeeValue}
+            onChange={(event) => setPayeeValue(event.target.value)}
+          >
+            {payeeOptions.map((option) => (
+              <MenuItem
+                key={option.payeeKey}
+                value={PAYEE_VALUE_PREFIX + option.payeeKey}
+              >
+                {TEXT_REPORT_PAYEE_OPTION(
+                  option.displayName,
+                  option.expenseCount,
+                )}
+              </MenuItem>
+            ))}
+            {payeeOptions.length > 0 ? <Divider /> : null}
+            <MenuItem value={ALL_PAYEES_VALUE}>{TEXT_REPORT_ALL_PAYEES}</MenuItem>
+          </TextField>
+          <FormControl>
+            <FormLabel id={modeLabelId}>{TEXT_REPORT_MODE}</FormLabel>
+            <RadioGroup
+              aria-labelledby={modeLabelId}
+              value={mode}
+              onChange={(event) => setMode(event.target.value as ReportMode)}
+            >
+              {Object.values(ReportMode).map((reportMode) => (
+                <FormControlLabel
+                  key={reportMode}
+                  value={reportMode}
+                  control={<Radio />}
+                  label={
+                    <Box>
+                      <Typography variant="body1">
+                        {REPORT_MODE_LABELS[reportMode].label}
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {REPORT_MODE_LABELS[reportMode].description}
+                      </Typography>
+                    </Box>
+                  }
+                />
+              ))}
+            </RadioGroup>
+          </FormControl>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={includeComments}
+                onChange={(event) => setIncludeComments(event.target.checked)}
+              />
+            }
+            label={TEXT_REPORT_INCLUDE_COMMENTS}
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose} disabled={isCreating}>
+          {TEXT_CANCEL}
+        </Button>
+        <Button
+          variant="contained"
+          onClick={handleCreate}
+          disabled={isCreating}
+          startIcon={
+            isCreating ? (
+              <CircularProgress size={16} color="inherit" />
+            ) : (
+              <PictureAsPdfOutlined />
+            )
+          }
+        >
+          {TEXT_CREATE}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+```
+
+`event.target.value as ReportMode`: Der Wert kommt nur aus den eigenen Radios (`Object.values(ReportMode)`), der Cast ist darum sicher.
+
+Style in `constants/styles/expenseTracking.styles.ts` (Block «PDF-Abrechnung (Epic 7)» am Ende):
+
+```ts
+  /* PDF-Abrechnung (Epic 7) */
+  expenseReportDialogContent: {
+    paddingTop: theme.spacing(1), // sonst schneidet DialogContent das Label des ersten Feldes ab
+  },
+```
+
+##### 8. Seite (`expenseTracking.tsx`)
+
+Imports ergänzen: `PictureAsPdfOutlined` (zu `AddOutlined`), `ExpenseReportDialog`, `ReportOptions`, Texte `CREATE_EXPENSE_REPORT`, `CREATE_EXPENSE_REPORT_NO_EXPENSES`.
+
+State (bei den anderen Dialog-States):
+
+```tsx
+  /** Dialog «Abrechnung erstellen»; `key` zählt pro Öffnen hoch (P8). */
+  const [reportDialog, setReportDialog] = React.useState({
+    open: false,
+    key: 0,
+  });
+  const hasExpenses = (state.expenses?.length ?? 0) > 0;
+```
+
+Handler (Abschnitt «Dialog Handling»):
+
+```tsx
+  /** Öffnet den Dialog «Abrechnung erstellen» mit frischem Zustand (P8). */
+  const handleOpenReportDialog = () => {
+    setReportDialog((previous) => ({open: true, key: previous.key + 1}));
+  };
+  /** Schliesst den Dialog «Abrechnung erstellen». */
+  const handleCloseReportDialog = () => {
+    setReportDialog((previous) => ({...previous, open: false}));
+  };
+  /**
+   * Erstellt die Abrechnung und startet den Download. Das PDF-Modul wird
+   * erst hier nachgeladen (P6). Fehler beim Erstellen meldet
+   * `generateAndDownloadPdf` selbst an Sentry, darum nur anzeigen (P7).
+   *
+   * @param options - Im Dialog gewählte Optionen.
+   */
+  const handleCreateReport = async (options: ReportOptions) => {
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "expenseReport"});
+    try {
+      const {downloadExpenseReport} = await import(
+        "./Report/downloadExpenseReport"
+      );
+      await downloadExpenseReport({
+        expenses: state.expenses ?? [],
+        budgets: state.budgets ?? [],
+        event,
+        authUser: authUser!,
+        options,
+        onError: (error) =>
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+      });
+    } catch (error) {
+      // nur das Nachladen kann werfen (z.B. Chunk nach einem Deploy weg)
+      handleError(error, "Abrechnung erstellen");
+    }
+    handleCloseReportDialog();
+  };
+```
+
+Titelkarte (`CardHeader` um `action` ergänzen):
+
+```tsx
+          <CardHeader
+            title={
+              hasDonation || hasDonation === null
+                ? TEXT_EXPENSE_TRACKING
+                : TEXT_EXPENSE_TRACKING_NOT_ACTIVE
+            }
+            action={
+              hasDonation === true ? (
+                // Tooltip braucht ein Element, das Maus-Events liefert;
+                // ein deaktivierter Button tut das nicht
+                <Tooltip
+                  title={hasExpenses ? "" : TEXT_CREATE_EXPENSE_REPORT_NO_EXPENSES}
+                >
+                  <Box component="span">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      color="primary"
+                      startIcon={<PictureAsPdfOutlined />}
+                      onClick={handleOpenReportDialog}
+                      disabled={!hasExpenses}
+                    >
+                      {TEXT_CREATE_EXPENSE_REPORT}
+                    </Button>
+                  </Box>
+                </Tooltip>
+              ) : null
+            }
+          />
+```
+
+Dialog (neben `ExpenseDetailDialog`):
+
+```tsx
+      <ExpenseReportDialog
+        key={reportDialog.key}
+        open={reportDialog.open}
+        expenses={state.expenses ?? []}
+        cooks={event.cooks}
+        authUserId={authUser!.uid}
+        onCreate={handleCreateReport}
+        onClose={handleCloseReportDialog}
+      />
+```
+
+`expenseTracking.tsx` wächst damit um ~60 Zeilen (≈ 1060). Kein Umbau in dieser Story; falls noch nicht vorhanden, Eintrag in `tech-debt.md` («Dialog-Handler in Hook auslagern»).
+
+#### Tests 7.2
+
+`Report/__tests__/expenseReportLabels.test.ts`
+- `getReportTitle`/`getReportFileName`: mit Person, «Alle Personen» (`null`), leerer Anlassname (keine doppelten Leerzeichen), Endung `.pdf`
+- `getReportSubtitle`: «Anna · Eine Tabelle», «Alle Personen · Pro Budget»
+- `formatReportDate`: `new Date(2026, 6, 9)` → «09.07.2026»
+- `REPORT_MODE_LABELS` hat für jeden `ReportMode` einen Eintrag
+
+`Report/__tests__/expenseReportPdf.test.tsx` (react-pdf gemockt wie `DonationReceiptPdf.test.tsx`; Fixture über `ExpenseReport.build`, damit Test und echte Daten gleich aussehen)
+- Titel, Untertitel, Personenüberschriften in Reihenfolge
+- Belegnummer bzw. «–», Datum, Betrag formatiert
+- Modus A: Spalte «Budget» und Budgetname pro Zeile; kein «Total Küche»
+- Modus B: keine Spalte «Budget», Budgettitel, «Total Küche», «Total Anna»
+- Kommentar nur mit `includeComments`; leerer Kommentar `""` rendert ohne Fehler (Regression, s. Falle oben)
+- «Ohne Rückerstattung» mit Hinweis
+- «Gesamttotal»/«davon zurückzuerstatten» nur bei «Alle Personen»
+- zwei Währungen: zwei Summenzeilen, Beschriftung nur einmal
+
+`Report/__tests__/expenseReportDialog.test.tsx`
+- Vorauswahl = angemeldete Person (Fixture: angemeldet = Ben, Anna steht alphabetisch zuerst → sonst würde ein Fehler nicht auffallen)
+- ohne eigene Ausgaben → erste Person; nur «Ohne Rückerstattung» → «Alle Personen»
+- Einträge mit Anzahl («Anna (3 Ausgaben)»), «Alle Personen» zuletzt
+- Standard: Modus «Eine Tabelle», Kommentare aus
+- «Erstellen» ruft `onCreate` mit den gewählten Optionen (Person, Modus B, Kommentare an, `includeMissingReceiptPages: false`)
+- neue Person namens «all» → `{kind: "single", payeeKey: "all"}`, nicht «Alle Personen» (P9)
+- Realtime: gewählte Person verschwindet (`rerender` ohne ihre Ausgaben) → Vorauswahl (P10)
+- während `onCreate` läuft: Knöpfe deaktiviert, Fortschritt sichtbar; danach wieder aktiv
+- «Abbrechen» ruft `onClose`
+
+`__tests__/expenseTracking.test.tsx` (`jest.mock("../Report/downloadExpenseReport")`)
+- Knopf nur freigeschaltet sichtbar; ohne Ausgaben deaktiviert, mit Ausgaben aktiv
+- Klick öffnet den Dialog; «Erstellen» ruft `downloadExpenseReport` mit Ausgaben, Budgets, Anlass, Optionen; Dialog schliesst
+- `onError` → Fehler oben auf der Seite (AlertMessage)
+- erneutes Öffnen startet mit Vorauswahl, auch wenn vorher anders gewählt (P8)
+
+`Report/__tests__/expenseReport.class.test.ts`: `payeeDisplayName` (P1).
+
+#### Mutationsproben 7.2
+
+1. `includeComments &&` im Tabellenrumpf entfernen → «Kommentar nur mit Option» rot.
+2. Budgetspalte in beiden Modi zeigen → «Modus B: keine Spalte Budget» rot.
+3. Gesamttotal-Block ohne Bedingung → «nur bei Alle Personen» rot.
+4. Vorauswahl ignoriert `authUserId` (immer erste Option) → «Vorauswahl = angemeldete Person» rot.
+5. Präfix weglassen (Wert = Schlüssel) → «Person namens all» rot.
+6. Rückfall P10 entfernen → Realtime-Test rot.
+7. `disabled={!hasExpenses}` entfernen → «ohne Ausgaben deaktiviert» rot.
+8. `key` am Dialog entfernen → «erneutes Öffnen startet mit Vorauswahl» rot.
+
+#### Abweichungen bei der Umsetzung 7.2 (2026-10-24)
+
+- **Knopf als Menü «Exportieren»** statt «Abrechnung erstellen» (Alternative aus O3/E1): ein Eintrag «Abrechnung erstellen (PDF)», Epic 8 hängt CSV/ZIP dort an. Die Texte `EXPORT_EXCEL`, `DOWNLOAD_RECEIPTS_ZIP`, `NO_RECEIPTS_AVAILABLE` sind dafür schon angelegt, aber noch unbenutzt.
+- **`isExporting` auf der Seite:** Knopf «Exportieren» zeigt während eines Exports einen Fortschritt und ist gesperrt (kein zweiter Export parallel; Grundlage für Epic 8, wo Excel/ZIP ohne Dialog laufen). Gesetzt in `handleCreateReport`, zurückgesetzt im `finally` (auch nach Fehlern). Erster Entwurf setzte es beim Öffnen des Dialogs und nie zurück → Knopf blieb gesperrt. Tests «während des Exports …», «Fehler beim Nachladen: Knopf wieder frei», «Knopf bleibt nach dem Erstellen nutzbar».
+- **Kein `<Divider />` in der Personenauswahl:** MUI `Select` macht aus jedem Kind eine Option mit Klick-Handler (leere Option für Screenreader, Klick setzt den Wert auf `undefined`). Stattdessen `divider` am letzten Personen-Eintrag.
+- **PDF-Styles** liegen in `constants/styles/expenseTrackingReportPDF.styles.ts`.
+- **Mutationsproben:** Jest endet in diesem Repo auch grün mit Exit-Code 1 (veraltete Snapshots), darum zählt nur «Tests: … failed». Alle 8 Proben plus 6 zusätzliche (Divider, gesperrter Knopf, `payeeDisplayName`, 3× `isExporting`) werden erkannt; Probe 3 als realistische Mutation (`grandTotals!` ohne Bedingung).
+
+#### Umsetzung 7.2
+
+- [ ] 1. P1: `payeeDisplayName` in Typ, `build` und Tests
+- [ ] 2. Texte, `expenseReportLabels.ts` + Tests
+- [ ] 3. PDF-Styles, `expenseReportPdf.tsx` + Tests
+- [ ] 4. `downloadExpenseReport.tsx`
+- [ ] 5. `expenseReportDialog.tsx` + Style + Tests
+- [ ] 6. Seite: Knopf, Dialog, Handler + Tests in `expenseTracking.test.tsx`
+- [ ] 7. Mutationsproben 1–8
+- [ ] 8. Verifikation: `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking --watchAll=false`, `npm run lint`
+- [ ] 9. Browser (DEV): Knopf in allen drei Ansichten, deaktiviert ohne Ausgaben (Tooltip), 360 px (passt der Knopf neben den Titel? sonst P11-Fallback); PDFs öffnen: eine Person Modus A, Modus B, «Alle Personen», mit Kommentaren, zwei Währungen, viele Ausgaben (Seitenumbruch: keine zerschnittene Zeile, keine Überschrift allein unten), Umlaute und «’» im Betrag, Dateiname
+- [ ] 10. Commit `feat(abrechnung): PDF-Abrechnung mit Dialog (Story 7.2)`
+
+**Definition of Done 7.2:** PDF für eine Person und für alle lässt sich erstellen, sieht in beiden Modi korrekt aus, Tests und Mutationsproben grün, Browser-Check desktop + mobil.
+
 ### Offen aus dem alten Umriss (erledigt durch die Punkte oben)
 
 <details><summary>Umriss 2026-10-10 (zur Referenz)</summary>
