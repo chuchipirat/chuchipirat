@@ -155,3 +155,37 @@ export type ReportPayeeOption = {
   displayName: string;
   expenseCount: number;
 };
+/**
+ * Ein Beleg des Anhangs, fertig zum Zeichnen (Ergebnis von `loadReceipts`).
+ *
+ * - `image`: Bild-Beleg, verkleinert, als Data-URL für `<Image>`.
+ * - `missing`: Ausgabe ohne Beleg, Leerseite «Beleg hier aufkleben».
+ * - `failed`: Beleg liess sich nicht laden; `error` geht an Sentry.
+ * - `pdfPending`: PDF-Beleg.
+ *
+ * @param receipt - Der Beleg aus `ExpenseReportData.receipts` (Nummer,
+ *   Datum, Bezeichnung, Betrag für die Kopfzeile).
+ */
+export type LoadedReceipt =
+  | {kind: "image"; receipt: ReportReceipt; dataUrl: string}
+  | {kind: "missing"; receipt: ReportReceipt}
+  | {kind: "failed"; receipt: ReportReceipt; error: Error}
+  | {kind: "pdfPending"; receipt: ReportReceipt};
+
+/**
+ * Fortschritt beim Erstellen der Abrechnung.
+ *
+ * - `loading`: Belege werden geladen; `loaded` von `total` sind fertig.
+ * - `rendering`: Alle Belege sind da, das PDF wird gezeichnet.
+ */
+export type ReportProgress =
+  | {stage: "loading"; loaded: number; total: number}
+  | {stage: "rendering"};
+
+/**
+ * Ergebnis von `downloadExpenseReport`.
+ *
+ * @param failedReceiptNumbers - Belegnummern, die nicht geladen werden
+ *   konnten. Leer, wenn alles geklappt hat oder kein PDF entstand.
+ */
+export type ExpenseReportResult = {failedReceiptNumbers: number[]};

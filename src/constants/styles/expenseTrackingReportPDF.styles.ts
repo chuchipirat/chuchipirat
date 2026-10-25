@@ -148,4 +148,69 @@ export const pdfStyles = StyleSheet.create({
     borderTopColor: APP_PRIMARY,
     borderTopStyle: "solid",
   },
+  /* ── Belegseiten  ──────────────────────────── */
+  receiptPage: {
+    paddingTop: PDF_TOKENS.margin.top,
+    paddingBottom: PDF_TOKENS.margin.bottom,
+    paddingHorizontal: PDF_TOKENS.margin.horizontal,
+    flexDirection: "column",
+  },
+  receiptHeader: {
+    fontSize: 12,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+    paddingBottom: 6,
+    marginBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: APP_PRIMARY,
+    borderBottomStyle: "solid",
+  },
+  /**
+   * Nimmt den ganzen Rest der Seite ein (Bild bzw. gestricheltes Feld).
+   * `justifyContent: "center"` setzt das gestrichelte Feld senkrecht in die
+   * Mitte; das Bild ist 100 % hoch und bleibt davon unberührt.
+   */
+  receiptBody: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  /** Bild füllt das Feld, ohne verzerrt oder abgeschnitten zu werden. */
+  receiptImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+  },
+  /**
+   * Gestricheltes Feld in Quittungsgrösse, mitten im Feld. Bewusst
+   * schmaler als übliche Kassenzettel (57–80 mm), damit ein aufgeklebter
+   * Beleg die Linie ganz verdeckt.
+   */
+  receiptPlaceholder: {
+    width: "55mm",
+    height: "90mm",
+    alignSelf: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: PDF_TOKENS.color.gray,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 10,
+  },
+  receiptPlaceholderText: {
+    fontSize: 12,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.normal,
+    color: PDF_TOKENS.color.gray,
+    textAlign: "center",
+  },
+  receiptPlaceholderHint: {
+    fontSize: PDF_TOKENS.fontSize.small,
+    fontFamily: PDF_TOKENS.fontFamily,
+    color: PDF_TOKENS.color.gray,
+    textAlign: "center",
+    marginTop: 6,
+  },
 });

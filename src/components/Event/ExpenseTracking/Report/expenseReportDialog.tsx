@@ -10,6 +10,7 @@ import {
   FormControl,
   FormControlLabel,
   FormLabel,
+  LinearProgress,
   MenuItem,
   Radio,
   RadioGroup,
@@ -28,6 +29,10 @@ import {
   REPORT_MODE as TEXT_REPORT_MODE,
   REPORT_PAYEE_OPTION as TEXT_REPORT_PAYEE_OPTION,
   REPORT_PAYEE_SELECTION as TEXT_REPORT_PAYEE_SELECTION,
+  REPORT_INCLUDE_MISSING_RECEIPT_PAGES as TEXT_REPORT_INCLUDE_MISSING_RECEIPT_PAGES,
+  REPORT_MISSING_RECEIPTS_COUNT as TEXT_REPORT_MISSING_RECEIPTS_COUNT,
+  REPORT_PROGRESS_LOADING as TEXT_REPORT_PROGRESS_LOADING,
+  REPORT_PROGRESS_RENDERING as TEXT_REPORT_PROGRESS_RENDERING,
 } from "../../../../constants/text";
 import {useCustomStyles} from "../../../../constants/styles";
 import {Cook} from "../../Event/event.class";
@@ -38,6 +43,7 @@ import {
   ReportOptions,
   ReportPayeeOption,
   ReportPayeeSelection,
+  ReportProgress,
 } from "./expenseReport.types";
 import {REPORT_MODE_LABELS} from "./expenseReportLabels";
 
@@ -100,7 +106,7 @@ const getDefaultPayeeValue = (
  * @param cooks - Köch*innen des Anlasses, für die Anzeigenamen.
  * @param authUserId - UID der angemeldeten Person (Vorauswahl).
  * @param onCreate - Erstellt das PDF; der Dialog wartet darauf und zeigt
- *   solange einen Fortschritt.
+ *   solange den Fortschritt, den `onCreate` über `onProgress` meldet.
  * @param onClose - Schliesst den Dialog (Abbrechen, Klick daneben).
  */
 type ExpenseReportDialogProps = {
@@ -108,7 +114,10 @@ type ExpenseReportDialogProps = {
   expenses: ExpenseDomain[];
   cooks: Cook[];
   authUserId: string;
-  onCreate: (options: ReportOptions) => Promise<void>;
+  onCreate: (
+    options: ReportOptions,
+    onProgress: (progress: ReportProgress) => void,
+  ) => Promise<void>;
   onClose: () => void;
 };
 
@@ -152,6 +161,9 @@ export const ExpenseReportDialog = ({
   const [mode, setMode] = React.useState(ReportMode.PER_PERSON);
   const [includeComments, setIncludeComments] = React.useState(false);
   const [isCreating, setIsCreating] = React.useState(false);
+  const [includeMissingReceiptPages, setIncludeMissingReceiptPages] =
+    React.useState(true);
+  const [progress, setProgress] = React.useState<ReportProgress | null>(null);
 
   // Verschwindet die gewählte Person per Realtime, gilt wieder die
   // Vorauswahl (abgeleitet statt Effekt, kein leeres PDF)
@@ -164,18 +176,28 @@ export const ExpenseReportDialog = ({
     ? payeeValue
     : getDefaultPayeeValue(payeeOptions, authUserId);
 
+  // Anzahl für die aktuell gewählte Person, ändert sich mit der Auswahl
+  const missingReceiptCount = ExpenseReport.countMissingReceipts(
+    expenses,
+    toPayeeSelection(selectedPayeeValue),
+  );
+
   /** Übergibt die Optionen und wartet, bis das PDF erstellt ist. */
   const handleCreate = async () => {
     setIsCreating(true);
     try {
-      await onCreate({
-        mode,
-        payeeSelection: toPayeeSelection(selectedPayeeValue),
-        includeComments,
-        includeMissingReceiptPages: false,
-      });
+      await onCreate(
+        {
+          mode,
+          payeeSelection: toPayeeSelection(selectedPayeeValue),
+          includeComments,
+          includeMissingReceiptPages,
+        },
+        setProgress,
+      );
     } finally {
       setIsCreating(false);
+      setProgress(null);
     }
   };
 
@@ -250,6 +272,31 @@ export const ExpenseReportDialog = ({
             }
             label={TEXT_REPORT_INCLUDE_COMMENTS}
           />
+          {missingReceiptCount > 0 ? (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={includeMissingReceiptPages}
+                  onChange={(event) =>
+                    setIncludeMissingReceiptPages(event.target.checked)
+                  }
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body1">
+                    {TEXT_REPORT_INCLUDE_MISSING_RECEIPT_PAGES}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {TEXT_REPORT_MISSING_RECEIPTS_COUNT(missingReceiptCount)}
+                  </Typography>
+                </Box>
+              }
+            />
+          ) : null}
+          {progress !== null ? (
+            <ReportProgressIndicator progress={progress} />
+          ) : null}
         </Stack>
       </DialogContent>
       <DialogActions>
@@ -270,3 +317,27 @@ export const ExpenseReportDialog = ({
     </Dialog>
   );
 };
+/**
+ * Fortschritt beim Erstellen (E10, B12): beim Laden mit Zahlen und Balken,
+ * beim Zeichnen als laufender Balken. `role="status"`, damit
+ * Screenreader den Text vorlesen.
+ *
+ * @param props.progress - Aktueller Fortschritt.
+ */
+const ReportProgressIndicator = ({progress}: {progress: ReportProgress}) => (
+  <Stack spacing={1}>
+    {progress.stage === "loading" ? (
+      <LinearProgress
+        variant="determinate"
+        value={(progress.loaded / progress.total) * 100}
+      />
+    ) : (
+      <LinearProgress />
+    )}
+    <Typography variant="body2" color="text.secondary" role="status">
+      {progress.stage === "loading"
+        ? TEXT_REPORT_PROGRESS_LOADING(progress.loaded, progress.total)
+        : TEXT_REPORT_PROGRESS_RENDERING}
+    </Typography>
+  </Stack>
+);

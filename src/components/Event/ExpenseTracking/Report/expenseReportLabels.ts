@@ -6,8 +6,10 @@ import {
   REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION as TEXT_REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION,
   REPORT_TITLE as TEXT_REPORT_TITLE,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
+  REPORT_RECEIPT as TEXT_REPORT_RECEIPT,
 } from "../../../../constants/text";
-import {ReportMode} from "./expenseReport.types";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {ReportMode, ReportReceipt} from "./expenseReport.types";
 
 /**
  * Beschriftung und Erklärung eines Modus.
@@ -90,3 +92,20 @@ export const formatReportDate = (date: Date): string =>
     month: "2-digit",
     year: "numeric",
   });
+
+/**
+ * Kopfzeile einer Belegseite. Macht eine ausgedruckte Seite für sich
+ * verständlich, auch wenn sie von der Tabelle getrennt wird.
+ *
+ * @param receipt - Der Beleg.
+ * @returns z.B. «Beleg 3 · 12.07.2026 · Migros · CHF 42.50».
+ * @example
+ * getReceiptHeader(receipt) // "Beleg 3 · 12.07.2026 · Migros · CHF 42.50"
+ */
+export const getReceiptHeader = (receipt: ReportReceipt): string =>
+  [
+    TEXT_REPORT_RECEIPT(receipt.receiptNumber),
+    formatReportDate(receipt.date),
+    receipt.label,
+    formatAmountFromCents(receipt.amountInCents, receipt.currency),
+  ].join(" · ");

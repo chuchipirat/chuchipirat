@@ -1,6 +1,7 @@
 /**
  * Unit-Tests für das PDF-Dokument der Abrechnung (expenseReportPdf.tsx,
- * Story 7.2).
+ * Story 7.2) und seine Belegseiten (expenseReportReceiptPages.tsx,
+ * Story 7.3a).
  *
  * Die Daten kommen über `ExpenseReport.build`, damit der Test dieselbe
  * Struktur zeichnet wie die App.
@@ -33,7 +34,9 @@ jest.mock("@react-pdf/renderer", () => {
     Page: createComponent("Page", false),
     View: createComponent("View", false),
     Text: createComponent("Text"),
-    Image: createComponent("Image"),
+    // gibt `src` aus, damit der Test die Data-URL des Belegs sieht
+    Image: (props: {src: string}) =>
+      React.createElement("image", {"data-src": props.src}),
     Svg: createComponent("Svg"),
     Path: createComponent("Path"),
     Font: {
@@ -61,7 +64,12 @@ import {Cook} from "../../../Event/event.class";
 import {BudgetDomain, BudgetIcon, BudgetType} from "../../Budget/budget.types";
 import {ExpenseDomain, ExpensePayeeType} from "../../Expense/expense.types";
 import {ExpenseReport} from "../expenseReport.class";
-import {ReportMode, ReportOptions} from "../expenseReport.types";
+import {
+  LoadedReceipt,
+  ReportMode,
+  ReportOptions,
+  ReportReceipt,
+} from "../expenseReport.types";
 import {ExpenseReportPdf} from "../expenseReportPdf";
 
 /* =====================================================================
@@ -186,12 +194,16 @@ const buildAuthUser = (): AuthUser => {
 
 /**
  * Baut die Abrechnung über `ExpenseReport.build` und rendert das PDF.
- * Standard: Anna, Modus A, ohne Kommentare.
+ * Standard: Anna, Modus A, ohne Kommentare, ohne Belegseiten.
  *
  * @param overrides - Optionen, die vom Standard abweichen.
+ * @param loadedReceipts - Belege des Anhangs.
  * @returns Das Render-Ergebnis.
  */
-const renderReportPdf = (overrides: Partial<ReportOptions> = {}) => {
+const renderReportPdf = (
+  overrides: Partial<ReportOptions> = {},
+  loadedReceipts: LoadedReceipt[] = [],
+) => {
   const report = ExpenseReport.build({
     expenses: EXPENSES,
     budgets: BUDGETS,
@@ -208,6 +220,7 @@ const renderReportPdf = (overrides: Partial<ReportOptions> = {}) => {
     <ExpenseReportPdf
       report={report}
       eventName="Sommerlager 2026"
+      loadedReceipts={loadedReceipts}
       authUser={buildAuthUser()}
       generatedAt={new Date(2026, 7, 1)}
     />,
@@ -227,14 +240,15 @@ const amountText = (amountInCents: number, currency: string): string =>
   formatAmountFromCents(amountInCents, currency).replace(/\s/g, " ");
 
 /**
- * Texte aller `<Text>`-Elemente in Dokumentreihenfolge.
+ * Texte aller `<Text>`-Elemente in Dokumentreihenfolge. Leerzeichen wie in
+ * {@link amountText} normalisiert, damit Beträge vergleichbar sind.
  *
  * @param container - Container aus `render`.
  * @returns Die Texte.
  */
 const textsOf = (container: HTMLElement): string[] =>
-  Array.from(container.querySelectorAll("text")).map(
-    (element) => element.textContent ?? "",
+  Array.from(container.querySelectorAll("text")).map((element) =>
+    (element.textContent ?? "").replace(/\s/g, " "),
   );
 
 /* =====================================================================
@@ -381,5 +395,101 @@ describe("ExpenseReportPdf: Alle Personen", () => {
     // CHF: Gesamt 4250 + 2500 + 1000 + 500, zurückzuerstatten ohne die 500
     expect(screen.getByText(amountText(8250, "CHF"))).toBeInTheDocument();
     expect(screen.getByText(amountText(7750, "CHF"))).toBeInTheDocument();
+  });
+});
+
+/* =====================================================================
+// Belegseiten (Story 7.3a)
+// ===================================================================== */
+
+/**
+ * Erstellt einen Beleg für die Kopfzeile einer Belegseite.
+ *
+ * @param receiptNumber - Belegnummer.
+ * @param label - Bezeichnung der Ausgabe.
+ * @returns Der Beleg.
+ */
+const makeReceipt = (receiptNumber: number, label: string): ReportReceipt => ({
+  receiptNumber,
+  expenseId: `expense-${receiptNumber}`,
+  attachmentPath: null,
+  date: new Date(2026, 6, 12),
+  label,
+  amountInCents: 4250,
+  currency: "CHF",
+});
+
+/**
+ * Kopfzeile einer Belegseite, wie Testing Library sie vergleicht.
+ *
+ * @param receiptNumber - Belegnummer.
+ * @param label - Bezeichnung der Ausgabe.
+ * @returns z.B. «Beleg 3 · 12.07.2026 · Migros · CHF 42.50».
+ */
+const receiptHeaderText = (receiptNumber: number, label: string): string =>
+  `Beleg ${receiptNumber} · 12.07.2026 · ${label} · ${amountText(4250, "CHF")}`;
+
+describe("ExpenseReportPdf: Belegseiten", () => {
+  test("ohne Belege keine Belegseite", () => {
+    const {container} = renderReportPdf();
+
+    expect(container.querySelectorAll("page")).toHaveLength(1);
+  });
+
+  test("Bild-Beleg: Kopfzeile und Bild mit der Data-URL", () => {
+    const {container} = renderReportPdf({}, [
+      {
+        kind: "image",
+        receipt: makeReceipt(1, "Migros"),
+        dataUrl: "data:image/jpeg;base64,AAAA",
+      },
+    ]);
+
+    expect(container.querySelectorAll("page")).toHaveLength(2);
+    expect(screen.getByText(receiptHeaderText(1, "Migros"))).toBeInTheDocument();
+    expect(container.querySelector("image")).toHaveAttribute(
+      "data-src",
+      "data:image/jpeg;base64,AAAA",
+    );
+  });
+
+  test("Leerseite, Fehlerseite und PDF-Platzhalter", () => {
+    renderReportPdf({}, [
+      {kind: "missing", receipt: makeReceipt(1, "Bastelladen")},
+      {
+        kind: "failed",
+        receipt: makeReceipt(2, "Volg"),
+        error: new Error("HTTP 404"),
+      },
+      {kind: "pdfPending", receipt: makeReceipt(3, "Coop")},
+    ]);
+
+    expect(screen.getByText("Beleg hier aufkleben")).toBeInTheDocument();
+    expect(
+      screen.getByText("Beleg konnte nicht geladen werden"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Bitte ausdrucken und hier aufkleben oder separat einreichen.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("PDF-Beleg: bitte separat beilegen"),
+    ).toBeInTheDocument();
+  });
+
+  test("Belegseiten nach der Tabelle, in der Reihenfolge von loadedReceipts", () => {
+    const {container} = renderReportPdf({}, [
+      {kind: "missing", receipt: makeReceipt(1, "Bastelladen")},
+      {kind: "missing", receipt: makeReceipt(2, "Volg")},
+    ]);
+
+    const texts = textsOf(container);
+    const firstReceipt = texts.indexOf(receiptHeaderText(1, "Bastelladen"));
+    const secondReceipt = texts.indexOf(receiptHeaderText(2, "Volg"));
+    expect(texts.indexOf("Total Anna")).toBeGreaterThan(-1);
+    expect(firstReceipt).toBeGreaterThan(texts.indexOf("Total Anna"));
+    expect(secondReceipt).toBeGreaterThan(firstReceipt);
+    expect(container.querySelectorAll("page")).toHaveLength(3);
   });
 });

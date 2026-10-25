@@ -20,6 +20,7 @@ export enum ReducerActions {
   EXPENSE_UPDATED,
   EXPENSE_DELETED,
   GENERIC_ERROR,
+  SNACKBAR_SHOW,
   SNACKBAR_CLOSE,
 }
 
@@ -40,6 +41,10 @@ export type DispatchAction =
   | {type: ReducerActions.EXPENSE_UPDATED; payload: ExpenseDomain}
   | {type: ReducerActions.EXPENSE_DELETED; payload: ExpenseDomain}
   | {type: ReducerActions.GENERIC_ERROR; payload: Error}
+  | {
+      type: ReducerActions.SNACKBAR_SHOW;
+      payload: Pick<SnackbarState, "severity" | "message">;
+    }
   | {type: ReducerActions.SNACKBAR_CLOSE};
 
 /**
@@ -187,6 +192,11 @@ export const expenseTrackingReducer = (
         ...state,
         isError: true,
         error: action.payload as Error,
+      };
+    case ReducerActions.SNACKBAR_SHOW:
+      return {
+        ...state,
+        snackbar: {open: true, ...action.payload},
       };
     case ReducerActions.SNACKBAR_CLOSE:
       return {

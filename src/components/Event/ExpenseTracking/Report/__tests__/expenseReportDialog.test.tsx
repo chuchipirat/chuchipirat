@@ -1,6 +1,7 @@
 /**
  * Unit-Tests für den Dialog «Abrechnung erstellen»
- * (expenseReportDialog.tsx, Story 7.2).
+ * (expenseReportDialog.tsx, Story 7.2; Schalter für Leerseiten und
+ * Fortschritt seit Story 7.3a).
  *
  * Fixture: Anna (3 Ausgaben) steht alphabetisch vor Ben (1 Ausgabe),
  * angemeldet ist aber Ben. So fällt auf, wenn die Vorauswahl die
@@ -12,7 +13,11 @@ import "@testing-library/jest-dom";
 
 import {Cook} from "../../../Event/event.class";
 import {ExpenseDomain, ExpensePayeeType} from "../../Expense/expense.types";
-import {ReportMode, ReportOptions} from "../expenseReport.types";
+import {
+  ReportMode,
+  ReportOptions,
+  ReportProgress,
+} from "../expenseReport.types";
 import {ExpenseReportDialog} from "../expenseReportDialog";
 
 /* =====================================================================
@@ -130,6 +135,12 @@ const createAndGetOptions = async (
   return onCreate.mock.calls[0][0];
 };
 
+/** Schalter «Leerseiten für fehlende Belege einfügen». */
+const queryMissingReceiptPagesSwitch = () =>
+  screen.queryByRole("switch", {
+    name: /^Leerseiten für fehlende Belege einfügen/,
+  });
+
 /* =====================================================================
 // Tests
 // ===================================================================== */
@@ -193,7 +204,7 @@ describe("ExpenseReportDialog: Auswahl", () => {
       mode: ReportMode.PER_PERSON_AND_BUDGET,
       payeeSelection: {kind: "single", payeeKey: ANNA.uid},
       includeComments: true,
-      includeMissingReceiptPages: false,
+      includeMissingReceiptPages: true,
     });
   });
 
@@ -285,5 +296,90 @@ describe("ExpenseReportDialog: Erstellen und Abbrechen", () => {
     fireEvent.click(screen.getByRole("button", {name: "Abbrechen"}));
 
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("ExpenseReportDialog: Leerseiten für fehlende Belege", () => {
+  /** Bens Ausgabe mit Beleg: Ben hat keine fehlenden Belege. */
+  const BEN_EXPENSE_WITH_RECEIPT = {
+    ...BEN_EXPENSE,
+    attachmentPath: "event-id-001/expenses/ben-1.jpg",
+  };
+
+  test("mit Ausgaben ohne Beleg: Schalter mit Anzahl, Standard an", () => {
+    render(<ExpenseReportDialog {...makeProps()} />);
+
+    expect(queryMissingReceiptPagesSwitch()).toBeChecked();
+    expect(
+      screen.getByText(
+        "1 Ausgabe ohne Beleg, zum Aufkleben von Papierquittungen",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("Anzahl folgt der Auswahl, ohne fehlende Belege kein Schalter", () => {
+    render(
+      <ExpenseReportDialog
+        {...makeProps({
+          expenses: [BEN_EXPENSE_WITH_RECEIPT, ...ANNA_EXPENSES],
+        })}
+      />,
+    );
+
+    expect(queryMissingReceiptPagesSwitch()).not.toBeInTheDocument();
+
+    selectPayee("Anna (3 Ausgaben)");
+
+    expect(queryMissingReceiptPagesSwitch()).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "3 Ausgaben ohne Beleg, zum Aufkleben von Papierquittungen",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("ausgeschaltet: onCreate bekommt includeMissingReceiptPages false", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+
+    fireEvent.click(queryMissingReceiptPagesSwitch()!);
+
+    expect(
+      (await createAndGetOptions(onCreate)).includeMissingReceiptPages,
+    ).toBe(false);
+  });
+});
+
+describe("ExpenseReportDialog: Fortschritt", () => {
+  test("zeigt, was onCreate meldet, und verschwindet danach", async () => {
+    let reportProgress: (progress: ReportProgress) => void = () => {};
+    let finishCreate: () => void = () => {};
+    const onCreate = jest.fn(
+      (
+        _options: ReportOptions,
+        onProgress: (progress: ReportProgress) => void,
+      ) =>
+        new Promise<void>((resolve) => {
+          reportProgress = onProgress;
+          finishCreate = resolve;
+        }),
+    );
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+    fireEvent.click(screen.getByRole("button", {name: "Erstellen"}));
+
+    act(() => reportProgress({stage: "loading", loaded: 7, total: 23}));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Belege werden geladen (7 von 23)",
+    );
+
+    act(() => reportProgress({stage: "rendering"}));
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "PDF wird erstellt …",
+    );
+
+    await act(async () => {
+      finishCreate();
+    });
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

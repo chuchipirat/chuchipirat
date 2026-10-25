@@ -451,3 +451,52 @@ export const EXPORT = "Exportieren";
 export const EXPORT_EXCEL = "Ausgaben als Excel";
 export const DOWNLOAD_RECEIPTS_ZIP = "Belege als ZIP";
 export const NO_RECEIPTS_AVAILABLE = "Keine Belege vorhanden";
+/** Schalter im Dialog (E11). */
+export const REPORT_INCLUDE_MISSING_RECEIPT_PAGES =
+  "Leerseiten für fehlende Belege einfügen";
+/**
+ * Erklärung unter dem Schalter, mit Anzahl.
+ *
+ * @param count - Anzahl Ausgaben ohne Beleg in der Auswahl.
+ * @returns z.B. «3 Ausgaben ohne Beleg, zum Aufkleben von Papierquittungen».
+ */
+export const REPORT_MISSING_RECEIPTS_COUNT = (count: number): string =>
+  `${count} ${count === 1 ? "Ausgabe" : "Ausgaben"} ohne Beleg, zum Aufkleben von Papierquittungen`;
+/**
+ * Anfang der Kopfzeile einer Belegseite.
+ *
+ * @param receiptNumber - Belegnummer.
+ * @returns z.B. «Beleg 3».
+ */
+export const REPORT_RECEIPT = (receiptNumber: number): string =>
+  `Beleg ${receiptNumber}`;
+/** Leerseite für eine Ausgabe ohne Beleg. */
+export const REPORT_RECEIPT_PASTE_HERE = "Beleg hier aufkleben";
+/** Seite für einen Beleg, der nicht geladen werden konnte. */
+export const REPORT_RECEIPT_LOAD_FAILED = "Beleg konnte nicht geladen werden";
+export const REPORT_RECEIPT_LOAD_FAILED_HINT =
+  "Bitte ausdrucken und hier aufkleben oder separat einreichen.";
+export const REPORT_RECEIPT_PDF_PENDING = "PDF-Beleg: bitte separat beilegen";
+/**
+ * Fortschritt beim Laden der Belege.
+ *
+ * @param loaded - Bereits geladene Belege.
+ * @param total - Alle zu ladenden Belege.
+ * @returns z.B. «Belege werden geladen (7 von 23)».
+ */
+export const REPORT_PROGRESS_LOADING = (
+  loaded: number,
+  total: number,
+): string => `Belege werden geladen (${loaded} von ${total})`;
+/** Fortschritt, sobald alle Belege da sind. */
+export const REPORT_PROGRESS_RENDERING = "PDF wird erstellt …";
+/**
+ * Hinweis nach dem Download, wenn Belege fehlten.
+ *
+ * @param receiptNumbers - Nummern der nicht geladenen Belege.
+ * @returns z.B. «Beleg 3 konnte nicht geladen werden. …».
+ */
+export const REPORT_RECEIPTS_FAILED = (receiptNumbers: number[]): string =>
+  receiptNumbers.length === 1
+    ? `Beleg ${receiptNumbers[0]} konnte nicht geladen werden. Im PDF steht an seiner Stelle eine Leerseite.`
+    : `Belege ${receiptNumbers.join(", ")} konnten nicht geladen werden. Im PDF stehen an ihrer Stelle Leerseiten.`;

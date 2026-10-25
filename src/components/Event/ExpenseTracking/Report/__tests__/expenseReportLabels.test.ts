@@ -1,7 +1,8 @@
 /**
  * Unit-Tests für die Beschriftungen der PDF-Abrechnung
  * (expenseReportLabels.ts, Story 7.2): Titel, Dateiname, Untertitel,
- * Datumsformat und Modus-Beschriftungen.
+ * Datumsformat und Modus-Beschriftungen; Kopfzeile der Belegseiten
+ * (Story 7.3a).
  */
 import {ReportMode} from "../expenseReport.types";
 import {
@@ -9,6 +10,7 @@ import {
   formatReportDate,
   getReportFileName,
   getReportSubtitle,
+  getReceiptHeader,
   getReportTitle,
 } from "../expenseReportLabels";
 
@@ -71,5 +73,24 @@ describe("REPORT_MODE_LABELS", () => {
       expect(REPORT_MODE_LABELS[reportMode].label).not.toBe("");
       expect(REPORT_MODE_LABELS[reportMode].description).not.toBe("");
     });
+  });
+});
+
+describe("getReceiptHeader", () => {
+  test("«Beleg <Nummer> · Datum · Bezeichnung · Betrag»", () => {
+    const header = getReceiptHeader({
+      receiptNumber: 3,
+      expenseId: "expense-3",
+      attachmentPath: null,
+      date: new Date(2026, 6, 12),
+      label: "Migros",
+      amountInCents: 4250,
+      currency: "CHF",
+    });
+
+    // Intl setzt nach «CHF» ein geschütztes Leerzeichen
+    expect(header.replace(/\s/g, " ")).toBe(
+      "Beleg 3 · 12.07.2026 · Migros · CHF 42.50",
+    );
   });
 });

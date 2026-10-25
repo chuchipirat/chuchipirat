@@ -13,6 +13,8 @@ import * as Sentry from "@sentry/react";
  * @param onError - Optionaler Callback für Fehlerbehandlung in der aufrufenden Komponente
  *                  (z.B. Dispatch an Reducer für AlertMessage).
  * @param sentryContext - Optionaler zusätzlicher Kontext für Sentry (z.B. eventUid).
+ * @returns `true`, wenn der Download gestartet wurde; `false` nach einem
+ *          Fehler (Sentry und `onError` sind dann bereits informiert).
  * @example
  * generateAndDownloadPdf(
  *   <MenuplanPdf event={event} menuplan={menuplan} authUser={authUser} />,
@@ -25,16 +27,17 @@ export const generateAndDownloadPdf = async (
   filename: string,
   onError?: (error: Error) => void,
   sentryContext?: Record<string, unknown>,
-): Promise<void> => {
+): Promise<boolean> => {
   try {
     const blob = await pdf(pdfElement).toBlob();
     fileSaver.saveAs(blob, filename);
+    return true;
   } catch (thrown) {
-    const error =
-      thrown instanceof Error ? thrown : new Error(String(thrown));
+    const error = thrown instanceof Error ? thrown : new Error(String(thrown));
     Sentry.captureException(error, {
       extra: {filename, ...sentryContext},
     });
     onError?.(error);
+    return false;
   }
 };

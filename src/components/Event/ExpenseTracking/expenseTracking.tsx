@@ -54,6 +54,7 @@ import {
   CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
   CREATE_EXPENSE_REPORT_NO_EXPENSES as TEXT_CREATE_EXPENSE_REPORT_NO_EXPENSES,
   EXPORT as TEXT_EXPORT,
+  REPORT_RECEIPTS_FAILED as TEXT_REPORT_RECEIPTS_FAILED,
 } from "../../../constants/text";
 
 import {
@@ -113,7 +114,7 @@ import {PayeeBalanceAccordion} from "./Expense/payeeBalanceAccordion";
 import {getEventDateList} from "../Menuplan/menuplanService";
 import {MenuplanData} from "../Menuplan/menuplan.types";
 import {ExpenseEvaluation} from "./Evaluation/expenseEvaluation";
-import {ReportOptions} from "./Report/expenseReport.types";
+import {ReportOptions, ReportProgress} from "./Report/expenseReport.types";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
 type ExpenseTrackingView = "overview" | "expenses" | "evaluation";
@@ -771,33 +772,59 @@ const EventExpenseTrackingPage = ({
    * Erstellt die Abrechnung und startet den Download. Das PDF-Modul wird
    * erst hier nachgeladen. Fehler beim Erstellen meldet
    * `generateAndDownloadPdf` selbst an Sentry, darum nur anzeigen.
-   * Während des Exports ist der Knopf «Exportieren» gesperrt.
+   * Fehlten Belege, erscheint danach ein Hinweis (E6). Während des Exports
+   * ist der Knopf «Exportieren» gesperrt.
    *
    * @param options - Im Dialog gewählte Optionen.
+   * @param onProgress - Fortschritt für den Dialog (E10).
    */
-  const handleCreateReport = async (options: ReportOptions) => {
+  const handleCreateReport = async (
+    options: ReportOptions,
+    onProgress: (progress: ReportProgress) => void,
+  ) => {
     trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "expenseReport"});
     setIsExporting(true);
     try {
       const {downloadExpenseReport} =
         await import("./Report/downloadExpenseReport");
-      await downloadExpenseReport({
+      const result = await downloadExpenseReport({
         expenses: state.expenses ?? [],
         budgets: state.budgets ?? [],
         event,
         authUser: authUser!,
         options,
+        getAttachmentUrl: handleGetAttachmentUrl,
+        onProgress,
         onError: (error) =>
           dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
       });
+      showFailedReceiptsHint(result.failedReceiptNumbers);
     } catch (error) {
-      // nur das Nachladen kann werfen (z.B. Chunk nach einem Deploy weg)
+      // nur das Nachladen (Chunk nach einem Deploy weg) oder ein
+      // Programmierfehler kann werfen
       handleError(error, "Abrechnung erstellen");
     } finally {
       // auch nach einem Fehler, sonst bliebe der Knopf gesperrt
       setIsExporting(false);
     }
     handleCloseReportDialog();
+  };
+  /**
+   * Zeigt nach dem Download einen Hinweis, wenn Belege fehlten (E6, B9).
+   *
+   * @param failedReceiptNumbers - Nummern der nicht geladenen Belege.
+   */
+  const showFailedReceiptsHint = (failedReceiptNumbers: number[]) => {
+    if (failedReceiptNumbers.length === 0) {
+      return;
+    }
+    dispatch({
+      type: ReducerActions.SNACKBAR_SHOW,
+      payload: {
+        severity: "warning",
+        message: TEXT_REPORT_RECEIPTS_FAILED(failedReceiptNumbers),
+      },
+    });
   };
 
   /* ------------------------------------------

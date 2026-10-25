@@ -22,6 +22,7 @@ import {
 import {
   CurrencyTotal,
   ExpenseReportData,
+  LoadedReceipt,
   ReportGroup,
   ReportMode,
   ReportPayeeSection,
@@ -32,6 +33,7 @@ import {
   getReportSubtitle,
   getReportTitle,
 } from "./expenseReportLabels";
+import {ReceiptPage} from "./expenseReportReceiptPages";
 import {pdfStyles as styles} from "../../../../constants/styles/expenseTrackingReportPDF.styles";
 
 /**
@@ -45,12 +47,15 @@ const MIN_PRESENCE_AHEAD = 40;
  *
  * @param report - Fertige Abrechnung aus `ExpenseReport.build`.
  * @param eventName - Name des Anlasses (Kopfzeile, Titel).
+ * @param loadedReceipts - Belege des Anhangs in Nummernreihenfolge
+ *                         (leer = kein Anhang).
  * @param authUser - Angemeldete Person (Fusszeile «erstellt von»).
  * @param generatedAt - Zeitpunkt der Erstellung (Fusszeile).
  */
 type ExpenseReportPdfProps = {
   report: ExpenseReportData;
   eventName: string;
+  loadedReceipts: LoadedReceipt[];
   authUser: AuthUser;
   generatedAt: Date;
 };
@@ -67,6 +72,7 @@ type ExpenseReportPdfProps = {
  * <ExpenseReportPdf
  *   report={ExpenseReport.build({expenses, budgets, cooks, options})}
  *   eventName={event.name}
+ *   loadedReceipts={[]}
  *   authUser={authUser}
  *   generatedAt={new Date()}
  * />
@@ -74,6 +80,7 @@ type ExpenseReportPdfProps = {
 export const ExpenseReportPdf = ({
   report,
   eventName,
+  loadedReceipts,
   authUser,
   generatedAt,
 }: ExpenseReportPdfProps) => {
@@ -121,6 +128,15 @@ export const ExpenseReportPdf = ({
           authUser={authUser}
         />
       </Page>
+      {loadedReceipts.map((loadedReceipt) => (
+        <ReceiptPage
+          key={loadedReceipt.receipt.receiptNumber}
+          loadedReceipt={loadedReceipt}
+          eventName={eventName}
+          authUser={authUser}
+          generatedAt={generatedAt}
+        />
+      ))}
     </Document>
   );
 };

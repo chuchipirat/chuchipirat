@@ -58,7 +58,10 @@ import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import dayjs from "dayjs";
 import * as Sentry from "@sentry/react";
 import {downloadExpenseReport} from "../Report/downloadExpenseReport";
-import {ReportMode} from "../Report/expenseReport.types";
+import {
+  ExpenseReportResult,
+  ReportMode,
+} from "../Report/expenseReport.types";
 /**
  * Mock: customDialog — die Tests steuern, was die Nutzer:in «antwortet».
  * `jest.mock` muss auf oberster Ebene der Datei stehen: Es wird vor den
@@ -2746,10 +2749,27 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
     payeeUserId: "user-123",
   };
   const mockedDownloadExpenseReport = jest.mocked(downloadExpenseReport);
+  /** Ergebnis ohne fehlende Belege (Standard des Mocks). */
+  const NO_FAILED_RECEIPTS: ExpenseReportResult = {failedReceiptNumbers: []};
 
   beforeEach(() => {
-    mockedDownloadExpenseReport.mockReset().mockResolvedValue(undefined);
+    mockedDownloadExpenseReport
+      .mockReset()
+      .mockResolvedValue(NO_FAILED_RECEIPTS);
   });
+
+  /**
+   * Öffnet den Dialog, klickt «Erstellen» und wartet, bis er zu ist.
+   * Seite mit einer Ausgabe muss bereits gerendert sein.
+   */
+  const createReport = async () => {
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+    await waitForReportDialogClosed();
+  };
 
   /** Knopf «Exportieren» in der Titelkarte. */
   const getExportButton = () =>
@@ -2823,16 +2843,56 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
           mode: ReportMode.PER_PERSON,
           payeeSelection: {kind: "single", payeeKey: "user-123"},
           includeComments: false,
-          includeMissingReceiptPages: false,
+          // die Ausgabe hat keinen Beleg: Schalter sichtbar, Standard an
+          includeMissingReceiptPages: true,
         },
+        getAttachmentUrl: expect.any(Function),
+        onProgress: expect.any(Function),
       }),
     );
     await waitForReportDialogClosed();
   });
 
+  test("getAttachmentUrl liefert die Storage-URL des Belegs", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+
+    await createReport();
+
+    const {getAttachmentUrl} = mockedDownloadExpenseReport.mock.calls[0][0];
+    expect(getAttachmentUrl("evt-1/expenses/receipt.jpg")).toBe(
+      "https://mock.supabase.co/storage/v1/object/public/media/events/evt-1/expenses/receipt.jpg",
+    );
+  });
+
+  test("Belege nicht geladen: Hinweis mit den Nummern", async () => {
+    mockedDownloadExpenseReport.mockResolvedValueOnce({
+      failedReceiptNumbers: [3],
+    });
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+
+    await createReport();
+
+    expect(
+      await screen.findByText(
+        "Beleg 3 konnte nicht geladen werden. Im PDF steht an seiner Stelle eine Leerseite.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("alle Belege geladen: kein Hinweis", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+
+    await createReport();
+
+    expect(
+      screen.queryByText(/konnten? nicht geladen werden/),
+    ).not.toBeInTheDocument();
+  });
+
   test("Fehler beim Erstellen erscheint oben auf der Seite", async () => {
     mockedDownloadExpenseReport.mockImplementationOnce(async ({onError}) => {
       onError(new Error("PDF konnte nicht erstellt werden"));
+      return NO_FAILED_RECEIPTS;
     });
     await renderUnlockedPage([kitchenBudget], [cookExpense]);
     await waitFor(() => expect(getExportButton()).toBeEnabled());
@@ -2863,8 +2923,8 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
     let finishDownload: () => void = () => {};
     mockedDownloadExpenseReport.mockImplementationOnce(
       () =>
-        new Promise<void>((resolve) => {
-          finishDownload = resolve;
+        new Promise<ExpenseReportResult>((resolve) => {
+          finishDownload = () => resolve(NO_FAILED_RECEIPTS);
         }),
     );
     await renderUnlockedPage([kitchenBudget], [cookExpense]);
