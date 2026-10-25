@@ -7,6 +7,7 @@ import {
   REPORT_TITLE as TEXT_REPORT_TITLE,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
   REPORT_RECEIPT as TEXT_REPORT_RECEIPT,
+  REPORT_RECEIPT_PAGE_OF as TEXT_REPORT_RECEIPT_PAGE_OF,
 } from "../../../../constants/text";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import {ReportMode, ReportReceipt} from "./expenseReport.types";
@@ -95,17 +96,31 @@ export const formatReportDate = (date: Date): string =>
 
 /**
  * Kopfzeile einer Belegseite. Macht eine ausgedruckte Seite für sich
- * verständlich, auch wenn sie von der Tabelle getrennt wird.
+ * verständlich, auch wenn sie von der Tabelle getrennt wird. Hat ein
+ * PDF-Beleg mehrere Seiten, steht zusätzlich die Seite dabei; bei
+ * einseitigen Belegen nicht.
  *
  * @param receipt - Der Beleg.
- * @returns z.B. «Beleg 3 · 12.07.2026 · Migros · CHF 42.50».
+ * @param pageNumber - Seite innerhalb des Belegs, ab 1 (Standard: 1).
+ * @param pageCount - Anzahl Seiten des Belegs (Standard: 1).
+ * @returns z.B. «Beleg 3 · 12.07.2026 · Migros · CHF 42.50» bzw.
+ *   «Beleg 3 · 12.07.2026 · Migros · CHF 42.50 · Seite 2 von 3».
  * @example
  * getReceiptHeader(receipt) // "Beleg 3 · 12.07.2026 · Migros · CHF 42.50"
+ * getReceiptHeader(receipt, 2, 3)
+ * // "Beleg 3 · 12.07.2026 · Migros · CHF 42.50 · Seite 2 von 3"
  */
-export const getReceiptHeader = (receipt: ReportReceipt): string =>
+export const getReceiptHeader = (
+  receipt: ReportReceipt,
+  pageNumber = 1,
+  pageCount = 1,
+): string =>
   [
     TEXT_REPORT_RECEIPT(receipt.receiptNumber),
     formatReportDate(receipt.date),
     receipt.label,
     formatAmountFromCents(receipt.amountInCents, receipt.currency),
+    ...(pageCount > 1
+      ? [TEXT_REPORT_RECEIPT_PAGE_OF(pageNumber, pageCount)]
+      : []),
   ].join(" · ");

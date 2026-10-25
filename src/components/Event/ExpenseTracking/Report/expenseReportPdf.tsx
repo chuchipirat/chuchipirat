@@ -34,6 +34,7 @@ import {
   getReportTitle,
 } from "./expenseReportLabels";
 import {ReceiptPage} from "./expenseReportReceiptPages";
+import {getReceiptPageSlots} from "./receiptPageSlots";
 import {pdfStyles as styles} from "../../../../constants/styles/expenseTrackingReportPDF.styles";
 
 /**
@@ -128,10 +129,10 @@ export const ExpenseReportPdf = ({
           authUser={authUser}
         />
       </Page>
-      {loadedReceipts.map((loadedReceipt) => (
+      {getReceiptPageSlots(loadedReceipts).map((slot) => (
         <ReceiptPage
-          key={loadedReceipt.receipt.receiptNumber}
-          loadedReceipt={loadedReceipt}
+          key={`${slot.loadedReceipt.receipt.receiptNumber}_${slot.pageNumber}`}
+          slot={slot}
           eventName={eventName}
           authUser={authUser}
           generatedAt={generatedAt}

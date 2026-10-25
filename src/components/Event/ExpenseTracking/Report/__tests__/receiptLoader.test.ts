@@ -3,11 +3,18 @@
  * Dateiart aus der Endung, Reihenfolge, Laden nacheinander, Fortschritt
  * und Fehler pro Beleg.
  *
- * Download und Verkleinern werden über `fetchBlob`/`prepareImage` durch
- * Fakes ersetzt; so läuft der Test ohne Netz und Canvas.
+ * Download und Aufbereiten werden über `fetchBlob`/`prepareImage`/
+ * `preparePdf` durch Fakes ersetzt; so läuft der Test ohne Netz und Canvas.
+ * Das echte Lesen eines PDFs (pdf-lib) prüft ein eigener Block am Ende.
  */
+import {PDFDocument} from "pdf-lib";
+
 import {ReportProgress, ReportReceipt} from "../expenseReport.types";
-import {getReceiptFileKind, loadReceipts} from "../receiptLoader";
+import {
+  EncryptedReceiptError,
+  getReceiptFileKind,
+  loadReceipts,
+} from "../receiptLoader";
 
 /* =====================================================================
 // Fixture
@@ -44,7 +51,8 @@ const getAttachmentUrl = (attachmentPath: string) =>
 
 /**
  * Fake-Abhängigkeiten: Der Download liefert einen Blob mit der URL als
- * Inhalt, das Verkleinern eine Data-URL aus diesem Inhalt.
+ * Inhalt, das Verkleinern eine Data-URL aus diesem Inhalt, das Lesen
+ * eines PDFs feste Bytes mit 2 Seiten.
  *
  * @returns Die Fakes und die gemeldeten Fortschritte.
  */
@@ -60,15 +68,21 @@ const createFakes = () => {
   const prepareImage = jest.fn(
     async (blob: Blob) => `data:image/jpeg;base64,${urlByBlob.get(blob)}`,
   );
+  const preparePdf = jest.fn(async () => ({
+    bytes: new Uint8Array([37, 80, 68, 70]),
+    pageCount: 2,
+  }));
   return {
     progress,
     fetchBlob,
     prepareImage,
+    preparePdf,
     dependencies: {
       getAttachmentUrl,
       onProgress: (entry: ReportProgress) => progress.push(entry),
       fetchBlob,
       prepareImage,
+      preparePdf,
     },
   };
 };
@@ -111,7 +125,7 @@ describe("loadReceipts: Ergebnis", () => {
     ).toEqual([
       [1, "image"],
       [2, "missing"],
-      [3, "pdfPending"],
+      [3, "pdf"],
       [4, "image"],
     ]);
   });
@@ -131,12 +145,30 @@ describe("loadReceipts: Ergebnis", () => {
     });
   });
 
-  test("ohne Beleg und PDF-Beleg: kein Download", async () => {
+  test("ohne Beleg: kein Download", async () => {
     const {dependencies, fetchBlob} = createFakes();
 
-    await loadReceipts([MISSING_2, PDF_3], dependencies);
+    await loadReceipts([MISSING_2], dependencies);
 
     expect(fetchBlob).not.toHaveBeenCalled();
+  });
+
+  test("PDF: lädt herunter, liest es, liefert Bytes und Seitenzahl", async () => {
+    const {dependencies, fetchBlob, prepareImage, preparePdf} = createFakes();
+
+    const [loadedReceipt] = await loadReceipts([PDF_3], dependencies);
+
+    expect(fetchBlob).toHaveBeenCalledWith(
+      "https://storage.test/event-1/expenses/expense-3.pdf",
+    );
+    expect(preparePdf).toHaveBeenCalledTimes(1);
+    expect(prepareImage).not.toHaveBeenCalled();
+    expect(loadedReceipt).toEqual({
+      kind: "pdf",
+      receipt: PDF_3,
+      bytes: new Uint8Array([37, 80, 68, 70]),
+      pageCount: 2,
+    });
   });
 
   test("unbekannte Endung: failed, kein Download", async () => {
@@ -173,22 +205,23 @@ describe("loadReceipts: nacheinander", () => {
 });
 
 describe("loadReceipts: Fortschritt", () => {
-  test("zählt nur Bilder: 0 von 2, 1 von 2, 2 von 2", async () => {
+  test("zählt Bilder und PDFs, keine Leerseiten: 0 bis 3 von 3", async () => {
     const {dependencies, progress} = createFakes();
 
     await loadReceipts([IMAGE_1, MISSING_2, PDF_3, IMAGE_4], dependencies);
 
     expect(progress).toEqual([
-      {stage: "loading", loaded: 0, total: 2},
-      {stage: "loading", loaded: 1, total: 2},
-      {stage: "loading", loaded: 2, total: 2},
+      {stage: "loading", loaded: 0, total: 3},
+      {stage: "loading", loaded: 1, total: 3},
+      {stage: "loading", loaded: 2, total: 3},
+      {stage: "loading", loaded: 3, total: 3},
     ]);
   });
 
-  test("ohne Bilder kein Fortschritt", async () => {
+  test("ohne Downloads kein Fortschritt", async () => {
     const {dependencies, progress} = createFakes();
 
-    await loadReceipts([MISSING_2, PDF_3], dependencies);
+    await loadReceipts([MISSING_2], dependencies);
 
     expect(progress).toEqual([]);
   });
@@ -210,6 +243,18 @@ describe("loadReceipts: Fehler pro Beleg", () => {
     expect(loadedReceipts[1].kind).toBe("image");
     // der fehlgeschlagene Beleg zählt im Fortschritt mit
     expect(progress.at(-1)).toEqual({stage: "loading", loaded: 2, total: 2});
+  });
+
+  test("PDF lesen wirft: failed, die übrigen laden trotzdem", async () => {
+    const {dependencies, preparePdf} = createFakes();
+    preparePdf.mockRejectedValueOnce(new Error("PDF kaputt"));
+
+    const loadedReceipts = await loadReceipts([PDF_3, IMAGE_4], dependencies);
+
+    expect(loadedReceipts.map((loadedReceipt) => loadedReceipt.kind)).toEqual([
+      "failed",
+      "image",
+    ]);
   });
 
   test("Verkleinern wirft: failed", async () => {
@@ -240,5 +285,88 @@ describe("loadReceipts: Fehler pro Beleg", () => {
     } finally {
       global.fetch = originalFetch;
     }
+  });
+});
+
+/* =====================================================================
+// Echtes Lesen eines PDFs (Standard-preparePdf mit pdf-lib)
+// ===================================================================== */
+
+/**
+ * Blob-Ersatz, der nur `arrayBuffer()` kann. jsdom fehlt diese Methode
+ * (wie `Blob.text()`), der echte `preparePdf` braucht aber genau sie.
+ * `slice()` macht eine passgenaue Kopie: Das `buffer` eines Uint8Array
+ * kann grösser sein als der Ausschnitt, den das Array zeigt.
+ *
+ * @param bytes - Inhalt der «Datei».
+ * @returns Ein Objekt, das sich für den Loader wie ein Blob verhält.
+ */
+const blobWithBytes = (bytes: Uint8Array): Blob =>
+  ({arrayBuffer: async () => bytes.slice().buffer}) as unknown as Blob;
+
+/**
+ * Lädt einen PDF-Beleg mit dem echten `preparePdf`; nur der Download ist
+ * ersetzt und liefert die gegebenen Bytes.
+ *
+ * @param bytes - Inhalt der PDF-Datei.
+ * @returns Der geladene Beleg.
+ */
+const loadRealPdf = async (bytes: Uint8Array) => {
+  const [loadedReceipt] = await loadReceipts([PDF_3], {
+    getAttachmentUrl,
+    onProgress: () => undefined,
+    fetchBlob: async () => blobWithBytes(bytes),
+  });
+  return loadedReceipt;
+};
+
+describe("loadReceipts: echtes PDF", () => {
+  test("PDF mit 2 Seiten: pageCount 2, Bytes unverändert", async () => {
+    const pdfDocument = await PDFDocument.create();
+    pdfDocument.addPage();
+    pdfDocument.addPage();
+    const bytes = await pdfDocument.save();
+
+    const loadedReceipt = await loadRealPdf(bytes);
+
+    expect(loadedReceipt).toMatchObject({kind: "pdf", pageCount: 2});
+    expect(loadedReceipt.kind === "pdf" && loadedReceipt.bytes).toEqual(bytes);
+  });
+
+  test("keine PDF-Datei: failed", async () => {
+    const loadedReceipt = await loadRealPdf(new Uint8Array([1, 2, 3]));
+
+    expect(loadedReceipt.kind).toBe("failed");
+  });
+
+  test("passwortgeschütztes PDF: failed mit EncryptedReceiptError", async () => {
+    const pdfDocument = await PDFDocument.create();
+    pdfDocument.addPage();
+    // pdf-lib kann nicht verschlüsseln; ein Eintrag «Encrypt» im Trailer
+    // reicht, damit es das PDF als verschlüsselt erkennt
+    pdfDocument.context.trailerInfo.Encrypt = pdfDocument.context.register(
+      pdfDocument.context.obj({Filter: "Standard"}),
+    );
+    const bytes = await pdfDocument.save();
+
+    const loadedReceipt = await loadRealPdf(bytes);
+
+    expect(
+      loadedReceipt.kind === "failed" && loadedReceipt.error,
+    ).toBeInstanceOf(EncryptedReceiptError);
+  });
+
+  test("PDF ohne Seite: failed", async () => {
+    // save() fügt sonst von sich aus eine leere Seite ein
+    const bytes = await (
+      await PDFDocument.create()
+    ).save({addDefaultPage: false});
+
+    const loadedReceipt = await loadRealPdf(bytes);
+
+    expect(loadedReceipt).toMatchObject({
+      kind: "failed",
+      error: new Error("PDF-Beleg hat keine Seite."),
+    });
   });
 });

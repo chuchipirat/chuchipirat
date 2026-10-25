@@ -1,13 +1,19 @@
 /**
  * Unit-Tests für das Erstellen der Abrechnung (downloadExpenseReport.tsx,
  * Story 7.3a): Ablauf Laden → Zeichnen → Download, Ergebnis mit den
- * fehlenden Belegen und ein Sentry-Ereignis pro Abrechnung.
+ * fehlenden Belegen und ein Sentry-Ereignis pro Abrechnung. Seit Story
+ * 7.3b: Zwischenschritt für PDF-Belege, verschlüsselte PDFs.
  *
- * `loadReceipts`, `generateAndDownloadPdf` und Sentry werden gemockt. Das
+ * `loadReceipts`, `embedPdfReceipts`, `generateAndDownloadPdf` und Sentry
+ * werden gemockt. Das
  * PDF-Dokument ebenfalls: geprüft wird nur, was es als Props bekommt.
  * `ExpenseReport.build` läuft echt (reine Funktion).
  */
-jest.mock("../receiptLoader", () => ({loadReceipts: jest.fn()}));
+jest.mock("../receiptLoader", () => ({
+  ...jest.requireActual("../receiptLoader"),
+  loadReceipts: jest.fn(),
+}));
+jest.mock("../embedPdfReceipts", () => ({embedPdfReceipts: jest.fn()}));
 jest.mock("../../../../Shared/pdfUtils", () => ({
   generateAndDownloadPdf: jest.fn(),
 }));
@@ -23,16 +29,18 @@ import {Event} from "../../../Event/event.class";
 import {BudgetDomain, BudgetIcon, BudgetType} from "../../Budget/budget.types";
 import {ExpenseDomain, ExpensePayeeType} from "../../Expense/expense.types";
 import {downloadExpenseReport} from "../downloadExpenseReport";
+import {embedPdfReceipts} from "../embedPdfReceipts";
 import {
   LoadedReceipt,
   ReportMode,
   ReportOptions,
   ReportProgress,
 } from "../expenseReport.types";
-import {loadReceipts} from "../receiptLoader";
+import {EncryptedReceiptError, loadReceipts} from "../receiptLoader";
 
 const mockedLoadReceipts = jest.mocked(loadReceipts);
 const mockedGenerateAndDownloadPdf = jest.mocked(generateAndDownloadPdf);
+const mockedEmbedPdfReceipts = jest.mocked(embedPdfReceipts);
 
 /* =====================================================================
 // Fixture
@@ -198,6 +206,7 @@ describe("downloadExpenseReport: Ablauf", () => {
       eventUid: "event-1",
       mode: ReportMode.PER_PERSON,
       receiptCount: 2,
+      pdfReceiptPageCount: 0,
     });
   });
 });
@@ -274,5 +283,61 @@ describe("downloadExpenseReport: Sentry", () => {
     await runDownload();
 
     expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+});
+
+describe("downloadExpenseReport: PDF-Belege (Story 7.3b)", () => {
+  /** Beleg 1 als PDF mit 3 Seiten, Beleg 2 als Leerseite. */
+  const withPdfReceipt = (
+    receipt: LoadedReceipt["receipt"],
+    index: number,
+  ): LoadedReceipt =>
+    index === 0
+      ? {kind: "pdf", receipt, bytes: new Uint8Array([37, 80]), pageCount: 3}
+      : {kind: "missing", receipt};
+
+  test("ohne PDF-Beleg: kein Zwischenschritt", async () => {
+    await runDownload();
+
+    expect(mockedGenerateAndDownloadPdf.mock.calls[0][4]).toBeUndefined();
+  });
+
+  test("mit PDF-Beleg: Zwischenschritt setzt die Seiten mit den Slots ein", async () => {
+    mockLoadedReceipts(withPdfReceipt);
+    const embeddedBytes = new Uint8Array([1, 2, 3]);
+    mockedEmbedPdfReceipts.mockResolvedValue(embeddedBytes);
+
+    await runDownload();
+
+    const transformPdf = mockedGenerateAndDownloadPdf.mock.calls[0][4];
+    const reportBytes = new Uint8Array([9]);
+    expect(await transformPdf!(reportBytes)).toBe(embeddedBytes);
+    const [passedBytes, slots] = mockedEmbedPdfReceipts.mock.calls[0];
+    expect(passedBytes).toBe(reportBytes);
+    // 3 Seiten des PDF-Belegs + 1 Leerseite
+    expect(slots.map((slot) => slot.pageNumber)).toEqual([1, 2, 3, 1]);
+  });
+
+  test("Sentry-Kontext zählt die Seiten der PDF-Belege", async () => {
+    mockLoadedReceipts(withPdfReceipt);
+
+    await runDownload();
+
+    expect(mockedGenerateAndDownloadPdf.mock.calls[0][3]).toMatchObject({
+      pdfReceiptPageCount: 3,
+    });
+  });
+
+  test("verschlüsseltes PDF: nicht an Sentry, aber im Ergebnis", async () => {
+    mockLoadedReceipts((receipt) => ({
+      kind: "failed",
+      receipt,
+      error: new EncryptedReceiptError(),
+    }));
+
+    const {result} = await runDownload();
+
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(result.failedReceiptNumbers).toEqual([1, 2]);
   });
 });

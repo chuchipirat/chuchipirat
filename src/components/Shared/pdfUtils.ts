@@ -13,6 +13,9 @@ import * as Sentry from "@sentry/react";
  * @param onError - Optionaler Callback für Fehlerbehandlung in der aufrufenden Komponente
  *                  (z.B. Dispatch an Reducer für AlertMessage).
  * @param sentryContext - Optionaler zusätzlicher Kontext für Sentry (z.B. eventUid).
+ * @param transformPdf - Optionaler Zwischenschritt zwischen Erstellen und
+ *                       Speichern, z.B. PDF-Belege einsetzen (Abrechnung).
+ *                       Wirft er, gilt das wie ein Fehler beim Erstellen.
  * @returns `true`, wenn der Download gestartet wurde; `false` nach einem
  *          Fehler (Sentry und `onError` sind dann bereits informiert).
  * @example
@@ -27,10 +30,14 @@ export const generateAndDownloadPdf = async (
   filename: string,
   onError?: (error: Error) => void,
   sentryContext?: Record<string, unknown>,
+  transformPdf?: (bytes: Uint8Array) => Promise<Uint8Array>,
 ): Promise<boolean> => {
   try {
     const blob = await pdf(pdfElement).toBlob();
-    fileSaver.saveAs(blob, filename);
+    fileSaver.saveAs(
+      transformPdf ? await transformPdfBlob(blob, transformPdf) : blob,
+      filename,
+    );
     return true;
   } catch (thrown) {
     const error = thrown instanceof Error ? thrown : new Error(String(thrown));
@@ -40,4 +47,24 @@ export const generateAndDownloadPdf = async (
     onError?.(error);
     return false;
   }
+};
+
+/**
+ * Wendet einen Zwischenschritt auf ein fertiges PDF an: Blob → Bytes →
+ * Zwischenschritt → wieder ein Blob zum Speichern.
+ *
+ * @param blob - Das PDF aus react-pdf.
+ * @param transformPdf - Der Zwischenschritt.
+ * @returns Das veränderte PDF als Blob.
+ */
+const transformPdfBlob = async (
+  blob: Blob,
+  transformPdf: (bytes: Uint8Array) => Promise<Uint8Array>,
+): Promise<Blob> => {
+  const bytes = await transformPdf(new Uint8Array(await blob.arrayBuffer()));
+  // pdf-lib liefert nie einen SharedArrayBuffer; die Typisierung erlaubt
+  // ihn nur theoretisch. Der Cast spart eine Kopie des ganzen PDFs.
+  return new Blob([bytes as Uint8Array<ArrayBuffer>], {
+    type: "application/pdf",
+  });
 };

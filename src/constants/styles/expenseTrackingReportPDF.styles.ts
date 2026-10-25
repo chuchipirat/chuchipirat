@@ -9,6 +9,7 @@
 import {StyleSheet} from "@react-pdf/renderer";
 import {APP_PRIMARY} from "../stylesMaterialListPdf";
 import {PDF_TOKENS} from "../pdfTokens";
+import {RECEIPT_CONTENT_BOX} from "../../components/Event/ExpenseTracking/Report/receiptPageLayout";
 
 /** Gemeinsame Schrift aller Tabellenzellen. */
 const CELL_BASE = {
@@ -212,5 +213,14 @@ export const pdfStyles = StyleSheet.create({
     color: PDF_TOKENS.color.gray,
     textAlign: "center",
     marginTop: 6,
+  },
+  /**
+   * Leeres Feld einer PDF-Belegseite; pdf-lib zeichnet die Originalseite
+   * hinein (Story 7.3b, C2). Lage und Grösse nur aus RECEIPT_CONTENT_BOX,
+   * damit react-pdf und pdf-lib dasselbe Feld meinen.
+   */
+  receiptPdfBox: {
+    position: "absolute",
+    ...RECEIPT_CONTENT_BOX,
   },
 });

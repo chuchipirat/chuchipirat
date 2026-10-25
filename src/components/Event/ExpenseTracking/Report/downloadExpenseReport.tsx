@@ -14,9 +14,11 @@ import {
   ReportOptions,
   ReportProgress,
 } from "./expenseReport.types";
+import {embedPdfReceipts} from "./embedPdfReceipts";
 import {ExpenseReportPdf} from "./expenseReportPdf";
 import {getReportFileName} from "./expenseReportLabels";
-import {loadReceipts} from "./receiptLoader";
+import {EncryptedReceiptError, loadReceipts} from "./receiptLoader";
+import {getReceiptPageSlots} from "./receiptPageSlots";
 
 /** Ein Beleg, der nicht geladen werden konnte. */
 type FailedReceipt = Extract<LoadedReceipt, {kind: "failed"}>;
@@ -47,6 +49,7 @@ export type DownloadExpenseReportParams = {
 
 /**
  * Erstellt die Abrechnung als PDF mit Belegen und startet den Download.
+ * PDF-Belege setzt pdf-lib nach dem Zeichnen Seite für Seite ein.
  * Ein Beleg, der nicht lädt, blockiert nicht: Er wird im PDF als Leerseite
  * markiert und im Ergebnis zurückgegeben. Wirft nicht wegen Belegen
  * oder des PDFs; nur ein Programmierfehler könnte werfen, den fängt die Seite.
@@ -95,7 +98,9 @@ export const downloadExpenseReport = async ({
       eventUid: event.uid,
       mode: options.mode,
       receiptCount: loadedReceipts.length,
+      pdfReceiptPageCount: countPdfReceiptPages(loadedReceipts),
     },
+    createPdfTransform(loadedReceipts),
   );
 
   return {
@@ -117,9 +122,57 @@ const isFailedReceipt = (
 ): loadedReceipt is FailedReceipt => loadedReceipt.kind === "failed";
 
 /**
+ * Anzahl Belegseiten, die pdf-lib einsetzen muss (für Sentry: grosse
+ * Werte erklären Speicherprobleme auf dem Handy).
+ *
+ * @param loadedReceipts - Geladene Belege.
+ * @returns Summe der Seiten aller PDF-Belege.
+ */
+const countPdfReceiptPages = (loadedReceipts: LoadedReceipt[]): number =>
+  loadedReceipts.reduce(
+    (pageCount, loadedReceipt) =>
+      loadedReceipt.kind === "pdf"
+        ? pageCount + loadedReceipt.pageCount
+        : pageCount,
+    0,
+  );
+
+/**
+ * Zwischenschritt für `generateAndDownloadPdf`, der die PDF-Belege einsetzt
+ * (Story 7.3b, C6). Ohne PDF-Beleg `undefined`: dann öffnet pdf-lib die
+ * Abrechnung gar nicht erst.
+ *
+ * Die Slots entstehen hier mit derselben Funktion wie in `ExpenseReportPdf`,
+ * darum passen sie zu den gezeichneten Seiten (C3).
+ *
+ * @param loadedReceipts - Geladene Belege.
+ * @returns Der Zwischenschritt oder `undefined`.
+ */
+const createPdfTransform = (
+  loadedReceipts: LoadedReceipt[],
+): ((bytes: Uint8Array) => Promise<Uint8Array>) | undefined => {
+  if (!loadedReceipts.some((loadedReceipt) => loadedReceipt.kind === "pdf")) {
+    return undefined;
+  }
+  const slots = getReceiptPageSlots(loadedReceipts);
+  return (reportBytes) => embedPdfReceipts(reportBytes, slots);
+};
+
+/**
+ * `true` für Fehler, die nicht an Sentry gehen: Netzfehler (offline,
+ * Abbruch) und passwortgeschützte PDFs (C5). Beides ist eine Eigenschaft
+ * des Geräts bzw. der Datei, kein Programmfehler.
+ *
+ * @param error - Fehler eines Belegs.
+ * @returns `true`, wenn der Fehler nicht gemeldet wird.
+ */
+const isExpectedReceiptError = (error: Error): boolean =>
+  isTransientNetworkError(error) || error instanceof EncryptedReceiptError;
+
+/**
  * Meldet nicht ladbare Belege gesammelt als ein Sentry-Ereignis: nur
- * Ausgaben-IDs, kein Inhalt. Netzfehler (offline, Abbruch) sind kein
- * Code-Problem und werden nicht gemeldet.
+ * Ausgaben-IDs, kein Inhalt. Erwartbare Fehler (Netz, Passwortschutz,
+ * {@link isExpectedReceiptError}) werden nicht gemeldet.
  *
  * @param failedReceipts - Nicht geladene Belege.
  * @param eventUid - UID des Anlasses.
@@ -129,7 +182,7 @@ const reportFailedReceipts = (
   eventUid: string,
 ): void => {
   const reportableReceipts = failedReceipts.filter(
-    (failed) => !isTransientNetworkError(failed.error),
+    (failed) => !isExpectedReceiptError(failed.error),
   );
   if (reportableReceipts.length === 0) {
     return;

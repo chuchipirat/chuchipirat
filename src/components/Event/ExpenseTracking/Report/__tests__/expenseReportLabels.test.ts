@@ -78,19 +78,43 @@ describe("REPORT_MODE_LABELS", () => {
 
 describe("getReceiptHeader", () => {
   test("«Beleg <Nummer> · Datum · Bezeichnung · Betrag»", () => {
-    const header = getReceiptHeader({
-      receiptNumber: 3,
-      expenseId: "expense-3",
-      attachmentPath: null,
-      date: new Date(2026, 6, 12),
-      label: "Migros",
-      amountInCents: 4250,
-      currency: "CHF",
-    });
+    const header = getReceiptHeader(
+      {
+        receiptNumber: 3,
+        expenseId: "expense-3",
+        attachmentPath: null,
+        date: new Date(2026, 6, 12),
+        label: "Migros",
+        amountInCents: 4250,
+        currency: "CHF",
+      },
+      1,
+      1,
+    );
 
     // Intl setzt nach «CHF» ein geschütztes Leerzeichen
     expect(header.replace(/\s/g, " ")).toBe(
       "Beleg 3 · 12.07.2026 · Migros · CHF 42.50",
+    );
+  });
+  test("«Beleg <Nummer> · Datum · Bezeichnung · Betrag · Seite X von Y»", () => {
+    const header = getReceiptHeader(
+      {
+        receiptNumber: 3,
+        expenseId: "expense-3",
+        attachmentPath: null,
+        date: new Date(2026, 6, 12),
+        label: "Migros",
+        amountInCents: 4250,
+        currency: "CHF",
+      },
+      1,
+      3,
+    );
+
+    // Intl setzt nach «CHF» ein geschütztes Leerzeichen
+    expect(header.replace(/\s/g, " ")).toBe(
+      "Beleg 3 · 12.07.2026 · Migros · CHF 42.50 · Seite 1 von 3",
     );
   });
 });

@@ -1,6 +1,7 @@
 /**
  * Unit-Tests für `generateAndDownloadPdf` (pdfUtils.ts): Rückgabewert,
- * Download und Fehlermeldung an Sentry (Story 7.3a, B8).
+ * Download und Fehlermeldung an Sentry (Story 7.3a, B8); optionaler
+ * Zwischenschritt `transformPdf` (Story 7.3b, C6).
  *
  * react-pdf, file-saver und Sentry werden gemockt; geprüft wird nur, was
  * die Funktion mit ihren Ergebnissen macht.
@@ -68,6 +69,59 @@ describe("generateAndDownloadPdf", () => {
     expect(fileSaver.saveAs).not.toHaveBeenCalled();
     expect(Sentry.captureException).toHaveBeenCalledWith(error, {
       extra: {filename: "Abrechnung.pdf", eventUid: "event-1"},
+    });
+    expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  test("mit transformPdf: speichert das umgewandelte PDF", async () => {
+    // jsdom-Blobs haben kein arrayBuffer(); ein Ersatz mit genau dieser Methode
+    const originalBytes = new Uint8Array([1, 2, 3]);
+    mockToBlob(() =>
+      Promise.resolve({
+        arrayBuffer: async () => originalBytes.slice().buffer,
+      } as unknown as Blob),
+    );
+    const transformPdf = jest.fn(async () => new Uint8Array([9, 8, 7, 6]));
+
+    const isDownloaded = await generateAndDownloadPdf(
+      PDF_ELEMENT,
+      "Abrechnung.pdf",
+      undefined,
+      undefined,
+      transformPdf,
+    );
+
+    expect(isDownloaded).toBe(true);
+    expect(transformPdf).toHaveBeenCalledWith(originalBytes);
+    const [savedBlob, fileName] = jest.mocked(fileSaver.saveAs).mock.calls[0];
+    expect(fileName).toBe("Abrechnung.pdf");
+    expect(savedBlob).toBeInstanceOf(Blob);
+    // 4 Bytes aus transformPdf, nicht die 3 Originalbytes
+    expect((savedBlob as Blob).size).toBe(4);
+    expect((savedBlob as Blob).type).toBe("application/pdf");
+  });
+
+  test("transformPdf wirft: Sentry, onError, kein Download, false", async () => {
+    mockToBlob(() =>
+      Promise.resolve({
+        arrayBuffer: async () => new ArrayBuffer(1),
+      } as unknown as Blob),
+    );
+    const error = new Error("Beleg passt nicht");
+    const onError = jest.fn();
+
+    const isDownloaded = await generateAndDownloadPdf(
+      PDF_ELEMENT,
+      "Abrechnung.pdf",
+      onError,
+      undefined,
+      () => Promise.reject(error),
+    );
+
+    expect(isDownloaded).toBe(false);
+    expect(fileSaver.saveAs).not.toHaveBeenCalled();
+    expect(Sentry.captureException).toHaveBeenCalledWith(error, {
+      extra: {filename: "Abrechnung.pdf"},
     });
     expect(onError).toHaveBeenCalledWith(error);
   });

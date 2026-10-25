@@ -1,7 +1,7 @@
 /**
  * Unit-Tests für das PDF-Dokument der Abrechnung (expenseReportPdf.tsx,
  * Story 7.2) und seine Belegseiten (expenseReportReceiptPages.tsx,
- * Story 7.3a).
+ * Story 7.3a; PDF-Belege und receiptPageSlots.ts seit Story 7.3b).
  *
  * Die Daten kommen über `ExpenseReport.build`, damit der Test dieselbe
  * Struktur zeichnet wie die App.
@@ -32,7 +32,22 @@ jest.mock("@react-pdf/renderer", () => {
   return {
     Document: createComponent("Document", false),
     Page: createComponent("Page", false),
-    View: createComponent("View", false),
+    // gibt den Style aus, damit der Test das Feld der PDF-Belege findet
+    View: React.forwardRef(
+      (props: {children?: unknown; style?: unknown}, _ref: unknown) => {
+        const hasStringChild = React.Children.toArray(props.children).some(
+          (child: unknown) => typeof child === "string",
+        );
+        if (hasStringChild) {
+          throw new Error("Invalid string child outside <Text> in <View>");
+        }
+        return React.createElement(
+          "View",
+          {"data-style": JSON.stringify(props.style ?? null)},
+          props.children,
+        );
+      },
+    ),
     Text: createComponent("Text"),
     // gibt `src` aus, damit der Test die Data-URL des Belegs sieht
     Image: (props: {src: string}) =>
@@ -71,6 +86,8 @@ import {
   ReportReceipt,
 } from "../expenseReport.types";
 import {ExpenseReportPdf} from "../expenseReportPdf";
+import {RECEIPT_CONTENT_BOX} from "../receiptPageLayout";
+import {getReceiptPageSlots} from "../receiptPageSlots";
 
 /* =====================================================================
 // Fixture
@@ -446,14 +463,16 @@ describe("ExpenseReportPdf: Belegseiten", () => {
     ]);
 
     expect(container.querySelectorAll("page")).toHaveLength(2);
-    expect(screen.getByText(receiptHeaderText(1, "Migros"))).toBeInTheDocument();
+    expect(
+      screen.getByText(receiptHeaderText(1, "Migros")),
+    ).toBeInTheDocument();
     expect(container.querySelector("image")).toHaveAttribute(
       "data-src",
       "data:image/jpeg;base64,AAAA",
     );
   });
 
-  test("Leerseite, Fehlerseite und PDF-Platzhalter", () => {
+  test("Leerseite und Fehlerseite", () => {
     renderReportPdf({}, [
       {kind: "missing", receipt: makeReceipt(1, "Bastelladen")},
       {
@@ -461,7 +480,6 @@ describe("ExpenseReportPdf: Belegseiten", () => {
         receipt: makeReceipt(2, "Volg"),
         error: new Error("HTTP 404"),
       },
-      {kind: "pdfPending", receipt: makeReceipt(3, "Coop")},
     ]);
 
     expect(screen.getByText("Beleg hier aufkleben")).toBeInTheDocument();
@@ -472,9 +490,6 @@ describe("ExpenseReportPdf: Belegseiten", () => {
       screen.getByText(
         "Bitte ausdrucken und hier aufkleben oder separat einreichen.",
       ),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText("PDF-Beleg: bitte separat beilegen"),
     ).toBeInTheDocument();
   });
 
@@ -491,5 +506,77 @@ describe("ExpenseReportPdf: Belegseiten", () => {
     expect(firstReceipt).toBeGreaterThan(texts.indexOf("Total Anna"));
     expect(secondReceipt).toBeGreaterThan(firstReceipt);
     expect(container.querySelectorAll("page")).toHaveLength(3);
+  });
+});
+
+/**
+ * PDF-Beleg mit der gegebenen Seitenzahl.
+ *
+ * @param receiptNumber - Belegnummer.
+ * @param pageCount - Anzahl Seiten.
+ * @returns Der geladene Beleg.
+ */
+const makePdfReceipt = (
+  receiptNumber: number,
+  pageCount: number,
+): LoadedReceipt => ({
+  kind: "pdf",
+  receipt: makeReceipt(receiptNumber, "Coop"),
+  bytes: new Uint8Array([37, 80, 68, 70]),
+  pageCount,
+});
+
+describe("getReceiptPageSlots", () => {
+  test("PDF mit 3 Seiten: 3 Einträge 1/3, 2/3, 3/3", () => {
+    const pdfReceipt = makePdfReceipt(1, 3);
+
+    expect(getReceiptPageSlots([pdfReceipt])).toEqual([
+      {loadedReceipt: pdfReceipt, pageNumber: 1, pageCount: 3},
+      {loadedReceipt: pdfReceipt, pageNumber: 2, pageCount: 3},
+      {loadedReceipt: pdfReceipt, pageNumber: 3, pageCount: 3},
+    ]);
+  });
+
+  test("Mischung: Reihenfolge der Belege bleibt, nur PDFs vervielfacht", () => {
+    const slots = getReceiptPageSlots([
+      {kind: "missing", receipt: makeReceipt(1, "Bastelladen")},
+      makePdfReceipt(2, 2),
+      {kind: "missing", receipt: makeReceipt(3, "Volg")},
+    ]);
+
+    expect(
+      slots.map(
+        (slot) =>
+          `${slot.loadedReceipt.receipt.receiptNumber}:${slot.pageNumber}/${slot.pageCount}`,
+      ),
+    ).toEqual(["1:1/1", "2:1/2", "2:2/2", "3:1/1"]);
+  });
+
+  test("ohne Belege: leere Liste", () => {
+    expect(getReceiptPageSlots([])).toEqual([]);
+  });
+});
+
+describe("ExpenseReportPdf: PDF-Belege", () => {
+  test("PDF mit 2 Seiten: zwei Belegseiten mit Seitenangabe", () => {
+    const {container} = renderReportPdf({}, [makePdfReceipt(1, 2)]);
+
+    expect(container.querySelectorAll("page")).toHaveLength(3);
+    expect(
+      screen.getByText(`${receiptHeaderText(1, "Coop")} · Seite 1 von 2`),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(`${receiptHeaderText(1, "Coop")} · Seite 2 von 2`),
+    ).toBeInTheDocument();
+  });
+
+  test("leeres Feld an der Stelle aus RECEIPT_CONTENT_BOX, kein Platzhaltertext", () => {
+    const {container} = renderReportPdf({}, [makePdfReceipt(1, 1)]);
+
+    const pdfBoxes = Array.from(container.querySelectorAll("view"))
+      .map((view) => JSON.parse(view.getAttribute("data-style") ?? "null"))
+      .filter((style) => style?.position === "absolute");
+    expect(pdfBoxes).toEqual([{position: "absolute", ...RECEIPT_CONTENT_BOX}]);
+    expect(screen.queryByText("Beleg hier aufkleben")).not.toBeInTheDocument();
   });
 });

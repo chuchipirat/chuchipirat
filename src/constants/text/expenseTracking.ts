@@ -476,7 +476,18 @@ export const REPORT_RECEIPT_PASTE_HERE = "Beleg hier aufkleben";
 export const REPORT_RECEIPT_LOAD_FAILED = "Beleg konnte nicht geladen werden";
 export const REPORT_RECEIPT_LOAD_FAILED_HINT =
   "Bitte ausdrucken und hier aufkleben oder separat einreichen.";
-export const REPORT_RECEIPT_PDF_PENDING = "PDF-Beleg: bitte separat beilegen";
+/**
+ * Seitenangabe in der Kopfzeile eines mehrseitigen PDF-Belegs.
+ *
+ * @param pageNumber - Seite innerhalb des Belegs, ab 1.
+ * @param pageCount - Anzahl Seiten des Belegs.
+ * @returns z.B. «Seite 2 von 3».
+ */
+export const REPORT_RECEIPT_PAGE_OF = (
+  pageNumber: number,
+  pageCount: number,
+): string => `Seite ${pageNumber} von ${pageCount}`;
+
 /**
  * Fortschritt beim Laden der Belege.
  *

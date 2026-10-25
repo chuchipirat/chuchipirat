@@ -161,16 +161,22 @@ export type ReportPayeeOption = {
  * - `image`: Bild-Beleg, verkleinert, als Data-URL für `<Image>`.
  * - `missing`: Ausgabe ohne Beleg, Leerseite «Beleg hier aufkleben».
  * - `failed`: Beleg liess sich nicht laden; `error` geht an Sentry.
- * - `pdfPending`: PDF-Beleg.
+ * - `pdf`: PDF-Beleg, unverändert als Bytes. pdf-lib setzt seine Seiten
+ *   nach dem Zeichnen in die reservierten Belegseiten ein (Story 7.3b).
  *
  * @param receipt - Der Beleg aus `ExpenseReportData.receipts` (Nummer,
  *   Datum, Bezeichnung, Betrag für die Kopfzeile).
+ * @param dataUrl - Nur `image`: verkleinertes Bild als JPEG-Data-URL.
+ * @param error - Nur `failed`: Grund, warum der Beleg nicht geladen wurde.
+ * @param bytes - Nur `pdf`: Inhalt der PDF-Datei.
+ * @param pageCount - Nur `pdf`: Anzahl Seiten; so viele Belegseiten
+ *   reserviert react-pdf.
  */
 export type LoadedReceipt =
   | {kind: "image"; receipt: ReportReceipt; dataUrl: string}
   | {kind: "missing"; receipt: ReportReceipt}
   | {kind: "failed"; receipt: ReportReceipt; error: Error}
-  | {kind: "pdfPending"; receipt: ReportReceipt};
+  | {kind: "pdf"; receipt: ReportReceipt; bytes: Uint8Array; pageCount: number};
 
 /**
  * Fortschritt beim Erstellen der Abrechnung.
@@ -189,3 +195,28 @@ export type ReportProgress =
  *   konnten. Leer, wenn alles geklappt hat oder kein PDF entstand.
  */
 export type ExpenseReportResult = {failedReceiptNumbers: number[]};
+
+/**
+ * Eine Belegseite im PDF (Story 7.3b, C3). `getReceiptPageSlots` macht
+ * daraus eine flache Liste mit einem Eintrag pro Seite; react-pdf zeichnet
+ * diese Liste, pdf-lib läuft dieselbe Liste ab. So landet jede Seite eines
+ * PDF-Belegs im richtigen Feld.
+ *
+ * Bild, Leerseite und Fehlerseite haben genau eine Seite (1 von 1); ein
+ * PDF-Beleg mit k Seiten ergibt k Einträge (1 von k … k von k).
+ *
+ * @param loadedReceipt - Der Beleg, zu dem die Seite gehört.
+ * @param pageNumber - Seite innerhalb des Belegs, ab 1. Für pdf-lib ist
+ *   der Seitenindex im Quell-PDF `pageNumber - 1`.
+ * @param pageCount - Anzahl Seiten dieses Belegs.
+ * @example
+ * // PDF-Beleg 3 mit 3 Seiten:
+ * // [{loadedReceipt, pageNumber: 1, pageCount: 3},
+ * //  {loadedReceipt, pageNumber: 2, pageCount: 3},
+ * //  {loadedReceipt, pageNumber: 3, pageCount: 3}]
+ */
+export type ReceiptPageSlot = {
+  loadedReceipt: LoadedReceipt;
+  pageNumber: number;
+  pageCount: number;
+};
