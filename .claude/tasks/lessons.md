@@ -49,3 +49,11 @@
 **Rule**: Never put `wrap={false}` on a `<Page>`. Use it only on `View`s inside the page. A "fills the rest of the page" layout (`flexGrow: 1`, image `objectFit: "contain"`) already keeps the content on one page.
 
 **How to apply**: Before planning a react-pdf prop on `Page`, check its handling in `node_modules/@react-pdf/layout/lib/index.js` (`paginate`, `splitPage`), not just the typings.
+
+## pdf-lib: Fehlerklassen sind nicht erkennbar (2026-10-25)
+
+**What happened**: The 7.3b plan said to filter encrypted PDFs with `error.name === "EncryptedPDFError"` or `instanceof`. Neither works: pdf-lib ships ES5 code (tslib `__extends`), where `_super.call(this, msg)` returns a plain `Error`, so `instanceof` is false and `name` is "Error". Same for every pdf-lib error class.
+
+**Rule**: Never detect a library's custom error class without checking its compiled output first. For pdf-lib, avoid the throwing path (e.g. `ignoreEncryption: true` + `isEncrypted`) and throw an own error class.
+
+**How to apply**: Before planning error handling around a third-party error class, write a 5-line probe test (`new LibError() instanceof LibError`, `.name`) and run it.

@@ -6839,7 +6839,169 @@ Hinweis aus 7.2: Jest endet hier immer mit Exit-Code 1 (veraltete Snapshots), nu
 
 **Definition of Done 7.3a:** Bild-Belege erscheinen verkleinert und lesbar im Anhang, Leerseiten und Fehlerseiten tragen die richtige Nummer, der Fortschritt zählt sichtbar hoch, ein kaputter Beleg blockiert nichts. Tests und Mutationsproben grün, Browser-Check desktop + mobil.
 
-### **Story 7.3b — PDF-Belege mit `pdf-lib`** (Umriss, vor dem Start ausdetaillieren)
+### **Story 7.3b — PDF-Belege mit `pdf-lib`**
+
+> **Arbeitsweise (ab 7.3b, Wunsch 2026-10-25):** Der Plan nennt nur Namen, Signaturen und Schritte, keinen fertigen Code. Gio schreibt den Code selbst und lässt ihn an den **Prüfpunkten** (✋) durchsehen.
+
+#### Worum es geht
+
+Ein PDF-Beleg (z.B. Online-Rechnung) erscheint heute als Platzhalter «PDF-Beleg: bitte separat beilegen». Neu werden seine Seiten in die Abrechnung eingesetzt: Beleg 3 mit 2 Seiten → zwei Belegseiten «Beleg 3 · … (Seite 1 von 2)» und «(Seite 2 von 2)», jede mit der Originalseite verkleinert im Feld.
+
+#### Ablauf
+
+```
+loadReceipts       PDF-Beleg laden → Seitenzahl lesen → {kind: "pdf", bytes, pageCount}
+                   (verschlüsselt / kaputt → "failed", wie heute bei Bildern)
+getReceiptPageSlots  eine Liste «welche Belegseite zeigt was»; nutzen BEIDE Seiten:
+ExpenseReportPdf     react-pdf zeichnet pro Eintrag eine Seite (bei PDF: Kopfzeile + leeres Feld)
+embedPdfReceipts     pdf-lib öffnet das fertige PDF und zeichnet die Originalseiten
+                     in die leeren Felder (dieselbe Liste → dieselbe Reihenfolge)
+generateAndDownloadPdf  ruft embedPdfReceipts als Zwischenschritt vor dem Speichern
+```
+
+#### Entscheidungen
+
+**C1 — Aufgabenteilung react-pdf / pdf-lib.** react-pdf zeichnet weiterhin alle Seiten mit Text. pdf-lib setzt nur die Originalseiten ein. *Warum:* pdf-lib kann zwar Text, aber nur mit Standardschriften (kein Roboto); die Gestaltung gäbe es sonst doppelt.
+
+**C2 — Festes Feld statt «ausmessen».** Auf PDF-Belegseiten ist das Feld ein `View` mit `position: "absolute"` und festen Massen (`top`, `left`, `width`, `height`). Dieselben Zahlen liest pdf-lib aus einer gemeinsamen Datei. *Warum:* Die Kopfzeile fliesst im Text; ihre Höhe hängt von Schrift und Zeilenumbruch ab. pdf-lib kann nicht nachmessen, wo react-pdf etwas hingelegt hat. Mit festen Zahlen an einer Stelle können die beiden nicht auseinanderlaufen. Das Feld beginnt tief genug, dass auch eine zweizeilige Kopfzeile Platz hat.
+- *Achtung Koordinaten:* react-pdf misst `top` von **oben**, pdf-lib misst `y` von **unten**. Umrechnen: `y = Seitenhöhe − top − height`.
+
+**C3 — Eine Liste für beide Seiten (`getReceiptPageSlots`).** Aus `loadedReceipts` entsteht eine flache Liste: ein Eintrag pro Belegseite (Bild/Leerseite/Fehler: 1 Eintrag; PDF mit k Seiten: k Einträge mit `sourcePageIndex` 0…k−1). react-pdf rendert genau diese Liste, pdf-lib läuft genau diese Liste ab. *Warum:* Würden beide Seiten die Seiten selbst zählen, reicht ein Unterschied (z.B. ein vergessener Fall), und Beleg 4 landet auf der Seite von Beleg 3.
+- Die Belegseiten sind die **letzten** Seiten des PDFs (B11: jede genau eine Seite). Erste Belegseite = `Seitenzahl des PDFs − Anzahl Slots`.
+
+**C4 — Seitenzahl schon beim Laden.** `loadReceipts` öffnet jedes PDF einmal mit `PDFDocument.load` und liest `getPageCount()`. *Warum:* react-pdf muss die Anzahl Seiten kennen, bevor es zeichnet. Nebeneffekt: Verschlüsselte oder kaputte PDFs fallen hier auf und werden zu `failed` (Fehlerseite + Hinweis wie in 7.3a), statt später das ganze PDF scheitern zu lassen.
+
+**C5 — Verschlüsselte PDFs nicht an Sentry.** `PDFDocument.load` wirft bei Passwortschutz `EncryptedPDFError`. Das ist kein Programmfehler, sondern eine Eigenschaft der Datei. → wie Netzfehler aus der Sentry-Meldung filtern, aber im Ergebnis (Hinweis) lassen.
+
+**C6 — `generateAndDownloadPdf` bekommt einen optionalen Zwischenschritt** `transformPdf?: (bytes: Uint8Array) => Promise<Uint8Array>` als 5. Parameter. *Warum:* Fehler beim Einsetzen landen so im selben `catch` (Sentry + `onError` + `false`), und die 9 anderen Aufrufer bleiben unverändert.
+- Ohne PDF-Belege ruft `downloadExpenseReport` ohne `transformPdf` auf (kein unnötiges Laden/Speichern mit pdf-lib).
+
+**C7 — Kein Einzel-Fehler beim Einsetzen.** Scheitert pdf-lib *nach* erfolgreichem Laden (C4) trotzdem, schlägt die ganze Abrechnung fehl (Fehlermeldung oben, Sentry). *Warum:* Nach C4 ist das sehr selten; eine Fehlerbehandlung pro Seite mit pdf-lib-Text wäre viel Code für einen Fall, den wir nicht erwarten. Falls er im Browser-Check doch auftritt: neu entscheiden.
+
+**C8 — Gedrehte Seiten (`/Rotate`).** pdf-lib übernimmt beim Einbetten die Drehung einer Seite **nicht**. Eine Querformat-Rechnung, die als «Hochformat + 90° gedreht» gespeichert ist, stünde sonst quer. → Ein reiner Helfer berechnet Lage, Grösse und Drehung im Feld; er bekommt einen eigenen Test (gut ohne Browser prüfbar).
+
+**C9 — Keine Verkleinerung von PDF-Belegen** (siehe Entscheidung vom 2026-10-25 oben): Originalseiten bleiben unverändert, «verkleinert» heisst nur skaliert gezeichnet.
+
+**C10 — Bundle.** `pdf-lib` (1.17.1) wird nur von `receiptLoader.ts` und `embedPdfReceipts.ts` importiert; beide hängen nur an `downloadExpenseReport`, das schon nachgeladen wird (P6). Im Build prüfen, dass es nicht im Haupt-Chunk landet.
+
+#### Schritte
+
+**Teil A — Grundlagen**
+
+1. **Abhängigkeit:** `npm install pdf-lib@1.17.1`.
+2. **Typen** (`expenseReport.types.ts`)
+   - `LoadedReceipt`: `pdfPending` ersetzen durch `{kind: "pdf"; receipt; bytes: Uint8Array; pageCount: number}`. JSDoc der Union anpassen.
+   - Neuer Typ `ReceiptPageSlot`: `{loadedReceipt: LoadedReceipt; pageNumber: number; pageCount: number}`. `pageNumber`/`pageCount` sind 1/1 für alles ausser PDF. JSDoc mit Beispiel (Beleg mit 3 Seiten → 3 Slots).
+   - Tipp: Nach dem Ändern zeigt `npx tsc --noEmit` dir jede Stelle, die noch `pdfPending` kennt. Das ist deine To-do-Liste für später.
+3. **Layout-Konstanten** (neu: `Report/receiptPageLayout.ts`)
+   - `A4_SIZE` (`{width: 595.28, height: 841.89}` in Punkt) und `RECEIPT_CONTENT_BOX` (`{top, left, width, height}`), abgeleitet aus `PDF_TOKENS.margin` und Platz für Kopfzeilen. Unten Platz für die Fusszeile lassen (`margin.bottom` ist 65).
+   - Kurze JSDoc: wer die Zahlen benutzt (Style **und** pdf-lib) und dass `top` von oben zählt.
+4. **Texte** (`constants/text/expenseTracking.ts`)
+   - `REPORT_RECEIPT_PDF_PENDING` löschen.
+   - `REPORT_RECEIPT_PAGE_OF(pageNumber, pageCount)` → «Seite 2 von 3».
+5. **Kopfzeile** (`expenseReportLabels.ts`): `getReceiptHeader(receipt, pageNumber = 1, pageCount = 1)`. Bei `pageCount > 1` hinten « (Seite 2 von 3)» anhängen, sonst unverändert.
+
+✋ **Prüfpunkt A** (Typen, Konstanten, Texte, Kopfzeile + Test für `getReceiptHeader` mit und ohne Seitenangabe)
+
+**Teil B — Laden**
+
+6. **`receiptLoader.ts`**
+   - `ReceiptLoaderDependencies` um `preparePdf?: (blob: Blob) => Promise<{bytes: Uint8Array; pageCount: number}>` erweitern (gleiches Muster wie `prepareImage`, für Tests ersetzbar).
+   - Privat `prepareReceiptPdf(blob)`: `blob.arrayBuffer()` → `new Uint8Array(...)` → `PDFDocument.load(bytes)` → `getPageCount()`. PDF mit 0 Seiten ist ein Fehler (werfen).
+   - `isImageReceipt` wird zu `isDownloadableReceipt` (Bild **oder** PDF), damit der Fortschritt PDFs mitzählt.
+   - `loadReceipt`: Der `pdf`-Zweig lädt jetzt auch (gleiches `try/catch` wie beim Bild). Tipp: Den Teil «herunterladen + vorbereiten + bei Fehler `failed`» kannst du so bauen, dass Bild und PDF denselben Ablauf nutzen und sich nur der Vorbereitungsschritt unterscheidet. Funktionen max. 20 Zeilen.
+7. **Tests** (`receiptLoader.test.ts`)
+   - PDF → `fetchBlob` + `preparePdf` aufgerufen, Ergebnis `kind: "pdf"` mit `pageCount`.
+   - `preparePdf` wirft → `failed`, übrige laden weiter.
+   - Fortschritt zählt Bilder **und** PDFs.
+   - Echter `prepareReceiptPdf` einmal mit einem im Test erzeugten PDF: `PDFDocument.create()`, 2× `addPage()`, `save()` → `pageCount: 2`. Tipp: jsdom kennt `Blob.arrayBuffer()` evtl. nicht (wie `Blob.text()` in 7.3a). Falls nicht: Blob-Ersatz mit eigener `arrayBuffer`-Methode bauen.
+   - Bestehende `pdfPending`-Erwartungen anpassen.
+
+✋ **Prüfpunkt B** (Loader + Tests)
+
+**Teil C — Zeichnen mit react-pdf**
+
+8. **`getReceiptPageSlots(loadedReceipts)`** (neu, in `receiptPageLayout.ts` oder eigener Datei `receiptPageSlots.ts`): `pdf` mit k Seiten → k Slots, alles andere → 1 Slot. Reine Funktion, Tipp: `flatMap`.
+9. **`ReceiptPage`** (`expenseReportReceiptPages.tsx`)
+   - Prop `slot: ReceiptPageSlot` statt `loadedReceipt`.
+   - Kopfzeile mit `getReceiptHeader(receipt, slot.pageNumber, slot.pageCount)`.
+   - `ReceiptContent`: Fall `pdfPending` raus, neuer Fall `pdf` → leeres Feld (`View` mit neuem Style `receiptPdfBox`, kein Rahmen: pdf-lib zeichnet hinein).
+   - `uid` für Kopf-/Fusszeile muss pro **Seite** eindeutig sein (Beleg 3 hat jetzt evtl. mehrere Seiten).
+10. **Style** `receiptPdfBox`: `position: "absolute"` + Werte aus `RECEIPT_CONTENT_BOX` (C2). Zahlen nicht abtippen, sondern importieren.
+11. **`ExpenseReportPdf`**: `getReceiptPageSlots(loadedReceipts).map(...)` statt `loadedReceipts.map(...)`. `key` pro Seite eindeutig.
+12. **Tests** (`expenseReportPdf.test.tsx`)
+    - `getReceiptPageSlots`: PDF mit 3 Seiten → 3 Slots mit 1/3, 2/3, 3/3; Mischung in richtiger Reihenfolge.
+    - PDF-Beleg mit 2 Seiten → 2 Seiten mit «(Seite 1 von 2)» / «(Seite 2 von 2)».
+    - Test «PDF-Platzhalter» aus 7.3a entfernen bzw. ersetzen.
+
+✋ **Prüfpunkt C** (Slots, Seite, Dokument + Tests)
+
+**Teil D — Einsetzen mit pdf-lib**
+
+13. **`getEmbeddedPagePlacement(box, sourceWidth, sourceHeight, rotation)`** (neu, `Report/embedPdfReceipts.ts`, exportiert für Tests): rein rechnerisch.
+    - Liefert `{x, y, width, height, rotate}` für `drawPage`.
+    - Skaliert wie `objectFit: "contain"`: Faktor = `min(boxBreite / quellBreite, boxHöhe / quellHöhe)`, mittig im Feld.
+    - y umrechnen (C2).
+    - Bei Drehung 90/270: Breite/Höhe für die Skalierung tauschen, und weil pdf-lib um die linke **untere** Ecke dreht, `x`/`y` verschieben. Tipp: Auf Papier ein Rechteck zeichnen und um die Ecke drehen. Die Testfälle unten zuerst schreiben hilft.
+14. **`embedPdfReceipts(reportBytes, slots)`** (gleiche Datei, exportiert):
+    - `PDFDocument.load(reportBytes)`, erste Belegseite berechnen (C3).
+    - Pro PDF-Beleg das Quell-PDF **einmal** laden (nicht pro Seite), dann `reportDoc.embedPdf(sourceDoc, [seitenIndizes])` → `PDFEmbeddedPage[]`.
+    - Pro Slot: `reportDoc.getPage(index).drawPage(embeddedPage, placement)`. Drehung der Quellseite: `sourceDoc.getPage(i).getRotation().angle`; für `rotate` die Funktion `degrees(...)` aus pdf-lib.
+    - `return reportDoc.save()`.
+    - Hilfsfunktionen privat halten, max. 20 Zeilen pro Funktion.
+15. **`generateAndDownloadPdf`** (`Shared/pdfUtils.ts`): 5. Parameter `transformPdf?` (C6). Ablauf: `toBlob()` → falls `transformPdf`: `arrayBuffer` → `transformPdf` → `new Blob([bytes], {type: "application/pdf"})` → `saveAs`. JSDoc + `@param` ergänzen.
+16. **`downloadExpenseReport`**
+    - `ExpenseReportPdf` bekommt weiter `loadedReceipts` und berechnet die Slots selbst; `downloadExpenseReport` berechnet sie für `embedPdfReceipts` noch einmal. Beide nutzen dieselbe Funktion, darum stimmt die Reihenfolge überein (C3), und die Props des Dokuments bleiben unverändert.
+    - `transformPdf` nur übergeben, wenn mindestens ein `pdf`-Beleg dabei ist.
+    - Sentry-Kontext um `pdfReceiptPageCount` ergänzen.
+    - `reportFailedReceipts`: `EncryptedPDFError` nicht melden (C5). Tipp: `error.name === "EncryptedPDFError"` oder `instanceof` (der Import aus pdf-lib ist hier schon da).
+
+✋ **Prüfpunkt D** (Einsetzen + pdfUtils + downloadExpenseReport, mit Tests:)
+- `getEmbeddedPagePlacement`: A4-Hochformat ins Feld (Faktor, mittig), Querformat (oben/unten Rand), Drehung 90 (Breite/Höhe getauscht, im Feld).
+- `embedPdfReceipts` mit echten, im Test erzeugten PDFs: Bericht mit 1 Tabellenseite + 3 Belegseiten (Bild, PDF 2 Seiten) → gleiche Seitenzahl wie vorher; Belegseiten 3 und 4 haben jetzt Inhalt (Tipp: `getPage(i).node.Contents()` oder die Grösse der gespeicherten Bytes vergleichen; such dir den lesbareren Weg aus).
+- `pdfUtils`: mit `transformPdf` → `saveAs` bekommt das umgewandelte Ergebnis; `transformPdf` wirft → `false`, Sentry, `onError`.
+- `downloadExpenseReport`: ohne PDF-Beleg kein `transformPdf`, mit PDF-Beleg schon; verschlüsseltes PDF nicht an Sentry, aber in `failedReceiptNumbers`.
+
+**Teil E — Abschluss**
+
+17. **Aufräumen:** `npx tsc --noEmit` meldet keine Stelle mehr mit `pdfPending`; `grep -rn "PDF_PENDING\|pdfPending" src` leer.
+18. **Mutationsproben** (mache ich nach Prüfpunkt D):
+    1. In `getReceiptPageSlots` immer 1 Slot pro Beleg → PDF-Test rot.
+    2. y ohne Umrechnung (`y = box.top`) → Placement-Test rot.
+    3. Drehung ignorieren → Placement-Test 90° rot.
+    4. `transformPdf` immer übergeben → downloadExpenseReport-Test rot.
+    5. `EncryptedPDFError`-Filter entfernen → Sentry-Test rot.
+    6. In `pdfUtils` Ergebnis von `transformPdf` nicht verwenden → pdfUtils-Test rot.
+19. **Verifikation:** `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking Shared --watchAll=false`, `npm run lint`.
+20. **Bundle:** `npm run build`, dann prüfen, dass pdf-lib nur in einem nachgeladenen Chunk steckt (z.B. `grep -l "EncryptedPDFError" build/**/*.js` → nicht die `index-*.js`).
+21. **Browser (DEV):** Online-Rechnung 1 Seite, PDF mit 3 Seiten (Kopfzeilen «Seite x von 3»), Querformat-PDF, gedrehtes PDF (z.B. im Mac-Vorschau-Programm um 90° gedreht und gespeichert), passwortgeschütztes PDF (→ Fehlerseite + Hinweis, kein Sentry), Mischung Bild + PDF + Leerseite in richtiger Reihenfolge, grosses Scan-PDF auf dem Handy.
+22. **Commit** `feat(abrechnung): PDF-Belege in die Abrechnung einsetzen (Story 7.3b)`.
+
+#### Stand und Abweichungen bei der Umsetzung 7.3b (2026-10-25)
+
+Teil A von Gio, Teile B–E von Claude (auf Wunsch). Schritte 1–20 erledigt: tsc, `.tsx`-Prüfung, Lint, `npx jest ExpenseTracking Shared` (46 Suites / 762 Tests) grün; 9 Mutationsproben alle erkannt (die 6 geplanten plus: `isEncrypted`-Prüfung weg, leere Seiten nicht übersprungen, erste Belegseite ab 0). Bundle: pdf-lib nur im nachgeladenen Chunk `downloadExpenseReport-*.js`. **Offen: 21 Browser, 22 Commit.**
+
+- **C5 geändert — eigene Fehlerklasse `EncryptedReceiptError`** (in `receiptLoader.ts`). `EncryptedPDFError` aus pdf-lib lässt sich nicht erkennen: pdf-lib ist nach ES5 übersetzt, `new EncryptedPDFError()` liefert ein gewöhnliches `Error` (`instanceof` falsch, `name` = «Error»). Darum lädt `prepareReceiptPdf` mit `ignoreEncryption: true`, prüft `isEncrypted` selbst und wirft die eigene Klasse; `downloadExpenseReport` filtert per `instanceof EncryptedReceiptError`. Damit hängt `downloadExpenseReport` nicht mehr direkt an pdf-lib.
+- **Neu: Seiten ohne Inhalt werden übersprungen.** pdf-lib wirft beim Einbetten einer Seite ganz ohne `Contents` («Can't embed page with missing Contents»), das hätte nach C7 die ganze Abrechnung scheitern lassen. Eine solche Seite zeigt nichts; das Feld bleibt leer, Kopfzeile «Seite x von k» steht trotzdem.
+- **Einbetten pro Seite (`embedPage`) statt `embedPdf(…, indices)`**, wegen des Punkts oben (leere Seiten auslassen). Quell-PDF trotzdem nur einmal pro Beleg geladen.
+- **`getReceiptPageSlots` in eigener Datei** `receiptPageSlots.ts` (Logik, nicht Layout).
+- **Feld der PDF-Seite direkt in der `Page`**, nicht im `receiptBody`: `position: "absolute"` misst vom Elternelement; nur direkt in der Page stimmt es mit pdf-lib überein.
+- **Typ `ContentBox`** in `receiptPageLayout.ts`: `PDF_TOKENS` ist `as const`, `typeof RECEIPT_CONTENT_BOX` hätte `left: 35` als Literaltyp.
+- **Drehung als `degrees((360 − r) % 360)`** statt `degrees(−r)`: gleiche Drehung, aber nie `−0` (das `toEqual` von Jest unterscheidet `−0` und `0`).
+- **`new Blob([bytes as Uint8Array<ArrayBuffer>])`** in `pdfUtils`: TypeScript 5.7 lässt theoretisch einen `SharedArrayBuffer` zu; pdf-lib erzeugt nie einen. Der Cast spart eine Kopie des ganzen PDFs.
+- **Test-Wissen:** `PDFDocument.save()` fügt einem leeren Dokument von sich aus eine Seite hinzu (`addDefaultPage: false` zum Abschalten). Ein «verschlüsseltes» Test-PDF entsteht über einen `Encrypt`-Eintrag im Trailer (pdf-lib kann selbst nicht verschlüsseln).
+- **Browser-Check zusätzlich:** lange Bezeichnung (zweizeilige Kopfzeile) überlappt das Feld nicht; Feld liegt genau dort, wo pdf-lib zeichnet (keine Verschiebung zur Kopfzeile).
+
+#### Prüfpunkte: warum vier statt pro Datei oder am Ende
+
+- **Pro Datei** wäre zu kleinteilig: Typen ohne Verwendung lassen sich kaum sinnvoll beurteilen.
+- **Erst am Ende** wäre riskant: Ein Fehler in Teil A (z.B. Slot-Typ oder Feld-Konstanten) zieht sich durch B–D und muss dann an vielen Stellen korrigiert werden.
+- Die vier Prüfpunkte liegen jeweils dort, wo etwas Eigenständiges fertig und testbar ist.
+
+**Definition of Done 7.3b:** PDF-Belege erscheinen Seite für Seite mit richtiger Nummer und «Seite x von k», richtig gedreht und vollständig im Feld; verschlüsselte oder kaputte PDFs blockieren nichts; pdf-lib nicht im Haupt-Bundle. Tests und Mutationsproben grün, Browser-Check desktop + mobil.
+
+<details><summary>Umriss 7.3b vom 2026-10-25 (zur Referenz; die Entscheidung «Keine Verkleinerung» gilt)</summary>
+
 
 - **Abhängigkeit:** `pdf-lib` (1.17.x, reines JS, keine nativen Teile). Wird nur über `downloadExpenseReport` erreicht, das schon nachgeladen wird (P6); im Haupt-Bundle darf es nicht auftauchen (im Build prüfen).
 - **Aufgabenteilung:** react-pdf zeichnet weiterhin **alle** Seiten mit Text (Kopfzeile, Schrift Roboto). `pdf-lib` macht nur eins: die Seiten eines PDF-Belegs in die dafür reservierten, leeren Belegseiten einsetzen (`embedPdf` + `drawPage`). *Warum nicht alles mit pdf-lib:* Seine Standardschriften kennen nur Westeuropäisch; für Roboto bräuchte es eine zweite Bibliothek (`@pdf-lib/fontkit`), und die Gestaltung gäbe es doppelt.
@@ -6850,6 +7012,8 @@ Hinweis aus 7.2: Jest endet hier immer mit Exit-Code 1 (veraltete Snapshots), nu
 - **`generateAndDownloadPdf`** bekommt dafür einen Zwischenschritt (z.B. optionaler `transformPdf(bytes)` vor dem Speichern), damit Sentry/`onError` an einer Stelle bleiben.
 - **Tests:** `pdf-lib` läuft in Jest echt (CommonJS); Test-PDFs im Test selbst erzeugen.
 - **Risiken für den Browser-Check:** gedrehte Seiten (`/Rotate`), passwortgeschützte Rechnungen. Grosse Scan-PDFs nur darauf prüfen, dass das Erstellen auf dem Handy durchläuft (Speicher); die Dateigrösse selbst ist akzeptiert (siehe «Keine Verkleinerung»).
+
+</details>
 
 ### Offen aus dem alten Umriss (erledigt durch die Punkte oben)
 
