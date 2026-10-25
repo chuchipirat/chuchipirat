@@ -41,3 +41,11 @@
 **Rule**: English identifiers use `event` (`eventDays`, `eventDayCount`, `getEventDayIndex`), matching the German "Anlass" in UI and comments. Never `camp`, also not in plan sketches or test fixtures.
 
 **How to apply**: Before naming anything, grep for the existing term (`grep -rn "eventDay" src`). Also my comments in code sketches must be German, even when I post them only in chat — the user copies them into the code.
+
+## react-pdf: `wrap={false}` an `<Page>` macht die Seite so hoch wie ihr Inhalt (2026-10-25)
+
+**What happened**: The Story 7.3a plan put `<Page size="A4" wrap={false}>` on each receipt page to guarantee "one receipt = one page". In the export the receipt pages were not A4 but only as tall as their content. Cause: `paginate` in `@react-pdf/layout` returns a `wrap={false}` page unchanged and skips `splitPage`, which is the step that sets the page box height from `size`.
+
+**Rule**: Never put `wrap={false}` on a `<Page>`. Use it only on `View`s inside the page. A "fills the rest of the page" layout (`flexGrow: 1`, image `objectFit: "contain"`) already keeps the content on one page.
+
+**How to apply**: Before planning a react-pdf prop on `Page`, check its handling in `node_modules/@react-pdf/layout/lib/index.js` (`paginate`, `splitPage`), not just the typings.

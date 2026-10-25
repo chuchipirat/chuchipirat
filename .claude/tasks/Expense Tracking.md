@@ -5772,6 +5772,1085 @@ Dialog (neben `ExpenseDetailDialog`):
 
 **Definition of Done 7.2:** PDF für eine Person und für alle lässt sich erstellen, sieht in beiden Modi korrekt aus, Tests und Mutationsproben grün, Browser-Check desktop + mobil.
 
+### **Story 7.3a — Bild-Belege, Leerseiten und Fortschritt**
+
+> Geplant 2026-10-24. Code-Abschnitte sind vollständig (inkl. JSDoc) und zum Übernehmen gedacht; Begründungen stehen jeweils davor. PDF-Belege folgen in 7.3b.
+
+#### Worum es geht
+
+Nach der Tabelle hängt das PDF die Belege an, jeder auf einer eigenen Seite mit Kopfzeile «Beleg 3 · 12.07.2026 · Migros · CHF 42.50» (E5). Ausgaben ohne Beleg bekommen auf Wunsch eine nummerierte Leerseite «Beleg hier aufkleben» (E11). Ein Beleg, der nicht lädt, blockiert nichts: An seiner Stelle steht eine Seite «Beleg konnte nicht geladen werden», danach erscheint ein Hinweis (E6). Während des Ladens zeigt der Dialog «Belege werden geladen (7 von 23)» (E10).
+
+#### Zuschnitt: 7.3 in zwei Teile (B1)
+
+**B1 — 7.3a ohne `pdf-lib`, 7.3b nur PDF-Belege.** 7.3a bringt alles, was react-pdf allein kann: Bilder, Leerseiten, Fehlerseiten, Fortschritt, Schalter im Dialog. 7.3b fügt danach nur noch die Seiten von PDF-Belegen ein. *Warum:* (a) Keine neue Abhängigkeit in 7.3a. (b) Der Ablauf «erst alle Belege laden, dann zeichnen» entsteht schon in 7.3a; 7.3b hängt sich nur an zwei Stellen ein (Laden, nach dem Zeichnen). (c) Zwei kleinere, prüfbare Schritte statt einem grossen. Bis 7.3b steht für einen PDF-Beleg eine Seite «PDF-Beleg: bitte separat beilegen» (`pdfPending`). Das ist auf dem Feature-Branch unproblematisch, ausgeliefert wird erst mit 7.3b.
+
+#### Bausteine und Datenfluss
+
+```
+expenseReportDialog.tsx   Schalter «Leerseiten …» (E11), Fortschrittsanzeige (E10)
+   │ onCreate(options, onProgress)
+expenseTracking.tsx       handleCreateReport → Hinweis-Snackbar bei fehlenden Belegen (E6)
+   │ import()
+downloadExpenseReport.tsx
+   ├─ ExpenseReport.build(...)                      (7.1, unverändert)
+   ├─ loadReceipts(report.receipts, ...)            Report/receiptLoader.ts (neu)
+   │     nacheinander: fetch → verkleinern → Data-URL, Fehler pro Beleg abfangen
+   ├─ Sentry: nicht ladbare Belege gesammelt melden
+   ├─ onProgress({stage: "rendering"})
+   └─ generateAndDownloadPdf(<ExpenseReportPdf report loadedReceipts />)
+         └─ pro Beleg <ReceiptPage>                  Report/expenseReportReceiptPages.tsx (neu)
+```
+
+| Datei | neu/geändert | Inhalt |
+|---|---|---|
+| `Shared/imageResize.ts` | geändert | `resizeImage` nimmt `Blob` statt nur `File` (B5) |
+| `Shared/pdfUtils.ts` | geändert | `generateAndDownloadPdf` liefert `true`/`false` (B8) |
+| `Report/expenseReport.types.ts` | geändert | `LoadedReceipt`, `ReportProgress`, `ExpenseReportResult` |
+| `constants/text/expenseTracking.ts` | geändert | Texte Belegseiten, Schalter, Fortschritt, Hinweis |
+| `Report/expenseReportLabels.ts` | geändert | `getReceiptHeader` |
+| `Report/receiptLoader.ts` | neu | Belege laden, Typ erkennen, Bilder vorbereiten |
+| `constants/styles/expenseTrackingReportPDF.styles.ts` | geändert | Styles der Belegseiten |
+| `Report/expenseReportReceiptPages.tsx` | neu | `ReceiptPage` |
+| `Report/expenseReportPdf.tsx` | geändert | Prop `loadedReceipts`, Belegseiten anhängen |
+| `Report/downloadExpenseReport.tsx` | geändert | Laden, Sentry, Fortschritt, Ergebnis |
+| `Report/expenseReportDialog.tsx` | geändert | Schalter E11, Fortschritt |
+| `expenseTracking.reducer.ts` | geändert | Aktion `SNACKBAR_SHOW` |
+| `expenseTracking.tsx` | geändert | `onProgress` durchreichen, Hinweis nach dem Download |
+
+#### Entscheidungen
+
+**B2 — Erst alle Belege laden, dann zeichnen.** react-pdf zeichnet synchron aus fertigen Daten; ein `<Image>` mit URL würde react-pdf selbst laden lassen, ohne Verkleinern, ohne Fortschritt und mit Abbruch des ganzen PDFs bei einem 404. Darum lädt `loadReceipts` vorher und übergibt fertige Data-URLs. *Folge für 7.3b:* PDF-Belege werden im selben Durchgang geladen, ihre Seitenzahl ist vor dem Zeichnen bekannt.
+
+**B3 — Nacheinander laden, nicht `Promise.all`** (E10). 30 Handyfotos à 5 MB gleichzeitig dekodiert sprengen auf einem Handy den Speicher. Nacheinander ist langsamer, aber der Fortschritt zählt dafür sauber hoch. Kein Abbrechen-Knopf: Der Dialog ist während des Erstellens gesperrt (wie in 7.2).
+
+**B4 — Belegtyp aus der Dateiendung**, nicht aus dem `Content-Type` der Antwort. Die Endung vergeben wir selbst beim Upload (`ATTACHMENT_MIME_TO_EXTENSION`), sie ist also verlässlich. So lässt sich der Typ ohne Netz testen, und für PDF-Belege braucht 7.3a gar keinen Download. Unbekannte Endung → Fehlerseite (sollte nie vorkommen).
+
+**B5 — Bilder verkleinern mit dem vorhandenen `resizeImage`** (längste Seite 2000 px, JPEG 0.8, E5). Es nimmt heute ein `File`, braucht intern aber nur `URL.createObjectURL`, das jeder `Blob` kann. Darum den Parametertyp auf `Blob` erweitern: Alle vier Aufrufer übergeben ein `File`, und `File` ist ein `Blob`, also ändert sich für sie nichts. *Bekannte Grenze:* PNG mit Transparenz wird als JPEG schwarz hinterlegt. Belege sind praktisch nie transparent; im Browser-Check mit einem Screenshot prüfen.
+
+**B6 — Fehler pro Beleg abfangen, nicht pro Abrechnung** (E6). `loadReceipts` wirft nie wegen eines Belegs, sondern liefert `{kind: "failed", error}`. `fetch` wirft nur bei Netzfehlern, ein 404 (Beleg gelöscht) muss über `response.ok` selbst auffallen.
+
+**B7 — Sentry: ein Ereignis pro Abrechnung, nicht pro Beleg, ohne Netzfehler.** Bei 20 kaputten Belegen wären 20 Ereignisse Lärm. `isTransientNetworkError` filtert «offline / Verbindung weg» heraus (kein Code-Problem); gemeldet werden die Ausgaben-IDs, kein Inhalt, kein Dateiname.
+
+**B8 — `generateAndDownloadPdf` liefert, ob es geklappt hat.** Der Hinweis «Beleg 3 konnte nicht geladen werden» ergibt nur Sinn, wenn das PDF tatsächlich heruntergeladen wurde; sonst steht ja schon der Fehler oben. Rückgabe `Promise<boolean>` statt `Promise<void>`: Die acht anderen Aufrufer ignorieren den Wert, für sie ändert sich nichts.
+
+**B9 — Hinweis als Snackbar (Warnung), nicht als Fehler oben.** Das PDF ist da und brauchbar; es fehlt nur ein Teil, und die Seite im PDF sagt das auch. Der Reducer kennt bisher nur Snackbars mit festen Texten (Erfolg nach Speichern), darum eine kleine allgemeine Aktion `SNACKBAR_SHOW`.
+
+**B10 — Schalter «Leerseiten für fehlende Belege»** (E11): nur sichtbar, wenn die gewählte Auswahl Ausgaben ohne Beleg hat, mit Anzahl darunter; Standard **an**. Die Anzahl rechnet `ExpenseReport.countMissingReceipts` (7.1) aus der aktuellen Auswahl, sie ändert sich also mit der Person.
+
+**B11 — Belegseite = genau eine Seite.** Ein Beleg wird nie auf zwei Seiten verteilt: `receiptBody` füllt nur den Rest der Seite (`flexGrow: 1`), ein zu grosses Bild schrumpft (`objectFit: "contain"`). **Kein `wrap={false}` an der `<Page>`** (korrigiert 2026-10-25): react-pdf überspringt dann das Aufteilen der Seite, bei dem die A4-Höhe gesetzt wird, und die Seite wird nur so hoch wie ihr Inhalt (`paginate` in `@react-pdf/layout`). 7.3b verlässt sich darauf beim Zählen der Seiten.
+
+**B12 — Fortschritt als Typ mit zwei Phasen** (`loading` mit Zahlen, `rendering` ohne). Das Zeichnen dauert bei vielen Bildern auch ein paar Sekunden; ohne zweite Phase stünde dort «23 von 23» und nichts passiert scheinbar.
+
+#### Code
+
+##### 1. `resizeImage` nimmt einen `Blob` (B5)
+
+`src/components/Shared/imageResize.ts`, nur Parametertypen und JSDoc:
+
+```ts
+ * @param file - Das Bild als `File` (Input-Element) oder `Blob` (z.B. aus
+ *   `fetch`); ein `File` ist ein `Blob`.
+ ...
+export async function resizeImage(
+  file: Blob,
+  maxDimension = 1200,
+  quality = 0.85
+): Promise<Blob> {
+```
+
+```ts
+ * @param file - Die zu ladende Bilddatei (`File` oder `Blob`).
+ ...
+function loadImage(file: Blob): Promise<HTMLImageElement> {
+```
+
+##### 2. `generateAndDownloadPdf` meldet Erfolg (B8)
+
+`src/components/Shared/pdfUtils.ts`:
+
+```ts
+ * @param sentryContext - Optionaler zusätzlicher Kontext für Sentry (z.B. eventUid).
+ * @returns `true`, wenn der Download gestartet wurde; `false` nach einem
+ *   Fehler (Sentry und `onError` sind dann bereits informiert).
+ ...
+): Promise<boolean> => {
+  try {
+    const blob = await pdf(pdfElement).toBlob();
+    fileSaver.saveAs(blob, filename);
+    return true;
+  } catch (thrown) {
+    const error =
+      thrown instanceof Error ? thrown : new Error(String(thrown));
+    Sentry.captureException(error, {
+      extra: {filename, ...sentryContext},
+    });
+    onError?.(error);
+    return false;
+  }
+};
+```
+
+##### 3. Typen (`Report/expenseReport.types.ts`, am Ende)
+
+```ts
+/**
+ * Ein Beleg des Anhangs, fertig zum Zeichnen (Ergebnis von `loadReceipts`).
+ *
+ * - `image`: Bild-Beleg, verkleinert, als Data-URL für `<Image>` (E5).
+ * - `missing`: Ausgabe ohne Beleg, Leerseite «Beleg hier aufkleben» (E11).
+ * - `failed`: Beleg liess sich nicht laden (E6); `error` geht an Sentry.
+ * - `pdfPending`: PDF-Beleg; wird erst ab Story 7.3b eingefügt.
+ *
+ * @param receipt - Der Beleg aus `ExpenseReportData.receipts` (Nummer,
+ *   Datum, Bezeichnung, Betrag für die Kopfzeile).
+ */
+export type LoadedReceipt =
+  | {kind: "image"; receipt: ReportReceipt; dataUrl: string}
+  | {kind: "missing"; receipt: ReportReceipt}
+  | {kind: "failed"; receipt: ReportReceipt; error: Error}
+  | {kind: "pdfPending"; receipt: ReportReceipt};
+
+/**
+ * Fortschritt beim Erstellen der Abrechnung (E10).
+ *
+ * - `loading`: Belege werden geladen; `loaded` von `total` sind fertig.
+ * - `rendering`: Alle Belege sind da, das PDF wird gezeichnet.
+ */
+export type ReportProgress =
+  | {stage: "loading"; loaded: number; total: number}
+  | {stage: "rendering"};
+
+/**
+ * Ergebnis von `downloadExpenseReport`.
+ *
+ * @param failedReceiptNumbers - Belegnummern, die nicht geladen werden
+ *   konnten (E6). Leer, wenn alles geklappt hat oder kein PDF entstand.
+ */
+export type ExpenseReportResult = {failedReceiptNumbers: number[]};
+```
+
+##### 4. Texte (`constants/text/expenseTracking.ts`, Block «PDF-Abrechnung»)
+
+```ts
+/** Schalter im Dialog (E11). */
+export const REPORT_INCLUDE_MISSING_RECEIPT_PAGES =
+  "Leerseiten für fehlende Belege einfügen";
+/**
+ * Erklärung unter dem Schalter, mit Anzahl.
+ *
+ * @param count - Anzahl Ausgaben ohne Beleg in der Auswahl.
+ * @returns z.B. «3 Ausgaben ohne Beleg, zum Aufkleben von Papierquittungen».
+ */
+export const REPORT_MISSING_RECEIPTS_COUNT = (count: number): string =>
+  `${count} ${count === 1 ? "Ausgabe" : "Ausgaben"} ohne Beleg, zum Aufkleben von Papierquittungen`;
+/**
+ * Anfang der Kopfzeile einer Belegseite.
+ *
+ * @param receiptNumber - Belegnummer.
+ * @returns z.B. «Beleg 3».
+ */
+export const REPORT_RECEIPT = (receiptNumber: number): string =>
+  `Beleg ${receiptNumber}`;
+/** Leerseite für eine Ausgabe ohne Beleg (E11). */
+export const REPORT_RECEIPT_PASTE_HERE = "Beleg hier aufkleben";
+/** Seite für einen Beleg, der nicht geladen werden konnte (E6). */
+export const REPORT_RECEIPT_LOAD_FAILED = "Beleg konnte nicht geladen werden";
+export const REPORT_RECEIPT_LOAD_FAILED_HINT =
+  "Bitte ausdrucken und hier aufkleben oder separat einreichen.";
+/** Platzhalter für PDF-Belege bis Story 7.3b. */
+export const REPORT_RECEIPT_PDF_PENDING = "PDF-Beleg: bitte separat beilegen";
+/**
+ * Fortschritt beim Laden der Belege (E10).
+ *
+ * @param loaded - Bereits geladene Belege.
+ * @param total - Alle zu ladenden Belege.
+ * @returns z.B. «Belege werden geladen (7 von 23)».
+ */
+export const REPORT_PROGRESS_LOADING = (
+  loaded: number,
+  total: number,
+): string => `Belege werden geladen (${loaded} von ${total})`;
+/** Fortschritt, sobald alle Belege da sind. */
+export const REPORT_PROGRESS_RENDERING = "PDF wird erstellt …";
+/**
+ * Hinweis nach dem Download, wenn Belege fehlten (E6).
+ *
+ * @param receiptNumbers - Nummern der nicht geladenen Belege.
+ * @returns z.B. «Beleg 3 konnte nicht geladen werden. …».
+ */
+export const REPORT_RECEIPTS_FAILED = (receiptNumbers: number[]): string =>
+  receiptNumbers.length === 1
+    ? `Beleg ${receiptNumbers[0]} konnte nicht geladen werden. Im PDF steht an seiner Stelle eine Leerseite.`
+    : `Belege ${receiptNumbers.join(", ")} konnten nicht geladen werden. Im PDF stehen an ihrer Stelle Leerseiten.`;
+```
+
+##### 5. Kopfzeile der Belegseite (`Report/expenseReportLabels.ts`)
+
+Import ergänzen: `REPORT_RECEIPT as TEXT_REPORT_RECEIPT` aus den Texten, `formatAmountFromCents` aus `../../../Shared/utils/currencyUtils`, Typ `ReportReceipt`.
+
+```ts
+/**
+ * Kopfzeile einer Belegseite (E5). Macht eine ausgedruckte Seite für sich
+ * verständlich, auch wenn sie von der Tabelle getrennt wird.
+ *
+ * @param receipt - Der Beleg.
+ * @returns z.B. «Beleg 3 · 12.07.2026 · Migros · CHF 42.50».
+ * @example
+ * getReceiptHeader(receipt) // "Beleg 3 · 12.07.2026 · Migros · CHF 42.50"
+ */
+export const getReceiptHeader = (receipt: ReportReceipt): string =>
+  [
+    TEXT_REPORT_RECEIPT(receipt.receiptNumber),
+    formatReportDate(receipt.date),
+    receipt.label,
+    formatAmountFromCents(receipt.amountInCents, receipt.currency),
+  ].join(" · ");
+```
+
+##### 6. Belege laden (`Report/receiptLoader.ts`, neu)
+
+Die Netz- und Canvas-Teile (`fetchBlob`, `prepareImage`) sind optionale Parameter mit echtem Standard. *Warum:* jsdom kann weder `fetch` gegen Supabase noch Canvas; so testet der Test die ganze Logik (Reihenfolge, nacheinander, Fortschritt, Fehler) mit eigenen Fakes, und die App ruft `loadReceipts` ohne diese Parameter auf.
+
+```ts
+import {resizeImage} from "../../../Shared/imageResize";
+import {toError} from "../../../../utils/errorUtils";
+import {ATTACHMENT_MIME_TO_EXTENSION} from "../Expense/expense.types";
+import {
+  LoadedReceipt,
+  ReportProgress,
+  ReportReceipt,
+} from "./expenseReport.types";
+
+/** Längste Bildseite im PDF (E5): gut lesbar, klein genug für den Mailversand. */
+const RECEIPT_IMAGE_MAX_DIMENSION = 2000;
+/** JPEG-Qualität der Belegbilder (E5). */
+const RECEIPT_IMAGE_QUALITY = 0.8;
+
+/** Art einer Belegdatei, abgeleitet aus der Dateiendung (B4). */
+export type ReceiptFileKind = "image" | "pdf" | "unknown";
+
+/**
+ * Erkennt die Art eines Belegs an der Dateiendung. Die Endung vergibt die
+ * App beim Upload selbst (`ATTACHMENT_MIME_TO_EXTENSION`), sie ist daher
+ * verlässlicher als der `Content-Type` einer Antwort.
+ *
+ * @param attachmentPath - Pfad des Belegs im Storage.
+ * @returns `"image"`, `"pdf"` oder `"unknown"`.
+ * @example
+ * getReceiptFileKind("evt-1/expenses/exp-1.jpg") // "image"
+ */
+export const getReceiptFileKind = (attachmentPath: string): ReceiptFileKind => {
+  const extension = attachmentPath.split(".").pop()?.toLowerCase() ?? "";
+  const mimeType = Object.keys(ATTACHMENT_MIME_TO_EXTENSION).find(
+    (mime) => ATTACHMENT_MIME_TO_EXTENSION[mime] === extension,
+  );
+  if (mimeType === undefined) {
+    return "unknown";
+  }
+  return mimeType === "application/pdf" ? "pdf" : "image";
+};
+
+/**
+ * Abhängigkeiten von {@link loadReceipts}.
+ *
+ * @param getAttachmentUrl - Liefert die URL eines Belegs (von der Seite,
+ *   damit der Loader die Datenbank nicht kennt).
+ * @param onProgress - Wird nach jedem geladenen Bild aufgerufen (E10).
+ * @param fetchBlob - Lädt eine Datei; Standard: `fetch`. Für Tests ersetzbar.
+ * @param prepareImage - Verkleinert ein Bild und liefert eine Data-URL;
+ *   Standard: `resizeImage` + `FileReader`. Für Tests ersetzbar.
+ */
+export type ReceiptLoaderDependencies = {
+  getAttachmentUrl: (attachmentPath: string) => string;
+  onProgress: (progress: ReportProgress) => void;
+  fetchBlob?: (url: string) => Promise<Blob>;
+  prepareImage?: (blob: Blob) => Promise<string>;
+};
+
+/**
+ * Lädt alle Belege des Anhangs, nacheinander und in Nummernreihenfolge
+ * (B2, B3). Wirft nicht wegen eines einzelnen Belegs: Ein Fehler wird zu
+ * `{kind: "failed"}` und im PDF zur Fehlerseite (E6, B6).
+ *
+ * @param receipts - Belege aus `ExpenseReportData.receipts`.
+ * @param dependencies - Siehe {@link ReceiptLoaderDependencies}.
+ * @returns Ein Eintrag pro Beleg, gleiche Reihenfolge.
+ * @example
+ * const loadedReceipts = await loadReceipts(report.receipts, {
+ *   getAttachmentUrl,
+ *   onProgress: setProgress,
+ * });
+ */
+export const loadReceipts = async (
+  receipts: ReportReceipt[],
+  {
+    getAttachmentUrl,
+    onProgress,
+    fetchBlob = fetchReceiptBlob,
+    prepareImage = prepareReceiptImage,
+  }: ReceiptLoaderDependencies,
+): Promise<LoadedReceipt[]> => {
+  const total = receipts.filter(isImageReceipt).length;
+  let loaded = 0;
+  if (total > 0) {
+    onProgress({stage: "loading", loaded, total});
+  }
+
+  const loadedReceipts: LoadedReceipt[] = [];
+  // nacheinander statt Promise.all: viele Handyfotos gleichzeitig
+  // dekodiert sprengen auf dem Handy den Speicher (B3)
+  for (const receipt of receipts) {
+    loadedReceipts.push(
+      await loadReceipt(receipt, getAttachmentUrl, fetchBlob, prepareImage),
+    );
+    if (isImageReceipt(receipt)) {
+      loaded += 1;
+      onProgress({stage: "loading", loaded, total});
+    }
+  }
+  return loadedReceipts;
+};
+
+/**
+ * `true` für Belege, die geladen werden müssen (Bilder). Leerseiten und
+ * (bis 7.3b) PDF-Belege brauchen keinen Download.
+ *
+ * @param receipt - Der Beleg.
+ * @returns `true` bei einem Bild-Beleg.
+ */
+const isImageReceipt = (receipt: ReportReceipt): boolean =>
+  receipt.attachmentPath !== null &&
+  getReceiptFileKind(receipt.attachmentPath) === "image";
+
+/**
+ * Lädt einen einzelnen Beleg. Fängt jeden Fehler ab (B6).
+ *
+ * @param receipt - Der Beleg.
+ * @param getAttachmentUrl - URL eines Belegs.
+ * @param fetchBlob - Lädt die Datei.
+ * @param prepareImage - Verkleinert das Bild zur Data-URL.
+ * @returns Der fertige Eintrag.
+ */
+const loadReceipt = async (
+  receipt: ReportReceipt,
+  getAttachmentUrl: (attachmentPath: string) => string,
+  fetchBlob: (url: string) => Promise<Blob>,
+  prepareImage: (blob: Blob) => Promise<string>,
+): Promise<LoadedReceipt> => {
+  if (receipt.attachmentPath === null) {
+    return {kind: "missing", receipt};
+  }
+  const fileKind = getReceiptFileKind(receipt.attachmentPath);
+  if (fileKind === "pdf") {
+    return {kind: "pdfPending", receipt};
+  }
+  if (fileKind === "unknown") {
+    return {
+      kind: "failed",
+      receipt,
+      error: new Error("Unbekannter Belegtyp"),
+    };
+  }
+  try {
+    const blob = await fetchBlob(getAttachmentUrl(receipt.attachmentPath));
+    return {kind: "image", receipt, dataUrl: await prepareImage(blob)};
+  } catch (error) {
+    return {kind: "failed", receipt, error: toError(error)};
+  }
+};
+
+/**
+ * Lädt eine Datei. `fetch` wirft nur bei Netzfehlern; ein 404 (Beleg
+ * gelöscht) muss über `response.ok` selbst auffallen (B6).
+ *
+ * @param url - URL der Datei.
+ * @returns Die Datei als Blob.
+ * @throws {Error} Bei einem HTTP-Fehler.
+ */
+const fetchReceiptBlob = async (url: string): Promise<Blob> => {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Beleg nicht abrufbar (HTTP ${response.status})`);
+  }
+  return response.blob();
+};
+
+/**
+ * Verkleinert ein Bild (E5) und liefert es als Data-URL für `<Image>`.
+ *
+ * @param blob - Das Originalbild.
+ * @returns Data-URL eines JPEG.
+ */
+const prepareReceiptImage = async (blob: Blob): Promise<string> =>
+  blobToDataUrl(
+    await resizeImage(blob, RECEIPT_IMAGE_MAX_DIMENSION, RECEIPT_IMAGE_QUALITY),
+  );
+
+/**
+ * Liest einen Blob als Data-URL.
+ *
+ * @param blob - Der Blob.
+ * @returns Data-URL, z.B. «data:image/jpeg;base64,…».
+ * @throws {Error} Wenn der Blob nicht gelesen werden kann.
+ */
+const blobToDataUrl = (blob: Blob): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    // readAsDataURL liefert immer einen String
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () =>
+      reject(reader.error ?? new Error("Beleg konnte nicht gelesen werden."));
+    reader.readAsDataURL(blob);
+  });
+```
+
+`toError` gibt es schon (`utils/errorUtils.ts`, wird in `useExpenseTrackingData` genutzt).
+
+##### 7. Styles der Belegseiten (`constants/styles/expenseTrackingReportPDF.styles.ts`)
+
+Am Ende von `StyleSheet.create` anhängen:
+
+```ts
+  /* ── Belegseiten (Story 7.3) ────────────────── */
+  receiptPage: {
+    paddingTop: PDF_TOKENS.margin.top,
+    paddingBottom: PDF_TOKENS.margin.bottom,
+    paddingHorizontal: PDF_TOKENS.margin.horizontal,
+    flexDirection: "column",
+  },
+  receiptHeader: {
+    fontSize: 12,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+    paddingBottom: 6,
+    marginBottom: 10,
+    borderBottomWidth: 0.5,
+    borderBottomColor: APP_PRIMARY,
+    borderBottomStyle: "solid",
+  },
+  /**
+   * Nimmt den ganzen Rest der Seite ein (Bild bzw. gestricheltes Feld).
+   * `justifyContent: "center"` setzt das gestrichelte Feld senkrecht in die
+   * Mitte; das Bild ist 100 % hoch und bleibt davon unberührt.
+   */
+  receiptBody: {
+    flexGrow: 1,
+    justifyContent: "center",
+  },
+  /** Bild füllt das Feld, ohne verzerrt oder abgeschnitten zu werden (B11). */
+  receiptImage: {
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+  },
+  /** Quittungsgrösse (55 × 90 mm), schmaler als Kassenzettel: ein aufgeklebter Beleg verdeckt die Linie (geändert 2026-10-25). */
+  receiptPlaceholder: {
+    width: "55mm",
+    height: "90mm",
+    alignSelf: "center",
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: PDF_TOKENS.color.gray,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 10,
+  },
+  receiptPlaceholderText: {
+    fontSize: 12,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.normal,
+    color: PDF_TOKENS.color.gray,
+    textAlign: "center",
+  },
+  receiptPlaceholderHint: {
+    fontSize: PDF_TOKENS.fontSize.small,
+    fontFamily: PDF_TOKENS.fontFamily,
+    color: PDF_TOKENS.color.gray,
+    textAlign: "center",
+    marginTop: 6,
+  },
+```
+
+##### 8. Belegseite (`Report/expenseReportReceiptPages.tsx`, neu)
+
+Eigene Datei, weil `expenseReportPdf.tsx` sonst über 400 Zeilen wächst und die Belegseite in 7.3b noch Varianten bekommt.
+
+```tsx
+import React from "react";
+import {Image, Page, Text, View} from "@react-pdf/renderer";
+
+import AuthUser from "../../../Session/authUser.class";
+import {Footer, Header} from "../../../Shared/pdfComponents";
+import {pdfStyles as styles} from "../../../../constants/styles/expenseTrackingReportPDF.styles";
+import {
+  REPORT_RECEIPT_LOAD_FAILED as TEXT_REPORT_RECEIPT_LOAD_FAILED,
+  REPORT_RECEIPT_LOAD_FAILED_HINT as TEXT_REPORT_RECEIPT_LOAD_FAILED_HINT,
+  REPORT_RECEIPT_PASTE_HERE as TEXT_REPORT_RECEIPT_PASTE_HERE,
+  REPORT_RECEIPT_PDF_PENDING as TEXT_REPORT_RECEIPT_PDF_PENDING,
+} from "../../../../constants/text";
+import {LoadedReceipt} from "./expenseReport.types";
+import {getReceiptHeader} from "./expenseReportLabels";
+
+/**
+ * Props für {@link ReceiptPage}.
+ *
+ * @param loadedReceipt - Der geladene Beleg.
+ * @param eventName - Name des Anlasses (Kopfzeile).
+ * @param authUser - Angemeldete Person (Fusszeile).
+ * @param generatedAt - Zeitpunkt der Erstellung (Fusszeile).
+ */
+type ReceiptPageProps = {
+  loadedReceipt: LoadedReceipt;
+  eventName: string;
+  authUser: AuthUser;
+  generatedAt: Date;
+};
+
+/**
+ * Eine Seite des Anhangs (E5): Kopfzeile «Beleg 3 · Datum · Bezeichnung ·
+ * Betrag», darunter das Bild oder ein gestricheltes Feld (Leerseite E11,
+ * Fehler E6). Immer genau eine Seite (B11).
+ *
+ * @param props - Siehe {@link ReceiptPageProps}.
+ * @returns Die Seite.
+ * @example
+ * <ReceiptPage loadedReceipt={loadedReceipt} eventName="Sommerlager"
+ *   authUser={authUser} generatedAt={new Date()} />
+ */
+export const ReceiptPage = ({
+  loadedReceipt,
+  eventName,
+  authUser,
+  generatedAt,
+}: ReceiptPageProps) => {
+  const uid = `receipt_${loadedReceipt.receipt.receiptNumber}`;
+
+  return (
+    // Kein wrap={false} an der Page: react-pdf setzt dann die A4-Höhe nicht (B11)
+    <Page size="A4" style={styles.receiptPage}>
+      <Header text={eventName} uid={uid} />
+      <Text style={styles.receiptHeader}>
+        {getReceiptHeader(loadedReceipt.receipt)}
+      </Text>
+      <View style={styles.receiptBody}>
+        <ReceiptContent loadedReceipt={loadedReceipt} />
+      </View>
+      <Footer uid={uid} actualDate={generatedAt} authUser={authUser} />
+    </Page>
+  );
+};
+
+/**
+ * Inhalt unter der Kopfzeile, je nach Art des Belegs.
+ *
+ * @param props.loadedReceipt - Der geladene Beleg.
+ */
+const ReceiptContent = ({loadedReceipt}: {loadedReceipt: LoadedReceipt}) => {
+  switch (loadedReceipt.kind) {
+    case "image":
+      return <Image src={loadedReceipt.dataUrl} style={styles.receiptImage} />;
+    case "missing":
+      return <ReceiptPlaceholder text={TEXT_REPORT_RECEIPT_PASTE_HERE} />;
+    case "failed":
+      return (
+        <ReceiptPlaceholder
+          text={TEXT_REPORT_RECEIPT_LOAD_FAILED}
+          hint={TEXT_REPORT_RECEIPT_LOAD_FAILED_HINT}
+        />
+      );
+    case "pdfPending":
+      return <ReceiptPlaceholder text={TEXT_REPORT_RECEIPT_PDF_PENDING} />;
+  }
+};
+
+/**
+ * Gestricheltes Feld über die ganze Seite, z.B. zum Aufkleben einer
+ * Papierquittung (E11).
+ *
+ * @param props.text - Grosser Text in der Mitte.
+ * @param props.hint - Optionaler kleiner Text darunter.
+ */
+const ReceiptPlaceholder = ({text, hint}: {text: string; hint?: string}) => (
+  <View style={styles.receiptPlaceholder}>
+    <Text style={styles.receiptPlaceholderText}>{text}</Text>
+    {/* Ternary statt &&: hint === "" darf nicht als Kind landen */}
+    {hint ? <Text style={styles.receiptPlaceholderHint}>{hint}</Text> : null}
+  </View>
+);
+```
+
+Der `switch` ohne `default` ist Absicht: Kommt in 7.3b `kind: "pdf"` dazu, meldet TypeScript die fehlende Rückgabe, statt still nichts zu zeichnen.
+
+##### 9. Dokument hängt die Belegseiten an (`Report/expenseReportPdf.tsx`)
+
+Prop ergänzen (Typ + JSDoc), Import `ReceiptPage` und `LoadedReceipt`:
+
+```tsx
+ * @param loadedReceipts - Belege des Anhangs in Nummernreihenfolge (leer =
+ *   kein Anhang).
+ ...
+  loadedReceipts: LoadedReceipt[];
+```
+
+Nach dem schliessenden `</Page>` der Tabelle, noch innerhalb von `<Document>`:
+
+```tsx
+      {loadedReceipts.map((loadedReceipt) => (
+        <ReceiptPage
+          key={loadedReceipt.receipt.receiptNumber}
+          loadedReceipt={loadedReceipt}
+          eventName={eventName}
+          authUser={authUser}
+          generatedAt={generatedAt}
+        />
+      ))}
+```
+
+Im `@example` der Komponente `loadedReceipts={[]}` ergänzen.
+
+##### 10. Erstellen und herunterladen (`Report/downloadExpenseReport.tsx`)
+
+Ganze Datei:
+
+```tsx
+import React from "react";
+import * as Sentry from "@sentry/react";
+
+import AuthUser from "../../../Session/authUser.class";
+import {generateAndDownloadPdf} from "../../../Shared/pdfUtils";
+import {isTransientNetworkError} from "../../../../utils/errorUtils";
+import {Event} from "../../Event/event.class";
+import {BudgetDomain} from "../Budget/budget.types";
+import {ExpenseDomain} from "../Expense/expense.types";
+import {ExpenseReport} from "./expenseReport.class";
+import {
+  ExpenseReportResult,
+  LoadedReceipt,
+  ReportOptions,
+  ReportProgress,
+} from "./expenseReport.types";
+import {ExpenseReportPdf} from "./expenseReportPdf";
+import {getReportFileName} from "./expenseReportLabels";
+import {loadReceipts} from "./receiptLoader";
+
+/** Ein Beleg, der nicht geladen werden konnte. */
+type FailedReceipt = Extract<LoadedReceipt, {kind: "failed"}>;
+
+/**
+ * Eingaben für {@link downloadExpenseReport}.
+ *
+ * @param expenses - Alle Ausgaben des Anlasses.
+ * @param budgets - Alle Budgets des Anlasses, in Anzeigereihenfolge.
+ * @param event - Der Anlass (Name, Köch:innen, UID für Sentry).
+ * @param authUser - Angemeldete Person (Fusszeile).
+ * @param options - Im Dialog gewählte Optionen.
+ * @param getAttachmentUrl - Liefert die URL eines Belegs.
+ * @param onProgress - Fortschritt für den Dialog (E10).
+ * @param onError - Wird aufgerufen, wenn kein PDF entstand; Sentry ist dann
+ *   bereits informiert (`generateAndDownloadPdf`).
+ */
+export type DownloadExpenseReportParams = {
+  expenses: ExpenseDomain[];
+  budgets: BudgetDomain[];
+  event: Event;
+  authUser: AuthUser;
+  options: ReportOptions;
+  getAttachmentUrl: (attachmentPath: string) => string;
+  onProgress: (progress: ReportProgress) => void;
+  onError: (error: Error) => void;
+};
+
+/**
+ * Erstellt die Abrechnung als PDF mit Belegen und startet den Download.
+ * Ein Beleg, der nicht lädt, blockiert nicht: Er wird im PDF als Leerseite
+ * markiert und im Ergebnis zurückgegeben (E6). Wirft nicht wegen Belegen
+ * oder des PDFs; nur ein Programmierfehler könnte werfen, den fängt die Seite.
+ *
+ * @param params - Siehe {@link DownloadExpenseReportParams}.
+ * @returns Nummern der Belege, die nicht geladen werden konnten.
+ * @example
+ * const {downloadExpenseReport} = await import("./Report/downloadExpenseReport");
+ * const result = await downloadExpenseReport({...params});
+ */
+export const downloadExpenseReport = async ({
+  expenses,
+  budgets,
+  event,
+  authUser,
+  options,
+  getAttachmentUrl,
+  onProgress,
+  onError,
+}: DownloadExpenseReportParams): Promise<ExpenseReportResult> => {
+  const report = ExpenseReport.build({
+    expenses,
+    budgets,
+    cooks: event.cooks,
+    options,
+  });
+  const loadedReceipts = await loadReceipts(report.receipts, {
+    getAttachmentUrl,
+    onProgress,
+  });
+  const failedReceipts = loadedReceipts.filter(isFailedReceipt);
+  reportFailedReceipts(failedReceipts, event.uid);
+
+  onProgress({stage: "rendering"});
+  const isDownloaded = await generateAndDownloadPdf(
+    <ExpenseReportPdf
+      report={report}
+      loadedReceipts={loadedReceipts}
+      eventName={event.name}
+      authUser={authUser}
+      generatedAt={new Date()}
+    />,
+    getReportFileName(event.name, report.payeeDisplayName),
+    onError,
+    {eventUid: event.uid, mode: options.mode, receiptCount: loadedReceipts.length},
+  );
+
+  return {
+    // ohne PDF kein Hinweis auf einzelne Belege, der Fehler steht schon oben (B8)
+    failedReceiptNumbers: isDownloaded
+      ? failedReceipts.map((failed) => failed.receipt.receiptNumber)
+      : [],
+  };
+};
+
+/**
+ * Type Guard für nicht geladene Belege.
+ *
+ * @param loadedReceipt - Ein geladener Beleg.
+ * @returns `true`, wenn der Beleg nicht geladen werden konnte.
+ */
+const isFailedReceipt = (
+  loadedReceipt: LoadedReceipt,
+): loadedReceipt is FailedReceipt => loadedReceipt.kind === "failed";
+
+/**
+ * Meldet nicht ladbare Belege gesammelt als ein Sentry-Ereignis (B7): nur
+ * Ausgaben-IDs, kein Inhalt. Netzfehler (offline, Abbruch) sind kein
+ * Code-Problem und werden nicht gemeldet.
+ *
+ * @param failedReceipts - Nicht geladene Belege.
+ * @param eventUid - UID des Anlasses.
+ */
+const reportFailedReceipts = (
+  failedReceipts: FailedReceipt[],
+  eventUid: string,
+): void => {
+  const reportableReceipts = failedReceipts.filter(
+    (failed) => !isTransientNetworkError(failed.error),
+  );
+  if (reportableReceipts.length === 0) {
+    return;
+  }
+  Sentry.captureException(reportableReceipts[0].error, {
+    extra: {
+      context: "Abrechnung: Belege laden",
+      eventUid,
+      expenseIds: reportableReceipts.map((failed) => failed.receipt.expenseId),
+    },
+  });
+};
+```
+
+`downloadExpenseReport` ist damit über 20 Zeilen, besteht aber nur aus vier benannten Schritten. Weiter aufteilen würde das Lesen schwerer machen.
+
+##### 11. Dialog: Schalter und Fortschritt (`Report/expenseReportDialog.tsx`)
+
+Imports ergänzen: `LinearProgress` aus MUI; Texte `REPORT_INCLUDE_MISSING_RECEIPT_PAGES`, `REPORT_MISSING_RECEIPTS_COUNT`, `REPORT_PROGRESS_LOADING`, `REPORT_PROGRESS_RENDERING`; Typ `ReportProgress`.
+
+Neue private Komponente (oberhalb von `ExpenseReportDialog`):
+
+```tsx
+/**
+ * Fortschritt beim Erstellen (E10, B12): beim Laden mit Zahlen und Balken,
+ * beim Zeichnen als laufender Balken. `role="status"`, damit
+ * Screenreader den Text vorlesen.
+ *
+ * @param props.progress - Aktueller Fortschritt.
+ */
+const ReportProgressIndicator = ({progress}: {progress: ReportProgress}) => (
+  <Stack spacing={1}>
+    {progress.stage === "loading" ? (
+      <LinearProgress
+        variant="determinate"
+        value={(progress.loaded / progress.total) * 100}
+      />
+    ) : (
+      <LinearProgress />
+    )}
+    <Typography variant="body2" color="text.secondary" role="status">
+      {progress.stage === "loading"
+        ? TEXT_REPORT_PROGRESS_LOADING(progress.loaded, progress.total)
+        : TEXT_REPORT_PROGRESS_RENDERING}
+    </Typography>
+  </Stack>
+);
+```
+
+Props: `onCreate` bekommt den Fortschritt-Callback (JSDoc anpassen):
+
+```tsx
+ * @param onCreate - Erstellt das PDF; der Dialog wartet darauf und zeigt
+ *   solange den Fortschritt, den `onCreate` über `onProgress` meldet.
+ ...
+  onCreate: (
+    options: ReportOptions,
+    onProgress: (progress: ReportProgress) => void,
+  ) => Promise<void>;
+```
+
+State und abgeleitete Werte (nach `isCreating`, bzw. nach `selectedPayeeValue`):
+
+```tsx
+  const [includeMissingReceiptPages, setIncludeMissingReceiptPages] =
+    React.useState(true);
+  const [progress, setProgress] = React.useState<ReportProgress | null>(null);
+```
+
+```tsx
+  // E11/B10: Anzahl für die aktuell gewählte Person, ändert sich mit der Auswahl
+  const missingReceiptCount = ExpenseReport.countMissingReceipts(
+    expenses,
+    toPayeeSelection(selectedPayeeValue),
+  );
+```
+
+`handleCreate`:
+
+```tsx
+  /** Übergibt die Optionen und wartet, bis das PDF erstellt ist. */
+  const handleCreate = async () => {
+    setIsCreating(true);
+    try {
+      await onCreate(
+        {
+          mode,
+          payeeSelection: toPayeeSelection(selectedPayeeValue),
+          includeComments,
+          includeMissingReceiptPages,
+        },
+        setProgress,
+      );
+    } finally {
+      setIsCreating(false);
+      setProgress(null);
+    }
+  };
+```
+
+Im `Stack` nach dem Kommentar-Schalter:
+
+```tsx
+          {missingReceiptCount > 0 ? (
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={includeMissingReceiptPages}
+                  onChange={(event) =>
+                    setIncludeMissingReceiptPages(event.target.checked)
+                  }
+                />
+              }
+              label={
+                <Box>
+                  <Typography variant="body1">
+                    {TEXT_REPORT_INCLUDE_MISSING_RECEIPT_PAGES}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    {TEXT_REPORT_MISSING_RECEIPTS_COUNT(missingReceiptCount)}
+                  </Typography>
+                </Box>
+              }
+            />
+          ) : null}
+          {progress !== null ? (
+            <ReportProgressIndicator progress={progress} />
+          ) : null}
+```
+
+Ist der Schalter ausgeblendet, bleibt `includeMissingReceiptPages` trotzdem `true`. Das ist harmlos: Ohne Ausgaben ohne Beleg entsteht keine Leerseite.
+
+##### 12. Reducer: allgemeine Snackbar (`expenseTracking.reducer.ts`, B9)
+
+```ts
+export enum ReducerActions {
+  ...
+  SNACKBAR_CLOSE,
+  SNACKBAR_SHOW,
+}
+```
+
+```ts
+  | {type: ReducerActions.SNACKBAR_CLOSE}
+  | {
+      type: ReducerActions.SNACKBAR_SHOW;
+      payload: Pick<SnackbarState, "severity" | "message">;
+    };
+```
+
+Neuer `case` vor `default` (Fehler oben bleibt bewusst stehen, die Snackbar ist nur ein Zusatz):
+
+```ts
+    case ReducerActions.SNACKBAR_SHOW:
+      return {
+        ...state,
+        snackbar: {open: true, ...action.payload},
+      };
+```
+
+Im JSDoc von `DispatchAction` ergänzen: «`SNACKBAR_SHOW` zeigt eine Rückmeldung mit freiem Text (z.B. Hinweis nach der Abrechnung).»
+
+##### 13. Seite (`expenseTracking.tsx`)
+
+Import `ReportProgress` und Text `REPORT_RECEIPTS_FAILED`. `handleCreateReport`:
+
+```tsx
+  /**
+   * Erstellt die Abrechnung und startet den Download. Das PDF-Modul wird
+   * erst hier nachgeladen. Fehler beim Erstellen meldet
+   * `generateAndDownloadPdf` selbst an Sentry, darum nur anzeigen.
+   * Fehlten Belege, erscheint danach ein Hinweis (E6). Während des Exports
+   * ist der Knopf «Exportieren» gesperrt.
+   *
+   * @param options - Im Dialog gewählte Optionen.
+   * @param onProgress - Fortschritt für den Dialog (E10).
+   */
+  const handleCreateReport = async (
+    options: ReportOptions,
+    onProgress: (progress: ReportProgress) => void,
+  ) => {
+    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "expenseReport"});
+    setIsExporting(true);
+    try {
+      const {downloadExpenseReport} =
+        await import("./Report/downloadExpenseReport");
+      const result = await downloadExpenseReport({
+        expenses: state.expenses ?? [],
+        budgets: state.budgets ?? [],
+        event,
+        authUser: authUser!,
+        options,
+        getAttachmentUrl: handleGetAttachmentUrl,
+        onProgress,
+        onError: (error) =>
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+      });
+      showFailedReceiptsHint(result.failedReceiptNumbers);
+    } catch (error) {
+      // nur das Nachladen (Chunk nach einem Deploy weg) oder ein
+      // Programmierfehler kann werfen
+      handleError(error, "Abrechnung erstellen");
+    } finally {
+      // auch nach einem Fehler, sonst bliebe der Knopf gesperrt
+      setIsExporting(false);
+    }
+    handleCloseReportDialog();
+  };
+  /**
+   * Zeigt nach dem Download einen Hinweis, wenn Belege fehlten (E6, B9).
+   *
+   * @param failedReceiptNumbers - Nummern der nicht geladenen Belege.
+   */
+  const showFailedReceiptsHint = (failedReceiptNumbers: number[]) => {
+    if (failedReceiptNumbers.length === 0) {
+      return;
+    }
+    dispatch({
+      type: ReducerActions.SNACKBAR_SHOW,
+      payload: {
+        severity: "warning",
+        message: TEXT_REPORT_RECEIPTS_FAILED(failedReceiptNumbers),
+      },
+    });
+  };
+```
+
+#### Tests 7.3a
+
+`Shared/__tests__/pdfUtils.test.ts` (neu; `@react-pdf/renderer`, `file-saver`, `@sentry/react` gemockt)
+- Erfolg → `true`, `saveAs` mit Dateiname
+- `toBlob` wirft → `false`, Sentry mit Dateiname und Kontext, `onError` mit dem Fehler
+
+`Report/__tests__/receiptLoader.test.ts` (neu; `fetchBlob`/`prepareImage` als Fakes)
+- `getReceiptFileKind`: `.jpg`, `.png`, `.pdf`, Grossbuchstaben (`.JPG`), ohne Endung, unbekannte Endung
+- Reihenfolge der Ergebnisse = Reihenfolge der Belege; `missing` ohne Download, `pdfPending` ohne Download
+- Bild → `fetchBlob` mit der URL aus `getAttachmentUrl`, `prepareImage` mit dem Blob, `dataUrl` im Ergebnis
+- **nacheinander:** zweiter Download startet erst, wenn der erste fertig ist (Fake mit offenem Promise)
+- Fortschritt: `0 von 2`, `1 von 2`, `2 von 2`; ohne Bilder kein Aufruf
+- `fetchBlob` wirft → `failed` mit diesem Fehler, die übrigen Belege laden trotzdem; `prepareImage` wirft → `failed`; zählt im Fortschritt mit
+- unbekannte Endung → `failed`, kein Download
+
+`Report/__tests__/expenseReportLabels.test.ts`: `getReceiptHeader` → «Beleg 3 · 12.07.2026 · Migros · CHF 42.50» (Leerzeichen wie im PDF-Test normalisieren).
+
+`Report/__tests__/expenseReportPdf.test.tsx` (bestehender Mock; `Image` gibt `src` als `data-src` aus)
+- ohne `loadedReceipts` (leer) keine Belegseite
+- Bild-Beleg: Kopfzeile und `<image>` mit der Data-URL
+- `missing`: «Beleg hier aufkleben»; `failed`: Text und Hinweis; `pdfPending`: Platzhaltertext
+- Reihenfolge der Belegseiten = Reihenfolge von `loadedReceipts`, nach der Tabelle
+
+`Report/__tests__/downloadExpenseReport.test.tsx` (neu; `receiptLoader`, `pdfUtils`, `@sentry/react` gemockt)
+- übergibt `report.receipts`, `getAttachmentUrl`, `onProgress` an `loadReceipts`; danach `onProgress({stage: "rendering"})`
+- `generateAndDownloadPdf` mit Dateiname und Kontext
+- Ergebnis: Nummern der `failed`-Belege; nach `false` von `generateAndDownloadPdf` leer
+- Sentry: genau ein Ereignis mit allen Ausgaben-IDs; Netzfehler (`TypeError("Failed to fetch")`) nicht gemeldet; ohne Fehler kein Ereignis
+
+`Report/__tests__/expenseReportDialog.test.tsx`
+- Schalter nur mit Ausgaben ohne Beleg, Anzahl im Text, Standard an
+- Anzahl folgt der Auswahl (Person ohne fehlende Belege → Schalter weg)
+- `onCreate` bekommt `includeMissingReceiptPages` (an/aus)
+- Fortschritt: `onCreate` meldet `loading 7/23` → Text «Belege werden geladen (7 von 23)»; dann `rendering` → «PDF wird erstellt …»; danach weg
+
+`__tests__/expenseTracking.test.tsx`
+- Mock-Standard: `downloadExpenseReport` liefert `{failedReceiptNumbers: []}`
+- übergibt `getAttachmentUrl` (ruft die Storage-URL) und `onProgress`
+- `failedReceiptNumbers: [3]` → Snackbar «Beleg 3 konnte nicht geladen werden …»; leer → keine Snackbar
+
+#### Mutationsproben 7.3a
+
+1. `Promise.all` statt Schleife in `loadReceipts` → «nacheinander» rot.
+2. `try/catch` in `loadReceipt` entfernen → «übrige Belege laden trotzdem» rot.
+3. `isTransientNetworkError`-Filter entfernen → «Netzfehler nicht gemeldet» rot.
+4. Rückgabe ohne `isDownloaded`-Bedingung → «nach false leer» rot.
+5. `missingReceiptCount > 0 ?` entfernen → «Schalter nur mit Ausgaben ohne Beleg» rot.
+6. `includeMissingReceiptPages` nicht an `onCreate` übergeben (fest `false`) → Dialog-Test rot.
+7. `showFailedReceiptsHint` nicht aufrufen → Seiten-Test rot.
+8. Belegseiten nicht anhängen (`loadedReceipts.map` entfernen) → PDF-Test rot.
+
+Hinweis aus 7.2: Jest endet hier immer mit Exit-Code 1 (veraltete Snapshots), nur «Tests: … failed» zählt.
+
+#### Umsetzung 7.3a
+
+- [x] 1. `resizeImage(Blob)`, `generateAndDownloadPdf` → `boolean` + `pdfUtils.test.ts`
+- [x] 2. Typen, Texte, `getReceiptHeader` + Test
+- [x] 3. `receiptLoader.ts` + Tests
+- [x] 4. Styles, `expenseReportReceiptPages.tsx`, `loadedReceipts` in `expenseReportPdf.tsx` + Tests
+- [x] 5. `downloadExpenseReport.tsx` + Tests
+- [x] 6. Dialog: Schalter, Fortschritt + Tests
+- [x] 7. Reducer `SNACKBAR_SHOW`, Seite + Tests
+- [x] 8. Mutationsproben 1–8
+- [x] 9. Verifikation: `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking Shared --watchAll=false`, `npm run lint`
+- [x] 10. Browser (DEV): Hochformat-Handyfoto (richtig gedreht?), Querformat, PNG-Screenshot (nicht schwarz?), 20+ Fotos (Fortschritt, Dauer, PDF-Grösse notieren), Ausgabe ohne Beleg mit Schalter an/aus, Beleg in Storage gelöscht → Fehlerseite + Snackbar, PDF-Beleg → Platzhalter; auf dem Handy einmal mit vielen Fotos (Speicher)
+
+**Definition of Done 7.3a:** Bild-Belege erscheinen verkleinert und lesbar im Anhang, Leerseiten und Fehlerseiten tragen die richtige Nummer, der Fortschritt zählt sichtbar hoch, ein kaputter Beleg blockiert nichts. Tests und Mutationsproben grün, Browser-Check desktop + mobil.
+
+### **Story 7.3b — PDF-Belege mit `pdf-lib`** (Umriss, vor dem Start ausdetaillieren)
+
+- **Abhängigkeit:** `pdf-lib` (1.17.x, reines JS, keine nativen Teile). Wird nur über `downloadExpenseReport` erreicht, das schon nachgeladen wird (P6); im Haupt-Bundle darf es nicht auftauchen (im Build prüfen).
+- **Aufgabenteilung:** react-pdf zeichnet weiterhin **alle** Seiten mit Text (Kopfzeile, Schrift Roboto). `pdf-lib` macht nur eins: die Seiten eines PDF-Belegs in die dafür reservierten, leeren Belegseiten einsetzen (`embedPdf` + `drawPage`). *Warum nicht alles mit pdf-lib:* Seine Standardschriften kennen nur Westeuropäisch; für Roboto bräuchte es eine zweite Bibliothek (`@pdf-lib/fontkit`), und die Gestaltung gäbe es doppelt.
+- **Laden:** `loadReceipts` lädt PDF-Belege jetzt auch (Fortschritt zählt sie mit), liest die Seitenzahl, `kind: "pdf"` mit `bytes` und `pageCount`. Verschlüsselte oder kaputte PDFs → `failed` (gleiche Seite wie E6).
+- **Reservieren:** Für einen PDF-Beleg mit k Seiten zeichnet react-pdf k Belegseiten mit Kopfzeile «Beleg 3 · … (Seite 2 von 3)» und leerem Feld.
+- **Einsetzen:** Nach dem Zeichnen lädt `pdf-lib` das Ergebnis, findet die reservierten Seiten (die Belegseiten sind die letzten Seiten, eine pro Beleg bzw. k pro PDF-Beleg, B11) und zeichnet die Belegseite skaliert ins Feld. Die Lage des Felds muss in beiden Bibliotheken gleich sein: Kopfzeile dann mit fester Höhe, gemeinsame Masse in einer `.ts`-Datei.
+- **Keine Verkleinerung von PDF-Belegen** (entschieden 2026-10-25): Bilder haben ein einheitliches Format und lassen sich mit `resizeImage` verkleinern (B5). Ein PDF kann mehrere Seiten haben, Text, Vektoren und eingebettete Bilder mischen; dafür gibt es keinen sinnvollen allgemeinen Weg. PDF-Belege werden deshalb **unverändert** übernommen. «Skaliert» beim Einsetzen heisst nur, dass die Seite ins Feld passend gezeichnet wird (verlustfrei, die Daten bleiben gleich). Folge: Die Abrechnung ist mindestens so gross wie die Summe ihrer PDF-Belege; das ist in Ordnung.
+- **`generateAndDownloadPdf`** bekommt dafür einen Zwischenschritt (z.B. optionaler `transformPdf(bytes)` vor dem Speichern), damit Sentry/`onError` an einer Stelle bleiben.
+- **Tests:** `pdf-lib` läuft in Jest echt (CommonJS); Test-PDFs im Test selbst erzeugen.
+- **Risiken für den Browser-Check:** gedrehte Seiten (`/Rotate`), passwortgeschützte Rechnungen. Grosse Scan-PDFs nur darauf prüfen, dass das Erstellen auf dem Handy durchläuft (Speicher); die Dateigrösse selbst ist akzeptiert (siehe «Keine Verkleinerung»).
+
 ### Offen aus dem alten Umriss (erledigt durch die Punkte oben)
 
 <details><summary>Umriss 2026-10-10 (zur Referenz)</summary>
