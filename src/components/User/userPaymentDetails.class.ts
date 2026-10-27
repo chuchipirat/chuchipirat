@@ -1,5 +1,3 @@
-import {UserPaymentDetailsDomain} from "./userPaymentDetails.types";
-
 import {normalizeIban, isValidIban} from "../../utils/ibanUtils";
 import {
   PLEASE_PROVIDE_STREET as TEXT_PLEASE_PROVIDE_STREET,
@@ -9,6 +7,7 @@ import {
   PLEASE_PROVIDE_VALID_IBAN as TEXT_PLEASE_PROVIDE_VALID_IBAN,
 } from "../../constants/text/userPaymentDetails";
 import {FormValidationFieldError} from "../Shared/fieldValidation.error.class";
+import {PaymentDetailsFormValues} from "./userPaymentDetails.types";
 
 /**
  * Domain-Logik für Zahlungsangaben: Prüfen und Normalisieren vor dem
@@ -23,14 +22,14 @@ export class UserPaymentDetails {
    * Die IBAN wird dafür normalisiert betrachtet — "ch93 0076 …" ist eine
    * gültige Eingabe.
    *
-   * @param paymentDetails - Die Zahlungsangaben, wie sie eingegeben wurden.
-   *   Leerzeichen) oder die IBAN Form/Prüfsumme verletzt.
+   * @param paymentDetails - Die Zahlungsangaben, wie sie eingegeben wurden;
+   *   ohne `userId`, damit auch der Abrechnungsdialog prüfen kann (Story 7.4).
    * @returns Array mit Validierungsfehlern (leer wenn alles korrekt).
    * @example
    * UserPaymentDetails.validatePaymentDetails({...details, iban: "ch93 0076 2011 6238 5295 7"});
    */
   static validatePaymentDetails(
-    paymentDetails: UserPaymentDetailsDomain,
+    paymentDetails: PaymentDetailsFormValues,
   ): FormValidationFieldError[] {
     const formValidation: FormValidationFieldError[] = [];
 
@@ -80,15 +79,16 @@ export class UserPaymentDetails {
    * getrimmt, IBAN normalisiert. Nötig, weil die DB zwar `btrim(...)`
    * prüft, aber ungetrimmt speichert.
    *
+   * @template T - Typ der Eingabe; die Rückgabe hat denselben Typ. So
+   *   behält das Profil seine `userId`, Formularwerte bleiben ohne.
    * @param paymentDetails - Die Zahlungsangaben, wie sie eingegeben wurden.
-   * @returns Neues Objekt mit normalisierten Werten (Eingabe bleibt unverändert).
+   * @returns Neues Objekt mit normalisierten Werten (Eingabe bleibt
+   *   unverändert), alle übrigen Felder wie übergeben.
    * @example
    * UserPaymentDetails.normalize({...details, city: " Bern ", iban: "ch93 0076 2011 6238 5295 7"});
    * // → {...details, city: "Bern", iban: "CH9300762011623852957"}
    */
-  static normalize(
-    paymentDetails: UserPaymentDetailsDomain,
-  ): UserPaymentDetailsDomain {
+  static normalize<T extends PaymentDetailsFormValues>(paymentDetails: T): T {
     return {
       ...paymentDetails,
       street: paymentDetails.street.trim(),

@@ -511,3 +511,27 @@ export const REPORT_RECEIPTS_FAILED = (receiptNumbers: number[]): string =>
   receiptNumbers.length === 1
     ? `Beleg ${receiptNumbers[0]} konnte nicht geladen werden. Im PDF steht an seiner Stelle eine Leerseite.`
     : `Belege ${receiptNumbers.join(", ")} konnten nicht geladen werden. Im PDF stehen an ihrer Stelle Leerseiten.`;
+
+/** Überschrift des Rückerstattungs-Blocks im Dialog und im PDF. */
+export const REPORT_REFUND_TO = "Rückerstattung an";
+/** Zeile mit dem Namen, auf den das Konto lautet. */
+export const REPORT_ACCOUNT_HOLDER = "Kontoinhaber*in";
+/** Checkbox im Dialog, nur für die eigene Abrechnung. */
+export const REPORT_SAVE_PAYMENT_DETAILS = "Angaben in meinem Profil speichern";
+/** Erklärt, warum die Checkbox ausgegraut ist (nur vollständige Angaben). */
+export const REPORT_SAVE_PAYMENT_DETAILS_HINT =
+  "Zum Speichern Strasse, PLZ, Ort und eine gültige IBAN ausfüllen.";
+/** Hinweis unter dem Formular: nichts ist Pflicht. */
+export const REPORT_REFUND_OPTIONAL_HINT =
+  "Leere Felder erscheinen als Linien zum Ausfüllen.";
+/** Warn-Snackbar, wenn das Speichern ins Profil scheitert. */
+export const REPORT_PAYMENT_DETAILS_SAVE_FAILED =
+  "Angaben konnten nicht gespeichert werden. Die Abrechnung wurde trotzdem erstellt.";
+/** Ladehinweis, solange die eigenen Zahlungsangaben geladen werden. */
+export const REPORT_PAYMENT_DETAILS_LOADING =
+  "Zahlungsangaben werden geladen …";
+/** Zeile «PLZ Ort» im Rückerstattungs-Block des PDFs. */
+export const REPORT_POSTAL_CODE_CITY = "PLZ / Ort";
+/** Hinweis bei «Alle Personen»: das Formular gilt nur für die eigene Person. */
+export const REPORT_REFUND_ALL_PAYEES_HINT =
+  "Gilt für deinen Teil der Abrechnung. Bei den anderen Personen erscheinen Linien zum Ausfüllen.";

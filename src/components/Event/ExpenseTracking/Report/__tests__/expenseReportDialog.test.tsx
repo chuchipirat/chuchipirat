@@ -1,7 +1,7 @@
 /**
  * Unit-Tests für den Dialog «Abrechnung erstellen»
  * (expenseReportDialog.tsx, Story 7.2; Schalter für Leerseiten und
- * Fortschritt seit Story 7.3a).
+ * Fortschritt seit Story 7.3a; «Rückerstattung an» seit Story 7.4).
  *
  * Fixture: Anna (3 Ausgaben) steht alphabetisch vor Ben (1 Ausgabe),
  * angemeldet ist aber Ben. So fällt auf, wenn die Vorauswahl die
@@ -11,12 +11,14 @@ import React from "react";
 import {act, fireEvent, render, screen, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
+import {UserPaymentDetailsDomain} from "../../../../User/userPaymentDetails.types";
 import {Cook} from "../../../Event/event.class";
 import {ExpenseDomain, ExpensePayeeType} from "../../Expense/expense.types";
 import {
   ReportMode,
   ReportOptions,
   ReportProgress,
+  ReportRefund,
 } from "../expenseReport.types";
 import {ExpenseReportDialog} from "../expenseReportDialog";
 
@@ -99,6 +101,9 @@ const makeProps = (
   expenses: EXPENSES,
   cooks: COOKS,
   authUserId: BEN.uid,
+  // nichts hinterlegt: Formular sofort da, «Erstellen» nicht gesperrt
+  ownPaymentDetails: null,
+  ownAccountHolderName: "Ben Beispiel",
   onCreate: jest.fn().mockResolvedValue(undefined),
   onClose: jest.fn(),
   ...overrides,
@@ -357,6 +362,7 @@ describe("ExpenseReportDialog: Fortschritt", () => {
     const onCreate = jest.fn(
       (
         _options: ReportOptions,
+        _refund: ReportRefund | null,
         onProgress: (progress: ReportProgress) => void,
       ) =>
         new Promise<void>((resolve) => {
@@ -381,5 +387,340 @@ describe("ExpenseReportDialog: Fortschritt", () => {
       finishCreate();
     });
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+});
+
+/* =====================================================================
+// Rückerstattung an (Story 7.4)
+// ===================================================================== */
+
+describe("ExpenseReportDialog: Rückerstattung an", () => {
+  /** Bens Angaben im Profil. */
+  const OWN_DETAILS = {
+    street: "Bahnhofstrasse 1",
+    postalCode: "8001",
+    city: "Zürich",
+    iban: "CH9300762011623852957",
+  };
+  /** So liefert die Seite das Profil: mit `userId`. */
+  const PROFILE_DETAILS: UserPaymentDetailsDomain = {
+    ...OWN_DETAILS,
+    userId: BEN.uid,
+  };
+  const EMPTY_DETAILS = {street: "", postalCode: "", city: "", iban: ""};
+  const SAVE_LABEL = "Angaben in meinem Profil speichern";
+
+  /**
+   * Feld des Formulars «Rückerstattung an».
+   *
+   * @param label - Beschriftung, z.B. «Strasse».
+   * @returns Das Eingabefeld.
+   */
+  const getField = (label: string) => screen.getByLabelText(label);
+
+  /**
+   * Tippt einen Wert in ein Feld.
+   *
+   * @param label - Beschriftung des Felds.
+   * @param value - Neuer Wert.
+   */
+  const typeInto = (label: string, value: string) =>
+    fireEvent.change(getField(label), {target: {value}});
+
+  /** Füllt alle vier Felder vollständig und gültig aus. */
+  const fillAllFields = () => {
+    typeInto("Strasse", " Bahnhofstrasse 1 ");
+    typeInto("Postleitzahl", "8001");
+    typeInto("Ort", "Zürich");
+    typeInto("IBAN", "ch93 0076 2011 6238 5295 7");
+  };
+
+  /**
+   * Klickt «Erstellen» und liefert, was `onCreate` als `refund` bekam.
+   *
+   * @param onCreate - Mock aus den Props.
+   * @returns Die übergebene Rückerstattung.
+   */
+  const createAndGetRefund = async (
+    onCreate: jest.Mock,
+  ): Promise<ReportRefund | null> => {
+    await createAndGetOptions(onCreate);
+    return onCreate.mock.calls[0][1];
+  };
+
+  const queryRefundHeading = () => screen.queryByText("Rückerstattung an");
+  const querySaveCheckbox = () =>
+    screen.queryByRole("checkbox", {name: SAVE_LABEL});
+
+  test("«Alle Personen» ohne eigene Ausgaben: kein Abschnitt, refund null", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(
+      <ExpenseReportDialog
+        {...makeProps({onCreate, authUserId: "user-zoe"})}
+      />,
+    );
+    expect(queryRefundHeading()).toBeInTheDocument();
+
+    selectPayee("Alle Personen");
+
+    expect(queryRefundHeading()).not.toBeInTheDocument();
+    expect(await createAndGetRefund(onCreate)).toBeNull();
+  });
+
+  test("«Alle Personen» mit eigenen Ausgaben: Formular für die eigene Person mit Hinweis", () => {
+    render(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: OWN_DETAILS})} />,
+    );
+
+    selectPayee("Alle Personen");
+
+    expect(
+      screen.getByText("Kontoinhaber*in: Ben Beispiel"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Gilt für deinen Teil der Abrechnung. Bei den anderen Personen erscheinen Linien zum Ausfüllen.",
+      ),
+    ).toBeInTheDocument();
+    expect(getField("Strasse")).toHaveValue("Bahnhofstrasse 1");
+  });
+
+  test("«Alle Personen»: eigene Angaben ändern und speichern", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+    selectPayee("Alle Personen");
+    fillAllFields();
+
+    fireEvent.click(querySaveCheckbox()!);
+
+    expect(await createAndGetRefund(onCreate)).toEqual({
+      details: OWN_DETAILS,
+      shouldSave: true,
+    });
+  });
+
+  test("Eingaben bei Ben bleiben beim Wechsel auf «Alle Personen» (gleiche Person)", () => {
+    render(<ExpenseReportDialog {...makeProps()} />);
+    typeInto("Strasse", "Dorfweg 3");
+
+    selectPayee("Alle Personen");
+
+    expect(getField("Strasse")).toHaveValue("Dorfweg 3");
+  });
+
+  test("einzelne Person: kein Hinweis zu den anderen Personen", () => {
+    render(<ExpenseReportDialog {...makeProps()} />);
+
+    expect(
+      screen.queryByText(/Bei den anderen Personen erscheinen Linien/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("«Alle Personen» mit Profil: refund mit den eigenen Angaben, ohne Speichern", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(
+      <ExpenseReportDialog
+        {...makeProps({onCreate, ownPaymentDetails: PROFILE_DETAILS})}
+      />,
+    );
+
+    selectPayee("Alle Personen");
+
+    // ohne userId: nur die vier Felder reisen ins PDF
+    expect(await createAndGetRefund(onCreate)).toEqual({
+      details: OWN_DETAILS,
+      shouldSave: false,
+    });
+  });
+
+  test("«Alle Personen», eigene Angaben laden noch: «Erstellen» gesperrt", () => {
+    render(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: undefined})} />,
+    );
+
+    selectPayee("Alle Personen");
+
+    expect(screen.getByRole("button", {name: "Erstellen"})).toBeDisabled();
+  });
+
+  test("eigene Person: Name aus dem Profil, Felder aus ownPaymentDetails", () => {
+    render(
+      <ExpenseReportDialog
+        {...makeProps({ownPaymentDetails: PROFILE_DETAILS})}
+      />,
+    );
+
+    expect(
+      screen.getByText("Kontoinhaber*in: Ben Beispiel"),
+    ).toBeInTheDocument();
+    expect(getField("Strasse")).toHaveValue("Bahnhofstrasse 1");
+    expect(getField("IBAN")).toHaveValue("CH9300762011623852957");
+  });
+
+  test("kein Autofokus im Formular (Handy-Tastatur)", () => {
+    render(<ExpenseReportDialog {...makeProps()} />);
+
+    expect(getField("Strasse")).not.toHaveFocus();
+  });
+
+  test("eigene Angaben laden noch: Ladehinweis statt Formular, «Erstellen» gesperrt", () => {
+    render(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: undefined})} />,
+    );
+
+    expect(
+      screen.getByText("Zahlungsangaben werden geladen …"),
+    ).toBeInTheDocument();
+    expect(screen.queryByLabelText("Strasse")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Erstellen"})).toBeDisabled();
+  });
+
+  test("Angaben treffen nach dem Öffnen ein: Formular vorausgefüllt", () => {
+    const {rerender} = render(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: undefined})} />,
+    );
+
+    rerender(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: OWN_DETAILS})} />,
+    );
+
+    expect(getField("Strasse")).toHaveValue("Bahnhofstrasse 1");
+    expect(screen.getByRole("button", {name: "Erstellen"})).toBeEnabled();
+  });
+
+  test("andere Person: Anzeigename, leere Felder, keine Checkbox", () => {
+    render(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: OWN_DETAILS})} />,
+    );
+
+    selectPayee("Anna (3 Ausgaben)");
+
+    expect(screen.getByText("Kontoinhaber*in: Anna")).toBeInTheDocument();
+    expect(getField("Strasse")).toHaveValue("");
+    expect(getField("IBAN")).toHaveValue("");
+    // fremde Bankdaten werden nie gespeichert, auch vollständige nicht
+    // (andere Werte als Bens Profil, sonst gälten sie als «unverändert»)
+    fillAllFields();
+    typeInto("Strasse", "Dorfweg 3");
+    expect(querySaveCheckbox()).not.toBeInTheDocument();
+  });
+
+  test("Wechsel Anna → Ben → Anna: Annas Eingaben bleiben (F3)", () => {
+    render(<ExpenseReportDialog {...makeProps()} />);
+    selectPayee("Anna (3 Ausgaben)");
+    typeInto("Strasse", "Dorfweg 3");
+
+    selectPayee("Ben (1 Ausgabe)");
+    expect(getField("Strasse")).toHaveValue("");
+    selectPayee("Anna (3 Ausgaben)");
+
+    expect(getField("Strasse")).toHaveValue("Dorfweg 3");
+  });
+
+  test("ungültige IBAN: Fehler am Feld, onCreate nicht aufgerufen (F4)", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+    typeInto("IBAN", "CH9300762011623852958");
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", {name: "Erstellen"}));
+    });
+
+    expect(onCreate).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("Bitte eine gültige IBAN angeben."),
+    ).toBeInTheDocument();
+    expect(getField("IBAN")).toHaveAttribute("aria-invalid", "true");
+  });
+
+  test("leere Felder sind erlaubt: onCreate mit leeren Angaben", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+
+    expect(await createAndGetRefund(onCreate)).toEqual({
+      details: EMPTY_DETAILS,
+      shouldSave: false,
+    });
+  });
+
+  test("refund: getrimmt, IBAN normalisiert, ohne userId", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(
+      <ExpenseReportDialog
+        {...makeProps({
+          onCreate,
+          ownPaymentDetails: PROFILE_DETAILS,
+        })}
+      />,
+    );
+    typeInto("Strasse", "  Bahnhofstrasse 2 ");
+    typeInto("IBAN", "ch93 0076 2011 6238 5295 7");
+
+    expect((await createAndGetRefund(onCreate))?.details).toEqual({
+      ...OWN_DETAILS,
+      street: "Bahnhofstrasse 2",
+    });
+  });
+
+  test("Checkbox: ausgegraut bei unvollständig, aktiv bei vollständig (F5)", () => {
+    render(<ExpenseReportDialog {...makeProps()} />);
+
+    expect(querySaveCheckbox()).toBeDisabled();
+    expect(
+      screen.getByText(
+        "Zum Speichern Strasse, PLZ, Ort und eine gültige IBAN ausfüllen.",
+      ),
+    ).toBeInTheDocument();
+
+    fillAllFields();
+
+    expect(querySaveCheckbox()).toBeEnabled();
+  });
+
+  test("Checkbox angehakt: onCreate bekommt shouldSave true", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+    fillAllFields();
+
+    fireEvent.click(querySaveCheckbox()!);
+
+    expect(await createAndGetRefund(onCreate)).toEqual({
+      details: OWN_DETAILS,
+      shouldSave: true,
+    });
+  });
+
+  test("angehakt, dann wieder unvollständig: shouldSave false", async () => {
+    const onCreate = jest.fn().mockResolvedValue(undefined);
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+    fillAllFields();
+    fireEvent.click(querySaveCheckbox()!);
+
+    typeInto("Ort", "");
+
+    expect(querySaveCheckbox()).not.toBeChecked();
+    expect((await createAndGetRefund(onCreate))?.shouldSave).toBe(false);
+  });
+
+  test("unverändert aus dem Profil: keine Checkbox; nach Änderung wieder da", () => {
+    render(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: OWN_DETAILS})} />,
+    );
+
+    expect(querySaveCheckbox()).not.toBeInTheDocument();
+
+    typeInto("Strasse", "Bahnhofstrasse 2");
+
+    expect(querySaveCheckbox()).toBeInTheDocument();
+  });
+
+  test("gleiche Angaben, nur anders geschrieben: gilt als unverändert", () => {
+    render(
+      <ExpenseReportDialog {...makeProps({ownPaymentDetails: OWN_DETAILS})} />,
+    );
+
+    typeInto("IBAN", "ch93 0076 2011 6238 5295 7");
+
+    expect(querySaveCheckbox()).not.toBeInTheDocument();
   });
 });

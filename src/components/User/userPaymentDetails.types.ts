@@ -21,6 +21,15 @@ export type UserPaymentDetailsDomain = {
   city: string;
   iban: string;
 };
+
+/**
+ * Werte des `PaymentDetailsForm`: Adresse und IBAN, ohne `userId`.
+ * In der Abrechnung gibt es auch Personen ohne Konto (eingetippte Namen),
+ * die keine `userId` haben. Das Profil übergibt weiterhin sein
+ * `UserPaymentDetailsDomain`; es passt, weil es nur ein Feld mehr hat.
+ */
+export type PaymentDetailsFormValues = Omit<UserPaymentDetailsDomain, "userId">;
+
 /* =====================================================================
 // DB-Zeilentyp (snake_case, entspricht Postgres-Spalten)
 // ===================================================================== */

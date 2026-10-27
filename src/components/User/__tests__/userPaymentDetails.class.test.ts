@@ -1,4 +1,7 @@
-import {UserPaymentDetailsDomain} from "../userPaymentDetails.types";
+import {
+  PaymentDetailsFormValues,
+  UserPaymentDetailsDomain,
+} from "../userPaymentDetails.types";
 import {UserPaymentDetails} from "../userPaymentDetails.class";
 
 import {
@@ -165,6 +168,21 @@ describe("normalize: Normalisierung der Eingabe", () => {
   test("userId bleibt erhalten", () => {
     const normalized = UserPaymentDetails.normalize(userPaymentDetails);
     expect(normalized.userId).toBe("user-123");
+  });
+  test("Formularwerte ohne userId (Abrechnung): normalisiert, keine userId dazu", () => {
+    const formValues: PaymentDetailsFormValues = {
+      street: " Musterstrasse 1 ",
+      postalCode: "1234",
+      city: "Hinterpfuffikon",
+      iban: "ch93 0076 2011 6238 5295 7",
+    };
+
+    expect(UserPaymentDetails.normalize(formValues)).toEqual({
+      street: "Musterstrasse 1",
+      postalCode: "1234",
+      city: "Hinterpfuffikon",
+      iban: "CH9300762011623852957",
+    });
   });
   test("Eingabeobjekt bleibt unverändert (neues Objekt)", () => {
     const input = {

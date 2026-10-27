@@ -2,12 +2,14 @@
  * Unit-Tests für die Beschriftungen der PDF-Abrechnung
  * (expenseReportLabels.ts, Story 7.2): Titel, Dateiname, Untertitel,
  * Datumsformat und Modus-Beschriftungen; Kopfzeile der Belegseiten
- * (Story 7.3a).
+ * (Story 7.3a); Name der Kontoinhaber*in (Story 7.4).
  */
+import AuthUser from "../../../../Session/authUser.class";
 import {ReportMode} from "../expenseReport.types";
 import {
   REPORT_MODE_LABELS,
   formatReportDate,
+  getAccountHolderName,
   getReportFileName,
   getReportSubtitle,
   getReceiptHeader,
@@ -116,5 +118,66 @@ describe("getReceiptHeader", () => {
     expect(header.replace(/\s/g, " ")).toBe(
       "Beleg 3 · 12.07.2026 · Migros · CHF 42.50 · Seite 1 von 3",
     );
+  });
+});
+
+describe("getAccountHolderName", () => {
+  /**
+   * Erstellt die angemeldete Person «Gio» mit den gegebenen Namen.
+   *
+   * @param firstName - Vorname im Profil.
+   * @param lastName - Nachname im Profil.
+   * @returns Die angemeldete Person mit der UID «user-gio».
+   */
+  const buildAuthUser = (firstName: string, lastName: string): AuthUser => {
+    const authUser = new AuthUser();
+    authUser.uid = "user-gio";
+    authUser.firstName = firstName;
+    authUser.lastName = lastName;
+    return authUser;
+  };
+  const OWN_PAYEE = {displayName: "Gio", payeeUserId: "user-gio"};
+
+  test("eigene Abrechnung: Vor- und Nachname aus dem Profil", () => {
+    expect(getAccountHolderName(OWN_PAYEE, buildAuthUser("Gio", "Botta"))).toBe(
+      "Gio Botta",
+    );
+  });
+
+  test("eigene Abrechnung: Leerzeichen um die Namen fallen weg", () => {
+    expect(
+      getAccountHolderName(OWN_PAYEE, buildAuthUser(" Gio ", "  Botta ")),
+    ).toBe("Gio Botta");
+  });
+
+  test.each([
+    ["ohne Nachname", "Gio", ""],
+    ["ohne Vorname", "", "Botta"],
+    ["Nachname nur Leerzeichen", "Gio", "   "],
+  ])(
+    "eigene Abrechnung %s: Anzeigename",
+    (_description, firstName, lastName) => {
+      expect(
+        getAccountHolderName(OWN_PAYEE, buildAuthUser(firstName, lastName)),
+      ).toBe("Gio");
+    },
+  );
+
+  test("andere Köch*in: Anzeigename, nie der eigene Profilname", () => {
+    expect(
+      getAccountHolderName(
+        {displayName: "Anna", payeeUserId: "user-anna"},
+        buildAuthUser("Gio", "Botta"),
+      ),
+    ).toBe("Anna");
+  });
+
+  test("eingetippte Person (payeeUserId null): Anzeigename", () => {
+    expect(
+      getAccountHolderName(
+        {displayName: "Hans Muster", payeeUserId: null},
+        buildAuthUser("Gio", "Botta"),
+      ),
+    ).toBe("Hans Muster");
   });
 });

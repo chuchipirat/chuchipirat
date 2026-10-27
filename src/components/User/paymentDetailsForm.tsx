@@ -3,7 +3,7 @@ import React from "react";
 import {TextField, Box} from "@mui/material";
 
 import {useCustomStyles} from "../../constants/styles";
-import {UserPaymentDetailsDomain} from "./userPaymentDetails.types";
+import {PaymentDetailsFormValues} from "./userPaymentDetails.types";
 import {isValidIban, formatIban, normalizeIban} from "../../utils/ibanUtils";
 import {
   STREET as TEXT_STREET,
@@ -30,13 +30,22 @@ export type PaymentDetailsFieldName = "street" | "postalCode" | "city" | "iban";
  *
  * @property values - Aktuelle Eingaben (nie `null` — der Aufrufer liefert leere Werte).
  * @property formValidation - Feldfehler vom letzten Speichern-Versuch; leer = keine Fehler.
+ * @property autoFocus - Setzt beim Anzeigen den Fokus ins Strassenfeld (Standard: `true`). In der Abrechnung `false`, sonst geht auf dem Handy beim Öffnen des Dialogs die Tastatur auf.
  * @property onFieldChange - Meldet jede Änderung eines Feldes (auch die Formatierung beim Verlassen des IBAN-Feldes).
  */
 interface PaymentDetailsFormProps {
-  values: UserPaymentDetailsDomain;
+  values: PaymentDetailsFormValues;
   formValidation: FormValidationFieldError[];
+  autoFocus?: boolean;
   onFieldChange: (fieldName: PaymentDetailsFieldName, value: string) => void;
 }
+
+/**
+ * Höchstlängen wie die CHECK-Constraints von `user_payment_details`. Gilt
+ * auch in der Abrechnung, wo Angaben anderer Personen nie in die DB gehen:
+ * Ein überlanger Wert sprengte sonst den Block im PDF.
+ */
+const MAX_LENGTH = {street: 100, postalCode: 10, city: 100} as const;
 
 /**
  * Live-Status des IBAN-Feldes — wird beim Verlassen des Feldes gesetzt und
@@ -68,6 +77,7 @@ const IBAN_HELPER_TEXT: Record<IbanStatus, string> = {
 export const PaymentDetailsForm: React.FC<PaymentDetailsFormProps> = ({
   values,
   formValidation,
+  autoFocus = true,
   onFieldChange,
 }) => {
   const classes = useCustomStyles();
@@ -99,7 +109,7 @@ export const PaymentDetailsForm: React.FC<PaymentDetailsFormProps> = ({
     // data-sentry-block: Adresse und IBAN erscheinen im Sentry-Replay nur als graue Fläche
     <Box data-sentry-block>
       <TextField
-        autoFocus
+        autoFocus={autoFocus}
         fullWidth
         label={TEXT_STREET}
         value={values.street}
@@ -112,7 +122,12 @@ export const PaymentDetailsForm: React.FC<PaymentDetailsFormProps> = ({
         )}
         sx={classes.formControl}
         margin="normal"
-        slotProps={{htmlInput: {autoComplete: "street-address"}}}
+        slotProps={{
+          htmlInput: {
+            autoComplete: "street-address",
+            maxLength: MAX_LENGTH.street,
+          },
+        }}
       />
       <Box sx={classes.paymentDetailsPostalCodeRow}>
         <TextField
@@ -133,6 +148,7 @@ export const PaymentDetailsForm: React.FC<PaymentDetailsFormProps> = ({
           slotProps={{
             htmlInput: {
               autoComplete: "postal-code",
+              maxLength: MAX_LENGTH.postalCode,
             },
           }}
         />
@@ -149,7 +165,12 @@ export const PaymentDetailsForm: React.FC<PaymentDetailsFormProps> = ({
           )}
           sx={classes.formControl}
           margin="normal"
-          slotProps={{htmlInput: {autoComplete: "address-level2"}}}
+          slotProps={{
+            htmlInput: {
+              autoComplete: "address-level2",
+              maxLength: MAX_LENGTH.city,
+            },
+          }}
         />
       </Box>
       <TextField

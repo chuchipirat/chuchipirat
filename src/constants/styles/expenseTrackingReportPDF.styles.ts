@@ -74,6 +74,48 @@ export const pdfStyles = StyleSheet.create({
     color: PDF_TOKENS.color.gray,
     marginTop: 2,
   },
+  /* ── Rückerstattung an (Story 7.4) ─────────── */
+  /** Block unter dem Personennamen, vor den Tabellen (F8). */
+  refundBlock: {
+    marginTop: 6,
+    marginBottom: 4,
+    width: "70%",
+  },
+  refundHeading: {
+    fontSize: PDF_TOKENS.fontSize.small,
+    fontFamily: PDF_TOKENS.fontFamily,
+    fontStyle: "normal",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: APP_PRIMARY,
+    marginBottom: 2,
+  },
+  refundRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    marginTop: 3,
+  },
+  refundLabel: {
+    ...CELL_BASE,
+    width: "28%",
+    paddingVertical: 1,
+    color: PDF_TOKENS.color.gray,
+  },
+  refundValue: {
+    ...CELL_BASE,
+    flexGrow: 1,
+    paddingVertical: 1,
+  },
+  /**
+   * Linie zum Ausfüllen von Hand. Höher als eine Textzeile, damit man
+   * bequem darauf schreiben kann.
+   */
+  refundLine: {
+    flexGrow: 1,
+    height: 18,
+    borderBottomWidth: 0.5,
+    borderBottomColor: PDF_TOKENS.color.gray,
+    borderBottomStyle: "solid",
+  },
   groupHeading: {
     fontSize: 11,
     fontFamily: PDF_TOKENS.fontFamily,

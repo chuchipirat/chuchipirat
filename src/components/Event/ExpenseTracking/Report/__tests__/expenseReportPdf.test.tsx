@@ -1,7 +1,8 @@
 /**
  * Unit-Tests für das PDF-Dokument der Abrechnung (expenseReportPdf.tsx,
  * Story 7.2) und seine Belegseiten (expenseReportReceiptPages.tsx,
- * Story 7.3a; PDF-Belege und receiptPageSlots.ts seit Story 7.3b).
+ * Story 7.3a; PDF-Belege und receiptPageSlots.ts seit Story 7.3b);
+ * Block «Rückerstattung an» (expenseReportRefundBlock.tsx, Story 7.4).
  *
  * Die Daten kommen über `ExpenseReport.build`, damit der Test dieselbe
  * Struktur zeichnet wie die App.
@@ -85,6 +86,8 @@ import {
   ReportOptions,
   ReportReceipt,
 } from "../expenseReport.types";
+import {pdfStyles} from "../../../../../constants/styles/expenseTrackingReportPDF.styles";
+import {PaymentDetailsFormValues} from "../../../../User/userPaymentDetails.types";
 import {ExpenseReportPdf} from "../expenseReportPdf";
 import {RECEIPT_CONTENT_BOX} from "../receiptPageLayout";
 import {getReceiptPageSlots} from "../receiptPageSlots";
@@ -215,11 +218,14 @@ const buildAuthUser = (): AuthUser => {
  *
  * @param overrides - Optionen, die vom Standard abweichen.
  * @param loadedReceipts - Belege des Anhangs.
+ * @param refundDetailsByPayeeKey - Adresse und IBAN pro Person
+ *   (Standard: keine, Linien).
  * @returns Das Render-Ergebnis.
  */
 const renderReportPdf = (
   overrides: Partial<ReportOptions> = {},
   loadedReceipts: LoadedReceipt[] = [],
+  refundDetailsByPayeeKey: Record<string, PaymentDetailsFormValues> = {},
 ) => {
   const report = ExpenseReport.build({
     expenses: EXPENSES,
@@ -240,6 +246,7 @@ const renderReportPdf = (
       loadedReceipts={loadedReceipts}
       authUser={buildAuthUser()}
       generatedAt={new Date(2026, 7, 1)}
+      refundDetailsByPayeeKey={refundDetailsByPayeeKey}
     />,
   );
 };
@@ -578,5 +585,105 @@ describe("ExpenseReportPdf: PDF-Belege", () => {
       .filter((style) => style?.position === "absolute");
     expect(pdfBoxes).toEqual([{position: "absolute", ...RECEIPT_CONTENT_BOX}]);
     expect(screen.queryByText("Beleg hier aufkleben")).not.toBeInTheDocument();
+  });
+});
+
+/* =====================================================================
+// Rückerstattung an (Story 7.4)
+// ===================================================================== */
+
+describe("ExpenseReportPdf: Rückerstattung an", () => {
+  const REFUND_DETAILS: PaymentDetailsFormValues = {
+    street: "Bahnhofstrasse 1",
+    postalCode: "8001",
+    city: "Zürich",
+    iban: "CH9300762011623852957",
+  };
+
+  /**
+   * Linien zum Ausfüllen (Views mit dem Style `refundLine`).
+   *
+   * @param container - Container aus `render`.
+   * @returns Die Linien.
+   */
+  const linesOf = (container: HTMLElement) =>
+    Array.from(container.querySelectorAll("View")).filter(
+      (element) =>
+        element.getAttribute("data-style") ===
+        JSON.stringify(pdfStyles.refundLine),
+    );
+
+  test("eine Person: Name, Adresse und IBAN in Viererblöcken, keine Linie", () => {
+    const {container} = renderReportPdf({}, [], {[ANNA.uid]: REFUND_DETAILS});
+
+    const texts = textsOf(container);
+    expect(texts).toEqual(
+      expect.arrayContaining([
+        "Rückerstattung an",
+        "Kontoinhaber*in",
+        "Anna",
+        "Bahnhofstrasse 1",
+        "8001 Zürich",
+        "CH93 0076 2011 6238 5295 7",
+      ]),
+    );
+    expect(linesOf(container)).toHaveLength(0);
+  });
+
+  test("Block steht unter dem Namen, vor der Tabelle", () => {
+    const {container} = renderReportPdf({}, [], {[ANNA.uid]: REFUND_DETAILS});
+
+    const texts = textsOf(container);
+    expect(texts.indexOf("Rückerstattung an")).toBeGreaterThan(
+      texts.indexOf("Anna"),
+    );
+    expect(texts.indexOf("Rückerstattung an")).toBeLessThan(
+      texts.indexOf("Migros"),
+    );
+  });
+
+  test("leere Werte werden zu Linien, ohne Fehler (kein String ausserhalb <Text>)", () => {
+    const {container} = renderReportPdf({}, [], {
+      [ANNA.uid]: {...REFUND_DETAILS, street: "", iban: "  "},
+    });
+
+    expect(linesOf(container)).toHaveLength(2);
+    expect(textsOf(container)).toContain("8001 Zürich");
+  });
+
+  test("ohne Angaben: Name bleibt, Adresse und IBAN sind Linien", () => {
+    const {container} = renderReportPdf();
+
+    expect(linesOf(container)).toHaveLength(3);
+    expect(textsOf(container)).toContain("Kontoinhaber*in");
+  });
+
+  test("«Alle Personen»: Block pro Person mit Linien, nicht bei «Ohne Rückerstattung»", () => {
+    const {container} = renderReportPdf({payeeSelection: {kind: "all"}});
+
+    const texts = textsOf(container);
+    // Anna und Ben, nicht «Ohne Rückerstattung»
+    expect(texts.filter((text) => text === "Rückerstattung an")).toHaveLength(
+      2,
+    );
+    expect(linesOf(container)).toHaveLength(6);
+    const lastRefundHeading = texts.lastIndexOf("Rückerstattung an");
+    expect(lastRefundHeading).toBeLessThan(
+      texts.indexOf("Ohne Rückerstattung"),
+    );
+  });
+
+  test("«Alle Personen»: eigene Angaben bei der eigenen Person, Linien nur bei den anderen", () => {
+    const {container} = renderReportPdf({payeeSelection: {kind: "all"}}, [], {
+      [ANNA.uid]: REFUND_DETAILS,
+    });
+
+    const texts = textsOf(container);
+    const ibanIndex = texts.indexOf("CH93 0076 2011 6238 5295 7");
+    // Annas IBAN steht in Annas Block, vor Ben
+    expect(ibanIndex).toBeGreaterThan(texts.indexOf("Anna"));
+    expect(ibanIndex).toBeLessThan(texts.indexOf("Ben"));
+    // nur Ben hat Linien (Strasse, PLZ / Ort, IBAN)
+    expect(linesOf(container)).toHaveLength(3);
   });
 });

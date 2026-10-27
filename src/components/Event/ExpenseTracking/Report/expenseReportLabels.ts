@@ -9,8 +9,13 @@ import {
   REPORT_RECEIPT as TEXT_REPORT_RECEIPT,
   REPORT_RECEIPT_PAGE_OF as TEXT_REPORT_RECEIPT_PAGE_OF,
 } from "../../../../constants/text";
+import AuthUser from "../../../Session/authUser.class";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
-import {ReportMode, ReportReceipt} from "./expenseReport.types";
+import {
+  ReportMode,
+  ReportPayeeSection,
+  ReportReceipt,
+} from "./expenseReport.types";
 
 /**
  * Beschriftung und Erklärung eines Modus.
@@ -124,3 +129,29 @@ export const getReceiptHeader = (
       ? [TEXT_REPORT_RECEIPT_PAGE_OF(pageNumber, pageCount)]
       : []),
   ].join(" · ");
+
+/**
+ * Name der Kontoinhaber*in im Block «Rückerstattung an».
+ * Für die eigene Abrechnung Vor- und Nachname aus dem Profil, weil die
+ * Bank den echten Namen braucht; fehlen sie, der Anzeigename. Für andere
+ * Personen (auch eingetippte, `payeeUserId: null`) ihr Anzeigename.
+ *
+ * @param payee - Die Person; ein ganzer `ReportPayeeSection` passt auch.
+ * @param authUser - Angemeldete Person, zum Erkennen der eigenen Abrechnung.
+ * @returns Name für die Zeile «Kontoinhaber*in».
+ * @example
+ * getAccountHolderName({displayName: "Gio", payeeUserId: authUser.uid}, authUser)
+ * // "Gio Botta"
+ * getAccountHolderName({displayName: "Anna", payeeUserId: null}, authUser)
+ * // "Anna"
+ */
+export const getAccountHolderName = (
+  payee: Pick<ReportPayeeSection, "displayName" | "payeeUserId">,
+  authUser: AuthUser,
+): string => {
+  if (payee.payeeUserId !== authUser.uid) return payee.displayName;
+  if (!authUser.firstName.trim() || !authUser.lastName.trim())
+    return payee.displayName;
+
+  return `${authUser.firstName.trim()} ${authUser.lastName.trim()}`;
+};

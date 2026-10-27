@@ -57,6 +57,8 @@ import {ExpenseDetailDialogState} from "../Expense/expenseDetailDialog";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import dayjs from "dayjs";
 import * as Sentry from "@sentry/react";
+import {trackEvent} from "../../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../../Analytics/analyticsEvents";
 import {downloadExpenseReport} from "../Report/downloadExpenseReport";
 import {
   ExpenseReportResult,
@@ -102,6 +104,14 @@ jest.mock("@mui/x-date-pickers", () => ({
 jest.mock("../Report/downloadExpenseReport", () => ({
   downloadExpenseReport: jest.fn(),
 }));
+/**
+ * Mock: Analytics — die Abrechnung prüft, dass `trackEvent` keine IBAN
+ * bekommt (Story 7.4, F7).
+ */
+jest.mock("../../../Analytics/analyticsService", () => ({
+  ...jest.requireActual("../../../Analytics/analyticsService"),
+  trackEvent: jest.fn(),
+}));
 
 const normalizer = getDefaultNormalizer();
 
@@ -145,6 +155,10 @@ const mockUnsubscribeExpenses = jest.fn();
 const mockReconnectExpenses = jest.fn();
 const mockDatabase = {
   donations: {getEventDonations: jest.fn().mockResolvedValue([])},
+  userPaymentDetails: {
+    getPaymentDetails: jest.fn().mockResolvedValue(null),
+    savePaymentDetails: jest.fn(),
+  },
   budgets: {
     getBudgetsForEvent: jest.fn().mockResolvedValue([]),
     createBudget: jest.fn(),
@@ -228,6 +242,10 @@ beforeEach(() => {
   mockDatabase.expenses.deleteExpense.mockReset();
   mockDatabase.storage.expenses.upload.mockReset().mockResolvedValue(undefined);
   mockDatabase.storage.expenses.remove.mockReset().mockResolvedValue(undefined);
+  mockDatabase.userPaymentDetails.getPaymentDetails
+    .mockReset()
+    .mockResolvedValue(null);
+  mockDatabase.userPaymentDetails.savePaymentDetails.mockReset();
   mockCustomDialog.mockReset();
 });
 
@@ -2998,6 +3016,233 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
     expect(
       within(dialog).getByRole("combobox", {name: "Für wen?"}),
     ).toHaveTextContent("Max Muster (1 Ausgabe)");
+  });
+});
+
+/* =====================================================================
+// Rückerstattung an (Story 7.4)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Abrechnung mit Zahlungsangaben", () => {
+  const mockedDownloadExpenseReport = jest.mocked(downloadExpenseReport);
+  /** Test-IBAN: darf weder in Analytics noch in Sentry auftauchen. */
+  const TEST_IBAN = "CH9300762011623852957";
+  /** Anlass, in dem die angemeldete Person selbst kocht. */
+  const ownEvent = {
+    ...mockEvent,
+    cooks: [
+      {
+        uid: mockAuthUser.uid,
+        displayName: "Max Muster",
+        motto: "",
+        pictureSrc: "",
+      },
+    ],
+  };
+  /** Ausgabe der angemeldeten Person: der Dialog wählt sie vor. */
+  const ownExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-own-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: mockAuthUser.uid,
+  };
+  const SAVED_DETAILS = {
+    userId: mockAuthUser.uid,
+    street: "Bahnhofstrasse 1",
+    postalCode: "8001",
+    city: "Zürich",
+    iban: TEST_IBAN,
+  };
+
+  beforeEach(() => {
+    mockedDownloadExpenseReport
+      .mockReset()
+      .mockResolvedValue({failedReceiptNumbers: []});
+  });
+
+  /** Rendert die Seite mit der eigenen Ausgabe. */
+  const renderOwnPage = async () => {
+    await renderUnlockedPage([kitchenBudget], [ownExpense], {event: ownEvent});
+    await waitFor(() =>
+      expect(screen.getByRole("button", {name: TEXT_EXPORT})).toBeEnabled(),
+    );
+  };
+
+  /**
+   * Öffnet den Dialog und wartet, bis das Formular da ist.
+   *
+   * @returns Der Dialog.
+   */
+  const openDialogWithForm = async () => {
+    fireEvent.click(screen.getByRole("button", {name: TEXT_EXPORT}));
+    fireEvent.click(
+      await screen.findByRole("menuitem", {name: TEXT_CREATE_EXPENSE_REPORT}),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: TEXT_CREATE_EXPENSE_REPORT,
+    });
+    await within(dialog).findByLabelText("Strasse");
+    return dialog;
+  };
+
+  /**
+   * Füllt das Formular vollständig, hakt «speichern» an und erstellt.
+   *
+   * @param dialog - Der offene Dialog.
+   */
+  const fillSaveAndCreate = async (dialog: HTMLElement) => {
+    const typeInto = (label: string, value: string) =>
+      fireEvent.change(within(dialog).getByLabelText(label), {
+        target: {value},
+      });
+    typeInto("Strasse", " Bahnhofstrasse 1 ");
+    typeInto("Postleitzahl", "8001");
+    typeInto("Ort", "Zürich");
+    typeInto("IBAN", "ch93 0076 2011 6238 5295 7");
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", {
+        name: "Angaben in meinem Profil speichern",
+      }),
+    );
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+  };
+
+  test("Zahlungsangaben erst beim Öffnen des Dialogs laden (F2)", async () => {
+    await renderOwnPage();
+
+    expect(
+      mockDatabase.userPaymentDetails.getPaymentDetails,
+    ).not.toHaveBeenCalled();
+
+    await openDialogWithForm();
+
+    expect(
+      mockDatabase.userPaymentDetails.getPaymentDetails,
+    ).toHaveBeenCalledWith(mockAuthUser.uid);
+  });
+
+  test("hinterlegte Angaben füllen das Formular und gehen ans PDF", async () => {
+    mockDatabase.userPaymentDetails.getPaymentDetails.mockResolvedValue(
+      SAVED_DETAILS,
+    );
+    await renderOwnPage();
+
+    const dialog = await openDialogWithForm();
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Strasse")).toHaveValue(
+        "Bahnhofstrasse 1",
+      ),
+    );
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    const {userId: _userId, ...expectedDetails} = SAVED_DETAILS;
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledWith(
+      expect.objectContaining({refundDetails: expectedDetails}),
+    );
+    // unverändert aus dem Profil: nichts zu speichern
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails,
+    ).not.toHaveBeenCalled();
+  });
+
+  test("Ladefehler: leeres Formular, kein Alarm, Sentry", async () => {
+    mockDatabase.userPaymentDetails.getPaymentDetails.mockRejectedValue(
+      new Error("RLS kaputt"),
+    );
+    await renderOwnPage();
+
+    const dialog = await openDialogWithForm();
+
+    expect(within(dialog).getByLabelText("Strasse")).toHaveValue("");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+      extra: {context: "Abrechnung: Zahlungsangaben laden"},
+    });
+  });
+
+  test("speichern: normalisiert mit eigener userId, danach das PDF", async () => {
+    mockDatabase.userPaymentDetails.savePaymentDetails.mockResolvedValue(
+      SAVED_DETAILS,
+    );
+    await renderOwnPage();
+
+    await fillSaveAndCreate(await openDialogWithForm());
+
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails,
+    ).toHaveBeenCalledWith(SAVED_DETAILS, mockAuthUser);
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(mockedDownloadExpenseReport.mock.invocationCallOrder[0]);
+    expect(trackEvent).toHaveBeenCalledWith(
+      AnalyticsEvent.PAYMENT_DETAILS_CREATED,
+    );
+  });
+
+  test("Speichern scheitert: Warnung, PDF trotzdem erstellt (F6)", async () => {
+    mockDatabase.userPaymentDetails.savePaymentDetails.mockRejectedValue(
+      new Error("Speichern abgelehnt"),
+    );
+    await renderOwnPage();
+
+    await fillSaveAndCreate(await openDialogWithForm());
+
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(
+        "Angaben konnten nicht gespeichert werden. Die Abrechnung wurde trotzdem erstellt.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("ohne Häkchen: kein Speichern", async () => {
+    await renderOwnPage();
+
+    const dialog = await openDialogWithForm();
+    fireEvent.change(within(dialog).getByLabelText("Strasse"), {
+      target: {value: "Dorfweg 3"},
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledTimes(1);
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails,
+    ).not.toHaveBeenCalled();
+  });
+
+  test("IBAN nie in Analytics oder Sentry (F7)", async () => {
+    // so sieht ein abgelehntes Speichern bei Supabase aus: die Zeile steckt
+    // in `details`
+    mockDatabase.userPaymentDetails.savePaymentDetails.mockRejectedValue({
+      code: "23514",
+      message: "new row violates check constraint",
+      details: `Failing row contains (Bahnhofstrasse 1, 8001, ${TEST_IBAN}).`,
+    });
+    await renderOwnPage();
+
+    await fillSaveAndCreate(await openDialogWithForm());
+
+    expect(Sentry.captureException).toHaveBeenCalled();
+    // JSON.stringify zeigt bei einem Error sonst nur «{}»
+    const reported = JSON.stringify(
+      [
+        jest.mocked(trackEvent).mock.calls,
+        jest.mocked(Sentry.captureException).mock.calls,
+      ],
+      (_key, value: unknown) =>
+        value instanceof Error
+          ? {message: value.message, cause: value.cause}
+          : value,
+    );
+    expect(reported).not.toContain(TEST_IBAN);
+    expect(reported).not.toContain("Bahnhofstrasse");
   });
 });
 

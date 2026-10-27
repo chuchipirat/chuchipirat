@@ -2,7 +2,8 @@
  * Unit-Tests für das Erstellen der Abrechnung (downloadExpenseReport.tsx,
  * Story 7.3a): Ablauf Laden → Zeichnen → Download, Ergebnis mit den
  * fehlenden Belegen und ein Sentry-Ereignis pro Abrechnung. Seit Story
- * 7.3b: Zwischenschritt für PDF-Belege, verschlüsselte PDFs.
+ * 7.3b: Zwischenschritt für PDF-Belege, verschlüsselte PDFs. Seit Story
+ * 7.4: Adresse und IBAN gehen ans Dokument, nie an Sentry.
  *
  * `loadReceipts`, `embedPdfReceipts`, `generateAndDownloadPdf` und Sentry
  * werden gemockt. Das
@@ -101,6 +102,15 @@ const buildEvent = (): Event => {
   return event;
 };
 
+/** Test-IBAN: darf nur im Dokument auftauchen, nie im Sentry-Kontext. */
+const TEST_IBAN = "CH9300762011623852957";
+const REFUND_DETAILS = {
+  street: "Bahnhofstrasse 1",
+  postalCode: "8001",
+  city: "Zürich",
+  iban: TEST_IBAN,
+};
+
 const OPTIONS: ReportOptions = {
   mode: ReportMode.PER_PERSON,
   payeeSelection: {kind: "single", payeeKey: "user-anna"},
@@ -109,11 +119,14 @@ const OPTIONS: ReportOptions = {
 };
 
 /**
- * Ruft `downloadExpenseReport` mit der Fixture auf.
+ * Ruft `downloadExpenseReport` mit der Fixture auf. Angemeldet ist Anna.
  *
+ * @param options - Optionen (Standard: nur Anna).
  * @returns Ergebnis und die übergebenen Callbacks.
  */
-const runDownload = async () => {
+const runDownload = async (options: ReportOptions = OPTIONS) => {
+  const authUser = new AuthUser();
+  authUser.uid = "user-anna";
   const getAttachmentUrl = jest.fn(
     (attachmentPath: string) => `https://storage.test/${attachmentPath}`,
   );
@@ -123,8 +136,9 @@ const runDownload = async () => {
     expenses: EXPENSES,
     budgets: [BUDGET],
     event: buildEvent(),
-    authUser: new AuthUser(),
-    options: OPTIONS,
+    authUser,
+    options,
+    refundDetails: REFUND_DETAILS,
     getAttachmentUrl,
     onProgress,
     onError,
@@ -339,5 +353,49 @@ describe("downloadExpenseReport: PDF-Belege (Story 7.3b)", () => {
 
     expect(Sentry.captureException).not.toHaveBeenCalled();
     expect(result.failedReceiptNumbers).toEqual([1, 2]);
+  });
+});
+
+describe("downloadExpenseReport: Rückerstattung an (Story 7.4)", () => {
+  /** Was das Dokument als `refundDetailsByPayeeKey` bekam. */
+  const getRefundDetailsByPayeeKey = () =>
+    (
+      mockedGenerateAndDownloadPdf.mock.calls[0][0] as React.ReactElement<{
+        refundDetailsByPayeeKey: unknown;
+      }>
+    ).props.refundDetailsByPayeeKey;
+
+  test("eine Person: Angaben gehören zur gewählten Person", async () => {
+    await runDownload({
+      ...OPTIONS,
+      payeeSelection: {kind: "single", payeeKey: "user-ben"},
+    });
+
+    expect(getRefundDetailsByPayeeKey()).toEqual({"user-ben": REFUND_DETAILS});
+  });
+
+  test("«Alle Personen»: Angaben gehören zur angemeldeten Person", async () => {
+    await runDownload({...OPTIONS, payeeSelection: {kind: "all"}});
+
+    expect(getRefundDetailsByPayeeKey()).toEqual({
+      "user-anna": REFUND_DETAILS,
+    });
+  });
+
+  test("IBAN und Adresse nie im Sentry-Kontext (F7)", async () => {
+    mockLoadedReceipts((receipt) => ({
+      kind: "failed",
+      receipt,
+      error: new Error("HTTP 404"),
+    }));
+
+    await runDownload();
+
+    const sentryContext = JSON.stringify([
+      mockedGenerateAndDownloadPdf.mock.calls[0][3],
+      jest.mocked(Sentry.captureException).mock.calls,
+    ]);
+    expect(sentryContext).not.toContain(TEST_IBAN);
+    expect(sentryContext).not.toContain("Bahnhofstrasse");
   });
 });

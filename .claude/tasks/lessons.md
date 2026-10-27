@@ -57,3 +57,11 @@
 **Rule**: Never detect a library's custom error class without checking its compiled output first. For pdf-lib, avoid the throwing path (e.g. `ignoreEncryption: true` + `isEncrypted`) and throw an own error class.
 
 **How to apply**: Before planning error handling around a third-party error class, write a 5-line probe test (`new LibError() instanceof LibError`, `.name`) and run it.
+
+## Sammelansicht: bekannte eigene Daten nicht wegwerfen (2026-10-25)
+
+**What happened**: The 7.4 plan (F8) gave every person blank lines under "Alle Personen", including the logged-in user, although their own payment details were already loaded. The user noticed in the export that their own section stayed empty.
+
+**Rule**: When a feature has a "one person" and an "everyone" variant, ask per person which data is already known. Don't simplify the "everyone" case to "nothing filled" just because there is no form for it.
+
+**How to apply**: When planning, write one line per case in the decisions (own person / other person / everyone → own section / everyone → others) and say what each one shows.

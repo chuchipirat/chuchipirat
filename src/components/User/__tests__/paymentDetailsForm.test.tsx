@@ -211,3 +211,47 @@ describe("PaymentDetailsForm: Feldfehler vom Speichern", () => {
     expect(screen.getByText("Bitte Ort angeben.")).toBeInTheDocument();
   });
 });
+
+/* ===================================================================
+// ======================== Fokus beim Anzeigen ========================
+// =================================================================== */
+describe("PaymentDetailsForm: Fokus beim Anzeigen", () => {
+  test("Standard: Fokus im Strassenfeld (Profil)", () => {
+    renderForm();
+
+    expect(screen.getByLabelText(TEXT_STREET)).toHaveFocus();
+  });
+
+  test("autoFocus={false}: kein Feld hat den Fokus (Abrechnung)", () => {
+    render(
+      <PaymentDetailsForm
+        values={emptyValues}
+        formValidation={[]}
+        autoFocus={false}
+        onFieldChange={jest.fn()}
+      />,
+    );
+
+    // sonst geht auf dem Handy beim Öffnen des Dialogs die Tastatur auf
+    expect(screen.getByLabelText(TEXT_STREET)).not.toHaveFocus();
+    expect(document.body).toHaveFocus();
+  });
+});
+
+/* ===================================================================
+// ======================== Höchstlängen ==============================
+// =================================================================== */
+describe("PaymentDetailsForm: Höchstlängen wie in der DB", () => {
+  test.each([
+    [TEXT_STREET, "100"],
+    [TEXT_POSTAL_CODE, "10"],
+    [TEXT_CITY, "100"],
+  ])("Feld «%s» nimmt höchstens %s Zeichen", (label, maxLength) => {
+    renderForm();
+
+    expect(screen.getByLabelText(label)).toHaveAttribute(
+      "maxLength",
+      maxLength,
+    );
+  });
+});

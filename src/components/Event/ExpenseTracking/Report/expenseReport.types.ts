@@ -1,3 +1,5 @@
+import {PaymentDetailsFormValues} from "../../../User/userPaymentDetails.types";
+
 /**
  * Aufbau der Abrechnung (E2). Als Enum, damit sich später weitere Modi
  * ergänzen lassen.
@@ -219,4 +221,21 @@ export type ReceiptPageSlot = {
   loadedReceipt: LoadedReceipt;
   pageNumber: number;
   pageCount: number;
+};
+
+/**
+ * Angaben für den Block «Rückerstattung an» (Story 7.4): bei einer Person
+ * deren Eingaben, bei «Alle Personen» die eigenen. Bewusst
+ * nicht Teil von `ReportOptions` (F7): Die Optionen landen im Sentry-Kontext
+ * und in Analytics; getrennt kann niemand Adresse und IBAN aus Versehen
+ * mitschicken.
+ *
+ * @param details - Adresse und IBAN; leere Felder erscheinen im PDF als
+ *   Linien zum Ausfüllen.
+ * @param shouldSave - `true`, wenn die Angaben vor dem Erstellen ins eigene
+ *   Profil gespeichert werden sollen (F5, nur für die eigene Abrechnung).
+ */
+export type ReportRefund = {
+  details: PaymentDetailsFormValues;
+  shouldSave: boolean;
 };

@@ -7015,6 +7015,150 @@ Teil A von Gio, Teile B–E von Claude (auf Wunsch). Schritte 1–20 erledigt: t
 
 </details>
 
+### **Story 7.4 — Adresse und IBAN für die Rückerstattung**
+
+> Ausgearbeitet 2026-10-25. Arbeitsweise wie 7.3b: Namen, Signaturen, Schritte; kein fertiger Code. Prüfpunkte ✋.
+
+#### Worum es geht
+
+Wer eine Abrechnung einreicht, will das Geld zurück. Bisher fehlt im PDF, **wohin**. Neu steht unter jedem Personennamen ein Block «Rückerstattung an» mit Kontoinhaber:in, Adresse und IBAN. Für die eigene Abrechnung kommen die Angaben aus dem Profil (Epic 5); für andere Personen tippt man sie ein oder lässt sie leer. Leere Felder werden im PDF zu Linien zum Ausfüllen von Hand (E7).
+
+#### Ablauf
+
+```
+Dialog öffnet  → Seite lädt die EIGENEN Zahlungsangaben (nur einmal, nur eigene, RLS)
+Person gewählt → Abschnitt «Rückerstattung an»: eigene → vorausgefüllt, andere → leer
+                 («Alle Personen» → kein Abschnitt, im PDF Linien pro Person)
+Erstellen      → (optional) eigene Angaben speichern → PDF wie bisher, Block mit den Angaben
+```
+
+#### Entscheidungen
+
+**F1 — Im selben Dialog, kein zweiter Schritt.** Ein Abschnitt «Rückerstattung an» unter den bisherigen Optionen, nur bei einer einzelnen Person. *Warum:* Ein Stepper (Weiter/Zurück) verdoppelt die Bedienung für vier Felder. Bei «Alle Personen» bräuchte es sechs Formulare; dort gibt es Linien (O1).
+
+**F2 — Eigene Angaben erst beim Öffnen des Dialogs laden**, durch die Seite (DAL bleibt in der Seite, der Dialog bleibt «dumm» wie bisher). *Warum:* private Daten nicht auf Vorrat laden; die meisten Besuche der Seite erstellen kein PDF. Fehler beim Laden → leeres Formular, Sentry (ohne Netzfehler), **kein** Alarm oben: Die Abrechnung geht trotzdem.
+
+**F3 — Eingaben pro Person merken, solange der Dialog offen ist.** Zustand `refundDetailsByPayee: Record<payeeValue, Eingaben>`; Startwert = Profil (eigene) bzw. leer. *Warum:* Wer Anna eintippt, kurz zu Ben wechselt und zurück, verliert nichts. Und es braucht keinen `useEffect`, der beim Personenwechsel zurücksetzt (gleiche Idee wie P10: ableiten statt Effekt). Beim erneuten Öffnen startet alles neu (`key`, P8).
+
+**F4 — Nichts ist Pflicht, aber eine eingetippte IBAN muss gültig sein.** Leere Felder sind erlaubt (Linien im PDF). Ist eine IBAN da und ungültig → «Erstellen» zeigt den Fehler am Feld und erstellt nicht. *Warum:* Eine falsche IBAN auf einer Abrechnung ist schlimmer als eine leere (Geld geht zurück oder an die falsche Person).
+
+**F5 — Speichern nur für die eigene Abrechnung, Opt-in, nur vollständig.** Checkbox «Angaben in meinem Profil speichern», Standard aus. Aktiv nur, wenn `UserPaymentDetails.validatePaymentDetails` keinen Fehler liefert (die DB nimmt nur Vollständiges an, Epic 5). Ausgeblendet, wenn die Angaben unverändert aus dem Profil kommen. Für andere Personen gibt es die Checkbox nie (fremde Bankdaten speichern wir nicht).
+
+**F6 — Speichern blockiert das PDF nicht.** Reihenfolge: erst speichern (schnell), dann erstellen. Scheitert das Speichern → Warn-Snackbar «Angaben konnten nicht gespeichert werden. Die Abrechnung wurde trotzdem erstellt.», Sentry ohne Netzfehler. Analytics wie in der Profil-Card (`PAYMENT_DETAILS_CREATED` / `_UPDATED`, ohne Daten).
+
+**F7 — IBAN und Adresse nicht in `ReportOptions`.** Eigener Parameter neben den Optionen. *Warum:* Optionen landen in Sentry-Kontext und Analytics (Modus, Anzahl). Getrennt kann niemand sie aus Versehen mitschicken. Ein Test prüft, dass weder Sentry noch `trackEvent` eine IBAN sehen.
+
+**F8 — Block im PDF unter dem Personennamen, vor den Tabellen**, für jede Person ausser «Ohne Rückerstattung». *Warum:* Die Kasse sieht zuerst, wohin das Geld geht. Ein Codepfad für beide Fälle: Bei einer Person sind die Werte gefüllt, bei «Alle Personen» bleiben sie leer (Linien).
+- Zeilen: Kontoinhaber:in, Strasse, PLZ Ort, IBAN (mit `formatIban` in Viererblöcken). Leerer Wert → Linie.
+
+**F9 — Kontoinhaber:in ist nicht editierbar.** Eigene Abrechnung: Vor- und Nachname aus dem Profil (Bank braucht den echten Namen, nicht den Anzeigenamen); fehlt einer, der Anzeigename. Andere: Anzeigename der Person. *Warum:* `PaymentDetailsForm` hat kein Namensfeld (Epic 5, Entscheidung «Name aus dem Profil»); ein Namensfeld nur hier wäre eine zweite Wahrheit.
+
+**F10 — `PaymentDetailsForm` minimal erweitern, nicht kopieren.**
+- Prop `autoFocus?: boolean` (Standard `true` = wie bisher). Im Abrechnungsdialog `false`, sonst springt der Fokus beim Öffnen ins Strassenfeld und auf dem Handy geht die Tastatur auf.
+- Werte-Typ `PaymentDetailsFormValues = Omit<UserPaymentDetailsDomain, "userId">`. Für andere Personen gibt es keine `userId`; das Profil übergibt weiter sein `UserPaymentDetailsDomain` (passt automatisch, weil es nur mehr Felder hat).
+- `data-sentry-block` ist schon drin (Regel aus 5.3).
+
+#### Schritte
+
+**Teil A — Grundlagen**
+
+1. **Typen** (`expenseReport.types.ts`)
+   - `ReportRefund = {details: PaymentDetailsFormValues; shouldSave: boolean}`. JSDoc: warum nicht in `ReportOptions` (F7).
+2. **`PaymentDetailsForm`** (`User/paymentDetailsForm.tsx`): `PaymentDetailsFormValues` exportieren, Prop `autoFocus` (F10). `UserPaymentDetails.validatePaymentDetails` und `normalize` auf `PaymentDetailsFormValues` umstellen, falls `tsc` es verlangt. Tipp: `normalize` gibt dann den gleichen Typ zurück, den es bekommt (Generic `<T extends PaymentDetailsFormValues>`), sonst verliert das Profil seine `userId`.
+3. **Texte** (`constants/text/expenseTracking.ts`, Block PDF-Abrechnung): `REPORT_REFUND_TO` («Rückerstattung an»), `REPORT_ACCOUNT_HOLDER` («Kontoinhaber:in»), `REPORT_ADDRESS`, `REPORT_IBAN`, `REPORT_SAVE_PAYMENT_DETAILS` («Angaben in meinem Profil speichern»), `REPORT_SAVE_PAYMENT_DETAILS_HINT` (warum ausgegraut), `REPORT_REFUND_OPTIONAL_HINT` («Leere Felder erscheinen als Linien zum Ausfüllen»), `REPORT_PAYMENT_DETAILS_SAVE_FAILED`. Bestehende Texte (`STREET`, `IBAN` …) wiederverwenden, wo sie passen.
+4. **`getAccountHolderName(section, authUser)`** (`expenseReportLabels.ts`): F9. Reine Funktion.
+5. **Tests:** `getAccountHolderName` (eigene mit vollem Namen, eigene ohne Nachname → Anzeigename, andere Person), `PaymentDetailsForm` mit `autoFocus={false}` (Strassenfeld hat keinen Fokus), bestehende Profil-Tests weiter grün.
+
+✋ **Prüfpunkt A**
+
+**Teil B — Dialog** (`expenseReportDialog.tsx`)
+
+6. **Neue Props:** `ownPaymentDetails: PaymentDetailsFormValues | null | undefined` (`undefined` = lädt noch, `null` = nichts hinterlegt). `onCreate(options, refund: ReportRefund | null, onProgress)`.
+7. **Zustand** `refundDetailsByPayee` (F3) und Hilfsfunktion `getRefundDetails(payeeValue)`: Eintrag aus dem Zustand, sonst Profil (eigene Person) oder leere Werte. «Eigene Person» erkennen: `payeeKey === authUserId`. `Expense.getPayeeKey` liefert bei Köch:innen die UID, bei neuen Personen den eingetippten Namen; ein Name kann praktisch nie gleich einer UUID sein.
+8. **Neue private Komponente `RefundDetailsSection`**: Überschrift «Rückerstattung an» + Name (nur Anzeige, F9) + `PaymentDetailsForm` (`autoFocus={false}`) + Hinweis F4 + Checkbox F5. Nur bei `kind: "single"`. Solange `ownPaymentDetails === undefined` und eigene Person gewählt: kleiner Ladehinweis statt Formular (sonst würde ein leeres Formular kurz aufblitzen und dann überschrieben).
+   - Der Name braucht die Person (`ReportPayeeOption`) und, für die eigene, Vor-/Nachname → neue Prop `ownAccountHolderName: string` (die Seite rechnet ihn mit `getAccountHolderName`-Logik aus). Tipp: Überleg dir, ob die Komponente den Namen selbst berechnen soll oder fertig bekommt; «fertig bekommen» hält den Dialog frei von `AuthUser`.
+9. **`handleCreate`:** IBAN gefüllt und ungültig → `formValidation` setzen, nicht erstellen (F4). Sonst `onCreate(options, refund, setProgress)`; `refund = null` bei «Alle Personen».
+10. **Tests** (`expenseReportDialog.test.tsx`):
+    - Abschnitt nur bei einer Person, nicht bei «Alle Personen».
+    - Eigene Person: vorausgefüllt aus `ownPaymentDetails`; `undefined` → Ladehinweis; andere Person: leer, **keine** Checkbox.
+    - Wechsel Anna → Ben → Anna: Annas Eingaben bleiben (F3).
+    - Ungültige IBAN → Fehler am Feld, `onCreate` nicht aufgerufen; leere Felder → `onCreate` wird aufgerufen.
+    - Checkbox: aus bei unvollständig, aktiv bei vollständig; unverändert aus dem Profil → keine Checkbox; `onCreate` bekommt `shouldSave`.
+    - «Alle Personen» → `refund === null`.
+
+✋ **Prüfpunkt B**
+
+**Teil C — PDF**
+
+11. **Neue Komponente `RefundDetailsBlock`** (eigene Datei `Report/expenseReportRefundBlock.tsx`, `expenseReportPdf.tsx` hat schon über 350 Zeilen): Props `accountHolder: string`, `details: PaymentDetailsFormValues | null`. Vier Zeilen Bezeichnung + Wert; leerer Wert → `View` mit unterer Linie (Style `refundLine`). IBAN mit `formatIban(normalizeIban(...))`.
+    - react-pdf-Regel aus 7.2 beachten: kein leerer String ausserhalb von `<Text>`, darum Ternary mit `: null` bzw. die Linie.
+    - `wrap={false}` am Block (nie zerschneiden), aber **nicht** an der Page (Lektion 7.3a).
+12. **Styles** `refundBlock`, `refundRow`, `refundLabel`, `refundValue`, `refundLine` (Linie in der Höhe einer Textzeile, damit man darauf schreiben kann).
+13. **`ExpenseReportPdf`:** neue Prop `refundDetails: PaymentDetailsFormValues | null` und `authUser` ist schon da. `PayeeSectionBlock` rendert `RefundDetailsBlock` unter der Überschrift, ausser bei `isNoRefund`. Gefüllt nur, wenn genau eine Person gewählt ist; sonst `null` (Linien).
+14. **Tests** (`expenseReportPdf.test.tsx`): Werte erscheinen, IBAN in Viererblöcken; leerer Wert → Linie statt Text; «Alle Personen» → Block pro Person mit Namen und Linien; «Ohne Rückerstattung» ohne Block; leerer String löst keinen Fehler aus (der Mock wirft bei Strings ausserhalb `<Text>`).
+
+✋ **Prüfpunkt C**
+
+**Teil D — Seite und Download**
+
+15. **`downloadExpenseReport`:** neuer Parameter `refundDetails: PaymentDetailsFormValues | null` → an `ExpenseReportPdf`. **Nicht** in den Sentry-Kontext (F7).
+16. **Seite** (`expenseTracking.tsx`):
+    - Zustand `ownPaymentDetails` (`undefined`/`null`/Werte). Laden in `handleOpenReportDialog` über `database.userPaymentDetails.getPaymentDetails(authUser.uid)`; Fehlerbehandlung wie in `userPaymentDetailsCard.tsx` (F2), aber ohne `onError`-Alarm.
+    - `handleCreateReport(options, refund, onProgress)`: bei `refund?.shouldSave` zuerst `savePaymentDetails(UserPaymentDetails.normalize(...), authUser)` mit eigenem `try/catch` (F6), danach Analytics, danach erstellen. Funktion bleibt ≤ 20 Zeilen → Speichern in eine eigene Funktion `saveOwnPaymentDetails(details)`.
+    - Nach erfolgreichem Speichern `ownPaymentDetails` aktualisieren (beim nächsten Öffnen vorausgefüllt).
+17. **Tests** (`expenseTracking.test.tsx`, `downloadExpenseReport.test.tsx`):
+    - Zahlungsangaben werden erst beim Öffnen des Dialogs geladen, nicht beim Laden der Seite.
+    - Ladefehler → leeres Formular, kein Alarm.
+    - `shouldSave` → `savePaymentDetails` mit normalisierter IBAN, danach `downloadExpenseReport`; Speichern scheitert → Warn-Snackbar, PDF trotzdem erstellt.
+    - Ohne `shouldSave` → kein Speichern.
+    - `trackEvent` und Sentry-Kontext enthalten keine IBAN (`JSON.stringify(...)` der Aufrufe enthält den Test-IBAN-String nicht).
+    - `downloadExpenseReport` gibt `refundDetails` ans Dokument.
+
+✋ **Prüfpunkt D**
+
+**Teil E — Abschluss**
+
+18. **Mutationsproben** (mache ich):
+    1. `isNoRefund`-Ausnahme entfernen → PDF-Test rot.
+    2. IBAN-Prüfung in `handleCreate` entfernen → Dialog-Test rot.
+    3. Checkbox auch für andere Personen → Dialog-Test rot.
+    4. `refundDetailsByPayee` durch einen einzigen Wert ersetzen → Wechsel-Test rot.
+    5. Laden beim Seitenaufruf statt beim Öffnen → Seiten-Test rot.
+    6. Speichern-Fehler nicht abfangen → Seiten-Test rot.
+    7. IBAN in den Sentry-Kontext → Datenschutz-Test rot.
+19. **Verifikation:** `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking Shared User --watchAll=false`, `npm run lint`.
+20. **Sicherheit:** `security-reviewer` über die geänderten Dateien (fremde IBANs im Dialog, Speichern ins Profil, Sentry/Replay).
+21. **Browser (DEV):** eigene Abrechnung mit gespeicherten Angaben (vorausgefüllt), ohne gespeicherte Angaben (leer, Checkbox erst bei vollständig aktiv, speichern → Profil zeigt die Angaben), andere Person (leer, keine Checkbox), ungültige IBAN blockiert, leere Felder → Linien im PDF (ausdrucken: genug Platz zum Schreiben?), «Alle Personen» → Linien pro Person. Mobil: Dialog scrollt, Tastatur verdeckt «Erstellen» nicht, kein Autofokus beim Öffnen.
+22. **Commit** `feat(abrechnung): Adresse und IBAN in der Abrechnung (Story 7.4)`.
+
+**Definition of Done 7.4:** Die eigene Abrechnung trägt ohne Tippen die hinterlegten Angaben; andere Personen lassen sich eintippen oder bleiben als Linien; eine falsche IBAN kommt nicht ins PDF; fremde Bankdaten werden nirgends gespeichert und erscheinen weder in Sentry noch in Analytics. Tests, Mutationsproben und Security-Review grün, Browser-Check desktop + mobil.
+
+#### Stand und Abweichungen bei der Umsetzung 7.4 (2026-10-25)
+
+Teil A selbst umgesetzt (Review an ✋ A), Teile B–E von Claude. Abweichungen vom Plan:
+
+- **Dateien statt privater Komponenten:** Der Dialog hatte schon 343 Zeilen, die Seite 1150. Darum
+  - `Report/useReportRefund.ts`: Zustand pro Person (F3), Checkbox (F5), IBAN-Prüfung (F4), `refund` für `onCreate`.
+  - `Report/expenseReportRefundSection.tsx`: Abschnitt im Dialog.
+  - `Report/useOwnPaymentDetails.ts`: Laden beim Öffnen (F2) und Speichern (F6) für die Seite.
+- **`getAccountHolderName(payee, authUser)`** nimmt `Pick<ReportPayeeSection, "displayName" | "payeeUserId">` statt einer ganzen Section: Die Seite hat noch keine Section, wenn sie `ownAccountHolderName` ausrechnet.
+- **`PaymentDetailsFormValues`** liegt in `userPaymentDetails.types.ts`, nicht im Formular: Typen und Domain-Klasse sollen keine React-Datei importieren.
+- **Normalisieren im Dialog:** `refund.details` ist schon getrimmt und hat eine normalisierte IBAN. PDF und Profil bekommen dieselben Werte; die Seite hängt beim Speichern nur noch die eigene `userId` an.
+- **«Erstellen» gesperrt, solange die eigenen Angaben laden.** Sonst entstünde ein PDF mit Linien, obwohl das Profil Angaben hat.
+- **Laden bei jedem Öffnen** statt nur einmal, damit eine Änderung im Profil ankommt. Scheitert ein erneutes Laden, gilt der alte Wert weiter (`previous ?? null`).
+- **Eine Snackbar für beide Hinweise:** fehlende Belege und gescheitertes Speichern stehen zusammen, sonst überschriebe der zweite den ersten. Scheitert das PDF selbst, entfällt «trotzdem erstellt».
+- **Sentry beim Speichern nur mit der Meldung:** Ein von einem CHECK abgelehnter Supabase-Fehler trägt die Zeile mit IBAN in `details`, und `toError` hängt ihn als `cause` an. Darum `new Error(toError(error).message)`. Die Profil-Card hat dieselbe Lücke, sie steht in `tech-debt.md`.
+- **PDF:** Zeilen Kontoinhaber*in, Strasse, «PLZ / Ort», IBAN. Der Block ist 70 % breit, die Linien sind 18 pt hoch (zum Schreiben).
+- **Neue Texte:** `REPORT_PAYMENT_DETAILS_LOADING`, `REPORT_POSTAL_CODE_CITY`. `STREET`, `IBAN` und `ADDRESS` werden wiederverwendet; `REPORT_ADDRESS` und `REPORT_IBAN` entfallen.
+- **Mutationsproben:** die 7 geplanten plus «Sentry bekommt den Rohfehler». Zwei überlebten zuerst und deckten schwache Tests auf: Die «andere Person» war mit genau Bens Profilwerten ausgefüllt, und der Speicherfehler im Test enthielt keine IBAN. Beide Tests sind verschärft, danach 8/8 rot.
+- **«Alle Personen» mit eigenen Angaben** (zwei Korrekturen nach Rückmeldung): F8 sah Linien für alle vor. Die eigenen Angaben sind aber bekannt, darum:
+  - Hat die angemeldete Person eigene Ausgaben, zeigt der Dialog auch bei «Alle Personen» ihr Formular (vorausgefüllt, mit Checkbox) und den Hinweis `REPORT_REFUND_ALL_PAYEES_HINT`. Ohne eigene Ausgaben gibt es kein Formular, `refund` ist `null`.
+  - `useReportRefund` bestimmt die Person des Formulars mit `getFormPayeeKey`: die gewählte, bei «Alle Personen» die eigene. Eingaben bei der eigenen Person bleiben beim Wechsel auf «Alle Personen» erhalten (gleicher Schlüssel).
+  - Das PDF bekommt `refundDetailsByPayeeKey`; `downloadExpenseReport` ordnet die Angaben zu (eine Person → deren `payeeKey`, «Alle Personen» → eigene UID). Nur die eigene Section ist ausgefüllt, die anderen bekommen Linien.
+- **Security-Review:** keine hohen oder mittleren Befunde. Zwei tiefe, beide behoben:
+  - Der Ladefehler ging mit Rohfehler als `cause` an Sentry; jetzt wie beim Speichern nur die Meldung.
+  - Strasse, PLZ und Ort hatten keine Höchstlänge. `PaymentDetailsForm` setzt jetzt `maxLength` 100/10/100 wie die CHECK-Constraints; das gilt auch für das Profil.
+
 ### Offen aus dem alten Umriss (erledigt durch die Punkte oben)
 
 <details><summary>Umriss 2026-10-10 (zur Referenz)</summary>

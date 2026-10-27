@@ -35,6 +35,7 @@ import {
   REPORT_PROGRESS_RENDERING as TEXT_REPORT_PROGRESS_RENDERING,
 } from "../../../../constants/text";
 import {useCustomStyles} from "../../../../constants/styles";
+import {PaymentDetailsFormValues} from "../../../User/userPaymentDetails.types";
 import {Cook} from "../../Event/event.class";
 import {ExpenseDomain} from "../Expense/expense.types";
 import {ExpenseReport} from "./expenseReport.class";
@@ -44,8 +45,11 @@ import {
   ReportPayeeOption,
   ReportPayeeSelection,
   ReportProgress,
+  ReportRefund,
 } from "./expenseReport.types";
 import {REPORT_MODE_LABELS} from "./expenseReportLabels";
+import {RefundDetailsSection} from "./expenseReportRefundSection";
+import {useReportRefund} from "./useReportRefund";
 
 /** Wert der Option «Alle Personen» im Auswahlfeld. */
 const ALL_PAYEES_VALUE = "all";
@@ -105,8 +109,15 @@ const getDefaultPayeeValue = (
  * @param expenses - Alle Ausgaben des Anlasses (live, für die Personen).
  * @param cooks - Köch*innen des Anlasses, für die Anzeigenamen.
  * @param authUserId - UID der angemeldeten Person (Vorauswahl).
+ * @param ownPaymentDetails - Eigene Zahlungsangaben aus dem Profil
+ *   (Story 7.4); `undefined` = werden noch geladen, `null` = keine
+ *   hinterlegt.
+ * @param ownAccountHolderName - Name für die eigene Abrechnung (Vor- und
+ *   Nachname, `getAccountHolderName`); hält den Dialog frei von `AuthUser`.
  * @param onCreate - Erstellt das PDF; der Dialog wartet darauf und zeigt
  *   solange den Fortschritt, den `onCreate` über `onProgress` meldet.
+ *   `refund`: Angaben der gewählten Person; bei «Alle Personen» die eigenen;
+ *   `null` ohne Formular (keine eigenen Ausgaben bei «Alle Personen»).
  * @param onClose - Schliesst den Dialog (Abbrechen, Klick daneben).
  */
 type ExpenseReportDialogProps = {
@@ -114,8 +125,11 @@ type ExpenseReportDialogProps = {
   expenses: ExpenseDomain[];
   cooks: Cook[];
   authUserId: string;
+  ownPaymentDetails: PaymentDetailsFormValues | null | undefined;
+  ownAccountHolderName: string;
   onCreate: (
     options: ReportOptions,
+    refund: ReportRefund | null,
     onProgress: (progress: ReportProgress) => void,
   ) => Promise<void>;
   onClose: () => void;
@@ -124,6 +138,8 @@ type ExpenseReportDialogProps = {
 /**
  * Dialog «Abrechnung erstellen»: für wen (eine Person oder alle), Aufbau
  * (eine Tabelle oder pro Budget) und Kommentare ja/nein (Standard: nein).
+ * Dazu «Rückerstattung an» (Story 7.4): für die gewählte Person, bei «Alle
+ * Personen» für die eigene (die anderen bekommen im PDF Linien).
  * Startet beim Öffnen frisch, dafür setzt die Seite bei jedem Öffnen
  * einen neuen `key`. Während des Erstellens lässt er sich nicht
  * schliessen.
@@ -137,6 +153,8 @@ type ExpenseReportDialogProps = {
  *   expenses={state.expenses ?? []}
  *   cooks={event.cooks}
  *   authUserId={authUser!.uid}
+ *   ownPaymentDetails={ownPaymentDetails}
+ *   ownAccountHolderName={ownAccountHolderName}
  *   onCreate={handleCreateReport}
  *   onClose={handleCloseReportDialog}
  * />
@@ -146,6 +164,8 @@ export const ExpenseReportDialog = ({
   expenses,
   cooks,
   authUserId,
+  ownPaymentDetails,
+  ownAccountHolderName,
   onCreate,
   onClose,
 }: ExpenseReportDialogProps) => {
@@ -176,23 +196,42 @@ export const ExpenseReportDialog = ({
     ? payeeValue
     : getDefaultPayeeValue(payeeOptions, authUserId);
 
+  const payeeSelection = toPayeeSelection(selectedPayeeValue);
   // Anzahl für die aktuell gewählte Person, ändert sich mit der Auswahl
   const missingReceiptCount = ExpenseReport.countMissingReceipts(
     expenses,
-    toPayeeSelection(selectedPayeeValue),
+    payeeSelection,
   );
+  const reportRefund = useReportRefund({
+    payeeSelection,
+    authUserId,
+    ownPaymentDetails,
+    hasOwnExpenses: payeeOptions.some(
+      (option) => option.payeeKey === authUserId,
+    ),
+  });
+  const accountHolderName = reportRefund.isOwnPayee
+    ? ownAccountHolderName
+    : (payeeOptions.find(
+        (option) => PAYEE_VALUE_PREFIX + option.payeeKey === selectedPayeeValue,
+      )?.displayName ?? "");
 
-  /** Übergibt die Optionen und wartet, bis das PDF erstellt ist. */
+  /**
+   * Übergibt Optionen und Rückerstattung und wartet, bis das PDF erstellt
+   * ist. Eine eingetippte, ungültige IBAN verhindert das Erstellen (F4).
+   */
   const handleCreate = async () => {
+    if (!reportRefund.validate()) return;
     setIsCreating(true);
     try {
       await onCreate(
         {
           mode,
-          payeeSelection: toPayeeSelection(selectedPayeeValue),
+          payeeSelection,
           includeComments,
           includeMissingReceiptPages,
         },
+        reportRefund.refund,
         setProgress,
       );
     } finally {
@@ -294,6 +333,17 @@ export const ExpenseReportDialog = ({
               }
             />
           ) : null}
+          {reportRefund.details !== null ? (
+            <RefundDetailsSection
+              accountHolderName={accountHolderName}
+              isAllPayees={payeeSelection.kind === "all"}
+              details={reportRefund.details}
+              isLoading={reportRefund.isLoading}
+              formValidation={reportRefund.formValidation}
+              onFieldChange={reportRefund.changeField}
+              saveOption={reportRefund.saveOption}
+            />
+          ) : null}
           {progress !== null ? (
             <ReportProgressIndicator progress={progress} />
           ) : null}
@@ -306,7 +356,8 @@ export const ExpenseReportDialog = ({
         <Button
           variant="contained"
           onClick={handleCreate}
-          disabled={isCreating}
+          // solange die eigenen Angaben laden, entstünde ein PDF mit Linien
+          disabled={isCreating || reportRefund.isLoading}
           startIcon={
             isCreating ? <CircularProgress size={16} color="inherit" /> : null
           }

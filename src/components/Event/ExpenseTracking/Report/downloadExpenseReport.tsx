@@ -4,6 +4,7 @@ import * as Sentry from "@sentry/react";
 import AuthUser from "../../../Session/authUser.class";
 import {generateAndDownloadPdf} from "../../../Shared/pdfUtils";
 import {isTransientNetworkError} from "../../../../utils/errorUtils";
+import {PaymentDetailsFormValues} from "../../../User/userPaymentDetails.types";
 import {Event} from "../../Event/event.class";
 import {BudgetDomain} from "../Budget/budget.types";
 import {ExpenseDomain} from "../Expense/expense.types";
@@ -12,6 +13,7 @@ import {
   ExpenseReportResult,
   LoadedReceipt,
   ReportOptions,
+  ReportPayeeSelection,
   ReportProgress,
 } from "./expenseReport.types";
 import {embedPdfReceipts} from "./embedPdfReceipts";
@@ -31,6 +33,10 @@ type FailedReceipt = Extract<LoadedReceipt, {kind: "failed"}>;
  * @param event - Der Anlass (Name, Köch:innen, UID für Sentry).
  * @param authUser - Angemeldete Person (Fusszeile).
  * @param options - Im Dialog gewählte Optionen.
+ * @param refundDetails - Adresse und IBAN für «Rückerstattung an»
+ *   (Story 7.4): der gewählten Person bzw. bei «Alle Personen» die eigenen;
+ *   `null` = Linien. Bewusst getrennt von `options` und nie im
+ *   Sentry-Kontext (F7).
  * @param getAttachmentUrl - Liefert die URL eines Belegs.
  * @param onProgress - Fortschritt für den Dialog.
  * @param onError - Wird aufgerufen, wenn kein PDF entstand; Sentry ist dann
@@ -42,6 +48,7 @@ export type DownloadExpenseReportParams = {
   event: Event;
   authUser: AuthUser;
   options: ReportOptions;
+  refundDetails: PaymentDetailsFormValues | null;
   getAttachmentUrl: (attachmentPath: string) => string;
   onProgress: (progress: ReportProgress) => void;
   onError: (error: Error) => void;
@@ -66,6 +73,7 @@ export const downloadExpenseReport = async ({
   event,
   authUser,
   options,
+  refundDetails,
   getAttachmentUrl,
   onProgress,
   onError,
@@ -91,6 +99,11 @@ export const downloadExpenseReport = async ({
       eventName={event.name}
       authUser={authUser}
       generatedAt={new Date()}
+      refundDetailsByPayeeKey={getRefundDetailsByPayeeKey(
+        options.payeeSelection,
+        refundDetails,
+        authUser.uid,
+      )}
     />,
     getReportFileName(event.name, report.payeeDisplayName),
     onError,
@@ -109,6 +122,28 @@ export const downloadExpenseReport = async ({
       ? failedReceipts.map((failed) => failed.receipt.receiptNumber)
       : [],
   };
+};
+
+/**
+ * Ordnet die Angaben der richtigen Person zu: bei einer Person dieser, bei
+ * «Alle Personen» der eigenen Section. Alle anderen bekommen Linien.
+ *
+ * @param payeeSelection - Auswahl im Dialog.
+ * @param refundDetails - Angaben aus dem Dialog.
+ * @param authUserId - UID der angemeldeten Person.
+ * @returns Angaben pro `payeeKey`; leer ohne Angaben.
+ */
+const getRefundDetailsByPayeeKey = (
+  payeeSelection: ReportPayeeSelection,
+  refundDetails: PaymentDetailsFormValues | null,
+  authUserId: string,
+): Record<string, PaymentDetailsFormValues> => {
+  if (refundDetails === null) {
+    return {};
+  }
+  const payeeKey =
+    payeeSelection.kind === "single" ? payeeSelection.payeeKey : authUserId;
+  return {[payeeKey]: refundDetails};
 };
 
 /**

@@ -55,6 +55,7 @@ import {
   CREATE_EXPENSE_REPORT_NO_EXPENSES as TEXT_CREATE_EXPENSE_REPORT_NO_EXPENSES,
   EXPORT as TEXT_EXPORT,
   REPORT_RECEIPTS_FAILED as TEXT_REPORT_RECEIPTS_FAILED,
+  REPORT_PAYMENT_DETAILS_SAVE_FAILED as TEXT_REPORT_PAYMENT_DETAILS_SAVE_FAILED,
 } from "../../../constants/text";
 
 import {
@@ -114,7 +115,13 @@ import {PayeeBalanceAccordion} from "./Expense/payeeBalanceAccordion";
 import {getEventDateList} from "../Menuplan/menuplanService";
 import {MenuplanData} from "../Menuplan/menuplan.types";
 import {ExpenseEvaluation} from "./Evaluation/expenseEvaluation";
-import {ReportOptions, ReportProgress} from "./Report/expenseReport.types";
+import {
+  ReportOptions,
+  ReportProgress,
+  ReportRefund,
+} from "./Report/expenseReport.types";
+import {getAccountHolderName} from "./Report/expenseReportLabels";
+import {useOwnPaymentDetails} from "./Report/useOwnPaymentDetails";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
 type ExpenseTrackingView = "overview" | "expenses" | "evaluation";
@@ -218,6 +225,8 @@ const EventExpenseTrackingPage = ({
   const classes = useCustomStyles();
   const authUser = useAuthUser();
   const {customDialog} = useCustomDialog();
+  const {ownPaymentDetails, loadOwnPaymentDetails, saveOwnPaymentDetails} =
+    useOwnPaymentDetails(database, authUser);
 
   const saveInProgressRef = React.useRef(0);
   const {
@@ -759,9 +768,13 @@ const EventExpenseTrackingPage = ({
       open: true,
     });
   };
-  /** Öffnet den Dialog «Abrechnung erstellen» mit frischem Zustand. */
+  /**
+   * Öffnet den Dialog «Abrechnung erstellen» mit frischem Zustand und lädt
+   * erst jetzt die eigenen Zahlungsangaben (Story 7.4, F2).
+   */
   const handleOpenReportDialog = () => {
     setExportMenuAnchor(null);
+    loadOwnPaymentDetails();
     setReportDialog((previous) => ({open: true, key: previous.key + 1}));
   };
   /** Schliesst den Dialog «Abrechnung erstellen». */
@@ -773,17 +786,26 @@ const EventExpenseTrackingPage = ({
    * erst hier nachgeladen. Fehler beim Erstellen meldet
    * `generateAndDownloadPdf` selbst an Sentry, darum nur anzeigen.
    * Fehlten Belege, erscheint danach ein Hinweis (E6). Während des Exports
-   * ist der Knopf «Exportieren» gesperrt.
+   * ist der Knopf «Exportieren» gesperrt. Auf Wunsch werden vorher die
+   * eigenen Zahlungsangaben gespeichert; scheitert das, entsteht das PDF
+   * trotzdem (Story 7.4, F6).
    *
    * @param options - Im Dialog gewählte Optionen.
+   * @param refund - Adresse und IBAN; `null` bei «Alle Personen». Nie in
+   *   Analytics oder Sentry (F7).
    * @param onProgress - Fortschritt für den Dialog (E10).
    */
   const handleCreateReport = async (
     options: ReportOptions,
+    refund: ReportRefund | null,
     onProgress: (progress: ReportProgress) => void,
   ) => {
     trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "expenseReport"});
     setIsExporting(true);
+    const isSaveFailed = refund?.shouldSave
+      ? !(await saveOwnPaymentDetails(refund.details))
+      : false;
+    let isReportFailed = false;
     try {
       const {downloadExpenseReport} =
         await import("./Report/downloadExpenseReport");
@@ -793,12 +815,19 @@ const EventExpenseTrackingPage = ({
         event,
         authUser: authUser!,
         options,
+        refundDetails: refund?.details ?? null,
         getAttachmentUrl: handleGetAttachmentUrl,
         onProgress,
-        onError: (error) =>
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error}),
+        onError: (error) => {
+          isReportFailed = true;
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        },
       });
-      showFailedReceiptsHint(result.failedReceiptNumbers);
+      // ohne PDF stimmt «trotzdem erstellt» nicht, der Fehler steht oben
+      showReportHints(
+        result.failedReceiptNumbers,
+        isSaveFailed && !isReportFailed,
+      );
     } catch (error) {
       // nur das Nachladen (Chunk nach einem Deploy weg) oder ein
       // Programmierfehler kann werfen
@@ -810,20 +839,31 @@ const EventExpenseTrackingPage = ({
     handleCloseReportDialog();
   };
   /**
-   * Zeigt nach dem Download einen Hinweis, wenn Belege fehlten (E6, B9).
+   * Zeigt nach dem Erstellen einen Hinweis, wenn Belege fehlten (E6, B9)
+   * oder die Zahlungsangaben nicht gespeichert wurden (Story 7.4, F6).
+   * Beides in einer Snackbar, sonst überschriebe der zweite den ersten.
    *
    * @param failedReceiptNumbers - Nummern der nicht geladenen Belege.
+   * @param isPaymentDetailsSaveFailed - Speichern ins Profil gescheitert.
    */
-  const showFailedReceiptsHint = (failedReceiptNumbers: number[]) => {
-    if (failedReceiptNumbers.length === 0) {
+  const showReportHints = (
+    failedReceiptNumbers: number[],
+    isPaymentDetailsSaveFailed: boolean,
+  ) => {
+    const hints = [
+      ...(failedReceiptNumbers.length > 0
+        ? [TEXT_REPORT_RECEIPTS_FAILED(failedReceiptNumbers)]
+        : []),
+      ...(isPaymentDetailsSaveFailed
+        ? [TEXT_REPORT_PAYMENT_DETAILS_SAVE_FAILED]
+        : []),
+    ];
+    if (hints.length === 0) {
       return;
     }
     dispatch({
       type: ReducerActions.SNACKBAR_SHOW,
-      payload: {
-        severity: "warning",
-        message: TEXT_REPORT_RECEIPTS_FAILED(failedReceiptNumbers),
-      },
+      payload: {severity: "warning", message: hints.join(" ")},
     });
   };
 
@@ -1133,6 +1173,14 @@ const EventExpenseTrackingPage = ({
         expenses={state.expenses ?? []}
         cooks={event.cooks}
         authUserId={authUser!.uid}
+        ownPaymentDetails={ownPaymentDetails}
+        ownAccountHolderName={getAccountHolderName(
+          {
+            displayName: authUser!.publicProfile.displayName,
+            payeeUserId: authUser!.uid,
+          },
+          authUser!,
+        )}
         onCreate={handleCreateReport}
         onClose={handleCloseReportDialog}
       />

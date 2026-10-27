@@ -3,6 +3,7 @@ import {Document, Page, View, Text} from "@react-pdf/renderer";
 import "../../../Shared/pdfFontRegistration";
 
 import AuthUser from "../../../Session/authUser.class";
+import {PaymentDetailsFormValues} from "../../../User/userPaymentDetails.types";
 import {Footer, Header} from "../../../Shared/pdfComponents";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import {
@@ -30,9 +31,11 @@ import {
 } from "./expenseReport.types";
 import {
   formatReportDate,
+  getAccountHolderName,
   getReportSubtitle,
   getReportTitle,
 } from "./expenseReportLabels";
+import {RefundDetailsBlock} from "./expenseReportRefundBlock";
 import {ReceiptPage} from "./expenseReportReceiptPages";
 import {getReceiptPageSlots} from "./receiptPageSlots";
 import {pdfStyles as styles} from "../../../../constants/styles/expenseTrackingReportPDF.styles";
@@ -50,8 +53,12 @@ const MIN_PRESENCE_AHEAD = 40;
  * @param eventName - Name des Anlasses (Kopfzeile, Titel).
  * @param loadedReceipts - Belege des Anhangs in Nummernreihenfolge
  *                         (leer = kein Anhang).
- * @param authUser - Angemeldete Person (Fusszeile «erstellt von»).
+ * @param authUser - Angemeldete Person (Fusszeile «erstellt von»,
+ *   Kontoinhaber*in der eigenen Abrechnung).
  * @param generatedAt - Zeitpunkt der Erstellung (Fusszeile).
+ * @param refundDetailsByPayeeKey - Adresse und IBAN pro Person
+ *   (`section.payeeKey`, Story 7.4); wer fehlt, bekommt Linien zum
+ *   Ausfüllen.
  */
 type ExpenseReportPdfProps = {
   report: ExpenseReportData;
@@ -59,13 +66,14 @@ type ExpenseReportPdfProps = {
   loadedReceipts: LoadedReceipt[];
   authUser: AuthUser;
   generatedAt: Date;
+  refundDetailsByPayeeKey: Record<string, PaymentDetailsFormValues>;
 };
 
 /**
- * PDF-Dokument der Abrechnung: Titel, pro Person eine oder
- * mehrere Tabellen mit Summen und bei «Alle Personen» das Gesamttotal.
- * Zeichnet nur die fertige Struktur, rechnet selbst nichts. Belege
- * und Zahlungsangaben folgen.
+ * PDF-Dokument der Abrechnung: Titel, pro Person der Block «Rückerstattung
+ * an» und eine oder mehrere Tabellen mit Summen, bei «Alle Personen» das
+ * Gesamttotal, danach die Belegseiten. Zeichnet nur die fertige Struktur,
+ * rechnet selbst nichts.
  *
  * @param props - Siehe {@link ExpenseReportPdfProps}.
  * @returns Das react-pdf-Dokument.
@@ -76,6 +84,7 @@ type ExpenseReportPdfProps = {
  *   loadedReceipts={[]}
  *   authUser={authUser}
  *   generatedAt={new Date()}
+ *   refundDetailsByPayeeKey={{[authUser.uid]: ownPaymentDetails}}
  * />
  */
 export const ExpenseReportPdf = ({
@@ -84,6 +93,7 @@ export const ExpenseReportPdf = ({
   loadedReceipts,
   authUser,
   generatedAt,
+  refundDetailsByPayeeKey,
 }: ExpenseReportPdfProps) => {
   const title = getReportTitle(eventName, report.payeeDisplayName);
 
@@ -106,6 +116,8 @@ export const ExpenseReportPdf = ({
           <PayeeSectionBlock
             key={section.payeeKey}
             section={section}
+            accountHolder={getAccountHolderName(section, authUser)}
+            refundDetails={refundDetailsByPayeeKey[section.payeeKey] ?? null}
             mode={report.mode}
             includeComments={report.includeComments}
           />
@@ -146,24 +158,30 @@ export const ExpenseReportPdf = ({
  * Props für {@link PayeeSectionBlock}.
  *
  * @param section - Block einer Person.
+ * @param accountHolder - Name der Kontoinhaber*in.
+ * @param refundDetails - Adresse und IBAN; `null` = Linien.
  * @param mode - Modus der Abrechnung.
  * @param includeComments - Kommentarzeilen zeigen.
  */
 type PayeeSectionBlockProps = {
   section: ReportPayeeSection;
+  accountHolder: string;
+  refundDetails: PaymentDetailsFormValues | null;
   mode: ReportMode;
   includeComments: boolean;
 };
 
 /**
- * Block einer Person: Überschrift, Tabelle(n) und Personentotal. In
- * Modus A ist das Gruppentotal gleich dem Personentotal und wird darum
- * nur einmal gezeigt.
+ * Block einer Person: Überschrift, «Rückerstattung an» (ausser bei «Ohne
+ * Rückerstattung»), Tabelle(n) und Personentotal. In Modus A ist das
+ * Gruppentotal gleich dem Personentotal und wird darum nur einmal gezeigt.
  *
  * @param props - Siehe {@link PayeeSectionBlockProps}.
  */
 const PayeeSectionBlock = ({
   section,
+  accountHolder,
+  refundDetails,
   mode,
   includeComments,
 }: PayeeSectionBlockProps) => (
@@ -173,7 +191,12 @@ const PayeeSectionBlock = ({
     </Text>
     {section.isNoRefund ? (
       <Text style={styles.noRefundHint}>{TEXT_REPORT_NO_REFUND_HINT}</Text>
-    ) : null}
+    ) : (
+      <RefundDetailsBlock
+        accountHolder={accountHolder}
+        details={refundDetails}
+      />
+    )}
     {section.groups.map((group, groupIndex) => (
       <ReportTable
         // Gruppen kennen keine Budget-ID; Index ist stabil (statisches Dokument)
