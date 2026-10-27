@@ -4297,7 +4297,7 @@ Vorgezogen auf Wunsch des Nutzers; 6.5 kommt danach direkt in `Evaluation/`. Zwe
 - [x] 2. **`expenseEvaluation.tsx` aufteilen** (Tech-Debt, 677 → 361 Zeilen): `statisticTile.tsx`, `topExpensesTile.tsx`, `budgetFilter.tsx` (Komponenten), `evaluationLabels.ts` (`getBudgetFilterLabel`, `getStatisticsScopeNote`) und `shareColors.ts` (`assignShareColors` aus dem Donut) — Nicht-Komponenten-Exporte in `.ts`-Dateien, damit Vite Fast Refresh nicht mehr abbricht. Code per Skript zeilengenau ausgeschnitten; geprüft, dass ausser Importen nur `export` an den zwei bisher privaten Komponenten neu ist. Tests der reinen Funktionen in `evaluationLabels.test.ts` und `shareColors.test.ts` verschoben; `BudgetFilter`-Tests bleiben in `expenseEvaluation.test.tsx` (teilen sich dort die Menü-Hilfen). Ganze Suite 231 Dateien / 2966 Tests (gleich viele Tests wie vorher), Lint 0 Fehler. Tech-Debt-Eintrag entfernt; neu notiert: MUI-`Popover`-`console.error` in jsdom (bestand schon vorher, 47× in `expenseEvaluation.test.tsx`). Commit `refactor(abrechnung): expenseEvaluation.tsx aufteilen`.
 - [x] 3. Browser-Rundlauf (DEV): Übersicht (5 Karten), Ausgabenliste, Auswertung mit allen Karten, Budget-Filter-Menü, Top-5-Zeile öffnet den Bearbeiten-Dialog (ohne Speichern geschlossen). Konsole bei frischem Laden ohne Fehler/Warnungen.
 
-## Epic 7 — PDF-Abrechnung
+## Epic 7 — PDF-Abrechnung ✅ erledigt (2026-10-27)
 
 > Verfeinert 2026-10-16 nach Abgleich mit Issue #86 und dem Code (Stand nach Epic 6 und Ordner-Split). O1–O3 entschieden 2026-10-16, dazu E11 (Leerseiten für Papierbelege) vom Nutzer. Jede Story wird wie in Epic 6 vor dem Start ausdetailliert.
 
@@ -4343,7 +4343,10 @@ Ziel: Auf Knopfdruck eine fertige Abrechnung als PDF: Tabelle der Ausgaben mit l
 - **7.2 PDF-Dokument + Dialog (ohne Belege, ohne IBAN):** `Report/expenseReportPdf.tsx` mit Kopf/Fuss, Personenblock, Tabelle(n), Summen; `Report/expenseReportDialog.tsx` (Person bzw. «Alle Personen», Modus, Kommentare, Leerseiten-Option schon sichtbar ab 7.3); Button in der Titelkarte; Download über `generateAndDownloadPdf`. Ab hier ist die Abrechnung schon nutzbar.
 - **7.3 Belege als Anhang:** Laden, Bilder verkleinern, Belegseiten, Leerseiten für Papierbelege, Fortschritt, Fehlerseite (E5, E6, E10, E11); PDF-Belege mit `pdf-lib` (O2).
 - **7.4 Adresse/IBAN-Schritt:** Prefill für die eigene Abrechnung, Opt-in-Speichern, leeres Formular für andere, Linien im PDF (E7).
-- **Abschluss:** Helpcenter-Abschnitt «Abrechnung erstellen» auf `docs/event/expensetracking.md`, Browser-Rundlauf mit echten Fotos und PDF-Belegen, PDF-Grösse prüfen.
+- **Abschluss** (2026-10-27):
+  - [x] Helpcenter-Abschnitt «Abrechnung erstellen» auf `docs/event/expensetracking.md` geschrieben (Ablauf, Für wen?, Rückerstattung an, Inhalt des PDFs, Leerseiten, nicht ladbare Belege; zwei Screenshot-Platzhalter). Jekyll-Build sauber. Commit im Helpcenter-Repo steht aus (nur auf Anfrage).
+  - [x] Browser-Rundlauf mit echten Fotos und PDF-Belegen (DEV, siehe Abnahme 7.5).
+  - [ ] PDF-Grösse mit vielen Handyfotos: Stichprobe DEV 880 KB (1 Foto, 1 dreiseitiges PDF). Ein Anlass mit 20–30 Fotos steht aus, verschoben in den Regressionslauf 10.1.
 
 ### Entschieden (2026-10-16)
 
@@ -4476,7 +4479,7 @@ Fixture: Küche/Motto/Material, Köch:innen Anna (= angemeldet) und Ben, neue Pe
 
 **Definition of Done 7.1:** alle Tests grün, Mutationsproben 1–4 bestätigt, keine UI-Änderung ausser der gemeinsamen Namensauflösung im Accordion (Browser kurz: Accordion zeigt dieselben Namen wie vorher).
 
-### **Story 7.2 — PDF-Dokument und Dialog (ohne Belege, ohne IBAN)**
+### **Story 7.2 — PDF-Dokument und Dialog (ohne Belege, ohne IBAN)** ✅ erledigt
 
 > Geplant 2026-10-19. Code-Abschnitte sind vollständig (inkl. JSDoc) und zum Übernehmen gedacht; Begründungen stehen jeweils davor.
 
@@ -5759,20 +5762,20 @@ Dialog (neben `ExpenseDetailDialog`):
 
 #### Umsetzung 7.2
 
-- [ ] 1. P1: `payeeDisplayName` in Typ, `build` und Tests
-- [ ] 2. Texte, `expenseReportLabels.ts` + Tests
-- [ ] 3. PDF-Styles, `expenseReportPdf.tsx` + Tests
-- [ ] 4. `downloadExpenseReport.tsx`
-- [ ] 5. `expenseReportDialog.tsx` + Style + Tests
-- [ ] 6. Seite: Knopf, Dialog, Handler + Tests in `expenseTracking.test.tsx`
-- [ ] 7. Mutationsproben 1–8
-- [ ] 8. Verifikation: `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking --watchAll=false`, `npm run lint`
-- [ ] 9. Browser (DEV): Knopf in allen drei Ansichten, deaktiviert ohne Ausgaben (Tooltip), 360 px (passt der Knopf neben den Titel? sonst P11-Fallback); PDFs öffnen: eine Person Modus A, Modus B, «Alle Personen», mit Kommentaren, zwei Währungen, viele Ausgaben (Seitenumbruch: keine zerschnittene Zeile, keine Überschrift allein unten), Umlaute und «’» im Betrag, Dateiname
-- [ ] 10. Commit `feat(abrechnung): PDF-Abrechnung mit Dialog (Story 7.2)`
+- [x] 1. P1: `payeeDisplayName` in Typ, `build` und Tests
+- [x] 2. Texte, `expenseReportLabels.ts` + Tests
+- [x] 3. PDF-Styles, `expenseReportPdf.tsx` + Tests
+- [x] 4. `downloadExpenseReport.tsx`
+- [x] 5. `expenseReportDialog.tsx` + Style + Tests
+- [x] 6. Seite: Knopf, Dialog, Handler + Tests in `expenseTracking.test.tsx`
+- [x] 7. Mutationsproben 1–8
+- [x] 8. Verifikation: `npx tsc --noEmit`, `.tsx`-Zusatzprüfung, `npx jest ExpenseTracking --watchAll=false`, `npm run lint`
+- [x] 9. Browser (DEV): Knopf in allen drei Ansichten, deaktiviert ohne Ausgaben (Tooltip), 360 px (passt der Knopf neben den Titel? sonst P11-Fallback); PDFs öffnen: eine Person Modus A, Modus B, «Alle Personen», mit Kommentaren, zwei Währungen, viele Ausgaben (Seitenumbruch: keine zerschnittene Zeile, keine Überschrift allein unten), Umlaute und «’» im Betrag, Dateiname
+- [x] 10. Commit `feat(abrechnung): PDF-Abrechnung mit Dialog (Story 7.2)`
 
 **Definition of Done 7.2:** PDF für eine Person und für alle lässt sich erstellen, sieht in beiden Modi korrekt aus, Tests und Mutationsproben grün, Browser-Check desktop + mobil.
 
-### **Story 7.3a — Bild-Belege, Leerseiten und Fortschritt**
+### **Story 7.3a — Bild-Belege, Leerseiten und Fortschritt** ✅ erledigt
 
 > Geplant 2026-10-24. Code-Abschnitte sind vollständig (inkl. JSDoc) und zum Übernehmen gedacht; Begründungen stehen jeweils davor. PDF-Belege folgen in 7.3b.
 
@@ -6839,7 +6842,7 @@ Hinweis aus 7.2: Jest endet hier immer mit Exit-Code 1 (veraltete Snapshots), nu
 
 **Definition of Done 7.3a:** Bild-Belege erscheinen verkleinert und lesbar im Anhang, Leerseiten und Fehlerseiten tragen die richtige Nummer, der Fortschritt zählt sichtbar hoch, ein kaputter Beleg blockiert nichts. Tests und Mutationsproben grün, Browser-Check desktop + mobil.
 
-### **Story 7.3b — PDF-Belege mit `pdf-lib`**
+### **Story 7.3b — PDF-Belege mit `pdf-lib`** ✅ erledigt
 
 > **Arbeitsweise (ab 7.3b, Wunsch 2026-10-25):** Der Plan nennt nur Namen, Signaturen und Schritte, keinen fertigen Code. Gio schreibt den Code selbst und lässt ihn an den **Prüfpunkten** (✋) durchsehen.
 
@@ -7015,7 +7018,7 @@ Teil A von Gio, Teile B–E von Claude (auf Wunsch). Schritte 1–20 erledigt: t
 
 </details>
 
-### **Story 7.4 — Adresse und IBAN für die Rückerstattung**
+### **Story 7.4 — Adresse und IBAN für die Rückerstattung** ✅ erledigt
 
 > Ausgearbeitet 2026-10-25. Arbeitsweise wie 7.3b: Namen, Signaturen, Schritte; kein fertiger Code. Prüfpunkte ✋.
 
@@ -7159,7 +7162,7 @@ Teil A selbst umgesetzt (Review an ✋ A), Teile B–E von Claude. Abweichungen 
   - Der Ladefehler ging mit Rohfehler als `cause` an Sentry; jetzt wie beim Speichern nur die Meldung.
   - Strasse, PLZ und Ort hatten keine Höchstlänge. `PaymentDetailsForm` setzt jetzt `maxLength` 100/10/100 wie die CHECK-Constraints; das gilt auch für das Profil.
 
-### **Story 7.5 — Neues Layout der PDF-Abrechnung**
+### **Story 7.5 — Neues Layout der PDF-Abrechnung** ✅ erledigt
 
 #### Worum es geht
 
@@ -7201,7 +7204,7 @@ Quelle: **DEV** = echter Ablauf im Browser (Anlass «Anlass mit Spende», echte 
 - [x] Seitenverweise zeigen auf den richtigen Beleg: DEV und Skript stichprobenweise, Test
 - [x] Gesamtseitenzahl im Footer: DEV («Seite x von 10»), Skript (Prüfung nach Durchlauf 2)
 - [x] Nummern Tabelle = Belegseite: DEV, Test
-- [ ] Aufbau B, «Alle Personen», Leerseiten aus im Browser: zweiter Download wurde von Chrome nicht gespeichert (vermutlich Rückfrage «mehrere Downloads»); vom User im Browser zu prüfen. Im Skript und in den Tests abgedeckt.
+- [x] Aufbau B, «Alle Personen», Leerseiten aus: vom User im Browser geprüft (der zweite Download von Claude wurde von Chrome nicht gespeichert), dazu Skript und Tests.
 
 #### Stand und Abweichungen (2026-10-27)
 
@@ -7216,6 +7219,7 @@ Quelle: **DEV** = echter Ablauf im Browser (Anlass «Anlass mit Spende», echte 
 - **Klebefeld** füllt das ganze Feld (Mockup) statt 55 × 90 mm wie in 7.3a; Fehlerseite im selben Stil mit den bisherigen Texten.
 - **Zweidurchlauf:** `generateAndDownloadPdf` nimmt auch eine async Fabrik (Fehler darin wie beim Zeichnen: Sentry, `onError`). Durchlauf 1 (`countReportPages` in `downloadExpenseReport`) zeichnet die Abrechnung ohne Belegseiten mit Platzhalter-Verweisen, `countPdfPages` zählt. Der Zwischenschritt läuft jetzt immer: mit PDF-Beleg prüft `embedPdfReceipts(…, expectedPageCount)` im selben Laden, sonst `checkPageCount` (gibt die Bytes unverändert zurück, kein erneutes Speichern). `reportPageCount.ts` nutzt nur pdf-lib, damit `embedPdfReceipts` kein react-pdf lädt.
 - **Hinweiszeile im Kasten** («Zahlungsangaben bitte von Hand ergänzen» mit Stift) hat der User während Etappe 4 entfernt; Test angepasst. Grund: Der Kasten erklärt sich selbst. Styles `fillHint`/`fillHintText` und `EDIT_ICON_PATHS` danach ebenfalls entfernt.
+- **Mutationsproben neu bewertet (2026-10-27):** Die Skripte werteten zuerst den Exit-Code aus, der hier auch bei grünen Tests 1 ist (siehe 7.2, `lessons.md`). Nach der Korrektur (nur «Tests: … failed» zählt) alle Proben A–AF erneut: alle gefangen ausser G (Kommentare in der Kartenhöhe), dafür neuer Test «Kommentare allein können den Ausschlag geben». L entfällt mit der Kachel «Belege», M durch eine sichtbare Mutation (falsche Anzahl Ausgaben) ersetzt.
 - Entfallen: `getReportSubtitle`, `REPORT_REFUND_TOTAL`, `expenseReportRefundBlock.tsx`, die alten Tabellen- und Summenstyles. Die Belegseiten nutzen bis Etappe 3 noch die alten Styles.
 
 #### Offene Punkte
@@ -7265,7 +7269,7 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
 
 _Wird vor Start verfeinert. Grober Zuschnitt:_
 
-- 10.1 Voller Regressionslauf (`tsc`, `lint`, `test`), Mobile/Tablet-Check aller neuen Screens.
+- 10.1 Voller Regressionslauf (`tsc`, `lint`, `test`), Mobile/Tablet-Check aller neuen Screens. Dazu aus Epic 7: Abrechnung mit 20–30 Handyfotos erstellen und die PDF-Grösse prüfen (Ziel: wenige MB, Mail-Anhang).
 - **10.x Styles und Texte ordnen** (entschieden 2026-10-11): einmal am Ende, wenn alle Einträge aus Epic 7–9 bekannt sind; vorher wäre es doppelte Arbeit. Je Datei ein eigener Commit (`refactor(abrechnung): …`), **reines Umsortieren, Umbenennen und Löschen von Unbenutztem, keine Werte ändern**. `tsc` findet jede vergessene Umbenennung.
   - **Gemeinsame Abschnitte** für beide Dateien, in der Reihenfolge der Bildschirme (und passend zu den Unterordnern): Seite/Toolbar · Budget-Karte inkl. Hochrechnung · Budget-Dialog · Ausgabenliste · Ausgaben-Dialog (Formular, zahlende Instanz, Beleg) · Zahlende Instanz/Übersicht · Auswertung · PDF-Abrechnung · Export. Kopfkommentar im bestehenden Format (`/* ---- // Titel // ---- */` wie in `src/constants/styles.ts` bzw. `/* ==== */` wie oben in der Textdatei).
   - **Styles** (`src/constants/styles/expenseTracking.styles.ts`): Präfix vereinheitlichen `statistics*` → `evaluation*` (heute zwei Präfixe für dieselbe Ansicht); `budgetProjection*` zur Budget-Karte (liegt heute am Dateiende); innerhalb eines Abschnitts Container vor Kindern, Varianten (`…Selected`, `…Over`) direkt nach dem Grundstil. Prüfen: Anzahl Einträge vorher = nachher (`grep -cE "^  [a-zA-Z]+:" …`), Sichtprüfung aller Ansichten im Browser.

@@ -65,3 +65,11 @@
 **Rule**: When a feature has a "one person" and an "everyone" variant, ask per person which data is already known. Don't simplify the "everyone" case to "nothing filled" just because there is no form for it.
 
 **How to apply**: When planning, write one line per case in the decisions (own person / other person / everyone → own section / everyone → others) and say what each one shows.
+
+## Mutationsproben: Jest-Exit-Code sagt hier nichts (2026-10-27)
+
+**What happened**: In Story 7.5 the probe scripts judged a mutant by Jest's exit code (`if npx jest …; then ÜBERLEBT; else gefangen`). In this repo Jest ends with exit code 1 even when every test passes (obsolete snapshot files), so every probe reported «gefangen». The plan file already said so (7.2: «nur ‹Tests: … failed› zählt»), but I didn't apply it. It surfaced only because a deliberately harmless mutant was «caught». After fixing the scripts, one real gap (comments in the card height estimate) survived and needed a new test.
+
+**Rule**: A probe counts as caught only when the Jest output contains `Tests: … failed`. Never use the exit code.
+
+**How to apply**: Every probe script uses `npx jest … 2>&1 | grep -qE "^Tests:.* failed"`. Before the first probe, run the script's test command once without a mutation and check that it reports «ÜBERLEBT».
