@@ -1,7 +1,8 @@
 /**
  * Unit-Tests für das Einsetzen der PDF-Belege (embedPdfReceipts.ts,
  * Story 7.3b): Lage im Feld (Skalierung, Mitte, Drehung) und das
- * Einsetzen in die richtigen Seiten mit echten, im Test erzeugten PDFs.
+ * Einsetzen in die richtigen Seiten mit echten, im Test erzeugten PDFs;
+ * Prüfung der Seitenzahl aus dem Zweidurchlauf (Story 7.5).
  */
 import {PDFDocument, PDFName, PDFPage, degrees} from "pdf-lib";
 
@@ -225,5 +226,38 @@ describe("embedPdfReceipts", () => {
     await expect(
       embedPdfReceipts(await createPdf(2), getReceiptPageSlots(loadedReceipts)),
     ).rejects.toThrow("Abrechnung hat weniger Seiten als Belegseiten.");
+  });
+
+  describe("mit erwarteter Seitenzahl (Story 7.5)", () => {
+    /** Beleg 1 als einseitiges PDF. */
+    const pdfReceiptSlots = async () =>
+      getReceiptPageSlots([
+        {
+          kind: "pdf",
+          receipt: makeReceipt(1),
+          bytes: await createPdf(1, true),
+          pageCount: 1,
+        },
+      ]);
+
+    test("stimmt: Seite wird eingesetzt", async () => {
+      const resultBytes = await embedPdfReceipts(
+        await createPdf(2),
+        await pdfReceiptSlots(),
+        2,
+      );
+
+      const resultDocument = await PDFDocument.load(resultBytes);
+      expect(resultDocument.getPages().map(hasEmbeddedPage)).toEqual([
+        false,
+        true,
+      ]);
+    });
+
+    test("weicht ab: Fehler, nichts eingesetzt", async () => {
+      await expect(
+        embedPdfReceipts(await createPdf(3), await pdfReceiptSlots(), 2),
+      ).rejects.toThrow("3 statt 2");
+    });
   });
 });

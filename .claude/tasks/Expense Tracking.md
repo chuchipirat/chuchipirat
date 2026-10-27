@@ -7159,6 +7159,72 @@ Teil A selbst umgesetzt (Review an ✋ A), Teile B–E von Claude. Abweichungen 
   - Der Ladefehler ging mit Rohfehler als `cause` an Sentry; jetzt wie beim Speichern nur die Meldung.
   - Strasse, PLZ und Ort hatten keine Höchstlänge. `PaymentDetailsForm` setzt jetzt `maxLength` 100/10/100 wie die CHECK-Constraints; das gilt auch für das Profil.
 
+### **Story 7.5 — Neues Layout der PDF-Abrechnung**
+
+#### Worum es geht
+
+Die Abrechnung bekommt die Gestaltung der Spendenquittung (Logo, Trenner mit Icon, grosser Titel, Kennzahlen, Karten pro Person, Footer). Nur Darstellung: Dialog, Optionen, Laden, Gruppierung, Totale und die Zahlungsangaben aus 7.4 bleiben. Referenz waren Spezifikation und Mockups in `.claude/docs/design/abrechnung-pdf/` (temporär, nie committet, nach der Umsetzung am 2026-10-27 gelöscht).
+
+#### Entscheidungen (2026-10-27)
+
+- Claude setzt in Etappen um, Review an jedem ✋.
+- **Nummerierung bleibt:** «Nr.» ist die Belegnummer in diesem PDF. Ohne Belegseite «–» und leere Zelle «Beleg». Spez. 2.2 (stabil über den Anlass) ist damit nur teilweise erfüllt.
+- **Belegseiten bleiben react-pdf-Seiten** (Architektur 7.3b). pdf-lib setzt weiterhin nur PDF-Belege ins reservierte Feld; Kopf, Footer und Klebefeld zeichnet react-pdf.
+- **Einzige Logikänderung:** `ReportGroup.budgetIcon` (Modus A `null`, «Unbekanntes Budget» → `OTHER`).
+- Rein darstellungsbezogen abgeleitet: Kennzahlen (`grandTotals`, `refundTotals`, Totale der Section «Ohne Rückerstattung»; bei einer Person eine Kachel), «Budget · Person» der Belegseite über `expenseId` aus den Sections.
+- **Seitenverweise im Zweidurchlauf:** Durchlauf 1 rendert nur die Abrechnung (ohne Belegseiten), pdf-lib zählt `n`; `getReceiptStartPages(slots, n)`; Durchlauf 2 rendert alles. Weicht die Seitenzahl ab, wirft der Zwischenschritt (Sentry, `onError`). `generateAndDownloadPdf` nimmt dafür auch eine Element-Fabrik.
+- Farben nur aus Bestand: Teal `#006064` (neu als `PDF_TOKENS.color.primary`), Grautöne der Spendenquittung, `#00606412`/`#00606433` aus Menüplan/Listen.
+
+#### Etappen
+
+0. [x] 7.4 committen.
+1. [x] Bausteine: Tokens, Texte, Styles, Kopf mit Kennzahlen, Footer, Zahlungsangaben (Zeile bzw. Kasten mit IBAN-Kästchen), `budgetIconPaths`, Hilfsfunktionen mit Tests ✋
+2. [x] Aufbau A und B (eine und alle Personen), ein gemeinsames ✋ statt zwei: beide teilen die Karte
+3. [x] Belegseiten: Kopf, Klebefeld, Footer, mehrseitig, `RECEIPT_CONTENT_BOX` ✋
+4. [x] Zweidurchlauf und Seitenzahl-Prüfung ✋
+5. [x] Abnahme nach Spez. 13 (DEV und Render-Skript, Seiten mit `sips` als PNG angesehen), offene Punkte ✋
+
+#### Abnahme Spez. 13 (2026-10-27)
+
+Quelle: **DEV** = echter Ablauf im Browser (Anlass «Anlass mit Spende», echte Belege), **Skript** = echtes react-pdf + pdf-lib mit Testdaten, **Test** = Jest.
+
+- [x] Eine Person, eine Währung, alles vorhanden: DEV (Gio, Aufbau A, Zeile mit Angaben, Migros-PDF auf S. 2)
+- [x] Mehrere Personen, eine ohne IBAN und Adresse: DEV (Dummy, No Cook mit Kasten), Skript
+- [x] Zwei Währungen bei einer Person: Skript (Kopf, Balken, Total, Kennzahlen getrennt), Test
+- [x] Ausgabe ohne Beleg: DEV (Klebefeld), Test (Schalter aus: «–», leere Zelle)
+- [x] Mehrseitiger Beleg: DEV (Migros, 3 Seiten, «· Seite 2 von 3»), Skript (mit Querformat)
+- [x] Bild und PDF: DEV (Foto Tavolago, Migros-PDF), Skript
+- [x] Langer Kommentar und lange Bezeichnung: Skript (Umbruch ohne Überlappung, Belegkopf zweizeilig)
+- [x] Mehr als 30 Zeilen: Skript (34 Zeilen, Tabellenkopf wiederholt, Kartenanfang nicht verwaist)
+- [x] Person ohne Ausgaben (kein Block): ergibt sich aus der Aufbereitung (Sections nur mit Ausgaben), Test
+- [x] Ohne Rückerstattung bei «Alle Personen»: DEV (eigener Block zuletzt, Kennzahl CHF 100.00)
+- [x] Seitenverweise zeigen auf den richtigen Beleg: DEV und Skript stichprobenweise, Test
+- [x] Gesamtseitenzahl im Footer: DEV («Seite x von 10»), Skript (Prüfung nach Durchlauf 2)
+- [x] Nummern Tabelle = Belegseite: DEV, Test
+- [ ] Aufbau B, «Alle Personen», Leerseiten aus im Browser: zweiter Download wurde von Chrome nicht gespeichert (vermutlich Rückfrage «mehrere Downloads»); vom User im Browser zu prüfen. Im Skript und in den Tests abgedeckt.
+
+#### Stand und Abweichungen (2026-10-27)
+
+- **Sichtprüfung ohne poppler:** Render-Skript im Scratchpad (esbuild-Bundle mit echtem react-pdf in Node, Logo-Pfad nur im Bundle auf `public/` gebogen), Seiten mit pdf-lib einzeln und mit `sips` zu PNG.
+- **Kartenanfang zusammenhalten:** `minPresenceAhead` direkt an einer umbrechenden Karte wirkt nicht. Ein leerer Platzhalter davor mit `minPresenceAhead = getCardStartHeight(…)` schiebt Kopf, Zahlungsangaben, Tabellenkopf und erste Zeile gemeinsam auf die nächste Seite. Ganze Karte `wrap={false}` nur, wenn `canKeepCardTogether` sie sicher auf eine Seite schätzt.
+- **Tabellenkopf** steht einmal vor den Budget-Balken (Mockup B: nach dem ersten Balken) und wiederholt sich mit `fixed` nach jedem Umbruch (geprüft mit 34 Zeilen).
+- **Zeilenlinien grau `#ccc`** statt Teal 20 %: `#00606433` druckt olivgrün.
+- **Kennzahlen bei einer Person** (Rückmeldung nach ✋ 2 und ✋ 4, Spez. 2.1 sah eine Kachel vor): immer drei Kacheln, «Zurückzuerstatten» in der Mitte, links «Ausgaben» (Anzahl), rechts «Budgets» (Anzahl, darunter klein die Namen; mehr als drei: «Küche, Motto, +2»). Namen alphabetisch, weil Aufbau A die Reihenfolge der Budgetliste nicht kennt. Die zwischenzeitliche Kachel «Belege» entfällt (Aufkleben folgt ohnehin). Rein aus den Zeilen gezählt.
+- **Letzte Zeile einer Karte ohne Trennlinie** (Rückmeldung): Kartenrand bzw. Totallinie trennen schon, sonst zwei Linien übereinander.
+- **Footer:** links und rechts `flex: 1`, Mitte fest 90 pt, damit «Seite x von y» genau in der Seitenmitte steht.
+- **Belegseiten:** Kopf fest 44 pt hoch (Bezeichnung höchstens zwei Zeilen, `maxLines` als Style), die Abstände stehen als Konstanten in `receiptPageLayout.ts`. So bleibt `RECEIPT_CONTENT_BOX` die eine Quelle für react-pdf und pdf-lib; auch Bild und Klebefeld stehen jetzt absolut in diesem Feld. Die Kopfzeile mit dem Anlassnamen entfällt (nicht in der Spez.). «Datum · Budget · Person» über `getReceiptMetaByExpenseId`; `getReceiptHeader`, `REPORT_RECEIPT` und `REPORT_RECEIPT_PAGE_OF` entfallen (`REPORT_PAGE_OF` dient beiden).
+- **Klebefeld** füllt das ganze Feld (Mockup) statt 55 × 90 mm wie in 7.3a; Fehlerseite im selben Stil mit den bisherigen Texten.
+- **Zweidurchlauf:** `generateAndDownloadPdf` nimmt auch eine async Fabrik (Fehler darin wie beim Zeichnen: Sentry, `onError`). Durchlauf 1 (`countReportPages` in `downloadExpenseReport`) zeichnet die Abrechnung ohne Belegseiten mit Platzhalter-Verweisen, `countPdfPages` zählt. Der Zwischenschritt läuft jetzt immer: mit PDF-Beleg prüft `embedPdfReceipts(…, expectedPageCount)` im selben Laden, sonst `checkPageCount` (gibt die Bytes unverändert zurück, kein erneutes Speichern). `reportPageCount.ts` nutzt nur pdf-lib, damit `embedPdfReceipts` kein react-pdf lädt.
+- **Hinweiszeile im Kasten** («Zahlungsangaben bitte von Hand ergänzen» mit Stift) hat der User während Etappe 4 entfernt; Test angepasst. Grund: Der Kasten erklärt sich selbst. Styles `fillHint`/`fillHintText` und `EDIT_ICON_PATHS` danach ebenfalls entfernt.
+- Entfallen: `getReportSubtitle`, `REPORT_REFUND_TOTAL`, `expenseReportRefundBlock.tsx`, die alten Tabellen- und Summenstyles. Die Belegseiten nutzen bis Etappe 3 noch die alten Styles.
+
+#### Offene Punkte
+
+- Kommentare kursiv: Roboto kursiv ist nur mit Gewicht 100 registriert. Vorläufig grau, nicht kursiv.
+- Kachel «Ohne Rückerstattung» ohne solche Ausgaben: vorläufig «–».
+- Fehlerseite (`failed`, nicht in der Spez.): neuer Kopf, Platzhalter wie bisher.
+- Footer «von …»: `displayName` wie bisher.
+
 ### Offen aus dem alten Umriss (erledigt durch die Punkte oben)
 
 <details><summary>Umriss 2026-10-10 (zur Referenz)</summary>

@@ -349,4 +349,10 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`enumMappings.ts` — numerische Enum-Brücke** — Diese Mappings existieren, weil `Allergen` und `Diet` Enums numerisch sind. Kann nach Migration zu String-Enums vollständig gelöscht werden.
   **Priorität:** mittel · **Komplexität:** klein (nach Enum-Migration löschen)
 
+- **`APP_PRIMARY` mehrfach definiert** — `stylesMaterialListPdf.ts`, `stylesShoppingListPdf.ts`, `stylesMenuplanPdf.ts` und `stylesRecipePdf.ts` definieren je `APP_PRIMARY = "#006064"`. Seit Story 7.5 gibt es `PDF_TOKENS.color.primary` (genutzt von der Abrechnung); die vier Dateien sollten darauf umstellen.
+  **Priorität:** tief · **Komplexität:** klein
+
+- **`pdfFontRegistration.ts` — Roboto kursiv nur in Gewicht 100** — Kursiv ist nur als «thin» registriert und druckt sehr schwach. Die Abrechnung (Story 7.5) zeigt Kommentare darum grau statt kursiv. Für echte Kursivschrift Roboto Italic 400 registrieren (gleiche Quelle wie die übrigen Schnitte).
+  **Priorität:** tief · **Komplexität:** klein
+
 _(Claude Code: append entries here for anything that doesn't fit the categories above. If a pattern repeats, create a new category.)_

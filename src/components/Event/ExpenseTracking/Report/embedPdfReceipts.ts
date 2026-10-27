@@ -7,6 +7,7 @@ import {
 
 import {LoadedReceipt, ReceiptPageSlot} from "./expenseReport.types";
 import {A4_SIZE, ContentBox, RECEIPT_CONTENT_BOX} from "./receiptPageLayout";
+import {assertPageCount} from "./reportPageCount";
 
 /** Ein PDF-Beleg, wie pdf-lib ihn in Story 7.3b braucht. */
 type PdfReceipt = Extract<LoadedReceipt, {kind: "pdf"}>;
@@ -39,17 +40,25 @@ type Rect = {left: number; bottom: number; width: number; height: number};
  * @param reportBytes - Die fertige Abrechnung aus react-pdf.
  * @param slots - Dieselben Slots, die react-pdf gezeichnet hat
  *   (`getReceiptPageSlots`).
+ * @param expectedPageCount - Erwartete Seitenzahl aus dem Zweidurchlauf
+ *   (Story 7.5); geprüft im selben Laden, damit das PDF nur einmal
+ *   geöffnet wird. Ohne Angabe keine Prüfung.
  * @returns Die Abrechnung mit eingesetzten PDF-Seiten.
  * @throws {Error} Wenn die Abrechnung weniger Seiten hat als Slots
- *   (Programmfehler: Liste und gezeichnete Seiten passen nicht zusammen).
+ *   (Programmfehler: Liste und gezeichnete Seiten passen nicht zusammen)
+ *   oder nicht `expectedPageCount` Seiten.
  * @example
  * const bytes = await embedPdfReceipts(reportBytes, getReceiptPageSlots(loadedReceipts));
  */
 export const embedPdfReceipts = async (
   reportBytes: Uint8Array,
   slots: ReceiptPageSlot[],
+  expectedPageCount?: number,
 ): Promise<Uint8Array> => {
   const reportDocument = await PDFDocument.load(reportBytes);
+  if (expectedPageCount !== undefined) {
+    assertPageCount(reportDocument.getPageCount(), expectedPageCount);
+  }
   const firstReceiptPageIndex = reportDocument.getPageCount() - slots.length;
   if (firstReceiptPageIndex < 0) {
     throw new Error("Abrechnung hat weniger Seiten als Belegseiten.");

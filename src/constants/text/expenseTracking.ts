@@ -444,7 +444,6 @@ export const REPORT_NO_RECEIPT_NUMBER = "–";
 export const REPORT_TOTAL_OF = (name: string): string => `Total ${name}`;
 
 export const REPORT_GRAND_TOTAL = "Gesamttotal";
-export const REPORT_REFUND_TOTAL = "davon zurückzuerstatten";
 export const REPORT_NO_REFUND_HINT =
   "Diese Ausgaben werden niemandem zurückerstattet.";
 export const EXPORT = "Exportieren";
@@ -462,32 +461,12 @@ export const REPORT_INCLUDE_MISSING_RECEIPT_PAGES =
  */
 export const REPORT_MISSING_RECEIPTS_COUNT = (count: number): string =>
   `${count} ${count === 1 ? "Ausgabe" : "Ausgaben"} ohne Beleg, zum Aufkleben von Papierquittungen`;
-/**
- * Anfang der Kopfzeile einer Belegseite.
- *
- * @param receiptNumber - Belegnummer.
- * @returns z.B. «Beleg 3».
- */
-export const REPORT_RECEIPT = (receiptNumber: number): string =>
-  `Beleg ${receiptNumber}`;
 /** Leerseite für eine Ausgabe ohne Beleg. */
 export const REPORT_RECEIPT_PASTE_HERE = "Beleg hier aufkleben";
 /** Seite für einen Beleg, der nicht geladen werden konnte. */
 export const REPORT_RECEIPT_LOAD_FAILED = "Beleg konnte nicht geladen werden";
 export const REPORT_RECEIPT_LOAD_FAILED_HINT =
   "Bitte ausdrucken und hier aufkleben oder separat einreichen.";
-/**
- * Seitenangabe in der Kopfzeile eines mehrseitigen PDF-Belegs.
- *
- * @param pageNumber - Seite innerhalb des Belegs, ab 1.
- * @param pageCount - Anzahl Seiten des Belegs.
- * @returns z.B. «Seite 2 von 3».
- */
-export const REPORT_RECEIPT_PAGE_OF = (
-  pageNumber: number,
-  pageCount: number,
-): string => `Seite ${pageNumber} von ${pageCount}`;
-
 /**
  * Fortschritt beim Laden der Belege.
  *
@@ -535,3 +514,68 @@ export const REPORT_POSTAL_CODE_CITY = "PLZ / Ort";
 /** Hinweis bei «Alle Personen»: das Formular gilt nur für die eigene Person. */
 export const REPORT_REFUND_ALL_PAYEES_HINT =
   "Gilt für deinen Teil der Abrechnung. Bei den anderen Personen erscheinen Linien zum Ausfüllen.";
+/* =====================================================================
+// PDF-Abrechnung: Layout (Story 7.5)
+// ===================================================================== */
+/** Spaltenkopf der Belegnummer. */
+export const REPORT_COLUMN_NUMBER = "Nr.";
+/** Kennzahl auf Seite 1: was an Personen zurückgeht. */
+export const REPORT_KPI_TO_REFUND = "Zurückzuerstatten";
+/** Kennzahl bei einer Person: Anzahl Ausgaben. */
+export const REPORT_KPI_EXPENSES = "Ausgaben";
+/** Kennzahl bei einer Person: Anzahl Budgets, darunter ihre Namen. */
+export const REPORT_KPI_BUDGETS = "Budgets";
+/**
+ * Rest der Budgetnamen, wenn nicht alle in die Kachel passen.
+ *
+ * @param count - Anzahl nicht genannter Budgets.
+ * @returns z.B. «+2».
+ */
+export const REPORT_KPI_MORE_BUDGETS = (count: number): string => `+${count}`;
+/** Kennzahl ohne Betrag (z.B. keine Ausgaben ohne Rückerstattung). */
+export const REPORT_NO_AMOUNT = "–";
+/** Zweite Zeile im Klebefeld einer Leerseite. */
+export const REPORT_RECEIPT_NOT_UPLOADED =
+  "Zu dieser Ausgabe wurde kein Beleg hochgeladen.";
+/**
+ * Linke Spalte im Footer der Abrechnungsseiten.
+ *
+ * @param date - Datum, z.B. «27.10.2026».
+ * @param time - Zeit, z.B. «18:21».
+ * @param name - Wer die Abrechnung erstellt hat.
+ * @returns z.B. «Erstellt am 27.10.2026, 18:21 von Gio».
+ */
+export const REPORT_CREATED_AT_BY = (
+  date: string,
+  time: string,
+  name: string,
+): string => `Erstellt am ${date}, ${time} von ${name}`;
+/**
+ * Linke Spalte im Footer einer Belegseite.
+ *
+ * @param receiptNumber - Belegnummer.
+ * @param receiptCount - Anzahl Belege im PDF.
+ * @returns z.B. «Beleg 2 von 5».
+ */
+export const REPORT_RECEIPT_OF = (
+  receiptNumber: number,
+  receiptCount: number,
+): string => `Beleg ${receiptNumber} von ${receiptCount}`;
+/**
+ * Seitenangabe: im Footer über das ganze PDF, im Kopf eines mehrseitigen
+ * PDF-Belegs innerhalb des Belegs.
+ *
+ * @param pageNumber - Aktuelle Seite, ab 1.
+ * @param pageCount - Anzahl Seiten.
+ * @returns z.B. «Seite 1 von 8».
+ */
+export const REPORT_PAGE_OF = (pageNumber: number, pageCount: number): string =>
+  `Seite ${pageNumber} von ${pageCount}`;
+/**
+ * Verweis in der Spalte «Beleg» auf die Startseite des Belegs.
+ *
+ * @param pageNumber - Seite im PDF, ab 1.
+ * @returns z.B. «S. 5».
+ */
+export const REPORT_PAGE_REF = (pageNumber: number): string =>
+  `S. ${pageNumber}`;

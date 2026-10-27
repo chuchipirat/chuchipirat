@@ -1,4 +1,5 @@
 import {PaymentDetailsFormValues} from "../../../User/userPaymentDetails.types";
+import {BudgetIcon} from "../Budget/budget.types";
 
 /**
  * Aufbau der Abrechnung (E2). Als Enum, damit sich später weitere Modi
@@ -72,11 +73,14 @@ export type ReportRow = {
  * Modus B: eine Gruppe pro Budget.
  *
  * @param budgetName - Titel der Tabelle, `null` in Modus A.
+ * @param budgetIcon - Icon des Budgets für den Budget-Balken, `null` in
+ *   Modus A; «Unbekanntes Budget» hat `OTHER`.
  * @param rows - Sortierte Zeilen.
  * @param totals - Summen der Tabelle pro Währung.
  */
 export type ReportGroup = {
   budgetName: string | null;
+  budgetIcon: BudgetIcon | null;
   rows: ReportRow[];
   totals: CurrencyTotal[];
 };

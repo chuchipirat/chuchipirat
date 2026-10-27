@@ -8,7 +8,10 @@ import * as Sentry from "@sentry/react";
  * Zentralisiert die PDF-Generierung und Fehlerbehandlung, damit alle
  * PDF-Exporte einheitlich funktionieren und Fehler via Sentry geloggt werden.
  *
- * @param pdfElement - Das React-Element für @react-pdf/renderer.
+ * @param pdfElement - Das React-Element für @react-pdf/renderer, oder eine
+ *                     Funktion, die es erst erzeugt (z.B. nach einem ersten
+ *                     Durchlauf für Seitenzahlen). Wirft sie, gilt das wie
+ *                     ein Fehler beim Erstellen.
  * @param filename - Der Dateiname für den Download (inkl. .pdf-Suffix).
  * @param onError - Optionaler Callback für Fehlerbehandlung in der aufrufenden Komponente
  *                  (z.B. Dispatch an Reducer für AlertMessage).
@@ -26,14 +29,16 @@ import * as Sentry from "@sentry/react";
  * );
  */
 export const generateAndDownloadPdf = async (
-  pdfElement: React.ReactElement,
+  pdfElement: React.ReactElement | (() => Promise<React.ReactElement>),
   filename: string,
   onError?: (error: Error) => void,
   sentryContext?: Record<string, unknown>,
   transformPdf?: (bytes: Uint8Array) => Promise<Uint8Array>,
 ): Promise<boolean> => {
   try {
-    const blob = await pdf(pdfElement).toBlob();
+    const element =
+      typeof pdfElement === "function" ? await pdfElement() : pdfElement;
+    const blob = await pdf(element).toBlob();
     fileSaver.saveAs(
       transformPdf ? await transformPdfBlob(blob, transformPdf) : blob,
       filename,

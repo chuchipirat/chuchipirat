@@ -1,8 +1,9 @@
 /**
  * Unit-Tests für das PDF-Dokument der Abrechnung (expenseReportPdf.tsx,
- * Story 7.2) und seine Belegseiten (expenseReportReceiptPages.tsx,
- * Story 7.3a; PDF-Belege und receiptPageSlots.ts seit Story 7.3b);
- * Block «Rückerstattung an» (expenseReportRefundBlock.tsx, Story 7.4).
+ * Story 7.2, Layout seit Story 7.5) und seine Belegseiten
+ * (expenseReportReceiptPages.tsx, Story 7.3a; PDF-Belege und
+ * receiptPageSlots.ts seit Story 7.3b); Zahlungsangaben (Story 7.4, Layout
+ * 7.5). Die Bausteine einzeln prüft expenseReportPdfBlocks.test.tsx.
  *
  * Die Daten kommen über `ExpenseReport.build`, damit der Test dieselbe
  * Struktur zeichnet wie die App.
@@ -52,9 +53,11 @@ jest.mock("@react-pdf/renderer", () => {
     Text: createComponent("Text"),
     // gibt `src` aus, damit der Test die Data-URL des Belegs sieht
     Image: (props: {src: string}) =>
-      React.createElement("image", {"data-src": props.src}),
+      React.createElement("img", {"data-src": props.src}),
     Svg: createComponent("Svg"),
-    Path: createComponent("Path"),
+    // gibt `d` aus, damit der Test das Budget-Icon erkennt
+    Path: (props: {d: string}) =>
+      React.createElement("path", {"data-d": props.d}),
     Font: {
       register: jest.fn(),
       registerEmojiSource: jest.fn(),
@@ -78,6 +81,7 @@ import AuthUser from "../../../../Session/authUser.class";
 import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 import {Cook} from "../../../Event/event.class";
 import {BudgetDomain, BudgetIcon, BudgetType} from "../../Budget/budget.types";
+import {BUDGET_ICON_PDF_PATHS} from "../../Budget/budgetIconPaths";
 import {ExpenseDomain, ExpensePayeeType} from "../../Expense/expense.types";
 import {ExpenseReport} from "../expenseReport.class";
 import {
@@ -86,7 +90,7 @@ import {
   ReportOptions,
   ReportReceipt,
 } from "../expenseReport.types";
-import {pdfStyles} from "../../../../../constants/styles/expenseTrackingReportPDF.styles";
+import {reportLayoutStyles} from "../../../../../constants/styles/expenseTrackingReportPDF.styles";
 import {PaymentDetailsFormValues} from "../../../../User/userPaymentDetails.types";
 import {ExpenseReportPdf} from "../expenseReportPdf";
 import {RECEIPT_CONTENT_BOX} from "../receiptPageLayout";
@@ -219,13 +223,15 @@ const buildAuthUser = (): AuthUser => {
  * @param overrides - Optionen, die vom Standard abweichen.
  * @param loadedReceipts - Belege des Anhangs.
  * @param refundDetailsByPayeeKey - Adresse und IBAN pro Person
- *   (Standard: keine, Linien).
+ *   (Standard: keine, Kasten zum Ergänzen).
+ * @param receiptStartPages - Belegnummer → Startseite (Standard: keine).
  * @returns Das Render-Ergebnis.
  */
 const renderReportPdf = (
   overrides: Partial<ReportOptions> = {},
   loadedReceipts: LoadedReceipt[] = [],
   refundDetailsByPayeeKey: Record<string, PaymentDetailsFormValues> = {},
+  receiptStartPages = new Map<number, number>(),
 ) => {
   const report = ExpenseReport.build({
     expenses: EXPENSES,
@@ -247,9 +253,22 @@ const renderReportPdf = (
       authUser={buildAuthUser()}
       generatedAt={new Date(2026, 7, 1)}
       refundDetailsByPayeeKey={refundDetailsByPayeeKey}
+      receiptStartPages={receiptStartPages}
     />,
   );
 };
+
+/**
+ * Anzahl `View`s mit genau diesem Style.
+ *
+ * @param container - Container aus `render`.
+ * @param style - Gesuchter Style.
+ * @returns Anzahl Treffer.
+ */
+const countViewsWithStyle = (container: HTMLElement, style: object): number =>
+  Array.from(container.querySelectorAll("View")).filter(
+    (element) => element.getAttribute("data-style") === JSON.stringify(style),
+  ).length;
 
 /**
  * Formatierter Betrag, wie ihn Testing Library vergleicht: `Intl` setzt
@@ -280,28 +299,45 @@ const textsOf = (container: HTMLElement): string[] =>
 // ===================================================================== */
 
 describe("ExpenseReportPdf: Kopf und Zeilen", () => {
-  test("Titel, Untertitel und Anlass in der Kopfzeile", () => {
-    renderReportPdf();
+  test("Titel und Anlass, kein Untertitel mit dem Aufbau", () => {
+    const {container} = renderReportPdf();
 
     expect(screen.getByText("Abrechnung")).toBeInTheDocument();
-    expect(screen.getByText("Anna · Eine Tabelle")).toBeInTheDocument();
     expect(screen.getByText("Sommerlager 2026")).toBeInTheDocument();
+    // «Eine Tabelle» ist ein interner Begriff (Spez. 1)
+    expect(container).not.toHaveTextContent("Eine Tabelle");
+    expect(container).not.toHaveTextContent("Anna · ");
   });
 
-  test("Zeile mit Beleg: Nummer, Datum, Bezeichnung, Betrag", () => {
-    renderReportPdf();
+  test("eine Person: Kennzahlen Ausgaben, Zurückzuerstatten, Budgets", () => {
+    const {container} = renderReportPdf();
+    const texts = textsOf(container);
+    const valueAfter = (label: string) => texts[texts.indexOf(label) + 1];
+
+    // Anna: Migros und Edeka (Küche), Bastelladen (Motto)
+    expect(valueAfter("Ausgaben")).toBe("3");
+    expect(valueAfter("Zurückzuerstatten")).toBe(amountText(6750, "CHF"));
+    expect(valueAfter("Budgets")).toBe("2");
+    expect(texts[texts.indexOf("Budgets") + 2]).toBe("Küche, Motto");
+    expect(screen.queryByText("Gesamttotal")).not.toBeInTheDocument();
+  });
+
+  test("Zeile mit Beleg: Nummer, Datum, Bezeichnung, Betrag, Seitenverweis", () => {
+    renderReportPdf({}, [], {}, new Map([[1, 4]]));
 
     expect(screen.getByText("1")).toBeInTheDocument();
     expect(screen.getByText("09.07.2026")).toBeInTheDocument();
     expect(screen.getByText("Migros")).toBeInTheDocument();
     expect(screen.getByText(amountText(4250, "CHF"))).toBeInTheDocument();
+    expect(screen.getByText("S. 4")).toBeInTheDocument();
   });
 
-  test("Zeilen ohne Beleg zeigen «–»", () => {
-    renderReportPdf();
+  test("Zeilen ohne Beleg: «–» als Nummer, kein Seitenverweis", () => {
+    renderReportPdf({}, [], {}, new Map([[1, 4]]));
 
     // Bastelladen und Edeka haben keinen Beleg
     expect(screen.getAllByText("–")).toHaveLength(2);
+    expect(screen.getAllByText(/^S\. /)).toHaveLength(1);
   });
 
   test("nur die Ausgaben der gewählten Person", () => {
@@ -310,32 +346,100 @@ describe("ExpenseReportPdf: Kopf und Zeilen", () => {
     expect(screen.queryByText("Volg")).not.toBeInTheDocument();
     expect(screen.queryByText("Spende Bäckerei")).not.toBeInTheDocument();
   });
+
+  test("Footer: erstellt am, von wem", () => {
+    renderReportPdf();
+
+    expect(
+      screen.getByText("Erstellt am 01.08.2026, 00:00 von Anna"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("chuchipirat.ch")).toBeInTheDocument();
+  });
 });
 
-describe("ExpenseReportPdf: Modus A und B", () => {
-  test("Modus A: Spalte «Budget», Budget pro Zeile, kein Budgettotal", () => {
-    renderReportPdf({mode: ReportMode.PER_PERSON});
+describe("ExpenseReportPdf: Aufbau A und B", () => {
+  test("A: Spalten Nr. bis Beleg mit Budget, Budget pro Zeile, keine Totalzeile", () => {
+    const {container} = renderReportPdf({mode: ReportMode.PER_PERSON});
+    const texts = textsOf(container);
 
-    expect(screen.getByText("Budget")).toBeInTheDocument();
+    const headerStart = texts.indexOf("Nr.");
+    expect(texts.slice(headerStart, headerStart + 6)).toEqual([
+      "Nr.",
+      "Datum",
+      "Bezeichnung",
+      "Budget",
+      "Betrag",
+      "Beleg",
+    ]);
     expect(screen.getAllByText("Küche")).toHaveLength(2);
     expect(screen.getByText("Motto")).toBeInTheDocument();
-    expect(screen.queryByText("Total Küche")).not.toBeInTheDocument();
-    expect(screen.getByText("Total Anna")).toBeInTheDocument();
+    expect(screen.queryByText("Total Anna")).not.toBeInTheDocument();
   });
 
-  test("Modus B: keine Spalte «Budget», Budgettitel und -totals, dann Personentotal", () => {
+  test("B: keine Budgetspalte, Balken mit Zwischentotal, am Ende «Total Anna»", () => {
     const {container} = renderReportPdf({
       mode: ReportMode.PER_PERSON_AND_BUDGET,
     });
-
-    expect(screen.queryByText("Budget")).not.toBeInTheDocument();
     const texts = textsOf(container);
     const indexOf = (text: string) => texts.indexOf(text);
-    expect(indexOf("Küche")).toBeGreaterThan(-1);
-    expect(indexOf("Küche")).toBeLessThan(indexOf("Total Küche"));
-    expect(indexOf("Total Küche")).toBeLessThan(indexOf("Motto"));
-    expect(indexOf("Motto")).toBeLessThan(indexOf("Total Motto"));
-    expect(indexOf("Total Motto")).toBeLessThan(indexOf("Total Anna"));
+
+    expect(screen.queryByText("Budget")).not.toBeInTheDocument();
+    expect(countViewsWithStyle(container, reportLayoutStyles.budgetBar)).toBe(
+      2,
+    );
+    // Küche: Migros (CHF) und Edeka (EUR), Zwischentotal mit « · »
+    expect(texts[indexOf("Küche") + 1]).toBe(
+      `${amountText(4250, "CHF")} · ${amountText(1100, "EUR")}`,
+    );
+    expect(indexOf("Küche")).toBeLessThan(indexOf("Migros"));
+    expect(indexOf("Migros")).toBeLessThan(indexOf("Motto"));
+    expect(indexOf("Motto")).toBeLessThan(indexOf("Bastelladen"));
+    expect(indexOf("Bastelladen")).toBeLessThan(indexOf("Total Anna"));
+    expect(texts[indexOf("Total Anna") + 1]).toBe(
+      `${amountText(6750, "CHF")} · ${amountText(1100, "EUR")}`,
+    );
+  });
+
+  test("B: Balken mit dem Icon des Budgets", () => {
+    const {container} = renderReportPdf({
+      mode: ReportMode.PER_PERSON_AND_BUDGET,
+    });
+    const drawnPaths = Array.from(container.querySelectorAll("path")).map(
+      (path) => path.getAttribute("data-d"),
+    );
+
+    // beide Budgets im Fixture haben das Küchen-Icon
+    expect(
+      drawnPaths.filter(
+        (path) => path === BUDGET_ICON_PDF_PATHS[BudgetIcon.KITCHEN][0],
+      ),
+    ).toHaveLength(2);
+  });
+});
+
+describe("ExpenseReportPdf: Trennlinien", () => {
+  test.each([ReportMode.PER_PERSON, ReportMode.PER_PERSON_AND_BUDGET])(
+    "%s: letzte Zeile der Karte ohne Trennlinie, die anderen mit",
+    (mode) => {
+      const {container} = renderReportPdf({mode});
+
+      // Anna hat 3 Ausgaben
+      expect(countViewsWithStyle(container, reportLayoutStyles.tableRow)).toBe(
+        2,
+      );
+      expect(
+        countViewsWithStyle(container, reportLayoutStyles.tableRowLast),
+      ).toBe(1);
+    },
+  );
+
+  test("Alle Personen: eine letzte Zeile pro Karte", () => {
+    const {container} = renderReportPdf({payeeSelection: {kind: "all"}});
+
+    // Anna, Ben, «Ohne Rückerstattung»
+    expect(
+      countViewsWithStyle(container, reportLayoutStyles.tableRowLast),
+    ).toBe(3);
   });
 });
 
@@ -347,9 +451,10 @@ describe("ExpenseReportPdf: Kommentare", () => {
   });
 
   test("mit Option: Kommentar unter der Bezeichnung", () => {
-    renderReportPdf({includeComments: true});
+    const {container} = renderReportPdf({includeComments: true});
+    const texts = textsOf(container);
 
-    expect(screen.getByText("Zmorge")).toBeInTheDocument();
+    expect(texts.indexOf("Zmorge")).toBe(texts.indexOf("Migros") + 1);
   });
 
   test("leerer Kommentar rendert ohne Fehler (kein String ausserhalb von <Text>)", () => {
@@ -358,39 +463,22 @@ describe("ExpenseReportPdf: Kommentare", () => {
   });
 });
 
-describe("ExpenseReportPdf: Summen", () => {
-  test("zwei Währungen: zwei Summenzeilen, Beschriftung nur einmal", () => {
-    renderReportPdf();
+describe("ExpenseReportPdf: Beträge pro Währung", () => {
+  test("Kartenkopf: Personentotal pro Währung untereinander", () => {
+    const {container} = renderReportPdf();
+    const texts = textsOf(container);
+    const nameIndex = texts.indexOf("Anna");
 
-    expect(screen.getAllByText("Total Anna")).toHaveLength(1);
-    expect(
-      screen.getByText(amountText(4250 + 2500, "CHF")),
-    ).toBeInTheDocument();
-    // EUR-Betrag: einmal in der Zeile, einmal in der Summe
-    expect(screen.getAllByText(amountText(1100, "EUR"))).toHaveLength(2);
-  });
-
-  test("eine Person: kein Gesamttotal", () => {
-    renderReportPdf();
-
-    expect(screen.queryByText("Gesamttotal")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("davon zurückzuerstatten"),
-    ).not.toBeInTheDocument();
+    expect(texts.slice(nameIndex + 1, nameIndex + 3)).toEqual([
+      amountText(4250 + 2500, "CHF"),
+      amountText(1100, "EUR"),
+    ]);
   });
 });
 
 describe("ExpenseReportPdf: Alle Personen", () => {
   const renderAllPayees = () =>
     renderReportPdf({payeeSelection: {kind: "all"}});
-
-  test("Untertitel «Alle Personen»", () => {
-    renderAllPayees();
-
-    expect(
-      screen.getByText("Alle Personen · Eine Tabelle"),
-    ).toBeInTheDocument();
-  });
 
   test("Personen in Reihenfolge, «Ohne Rückerstattung» zuletzt mit Hinweis", () => {
     const {container} = renderAllPayees();
@@ -399,59 +487,52 @@ describe("ExpenseReportPdf: Alle Personen", () => {
     expect(texts.indexOf("Anna")).toBeGreaterThan(-1);
     expect(texts.indexOf("Anna")).toBeLessThan(texts.indexOf("Ben"));
     expect(texts.indexOf("Ben")).toBeLessThan(
-      texts.indexOf("Ohne Rückerstattung"),
+      texts.lastIndexOf("Ohne Rückerstattung"),
     );
     expect(
       screen.getByText("Diese Ausgaben werden niemandem zurückerstattet."),
     ).toBeInTheDocument();
   });
 
-  test("Gesamttotal und «davon zurückzuerstatten» am Ende", () => {
+  test("drei Kennzahlen vor den Karten", () => {
     const {container} = renderAllPayees();
-
     const texts = textsOf(container);
-    expect(texts.indexOf("Gesamttotal")).toBeGreaterThan(
-      texts.indexOf("Total Ohne Rückerstattung"),
-    );
-    expect(texts.indexOf("davon zurückzuerstatten")).toBeGreaterThan(
-      texts.indexOf("Gesamttotal"),
-    );
+    const valueAfter = (label: string) => texts[texts.indexOf(label) + 1];
+
     // CHF: Gesamt 4250 + 2500 + 1000 + 500, zurückzuerstatten ohne die 500
-    expect(screen.getByText(amountText(8250, "CHF"))).toBeInTheDocument();
-    expect(screen.getByText(amountText(7750, "CHF"))).toBeInTheDocument();
+    expect(valueAfter("Gesamttotal")).toBe(amountText(8250, "CHF"));
+    expect(valueAfter("Zurückzuerstatten")).toBe(amountText(7750, "CHF"));
+    expect(valueAfter("Ohne Rückerstattung")).toBe(amountText(500, "CHF"));
+    expect(texts.indexOf("Gesamttotal")).toBeLessThan(texts.indexOf("Anna"));
   });
 });
 
 /* =====================================================================
-// Belegseiten (Story 7.3a)
+// Belegseiten (Story 7.3a, Layout 7.5)
 // ===================================================================== */
 
 /**
- * Erstellt einen Beleg für die Kopfzeile einer Belegseite.
+ * Erstellt einen Beleg für den Kopf einer Belegseite.
  *
  * @param receiptNumber - Belegnummer.
  * @param label - Bezeichnung der Ausgabe.
+ * @param expenseId - Ausgabe; eine aus dem Fixture liefert Budget und
+ *   Person für die Zeile unter der Bezeichnung.
  * @returns Der Beleg.
  */
-const makeReceipt = (receiptNumber: number, label: string): ReportReceipt => ({
+const makeReceipt = (
+  receiptNumber: number,
+  label: string,
+  expenseId = `expense-${receiptNumber}`,
+): ReportReceipt => ({
   receiptNumber,
-  expenseId: `expense-${receiptNumber}`,
+  expenseId,
   attachmentPath: null,
   date: new Date(2026, 6, 12),
   label,
   amountInCents: 4250,
   currency: "CHF",
 });
-
-/**
- * Kopfzeile einer Belegseite, wie Testing Library sie vergleicht.
- *
- * @param receiptNumber - Belegnummer.
- * @param label - Bezeichnung der Ausgabe.
- * @returns z.B. «Beleg 3 · 12.07.2026 · Migros · CHF 42.50».
- */
-const receiptHeaderText = (receiptNumber: number, label: string): string =>
-  `Beleg ${receiptNumber} · 12.07.2026 · ${label} · ${amountText(4250, "CHF")}`;
 
 describe("ExpenseReportPdf: Belegseiten", () => {
   test("ohne Belege keine Belegseite", () => {
@@ -460,7 +541,28 @@ describe("ExpenseReportPdf: Belegseiten", () => {
     expect(container.querySelectorAll("page")).toHaveLength(1);
   });
 
-  test("Bild-Beleg: Kopfzeile und Bild mit der Data-URL", () => {
+  test("Kopf: Nummer, Bezeichnung, «Datum · Budget · Person», Betrag; Footer «Beleg n von N»", () => {
+    const {container} = renderReportPdf({}, [
+      {
+        kind: "image",
+        receipt: makeReceipt(1, "Migros", ANNA_MIGROS.id),
+        dataUrl: "data:image/jpeg;base64,AAAA",
+      },
+    ]);
+    const receiptPage = container.querySelectorAll("page")[1] as HTMLElement;
+
+    expect(textsOf(receiptPage)).toEqual([
+      "1",
+      "Migros",
+      "12.07.2026 · Küche · Anna",
+      amountText(4250, "CHF"),
+      "Beleg 1 von 1",
+      "",
+      "chuchipirat.ch",
+    ]);
+  });
+
+  test("Bild-Beleg: Bild mit der Data-URL im Feld RECEIPT_CONTENT_BOX", () => {
     const {container} = renderReportPdf({}, [
       {
         kind: "image",
@@ -468,18 +570,25 @@ describe("ExpenseReportPdf: Belegseiten", () => {
         dataUrl: "data:image/jpeg;base64,AAAA",
       },
     ]);
+    const image = container.querySelectorAll("img")[1];
 
-    expect(container.querySelectorAll("page")).toHaveLength(2);
-    expect(
-      screen.getByText(receiptHeaderText(1, "Migros")),
-    ).toBeInTheDocument();
-    expect(container.querySelector("image")).toHaveAttribute(
-      "data-src",
-      "data:image/jpeg;base64,AAAA",
+    // das erste Bild ist das Logo im Kopf
+    expect(image).toHaveAttribute("data-src", "data:image/jpeg;base64,AAAA");
+    expect(image.parentElement).toHaveAttribute(
+      "data-style",
+      JSON.stringify(reportLayoutStyles.receiptContentBox),
     );
   });
 
-  test("Leerseite und Fehlerseite", () => {
+  test("Ausgabe nicht gefunden: Zeile unter der Bezeichnung nur mit Datum", () => {
+    renderReportPdf({}, [
+      {kind: "missing", receipt: makeReceipt(1, "Unbekannt")},
+    ]);
+
+    expect(screen.getByText("12.07.2026")).toBeInTheDocument();
+  });
+
+  test("Leerseite und Fehlerseite: Klebefeld mit Text und Hinweis", () => {
     renderReportPdf({}, [
       {kind: "missing", receipt: makeReceipt(1, "Bastelladen")},
       {
@@ -491,6 +600,9 @@ describe("ExpenseReportPdf: Belegseiten", () => {
 
     expect(screen.getByText("Beleg hier aufkleben")).toBeInTheDocument();
     expect(
+      screen.getByText("Zu dieser Ausgabe wurde kein Beleg hochgeladen."),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText("Beleg konnte nicht geladen werden"),
     ).toBeInTheDocument();
     expect(
@@ -498,6 +610,7 @@ describe("ExpenseReportPdf: Belegseiten", () => {
         "Bitte ausdrucken und hier aufkleben oder separat einreichen.",
       ),
     ).toBeInTheDocument();
+    expect(screen.getByText("Beleg 2 von 2")).toBeInTheDocument();
   });
 
   test("Belegseiten nach der Tabelle, in der Reihenfolge von loadedReceipts", () => {
@@ -507,10 +620,10 @@ describe("ExpenseReportPdf: Belegseiten", () => {
     ]);
 
     const texts = textsOf(container);
-    const firstReceipt = texts.indexOf(receiptHeaderText(1, "Bastelladen"));
-    const secondReceipt = texts.indexOf(receiptHeaderText(2, "Volg"));
-    expect(texts.indexOf("Total Anna")).toBeGreaterThan(-1);
-    expect(firstReceipt).toBeGreaterThan(texts.indexOf("Total Anna"));
+    const firstReceipt = texts.lastIndexOf("Bastelladen");
+    const secondReceipt = texts.indexOf("Volg");
+    expect(texts.indexOf("Edeka")).toBeGreaterThan(-1);
+    expect(firstReceipt).toBeGreaterThan(texts.indexOf("Edeka"));
     expect(secondReceipt).toBeGreaterThan(firstReceipt);
     expect(container.querySelectorAll("page")).toHaveLength(3);
   });
@@ -565,16 +678,31 @@ describe("getReceiptPageSlots", () => {
 });
 
 describe("ExpenseReportPdf: PDF-Belege", () => {
-  test("PDF mit 2 Seiten: zwei Belegseiten mit Seitenangabe", () => {
+  test("PDF mit 2 Seiten: zwei Belegseiten, «· Seite x von 2» hinter der Bezeichnung", () => {
     const {container} = renderReportPdf({}, [makePdfReceipt(1, 2)]);
+    const texts = textsOf(container);
 
     expect(container.querySelectorAll("page")).toHaveLength(3);
-    expect(
-      screen.getByText(`${receiptHeaderText(1, "Coop")} · Seite 1 von 2`),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByText(`${receiptHeaderText(1, "Coop")} · Seite 2 von 2`),
-    ).toBeInTheDocument();
+    expect(texts).toContain("Coop · Seite 1 von 2");
+    expect(texts).toContain("Coop · Seite 2 von 2");
+    // beide Seiten gehören zu Beleg 1
+    expect(texts.filter((text) => text === "Beleg 1 von 1")).toHaveLength(2);
+  });
+
+  test("einseitiger Beleg: keine Seitenangabe hinter der Bezeichnung", () => {
+    const {container} = renderReportPdf({}, [makePdfReceipt(1, 1)]);
+
+    expect(textsOf(container)).toContain("Coop");
+    expect(container).not.toHaveTextContent("Seite 1 von 1");
+  });
+
+  test("Feld beginnt direkt unter dem festen Kopf (react-pdf und pdf-lib meinen dieselbe Stelle)", () => {
+    const {page, receiptHeader} = reportLayoutStyles;
+
+    expect(RECEIPT_CONTENT_BOX.top).toBeCloseTo(
+      page.paddingTop + receiptHeader.height + receiptHeader.marginBottom,
+    );
+    expect(RECEIPT_CONTENT_BOX.left).toBe(page.paddingHorizontal);
   });
 
   test("leeres Feld an der Stelle aus RECEIPT_CONTENT_BOX, kein Platzhaltertext", () => {
@@ -582,108 +710,79 @@ describe("ExpenseReportPdf: PDF-Belege", () => {
 
     const pdfBoxes = Array.from(container.querySelectorAll("view"))
       .map((view) => JSON.parse(view.getAttribute("data-style") ?? "null"))
-      .filter((style) => style?.position === "absolute");
+      // der Footer ist auch absolut, hat aber kein `top`
+      .filter((style) => style?.position === "absolute" && "top" in style);
     expect(pdfBoxes).toEqual([{position: "absolute", ...RECEIPT_CONTENT_BOX}]);
     expect(screen.queryByText("Beleg hier aufkleben")).not.toBeInTheDocument();
   });
 });
 
 /* =====================================================================
-// Rückerstattung an (Story 7.4)
+// Zahlungsangaben (Story 7.4, Layout 7.5)
 // ===================================================================== */
 
-describe("ExpenseReportPdf: Rückerstattung an", () => {
+describe("ExpenseReportPdf: Zahlungsangaben", () => {
   const REFUND_DETAILS: PaymentDetailsFormValues = {
     street: "Bahnhofstrasse 1",
     postalCode: "8001",
     city: "Zürich",
     iban: "CH9300762011623852957",
   };
+  const PAYMENT_LINE =
+    "Bahnhofstrasse 1, 8001 Zürich · CH93 0076 2011 6238 5295 7";
 
   /**
-   * Linien zum Ausfüllen (Views mit dem Style `refundLine`).
+   * Anzahl Kästen «Zahlungsangaben bitte von Hand ergänzen».
    *
    * @param container - Container aus `render`.
-   * @returns Die Linien.
+   * @returns Anzahl Kästen.
    */
-  const linesOf = (container: HTMLElement) =>
-    Array.from(container.querySelectorAll("View")).filter(
-      (element) =>
-        element.getAttribute("data-style") ===
-        JSON.stringify(pdfStyles.refundLine),
-    );
+  const fillBoxCountOf = (container: HTMLElement) =>
+    countViewsWithStyle(container, reportLayoutStyles.fillBox);
 
-  test("eine Person: Name, Adresse und IBAN in Viererblöcken, keine Linie", () => {
+  test("vollständig: graue Zeile unter dem Namen, vor der Tabelle, kein Kasten", () => {
     const {container} = renderReportPdf({}, [], {[ANNA.uid]: REFUND_DETAILS});
-
     const texts = textsOf(container);
-    expect(texts).toEqual(
-      expect.arrayContaining([
-        "Rückerstattung an",
-        "Kontoinhaber*in",
-        "Anna",
-        "Bahnhofstrasse 1",
-        "8001 Zürich",
-        "CH93 0076 2011 6238 5295 7",
-      ]),
-    );
-    expect(linesOf(container)).toHaveLength(0);
+
+    expect(texts.indexOf(PAYMENT_LINE)).toBeGreaterThan(texts.indexOf("Anna"));
+    expect(texts.indexOf(PAYMENT_LINE)).toBeLessThan(texts.indexOf("Migros"));
+    expect(fillBoxCountOf(container)).toBe(0);
   });
 
-  test("Block steht unter dem Namen, vor der Tabelle", () => {
-    const {container} = renderReportPdf({}, [], {[ANNA.uid]: REFUND_DETAILS});
-
-    const texts = textsOf(container);
-    expect(texts.indexOf("Rückerstattung an")).toBeGreaterThan(
-      texts.indexOf("Anna"),
-    );
-    expect(texts.indexOf("Rückerstattung an")).toBeLessThan(
-      texts.indexOf("Migros"),
-    );
-  });
-
-  test("leere Werte werden zu Linien, ohne Fehler (kein String ausserhalb <Text>)", () => {
+  test("Teilangaben: Kasten, Vorhandenes steht darin (ohne Fehler bei leeren Werten)", () => {
     const {container} = renderReportPdf({}, [], {
       [ANNA.uid]: {...REFUND_DETAILS, street: "", iban: "  "},
     });
 
-    expect(linesOf(container)).toHaveLength(2);
+    expect(fillBoxCountOf(container)).toBe(1);
     expect(textsOf(container)).toContain("8001 Zürich");
+    expect(textsOf(container)).not.toContain(PAYMENT_LINE);
   });
 
-  test("ohne Angaben: Name bleibt, Adresse und IBAN sind Linien", () => {
+  test("ohne Angaben: Kasten mit Kontoinhaber*in vorbefüllt", () => {
     const {container} = renderReportPdf();
+    const texts = textsOf(container);
 
-    expect(linesOf(container)).toHaveLength(3);
-    expect(textsOf(container)).toContain("Kontoinhaber*in");
+    expect(fillBoxCountOf(container)).toBe(1);
+    expect(texts[texts.indexOf("Kontoinhaber*in") + 1]).toBe("Anna");
   });
 
-  test("«Alle Personen»: Block pro Person mit Linien, nicht bei «Ohne Rückerstattung»", () => {
+  test("«Alle Personen»: Kasten pro Person, nicht bei «Ohne Rückerstattung»", () => {
     const {container} = renderReportPdf({payeeSelection: {kind: "all"}});
 
-    const texts = textsOf(container);
-    // Anna und Ben, nicht «Ohne Rückerstattung»
-    expect(texts.filter((text) => text === "Rückerstattung an")).toHaveLength(
-      2,
-    );
-    expect(linesOf(container)).toHaveLength(6);
-    const lastRefundHeading = texts.lastIndexOf("Rückerstattung an");
-    expect(lastRefundHeading).toBeLessThan(
-      texts.indexOf("Ohne Rückerstattung"),
-    );
+    // Anna und Ben
+    expect(fillBoxCountOf(container)).toBe(2);
   });
 
-  test("«Alle Personen»: eigene Angaben bei der eigenen Person, Linien nur bei den anderen", () => {
+  test("«Alle Personen»: eigene Angaben als Zeile, Kasten nur bei den anderen", () => {
     const {container} = renderReportPdf({payeeSelection: {kind: "all"}}, [], {
       [ANNA.uid]: REFUND_DETAILS,
     });
-
     const texts = textsOf(container);
-    const ibanIndex = texts.indexOf("CH93 0076 2011 6238 5295 7");
-    // Annas IBAN steht in Annas Block, vor Ben
-    expect(ibanIndex).toBeGreaterThan(texts.indexOf("Anna"));
-    expect(ibanIndex).toBeLessThan(texts.indexOf("Ben"));
-    // nur Ben hat Linien (Strasse, PLZ / Ort, IBAN)
-    expect(linesOf(container)).toHaveLength(3);
+
+    // Annas Zeile steht in Annas Karte, vor Ben
+    expect(texts.indexOf(PAYMENT_LINE)).toBeGreaterThan(texts.indexOf("Anna"));
+    expect(texts.indexOf(PAYMENT_LINE)).toBeLessThan(texts.indexOf("Ben"));
+    expect(fillBoxCountOf(container)).toBe(1);
   });
 });

@@ -7,28 +7,34 @@ import {PDF_TOKENS} from "../../../../constants/pdfTokens";
 export const A4_SIZE = {width: 595.28, height: 841.89};
 
 /**
- * Zeilenhöhe als Vielfaches der Schriftgrösse. react-pdf rechnet mit den
- * Massen der Schrift (Roboto etwa 1.17); 1.2 lässt etwas Reserve.
+ * Oberer Seitenrand aller Seiten der Abrechnung (Story 7.5), auch der
+ * Abrechnungsseiten (`reportLayoutStyles.page`).
  */
-const LINE_HEIGHT_FACTOR = 1.2;
+export const REPORT_PAGE_PADDING_TOP = 30;
 
 /**
- * Höhe der Seitenkopfzeile mit dem Anlassnamen (`Header` aus
- * `pdfComponents`, Style `header` in `stylesGeneralPdf`): eine Zeile in
- * `fontSize.small` plus `marginBottom: 20`.
+ * Feste Höhe des Belegkopfs (Nummer im Kreis, Bezeichnung über höchstens
+ * zwei Zeilen, Zeile «Datum · Budget · Person», Betrag). Fest, damit das
+ * Feld darunter für react-pdf und pdf-lib an derselben Stelle liegt.
  */
-const PAGE_HEADER_HEIGHT = PDF_TOKENS.fontSize.small * LINE_HEIGHT_FACTOR + 20;
+export const RECEIPT_HEADER_HEIGHT = 44;
 
-/**
- * Höhe der Belegkopfzeile «Beleg 3 · … · Seite 2 von 3» (Style
- * `receiptHeader`): bis zu zwei Zeilen in 12 pt, weil lange Bezeichnungen
- * umbrechen, plus `paddingBottom: 6`, Linie 0.5 und `marginBottom: 10`.
- */
-const RECEIPT_HEADER_HEIGHT = 2 * 12 * LINE_HEIGHT_FACTOR + 6 + 0.5 + 10;
+/** Abstand zwischen Kopf und Teal-Linie. */
+export const RECEIPT_HEADER_PADDING_BOTTOM = 8;
 
-/** Oberkante des Felds, von oben gemessen: unter beiden Kopfzeilen. */
+/** Dicke der Teal-Linie unter dem Kopf. */
+export const RECEIPT_HEADER_LINE_WIDTH = 0.5;
+
+/** Abstand zwischen Teal-Linie und Feld. */
+export const RECEIPT_HEADER_MARGIN_BOTTOM = 12;
+
+/** Oberkante des Felds, von oben gemessen: unter dem Belegkopf. */
 const RECEIPT_CONTENT_TOP =
-  PDF_TOKENS.margin.top + PAGE_HEADER_HEIGHT + RECEIPT_HEADER_HEIGHT;
+  REPORT_PAGE_PADDING_TOP +
+  RECEIPT_HEADER_HEIGHT +
+  RECEIPT_HEADER_PADDING_BOTTOM +
+  RECEIPT_HEADER_LINE_WIDTH +
+  RECEIPT_HEADER_MARGIN_BOTTOM;
 
 /**
  * Rechteck auf einer Seite in Punkt, gemessen von der oberen linken Ecke
@@ -47,25 +53,25 @@ export type ContentBox = {
 };
 
 /**
- * Feld einer PDF-Belegseite, in das pdf-lib die Originalseite zeichnet.
- * Eine Quelle für beide Bibliotheken: der Style
- * `receiptPdfBox` (react-pdf) und `embedPdfReceipts` (pdf-lib) lesen diese
- * Werte, darum können sie nicht auseinanderlaufen.
+ * Feld einer Belegseite unter dem Kopf: Dort steht das Bild, das
+ * Klebefeld, oder pdf-lib zeichnet die Originalseite eines PDF-Belegs
+ * hinein. Eine Quelle für beide Bibliotheken: der Style
+ * `receiptContentBox` (react-pdf) und `embedPdfReceipts` (pdf-lib) lesen
+ * diese Werte, darum können sie nicht auseinanderlaufen.
  *
  * Alle Werte in Punkt, gemessen wie in react-pdf **von der oberen linken
  * Ecke**. pdf-lib misst `y` von unten und rechnet selbst um:
  * `y = A4_SIZE.height - top - height`.
  *
- * Ändert sich der Style `header` oder `receiptHeader`, müssen
- * `PAGE_HEADER_HEIGHT` bzw. `RECEIPT_HEADER_HEIGHT` mitziehen; sonst
- * überlappt die Kopfzeile das Feld.
+ * Der Style `receiptHeader` liest die Konstanten oben; der Kopf ist fest
+ * hoch, darum überlappt er das Feld nie.
  *
- * @param top - Abstand der Oberkante vom oberen Seitenrand; Platz für die
- *   Seitenkopfzeile und eine bis zu zweizeilige Belegkopfzeile (ca. 91).
+ * @param top - Abstand der Oberkante vom oberen Seitenrand; Platz für
+ *   den Belegkopf (ca. 95).
  * @param left - Abstand vom linken Seitenrand.
  * @param width - Breite des Felds.
  * @param height - Höhe des Felds bis zum unteren Rand; `margin.bottom`
- *   hält die Fusszeile frei (ca. 686).
+ *   hält den Footer frei (ca. 682).
  */
 export const RECEIPT_CONTENT_BOX: ContentBox = {
   top: RECEIPT_CONTENT_TOP,

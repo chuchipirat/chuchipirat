@@ -1,268 +1,435 @@
 /**
  * Stildefinitionen für die PDF-Abrechnung.
  *
- * Gleiche Gestaltung wie Materialliste und Menüplan (Teal-Akzent, dünner
- * Titel), damit alle chuchipirat-PDFs zusammenpassen.
+ * Gestaltung nach der Spendenquittung (Story 7.5): Logo, Trenner mit Icon,
+ * Kennzahlen, Karten pro Person, Teal-Akzent.
  *
- * Wird von `ExpenseTracking/Report/expenseReportPdf.tsx` verwendet.
+ * Wird von den Bausteinen in `ExpenseTracking/Report/` verwendet.
  */
 import {StyleSheet} from "@react-pdf/renderer";
-import {APP_PRIMARY} from "../stylesMaterialListPdf";
 import {PDF_TOKENS} from "../pdfTokens";
-import {RECEIPT_CONTENT_BOX} from "../../components/Event/ExpenseTracking/Report/receiptPageLayout";
+import {
+  RECEIPT_CONTENT_BOX,
+  RECEIPT_HEADER_HEIGHT,
+  RECEIPT_HEADER_LINE_WIDTH,
+  RECEIPT_HEADER_MARGIN_BOTTOM,
+  RECEIPT_HEADER_PADDING_BOTTOM,
+  REPORT_PAGE_PADDING_TOP,
+} from "../../components/Event/ExpenseTracking/Report/receiptPageLayout";
 
-/** Gemeinsame Schrift aller Tabellenzellen. */
-const CELL_BASE = {
+/**
+ * Farben der Abrechnung (Story 7.5). Nur bestehende Werte: Teal aus
+ * `PDF_TOKENS`, Grautöne aus der Spendenquittung
+ * (`stylesDonationReceiptPdf.ts`), Teal mit Deckkraft aus Menüplan und
+ * Listen. Exportiert, weil `<Path fill>` eine Farbe als Prop braucht.
+ */
+export const REPORT_COLORS = {
+  primary: PDF_TOKENS.color.primary,
+  /** Teal ~7 % (Menüplan `MEAL_BAND_BG`): Budget-Balken. */
+  primaryTint: "#00606412",
+  /** Kacheln und Kasten (Spendenquittung `infoBox`). */
+  surface: "#f5f5f5",
+  /** Trennlinien und Kartenrand (Spendenquittung `divider`). */
+  line: "#ccc",
+  /** Beschriftungen (Spendenquittung `infoKey`). */
+  label: "#666",
+  /** Hilfstexte und Footer (Spendenquittung `simpleFooter`). */
+  hint: "#999",
+  /** Schriftzug «chuchipirat» (Spendenquittung `logoText`). */
+  text: "#333",
+  onPrimary: "#fff",
+} as const;
+
+/** Schriftgrössen der Abrechnung (Spez. 11). */
+const FONT_SIZE = {name: 13, table: 10, hint: 9} as const;
+
+/** Gemeinsame Schrift aller Texte des neuen Layouts. */
+const TEXT_BASE = {
   fontFamily: PDF_TOKENS.fontFamily,
   fontStyle: "normal" as const,
   fontWeight: PDF_TOKENS.fontWeight.normal,
-  fontSize: 10,
-  paddingVertical: 3,
-  paddingHorizontal: 2,
 };
 
-export const pdfStyles = StyleSheet.create({
-  /* ── Seite und Titel ────────────────────────── */
-  body: {
-    paddingTop: PDF_TOKENS.margin.top,
+/** Rundung von Karten, Kacheln und Kasten (Spez. 11). */
+const CARD_RADIUS = 8;
+
+/** Feine Linie (Spez. 11). */
+const HAIRLINE = 0.5;
+
+/** Bausteine des neuen Layouts (Story 7.5). */
+export const reportLayoutStyles = StyleSheet.create({
+  /* ── Seite ──────────────────────────────────── */
+  page: {
+    paddingTop: REPORT_PAGE_PADDING_TOP,
     paddingBottom: PDF_TOKENS.margin.bottom,
     paddingHorizontal: PDF_TOKENS.margin.horizontal,
-  },
-  title: {
-    fontSize: 28,
-    textAlign: "center",
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.thin,
-    marginBottom: 4,
-  },
-  titleUnderline: {
-    borderBottomWidth: 1,
-    borderBottomColor: APP_PRIMARY,
-    borderBottomStyle: "solid",
-    marginBottom: 4,
-  },
-  subTitle: {
-    fontSize: 14,
-    textAlign: "center",
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.thin,
-    marginBottom: 4,
-  },
-  infoSectionDivider: {
-    borderBottomWidth: 0.5,
-    borderBottomColor: "#00606433", // APP_PRIMARY mit ~20% Deckkraft
-    borderBottomStyle: "solid",
-    marginBottom: 8,
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.table,
   },
 
-  /* ── Personen und Budgets ───────────────────── */
-  section: {
-    marginTop: 14,
-  },
-  payeeHeading: {
-    fontSize: 14,
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.bold,
-    color: APP_PRIMARY,
-  },
-  noRefundHint: {
-    fontSize: PDF_TOKENS.fontSize.small,
-    fontFamily: PDF_TOKENS.fontFamily,
-    color: PDF_TOKENS.color.gray,
-    marginTop: 2,
-  },
-  /* ── Rückerstattung an (Story 7.4) ─────────── */
-  /** Block unter dem Personennamen, vor den Tabellen (F8). */
-  refundBlock: {
-    marginTop: 6,
-    marginBottom: 4,
-    width: "70%",
-  },
-  refundHeading: {
-    fontSize: PDF_TOKENS.fontSize.small,
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.bold,
-    color: APP_PRIMARY,
-    marginBottom: 2,
-  },
-  refundRow: {
+  /* ── Kopf Seite 1 (wie Spendenquittung) ─────── */
+  logoHeader: {
     flexDirection: "row",
-    alignItems: "flex-end",
-    marginTop: 3,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
   },
-  refundLabel: {
-    ...CELL_BASE,
-    width: "28%",
-    paddingVertical: 1,
-    color: PDF_TOKENS.color.gray,
+  logoImage: {width: 40, height: 40, marginRight: 8},
+  logoText: {
+    ...TEXT_BASE,
+    fontSize: 14,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: REPORT_COLORS.text,
   },
-  refundValue: {
-    ...CELL_BASE,
-    flexGrow: 1,
-    paddingVertical: 1,
+  dividerRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 10,
+  },
+  dividerLine: {flex: 1, height: HAIRLINE, backgroundColor: REPORT_COLORS.line},
+  dividerIcon: {marginHorizontal: 8},
+  title: {
+    ...TEXT_BASE,
+    fontSize: 24,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    textAlign: "center",
+    marginBottom: 4,
+  },
+  eventName: {
+    ...TEXT_BASE,
+    fontSize: 11,
+    color: REPORT_COLORS.hint,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+
+  /* ── Kennzahlen ─────────────────────────────── */
+  kpiRow: {flexDirection: "row", marginBottom: 16},
+  kpiTile: {
+    flex: 1,
+    backgroundColor: REPORT_COLORS.surface,
+    borderRadius: CARD_RADIUS,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+  },
+  /** Abstand zwischen den Kacheln (react-pdf kennt kein `gap` überall). */
+  kpiTileSpacing: {marginLeft: 8},
+  kpiTileHighlighted: {backgroundColor: REPORT_COLORS.primary},
+  kpiLabel: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.label,
+  },
+  kpiLabelHighlighted: {color: REPORT_COLORS.onPrimary},
+  kpiValue: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.name,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+  },
+  kpiValueHighlighted: {color: REPORT_COLORS.onPrimary},
+  /** Kleine Zeile unter dem Wert, z.B. «Küche, Motto». */
+  kpiDetail: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.label,
+    marginTop: 1,
+  },
+
+  /* ── Footer (alle Seiten) ───────────────────── */
+  footer: {
+    position: "absolute",
+    bottom: 20,
+    left: PDF_TOKENS.margin.horizontal,
+    right: PDF_TOKENS.margin.horizontal,
+    flexDirection: "row",
+    paddingTop: 6,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: REPORT_COLORS.line,
+    borderTopStyle: "solid",
+  },
+  footerText: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.hint,
   },
   /**
-   * Linie zum Ausfüllen von Hand. Höher als eine Textzeile, damit man
-   * bequem darauf schreiben kann.
+   * Links und rechts gleich breit (`flex: 1`), die Mitte fest: So steht
+   * «Seite x von y» genau in der Seitenmitte, egal wie lang die Texte sind.
    */
-  refundLine: {
+  footerLeft: {flex: 1},
+  footerCenter: {width: 90, textAlign: "center"},
+  footerRight: {flex: 1, textAlign: "right"},
+
+  /* ── Zahlungsangaben ────────────────────────── */
+  paymentLine: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.label,
+    marginBottom: 8,
+  },
+  fillBox: {
+    backgroundColor: REPORT_COLORS.surface,
+    borderRadius: CARD_RADIUS,
+    padding: 10,
+    marginBottom: 10,
+  },
+  fillRow: {flexDirection: "row", alignItems: "flex-end", marginTop: 4},
+  fillLabel: {
+    ...TEXT_BASE,
+    width: 90,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.label,
+    paddingBottom: 2,
+  },
+  /**
+   * Linie zum Schreiben, höher als eine Textzeile. Vorhandene Teilangaben
+   * stehen direkt auf der Linie.
+   */
+  fillLine: {
     flexGrow: 1,
     height: 18,
-    borderBottomWidth: 0.5,
-    borderBottomColor: PDF_TOKENS.color.gray,
+    justifyContent: "flex-end",
+    borderBottomWidth: HAIRLINE,
+    borderBottomColor: REPORT_COLORS.label,
     borderBottomStyle: "solid",
   },
-  groupHeading: {
-    fontSize: 11,
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.bold,
-    marginTop: 8,
+  fillValue: {...TEXT_BASE, fontSize: FONT_SIZE.table, paddingBottom: 2},
+  ibanBoxes: {flexDirection: "row"},
+  ibanGroup: {flexDirection: "row", marginRight: 6},
+  ibanBox: {
+    width: 13,
+    height: 17,
+    borderWidth: HAIRLINE,
+    borderColor: REPORT_COLORS.label,
+    borderStyle: "solid",
+    backgroundColor: REPORT_COLORS.onPrimary,
+    // Ränder überlappen, damit zwischen Kästchen keine doppelte Linie entsteht
+    marginRight: -HAIRLINE,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  table: {
-    marginTop: 4,
+  ibanBoxText: {...TEXT_BASE, fontSize: FONT_SIZE.table},
+
+  /* ── Personenblock (Karte) ──────────────────── */
+  card: {
+    borderWidth: HAIRLINE,
+    borderColor: REPORT_COLORS.line,
+    borderStyle: "solid",
+    borderRadius: CARD_RADIUS,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  cardHead: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 2,
+  },
+  payeeName: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.name,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: REPORT_COLORS.primary,
+  },
+  payeeTotal: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.name,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    textAlign: "right",
+  },
+  noRefundHint: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.label,
+    marginBottom: 8,
   },
 
   /* ── Tabelle ────────────────────────────────── */
   tableHeaderRow: {
     flexDirection: "row",
-    borderBottomWidth: 0.5,
-    borderBottomColor: APP_PRIMARY,
+    paddingBottom: 3,
+    borderBottomWidth: HAIRLINE,
+    borderBottomColor: REPORT_COLORS.primary,
     borderBottomStyle: "solid",
   },
   tableHeaderCell: {
-    ...CELL_BASE,
-    fontSize: PDF_TOKENS.fontSize.small,
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
     fontWeight: PDF_TOKENS.fontWeight.bold,
-    color: APP_PRIMARY,
+    color: REPORT_COLORS.primary,
   },
   tableRow: {
     flexDirection: "row",
-    ...PDF_TOKENS.borderBottomThin,
-  },
-  cell: {
-    ...CELL_BASE,
-  },
-  /** Kommentar als zweite, kleinere Zeile unter der Bezeichnung (E8). */
-  comment: {
-    ...CELL_BASE,
-    paddingTop: 0,
-    fontSize: 8,
-    color: PDF_TOKENS.color.gray,
-  },
-
-  /* ── Spaltenbreiten (Summe je Modus = 100%) ─── */
-  colReceipt: {width: "8%", textAlign: "center"},
-  colDate: {width: "14%"},
-  /** Modus A: Platz für die Budgetspalte lassen. */
-  colLabel: {width: "46%"},
-  /** Modus B: keine Budgetspalte, Bezeichnung breiter. */
-  colLabelWide: {width: "62%"},
-  colBudget: {width: "16%"},
-  colAmount: {width: "16%", textAlign: "right"},
-
-  /* ── Summen ─────────────────────────────────── */
-  totalRow: {
-    flexDirection: "row",
-  },
-  /** Beschriftung über alle Spalten ausser «Betrag». */
-  totalLabel: {...CELL_BASE, width: "84%", textAlign: "right"},
-  totalLabelBold: {
-    ...CELL_BASE,
-    width: "84%",
-    textAlign: "right",
-    fontWeight: PDF_TOKENS.fontWeight.bold,
-  },
-  totalAmount: {...CELL_BASE, width: "16%", textAlign: "right"},
-  totalAmountBold: {
-    ...CELL_BASE,
-    width: "16%",
-    textAlign: "right",
-    fontWeight: PDF_TOKENS.fontWeight.bold,
-  },
-  grandTotalBlock: {
-    marginTop: 20,
-    paddingTop: 6,
-    borderTopWidth: 1,
-    borderTopColor: APP_PRIMARY,
-    borderTopStyle: "solid",
-  },
-  /* ── Belegseiten  ──────────────────────────── */
-  receiptPage: {
-    paddingTop: PDF_TOKENS.margin.top,
-    paddingBottom: PDF_TOKENS.margin.bottom,
-    paddingHorizontal: PDF_TOKENS.margin.horizontal,
-    flexDirection: "column",
-  },
-  receiptHeader: {
-    fontSize: 12,
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.bold,
-    color: APP_PRIMARY,
-    paddingBottom: 6,
-    marginBottom: 10,
-    borderBottomWidth: 0.5,
-    borderBottomColor: APP_PRIMARY,
+    paddingVertical: 4,
+    borderBottomWidth: HAIRLINE,
+    borderBottomColor: REPORT_COLORS.line,
     borderBottomStyle: "solid",
   },
-  /**
-   * Nimmt den ganzen Rest der Seite ein (Bild bzw. gestricheltes Feld).
-   * `justifyContent: "center"` setzt das gestrichelte Feld senkrecht in die
-   * Mitte; das Bild ist 100 % hoch und bleibt davon unberührt.
-   */
-  receiptBody: {
-    flexGrow: 1,
-    justifyContent: "center",
+  /** Letzte Zeile der Karte: Kartenrand bzw. Totallinie trennen schon. */
+  tableRowLast: {flexDirection: "row", paddingVertical: 4},
+  cell: {...TEXT_BASE, fontSize: FONT_SIZE.table},
+  /** Kommentar als zweite Zeile unter der Bezeichnung (Spez. 3). */
+  comment: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.label,
+    marginTop: 1,
   },
-  /** Bild füllt das Feld, ohne verzerrt oder abgeschnitten zu werden. */
-  receiptImage: {
-    width: "100%",
-    height: "100%",
-    objectFit: "contain",
-  },
+  /** Seitenverweis «S. 5» in der Spalte «Beleg». */
+  pageRef: {color: REPORT_COLORS.label},
+
+  /* ── Spalten (feste Breiten in pt, Bezeichnung füllt den Rest) ── */
+  colNumber: {width: 24},
+  colDate: {width: 58},
+  colLabel: {flex: 1, paddingRight: 6},
+  colBudget: {width: 70, paddingRight: 6},
+  colAmount: {width: 72, textAlign: "right"},
   /**
-   * Gestricheltes Feld in Quittungsgrösse, mitten im Feld. Bewusst
-   * schmaler als übliche Kassenzettel (57–80 mm), damit ein aufgeklebter
-   * Beleg die Linie ganz verdeckt.
+   * Feste Breite: «S. 5» und «S. 123» brauchen gleich viel Platz, darum
+   * ändert der zweite Durchlauf die Seitenzahl der Abrechnung nicht.
    */
-  receiptPlaceholder: {
-    width: "55mm",
-    height: "90mm",
-    alignSelf: "center",
-    borderWidth: 1,
-    borderStyle: "dashed",
-    borderColor: PDF_TOKENS.color.gray,
+  colReceiptRef: {width: 36, textAlign: "right"},
+
+  /* ── Budget-Balken und Total (Modus B) ──────── */
+  budgetBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: REPORT_COLORS.primaryTint,
+    borderRadius: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 6,
+    marginTop: 8,
+    marginBottom: 2,
+  },
+  budgetBarName: {flexDirection: "row", alignItems: "center", flex: 1},
+  budgetBarText: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.table,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: REPORT_COLORS.primary,
+    marginLeft: 4,
+  },
+  budgetBarTotal: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.table,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: REPORT_COLORS.primary,
+    textAlign: "right",
+  },
+  totalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingTop: 6,
+    marginTop: 4,
+    borderTopWidth: HAIRLINE,
+    borderTopColor: REPORT_COLORS.primary,
+    borderTopStyle: "solid",
+  },
+  totalText: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.table,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+  },
+
+  /* ── Belegseiten (Spez. 7) ──────────────────── */
+  /**
+   * Fester Kopf: Höhe und Abstände aus `receiptPageLayout`, damit das Feld
+   * darunter für react-pdf und pdf-lib gleich liegt.
+   */
+  receiptHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    height:
+      RECEIPT_HEADER_HEIGHT +
+      RECEIPT_HEADER_PADDING_BOTTOM +
+      RECEIPT_HEADER_LINE_WIDTH,
+    paddingBottom: RECEIPT_HEADER_PADDING_BOTTOM,
+    marginBottom: RECEIPT_HEADER_MARGIN_BOTTOM,
+    borderBottomWidth: RECEIPT_HEADER_LINE_WIDTH,
+    borderBottomColor: REPORT_COLORS.primary,
+    borderBottomStyle: "solid",
+    overflow: "hidden",
+  },
+  /** Belegnummer im Teal-Kreis, gleich wie in der Spalte «Nr.». */
+  receiptBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: REPORT_COLORS.primary,
     justifyContent: "center",
     alignItems: "center",
-    padding: 10,
   },
-  receiptPlaceholderText: {
+  receiptBadgeText: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.table,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: REPORT_COLORS.onPrimary,
+  },
+  receiptTitle: {flex: 1, marginHorizontal: 10},
+  /** Höchstens zwei Zeilen, sonst sprengt eine lange Bezeichnung den Kopf. */
+  receiptLabel: {
+    ...TEXT_BASE,
     fontSize: 12,
-    fontFamily: PDF_TOKENS.fontFamily,
-    fontStyle: "normal",
-    fontWeight: PDF_TOKENS.fontWeight.normal,
-    color: PDF_TOKENS.color.gray,
-    textAlign: "center",
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    maxLines: 2,
+    textOverflow: "ellipsis",
   },
-  receiptPlaceholderHint: {
-    fontSize: PDF_TOKENS.fontSize.small,
-    fontFamily: PDF_TOKENS.fontFamily,
-    color: PDF_TOKENS.color.gray,
-    textAlign: "center",
-    marginTop: 6,
+  /** «· Seite 2 von 3» hinter der Bezeichnung eines mehrseitigen Belegs. */
+  receiptLabelPageOf: {
+    fontWeight: PDF_TOKENS.fontWeight.normal,
+    color: REPORT_COLORS.label,
+  },
+  receiptMeta: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.label,
+    marginTop: 2,
+    maxLines: 1,
+    textOverflow: "ellipsis",
+  },
+  receiptAmount: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.name,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    textAlign: "right",
   },
   /**
-   * Leeres Feld einer PDF-Belegseite; pdf-lib zeichnet die Originalseite
-   * hinein (Story 7.3b, C2). Lage und Grösse nur aus RECEIPT_CONTENT_BOX,
-   * damit react-pdf und pdf-lib dasselbe Feld meinen.
+   * Feld unter dem Kopf für Bild, Klebefeld oder PDF-Beleg. Lage und
+   * Grösse nur aus `RECEIPT_CONTENT_BOX`; direkt in der Page, damit
+   * `position: "absolute"` von der Seitenecke misst wie pdf-lib.
    */
-  receiptPdfBox: {
+  receiptContentBox: {
     position: "absolute",
     ...RECEIPT_CONTENT_BOX,
+  },
+  /** Bild füllt das Feld, ohne verzerrt oder abgeschnitten zu werden. */
+  receiptImage: {width: "100%", height: "100%", objectFit: "contain"},
+  /** Gestricheltes Klebefeld über das ganze Feld (Mockup Belegseiten). */
+  receiptPlaceholder: {
+    flex: 1,
+    borderWidth: 1,
+    borderStyle: "dashed",
+    borderColor: REPORT_COLORS.hint,
+    borderRadius: CARD_RADIUS,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  receiptPlaceholderText: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.name,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
+    color: REPORT_COLORS.label,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  receiptPlaceholderHint: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.hint,
+    color: REPORT_COLORS.hint,
+    textAlign: "center",
+    marginTop: 4,
   },
 });

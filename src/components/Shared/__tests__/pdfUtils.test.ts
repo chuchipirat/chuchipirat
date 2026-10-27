@@ -1,7 +1,8 @@
 /**
  * Unit-Tests für `generateAndDownloadPdf` (pdfUtils.ts): Rückgabewert,
  * Download und Fehlermeldung an Sentry (Story 7.3a, B8); optionaler
- * Zwischenschritt `transformPdf` (Story 7.3b, C6).
+ * Zwischenschritt `transformPdf` (Story 7.3b, C6); Element aus einer
+ * Funktion (Zweidurchlauf, Story 7.5).
  *
  * react-pdf, file-saver und Sentry werden gemockt; geprüft wird nur, was
  * die Funktion mit ihren Ergebnissen macht.
@@ -120,6 +121,38 @@ describe("generateAndDownloadPdf", () => {
 
     expect(isDownloaded).toBe(false);
     expect(fileSaver.saveAs).not.toHaveBeenCalled();
+    expect(Sentry.captureException).toHaveBeenCalledWith(error, {
+      extra: {filename: "Abrechnung.pdf"},
+    });
+    expect(onError).toHaveBeenCalledWith(error);
+  });
+
+  test("Element aus einer Funktion: wird erst erzeugt, dann gezeichnet", async () => {
+    mockToBlob(() => Promise.resolve(new Blob(["%PDF"])));
+    const createElement = jest.fn(async () => PDF_ELEMENT);
+
+    const isDownloaded = await generateAndDownloadPdf(
+      createElement,
+      "Abrechnung.pdf",
+    );
+
+    expect(isDownloaded).toBe(true);
+    expect(createElement).toHaveBeenCalledTimes(1);
+    expect(mockedPdf).toHaveBeenCalledWith(PDF_ELEMENT);
+  });
+
+  test("Funktion wirft: Sentry, onError, nichts gezeichnet, false", async () => {
+    const error = new Error("Durchlauf 1 gescheitert");
+    const onError = jest.fn();
+
+    const isDownloaded = await generateAndDownloadPdf(
+      () => Promise.reject(error),
+      "Abrechnung.pdf",
+      onError,
+    );
+
+    expect(isDownloaded).toBe(false);
+    expect(mockedPdf).not.toHaveBeenCalled();
     expect(Sentry.captureException).toHaveBeenCalledWith(error, {
       extra: {filename: "Abrechnung.pdf"},
     });

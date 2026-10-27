@@ -39,6 +39,8 @@ export const PDF_TOKENS = {
 
   /** Farben. */
   color: {
+    /** App-Farbe (Teal) für Titel, Linien und Hervorhebungen */
+    primary: "#006064",
     /** Rahmenfarbe für Trennlinien */
     border: "#112131",
     /** Grau für abgedimmte Texte */

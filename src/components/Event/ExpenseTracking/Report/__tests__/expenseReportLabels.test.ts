@@ -1,8 +1,8 @@
 /**
  * Unit-Tests für die Beschriftungen der PDF-Abrechnung
- * (expenseReportLabels.ts, Story 7.2): Titel, Dateiname, Untertitel,
- * Datumsformat und Modus-Beschriftungen; Kopfzeile der Belegseiten
- * (Story 7.3a); Name der Kontoinhaber*in (Story 7.4).
+ * (expenseReportLabels.ts, Story 7.2): Titel, Dateiname,
+ * Datumsformat und Modus-Beschriftungen; Zeile unter der Bezeichnung der
+ * Belegseiten (Story 7.3a, Layout 7.5); Name der Kontoinhaber*in (Story 7.4).
  */
 import AuthUser from "../../../../Session/authUser.class";
 import {ReportMode} from "../expenseReport.types";
@@ -11,8 +11,7 @@ import {
   formatReportDate,
   getAccountHolderName,
   getReportFileName,
-  getReportSubtitle,
-  getReceiptHeader,
+  getReceiptMetaLine,
   getReportTitle,
 } from "../expenseReportLabels";
 
@@ -49,20 +48,6 @@ describe("getReportFileName", () => {
   });
 });
 
-describe("getReportSubtitle", () => {
-  test("eine Person, Modus A", () => {
-    expect(getReportSubtitle("Anna", ReportMode.PER_PERSON)).toBe(
-      "Anna · Eine Tabelle",
-    );
-  });
-
-  test("«Alle Personen», Modus B", () => {
-    expect(getReportSubtitle(null, ReportMode.PER_PERSON_AND_BUDGET)).toBe(
-      "Alle Personen · Pro Budget",
-    );
-  });
-});
-
 describe("formatReportDate", () => {
   test("Schweizer Format mit führenden Nullen", () => {
     expect(formatReportDate(new Date(2026, 6, 9))).toBe("09.07.2026");
@@ -78,46 +63,28 @@ describe("REPORT_MODE_LABELS", () => {
   });
 });
 
-describe("getReceiptHeader", () => {
-  test("«Beleg <Nummer> · Datum · Bezeichnung · Betrag»", () => {
-    const header = getReceiptHeader(
-      {
-        receiptNumber: 3,
-        expenseId: "expense-3",
-        attachmentPath: null,
-        date: new Date(2026, 6, 12),
-        label: "Migros",
-        amountInCents: 4250,
-        currency: "CHF",
-      },
-      1,
-      1,
-    );
+describe("getReceiptMetaLine", () => {
+  const RECEIPT = {
+    receiptNumber: 3,
+    expenseId: "expense-3",
+    attachmentPath: null,
+    date: new Date(2026, 6, 12),
+    label: "Migros",
+    amountInCents: 4250,
+    currency: "CHF",
+  };
 
-    // Intl setzt nach «CHF» ein geschütztes Leerzeichen
-    expect(header.replace(/\s/g, " ")).toBe(
-      "Beleg 3 · 12.07.2026 · Migros · CHF 42.50",
-    );
+  test("«Datum · Budget · Person»", () => {
+    expect(
+      getReceiptMetaLine(RECEIPT, {
+        budgetName: "Küche",
+        payeeDisplayName: "Anna",
+      }),
+    ).toBe("12.07.2026 · Küche · Anna");
   });
-  test("«Beleg <Nummer> · Datum · Bezeichnung · Betrag · Seite X von Y»", () => {
-    const header = getReceiptHeader(
-      {
-        receiptNumber: 3,
-        expenseId: "expense-3",
-        attachmentPath: null,
-        date: new Date(2026, 6, 12),
-        label: "Migros",
-        amountInCents: 4250,
-        currency: "CHF",
-      },
-      1,
-      3,
-    );
 
-    // Intl setzt nach «CHF» ein geschütztes Leerzeichen
-    expect(header.replace(/\s/g, " ")).toBe(
-      "Beleg 3 · 12.07.2026 · Migros · CHF 42.50 · Seite 1 von 3",
-    );
+  test("ohne Budget und Person: nur das Datum", () => {
+    expect(getReceiptMetaLine(RECEIPT, undefined)).toBe("12.07.2026");
   });
 });
 

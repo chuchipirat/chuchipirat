@@ -1,21 +1,19 @@
 import {
-  REPORT_ALL_PAYEES as TEXT_REPORT_ALL_PAYEES,
   REPORT_MODE_PER_PERSON as TEXT_REPORT_MODE_PER_PERSON,
   REPORT_MODE_PER_PERSON_DESCRIPTION as TEXT_REPORT_MODE_PER_PERSON_DESCRIPTION,
   REPORT_MODE_PER_PERSON_AND_BUDGET as TEXT_REPORT_MODE_PER_PERSON_AND_BUDGET,
   REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION as TEXT_REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION,
   REPORT_TITLE as TEXT_REPORT_TITLE,
   SUFFIX_PDF as TEXT_SUFFIX_PDF,
-  REPORT_RECEIPT as TEXT_REPORT_RECEIPT,
-  REPORT_RECEIPT_PAGE_OF as TEXT_REPORT_RECEIPT_PAGE_OF,
+  REPORT_CREATED_AT_BY as TEXT_REPORT_CREATED_AT_BY,
 } from "../../../../constants/text";
 import AuthUser from "../../../Session/authUser.class";
-import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import {
   ReportMode,
   ReportPayeeSection,
   ReportReceipt,
 } from "./expenseReport.types";
+import {ReceiptMeta} from "./expenseReportPdfHelpers";
 
 /**
  * Beschriftung und Erklärung eines Modus.
@@ -74,19 +72,6 @@ export const getReportFileName = (
 ): string => getReportTitle(eventName, payeeDisplayName) + TEXT_SUFFIX_PDF;
 
 /**
- * Untertitel unter «Abrechnung»: für wen und in welchem Aufbau.
- *
- * @param payeeDisplayName - Gewählte Person, `null` bei «Alle Personen».
- * @param mode - Modus der Abrechnung.
- * @returns z.B. «Anna · Pro Budget».
- */
-export const getReportSubtitle = (
-  payeeDisplayName: string | null,
-  mode: ReportMode,
-): string =>
-  `${payeeDisplayName ?? TEXT_REPORT_ALL_PAYEES} · ${REPORT_MODE_LABELS[mode].label}`;
-
-/**
  * Datum einer Ausgabe im PDF, Schweizer Format.
  *
  * @param date - Datum der Ausgabe.
@@ -100,34 +85,47 @@ export const formatReportDate = (date: Date): string =>
   });
 
 /**
- * Kopfzeile einer Belegseite. Macht eine ausgedruckte Seite für sich
- * verständlich, auch wenn sie von der Tabelle getrennt wird. Hat ein
- * PDF-Beleg mehrere Seiten, steht zusätzlich die Seite dabei; bei
- * einseitigen Belegen nicht.
+ * Linke Spalte im Footer der Abrechnungsseiten (Story 7.5).
+ *
+ * @param generatedAt - Zeitpunkt der Erstellung.
+ * @param authUser - Wer die Abrechnung erstellt (Anzeigename).
+ * @returns z.B. «Erstellt am 27.10.2026, 18:21 von Gio».
+ * @example
+ * getCreatedAtLabel(new Date(2026, 9, 27, 18, 21), authUser)
+ * // "Erstellt am 27.10.2026, 18:21 von Gio"
+ */
+export const getCreatedAtLabel = (
+  generatedAt: Date,
+  authUser: AuthUser,
+): string =>
+  TEXT_REPORT_CREATED_AT_BY(
+    formatReportDate(generatedAt),
+    generatedAt.toLocaleTimeString("de-CH", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }),
+    authUser.publicProfile.displayName,
+  );
+
+/**
+ * Zweite Zeile im Kopf einer Belegseite (Spez. 7): macht eine
+ * ausgedruckte Seite für sich verständlich, auch getrennt von der Tabelle.
  *
  * @param receipt - Der Beleg.
- * @param pageNumber - Seite innerhalb des Belegs, ab 1 (Standard: 1).
- * @param pageCount - Anzahl Seiten des Belegs (Standard: 1).
- * @returns z.B. «Beleg 3 · 12.07.2026 · Migros · CHF 42.50» bzw.
- *   «Beleg 3 · 12.07.2026 · Migros · CHF 42.50 · Seite 2 von 3».
+ * @param meta - Budget und Person aus `getReceiptMetaByExpenseId`;
+ *   fehlen sie, steht nur das Datum.
+ * @returns z.B. «15.10.2026 · Küche · Gio Cettuzzi».
  * @example
- * getReceiptHeader(receipt) // "Beleg 3 · 12.07.2026 · Migros · CHF 42.50"
- * getReceiptHeader(receipt, 2, 3)
- * // "Beleg 3 · 12.07.2026 · Migros · CHF 42.50 · Seite 2 von 3"
+ * getReceiptMetaLine(receipt, {budgetName: "Küche", payeeDisplayName: "Gio"})
+ * // "15.10.2026 · Küche · Gio"
  */
-export const getReceiptHeader = (
+export const getReceiptMetaLine = (
   receipt: ReportReceipt,
-  pageNumber = 1,
-  pageCount = 1,
+  meta: ReceiptMeta | undefined,
 ): string =>
   [
-    TEXT_REPORT_RECEIPT(receipt.receiptNumber),
     formatReportDate(receipt.date),
-    receipt.label,
-    formatAmountFromCents(receipt.amountInCents, receipt.currency),
-    ...(pageCount > 1
-      ? [TEXT_REPORT_RECEIPT_PAGE_OF(pageNumber, pageCount)]
-      : []),
+    ...(meta ? [meta.budgetName, meta.payeeDisplayName] : []),
   ].join(" · ");
 
 /**

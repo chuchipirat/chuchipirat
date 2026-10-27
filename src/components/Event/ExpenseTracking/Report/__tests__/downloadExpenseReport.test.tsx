@@ -3,11 +3,12 @@
  * Story 7.3a): Ablauf Laden → Zeichnen → Download, Ergebnis mit den
  * fehlenden Belegen und ein Sentry-Ereignis pro Abrechnung. Seit Story
  * 7.3b: Zwischenschritt für PDF-Belege, verschlüsselte PDFs. Seit Story
- * 7.4: Adresse und IBAN gehen ans Dokument, nie an Sentry.
+ * 7.4: Adresse und IBAN gehen ans Dokument, nie an Sentry. Seit Story 7.5:
+ * Zweidurchlauf für die Seitenverweise und Prüfung der Seitenzahl.
  *
- * `loadReceipts`, `embedPdfReceipts`, `generateAndDownloadPdf` und Sentry
- * werden gemockt. Das
- * PDF-Dokument ebenfalls: geprüft wird nur, was es als Props bekommt.
+ * `loadReceipts`, `embedPdfReceipts`, `generateAndDownloadPdf`, das Zählen
+ * der Seiten, react-pdf und Sentry werden gemockt. Das PDF-Dokument
+ * ebenfalls: geprüft wird nur, was es als Props bekommt.
  * `ExpenseReport.build` läuft echt (reine Funktion).
  */
 jest.mock("../receiptLoader", () => ({
@@ -19,6 +20,16 @@ jest.mock("../../../../Shared/pdfUtils", () => ({
   generateAndDownloadPdf: jest.fn(),
 }));
 jest.mock("../expenseReportPdf", () => ({ExpenseReportPdf: () => null}));
+jest.mock("../reportPageCount", () => ({
+  countPdfPages: jest.fn(),
+  checkPageCount: jest.fn(),
+}));
+// Durchlauf 1 zeichnet mit `pdf(...)`; nur `toBlob().arrayBuffer()` wird gebraucht
+jest.mock("@react-pdf/renderer", () => ({
+  pdf: jest.fn(() => ({
+    toBlob: async () => ({arrayBuffer: async () => new ArrayBuffer(4)}),
+  })),
+}));
 jest.mock("@sentry/react", () => ({captureException: jest.fn()}));
 
 import React from "react";
@@ -38,10 +49,45 @@ import {
   ReportProgress,
 } from "../expenseReport.types";
 import {EncryptedReceiptError, loadReceipts} from "../receiptLoader";
+import {checkPageCount, countPdfPages} from "../reportPageCount";
+import {pdf} from "@react-pdf/renderer";
 
 const mockedLoadReceipts = jest.mocked(loadReceipts);
 const mockedGenerateAndDownloadPdf = jest.mocked(generateAndDownloadPdf);
 const mockedEmbedPdfReceipts = jest.mocked(embedPdfReceipts);
+const mockedCountPdfPages = jest.mocked(countPdfPages);
+const mockedCheckPageCount = jest.mocked(checkPageCount);
+
+/** Seiten der Abrechnung ohne Belege, wie Durchlauf 1 sie zählt. */
+const REPORT_PAGE_COUNT = 2;
+
+/**
+ * Props des Dokuments eines Durchlaufs.
+ *
+ * @param element - Das gezeichnete `<ExpenseReportPdf …/>`.
+ * @returns Seine Props.
+ */
+const propsOf = (element: unknown) =>
+  (
+    element as React.ReactElement<{
+      loadedReceipts: LoadedReceipt[];
+      receiptStartPages: Map<number, number>;
+      eventName: string;
+      refundDetailsByPayeeKey: unknown;
+    }>
+  ).props;
+
+/**
+ * Führt Durchlauf 1 aus und liefert das Dokument von Durchlauf 2, so wie
+ * `generateAndDownloadPdf` es zeichnet.
+ *
+ * @returns Das Dokument von Durchlauf 2.
+ */
+const runDocumentFactory = async () => {
+  const createDocument = mockedGenerateAndDownloadPdf.mock
+    .calls[0][0] as () => Promise<React.ReactElement>;
+  return createDocument();
+};
 
 /* =====================================================================
 // Fixture
@@ -172,6 +218,8 @@ beforeEach(() => {
   jest.clearAllMocks();
   mockLoadedReceipts(allMissing);
   mockedGenerateAndDownloadPdf.mockResolvedValue(true);
+  mockedCountPdfPages.mockResolvedValue(REPORT_PAGE_COUNT);
+  mockedCheckPageCount.mockImplementation(async (bytes) => bytes);
 });
 
 /* =====================================================================
@@ -200,15 +248,10 @@ describe("downloadExpenseReport: Ablauf", () => {
   test("PDF mit den geladenen Belegen, Dateiname und Sentry-Kontext", async () => {
     const {onError} = await runDownload();
 
-    const [element, fileName, passedOnError, sentryContext] =
+    const [, fileName, passedOnError, sentryContext] =
       mockedGenerateAndDownloadPdf.mock.calls[0];
-    // das Element ist <ExpenseReportPdf …/>, seine Props reichen zum Prüfen
-    const props = (
-      element as React.ReactElement<{
-        loadedReceipts: LoadedReceipt[];
-        eventName: string;
-      }>
-    ).props;
+    // das Dokument ist <ExpenseReportPdf …/>, seine Props reichen zum Prüfen
+    const props = propsOf(await runDocumentFactory());
     expect(props.loadedReceipts.map((entry) => entry.kind)).toEqual([
       "missing",
       "missing",
@@ -222,6 +265,43 @@ describe("downloadExpenseReport: Ablauf", () => {
       receiptCount: 2,
       pdfReceiptPageCount: 0,
     });
+  });
+});
+
+describe("downloadExpenseReport: Zweidurchlauf (Story 7.5)", () => {
+  test("Durchlauf 1 zeichnet die Abrechnung ohne Belegseiten und zählt sie", async () => {
+    await runDownload();
+    await runDocumentFactory();
+
+    expect(pdf).toHaveBeenCalledTimes(1);
+    const firstPass = propsOf(jest.mocked(pdf).mock.calls[0][0]);
+    expect(firstPass.loadedReceipts).toEqual([]);
+    // Platzhalter gleicher Breite für die Spalte «Beleg»
+    expect([...firstPass.receiptStartPages.keys()]).toEqual([1, 2]);
+    expect(mockedCountPdfPages).toHaveBeenCalledTimes(1);
+  });
+
+  test("Durchlauf 2: alle Belege, Verweise ab der Seite nach der Abrechnung", async () => {
+    await runDownload();
+    const secondPass = propsOf(await runDocumentFactory());
+
+    expect(secondPass.loadedReceipts).toHaveLength(2);
+    // 2 Abrechnungsseiten, dann Beleg 1 auf Seite 3, Beleg 2 auf Seite 4
+    expect([...secondPass.receiptStartPages]).toEqual([
+      [1, 3],
+      [2, 4],
+    ]);
+  });
+
+  test("Seitenzahl weicht ab: der Zwischenschritt wirft", async () => {
+    const mismatch = new Error("Seitenzahl …");
+    mockedCheckPageCount.mockRejectedValue(mismatch);
+    await runDownload();
+    await runDocumentFactory();
+
+    const transformPdf = mockedGenerateAndDownloadPdf.mock.calls[0][4];
+    // `generateAndDownloadPdf` meldet den Fehler an Sentry und `onError`
+    await expect(transformPdf!(new Uint8Array([9]))).rejects.toBe(mismatch);
   });
 });
 
@@ -310,10 +390,16 @@ describe("downloadExpenseReport: PDF-Belege (Story 7.3b)", () => {
       ? {kind: "pdf", receipt, bytes: new Uint8Array([37, 80]), pageCount: 3}
       : {kind: "missing", receipt};
 
-  test("ohne PDF-Beleg: kein Zwischenschritt", async () => {
+  test("ohne PDF-Beleg: Zwischenschritt prüft nur die Seitenzahl", async () => {
     await runDownload();
+    await runDocumentFactory();
 
-    expect(mockedGenerateAndDownloadPdf.mock.calls[0][4]).toBeUndefined();
+    const transformPdf = mockedGenerateAndDownloadPdf.mock.calls[0][4];
+    const reportBytes = new Uint8Array([9]);
+    expect(await transformPdf!(reportBytes)).toBe(reportBytes);
+    // 2 Abrechnungsseiten + 2 Leerseiten
+    expect(mockedCheckPageCount).toHaveBeenCalledWith(reportBytes, 4);
+    expect(mockedEmbedPdfReceipts).not.toHaveBeenCalled();
   });
 
   test("mit PDF-Beleg: Zwischenschritt setzt die Seiten mit den Slots ein", async () => {
@@ -322,14 +408,19 @@ describe("downloadExpenseReport: PDF-Belege (Story 7.3b)", () => {
     mockedEmbedPdfReceipts.mockResolvedValue(embeddedBytes);
 
     await runDownload();
+    await runDocumentFactory();
 
     const transformPdf = mockedGenerateAndDownloadPdf.mock.calls[0][4];
     const reportBytes = new Uint8Array([9]);
     expect(await transformPdf!(reportBytes)).toBe(embeddedBytes);
-    const [passedBytes, slots] = mockedEmbedPdfReceipts.mock.calls[0];
+    const [passedBytes, slots, expectedPageCount] =
+      mockedEmbedPdfReceipts.mock.calls[0];
     expect(passedBytes).toBe(reportBytes);
     // 3 Seiten des PDF-Belegs + 1 Leerseite
     expect(slots.map((slot) => slot.pageNumber)).toEqual([1, 2, 3, 1]);
+    // dabei gleich geprüft: 2 Abrechnungsseiten + 4 Belegseiten
+    expect(expectedPageCount).toBe(6);
+    expect(mockedCheckPageCount).not.toHaveBeenCalled();
   });
 
   test("Sentry-Kontext zählt die Seiten der PDF-Belege", async () => {
@@ -358,12 +449,8 @@ describe("downloadExpenseReport: PDF-Belege (Story 7.3b)", () => {
 
 describe("downloadExpenseReport: Rückerstattung an (Story 7.4)", () => {
   /** Was das Dokument als `refundDetailsByPayeeKey` bekam. */
-  const getRefundDetailsByPayeeKey = () =>
-    (
-      mockedGenerateAndDownloadPdf.mock.calls[0][0] as React.ReactElement<{
-        refundDetailsByPayeeKey: unknown;
-      }>
-    ).props.refundDetailsByPayeeKey;
+  const getRefundDetailsByPayeeKey = async () =>
+    propsOf(await runDocumentFactory()).refundDetailsByPayeeKey;
 
   test("eine Person: Angaben gehören zur gewählten Person", async () => {
     await runDownload({
@@ -371,13 +458,15 @@ describe("downloadExpenseReport: Rückerstattung an (Story 7.4)", () => {
       payeeSelection: {kind: "single", payeeKey: "user-ben"},
     });
 
-    expect(getRefundDetailsByPayeeKey()).toEqual({"user-ben": REFUND_DETAILS});
+    expect(await getRefundDetailsByPayeeKey()).toEqual({
+      "user-ben": REFUND_DETAILS,
+    });
   });
 
   test("«Alle Personen»: Angaben gehören zur angemeldeten Person", async () => {
     await runDownload({...OPTIONS, payeeSelection: {kind: "all"}});
 
-    expect(getRefundDetailsByPayeeKey()).toEqual({
+    expect(await getRefundDetailsByPayeeKey()).toEqual({
       "user-anna": REFUND_DETAILS,
     });
   });

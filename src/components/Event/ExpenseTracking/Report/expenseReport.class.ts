@@ -1,5 +1,5 @@
 import {Cook} from "../../Event/event.class";
-import {BudgetDomain} from "../Budget/budget.types";
+import {BudgetDomain, BudgetIcon} from "../Budget/budget.types";
 import {
   ExpenseDomain,
   ExpensePayeeType,
@@ -285,12 +285,13 @@ export class ExpenseReport {
     mode: ReportMode,
   ): ReportGroup[] {
     if (mode === ReportMode.PER_PERSON) {
-      return [ExpenseReport.buildGroup(null, expenses, budgets)];
+      return [ExpenseReport.buildGroup(null, null, expenses, budgets)];
     }
     const knownBudgetIds = new Set(budgets.map((budget) => budget.id));
     const groups = budgets.map((budget) =>
       ExpenseReport.buildGroup(
         budget.name,
+        budget.icon,
         expenses.filter((expense) => expense.budgetId === budget.id),
         budgets,
       ),
@@ -299,6 +300,7 @@ export class ExpenseReport {
     groups.push(
       ExpenseReport.buildGroup(
         TEXT_REPORT_UNKNOWN_BUDGET,
+        BudgetIcon.OTHER,
         expenses.filter((expense) => !knownBudgetIds.has(expense.budgetId)),
         budgets,
       ),
@@ -311,17 +313,20 @@ export class ExpenseReport {
    * Baut eine Tabelle: sortierte Zeilen und Summen pro Währung.
    *
    * @param budgetName - Titel der Tabelle, `null` in Modus A.
+   * @param budgetIcon - Icon des Budget-Balkens, `null` in Modus A.
    * @param expenses - Ausgaben dieser Tabelle.
    * @param budgets - Alle Budgets, für den Budgetnamen pro Zeile.
    * @returns Die Gruppe.
    */
   private static buildGroup(
     budgetName: string | null,
+    budgetIcon: BudgetIcon | null,
     expenses: ExpenseDomain[],
     budgets: BudgetDomain[],
   ): ReportGroup {
     return {
       budgetName,
+      budgetIcon,
       rows: ExpenseReport.sortRows(
         expenses.map((expense) => ExpenseReport.toRow(expense, budgets)),
       ),

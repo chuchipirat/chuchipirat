@@ -36,22 +36,27 @@ import {
  *
  * @param id - ID des Budgets.
  * @param name - Name des Budgets.
+ * @param icon - Icon des Budgets (Standard: Küche).
  * @returns Das Budget.
  */
-const makeBudget = (id: string, name: string): BudgetDomain => ({
+const makeBudget = (
+  id: string,
+  name: string,
+  icon = BudgetIcon.KITCHEN,
+): BudgetDomain => ({
   id,
   eventId: "event-id-001",
   name,
   budgetType: BudgetType.FIXED_AMOUNT,
   amountInCents: 100000,
   currency: "CHF",
-  icon: BudgetIcon.KITCHEN,
+  icon,
 });
 
 /** Budgets in Anzeigereihenfolge. */
 const BUDGETS: BudgetDomain[] = [
   makeBudget("budget-kitchen", "Küche"),
-  makeBudget("budget-theme", "Motto"),
+  makeBudget("budget-theme", "Motto", BudgetIcon.THEME),
   makeBudget("budget-material", "Material"),
 ];
 
@@ -252,6 +257,7 @@ describe("ExpenseReport.build, eine Person, Modus A", () => {
     expect(report.sections[0].isNoRefund).toBe(false);
     expect(report.sections[0].groups).toHaveLength(1);
     expect(report.sections[0].groups[0].budgetName).toBeNull();
+    expect(report.sections[0].groups[0].budgetIcon).toBeNull();
   });
 
   test("Zeilen nach Datum aufsteigend, mit Budgetname je Zeile", () => {
@@ -309,6 +315,13 @@ describe("ExpenseReport.build, Modus B", () => {
   test("eine Gruppe pro Budget in Budget-Reihenfolge, ohne leere Budgets", () => {
     // Motto kommt in der Eingabe zuerst, Material hat keine Ausgabe von Anna
     expect(groups.map((group) => group.budgetName)).toEqual(["Küche", "Motto"]);
+  });
+
+  test("jede Gruppe trägt das Icon ihres Budgets", () => {
+    expect(groups.map((group) => group.budgetIcon)).toEqual([
+      BudgetIcon.KITCHEN,
+      BudgetIcon.THEME,
+    ]);
   });
 
   test("Zeilen innerhalb einer Gruppe nach Datum sortiert", () => {
@@ -507,6 +520,7 @@ describe("ExpenseReport.build, Sonderfälle", () => {
     expect(groups[1].rows.map((row) => row.expenseId)).toEqual([
       "deleted-budget",
     ]);
+    expect(groups[1].budgetIcon).toEqual(BudgetIcon.OTHER);
   });
 
   test("unbekanntes Budget in Modus A: Budgetname der Zeile", () => {

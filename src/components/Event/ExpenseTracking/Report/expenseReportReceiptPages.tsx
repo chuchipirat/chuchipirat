@@ -1,95 +1,112 @@
 import React from "react";
 import {Image, Page, Text, View} from "@react-pdf/renderer";
 
-import AuthUser from "../../../Session/authUser.class";
-import {Footer, Header} from "../../../Shared/pdfComponents";
-import {pdfStyles as styles} from "../../../../constants/styles/expenseTrackingReportPDF.styles";
 import {
+  REPORT_COLORS,
+  reportLayoutStyles as styles,
+} from "../../../../constants/styles/expenseTrackingReportPDF.styles";
+import {
+  REPORT_PAGE_OF as TEXT_REPORT_PAGE_OF,
   REPORT_RECEIPT_LOAD_FAILED as TEXT_REPORT_RECEIPT_LOAD_FAILED,
   REPORT_RECEIPT_LOAD_FAILED_HINT as TEXT_REPORT_RECEIPT_LOAD_FAILED_HINT,
+  REPORT_RECEIPT_NOT_UPLOADED as TEXT_REPORT_RECEIPT_NOT_UPLOADED,
+  REPORT_RECEIPT_OF as TEXT_REPORT_RECEIPT_OF,
   REPORT_RECEIPT_PASTE_HERE as TEXT_REPORT_RECEIPT_PASTE_HERE,
 } from "../../../../constants/text";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 import {LoadedReceipt, ReceiptPageSlot} from "./expenseReport.types";
-import {getReceiptHeader} from "./expenseReportLabels";
+import {getReceiptMetaLine} from "./expenseReportLabels";
+import {ReportFooter} from "./expenseReportPdfFooter";
+import {ReceiptMeta} from "./expenseReportPdfHelpers";
+import {PdfIcon, RECEIPT_ICON_PATHS} from "./expenseReportPdfIcon";
 
 /**
  * Props für {@link ReceiptPage}.
  *
  * @param slot - Die Belegseite (Beleg und Seite innerhalb des Belegs).
- * @param eventName - Name des Anlasses (Kopfzeile).
- * @param authUser - Angemeldete Person (Fusszeile).
- * @param generatedAt - Zeitpunkt der Erstellung (Fusszeile).
+ * @param receiptCount - Anzahl Belege im PDF (Footer «Beleg n von N»).
+ * @param meta - Budget und Person der Ausgabe für die Zeile unter der
+ *   Bezeichnung; `undefined`, wenn die Ausgabe nicht gefunden wurde.
  */
 type ReceiptPageProps = {
   slot: ReceiptPageSlot;
-  eventName: string;
-  authUser: AuthUser;
-  generatedAt: Date;
+  receiptCount: number;
+  meta: ReceiptMeta | undefined;
 };
 
 /**
- * Eine Seite des Anhangs: Kopfzeile «Beleg 3 · Datum · Bezeichnung ·
- * Betrag», bei mehrseitigen PDF-Belegen mit «Seite 2 von 3». Darunter das
- * Bild, ein gestricheltes Feld (Leerseite, Fehler) oder bei PDF-Belegen
- * ein leeres Feld, in das pdf-lib danach die Originalseite zeichnet.
- * Immer genau eine Seite.
+ * Eine Seite des Anhangs (Spez. 7): Kopf mit Nummer im Teal-Kreis,
+ * Bezeichnung (bei mehrseitigen PDF-Belegen mit «· Seite 2 von 3»),
+ * «Datum · Budget · Person» und Betrag, Teal-Linie; darunter das Bild, ein
+ * Klebefeld (Leerseite, Fehler) oder bei PDF-Belegen ein leeres Feld, in
+ * das pdf-lib danach die Originalseite zeichnet. Immer genau eine Seite.
  *
  * @param props - Siehe {@link ReceiptPageProps}.
  * @returns Die Seite.
  * @example
- * <ReceiptPage slot={slot} eventName="Sommerlager"
- *   authUser={authUser} generatedAt={new Date()} />
+ * <ReceiptPage slot={slot} receiptCount={5}
+ *   meta={{budgetName: "Küche", payeeDisplayName: "Gio"}} />
  */
-export const ReceiptPage = ({
-  slot,
-  eventName,
-  authUser,
-  generatedAt,
-}: ReceiptPageProps) => {
+export const ReceiptPage = ({slot, receiptCount, meta}: ReceiptPageProps) => {
   const {loadedReceipt, pageNumber, pageCount} = slot;
-  // pro Seite eindeutig: ein PDF-Beleg hat evtl. mehrere Seiten
-  const uid = `receipt_${loadedReceipt.receipt.receiptNumber}_${pageNumber}`;
+  const {receipt} = loadedReceipt;
 
   return (
     // Kein wrap={false} an der Page: react-pdf überspringt dann den Schritt,
     // der die A4-Höhe setzt, und die Seite wird nur so hoch wie ihr Inhalt.
-    // Eine Seite pro Beleg ist trotzdem sicher: receiptBody füllt nur den
-    // Rest der Seite, und das Bild wird mit objectFit "contain" eingepasst.
-    <Page size="A4" style={styles.receiptPage}>
-      <Header text={eventName} uid={uid} />
-      <Text style={styles.receiptHeader}>
-        {getReceiptHeader(loadedReceipt.receipt, pageNumber, pageCount)}
-      </Text>
-      {loadedReceipt.kind === "pdf" ? (
-        // direkt in der Page: `position: "absolute"` misst dann von der
-        // Seitenecke, wie pdf-lib (RECEIPT_CONTENT_BOX)
-        <View style={styles.receiptPdfBox} />
-      ) : (
-        <View style={styles.receiptBody}>
-          <ReceiptContent loadedReceipt={loadedReceipt} />
+    // Eine Seite pro Beleg ist trotzdem sicher: Der Kopf ist fest hoch und
+    // der Inhalt steht absolut im Feld RECEIPT_CONTENT_BOX.
+    <Page size="A4" style={styles.page}>
+      <View style={styles.receiptHeader}>
+        <View style={styles.receiptBadge}>
+          <Text style={styles.receiptBadgeText}>
+            {String(receipt.receiptNumber)}
+          </Text>
         </View>
-      )}
-      <Footer uid={uid} actualDate={generatedAt} authUser={authUser} />
+        <View style={styles.receiptTitle}>
+          <Text style={styles.receiptLabel}>
+            {receipt.label}
+            {pageCount > 1 ? (
+              <Text style={styles.receiptLabelPageOf}>
+                {` · ${TEXT_REPORT_PAGE_OF(pageNumber, pageCount)}`}
+              </Text>
+            ) : null}
+          </Text>
+          <Text style={styles.receiptMeta}>
+            {getReceiptMetaLine(receipt, meta)}
+          </Text>
+        </View>
+        <Text style={styles.receiptAmount}>
+          {formatAmountFromCents(receipt.amountInCents, receipt.currency)}
+        </Text>
+      </View>
+      <View style={styles.receiptContentBox}>
+        <ReceiptContent loadedReceipt={loadedReceipt} />
+      </View>
+      <ReportFooter
+        leftText={TEXT_REPORT_RECEIPT_OF(receipt.receiptNumber, receiptCount)}
+      />
     </Page>
   );
 };
 
 /**
- * Inhalt unter der Kopfzeile, je nach Art des Belegs. PDF-Belege zeichnet
- * pdf-lib, darum sind sie hier ausgeschlossen.
+ * Inhalt des Felds, je nach Art des Belegs. Bei PDF-Belegen bleibt das
+ * Feld leer: pdf-lib zeichnet die Originalseite hinein (Story 7.3b).
  *
- * @param props.loadedReceipt - Der geladene Beleg (kein PDF).
+ * @param props.loadedReceipt - Der geladene Beleg.
  */
-const ReceiptContent = ({
-  loadedReceipt,
-}: {
-  loadedReceipt: Exclude<LoadedReceipt, {kind: "pdf"}>;
-}) => {
+const ReceiptContent = ({loadedReceipt}: {loadedReceipt: LoadedReceipt}) => {
   switch (loadedReceipt.kind) {
     case "image":
       return <Image src={loadedReceipt.dataUrl} style={styles.receiptImage} />;
     case "missing":
-      return <ReceiptPlaceholder text={TEXT_REPORT_RECEIPT_PASTE_HERE} />;
+      return (
+        <ReceiptPlaceholder
+          text={TEXT_REPORT_RECEIPT_PASTE_HERE}
+          hint={TEXT_REPORT_RECEIPT_NOT_UPLOADED}
+        />
+      );
     case "failed":
       return (
         <ReceiptPlaceholder
@@ -97,20 +114,22 @@ const ReceiptContent = ({
           hint={TEXT_REPORT_RECEIPT_LOAD_FAILED_HINT}
         />
       );
+    case "pdf":
+      return null;
   }
 };
 
 /**
- * Gestricheltes Feld in Quittungsgrösse, z.B. zum Aufkleben einer
+ * Gestricheltes Klebefeld mit Beleg-Icon, z.B. zum Aufkleben einer
  * Papierquittung.
  *
  * @param props.text - Grosser Text in der Mitte.
- * @param props.hint - Optionaler kleiner Text darunter.
+ * @param props.hint - Kleiner Text darunter.
  */
-const ReceiptPlaceholder = ({text, hint}: {text: string; hint?: string}) => (
+const ReceiptPlaceholder = ({text, hint}: {text: string; hint: string}) => (
   <View style={styles.receiptPlaceholder}>
+    <PdfIcon paths={RECEIPT_ICON_PATHS} size={26} color={REPORT_COLORS.hint} />
     <Text style={styles.receiptPlaceholderText}>{text}</Text>
-    {/* Ternary statt &&: hint === "" darf nicht als Kind landen */}
-    {hint ? <Text style={styles.receiptPlaceholderHint}>{hint}</Text> : null}
+    <Text style={styles.receiptPlaceholderHint}>{hint}</Text>
   </View>
 );
