@@ -360,6 +360,12 @@ describe("canKeepCardTogether", () => {
     expect(canKeepCardTogether(sectionWithRows(30), false, false)).toBe(false);
   });
 
+  test("Kommentare allein können den Ausschlag geben", () => {
+    // 20 Zeilen mit grauer Zeile: ohne Kommentare passt es, mit nicht mehr
+    expect(canKeepCardTogether(sectionWithRows(20), false, false)).toBe(true);
+    expect(canKeepCardTogether(sectionWithRows(20), true, false)).toBe(false);
+  });
+
   test("Kommentare und Kasten zählen mit", () => {
     // 20 Zeilen passen ohne Kommentare und mit grauer Zeile, mit beidem nicht
     expect(canKeepCardTogether(sectionWithRows(20), false, false)).toBe(true);
