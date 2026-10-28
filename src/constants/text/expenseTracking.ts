@@ -579,3 +579,18 @@ export const REPORT_PAGE_OF = (pageNumber: number, pageCount: number): string =>
  */
 export const REPORT_PAGE_REF = (pageNumber: number): string =>
   `S. ${pageNumber}`;
+/* =====================================================================
+// Export (CSV und ZIP)
+// ===================================================================== */
+/** Präfix für die Export-Dateien. */
+export const EXPORT_FILE_PREFIX = "Ausgaben";
+/** Spaltentitel der CSV-Datei: Belegnummer. */
+export const EXPORT_COLUMN_RECEIPT_NUMBER = "Belegnummer";
+/** Spaltentitel der CSV-Datei: Betrag der Ausgabe. */
+export const EXPORT_COLUMN_AMOUNT = "Betrag";
+/** Spaltentitel der CSV-Datei: Person, die bezahlt hat, oder «Ohne Rückerstattung». */
+export const EXPORT_COLUMN_PAYEE = "Zahlende Instanz";
+/** Spaltentitel der CSV-Datei: Kommentar der Ausgabe. */
+export const EXPORT_COLUMN_COMMENT = "Kommentar";
+/** Spaltentitel der CSV-Datei: Dateiname des Belegs im ZIP. */
+export const EXPORT_COLUMN_RECEIPT_FILE = "Belegdatei";

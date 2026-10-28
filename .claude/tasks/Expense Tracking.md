@@ -4319,7 +4319,7 @@ Ziel: Auf Knopfdruck eine fertige Abrechnung als PDF: Tabelle der Ausgaben mit l
 
 **E2 — Modi als erweiterbare Liste** (Issue: «Struktur so anlegen, dass später weitere Modi ergänzt werden können»): `ReportMode = "per_person" | "per_person_and_budget"` (String-Enum), die Datenaufbereitung bekommt den Modus als Parameter, das Dokument rendert nur die fertige Struktur. Modus A = eine Tabelle pro Person über alle Budgets; Modus B = pro Person je Budget eine Tabelle mit Zwischensumme.
 
-**E3 — Belegnummer = laufende Nummer im Dokument**, in der Reihenfolge der Tabelle (Person → [Budget] → Datum, bei gleichem Datum nach Bezeichnung). Ausgaben mit Beleg bekommen eine Nummer. Ausgaben **ohne** Beleg bekommen nur dann eine Nummer, wenn im Dialog «Leerseiten für fehlende Belege» an ist (E11); sonst steht «–» (Issue: «mit leerer Belegnummer»). Die Nummer ist pro erzeugtem PDF stabil, nicht in der DB gespeichert (kein Zustand). *Folge:* Wer später ändert und neu erzeugt, bekommt neue Nummern. Bewusst so (Issue: beliebig oft neu generierbar). Epic 8 muss für CSV/ZIP dieselbe Nummerierungsfunktion nutzen.
+**E3 — Belegnummer = laufende Nummer im Dokument**, in der Reihenfolge der Tabelle (Person → [Budget] → Datum, bei gleichem Datum nach Bezeichnung). Ausgaben mit Beleg bekommen eine Nummer. Ausgaben **ohne** Beleg bekommen nur dann eine Nummer, wenn im Dialog «Leerseiten für fehlende Belege» an ist (E11); sonst steht «–» (Issue: «mit leerer Belegnummer»). Die Nummer ist pro erzeugtem PDF stabil, nicht in der DB gespeichert (kein Zustand). *Folge:* Wer später ändert und neu erzeugt, bekommt neue Nummern. Bewusst so (Issue: beliebig oft neu generierbar). Epic 8 muss für CSV/ZIP dieselbe Nummerierungsfunktion nutzen (bestätigt 2026-10-27, Epic 8 O1: Modus A, Leerseiten aus).
 
 **E4 — Summen pro Währung, keine Umrechnung** (wie überall): pro Person (Modus A) bzw. pro Person und Budget plus Personentotal (Modus B), je Währung eine Zeile.
 
@@ -7249,10 +7249,148 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
 
 ## Epic 8 — Export (CSV/ZIP)
 
-_Wird vor Start verfeinert. Grober Zuschnitt:_
+> Verfeinert 2026-10-27 nach Abgleich mit Issue #86 und dem Code (Stand nach Epic 7). Lernmodus wie seit 7.3b: Namen, Signaturen, Schritte und Tests, kein fertiger Code. Review an jedem ✋. O1–O4 entschieden 2026-10-27 (siehe unten).
 
-- 8.1 CSV-Export (String-Join + Blob, keine neue Dependency).
-- 8.2 `jszip`-Dependency, ZIP-Export nummerierter Belege passend zu CSV/PDF-Referenz.
+Ziel (Issue): Neben dem PDF ein **Rohdatenexport als CSV** (eine Zeile pro Ausgabe: Datum, Betrag, Währung, Budget, zahlende Instanz, Bezeichnung, Kommentar) und die **Belege als ZIP**, nummeriert passend zur CSV/PDF-Referenz. Wie das PDF: beliebig oft, nichts wird gespeichert.
+
+### Was der Code vorgibt (Abgleich)
+
+- **Menü «Exportieren» gibt es schon** (`expenseTracking.tsx`, `CardHeader action`, Button mit `ArrowDropDown`, `Menu` mit einem Eintrag «Abrechnung erstellen»). Epic 8 hängt dort zwei Einträge an. `isExporting` sperrt den Knopf schon während eines Exports.
+- **Nummerierung:** `ExpenseReport.build` vergibt die Belegnummern (E3). Mit `{payeeSelection: all, mode: PER_PERSON, includeMissingReceiptPages: false}` bekommen nur Ausgaben mit Beleg eine Nummer. Reihenfolge: Person (alphabetisch, «Ohne Rückerstattung» zuletzt) → Datum aufsteigend → Bezeichnung → `expenseId` (`sortSections`, `sortRows`). Innerhalb einer Person folgt die Nummer also schon dem Datum, und die `id` als letzter Schlüssel macht sie stabil. Personenname steht in `ReportPayeeSection.displayName`, Budgetname in `ReportRow.budgetName`.
+- **Belege laden:** `receiptLoader.ts` hat `fetchReceiptBlob` (prüft `response.ok`), aber nicht exportiert. `loadReceipts` verkleinert Bilder: fürs ZIP falsch, dort gehören die **Originale** hinein.
+- **Download:** `file-saver` ist da (`Shared/pdfUtils.ts`). `jszip` noch nicht. `pdf-lib` wird statisch importiert, das Report-Modul aber per `import()` nachgeladen; das Export-Modul macht es gleich.
+- **Datum:** `formatReportDate` (`Report/expenseReportLabels.ts`) liefert «09.07.2026».
+- **Analytics:** nur `PDF_EXPORTED`. Für CSV/ZIP ein eigener Event (Pre-Commit-Checkliste).
+- **`expenseTracking.tsx` hat 1198 Zeilen.** Die neuen Handler gehören in einen Hook, nicht in die Seite.
+
+### Entscheidungen (vorab, mit Begründung)
+
+**X1 — Neuer Ordner `ExpenseTracking/Export/`.** CSV und ZIP sind kein Teil der Abrechnung, nutzen aber Teile davon (`fetchReceiptBlob`, `formatReportDate`, Hinweis bei fehlenden Belegen). Abhängigkeit nur in eine Richtung: `Export/` importiert aus `Report/` und `Expense/`, nie umgekehrt.
+
+**X2 — Zeilen und Nummern kommen aus `ExpenseReport.build`** (O1), mit den festen Optionen «Alle Personen · Modus A · Leerseiten aus». Keine zweite Sortier- oder Nummernlogik: die neue Klasse macht aus den Sections nur flache Zeilen. Nur Ausgaben mit Beleg bekommen eine Nummer (Issue: ohne Beleg «leere Belegnummer»). *Folge:* Die Nummern stimmen genau mit dieser PDF-Variante überein. Ein PDF für eine Person, Modus B oder «Leerseiten an» nummerieren anders. Das gilt für jede Nummerierung, die nicht in der DB steht, und eine gespeicherte Nummer schliesst das Issue aus («kein gespeicherter Zustand»).
+
+**X3 — Eine CSV-Funktion für beide Exporte.** Spalte «Belegdatei» enthält den Dateinamen im ZIP. Der CSV-Export allein schreibt dieselben Namen (man sieht, wo ein Beleg existiert). Im ZIP steht bei einem nicht ladbaren Beleg stattdessen «Beleg konnte nicht geladen werden». Darum bekommt die Funktion die Dateinamen als `Map` von aussen.
+
+**X4 — CSV-Injection abwehren.** Bezeichnung, Kommentar, Budget- und Personenname tippen andere Köch:innen ein. Ein Feld, das mit `=`, `+`, `-`, `@`, Tab oder CR beginnt, bekommt ein `'` vorangestellt (OWASP-Empfehlung), sonst führt Excel es als Formel aus. Betrag und Datum erzeugen wir selbst, die bleiben roh.
+
+**X5 — Dateinamen im ZIP:** `Belege/003 Grosseinkauf Migros.pdf`. Nummer mit drei Stellen, damit der Explorer richtig sortiert. Bezeichnung bereinigt: `/ \ : * ? " < > |` und Steuerzeichen → Leerzeichen, Mehrfach-Leerzeichen zusammen, auf 60 Zeichen gekürzt, leer → nur die Nummer. Endung aus `attachmentPath` (nicht aus dem Originalnamen): Die App hat sie beim Upload über `ATTACHMENT_MIME_TO_EXTENSION` selbst vergeben, der MIME-Typ ist nicht gespeichert. Endung gegen `Object.values(ATTACHMENT_MIME_TO_EXTENSION)` prüfen (Pfad ohne Punkt → `pop()` liefert sonst den ganzen Pfad); unbekannt → Dateiname ohne Endung.
+
+**X6 — ZIP ohne Kompression** (`compression: "STORE"`). JPEG, PNG und PDF sind schon komprimiert. Deflate kostet auf dem Handy Sekunden und spart fast nichts. Belege nacheinander laden wie in 7.3a (Speicher).
+
+**X7 — Ein Beleg fehlt:** ZIP entsteht trotzdem, CSV-Zelle sagt es, danach derselbe Hinweis wie beim PDF (`showReportHints` mit den Nummern, E6). Sentry bekommt den Fehler ohne Inhalt.
+
+**X8 — Dateinamen:** `Ausgaben <Anlass>.csv` und `Ausgaben <Anlass>.zip` (Leerzeichen wie E9). Das ZIP enthält `Ausgaben <Anlass>.csv` und den Ordner `Belege/`.
+
+**X9 — Exportiert wird immer alles** (alle Ausgaben des Anlasses). Der Budget-Filter der Auswertung gilt nicht. Rohdaten filtert man in Excel.
+
+### Entschieden (2026-10-27)
+
+- **O1 — Gleiche Nummerierung wie das PDF, ohne Leerseiten**. Umsetzung siehe X2. Grund: Eine eigene Datums-Sortierung wäre doppelter Code, und innerhalb einer Person sortiert `ExpenseReport` ohnehin nach Datum. CSV-Zeilen stehen damit Person → Datum; wer einen Zeitstrahl will, sortiert in Excel nach Datum (die Nummern bleiben).
+- **O2 — CSV muss mit Excel CH/DE funktionieren**. Trennzeichen `;`, UTF-8 mit BOM, Zeilenende CRLF, Felder in `"…"` (inneres `"` verdoppelt), Betrag `182.40` ohne Währung, Datum `09.07.2026`. *Warum:* Excel mit deutschsprachigen Einstellungen (CH und DE) trennt Spalten mit `;` und erkennt Umlaute nur mit BOM. Kein `sep=;` in der ersten Zeile, das schaltet in Excel die BOM-Erkennung aus. *Einschränkung Dezimalzeichen:* Schweizer Einstellungen nutzen `.`, deutsche `,`. Ein Format für beide gibt es in CSV nicht. Wir schreiben `.`, weil die Zielgruppe in der Schweiz ist. Excel mit deutschen Einstellungen zeigt den Betrag dann als Text (Import über «Daten → Aus Text/CSV» mit Gebietsschema hilft). Steht im Helpcenter.
+- **O3 — Zwei Menüeinträge**: «Ausgaben als CSV» (nur die Daten) und «Ausgaben mit Belegen (ZIP)» (CSV plus Belege).
+- **O4 — Fortschrittsdialog beim ZIP**: kleiner Dialog ohne Abbrechen, `LinearProgress` und der bestehende Text «Belege werden geladen (7 von 23)», schliesst nach dem Download selbst. Speicherrisiko auf dem Handy akzeptiert.
+
+Spalten (Vorschlag, Reihenfolge = Issue + Nummer und Datei): `Belegnummer; Datum; Betrag; Währung; Budget; Zahlende Instanz; Bezeichnung; Kommentar; Belegdatei`. Zahlende Instanz bei «Keine Rückerstattung» = «Ohne Rückerstattung» (gleicher Text wie im PDF).
+
+### Neuer Zuschnitt
+
+- **8.1 Export-Zeilen und CSV (rein, ohne UI)**
+- **8.2 CSV-Download im Menü**
+- **8.3 ZIP mit Belegen** (`jszip`)
+- **8.4 Abschluss** (Helpcenter, Browser, Security-Review)
+
+### **Story 8.1 — Export-Zeilen und CSV (rein, ohne UI)**
+
+#### Schnittstellen
+
+- `Export/expenseExport.types.ts`
+  - `type ExportRow = {receiptNumber: number | null; date: Date; amountInCents: number; currency: string; budgetName: string; payeeDisplayName: string; label: string; comment: string | null; attachmentPath: string | null; expenseId: string}`
+- `Export/expenseExport.class.ts`, `class ExpenseExport`
+  - `static buildRows({expenses, budgets, cooks}): ExportRow[]`: ruft `ExpenseReport.build` mit den festen Optionen aus X2 und macht die Sections flach (`flatMap` über Sections → Groups → Rows, Personenname aus der Section). Reihenfolge und Nummern nur übernehmen, nicht neu sortieren.
+  - Die festen Optionen als Konstante `EXPORT_REPORT_OPTIONS: ReportOptions` in der Datei, damit der Test sie wiederverwenden kann.
+  - `static getReceiptFileName(row: ExportRow): string | null`: X5. `null` ohne Beleg.
+  - `static getExportFileName(eventName: string, extension: "csv" | "zip"): string`: X8.
+- `Export/expenseCsv.ts`
+  - `buildExpenseCsv(rows: ExportRow[], receiptCells: Map<string, string>): string`: Kopfzeile + eine Zeile pro Ausgabe, mit BOM (O2). `receiptCells` = expenseId → Zelleninhalt «Belegdatei».
+  - `toCsvField(value: string): string`: X4 (Formel-Präfix) und Quoting. Nur für Textfelder.
+  - `formatCsvAmount(amountInCents: number): string`: `18240` → `"182.40"`. *Tipp:* nicht über `/ 100` und `toFixed` bei grossen Zahlen raten: Ganzzahl-Division und `padStart` sind exakt.
+- Texte (`constants/text/expenseTracking.ts`, neuer Block «Export (Epic 8)»): Spaltentitel, `EXPORT_RECEIPT_NOT_LOADED`, `EXPORT_FILE_PREFIX` («Ausgaben»).
+
+#### Schritte
+
+1. Typ + `buildRows` + Tests ✋ ✅ (2026-10-27: `ExportRow = ReportRow & {payeeDisplayName}`, 8 Tests, Mutationsproben A–F gefangen: Leerseiten an, Modus B, Name der ersten Section, neu sortieren, Budgetname leer, nur eine Person)
+2. `getReceiptFileName`, `getExportFileName` + Tests ✅ (2026-10-28: 20 Tests, Mutationsproben A–H und Steuerzeichen gefangen, JSDoc fertig)
+3. `expenseCsv.ts` + Tests ✋ ✅ (2026-10-28: 30 Tests, Mutationsproben A–I gefangen; Reihenfolge Präfix/Verdoppeln ist egal, `'` ist kein Anführungszeichen)
+
+#### Tests (`Export/__tests__/`)
+
+- `buildRows`: eine Zeile pro Ausgabe (auch bei Modus-A-Gruppen mehrerer Personen); Personenname aus der richtigen Section; Nummer nur mit Beleg, ohne Beleg `null` (Leerseiten aus); «Ohne Rückerstattung» zuletzt; Eingabe-Array unverändert; leere Liste → `[]`. Sortierung selbst nicht nochmals testen, die deckt `expenseReport.class.test.ts` ab.
+- **Gleiche Nummern wie das PDF:** für dieselben Ausgaben `ExpenseReport.build({…, options: EXPORT_REPORT_OPTIONS}).receipts` gegen die Nummern aus `buildRows` vergleichen (expenseId → Nummer). Das ist der Test, der E3 absichert.
+- `getReceiptFileName`: Nummer 3 → `003 …`; Sonderzeichen; Steuerzeichen; 200 Zeichen Bezeichnung; Bezeichnung nur aus Sonderzeichen; Endung `.jpg`/`.png`/`.pdf` aus dem Pfad; ohne Beleg `null`.
+- `toCsvField`: `=SUM(A1)`, `+41…`, `-5`, `@x`, führender Tab → mit `'`; `"` verdoppelt; Zeilenumbruch im Kommentar bleibt im Feld; `;` im Feld; normaler Text.
+- `buildExpenseCsv`: beginnt mit BOM (`﻿`); CRLF; Kopfzeile; Kommentar `null` → leeres Feld; Zelle aus `receiptCells`; Betrag `5` Rappen → `0.05`, `100000000` → `1000000.00`.
+
+#### Mutationsproben 8.1
+
+Formel-Präfix weg; BOM weg; `padStart` auf 2; Zeilen in `buildRows` neu sortieren statt übernehmen; `includeMissingReceiptPages: true`; Personenname der ersten Section für alle Zeilen. Jede muss «Tests: … failed» zeigen (nicht Exit-Code, `lessons.md`).
+
+### **Story 8.2 — CSV-Download im Menü**
+
+#### Schnittstellen
+
+- `Export/useExpenseExport.ts`: `useExpenseExport({expenses, budgets, event, getAttachmentUrl, onFailedReceipts, onError})` → `{exportCsv: () => void, exportZip: () => Promise<void>, zipProgress: ReportProgress | null, isExporting: boolean}`. In 8.2 nur `exportCsv`.
+  - Erzeugt die Datei als `Blob` (`text/csv;charset=utf-8`) und speichert mit `fileSaver.saveAs`.
+  - Fehler → `onError` (Seite zeigt sie wie bisher über den Reducer, Sentry über `handleError`).
+- `analyticsEvents.ts`: `EXPENSES_EXPORTED: "expenses_exported"`, Eigenschaft `type: "csv" | "zip"`.
+- `expenseTracking.tsx`: Menüeintrag «Ausgaben als CSV» (Icon `TableChartOutlined`), Menü schliessen, `exportCsv()`. `isExporting` der Seite und des Hooks zusammen sperren den Knopf.
+
+#### Schritte
+
+1. Hook mit `exportCsv` + Test (saveAs gemockt, Dateiname, Inhalt beginnt mit BOM, Analytics) ✋
+2. Menüeintrag + Test in `expenseTracking.test.tsx` (Eintrag sichtbar, Klick ruft Export) ✋
+3. Im Browser: CSV in Excel (oder Numbers) öffnen, Umlaute, Spalten, Kommentar mit Zeilenumbruch, Formeltext `=1+1` erscheint als Text.
+
+### **Story 8.3 — ZIP mit Belegen**
+
+#### Schnittstellen
+
+- `npm install jszip` (bringt eigene Typen mit). Nur per `import()` im Export-Modul laden.
+- `receiptLoader.ts`: `fetchReceiptBlob` exportieren (keine Verhaltensänderung).
+- `Export/downloadExpenseZip.ts`: `downloadExpenseZip({rows, eventName, getAttachmentUrl, onProgress, fetchBlob?}): Promise<{failedReceiptNumbers: number[]}>`
+  - Nacheinander laden, Fortschritt wie `loadReceipts` (`{stage: "loading", loaded, total}`).
+  - Erfolgreich → `zip.file("Belege/<name>", blob)` und `receiptCells.set(id, name)`; Fehler → Zelle `EXPORT_RECEIPT_NOT_LOADED`, Nummer merken, Sentry (nur Meldung, wie 7.4).
+  - Danach CSV hineinlegen, `generateAsync({type: "blob", compression: "STORE"})`, `saveAs`.
+  - `fetchBlob` als Parameter, damit der Test kein Netz braucht (gleiches Muster wie `ReceiptLoaderDependencies`).
+- `Export/exportProgressDialog.tsx` (falls O4 = Dialog): `ExportProgressDialog({progress})`, offen solange `progress !== null`, kein Schliessen per Escape/Klick daneben.
+- Hook: `exportZip` setzt `zipProgress`, ruft `downloadExpenseZip` per `import()`, meldet `failedReceiptNumbers` über `onFailedReceipts` (Seite ruft `showReportHints`), setzt `zipProgress` im `finally` auf `null`.
+- Menüeintrag «Ausgaben mit Belegen (ZIP)» (Icon `FolderZipOutlined`).
+
+#### Schritte
+
+1. `jszip` installieren, `fetchReceiptBlob` exportieren, `downloadExpenseZip` + Tests ✋
+2. Hook `exportZip` + Fortschrittsdialog + Menüeintrag + Tests ✋
+3. Im Browser (DEV): ZIP mit Foto, PDF und einer Ausgabe ohne Beleg; einen Beleg im Storage löschen → Hinweis und CSV-Zelle; Dateien im ZIP öffnen.
+
+#### Tests
+
+- `downloadExpenseZip` (jszip echt, `saveAs` gemockt; Blob aus dem Mock mit `JSZip.loadAsync` wieder öffnen): Dateinamen im Ordner `Belege/`; CSV liegt drin; Ausgabe ohne Beleg erzeugt keine Datei; ein `fetchBlob`-Fehler → `failedReceiptNumbers` und CSV-Zelle, die anderen Belege sind drin; Fortschritt zählt nur Belege; Reihenfolge der Aufrufe = Nummernreihenfolge (nacheinander, nicht parallel: zweiter Aufruf startet erst nach dem ersten).
+- Hook: `zipProgress` ist nach Fehler wieder `null`; Analytics `type: "zip"`.
+
+#### Mutationsproben 8.3
+
+`compression: "DEFLATE"` (Test auf Option); Fehler eines Belegs bricht alles ab; `Promise.all` statt Schleife; Ordner `Belege/` weg; `finally` weg.
+
+### **Story 8.4 — Abschluss**
+
+- [ ] Helpcenter: Abschnitt «Ausgaben exportieren» auf `docs/event/expensetracking.md` (CSV-Spalten, ZIP-Inhalt, Nummern passen zum PDF «Alle Personen · Modus A · Leerseiten aus», Hinweis Dezimalzeichen bei Excel mit deutschen Einstellungen, grosse ZIPs besser am Computer). Nicht committen (ein Sammel-Commit am Ende).
+- [ ] Browser Desktop und Mobile (iOS Safari: Download von CSV und ZIP landet in «Dateien»).
+- [ ] `security-reviewer`: CSV-Injection, Dateinamen im ZIP (Pfad-Traversal ausgeschlossen, weil X5 `/` und `\` ersetzt), keine Inhalte in Sentry.
+- [ ] Grössenprobe: ZIP mit vielen Handyfotos → in den Regressionslauf 10.1 (zusammen mit der PDF-Probe aus Epic 7).
+
+### Risiken
+
+- **Speicher auf dem Handy (akzeptiert, O4):** jszip hält alle Originale im Speicher (30 Fotos × 5 MB = 150 MB). Mit STORE und Laden nacheinander meist ok, sonst Computer verwenden. Kein streamendes ZIP.
+- **Nummern passen nur zu einer PDF-Variante** (O1): «Alle Personen · Modus A · Leerseiten aus». Andere Varianten nummerieren anders. Steht im Helpcenter, nicht im Dialog.
 
 ## Epic 9 — Beleg-Löschkonzept (Cron + Mail)
 

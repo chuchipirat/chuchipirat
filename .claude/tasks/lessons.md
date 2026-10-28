@@ -72,4 +72,12 @@
 
 **Rule**: A probe counts as caught only when the Jest output contains `Tests: … failed`. Never use the exit code.
 
-**How to apply**: Every probe script uses `npx jest … 2>&1 | grep -qE "^Tests:.* failed"`. Before the first probe, run the script's test command once without a mutation and check that it reports «ÜBERLEBT».
+**How to apply**: Every probe script uses `npx jest … 2>&1 | grep -aqE "^Tests:.* failed"` (`-a`: a test title with a control character, e.g. a NUL byte, makes grep treat the output as binary and miss the line, 2026-10-28). Before the first probe, run the script's test command once without a mutation and check that it reports «ÜBERLEBT».
+
+## Keine Plan-Verweise im Code (2026-10-27)
+
+**What happened**: The JSDoc I wrote for `ExpenseExport` contained "(E3, Epic 8 O1)". The user removed it: the plan file will be deleted later, so these references point nowhere.
+
+**Rule**: Comments, JSDoc and test names never reference plan IDs (Epic, Story, E3, O1, X8). Write the reason itself.
+
+**How to apply**: Before handing over code, `grep -nE "Epic|Story|\b[EOX][0-9]+\b"` over the changed files.
