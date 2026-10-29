@@ -83,6 +83,7 @@ export class ExpenseExport {
       ),
     );
   }
+
   /**
    * Dateiname eines Belegs im ZIP: Nummer, Bezeichnung und Endung. Die
    * Bezeichnung wird bereinigt und gekürzt, unbekannte Endungen entfallen.
@@ -104,6 +105,7 @@ export class ExpenseExport {
 
     return `${row.receiptNumber.toString().padStart(RECEIPT_NUMBER_DIGITS, "0")}${fileName ? " " : ""}${fileName}${extension}`;
   }
+
   /**
    * Dateiname der CSV- bzw. ZIP-Datei. Der Anlassname wird bereinigt, weil
    * die CSV auch als Eintrag im ZIP liegt.
@@ -123,6 +125,30 @@ export class ExpenseExport {
   }
 
   /**
+   * Dateinamen der Belege im ZIP, je Ausgabe. Die CSV nennt in der Spalte
+   * «Belegdatei» denselben Namen, damit Zeile und Datei zusammenpassen.
+   * Ausgaben ohne Beleg fehlen in der Map.
+   *
+   * @param rows - Export-Zeilen in der Reihenfolge der Abrechnung.
+   * @returns Map von Ausgaben-ID auf Dateiname, z.B. «001 Grosseinkauf Migros.pdf».
+   * @example
+   * ExpenseExport.getReceiptFileNames(rows).get("expense-1")
+   * // "001 Grosseinkauf Migros.pdf"
+   */
+  static getReceiptFileNames(rows: ExportRow[]): Map<string, string> {
+    const receiptFileNames = new Map<string, string>();
+
+    rows.forEach((row) => {
+      const fileName = ExpenseExport.getReceiptFileName(row);
+      if (fileName) {
+        receiptFileNames.set(row.expenseId, fileName);
+      }
+    });
+
+    return receiptFileNames;
+  }
+
+  /**
    * Bereinigt einen Teil eines Dateinamens. Zeichen, die Windows in
    * Dateinamen verbietet, und Steuerzeichen werden zu Leerzeichen; ohne
    * `/` und `\` entstehen im ZIP keine Ordner.
@@ -138,6 +164,7 @@ export class ExpenseExport {
       .trim()
       .replace(/\s+/g, " ");
   }
+
   /**
    * Endung eines Belegs aus seinem Pfad. Die App vergibt sie beim Upload
    * selbst; geprüft wird trotzdem gegen die erlaubten Endungen, weil ein

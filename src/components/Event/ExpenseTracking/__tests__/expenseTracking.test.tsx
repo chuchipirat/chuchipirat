@@ -50,6 +50,7 @@ import {
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
   CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
   EXPORT as TEXT_EXPORT,
+  EXPORT_CSV as TEXT_EXPORT_CSV,
 } from "../../../../constants/text/expenseTracking";
 import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
 import {ExpenseDomain, ExpensePayeeType} from "../Expense/expense.types";
@@ -60,6 +61,7 @@ import * as Sentry from "@sentry/react";
 import {trackEvent} from "../../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../../Analytics/analyticsEvents";
 import {downloadExpenseReport} from "../Report/downloadExpenseReport";
+import {downloadExpenseCsv} from "../Export/downloadExpenseCsv";
 import {
   ExpenseReportResult,
   ReportMode,
@@ -103,6 +105,13 @@ jest.mock("@mui/x-date-pickers", () => ({
  */
 jest.mock("../Report/downloadExpenseReport", () => ({
   downloadExpenseReport: jest.fn(),
+}));
+/**
+ * Mock: CSV-Download. Geprüft wird nur, was die Seite übergibt und wie sie
+ * auf einen Fehler reagiert; den Inhalt prüft `downloadExpenseCsv.test.ts`.
+ */
+jest.mock("../Export/downloadExpenseCsv", () => ({
+  downloadExpenseCsv: jest.fn(),
 }));
 /**
  * Mock: Analytics — die Abrechnung prüft, dass `trackEvent` keine IBAN
@@ -3312,5 +3321,88 @@ describe("transformInputToExpenseDomain", () => {
 
     expect(result.payeeUserId).toBeNull();
     expect(result.payeeName).toBeNull();
+  });
+});
+
+/* =====================================================================
+// Ausgaben als CSV
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgaben als CSV", () => {
+  /** Ausgabe des einzigen Kochs im `mockEvent`. */
+  const cookExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-csv-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: "user-123",
+  };
+  const mockedDownloadExpenseCsv = jest.mocked(downloadExpenseCsv);
+
+  beforeEach(() => {
+    mockedDownloadExpenseCsv.mockReset();
+    jest.mocked(trackEvent).mockClear();
+    jest.mocked(Sentry.captureException).mockClear();
+  });
+
+  /** Knopf «Exportieren» in der Titelkarte. */
+  const getExportButton = () =>
+    screen.getByRole("button", {name: TEXT_EXPORT});
+
+  /**
+   * Rendert die freigeschaltete Seite mit einer Ausgabe und öffnet das Menü
+   * «Exportieren».
+   *
+   * @returns Der Menüeintrag «Ausgaben als CSV».
+   */
+  const openCsvMenuItem = async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+    fireEvent.click(getExportButton());
+    return screen.findByRole("menuitem", {name: TEXT_EXPORT_CSV});
+  };
+
+  test("Menü «Exportieren» zeigt «Ausgaben als CSV»", async () => {
+    expect(await openCsvMenuItem()).toBeInTheDocument();
+  });
+
+  test("Klick übergibt Ausgaben, Budgets und Anlass und schliesst das Menü", async () => {
+    const menuItem = await openCsvMenuItem();
+
+    fireEvent.click(menuItem);
+
+    expect(mockedDownloadExpenseCsv).toHaveBeenCalledTimes(1);
+    expect(mockedDownloadExpenseCsv).toHaveBeenCalledWith({
+      expenses: [cookExpense],
+      budgets: [kitchenBudget],
+      event: mockEvent,
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("menuitem", {name: TEXT_EXPORT_CSV}),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  test("meldet den Export an Analytics, mit Typ «csv»", async () => {
+    fireEvent.click(await openCsvMenuItem());
+
+    expect(trackEvent).toHaveBeenCalledWith(AnalyticsEvent.EXPENSES_EXPORTED, {
+      type: "csv",
+    });
+  });
+
+  test("Fehler erscheint oben auf der Seite, geht an Sentry, Knopf bleibt nutzbar", async () => {
+    const downloadError = new Error("Download blockiert");
+    mockedDownloadExpenseCsv.mockImplementationOnce(() => {
+      throw downloadError;
+    });
+
+    fireEvent.click(await openCsvMenuItem());
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(Sentry.captureException).toHaveBeenCalledWith(downloadError, {
+      extra: {context: "CSV exportieren"},
+    });
+    expect(getExportButton()).toBeEnabled();
   });
 });

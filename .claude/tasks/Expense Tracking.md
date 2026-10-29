@@ -7336,19 +7336,49 @@ Formel-Präfix weg; BOM weg; `padStart` auf 2; Zeilen in `buildRows` neu sortier
 
 ### **Story 8.2 — CSV-Download im Menü**
 
+> Verfeinert 2026-10-28. Neu ab hier: **Tests zuerst.** Claude schreibt die Tests vor der Umsetzung, der Nutzer entwickelt, bis alles grün ist. Die Tests sind die Definition of Done jedes Schritts.
+
+#### Abweichung vom Umriss: Download-Modul statt Hook
+
+Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber keinen Zustand (kein Laden, kein Fortschritt): Daten rein, Datei raus. Darum wie beim PDF ein **Download-Modul** (`downloadExpenseCsv`) und ein **kleiner Handler in der Seite**. *Warum:* gleiches Muster wie `downloadExpenseReport` + `handleCreateReport`, testbar ohne `renderHook`, und kein Hook, der in 8.2 nur eine Funktion durchreicht. Ob 8.3 für den Fortschritt einen Hook braucht, entscheiden wir dort, wenn es Zustand gibt.
+
+#### Entscheidungen
+
+- **Kein `import()`** für das CSV-Modul: es ist klein und hat keine grosse Abhängigkeit (anders als react-pdf, später jszip).
+- **Fehler fängt die Seite**: `downloadExpenseCsv` wirft, der Handler ruft `handleError(error, "CSV exportieren")` (Fehler oben auf der Seite + Sentry). Kein `onError`-Callback nötig, die Funktion ist synchron.
+- **Analytics vor dem Export**, wie beim PDF: `trackEvent(AnalyticsEvent.EXPENSES_EXPORTED, {type: "csv"})`. Eigener Event, `type` bereitet `"zip"` aus 8.3 vor.
+- **Spalte «Belegdatei» im CSV allein**: dieselben Namen, die das ZIP hätte. Dafür `ExpenseExport.getReceiptFileNames(rows)`; 8.3 startet mit derselben Map und überschreibt nur die nicht ladbaren Belege.
+- **Text:** `EXPORT_EXCEL = "Ausgaben als Excel"` ist ungenutzt (geprüft). Ersetzen durch `EXPORT_CSV = "Ausgaben als CSV"`: «Excel» liesse eine `.xlsx` erwarten.
+- **MIME-Typ** `text/csv;charset=utf-8`.
+
 #### Schnittstellen
 
-- `Export/useExpenseExport.ts`: `useExpenseExport({expenses, budgets, event, getAttachmentUrl, onFailedReceipts, onError})` → `{exportCsv: () => void, exportZip: () => Promise<void>, zipProgress: ReportProgress | null, isExporting: boolean}`. In 8.2 nur `exportCsv`.
-  - Erzeugt die Datei als `Blob` (`text/csv;charset=utf-8`) und speichert mit `fileSaver.saveAs`.
-  - Fehler → `onError` (Seite zeigt sie wie bisher über den Reducer, Sentry über `handleError`).
-- `analyticsEvents.ts`: `EXPENSES_EXPORTED: "expenses_exported"`, Eigenschaft `type: "csv" | "zip"`.
-- `expenseTracking.tsx`: Menüeintrag «Ausgaben als CSV» (Icon `TableChartOutlined`), Menü schliessen, `exportCsv()`. `isExporting` der Seite und des Hooks zusammen sperren den Knopf.
+- `Export/expenseExport.class.ts`: `static getReceiptFileNames(rows: ExportRow[]): Map<string, string>`: expenseId → `getReceiptFileName(row)`, nur Zeilen mit Beleg.
+- `Export/downloadExpenseCsv.ts` (neu): `downloadExpenseCsv({expenses, budgets, event}: {expenses: ExpenseDomain[]; budgets: BudgetDomain[]; event: Event}): void`
+  - `ExpenseExport.buildRows({expenses, budgets, cooks: event.cooks})` → `buildExpenseCsv(rows, ExpenseExport.getReceiptFileNames(rows))` → `new Blob([csv], {type: …})` → `fileSaver.saveAs(blob, ExpenseExport.getExportFileName(event.name, "csv"))`.
+- `analyticsEvents.ts`: `EXPENSES_EXPORTED: "expenses_exported"` im Block «PDF / Export».
+- `constants/text/expenseTracking.ts`: `EXPORT_EXCEL` → `EXPORT_CSV = "Ausgaben als CSV"`.
+- `expenseTracking.tsx`: Handler `handleExportCsv` (Menü schliessen, Analytics, `try` → `downloadExpenseCsv`, `catch` → `handleError`). Menüeintrag nach «Abrechnung erstellen», Icon `TableChartOutlined`.
+
+#### Tests (vorab geschrieben, Definition of Done)
+
+- `Export/__tests__/expenseExport.class.test.ts`, `describe("ExpenseExport.getReceiptFileNames")`: nur Zeilen mit Beleg; Werte gleich `getReceiptFileName`; ohne Zeilen leere Map.
+- `Export/__tests__/downloadExpenseCsv.test.ts` (file-saver gemockt, Blob über `FileReader` gelesen, jsdom kennt `blob.arrayBuffer()` nicht):
+  - genau ein `saveAs`, Dateiname «Ausgaben Sommerlager.csv»; Blob-Typ `text/csv;charset=utf-8`
+  - die Datei beginnt mit den Bytes `EF BB BF` (BOM, so wie Excel sie sieht)
+  - Inhalt: Kopfzeile, eine Zeile pro Ausgabe, Personenname aus `event.cooks`, Belegdatei «001 …» bei der Ausgabe mit Beleg, leer ohne Beleg
+  - Fehler von `saveAs` wird weitergeworfen (die Seite zeigt ihn)
+- `__tests__/expenseTracking.test.tsx`, `describe("EventExpenseTrackingPage: Ausgaben als CSV")` (`downloadExpenseCsv` gemockt):
+  - Menü zeigt «Ausgaben als CSV»
+  - Klick ruft `downloadExpenseCsv({expenses, budgets, event})` und schliesst das Menü
+  - Analytics `EXPENSES_EXPORTED` mit `{type: "csv"}`
+  - Fehler → Meldung oben (`role="alert"`), Sentry, Knopf «Exportieren» bleibt nutzbar
 
 #### Schritte
 
-1. Hook mit `exportCsv` + Test (saveAs gemockt, Dateiname, Inhalt beginnt mit BOM, Analytics) ✋
-2. Menüeintrag + Test in `expenseTracking.test.tsx` (Eintrag sichtbar, Klick ruft Export) ✋
-3. Im Browser: CSV in Excel (oder Numbers) öffnen, Umlaute, Spalten, Kommentar mit Zeilenumbruch, Formeltext `=1+1` erscheint als Text.
+1. `getReceiptFileNames` + `downloadExpenseCsv` → Tests in `Export/` grün ✋ ✅ (2026-10-29: 69 Tests in Export/ grün, JSDoc fertig)
+2. Text, Analytics, Handler und Menüeintrag → Seitentests grün ✋ ✅ (2026-10-29: 669 Tests grün; Sentry-Kontext jetzt exakt geprüft)
+3. Im Browser (DEV): CSV in Excel öffnen. Umlaute, Spalten, Kommentar mit Zeilenumbruch, `=1+1` als Text, Mobile (Download landet in «Dateien»). ✅ (2026-10-29: Export funktioniert. Reihenfolge wie im PDF — Person → Datum → Bezeichnung — bewusst beibehalten, damit Belegnummer in CSV, ZIP und PDF zusammenpassen)
 
 ### **Story 8.3 — ZIP mit Belegen**
 

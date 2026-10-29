@@ -81,3 +81,11 @@
 **Rule**: Comments, JSDoc and test names never reference plan IDs (Epic, Story, E3, O1, X8). Write the reason itself.
 
 **How to apply**: Before handing over code, `grep -nE "Epic|Story|\b[EOX][0-9]+\b"` over the changed files.
+
+## Tests first: check planned values exactly, not with `expect.anything()`
+
+**What happened**: In 8.2 the page test checked the Sentry context with `expect.anything()`. The plan said "CSV exportieren"; the implementation used "Abrechnung erstellen", copied from the neighbouring handler, and the test stayed green.
+
+**Rule**: When tests are the definition of done, every value the plan names (context strings, analytics payloads, file names) is asserted exactly.
+
+**How to apply**: In the mutation probes, also try "value copied from the neighbouring handler", not only "call missing".

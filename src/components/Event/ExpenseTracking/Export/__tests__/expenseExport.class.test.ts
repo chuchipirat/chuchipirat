@@ -377,3 +377,34 @@ describe("ExpenseExport.getExportFileName", () => {
     );
   });
 });
+
+describe("ExpenseExport.getReceiptFileNames", () => {
+  test("nur Ausgaben mit Beleg, mit ihrem Dateinamen im ZIP", () => {
+    expect(ExpenseExport.getReceiptFileNames(buildRows())).toEqual(
+      new Map([
+        ["anna-kitchen-with-receipt", "001 Grosseinkauf Migros.pdf"],
+        ["anna-theme-with-receipt", "002 Bastelmaterial.jpg"],
+        ["ben-theme-with-comment", "003 Piratenhüte.png"],
+        ["former-cook", "004 Schatzkiste.pdf"],
+        ["no-refund", "005 Vereinskarte Volg.pdf"],
+      ]),
+    );
+  });
+
+  test("Namen sind dieselben wie aus getReceiptFileName", () => {
+    const rows = buildRows();
+    const fileNames = ExpenseExport.getReceiptFileNames(rows);
+
+    rows
+      .filter((row) => row.attachmentPath !== null)
+      .forEach((row) =>
+        expect(fileNames.get(row.expenseId)).toBe(
+          ExpenseExport.getReceiptFileName(row),
+        ),
+      );
+  });
+
+  test("ohne Zeilen eine leere Map", () => {
+    expect(ExpenseExport.getReceiptFileNames([])).toEqual(new Map());
+  });
+});

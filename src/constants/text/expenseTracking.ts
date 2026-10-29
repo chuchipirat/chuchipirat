@@ -447,7 +447,7 @@ export const REPORT_GRAND_TOTAL = "Gesamttotal";
 export const REPORT_NO_REFUND_HINT =
   "Diese Ausgaben werden niemandem zurückerstattet.";
 export const EXPORT = "Exportieren";
-export const EXPORT_EXCEL = "Ausgaben als Excel";
+export const EXPORT_CSV = "Ausgaben als CSV";
 export const DOWNLOAD_RECEIPTS_ZIP = "Belege als ZIP";
 export const NO_RECEIPTS_AVAILABLE = "Keine Belege vorhanden";
 /** Schalter im Dialog (E11). */

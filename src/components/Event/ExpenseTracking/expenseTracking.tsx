@@ -54,6 +54,7 @@ import {
   CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
   CREATE_EXPENSE_REPORT_NO_EXPENSES as TEXT_CREATE_EXPENSE_REPORT_NO_EXPENSES,
   EXPORT as TEXT_EXPORT,
+  EXPORT_CSV as TEXT_EXPORT_CSV,
   REPORT_RECEIPTS_FAILED as TEXT_REPORT_RECEIPTS_FAILED,
   REPORT_PAYMENT_DETAILS_SAVE_FAILED as TEXT_REPORT_PAYMENT_DETAILS_SAVE_FAILED,
 } from "../../../constants/text";
@@ -81,6 +82,7 @@ import {
   ArrowDropDown,
   FileDownloadOutlined,
   PictureAsPdfOutlined,
+  TableChartOutlined,
 } from "@mui/icons-material";
 
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
@@ -122,6 +124,7 @@ import {
 } from "./Report/expenseReport.types";
 import {getAccountHolderName} from "./Report/expenseReportLabels";
 import {useOwnPaymentDetails} from "./Report/useOwnPaymentDetails";
+import {downloadExpenseCsv} from "./Export/downloadExpenseCsv";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
 type ExpenseTrackingView = "overview" | "expenses" | "evaluation";
@@ -777,6 +780,26 @@ const EventExpenseTrackingPage = ({
     loadOwnPaymentDetails();
     setReportDialog((previous) => ({open: true, key: previous.key + 1}));
   };
+
+  /**
+   * Menü «Exportieren» → «Ausgaben als CSV»: schliesst das Menü und lädt die
+   * CSV mit allen Ausgaben herunter. Ein Fehler erscheint oben auf der Seite
+   * und geht an Sentry; der Knopf «Exportieren» bleibt dabei bedienbar.
+   */
+  const handleExportCsv = () => {
+    setExportMenuAnchor(null);
+    trackEvent(AnalyticsEvent.EXPENSES_EXPORTED, {type: "csv"});
+    try {
+      downloadExpenseCsv({
+        expenses: state.expenses ?? [],
+        budgets: state.budgets ?? [],
+        event,
+      });
+    } catch (error) {
+      handleError(error, "CSV exportieren");
+    }
+  };
+
   /** Schliesst den Dialog «Abrechnung erstellen». */
   const handleCloseReportDialog = () => {
     setReportDialog((previous) => ({...previous, open: false}));
@@ -973,6 +996,12 @@ const EventExpenseTrackingPage = ({
                         <ListItemText>
                           {TEXT_CREATE_EXPENSE_REPORT}
                         </ListItemText>
+                      </MenuItem>
+                      <MenuItem onClick={handleExportCsv}>
+                        <ListItemIcon>
+                          <TableChartOutlined fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText>{TEXT_EXPORT_CSV}</ListItemText>
                       </MenuItem>
                     </Menu>
                   </Box>
