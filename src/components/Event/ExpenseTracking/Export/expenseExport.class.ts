@@ -150,8 +150,10 @@ export class ExpenseExport {
 
   /**
    * Bereinigt einen Teil eines Dateinamens. Zeichen, die Windows in
-   * Dateinamen verbietet, und Steuerzeichen werden zu Leerzeichen; ohne
-   * `/` und `\` entstehen im ZIP keine Ordner.
+   * Dateinamen verbietet, Steuerzeichen und unsichtbare Formatzeichen
+   * werden zu Leerzeichen. Formatzeichen wie «Schreibrichtung umkehren»
+   * lassen einen Namen sonst als anderen Dateityp erscheinen. Ohne `/`
+   * und `\` entstehen im ZIP keine Ordner.
    *
    * @param text - Freier Text, z.B. Bezeichnung oder Anlassname.
    * @returns Bereinigter Text ohne doppelte Leerzeichen, evtl. leer.
@@ -160,7 +162,7 @@ export class ExpenseExport {
    */
   private static sanitizeFileNamePart(text: string): string {
     return text
-      .replace(/[/\\:*?"<>|\p{Cc}]/gu, " ")
+      .replace(/[/\\:*?"<>|\p{Cc}\p{Cf}]/gu, " ")
       .trim()
       .replace(/\s+/g, " ");
   }

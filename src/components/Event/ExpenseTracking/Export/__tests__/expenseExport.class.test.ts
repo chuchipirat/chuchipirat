@@ -325,6 +325,9 @@ describe("ExpenseExport.getReceiptFileName", () => {
     ['a\\b*c?d"e<f>g|h', "003 a b c d e f g h.pdf"],
     ["Brot\nMilch\tButter", "003 Brot Milch Butter.pdf"],
     ["Brot\u0000Milch\u001bButter", "003 Brot Milch Butter.pdf"],
+    // Richtungs- und unsichtbare Zeichen: sonst zeigt Explorer «fdp.exe» verdreht
+    ["Quittung\u202Efdp.exe", "003 Quittung fdp.exe.pdf"],
+    ["Brot\u200BMilch", "003 Brot Milch.pdf"],
     ["  viel   Platz  ", "003 viel Platz.pdf"],
   ])("bereinigt %j", (label, expected) => {
     expect(ExpenseExport.getReceiptFileName(makeRow({label}))).toBe(expected);
