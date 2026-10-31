@@ -57,6 +57,9 @@ import {
   EXPORT_CSV as TEXT_EXPORT_CSV,
   REPORT_RECEIPTS_FAILED as TEXT_REPORT_RECEIPTS_FAILED,
   REPORT_PAYMENT_DETAILS_SAVE_FAILED as TEXT_REPORT_PAYMENT_DETAILS_SAVE_FAILED,
+  EXPORT_ZIP as TEXT_EXPORT_ZIP,
+  NO_RECEIPTS_AVAILABLE as TEXT_NO_RECEIPTS_AVAILABLE,
+  EXPORT_RECEIPTS_FAILED as TEXT_EXPORT_RECEIPTS_FAILED,
 } from "../../../constants/text";
 
 import {
@@ -81,6 +84,7 @@ import {
   AddOutlined,
   ArrowDropDown,
   FileDownloadOutlined,
+  FolderZipOutlined,
   PictureAsPdfOutlined,
   TableChartOutlined,
 } from "@mui/icons-material";
@@ -125,6 +129,8 @@ import {
 import {getAccountHolderName} from "./Report/expenseReportLabels";
 import {useOwnPaymentDetails} from "./Report/useOwnPaymentDetails";
 import {downloadExpenseCsv} from "./Export/downloadExpenseCsv";
+import {ExportProgress} from "./Export/expenseExport.types";
+import {ExportProgressDialog} from "./Export/exportProgressDialog";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
 type ExpenseTrackingView = "overview" | "expenses" | "evaluation";
@@ -217,6 +223,10 @@ const EventExpenseTrackingPage = ({
     open: false,
     key: 0,
   });
+  const [zipProgress, setZipProgress] = React.useState<ExportProgress | null>(
+    null,
+  );
+
   /** Ein Export läuft: Knopf «Exportieren» zeigt Fortschritt und ist gesperrt. */
   const [isExporting, setIsExporting] = React.useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] =
@@ -250,6 +260,8 @@ const EventExpenseTrackingPage = ({
   );
   const defaultBudgetId = lastUsedBudgetId ?? state.budgets?.[0]?.id ?? null;
   const hasExpenses = (state.expenses?.length ?? 0) > 0;
+  const hasReceipts =
+    state.expenses?.some((expense) => expense.attachmentPath !== null) ?? false;
 
   /* ------------------------------------------
   // Spende für dieses Event laden
@@ -804,6 +816,44 @@ const EventExpenseTrackingPage = ({
   const handleCloseReportDialog = () => {
     setReportDialog((previous) => ({...previous, open: false}));
   };
+
+  /**
+   * Erstellt das ZIP mit CSV und Belegen und startet den Download.
+   * `downloadExpenseZip` meldet nicht geladene Belege selbst an Sentry,
+   * hier nur der Hinweis. Der Dialog öffnet sofort und schliesst in
+   * jedem Fall, auch bei einem Fehler.
+   */
+  const handleDownloadReceiptsZip = async () => {
+    setExportMenuAnchor(null);
+    trackEvent(AnalyticsEvent.EXPENSES_EXPORTED, {type: "zip"});
+    setZipProgress({loaded: 0, total: 0});
+
+    try {
+      const {downloadExpenseZip} = await import("./Export/downloadExpenseZip");
+      const {failedReceiptNumbers} = await downloadExpenseZip({
+        expenses: state.expenses ?? [],
+        budgets: state.budgets ?? [],
+        event,
+        getAttachmentUrl: handleGetAttachmentUrl,
+        onProgress: setZipProgress,
+      });
+
+      if (failedReceiptNumbers.length > 0) {
+        dispatch({
+          type: ReducerActions.SNACKBAR_SHOW,
+          payload: {
+            severity: "warning",
+            message: TEXT_EXPORT_RECEIPTS_FAILED(failedReceiptNumbers),
+          },
+        });
+      }
+    } catch (error) {
+      handleError(error, "ZIP exportieren");
+    } finally {
+      setZipProgress(null);
+    }
+  };
+
   /**
    * Erstellt die Abrechnung und startet den Download. Das PDF-Modul wird
    * erst hier nachgeladen. Fehler beim Erstellen meldet
@@ -1002,6 +1052,20 @@ const EventExpenseTrackingPage = ({
                           <TableChartOutlined fontSize="small" />
                         </ListItemIcon>
                         <ListItemText>{TEXT_EXPORT_CSV}</ListItemText>
+                      </MenuItem>
+                      <MenuItem
+                        onClick={handleDownloadReceiptsZip}
+                        disabled={!hasReceipts}
+                      >
+                        <ListItemIcon>
+                          <FolderZipOutlined fontSize="small" />
+                        </ListItemIcon>
+                        <ListItemText
+                          primary={TEXT_EXPORT_ZIP}
+                          secondary={
+                            hasReceipts ? undefined : TEXT_NO_RECEIPTS_AVAILABLE
+                          }
+                        />
                       </MenuItem>
                     </Menu>
                   </Box>
@@ -1213,6 +1277,7 @@ const EventExpenseTrackingPage = ({
         onCreate={handleCreateReport}
         onClose={handleCloseReportDialog}
       />
+      <ExportProgressDialog progress={zipProgress} />
 
       <CustomSnackbar
         message={state.snackbar.message}

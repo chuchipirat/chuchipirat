@@ -51,6 +51,9 @@ import {
   CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
   EXPORT as TEXT_EXPORT,
   EXPORT_CSV as TEXT_EXPORT_CSV,
+  EXPORT_ZIP as TEXT_EXPORT_ZIP,
+  EXPORT_ZIP_PROGRESS_TITLE as TEXT_EXPORT_ZIP_PROGRESS_TITLE,
+  NO_RECEIPTS_AVAILABLE as TEXT_NO_RECEIPTS_AVAILABLE,
 } from "../../../../constants/text/expenseTracking";
 import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
 import {ExpenseDomain, ExpensePayeeType} from "../Expense/expense.types";
@@ -62,10 +65,8 @@ import {trackEvent} from "../../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../../Analytics/analyticsEvents";
 import {downloadExpenseReport} from "../Report/downloadExpenseReport";
 import {downloadExpenseCsv} from "../Export/downloadExpenseCsv";
-import {
-  ExpenseReportResult,
-  ReportMode,
-} from "../Report/expenseReport.types";
+import {downloadExpenseZip} from "../Export/downloadExpenseZip";
+import {ExpenseReportResult, ReportMode} from "../Report/expenseReport.types";
 /**
  * Mock: customDialog — die Tests steuern, was die Nutzer:in «antwortet».
  * `jest.mock` muss auf oberster Ebene der Datei stehen: Es wird vor den
@@ -112,6 +113,14 @@ jest.mock("../Report/downloadExpenseReport", () => ({
  */
 jest.mock("../Export/downloadExpenseCsv", () => ({
   downloadExpenseCsv: jest.fn(),
+}));
+/**
+ * Mock: ZIP-Download, per `import()` nachgeladen. Geprüft wird, was die
+ * Seite übergibt und wie sie Fortschritt, Hinweis und Fehler zeigt; den
+ * Inhalt prüft `downloadExpenseZip.test.ts`.
+ */
+jest.mock("../Export/downloadExpenseZip", () => ({
+  downloadExpenseZip: jest.fn(),
 }));
 /**
  * Mock: Analytics — die Abrechnung prüft, dass `trackEvent` keine IBAN
@@ -268,11 +277,7 @@ beforeEach(() => {
  * @param size - Optionale Grösse in Bytes (überschreibt die tatsächliche Länge).
  * @returns Die Testdatei.
  */
-const makeFile = (
-  name: string,
-  type: string,
-  size?: number,
-): File => {
+const makeFile = (name: string, type: string, size?: number): File => {
   const file = new File(["Testinhalt"], name, {type});
   if (size != null) {
     Object.defineProperty(file, "size", {value: size});
@@ -1922,9 +1927,7 @@ describe("EventExpenseTrackingPage: Beleg-Upload", () => {
     mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
       kitchenBudget,
     ]);
-    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
-      expense,
-    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([expense]);
 
     const result = renderEventExpenseTrackingPage();
     await screen.findByTestId("expense-tracking-unlocked");
@@ -2026,7 +2029,9 @@ describe("EventExpenseTrackingPage: Beleg-Upload", () => {
     expect(
       await screen.findByTestId(`expense-${createdExpense.id}`),
     ).toBeInTheDocument();
-    expect(await screen.findByText("Upload fehlgeschlagen")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Upload fehlgeschlagen"),
+    ).toBeInTheDocument();
     expect(mockDatabase.expenses.updateExpense).not.toHaveBeenCalled();
   });
 
@@ -2263,9 +2268,7 @@ describe("EventExpenseTrackingPage: Ausgabe mit Beleg löschen", () => {
     // Zwei Alerts: die Erfolgs-Snackbar fürs Löschen und die Fehlermeldung.
     const alerts = await screen.findAllByRole("alert");
     expect(
-      alerts.some((alert) =>
-        alert.textContent?.includes(storageError.message),
-      ),
+      alerts.some((alert) => alert.textContent?.includes(storageError.message)),
     ).toBe(true);
     expect(
       screen.queryByTestId("expense-expense-existing-1"),
@@ -2799,8 +2802,7 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
   };
 
   /** Knopf «Exportieren» in der Titelkarte. */
-  const getExportButton = () =>
-    screen.getByRole("button", {name: TEXT_EXPORT});
+  const getExportButton = () => screen.getByRole("button", {name: TEXT_EXPORT});
 
   /**
    * Öffnet über «Exportieren» den Dialog «Abrechnung erstellen».
@@ -3345,8 +3347,7 @@ describe("EventExpenseTrackingPage: Ausgaben als CSV", () => {
   });
 
   /** Knopf «Exportieren» in der Titelkarte. */
-  const getExportButton = () =>
-    screen.getByRole("button", {name: TEXT_EXPORT});
+  const getExportButton = () => screen.getByRole("button", {name: TEXT_EXPORT});
 
   /**
    * Rendert die freigeschaltete Seite mit einer Ausgabe und öffnet das Menü
@@ -3403,6 +3404,207 @@ describe("EventExpenseTrackingPage: Ausgaben als CSV", () => {
     expect(Sentry.captureException).toHaveBeenCalledWith(downloadError, {
       extra: {context: "CSV exportieren"},
     });
+    expect(getExportButton()).toBeEnabled();
+  });
+});
+
+/* =====================================================================
+// Ausgaben mit Belegen (ZIP)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgaben mit Belegen (ZIP)", () => {
+  /** Ausgabe mit Beleg des einzigen Kochs im `mockEvent`. */
+  const receiptExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-zip-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: "user-123",
+    attachmentPath: "evt-1/expenses/expense-zip-1.pdf",
+  };
+  /** Dieselbe Ausgabe ohne Beleg. */
+  const expenseWithoutReceipt: ExpenseDomain = {
+    ...receiptExpense,
+    id: "expense-zip-2",
+    attachmentPath: null,
+  };
+  const mockedDownloadExpenseZip = jest.mocked(downloadExpenseZip);
+
+  beforeEach(() => {
+    mockedDownloadExpenseZip
+      .mockReset()
+      .mockResolvedValue({failedReceiptNumbers: []});
+    jest.mocked(trackEvent).mockClear();
+    jest.mocked(Sentry.captureException).mockClear();
+  });
+
+  /** Knopf «Exportieren» in der Titelkarte. */
+  const getExportButton = () => screen.getByRole("button", {name: TEXT_EXPORT});
+
+  /**
+   * Rendert die freigeschaltete Seite und öffnet das Menü «Exportieren».
+   * Der Name des Eintrags kann eine Zweitzeile enthalten, darum der
+   * Vergleich über den Anfang.
+   *
+   * @param expenses - Ausgaben des Anlasses.
+   * @returns Der Menüeintrag «Ausgaben mit Belegen (ZIP)».
+   */
+  const openZipMenuItem = async (
+    expenses: ExpenseDomain[] = [receiptExpense],
+  ) => {
+    await renderUnlockedPage([kitchenBudget], expenses);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+    fireEvent.click(getExportButton());
+    return screen.findByRole("menuitem", {
+      name: (accessibleName) => accessibleName.startsWith(TEXT_EXPORT_ZIP),
+    });
+  };
+
+  /** Wartet, bis der Fortschrittsdialog wieder zu ist. */
+  const waitForDialogClosed = () =>
+    waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {name: TEXT_EXPORT_ZIP_PROGRESS_TITLE}),
+      ).not.toBeInTheDocument(),
+    );
+
+  test("ohne Beleg ist der Eintrag gesperrt und sagt warum", async () => {
+    const menuItem = await openZipMenuItem([expenseWithoutReceipt]);
+
+    expect(menuItem).toHaveAttribute("aria-disabled", "true");
+    expect(menuItem).toHaveTextContent(TEXT_NO_RECEIPTS_AVAILABLE);
+  });
+
+  test("mit Beleg ist der Eintrag aktiv, ohne Zweitzeile", async () => {
+    const menuItem = await openZipMenuItem();
+
+    expect(menuItem).not.toHaveAttribute("aria-disabled", "true");
+    expect(menuItem).not.toHaveTextContent(TEXT_NO_RECEIPTS_AVAILABLE);
+  });
+
+  test("Klick übergibt Ausgaben, Budgets, Anlass und Beleg-URL und schliesst das Menü", async () => {
+    fireEvent.click(await openZipMenuItem());
+
+    await waitFor(() =>
+      expect(mockedDownloadExpenseZip).toHaveBeenCalledTimes(1),
+    );
+    const [params] = mockedDownloadExpenseZip.mock.calls[0];
+    expect(params).toEqual(
+      expect.objectContaining({
+        expenses: [receiptExpense],
+        budgets: [kitchenBudget],
+        event: mockEvent,
+      }),
+    );
+    expect(params.getAttachmentUrl("evt-1/expenses/expense-zip-1.pdf")).toBe(
+      "https://mock.supabase.co/storage/v1/object/public/media/events/evt-1/expenses/expense-zip-1.pdf",
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("menuitem", {name: TEXT_EXPORT_CSV}),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  test("meldet den Export an Analytics, mit Typ «zip»", async () => {
+    fireEvent.click(await openZipMenuItem());
+
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        AnalyticsEvent.EXPENSES_EXPORTED,
+        {type: "zip"},
+      ),
+    );
+  });
+
+  test("während des Downloads Dialog mit Fortschritt, danach weg", async () => {
+    let finishDownload: () => void = () => undefined;
+    mockedDownloadExpenseZip.mockImplementation(async ({onProgress}) => {
+      onProgress({loaded: 1, total: 3});
+      await new Promise<void>((resolve) => {
+        finishDownload = resolve;
+      });
+      return {failedReceiptNumbers: []};
+    });
+
+    fireEvent.click(await openZipMenuItem());
+
+    const dialog = await screen.findByRole("dialog", {
+      name: TEXT_EXPORT_ZIP_PROGRESS_TITLE,
+    });
+    expect(await within(dialog).findByRole("status")).toHaveTextContent(
+      "Belege werden geladen (1 von 3)",
+    );
+
+    await act(async () => finishDownload());
+    await waitForDialogClosed();
+  });
+
+  test("Dialog erscheint sofort, schon vor dem ersten Fortschritt", async () => {
+    let finishDownload: () => void = () => undefined;
+    mockedDownloadExpenseZip.mockImplementation(async () => {
+      await new Promise<void>((resolve) => {
+        finishDownload = resolve;
+      });
+      return {failedReceiptNumbers: []};
+    });
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(
+      await screen.findByRole("dialog", {name: TEXT_EXPORT_ZIP_PROGRESS_TITLE}),
+    ).toBeInTheDocument();
+
+    await act(async () => finishDownload());
+    await waitForDialogClosed();
+  });
+
+  test("ein Beleg nicht geladen: Hinweis mit der Nummer", async () => {
+    mockedDownloadExpenseZip.mockResolvedValue({failedReceiptNumbers: [2]});
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(
+      await screen.findByText(
+        "Beleg 2 konnte nicht geladen werden und fehlt im ZIP.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("mehrere Belege nicht geladen: Hinweis mit allen Nummern", async () => {
+    mockedDownloadExpenseZip.mockResolvedValue({failedReceiptNumbers: [2, 5]});
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(
+      await screen.findByText(
+        "Belege 2, 5 konnten nicht geladen werden und fehlen im ZIP.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("alles geladen: kein Hinweis", async () => {
+    fireEvent.click(await openZipMenuItem());
+
+    await waitFor(() =>
+      expect(mockedDownloadExpenseZip).toHaveBeenCalledTimes(1),
+    );
+    await waitForDialogClosed();
+    expect(
+      screen.queryByText(/konnten? nicht geladen werden/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Fehler erscheint oben auf der Seite, geht an Sentry, Dialog schliesst", async () => {
+    const zipError = new Error("ZIP kaputt");
+    mockedDownloadExpenseZip.mockRejectedValue(zipError);
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(Sentry.captureException).toHaveBeenCalledWith(zipError, {
+      extra: {context: "ZIP exportieren"},
+    });
+    await waitForDialogClosed();
     expect(getExportButton()).toBeEnabled();
   });
 });

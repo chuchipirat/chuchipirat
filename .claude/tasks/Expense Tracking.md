@@ -7380,35 +7380,83 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 2. Text, Analytics, Handler und Menüeintrag → Seitentests grün ✋ ✅ (2026-10-29: 669 Tests grün; Sentry-Kontext jetzt exakt geprüft)
 3. Im Browser (DEV): CSV in Excel öffnen. Umlaute, Spalten, Kommentar mit Zeilenumbruch, `=1+1` als Text, Mobile (Download landet in «Dateien»). ✅ (2026-10-29: Export funktioniert. Reihenfolge wie im PDF — Person → Datum → Bezeichnung — bewusst beibehalten, damit Belegnummer in CSV, ZIP und PDF zusammenpassen)
 
-### **Story 8.3 — ZIP mit Belegen**
+### **Story 8.3 — ZIP mit Belegen** ✅
+
+> Verfeinert 2026-10-29. Tests zuerst wie in 8.2: Claude schreibt die Tests vor der Umsetzung, gegen eine Wegwerf-Umsetzung geprüft. Die Tests sind die Definition of Done jedes Schritts. JSDoc schreibt Claude beim Review.
+
+#### Entscheidungen
+
+- **Hook statt Handler in der Seite.** Anders als die CSV hat das ZIP Zustand (Fortschritt), einen asynchronen Ablauf mit `finally` und ein nachgeladenes Modul. `useExpenseZipExport` kapselt das; die Seite (1227 Zeilen) bekommt nur den Menüeintrag, den Dialog und zwei Callbacks (Fehler, Hinweis).
+- **Signatur wie die CSV:** `downloadExpenseZip` bekommt `{expenses, budgets, event, …}` und baut die Zeilen selbst, wie `downloadExpenseCsv`. `event.uid` braucht es für Sentry.
+- **Originale ins ZIP.** Der Blob aus `fetchReceiptBlob` geht unverändert hinein (kein `resizeImage`, kein pdf-lib). `fetchReceiptBlob` wird dafür exportiert.
+- **Nacheinander laden** (`for … of` mit `await`), nicht `Promise.all`: gleicher Grund wie beim PDF (Speicher auf dem Handy), und die Reihenfolge der Dateien folgt den Nummern.
+- **`compression: "STORE"`** (X6).
+- **Ein Beleg fehlt → ZIP entsteht trotzdem** (X7): keine Datei, CSV-Zelle «Beleg konnte nicht geladen werden», Nummer im Ergebnis, danach Snackbar. Sentry gesammelt (ein Ereignis, nur IDs), Netzfehler nicht (`isTransientNetworkError`), wie `reportFailedReceipts` beim PDF.
+- **Eigener Hinweistext.** `REPORT_RECEIPTS_FAILED` spricht von Leerseiten im PDF, das stimmt fürs ZIP nicht. Neu `EXPORT_RECEIPTS_FAILED`.
+- **jszip per `import()`**: Der Hook lädt `downloadExpenseZip` nach, jszip kommt damit in einen eigenen Chunk.
+- **jszip-Version 3.10.1 fest** (`--save-exact`). 3.10.2 erschien am 2026-09-08 nach vier Jahren ohne Release; 3.10.1 ist seit 2022 im Einsatz. Wechsel später bewusst.
+- **Dialog öffnet sofort**: Der Hook setzt `{loaded: 0, total: 0}` vor dem `import()`. Bei `total === 0` zeigt der Dialog einen laufenden Balken ohne Zahlen (sonst `0 / 0` = `NaN`).
+- **Menüeintrag gesperrt ohne Belege**, mit Zweitzeile «Keine Belege vorhanden» (Text gibt es schon). Ein ZIP ohne Belege wäre nur die CSV.
+- **Texte:** `DOWNLOAD_RECEIPTS_ZIP` (ungenutzt) → `EXPORT_ZIP = "Ausgaben mit Belegen (ZIP)"`. Neu: `EXPORT_RECEIPT_FOLDER = "Belege"`, `EXPORT_RECEIPT_NOT_LOADED = "Beleg konnte nicht geladen werden"`, `EXPORT_ZIP_PROGRESS_TITLE = "ZIP wird erstellt"`, `EXPORT_RECEIPTS_FAILED(receiptNumbers)`. Fortschritt nutzt das bestehende `REPORT_PROGRESS_LOADING`.
 
 #### Schnittstellen
 
-- `npm install jszip` (bringt eigene Typen mit). Nur per `import()` im Export-Modul laden.
-- `receiptLoader.ts`: `fetchReceiptBlob` exportieren (keine Verhaltensänderung).
-- `Export/downloadExpenseZip.ts`: `downloadExpenseZip({rows, eventName, getAttachmentUrl, onProgress, fetchBlob?}): Promise<{failedReceiptNumbers: number[]}>`
-  - Nacheinander laden, Fortschritt wie `loadReceipts` (`{stage: "loading", loaded, total}`).
-  - Erfolgreich → `zip.file("Belege/<name>", blob)` und `receiptCells.set(id, name)`; Fehler → Zelle `EXPORT_RECEIPT_NOT_LOADED`, Nummer merken, Sentry (nur Meldung, wie 7.4).
-  - Danach CSV hineinlegen, `generateAsync({type: "blob", compression: "STORE"})`, `saveAs`.
-  - `fetchBlob` als Parameter, damit der Test kein Netz braucht (gleiches Muster wie `ReceiptLoaderDependencies`).
-- `Export/exportProgressDialog.tsx` (falls O4 = Dialog): `ExportProgressDialog({progress})`, offen solange `progress !== null`, kein Schliessen per Escape/Klick daneben.
-- Hook: `exportZip` setzt `zipProgress`, ruft `downloadExpenseZip` per `import()`, meldet `failedReceiptNumbers` über `onFailedReceipts` (Seite ruft `showReportHints`), setzt `zipProgress` im `finally` auf `null`.
-- Menüeintrag «Ausgaben mit Belegen (ZIP)» (Icon `FolderZipOutlined`).
+- `npm install jszip@3.10.1 --save-exact` (Typen sind dabei).
+- `Report/receiptLoader.ts`: `fetchReceiptBlob` exportieren (sonst nichts ändern).
+- `Export/expenseExport.types.ts`:
+  - `ExportProgress = {loaded: number; total: number}`
+  - `ExpenseZipResult = {failedReceiptNumbers: number[]}`
+- `Export/downloadExpenseZip.ts` (neu): `downloadExpenseZip({expenses, budgets, event, getAttachmentUrl, onProgress, fetchBlob = fetchReceiptBlob}): Promise<ExpenseZipResult>`
+  1. `rows` = `buildRows`, `receiptFileNames` = `getReceiptFileNames(rows)`, `receiptCells` = Kopie davon (`new Map(receiptFileNames)`).
+  2. Fortschritt `{loaded: 0, total}` (nur wenn `total > 0`), dann je Beleg in Nummernreihenfolge: laden → `zip.file("Belege/<name>", blob)`; Fehler → Zelle überschreiben, Fehler merken. Nach jedem Beleg Fortschritt.
+  3. `zip.file(<CSV-Name>, buildExpenseCsv(rows, receiptCells))`, `zip.generateAsync({type: "blob", compression: "STORE"})`, `fileSaver.saveAs(blob, getExportFileName(event.name, "zip"))`.
+  4. Nicht ladbare Belege an Sentry (ein Ereignis), Nummern zurückgeben.
+  - Fehler von `generateAsync`/`saveAs` werden nicht abgefangen (der Hook meldet sie).
+  - Max. 20 Zeilen pro Funktion: Laden der Belege und Sentry-Meldung als eigene Funktionen.
+- `Export/useExpenseZipExport.ts` (neu): `useExpenseZipExport({onError, onFailedReceipts}): {zipProgress: ExportProgress | null; exportZip: (input) => Promise<void>}`
+  - `input` = `{expenses, budgets, event, getAttachmentUrl}`.
+  - `exportZip`: Analytics `{type: "zip"}` → `setZipProgress({loaded: 0, total: 0})` → `try` `import("./downloadExpenseZip")` + Aufruf mit `onProgress: setZipProgress` → bei Nummern `onFailedReceipts(numbers)`; `catch` → `onError(error)`; `finally` → `setZipProgress(null)`.
+- `Export/exportProgressDialog.tsx` (neu): `ExportProgressDialog({progress}: {progress: ExportProgress | null})`
+  - offen, solange `progress !== null`; Titel `EXPORT_ZIP_PROGRESS_TITLE`; kein `onClose` (Escape/Klick daneben schliessen nicht).
+  - `total > 0`: `LinearProgress variant="determinate"` + Text `REPORT_PROGRESS_LOADING(loaded, total)` mit `role="status"`. `total === 0`: laufender Balken, kein Text.
+- `expenseTracking.tsx`:
+  - `useExpenseZipExport({onError: (error) => handleError(error, "ZIP exportieren"), onFailedReceipts: (numbers) => Snackbar warning EXPORT_RECEIPTS_FAILED(numbers)})`
+  - `handleExportZip`: Menü schliessen, `exportZip({expenses, budgets, event, getAttachmentUrl: handleGetAttachmentUrl})`.
+  - Menüeintrag nach «Ausgaben als CSV», Icon `FolderZipOutlined`, `disabled` ohne Beleg, dann Zweitzeile `NO_RECEIPTS_AVAILABLE`.
+  - `<ExportProgressDialog progress={zipProgress} />`.
+
+#### Tests (vorab geschrieben, Definition of Done)
+
+- `Export/__tests__/downloadExpenseZip.test.ts` (jszip echt, `file-saver` und Sentry gemockt, ZIP aus dem `saveAs`-Blob mit `JSZip.loadAsync` wieder geöffnet):
+  - genau ein `saveAs`, Dateiname «Ausgaben Sommerlager.zip»
+  - Inhalt: die CSV und `Belege/001 …`, `Belege/002 …`; keine Datei für die Ausgabe ohne Beleg
+  - Belegdatei = unveränderter Inhalt aus `fetchBlob`; URL über `getAttachmentUrl`
+  - CSV im ZIP: Zeilen mit «001 …», leerer Zelle ohne Beleg
+  - Fortschritt `0/2, 1/2, 2/2` (nur Belege); ohne Beleg kein Fortschritt, ZIP enthält nur die CSV
+  - nacheinander: der zweite `fetchBlob` startet erst nach dem ersten
+  - `generateAsync` mit `compression: "STORE"`
+  - Beleg lädt nicht → ZIP mit den anderen, CSV-Zelle «Beleg konnte nicht geladen werden», `failedReceiptNumbers`, ein Sentry-Ereignis mit Kontext und IDs; Netzfehler ohne Sentry
+  - Fehler von `saveAs` wird weitergeworfen
+- `Export/__tests__/exportProgressDialog.test.tsx`: `null` → kein Dialog; Titel; `2 von 5` → Text und Balken 40 %; `total 0` → Balken ohne Wert, kein Text; Escape schliesst nicht.
+- `__tests__/expenseTracking.test.tsx`, `describe("EventExpenseTrackingPage: Ausgaben mit Belegen (ZIP)")` (`downloadExpenseZip` gemockt):
+  - ohne Beleg: Eintrag gesperrt mit «Keine Belege vorhanden»
+  - Klick: Menü zu, Aufruf mit Ausgaben, Budgets, Anlass und einer `getAttachmentUrl`, die die Storage-URL liefert
+  - Analytics `{type: "zip"}`
+  - Dialog erscheint sofort (vor dem ersten Fortschritt); während des Downloads mit Fortschritt, danach weg
+  - Belege nicht geladen → Snackbar mit `EXPORT_RECEIPTS_FAILED`; ohne Fehler kein Hinweis
+  - Fehler → Meldung oben, Sentry mit `{extra: {context: "ZIP exportieren"}}`, Dialog weg
 
 #### Schritte
 
-1. `jszip` installieren, `fetchReceiptBlob` exportieren, `downloadExpenseZip` + Tests ✋
-2. Hook `exportZip` + Fortschrittsdialog + Menüeintrag + Tests ✋
-3. Im Browser (DEV): ZIP mit Foto, PDF und einer Ausgabe ohne Beleg; einen Beleg im Storage löschen → Hinweis und CSV-Zelle; Dateien im ZIP öffnen.
-
-#### Tests
-
-- `downloadExpenseZip` (jszip echt, `saveAs` gemockt; Blob aus dem Mock mit `JSZip.loadAsync` wieder öffnen): Dateinamen im Ordner `Belege/`; CSV liegt drin; Ausgabe ohne Beleg erzeugt keine Datei; ein `fetchBlob`-Fehler → `failedReceiptNumbers` und CSV-Zelle, die anderen Belege sind drin; Fortschritt zählt nur Belege; Reihenfolge der Aufrufe = Nummernreihenfolge (nacheinander, nicht parallel: zweiter Aufruf startet erst nach dem ersten).
-- Hook: `zipProgress` ist nach Fehler wieder `null`; Analytics `type: "zip"`.
+1. jszip (von Claude schon installiert, 3.10.1 fest), `fetchReceiptBlob` exportieren, Typen, `downloadExpenseZip` → `downloadExpenseZip.test.ts` grün ✋ ✅ (2026-10-31: 15 Tests grün, JSDoc fertig)
+2. Texte, `ExportProgressDialog`, `useExpenseZipExport`, Menüeintrag → Dialog- und Seitentests grün ✋ ✅ (2026-10-31: 698 Tests grün, JSDoc fertig. ZIP-Logik vorerst in der Seite statt im Hook `useExpenseZipExport`, Umzug beim Aufteilen in Epic 10; jszip per `import()` nachgeladen)
+3. Im Browser (DEV): ZIP mit Foto, PDF und einer Ausgabe ohne Beleg; Dateien im ZIP öffnen (Foto in Originalgrösse); einen Beleg im Storage löschen → Hinweis und CSV-Zelle; Mobile. ✅ (2026-10-31: ZIP, Hinweis und CSV-Zelle geprüft. Beim Test mit gelöschtem Beleg liefert der Browser die Datei bis zu 1 h aus dem Cache (Supabase-Standard `max-age=3600`); zum Testen in DevTools «Disable cache» oder «Block request URL»)
 
 #### Mutationsproben 8.3
 
-`compression: "DEFLATE"` (Test auf Option); Fehler eines Belegs bricht alles ab; `Promise.all` statt Schleife; Ordner `Belege/` weg; `finally` weg.
+`DEFLATE` statt `STORE`; Fehler eines Belegs bricht alles ab; `Promise.all` statt Schleife; Ordner `Belege/` weg; `finally` weg (Dialog bleibt offen); Netzfehler an Sentry; Fortschritt zählt Ausgaben ohne Beleg; falscher Sentry-Kontext vom Nachbar-Handler kopiert; Menüeintrag nie gesperrt.
+
+*Stand 2026-10-29:* Tests gegen eine Wegwerf-Umsetzung geprüft (698 grün, danach entfernt). 16 Proben, alle gefangen: die oben plus Menü bleibt offen, kein Analytics, Hinweis auch ohne Fehler, Balken bei `total 0` mit Wert, kein Startfortschritt, CSV ohne Fehlerzelle, Sentry pro Fehler statt gesammelt.
 
 ### **Story 8.4 — Abschluss**
 
@@ -7444,6 +7492,7 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
   - **Texte** (`src/constants/text/expenseTracking.ts`): Präfixe pro Bereich vereinheitlichen, z.B. `NO_EXPENSES_FOR_STATS` → `EVALUATION_NO_EXPENSES`, `DAY_X_OF_Y_IN_EVENT` → `PROJECTION_DAY_X_OF_Y`. Unbenutzte Konstanten löschen (Stand 2026-10-11: `BELEG`, `DELETE_BELEG` — zugleich deutsche Bezeichner und Duplikate von `EXPENSE_RECEIPT`/`REMOVE_EXPENSE_RECEIPT` — sowie `BUDGET_TYPE_PER_PERSON_PER_DAY_AMOUNT`). Prüfskript für Unbenutztes: jede exportierte Konstante per `grep -rnw` ausserhalb der Datei suchen. Texte, die auch in `src/constants/text/` anderer Bereiche vorkommen (`CANCEL`, `SAVE` …), bleiben dort.
   - **Grösse prüfen:** Ist eine der beiden Dateien danach über ca. 500 Zeilen, entlang der Abschnitte aufteilen (z.B. `expenseTrackingBudget.styles.ts`, `…Evaluation…`). Darunter bleibt es je eine Datei.
   - Helpcenter Seiten erstellen.
+- **10.x `expenseTracking.tsx` aufteilen** (entschieden 2026-10-31): Die Seite ist zu gross (über 1200 Zeilen). Handler und State nach Bereichen in Hooks/Komponenten auslagern (Budgets, Ausgaben, Abrechnung, Export). Dabei der ZIP-Export: `handleDownloadReceiptsZip` wurde in 8.3 bewusst in der Seite gebaut statt im geplanten Hook `useExpenseZipExport`; beim Aufteilen in den Hook verschieben, inkl. `zipProgress`. Reines Verschieben, die Seitentests müssen unverändert grün bleiben.
 
 - 10.2 Finaler PR gegen `develop` + Release-Notes-Text.
 

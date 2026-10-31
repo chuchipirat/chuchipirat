@@ -448,7 +448,6 @@ export const REPORT_NO_REFUND_HINT =
   "Diese Ausgaben werden niemandem zurückerstattet.";
 export const EXPORT = "Exportieren";
 export const EXPORT_CSV = "Ausgaben als CSV";
-export const DOWNLOAD_RECEIPTS_ZIP = "Belege als ZIP";
 export const NO_RECEIPTS_AVAILABLE = "Keine Belege vorhanden";
 /** Schalter im Dialog (E11). */
 export const REPORT_INCLUDE_MISSING_RECEIPT_PAGES =
@@ -594,3 +593,26 @@ export const EXPORT_COLUMN_PAYEE = "Zahlende Instanz";
 export const EXPORT_COLUMN_COMMENT = "Kommentar";
 /** Spaltentitel der CSV-Datei: Dateiname des Belegs im ZIP. */
 export const EXPORT_COLUMN_RECEIPT_FILE = "Belegdatei";
+/** Menüeintrag «Exportieren»: ZIP mit CSV und Originalbelegen. */
+export const EXPORT_ZIP = "Ausgaben mit Belegen (ZIP)";
+/** Ordner im ZIP für die Originalbelege. */
+export const EXPORT_RECEIPT_FOLDER = "Belege";
+/** CSV-Zelle «Belegdatei», wenn der Beleg nicht ins ZIP kam. */
+export const EXPORT_RECEIPT_NOT_LOADED = "Beleg konnte nicht geladen werden";
+/** Titel des Fortschrittsdialogs beim ZIP-Export. */
+export const EXPORT_ZIP_PROGRESS_TITLE = "ZIP wird erstellt";
+/**
+ * Hinweis nach dem ZIP-Export, wenn Belege fehlen; Einzahl oder Mehrzahl.
+ *
+ * @param receiptNumbers - Belegnummern der fehlenden Belege, mindestens eine.
+ * @returns Hinweistext für die Snackbar.
+ * @example
+ * EXPORT_RECEIPTS_FAILED([2, 5])
+ * // "Belege 2, 5 konnten nicht geladen werden und fehlen im ZIP."
+ */
+export const EXPORT_RECEIPTS_FAILED = (receiptNumbers: number[]): string => {
+  if (receiptNumbers.length === 1) {
+    return `Beleg ${receiptNumbers[0]} konnte nicht geladen werden und fehlt im ZIP.`;
+  }
+  return `Belege ${receiptNumbers.join(", ")} konnten nicht geladen werden und fehlen im ZIP.`;
+};

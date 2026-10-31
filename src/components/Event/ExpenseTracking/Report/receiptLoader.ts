@@ -199,7 +199,7 @@ const downloadReceipt = async (
  * @returns Die Datei als Blob.
  * @throws {Error} Bei einem HTTP-Fehler.
  */
-const fetchReceiptBlob = async (url: string): Promise<Blob> => {
+export const fetchReceiptBlob = async (url: string): Promise<Blob> => {
   const response = await fetch(url);
   if (!response.ok) {
     throw new Error(`Beleg nicht abrufbar (HTTP ${response.status})`);
