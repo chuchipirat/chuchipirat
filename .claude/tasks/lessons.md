@@ -89,3 +89,11 @@
 **Rule**: When tests are the definition of done, every value the plan names (context strings, analytics payloads, file names) is asserted exactly.
 
 **How to apply**: In the mutation probes, also try "value copied from the neighbouring handler", not only "call missing".
+
+## Caching: check the real header before explaining it (2026-10-31)
+
+**What happened**: A deleted receipt still ended up in the ZIP. I explained it with Supabase's default `Cache-Control: max-age=3600`. But receipts are uploaded with `cacheControl: "0"` (the code says so, and `storage.objects.metadata` on DEV shows `max-age=0`), so the explanation was wrong. The workaround I gave (DevTools "Disable cache" / "Block request URL") still worked.
+
+**Rule**: Before blaming a cache, check the actual value: the upload call, `storage.objects.metadata->>'cacheControl'`, or the response header in DevTools.
+
+**How to apply**: Grep for `cacheControl` at the upload call, or read the metadata read-only on the local DB, before answering.

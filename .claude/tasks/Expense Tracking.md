@@ -7247,7 +7247,7 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
 
 </details>
 
-## Epic 8 — Export (CSV/ZIP)
+## Epic 8 — Export (CSV/ZIP) ✅ erledigt (2026-10-31)
 
 > Verfeinert 2026-10-27 nach Abgleich mit Issue #86 und dem Code (Stand nach Epic 7). Lernmodus wie seit 7.3b: Namen, Signaturen, Schritte und Tests, kein fertiger Code. Review an jedem ✋. O1–O4 entschieden 2026-10-27 (siehe unten).
 
@@ -7450,7 +7450,7 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 
 1. jszip (von Claude schon installiert, 3.10.1 fest), `fetchReceiptBlob` exportieren, Typen, `downloadExpenseZip` → `downloadExpenseZip.test.ts` grün ✋ ✅ (2026-10-31: 15 Tests grün, JSDoc fertig)
 2. Texte, `ExportProgressDialog`, `useExpenseZipExport`, Menüeintrag → Dialog- und Seitentests grün ✋ ✅ (2026-10-31: 698 Tests grün, JSDoc fertig. ZIP-Logik vorerst in der Seite statt im Hook `useExpenseZipExport`, Umzug beim Aufteilen in Epic 10; jszip per `import()` nachgeladen)
-3. Im Browser (DEV): ZIP mit Foto, PDF und einer Ausgabe ohne Beleg; Dateien im ZIP öffnen (Foto in Originalgrösse); einen Beleg im Storage löschen → Hinweis und CSV-Zelle; Mobile. ✅ (2026-10-31: ZIP, Hinweis und CSV-Zelle geprüft. Beim Test mit gelöschtem Beleg liefert der Browser die Datei bis zu 1 h aus dem Cache (Supabase-Standard `max-age=3600`); zum Testen in DevTools «Disable cache» oder «Block request URL»)
+3. Im Browser (DEV): ZIP mit Foto, PDF und einer Ausgabe ohne Beleg; Dateien im ZIP öffnen (Foto in Originalgrösse); einen Beleg im Storage löschen → Hinweis und CSV-Zelle; Mobile. ✅ (2026-10-31: ZIP, Hinweis und CSV-Zelle geprüft. Fehlenden Beleg am einfachsten mit DevTools «Block request URL» simulieren. Belege haben `max-age=0`, ein Browser-Cache war also nicht die Ursache, warum ein gelöschter Beleg noch geladen wurde; Ursache nicht geklärt)
 
 #### Mutationsproben 8.3
 
@@ -7458,12 +7458,12 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 
 *Stand 2026-10-29:* Tests gegen eine Wegwerf-Umsetzung geprüft (698 grün, danach entfernt). 16 Proben, alle gefangen: die oben plus Menü bleibt offen, kein Analytics, Hinweis auch ohne Fehler, Balken bei `total 0` mit Wert, kein Startfortschritt, CSV ohne Fehlerzelle, Sentry pro Fehler statt gesammelt.
 
-### **Story 8.4 — Abschluss**
+### **Story 8.4 — Abschluss** ✅
 
-- [ ] Helpcenter: Abschnitt «Ausgaben exportieren» auf `docs/event/expensetracking.md` (CSV-Spalten, ZIP-Inhalt, Nummern passen zum PDF «Alle Personen · Modus A · Leerseiten aus», Hinweis Dezimalzeichen bei Excel mit deutschen Einstellungen, grosse ZIPs besser am Computer). Nicht committen (ein Sammel-Commit am Ende).
-- [ ] Browser Desktop und Mobile (iOS Safari: Download von CSV und ZIP landet in «Dateien»).
-- [ ] `security-reviewer`: CSV-Injection, Dateinamen im ZIP (Pfad-Traversal ausgeschlossen, weil X5 `/` und `\` ersetzt), keine Inhalte in Sentry.
-- [ ] Grössenprobe: ZIP mit vielen Handyfotos → in den Regressionslauf 10.1 (zusammen mit der PDF-Probe aus Epic 7).
+- [x] Helpcenter: Abschnitt «Ausgaben exportieren» auf `docs/event/expensetracking.md` (CSV-Spalten, ZIP-Inhalt, Nummern passen zum PDF «Alle Personen · Modus A · Leerseiten aus», Hinweis Dezimalzeichen bei Excel mit deutschen Einstellungen, grosse ZIPs besser am Computer). Nicht committen (ein Sammel-Commit am Ende).
+- [x] Browser Desktop und Mobile (iOS Safari: Download von CSV und ZIP landet in «Dateien»). *2026-10-31:* ok.
+- [x] `security-reviewer`: CSV-Injection, Dateinamen im ZIP (Pfad-Traversal ausgeschlossen, weil X5 `/` und `\` ersetzt), keine Inhalte in Sentry. *2026-10-31:* nichts hoch/mittel. Gefixt: unsichtbare Formatzeichen (`\p{Cf}`, z.B. Schreibrichtung umkehren) in Dateinamen, mit Test. Nach `tech-debt.md`: Belege im öffentlichen Bucket, `attachment_path` ohne CHECK.
+- [x] Grössenprobe: ZIP mit vielen Handyfotos → in den Regressionslauf 10.1 (zusammen mit der PDF-Probe aus Epic 7).
 
 ### Risiken
 
@@ -7485,7 +7485,7 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
 
 _Wird vor Start verfeinert. Grober Zuschnitt:_
 
-- 10.1 Voller Regressionslauf (`tsc`, `lint`, `test`), Mobile/Tablet-Check aller neuen Screens. Dazu aus Epic 7: Abrechnung mit 20–30 Handyfotos erstellen und die PDF-Grösse prüfen (Ziel: wenige MB, Mail-Anhang).
+- 10.1 Voller Regressionslauf (`tsc`, `lint`, `test`), Mobile/Tablet-Check aller neuen Screens. Dazu aus Epic 7: Abrechnung mit 20–30 Handyfotos erstellen und die PDF-Grösse prüfen (Ziel: wenige MB, Mail-Anhang). Aus Epic 8: dasselbe als ZIP auf dem Handy (läuft der Speicher aus?).
 - **10.x Styles und Texte ordnen** (entschieden 2026-10-11): einmal am Ende, wenn alle Einträge aus Epic 7–9 bekannt sind; vorher wäre es doppelte Arbeit. Je Datei ein eigener Commit (`refactor(abrechnung): …`), **reines Umsortieren, Umbenennen und Löschen von Unbenutztem, keine Werte ändern**. `tsc` findet jede vergessene Umbenennung.
   - **Gemeinsame Abschnitte** für beide Dateien, in der Reihenfolge der Bildschirme (und passend zu den Unterordnern): Seite/Toolbar · Budget-Karte inkl. Hochrechnung · Budget-Dialog · Ausgabenliste · Ausgaben-Dialog (Formular, zahlende Instanz, Beleg) · Zahlende Instanz/Übersicht · Auswertung · PDF-Abrechnung · Export. Kopfkommentar im bestehenden Format (`/* ---- // Titel // ---- */` wie in `src/constants/styles.ts` bzw. `/* ==== */` wie oben in der Textdatei).
   - **Styles** (`src/constants/styles/expenseTracking.styles.ts`): Präfix vereinheitlichen `statistics*` → `evaluation*` (heute zwei Präfixe für dieselbe Ansicht); `budgetProjection*` zur Budget-Karte (liegt heute am Dateiende); innerhalb eines Abschnitts Container vor Kindern, Varianten (`…Selected`, `…Over`) direkt nach dem Grundstil. Prüfen: Anzahl Einträge vorher = nachher (`grep -cE "^  [a-zA-Z]+:" …`), Sichtprüfung aller Ansichten im Browser.
