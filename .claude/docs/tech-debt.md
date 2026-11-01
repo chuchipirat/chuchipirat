@@ -165,6 +165,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Type Safety
 
+- **Edge Functions: `SupabaseAdminClient` in `_shared/cronJobHelper.ts` passt nicht zum Supabase-Client** (gefunden bei Story 9.2, 2026-11-01) — `deno check` meldet in jedem Cron-Job `TS2345` beim Übergeben von `supabaseAdmin` an `startCronJob`/`completeCronJob`/`failCronJob` (die eigene Typ-Schnittstelle erwartet `Promise`, supabase-js liefert `PostgrestBuilder`). `cron-housekeeping` hat zusätzlich eigene Fehler (`cleanupTable`-Filtertyp, `sentryCheckIn` mit 2 Argumenten). Läuft trotzdem, weil die Edge Runtime nicht typprüft; dadurch fallen aber echte Typfehler in neuen Jobs nicht auf. Fix: die Schnittstelle auf `PromiseLike` bzw. den echten `SupabaseClient`-Typ umstellen, dann `deno check` über alle `volumes/functions/*/index.ts` in CI.
+  **Priorität:** tief · **Komplexität:** klein
+
 - **`tsconfig.json` prüft keine `.tsx`-Dateien** — `include` ist `["./src/**/*.ts", "../functions/**/*.ts"]`, enthält kein `*.tsx`-Pattern. `npx tsc --noEmit` (lokal wie im CI-`typecheck`-Job, `.github/workflows/ci.yml`) hat dadurch noch nie eine einzige React-Komponente typgeprüft. Bestätigt reale, dadurch unentdeckte Fehler: `App.tsx` übergibt eine `themeLight`-Prop, die auf `OverrideFeedbackConfiguration` nicht existiert; `Recipe/dialogRecipeQuickView.tsx` ruft `Recipe.getRecipe(...)` auf, eine Methode, die auf der Klasse gar nicht existiert (Datei ist allerdings unerreichbar — keine Importer, keine Route); `Temp/temp.tsx` und `Temp/templates.tsx` haben mehrere echte Typfehler (ebenfalls unerreichbar, keine Route). Fix: `.tsx` zu `include` hinzufügen und die dadurch aufgedeckten Fehler in einer eigenen Aufräum-PR beheben — nicht nebenbei in einer fachfremden Änderung, da unklar ist, wie viele Fehler insgesamt auftauchen.
   **Priorität:** hoch · **Komplexität:** mittel
 

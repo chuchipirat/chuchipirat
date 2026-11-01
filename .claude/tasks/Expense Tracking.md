@@ -7534,10 +7534,48 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 
 *Nachprobe Empfänger 2026-11-01:* Koch-Prüfung fehlt (alte Regel), ehemalige Zahlende zusätzlich, `some` statt `every`, ohne Dedupe, immer an alle: gefangen. Nicht gefangen: Typprüfung auf `existing_user` gelockert. Gleichwertig, `new_person` hat keine User-ID und ist darum nie aktueller Koch.
 
-#### Story 9.2 — Job Teil 1: Belege löschen
-1. `cron-receipt-retention` mit Auth, Logging, Sentry; `deleteDueReceipts`: Ausgaben mit `attachment_path` laden (kleine Menge, darum zuerst), deren `event_dates` per `.in`, fällige Pfade nach E3, Storage `remove` pro Anlass, dann `null` nach E6 ✋
-2. In `setup-cron-jobs.sql` (01:30 UTC) und `CRON_JOB_NAMES` (`Admin/CronJobs/cronJobs.tsx`) eintragen.
-3. Lokal (DEV, nie PROD): Testanlass mit `date_to` vor über einem Jahr, Beleg hochladen, Job über die Admin-Seite auslösen → Datei weg, Spalten `null`, Ausgabe da; zweiter Lauf löscht nichts mehr.
+#### Story 9.2 — Job Teil 1: Belege löschen ✅
+
+> Verfeinert 2026-11-01. Tests zuerst wie in 9.1. Der Deno-Handler lädt Module per URL und ist mit Jest nicht testbar; darum kommt alles, was entscheidet, als reine Funktion nach `_shared/receiptRetention.ts` (Jest), und der Handler macht nur Datenbank- und Storage-Aufrufe (geprüft auf DEV).
+
+**Fakten aus dem Code:**
+- `attachment_path` steht **ohne** `events/` in der DB (`<eventId>/expenses/<expenseId>.pdf`). `ExpenseStorageRepository.folderPath = "events/"` setzt das Präfix im Frontend; der Job muss es selbst tun.
+- Storage `remove()` meldet **keinen** Fehler für Dateien, die es nicht gibt, und liefert nur die gelöschten Objekte zurück. Ein falscher Pfad löscht darum still nichts.
+- `fetchAllRows(client, table, columns, filter)` lädt seitenweise (über 1000 Zeilen), `chunkArray(items, size)` teilt Listen für `.in(…)`.
+- Cron-Jobs werden pro Umgebung von Hand registriert: `supabase/scripts/setup-cron-jobs.sql` im Studio ausführen (lokal und TEST; PROD erst beim Release, durch den Nutzer).
+
+**E6 präzisiert (ersetzt die Reihenfolge-Regel oben):** Pro Block (max. 100 Belege) zuerst `remove()`. **Ohne Fehler** werden alle Zeilen des Blocks auf `null` gesetzt, auch wenn eine Datei schon fehlte (Ziel erreicht: kein Beleg mehr). **Mit Fehler** bleibt der Block unverändert und der nächste Lauf versucht es wieder. Gegen den stillen falschen Pfad: Das Ergebnis zählt `requested` und `removed` getrennt; auf DEV muss `removed` = `requested` sein.
+
+**Neue reine Funktionen** in `_shared/receiptRetention.ts`:
+- `RECEIPT_STORAGE_PREFIX = "events/"` (Kommentar: muss zu `ExpenseStorageRepository.folderPath` passen)
+- `type ReceiptPathRow = {id: string; event_id: string; attachment_path: string}`
+- `toStoragePath(attachmentPath)` → `"events/<attachmentPath>"`
+- `selectDueReceipts(receipts, eventEndDates, today)` → die fälligen `ReceiptPathRow` in derselben Reihenfolge. Anlass ohne `event_dates` (kein Ende bekannt) → nie fällig.
+
+**Handler** `supabase/volumes/functions/cron-receipt-retention/index.ts` (Vorbild `cron-housekeeping`, Funktionen ≤ 20 Zeilen):
+- `serve`: CORS, `authenticateCronRequest`, Admin-Client, `startCronJob`/`sentryCheckIn`, `today = toZurichDate(new Date())`, `deleteDueReceipts`, `completeCronJob` mit Ergebnis, im Fehlerfall `sentryCaptureError` + `failCronJob`.
+- `loadReceipts(client)`: `fetchAllRows<ReceiptPathRow>` auf `event_expenses`, Filter `attachment_path` nicht `null`.
+- `loadEventEndDates(client, eventIds)`: `event_dates` in Blöcken (`chunkArray`, 100) per `.in("event_id", …)`, dann `getEventEndDates`.
+- `deleteDueReceipts(client, today)` → `{requested, removed, clearedExpenses, errors}`: laden, `selectDueReceipts`, pro Block `storage.from("media").remove(paths)`, bei Erfolg `update({attachment_path: null, attachment_original_filename: null}).in("id", ids)`.
+- Fehler eines Blocks landen in `errors` und brechen den Lauf nicht ab (wie die Aufgaben in `cron-housekeeping`).
+
+**Tests** (`_shared/__tests__/receiptRetention.test.ts`, ergänzt):
+- `toStoragePath`: setzt `events/` davor, ändert sonst nichts.
+- `selectDueReceipts`: am Löschdatum fällig, Tag davor nicht, danach noch (Nachholen); mehrere Anlässe gemischt, Reihenfolge bleibt; Anlass ohne Ende nie fällig; leer → leer.
+
+**Schritte:**
+1. Claude ergänzt die Tests, prüft gegen Wegwerf-Umsetzung ✋ ✅ (2026-11-01: 8 neue Tests, zusammen 39; Wegwerf-Umsetzung grün, danach entfernt)
+2. Nutzer: `RECEIPT_STORAGE_PREFIX`, `ReceiptPathRow`, `toStoragePath`, `selectDueReceipts` → Tests grün ✋ (Review + JSDoc) ✅ (2026-11-01: 39 Tests grün, JSDoc fertig. Kein Ersatzdatum wie `9999-12-31` für «Ende unbekannt»: +1 Jahr ergibt `+010000-…`, das sortiert vor jedem Datum und wäre fällig)
+3. Nutzer: Handler `cron-receipt-retention` ✋ (Review + JSDoc) ✅ (2026-11-01: JSDoc fertig. `deno check`: nur die 3 bekannten `SupabaseAdminClient`-Fehler aller Cron-Jobs, siehe tech-debt.md; Prüfbefehl `cd supabase/volumes/functions && deno check cron-receipt-retention/index.ts`)
+4. Registrieren: Block in `setup-cron-jobs.sql` (01:30 UTC, auch in der `unschedule`-Liste), `"cron-receipt-retention"` in `CRON_JOB_NAMES` (`Admin/CronJobs/cronJobs.tsx`). ✅
+5. Lokal (DEV, nie PROD), Daten nur über die App bzw. lokal:
+   - Testanlass, dessen `date_to` mehr als ein Jahr zurückliegt, mit zwei Ausgaben mit Beleg und einer ohne; dazu ein aktueller Anlass mit Beleg.
+   - Job über die Admin-Seite «Cron-Jobs» auslösen → Ergebnis `requested 2, removed 2, clearedExpenses 2`; in `storage.objects` sind beide Dateien weg; die Ausgaben gibt es noch, ohne Beleg; der aktuelle Anlass ist unverändert.
+   - Zweiter Lauf: `requested 0`.
+   - Ausgabe mit Pfad, aber ohne Datei: wird `null`, `removed` zählt sie nicht.
+   - ✅ 2026-11-01 lokal: Testanlass (Ende 07.09.2025) mit Foto, PDF und einem Pfad ohne Datei → `requested 3, removed 2, clearedExpenses 3, errors []`; Dateien weg (öffentliche URL HTTP 400), Ausgaben ohne Beleg vorhanden, App zeigt keine Belege. Kontrollanlass (Ende 11.10.2026) unverändert: 3 Pfade, 2 Dateien, Foto HTTP 200. Zweiter Lauf: alles 0.
+
+*Mutationsproben 9.2 (reine Funktionen), 2026-11-01:* 8 Proben, alle gefangen: Präfix fehlt, doppelt, ohne Slash; `<` statt `<=`; nur genau am Tag; Anlass ohne Ende fällig; nach Anlass sortiert; Erinnerungs- statt Löschdatum.
 
 #### Story 9.3 — Job Teil 2: Erinnerungsmail
 1. Template `receipt-retention-reminder` in `templateRenderer.ts` (HTML) plus Textfassung im Handler, wie `event-review` ✋
@@ -7568,7 +7606,7 @@ _Wird vor Start verfeinert. Grober Zuschnitt:_
   - Helpcenter Seiten erstellen.
 - **10.x `expenseTracking.tsx` aufteilen** (entschieden 2026-10-31): Die Seite ist zu gross (über 1200 Zeilen). Handler und State nach Bereichen in Hooks/Komponenten auslagern (Budgets, Ausgaben, Abrechnung, Export). Dabei der ZIP-Export: `handleDownloadReceiptsZip` wurde in 8.3 bewusst in der Seite gebaut statt im geplanten Hook `useExpenseZipExport`; beim Aufteilen in den Hook verschieben, inkl. `zipProgress`. Reines Verschieben, die Seitentests müssen unverändert grün bleiben.
 
-- 10.2 Finaler PR gegen `develop` + Release-Notes-Text.
+- 10.2 Finaler PR gegen `develop` + Release-Notes-Text. Nach dem Deploy pro Umgebung `supabase/scripts/setup-cron-jobs.sql` im Studio ausführen, sonst läuft `cron-receipt-retention` nie (TEST nach dem Merge, PROD beim Release durch den Nutzer).
 
 ---
 

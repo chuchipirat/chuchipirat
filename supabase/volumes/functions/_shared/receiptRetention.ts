@@ -1,12 +1,19 @@
 /**
- * Aufbewahrungsfrist der Belege: Lösch- und Erinnerungsdatum sowie die
- * Empfänger der Erinnerungsmail. Reine Funktionen ohne Datenbank, damit
- * sie mit Jest testbar sind; der Job `cron-receipt-retention` liefert die
- * Zeilen.
+ * Aufbewahrungsfrist der Belege: Lösch- und Erinnerungsdatum, fällige
+ * Belege mit ihrem Storage-Pfad und die Empfänger der Erinnerungsmail.
+ * Reine Funktionen ohne Datenbank, damit sie mit Jest testbar sind; der
+ * Job `cron-receipt-retention` liefert die Zeilen und führt das Löschen aus.
  *
  * Alle Daten sind Strings im Format `YYYY-MM-DD`, wie Postgres eine
  * `date`-Spalte liefert. So kann keine Zeitzone einen Tag verschieben.
  */
+
+/**
+ * Ordner der Belege im Bucket `media`. In der DB steht `attachment_path`
+ * ohne ihn. Muss zu `ExpenseStorageRepository.folderPath` passen, sonst
+ * löscht der Job still nichts (Storage meldet fehlende Dateien nicht).
+ */
+export const RECEIPT_STORAGE_PREFIX = "events/";
 
 /**
  * Zeile aus `event_dates`, nur die benötigten Spalten.
@@ -36,6 +43,20 @@ export type PayeeType = "existing_user" | "new_person" | "no_refund_needed";
 export type ReceiptExpenseRow = {
   payee_type: PayeeType;
   payee_user_id: string | null;
+};
+
+/**
+ * Ausgabe mit Beleg, aus `event_expenses`, für das Löschen.
+ *
+ * @param id - ID der Ausgabe; ihre Belegspalten werden geleert.
+ * @param event_id - ID des Anlasses, für das Anlassende.
+ * @param attachment_path - Pfad wie in der DB, ohne `events/`
+ *   (`<eventId>/expenses/<expenseId>.<ext>`).
+ */
+export type ReceiptPathRow = {
+  id: string;
+  event_id: string;
+  attachment_path: string;
 };
 
 /**
@@ -193,4 +214,42 @@ export function selectReminderRecipients(
         .filter((userUid) => userUid !== null),
     ),
   ];
+}
+
+/**
+ * Vollständiger Pfad eines Belegs im Bucket `media`, für `remove()`.
+ *
+ * @param attachmentPath - Pfad wie in der DB, ohne `events/`.
+ * @returns Pfad mit `events/` davor.
+ * @example
+ * toStoragePath("a1/expenses/e1.pdf") // "events/a1/expenses/e1.pdf"
+ */
+export function toStoragePath(attachmentPath: string): string {
+  return `${RECEIPT_STORAGE_PREFIX}${attachmentPath}`;
+}
+
+/**
+ * Belege, die heute gelöscht werden müssen, in der Reihenfolge der Eingabe.
+ * Auch überfällige zählen, damit ein ausgefallener Lauf nachgeholt wird.
+ *
+ * Ist das Ende eines Anlasses unbekannt (keine `event_dates`), wird nie
+ * gelöscht: lieber ein Beleg zu lange als einer zu früh.
+ *
+ * @param receipts - Ausgaben mit Beleg.
+ * @param eventEndDates - Anlassende pro Anlass, aus `getEventEndDates`.
+ * @param today - Heutiges Datum in Zürich als `YYYY-MM-DD`.
+ * @returns Die fälligen Ausgaben, evtl. leer.
+ * @example
+ * selectDueReceipts(receipts, new Map([["a1", "2026-07-14"]]), "2027-07-14")
+ * // alle Belege von Anlass a1
+ */
+export function selectDueReceipts(
+  receipts: ReceiptPathRow[],
+  eventEndDates: Map<string, string>,
+  today: string,
+): ReceiptPathRow[] {
+  return receipts.filter((receipt) => {
+    const eventEnd = eventEndDates.get(receipt.event_id);
+    return eventEnd !== undefined && isDeletionDue(eventEnd, today);
+  });
 }

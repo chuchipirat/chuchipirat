@@ -10,11 +10,14 @@
 import {
   EventDateRow,
   ReceiptExpenseRow,
+  ReceiptPathRow,
   getDeletionDate,
   getEventEndDates,
   getReminderDate,
   isDeletionDue,
+  selectDueReceipts,
   selectReminderRecipients,
+  toStoragePath,
   toZurichDate,
 } from "../receiptRetention";
 
@@ -211,5 +214,99 @@ describe("selectReminderRecipients", () => {
 
   test("ohne Beleg niemand", () => {
     expect(selectReminderRecipients([], cookUserIds)).toEqual([]);
+  });
+});
+
+describe("toStoragePath", () => {
+  // Ein falscher Pfad löscht still nichts: Storage meldet fehlende Dateien
+  // nicht als Fehler. Darum der genaue Pfad.
+  test("setzt den Ordner events/ davor, sonst unverändert", () => {
+    expect(toStoragePath("event-a/expenses/expense-1.pdf")).toBe(
+      "events/event-a/expenses/expense-1.pdf",
+    );
+  });
+});
+
+describe("selectDueReceipts", () => {
+  const receipt = (id: string, eventId: string): ReceiptPathRow => ({
+    id,
+    event_id: eventId,
+    attachment_path: `${eventId}/expenses/${id}.pdf`,
+  });
+
+  // Anlass A endete am 14.07.2026 → Löschdatum 14.07.2027
+  // Anlass B endete am 01.03.2027 → Löschdatum 01.03.2028
+  const eventEndDates = new Map([
+    ["event-a", "2026-07-14"],
+    ["event-b", "2027-03-01"],
+  ]);
+
+  test("am Löschdatum fällig", () => {
+    expect(
+      selectDueReceipts(
+        [receipt("expense-1", "event-a")],
+        eventEndDates,
+        "2027-07-14",
+      ),
+    ).toEqual([receipt("expense-1", "event-a")]);
+  });
+
+  test("einen Tag davor nicht", () => {
+    expect(
+      selectDueReceipts(
+        [receipt("expense-1", "event-a")],
+        eventEndDates,
+        "2027-07-13",
+      ),
+    ).toEqual([]);
+  });
+
+  test("nach dem Löschdatum noch fällig (verpasster Lauf)", () => {
+    expect(
+      selectDueReceipts(
+        [receipt("expense-1", "event-a")],
+        eventEndDates,
+        "2027-09-01",
+      ),
+    ).toEqual([receipt("expense-1", "event-a")]);
+  });
+
+  test("nur die fälligen Anlässe, Reihenfolge bleibt", () => {
+    const receipts = [
+      receipt("expense-1", "event-b"),
+      receipt("expense-2", "event-a"),
+      receipt("expense-3", "event-b"),
+      receipt("expense-4", "event-a"),
+    ];
+
+    expect(selectDueReceipts(receipts, eventEndDates, "2027-07-14")).toEqual([
+      receipt("expense-2", "event-a"),
+      receipt("expense-4", "event-a"),
+    ]);
+  });
+
+  test("alle Anlässe fällig: Reihenfolge der Eingabe, nicht nach Anlass sortiert", () => {
+    const receipts = [
+      receipt("expense-1", "event-b"),
+      receipt("expense-2", "event-a"),
+    ];
+
+    expect(selectDueReceipts(receipts, eventEndDates, "2028-03-01")).toEqual(
+      receipts,
+    );
+  });
+
+  test("Anlass ohne bekanntes Ende nie fällig", () => {
+    expect(
+      selectDueReceipts(
+        [receipt("expense-1", "event-unknown")],
+        eventEndDates,
+        "2099-01-01",
+      ),
+    ).toEqual([]);
+  });
+
+  test("ohne Belege leer", () => {
+    expect(selectDueReceipts([], eventEndDates, "2027-07-14")).toEqual([]);
   });
 });
