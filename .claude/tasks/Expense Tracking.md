@@ -7472,14 +7472,88 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 
 ## Epic 9 — Beleg-Löschkonzept (Cron + Mail)
 
-_Wird vor Start verfeinert. Grober Zuschnitt:_
+> Geplant 2026-10-31. Arbeitsweise wie Epic 8: Der Nutzer programmiert, Claude schreibt vor jeder Story die Tests (gegen eine Wegwerf-Umsetzung geprüft) und beim Review die JSDoc.
 
-- 9.1 Cron-Erweiterung: Belege löschen (Storage-Objekt + Spalten null setzen), wenn
-  Anlassende > 1 Jahr zurückliegt (Vorbild `cleanupTable`/`cron-housekeeping`, aber Filter über
-  Event-Enddatum statt `created_at`).
-- 9.2 Neues E-Mail-Template (`templateRenderer.ts`) + Cron-Job "30 Tage vorher" (Vorbild
-  `cron-event-review-email`), Empfänger je nach Zahlungsinstanz-Zusammensetzung (siehe Issue).
-- 9.3 Hinweistext beim Event-Löschen ergänzen ("löscht auch alle Belege").
+### Anforderungen (Issue #86, «Löschkonzept für Attachments»)
+
+1. Belege werden **1 Jahr nach Anlassende** automatisch gelöscht.
+2. Hinweis beim Hochladen. ✅ schon da seit Epic 4 (`ATTACHMENT_RETENTION_HINT` im Ausgaben-Dialog).
+3. Hinweis beim Löschen eines Anlasses, dass auch alle Belege gelöscht werden.
+4. Erinnerungsmail **30 Tage vor der Löschung**: Sind alle Ausgaben personenbezogen, geht sie an die verknüpften Personen. Hat mindestens eine Ausgabe «Keine Rückerstattung nötig», geht sie an **alle** Köch:innen.
+
+### Was es schon gibt
+
+- **Anlass löschen** (`event.tsx` `onEventDelete`): `storage.events.removeFolder(eventUid)` löscht rekursiv auch `expenses/`, danach entfernt CASCADE die Ausgaben. Technisch fertig, es fehlt nur der Hinweis. Der Speicherfehler wird dort mit `.catch(() => {})` verschluckt (verwaiste Dateien möglich, gehört zum Storage-Aufräumen in `project_housekeeping_cron`, nicht zu diesem Epic).
+- **Vorbilder:** `cron-event-review-email` (Anlassende = grösstes `event_dates.date_to`, Zürcher Datum, Köch:innen über `event_cooks` → `users`, `renderEmailTemplate`, `mail_log`), `cron-housekeeping` (Löschen, Ergebnis pro Aufgabe), `_shared/cronJobHelper.ts` (Auth, `cron_job_log`, Sentry Check-in).
+- **Tests:** Jest läuft auch über `supabase/volumes/functions/_shared/__tests__` (z.B. `personalize.test.ts`). Reine Logik in `_shared/` ist darum testbar wie Frontend-Code; der Deno-Handler selbst wird lokal über die Admin-Seite «Cron-Jobs» und MailPit geprüft.
+- **Zeitpläne** (`supabase/scripts/setup-cron-jobs.sql`): 01:00, 02:15, 02:30 täglich, So 03:00. Frei z.B. **01:30 UTC**.
+- **Zahlende Instanz:** `existing_user` (hat Account und E-Mail), `new_person` (nur Name, **keine E-Mail**), `no_refund_needed`.
+
+### Entscheidungen (bestätigt 2026-10-31)
+
+- **E1 — Ein eigener täglicher Job `cron-receipt-retention`** für Erinnerung **und** Löschen, statt Löschen im wöchentlichen `cron-housekeeping`. Grund: beide brauchen dieselbe Datumslogik, und die Mail nennt ein konkretes Löschdatum; wöchentlich würde bis zu 6 Tage später gelöscht als angekündigt.
+- **E2 — Datumsregeln:** Anlassende = grösstes `date_to` des Anlasses. Löschdatum = Anlassende + 1 Kalenderjahr (29.02. → 01.03.). Erinnerung = Löschdatum − 30 Tage. Gerechnet auf `YYYY-MM-DD`-Strings in Europe/Zurich, kein `new Date("YYYY-MM-DD")` (UTC-Falle, siehe CLAUDE.md).
+- **E3 — Nachholen:** Gelöscht wird alles mit Löschdatum **≤ heute**, nicht nur «genau heute». Fällt der Job einen Tag aus, holt der nächste Lauf es nach. Die Erinnerung geht nur am Stichtag (wie die Review-Mail); fällt der Job genau dann aus, fehlt die Mail. Akzeptiert, sonst bräuchte es eine Spalte «Erinnerung gesendet».
+- **E4 — Nur Ausgaben mit Beleg zählen:** Anlässe ohne Beleg bekommen keine Mail. Auch die Empfänger ergeben sich nur aus Ausgaben mit Beleg.
+- **E5 — Empfänger, `new_person` und ehemalige Köch:innen ergänzt:** Das Issue regelt beides nicht. Gehören **alle** Ausgaben mit Beleg Personen mit Account, die **noch Koch** des Anlasses sind, geht die Mail an diese Personen (je einmal). Sonst (mindestens eine `no_refund_needed`, `new_person` oder zahlende Person, die nicht mehr Koch ist) an **alle aktuellen** Köch:innen, und nur an sie. Grund (Nutzer, 2026-11-01): Anlässe sieht nur, wer Koch ist; ehemalige Köch:innen könnten mit dem Link nichts anfangen, und `new_person` hat keine E-Mail.
+- **E6 — Was beim Löschen passiert:** Datei im Storage löschen, danach `attachment_path` und `attachment_original_filename` auf `null`. Die Ausgabe bleibt. **Reihenfolge:** zuerst Storage, dann nur die Zeilen der tatsächlich gelöschten Dateien auf `null`. Schlägt die DB danach fehl, zeigt die App einen Beleg, der nicht lädt (Export und PDF fangen das schon ab), und der nächste Lauf räumt auf. Umgekehrt entstünden unsichtbare verwaiste Dateien.
+- **E7 — Kein Merker «Beleg nach Frist gelöscht»:** Danach sieht die Ausgabe aus wie eine ohne Beleg (auch in «Fehlende Belege»). Ein Jahr nach dem Anlass schaut kaum jemand noch hin. Wäre eine zusätzliche Spalte samt UI, darum nein.
+- **E8 — Mail mit Link zur Abrechnung**, damit man vorher PDF oder ZIP (Epic 8) herunterladen kann. Inhalt: Anlassname, Löschdatum, Anzahl Belege, Link. Keine Beträge, keine Namen anderer Personen.
+- **E9 — Hinweis beim Anlass löschen:** eigener Text für den Anlass statt des allgemeinen `DIALOG_TEXT_DELETION_CONFIRMATION`, immer angezeigt (der Dialog kennt die Ausgaben nicht, und ein Nachladen nur für den Hinweis lohnt nicht).
+
+### Schnittstellen (Namen, kein fertiger Code)
+
+`supabase/volumes/functions/_shared/receiptRetention.ts`, reine Funktionen ohne Supabase:
+- `toZurichDate(date)` → `"YYYY-MM-DD"` (heutiges Datum in Zürich; bisher inline in `cron-event-review-email`)
+- `getEventEndDates(eventDates)` → `Map<eventId, "YYYY-MM-DD">`
+- `getDeletionDate(eventEnd)` → `"YYYY-MM-DD"`
+- `getReminderDate(eventEnd)` → `"YYYY-MM-DD"`
+- `isDeletionDue(eventEnd, today)` → `boolean` (Löschdatum ≤ heute, E3)
+- `selectReminderRecipients(expensesWithReceipt, cookUserIds)` → `string[]` (User-IDs, ohne Doppelte; Reihenfolge: wie die Ausgaben bzw. wie die Köch:innen)
+- Typen: `EventDateRow = {event_id; date_to}`, `ReceiptExpenseRow = {payee_type; payee_user_id}`, `PayeeType` (Union der drei DB-Werte). Zeilen im DB-Format, weil der Handler sie so von PostgREST bekommt.
+
+`supabase/volumes/functions/cron-receipt-retention/index.ts`: Handler wie die Vorbilder, darin `sendReminders(…)` und `deleteDueReceipts(…)`, Ergebnis in `cron_job_log`.
+
+### Stories
+
+#### Story 9.1 — Datums- und Empfängerlogik (nur `_shared`, Tests zuerst) ✅
+1. Claude schreibt `_shared/__tests__/receiptRetention.test.ts`, prüft gegen Wegwerf-Umsetzung ✋ ✅ (2026-10-31: 30 Tests; 2026-11-01 Empfängerregel angepasst, 31 Tests; Wegwerf-Umsetzung grün, danach gelöscht)
+2. Nutzer setzt `_shared/receiptRetention.ts` um → Tests grün ✋ (Review + JSDoc) ✅ (2026-11-01: 31 Tests grün, JSDoc fertig. Private Hilfsfunktion `shiftDate(isoDate, {years, days})` für Lösch- und Erinnerungsdatum, `getEventEndDates` in einem Durchlauf mit Stringvergleich. 8 Nachproben gegen die echte Umsetzung, alle gefangen)
+
+**Tests (31):**
+- `toZurichDate`: Sommer und Winter je kurz vor/nach Mitternacht Zürich, Silvester → Neujahr.
+- `getEventEndDates`: grösstes `date_to` auch wenn nicht zuletzt, mehrere Anlässe, Jahreswechsel, leer.
+- `getDeletionDate`: +1 Kalenderjahr, Ende/Anfang Jahr, 29.02. → 01.03., 28.02. bleibt.
+- `getReminderDate`: −30 Tage, über Jahreswechsel, über Februar mit 28 Tagen, nach 29.02.
+- `isDeletionDue`: Tag davor nein, am Tag ja, danach ja (Nachholen), Erinnerungstag nein, Jahreswechsel.
+- `selectReminderRecipients`: nur Zahlende, ohne Doppelte, ehemaliger Koch → alle (er selbst nicht), ein ehemaliger Koch unter mehreren reicht für alle, «Keine Rückerstattung» → alle, neue Person → alle, an alle nur aktuelle Köch:innen in ihrer Reihenfolge, doppelte Köch:innen, ohne Beleg niemand.
+
+**Hinweise zur Umsetzung:** Datum nur als `YYYY-MM-DD`-String; für das Rechnen `Date.UTC(jahr, monat - 1, tag)` (rollt 29.02. und Tag −30 von selbst richtig über). `toZurichDate` mit `Intl.DateTimeFormat("en-CA", {timeZone: "Europe/Zurich", …})` wie in `cron-event-review-email`, nicht `toISOString()`.
+
+*Mutationsproben 2026-10-31:* 16 Proben, 15 gefangen: UTC statt Zürich, `toISOString`, erstes/letztes statt grösstes `date_to`, 365 Tage statt Kalenderjahr, 29.02. → 28.02., −31 statt −30, Erinnerung ab Anlassende, nur genau am Löschdatum, erst danach, `new_person` nicht an alle, an alle ohne ehemalige Zahlende, immer an alle, ohne Dedupe, Zahlende vor Köch:innen. Nicht gefangen: frühes `return []` ohne Beleg weglassen. Gleichwertig, das Ergebnis ist auch ohne es leer.
+
+*Nachprobe Empfänger 2026-11-01:* Koch-Prüfung fehlt (alte Regel), ehemalige Zahlende zusätzlich, `some` statt `every`, ohne Dedupe, immer an alle: gefangen. Nicht gefangen: Typprüfung auf `existing_user` gelockert. Gleichwertig, `new_person` hat keine User-ID und ist darum nie aktueller Koch.
+
+#### Story 9.2 — Job Teil 1: Belege löschen
+1. `cron-receipt-retention` mit Auth, Logging, Sentry; `deleteDueReceipts`: Ausgaben mit `attachment_path` laden (kleine Menge, darum zuerst), deren `event_dates` per `.in`, fällige Pfade nach E3, Storage `remove` pro Anlass, dann `null` nach E6 ✋
+2. In `setup-cron-jobs.sql` (01:30 UTC) und `CRON_JOB_NAMES` (`Admin/CronJobs/cronJobs.tsx`) eintragen.
+3. Lokal (DEV, nie PROD): Testanlass mit `date_to` vor über einem Jahr, Beleg hochladen, Job über die Admin-Seite auslösen → Datei weg, Spalten `null`, Ausgabe da; zweiter Lauf löscht nichts mehr.
+
+#### Story 9.3 — Job Teil 2: Erinnerungsmail
+1. Template `receipt-retention-reminder` in `templateRenderer.ts` (HTML) plus Textfassung im Handler, wie `event-review` ✋
+2. `sendReminders`: Anlässe mit Erinnerungsdatum = heute, Empfänger nach E5, Mail pro Person, `mail_log`.
+3. Lokal mit MailPit: Fall nur `existing_user` (nur diese Personen), Fall mit `no_refund_needed` (alle Köch:innen), Fall mit `new_person` (alle).
+
+#### Story 9.4 — Abschluss
+- Hinweis im Anlass-Löschdialog (E9), mit Test.
+- Helpcenter: Abschnitt «Wie lange bleiben Belege gespeichert?» in `docs/event/expensetracking.md`; Admin-Seite `docs/admin/cron_jobs.md` um den neuen Job ergänzen. Nicht committen (Sammel-Commit).
+- `security-reviewer`: Service-Role-Zugriff, nur fällige Pfade gelöscht, keine Daten anderer Personen in der Mail.
+- Browser/MailPit-Durchlauf, Mobile-Ansicht der Mail.
+
+### Risiken
+
+- **Falsches Datum löscht zu früh** (nicht umkehrbar). Darum Datumslogik als reine Funktion mit Tests (9.1) und in 9.2 ein Probelauf auf DEV, bevor der Job auf TEST läuft.
+- **Anlassdaten nachträglich verschoben:** Wird `date_to` nach der Erinnerung verlängert, verschiebt sich auch das Löschdatum. Die Mail nannte dann ein zu frühes Datum, gelöscht wird später. Harmlos.
 
 ## Epic 10 — Politur & Abschluss
 

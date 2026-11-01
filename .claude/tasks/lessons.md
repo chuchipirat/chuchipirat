@@ -97,3 +97,11 @@
 **Rule**: Before blaming a cache, check the actual value: the upload call, `storage.objects.metadata->>'cacheControl'`, or the response header in DevTools.
 
 **How to apply**: Grep for `cacheControl` at the upload call, or read the metadata read-only on the local DB, before answering.
+
+## Before adding a rule the spec doesn't have, check who can act on it (2026-11-01)
+
+**What happened**: For the receipt reminder (Epic 9, E5) I added "former cooks still get the mail, they're their receipts". The user corrected it: only cooks can see an event, so the link is useless to a former cook. The mail must then go to all current cooks.
+
+**Rule**: When I extend a requirement, check access first: can the recipient actually open what the mail or button points to? In this app, events are visible only to `event_cooks`.
+
+**How to apply**: For every new recipient or actor, ask "does this person pass RLS for the target page?" before writing the rule down.
