@@ -497,7 +497,9 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
               payeeType,
               payeeUserId:
                 payeeType === ExpensePayeeType.EXISTING_USER
-                  ? prev.payeeUserId
+                  ? // Bei nur einer Person gibt es nichts zu wählen
+                    (prev.payeeUserId ??
+                    (cooks.length === 1 ? cooks[0].uid : null))
                   : null,
               payeeName:
                 payeeType === ExpensePayeeType.NEW_PERSON ? prev.payeeName : "",

@@ -324,6 +324,49 @@ describe("Ausgabe Detail Test", () => {
     expect(screen.getByLabelText("Name")).toHaveValue("");
   });
 });
+describe("Bestehende Person vorauswählen", () => {
+  const renderWithCooks = (dialogCooks: Cook[]) =>
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={dialogCooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+      />,
+    );
+  const nameField = () => screen.getByRole("combobox", {name: "Name"});
+
+  test("nur eine Person: ist ausgewählt", () => {
+    renderWithCooks([cook1]);
+
+    fireEvent.click(screen.getByRole("radio", {name: "Bestehende Person"}));
+
+    expect(nameField()).toHaveTextContent(cook1.displayName);
+  });
+
+  test("mehrere Personen: keine Vorauswahl", () => {
+    renderWithCooks(cooks);
+
+    fireEvent.click(screen.getByRole("radio", {name: "Bestehende Person"}));
+
+    expect(nameField()).not.toHaveTextContent(cook1.displayName);
+    expect(nameField()).not.toHaveTextContent(cook2.displayName);
+  });
+
+  test("ohne Bestehende Person: nichts vorausgewählt", () => {
+    renderWithCooks([cook1]);
+
+    expect(
+      screen.queryByRole("combobox", {name: "Name"}),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("Mutationsprobe", () => {
   test("Nach Typ-Wechsel wird die alte Auswahl nicht mitgeschickt", () => {
     const onCreate = jest.fn();
