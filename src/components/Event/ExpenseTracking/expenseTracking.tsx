@@ -40,15 +40,11 @@ import {
   EXPENSE_TRACKING_OVERVIEW as TEXT_EXPENSE_TRACKING_OVERVIEW,
   EXPENSE_TRACKING_EXPENSES as TEXT_EXPENSE_TRACKING_EXPENSES,
   EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
-  DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
   DELETE_BUDGET_SIMPLE as TEXT_DELETE_BUDGET_SIMPLE,
-  BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
-  BUDGET_CANT_BE_DELETED as TEXT_BUDGET_CANT_BE_DELETED,
   NEW_EXPENSE as TEXT_NEW_EXPENSE,
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
-  OK as TEXT_OK,
   PLEASE_CREATE_BUDGET_FIRST as TEXT_PLEASE_CREATE_BUDGET_FIRST,
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
   ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
@@ -67,7 +63,6 @@ import {
 } from "../../../constants/text";
 
 import {
-  isForeignKeyViolationError,
   isTransientNetworkError,
 } from "../../../utils/errorUtils";
 import {DonationForm} from "../../Donate/DonationForm";
@@ -80,7 +75,7 @@ import {
 import {Action} from "../../../constants/actions";
 import {Budget} from "./Budget/budget.class";
 import {useAuthUser} from "../../Session/authUserContext";
-import {BudgetWithProgress, BudgetDomain} from "./Budget/budget.types";
+import {BudgetWithProgress} from "./Budget/budget.types";
 import {CustomSnackbar} from "../../Shared/customSnackbar";
 import {AlertMessage} from "../../Shared/AlertMessage";
 
@@ -96,7 +91,6 @@ import {
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {trackEvent} from "../../Analytics/analyticsService";
 import {parseAmountToCents} from "../../Shared/utils/currencyUtils";
-import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
 import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
@@ -105,10 +99,10 @@ import {ReducerActions} from "./expenseTracking.reducer";
 import {BudgetCard, AddBudgetCard} from "./Budget/budgetCard";
 import {
   BudgetDetailDialog,
-  BudgetDetailDialogState,
 } from "./Budget/budgetDetailDialog";
 import {Expense} from "./Expense/expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
+import {useBudgetActions} from "./useBudgetActions";
 import {ExpenseList} from "./Expense/expenseList";
 import {
   ExpenseDomain,
@@ -218,21 +212,17 @@ const EventExpenseTrackingPage = ({
 
   const [hasDonation, setHasDonation] = React.useState<boolean | null>(null);
   const [view, setView] = React.useState<ExpenseTrackingView>("overview");
-  const [budgetDetailDialogProperties, setBudgetDetailDialogProperties] =
-    React.useState<{budget: BudgetDomain | null; open: boolean}>({
-      budget: null,
-      open: false,
-    });
   const [expenseDetailDialogProperties, setExpenseDetailDialogProperties] =
     React.useState<{expense: ExpenseDomain | null; open: boolean}>({
       expense: null,
       open: false,
     });
-  /** Dialog «Abrechnung erstellen»; `key` zählt pro Öffnen hoch. */
+  /** Link auf einen Beleg, falls der Browser den neuen Tab blockiert. */
   const [receiptFallback, setReceiptFallback] = React.useState({
     open: false,
     url: "",
   });
+  /** Dialog «Abrechnung erstellen»; `key` zählt pro Öffnen hoch. */
   const [reportDialog, setReportDialog] = React.useState({
     open: false,
     key: 0,
@@ -267,6 +257,24 @@ const EventExpenseTrackingPage = ({
     database,
     hasDonation,
     realtime,
+    saveInProgressRef,
+  });
+  const {
+    budgetDetailDialogProperties,
+    setBudgetDetailDialogProperties,
+    handleOpenCreateBudgetDialog,
+    handleCreateBudget,
+    handleUpdateBudget,
+    handleDeleteBudget,
+    handleBudgetEditClick,
+  } = useBudgetActions({
+    event,
+    database,
+    authUser,
+    budgets: state.budgets,
+    expenses: state.expenses,
+    dispatch,
+    handleError,
     saveInProgressRef,
   });
   const [lastUsedBudgetId, setLastUsedBudgetId] = React.useState<string | null>(
@@ -393,34 +401,6 @@ const EventExpenseTrackingPage = ({
   /* ------------------------------------------
   // Dialog Handling
   // ------------------------------------------ */
-  /**
-   * Wandelt die Formulareingaben des Dialogs in ein Domain-Objekt um.
-   * Die ID bleibt leer und wird beim Anlegen von der Datenbank vergeben.
-   *
-   * @param budgetInput - Eingaben aus dem Dialog (Betrag als Text).
-   * @returns Budget mit Betrag in Rappen (`null`, falls nicht lesbar).
-   */
-  const transformInputToBudgetDomain = (
-    budgetInput: BudgetDetailDialogState,
-  ): BudgetDomain => {
-    return {
-      id: "",
-      eventId: event.uid,
-      name: budgetInput.name,
-      budgetType: budgetInput.budgetType,
-      amountInCents: parseAmountToCents(budgetInput.amount),
-      currency: budgetInput.currency,
-      icon: budgetInput.icon!,
-    };
-  };
-  /** Öffnet den Dialog im Anlegen-Modus (ohne vorhandenes Budget). */
-  const handleOpenCreateBudgetDialog = () => {
-    setBudgetDetailDialogProperties({
-      ...budgetDetailDialogProperties,
-      budget: null,
-      open: true,
-    });
-  };
   /** Öffnet den Dialog im Anlegen-Modus (ohne vorhandene Ausgabe). */
   const handleOpenCreateExpenseDialog = () => {
     setExpenseDetailDialogProperties({expense: null, open: true});
@@ -434,21 +414,6 @@ const EventExpenseTrackingPage = ({
     const expense =
       state.expenses?.find((expense) => expense.id === expenseId) ?? null;
     setExpenseDetailDialogProperties({expense, open: true});
-  };
-  /**
-   * Validiert ein Budget vor dem Speichern und zeigt Fehler an.
-   *
-   * @param budget - Zu prüfendes Budget.
-   * @returns `true`, wenn das Budget gültig ist.
-   */
-  const checkBudgetInputdata = (budget: BudgetDomain): boolean => {
-    try {
-      Budget.checkBudgetData(budget);
-    } catch (error) {
-      handleError(error, "Validierung Budget-Input");
-      return false;
-    }
-    return true;
   };
   /**
    * Validiert eine Ausgabe vor dem Speichern und zeigt Fehler an.
@@ -466,37 +431,6 @@ const EventExpenseTrackingPage = ({
     return true;
   };
 
-  /**
-   * Legt ein neues Budget an. Der Dialog wird sofort geschlossen; ein
-   * Fehler erscheint oben auf der Seite.
-   *
-   * @param budgetInput - Eingaben aus dem Dialog.
-   */
-  const handleCreateBudget = async (budgetInput: BudgetDetailDialogState) => {
-    const budget = transformInputToBudgetDomain(budgetInput);
-
-    if (!checkBudgetInputdata(budget)) {
-      return;
-    }
-
-    saveInProgressRef.current += 1;
-    try {
-      const newBudget = await database.budgets.createBudget(budget, authUser!);
-      trackEvent(AnalyticsEvent.BUDGET_CREATED);
-      dispatch({
-        type: ReducerActions.BUDGET_CREATED,
-        payload: newBudget.value,
-      });
-    } catch (error) {
-      handleError(error, "Budget erstellen");
-    } finally {
-      setTimeout(() => {
-        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
-      }, 400);
-    }
-
-    setBudgetDetailDialogProperties({budget: null, open: false});
-  };
   /**
    * Liefert einen zeitlich begrenzten Link auf einen Beleg.
    *
@@ -644,35 +578,6 @@ const EventExpenseTrackingPage = ({
   };
 
   /**
-   * Speichert Änderungen an einem bestehenden Budget.
-   *
-   * @param budgetId - ID des bearbeiteten Budgets.
-   * @param budgetInput - Neue Eingaben aus dem Dialog.
-   */
-  const handleUpdateBudget = async (
-    budgetId: string,
-    budgetInput: BudgetDetailDialogState,
-  ) => {
-    const budget = {...transformInputToBudgetDomain(budgetInput), id: budgetId};
-
-    if (!checkBudgetInputdata(budget)) {
-      return;
-    }
-
-    saveInProgressRef.current += 1;
-    try {
-      const updated = await database.budgets.updateBudget(budget, authUser!);
-      trackEvent(AnalyticsEvent.BUDGET_UPDATED);
-      dispatch({type: ReducerActions.BUDGET_UPDATED, payload: updated});
-    } catch (error) {
-      handleError(error, "Budget aktualisieren");
-    } finally {
-      setTimeout(() => {
-        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
-      }, 400);
-    }
-  };
-  /**
    * Speichert Änderungen an einer bestehenden Ausgabe.
    *
    * @param expenseId - ID der bearbeiteten Ausgabe.
@@ -750,59 +655,6 @@ const EventExpenseTrackingPage = ({
     }
   };
   /**
-   * Löscht ein Budget nach Rückfrage. Budgets mit Ausgaben können nicht
-   * gelöscht werden (FK `event_expenses.budget_id` ist `ON DELETE RESTRICT`).
-   *
-   * @param budget - Das zu löschende Budget.
-   */
-  const handleDeleteBudget = async (budget: BudgetDomain) => {
-    // Vorab prüfen, damit die Nutzer:in eine klare Meldung statt eines
-    // Datenbankfehlers erhält. Zeigt der lokale Stand (noch) keine Ausgaben,
-    // sie sind aber inzwischen von jemand anderem erfasst worden, meldet die
-    // Datenbank den Fremdschlüssel-Fehler und `handleError` zeigt ihn an.
-    if (state.expenses?.some((expense) => expense.budgetId === budget.id)) {
-      await customDialog({
-        dialogType: DialogType.Confirm,
-        title: TEXT_BUDGET_CANT_BE_DELETED,
-        text: TEXT_BUDGET_HAS_EXPENSES,
-        buttonTextConfirm: TEXT_OK,
-      });
-      return;
-    }
-
-    const isConfirmed = await customDialog({
-      dialogType: DialogType.Confirm,
-      destructive: true,
-      title: TEXT_DELETE_BUDGET_DIALOG(budget.name),
-      text: TEXT_DELETE_BUDGET_SIMPLE,
-      buttonTextCancel: TEXT_CANCEL,
-      buttonTextConfirm: TEXT_DELETE,
-    });
-    if (!isConfirmed) return;
-
-    saveInProgressRef.current += 1;
-    try {
-      await database.budgets.deleteBudget(budget.id);
-      trackEvent(AnalyticsEvent.BUDGET_DELETED);
-      dispatch({type: ReducerActions.BUDGET_DELETED, payload: budget});
-    } catch (error) {
-      if (isForeignKeyViolationError(error)) {
-        handleError(
-          new FieldValidationError(TEXT_BUDGET_HAS_EXPENSES),
-          "Budget löschen",
-        );
-      } else {
-        handleError(error, "Budget löschen");
-      }
-    } finally {
-      setTimeout(() => {
-        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
-      }, 400);
-    }
-
-    setBudgetDetailDialogProperties({budget: null, open: false});
-  };
-  /**
    * Löscht eine Ausgabe nach Rückfrage.
    *
    * @param expense - Die zu löschende Ausgabe.
@@ -844,21 +696,6 @@ const EventExpenseTrackingPage = ({
     }
 
     setExpenseDetailDialogProperties({expense: null, open: false});
-  };
-  /**
-   * Öffnet den Dialog im Bearbeiten-Modus für das angeklickte Budget.
-   *
-   * @param budgetId - ID des Budgets der angeklickten Karte.
-   */
-  const handleBudgetEditClick = (budgetId: BudgetDomain["id"]) => {
-    const budget =
-      state.budgets?.find((budget) => budget.id === budgetId) ?? null;
-
-    setBudgetDetailDialogProperties({
-      ...budgetDetailDialogProperties,
-      budget: budget,
-      open: true,
-    });
   };
   /**
    * Öffnet den Dialog «Abrechnung erstellen» mit frischem Zustand und lädt
