@@ -7470,7 +7470,7 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 - **Speicher auf dem Handy (akzeptiert, O4):** jszip hält alle Originale im Speicher (30 Fotos × 5 MB = 150 MB). Mit STORE und Laden nacheinander meist ok, sonst Computer verwenden. Kein streamendes ZIP.
 - **Nummern passen nur zu einer PDF-Variante** (O1): «Alle Personen · Modus A · Leerseiten aus». Andere Varianten nummerieren anders. Steht im Helpcenter, nicht im Dialog.
 
-## Epic 9 — Beleg-Löschkonzept (Cron + Mail)
+## Epic 9 — Beleg-Löschkonzept (Cron + Mail) ✅
 
 > Geplant 2026-10-31. Arbeitsweise wie Epic 8: Der Nutzer programmiert, Claude schreibt vor jeder Story die Tests (gegen eine Wegwerf-Umsetzung geprüft) und beim Review die JSDoc.
 
@@ -7623,7 +7623,7 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 
 *Mutationsproben 9.3 (reine Funktionen), 2026-11-01:* 12 Proben, alle gefangen: Erinnerung nachgeholt (`<=`), Lösch- statt Erinnerungsdatum, Datum im US-Format, ohne führende Null, immer Mehrzahl, 0 als Einzahl, `/` am Ende nicht entfernt, falscher Tab, Betreff bzw. Text mit ISO-Datum, Text ohne Link, ohne Export-Hinweis.
 
-#### Story 9.4 — Abschluss
+#### Story 9.4 — Abschluss ✅
 
 > Verfeinert 2026-11-01.
 
@@ -7633,18 +7633,18 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 - Helpcenter: `docs/event/event_settings.md` → «Anlass löschen» zählt die gelöschten Daten auf (ohne Abrechnung); `docs/admin/cron_jobs.md` beschreibt jeden Job unter «Jobs»; `docs/event/expensetracking.md` hat noch nichts zur Aufbewahrung.
 
 **Entscheidungen:**
-- **E14 — Eigener Text nur für den Anlass:** neue Konstante `EVENT_DELETION_CONFIRMATION_TEXT` in `text/events.ts`, z.B. «Damit werden alle Daten des Anlasses gelöscht, auch die Ausgaben und Belege der Abrechnung. Gib zur Bestätigung den Namen des Anlasses ein:». Der allgemeine Text bleibt für die anderen Dialoge unverändert.
+- **E14 — Eigene Texte nur für den Anlass** (ergänzt 2026-11-01): `EVENT_DELETION_CONFIRMATION_TEXT` und `…_WITH_EXPENSES` in `text/events.ts`. Den Hinweis auf Ausgaben und Belege zeigt der Dialog nur, wenn der Anlass Ausgaben hat; `getEventDeletionText` fragt das beim Öffnen ab und zeigt bei einem Fehler den Hinweis. Der allgemeine Text bleibt für die anderen Dialoge unverändert.
 - **E15 — Ausnahme von «Tests zuerst»:** kein Jest-Test für den Dialogtext. Die ganze Seite nur für einen Text zu rendern kostet mehr, als es bringt; geprüft wird im Browser. Gehört zu den Tests der Seite, sobald `event.tsx` in Epic 10 aufgeteilt wird.
 
 **Schritte:**
-1. Nutzer: Text-Konstante und Verwendung in `onEventDelete` ✋ (Review + JSDoc)
-2. Im Browser (DEV): Anlass löschen öffnen → neuer Text, Eingabe des Namens funktioniert, Abbrechen löscht nichts. Mobile-Breite. Danach den Testanlass `668c2a01…` wirklich löschen und prüfen, dass Ausgaben und Belegdateien weg sind; das räumt auch die Testdaten auf.
-3. Helpcenter (nicht committen, Sammel-Commit):
+1. Nutzer: Text-Konstante und Verwendung in `onEventDelete` ✋ (Review + JSDoc) ✅
+2. Im Browser (DEV): Anlass löschen öffnen → beide Texte (Anlass mit und ohne Ausgaben), Eingabe des Namens funktioniert, Abbrechen löscht nichts. Mobile-Breite. Danach den Testanlass `668c2a01…` wirklich löschen und prüfen, dass Ausgaben und Belegdateien weg sind; das räumt auch die Testdaten auf. ✅ (2026-11-01)
+3. Helpcenter (nicht committen, Sammel-Commit): ✅ (2026-11-01, vom Nutzer durchgesehen)
    - `docs/event/expensetracking.md`: Abschnitt «Wie lange bleiben Belege gespeichert?» (1 Jahr nach Anlassende, Mail 30 Tage vorher an wen nach E5, danach Ausgabe ohne Beleg, vorher PDF/ZIP sichern, Link auf «Ausgaben exportieren»).
    - `docs/event/event_settings.md` «Anlass löschen»: Abrechnung mit Ausgaben und Belegen in der Aufzählung.
    - `docs/admin/cron_jobs.md`: Abschnitt `cron-receipt-retention` (Zeitplan, was er tut, Ergebnisfelder `requested`/`removed`/`clearedExpenses`/`remindedEvents`/`emailsSent`/`errors`, Erinnerung nur genau am Tag und nicht nachgeholt, manueller Start am selben Tag verschickt die Mails nochmals, ein `mail_log`-Eintrag pro Mail); dazu Tabelle «Übersicht» und Liste der Buttons unter «Jobs manuell ausführen» ergänzen.
-4. `security-reviewer` über 9.1–9.4: Service-Role-Zugriff nur auf fällige Pfade, keine Daten anderer Personen in der Mail, HTML-Escaping im Template, Deep-Link ohne Token.
-5. Epic 9 abschliessen: Plan ✅, Commit. Erinnerung für 10.2: `setup-cron-jobs.sql` auf TEST/PROD.
+4. `security-reviewer` über 9.1–9.4: Service-Role-Zugriff nur auf fällige Pfade, keine Daten anderer Personen in der Mail, HTML-Escaping im Template, Deep-Link ohne Token. ✅ (2026-11-01: ein mittlerer Befund behoben: Löschjob prüft den Belegpfad mit `isValidReceiptPath`, dazu CHECK `event_expenses_attachment_path_check` als NOT VALID; Mailadressen aus Fehlern entfernt, Zeilenumbrüche im Betreff ersetzt. Offen: `FUNCTIONS_VERIFY_JWT` auf TEST/PROD prüfen, siehe tech-debt.md)
+5. Epic 9 abschliessen: Plan ✅, Commit. Erinnerung für 10.2: `setup-cron-jobs.sql` auf TEST/PROD. ✅ (2026-11-01)
 
 ### Risiken
 

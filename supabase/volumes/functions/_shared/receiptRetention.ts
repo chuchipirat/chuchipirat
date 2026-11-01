@@ -240,6 +240,31 @@ export function toStoragePath(attachmentPath: string): string {
 }
 
 /**
+ * Prüft, ob der Belegpfad genau zu dieser Ausgabe gehört. Köch:innen können
+ * `attachment_path` direkt schreiben, der Löschjob umgeht mit der Service Role
+ * aber die Storage-Regeln. Ohne Vergleich mit den IDs der eigenen Zeile könnte
+ * ein manipulierter Pfad eine fremde Datei löschen.
+ *
+ * @param receipt - Ausgabe mit ID, Anlass und Belegpfad.
+ * @returns `true` nur für `<event_id>/expenses/<id>.<endung>`.
+ * @example
+ * isValidReceiptPath({
+ *   id: "expense-1",
+ *   event_id: "event-a",
+ *   attachment_path: "event-a/expenses/expense-1.pdf",
+ * }) // true
+ */
+export function isValidReceiptPath(receipt: ReceiptPathRow): boolean {
+  const expectedStart = `${receipt.event_id}/expenses/${receipt.id}.`;
+  const extension = receipt.attachment_path.slice(expectedStart.length);
+
+  return (
+    receipt.attachment_path.startsWith(expectedStart) &&
+    /^[a-z0-9]{1,5}$/.test(extension)
+  );
+}
+
+/**
  * Belege, die heute gelöscht werden müssen, in der Reihenfolge der Eingabe.
  * Auch überfällige zählen, damit ein ausgefallener Lauf nachgeholt wird.
  *
@@ -338,7 +363,8 @@ export function getExpenseTrackingUrl(appUrl: string, eventId: string): string {
 
 /**
  * Betreff der Erinnerungsmail. Das Datum steht vorne, weil SMTP lange Betreffe
- * kürzt und es sonst bei langen Anlassnamen wegfällt.
+ * kürzt und es sonst bei langen Anlassnamen wegfällt. Zeilenumbrüche im Namen werden
+ * zu Leerzeichen, weil sie im Mail-Header nichts verloren haben.
  *
  * @param eventName - Name des Anlasses.
  * @param deletionDate - Löschdatum als `YYYY-MM-DD`.
@@ -351,7 +377,8 @@ export function buildReminderSubject(
   eventName: string,
   deletionDate: string,
 ): string {
-  return `Belege werden am ${formatSwissDate(deletionDate)} gelöscht: «${eventName}»`;
+  const singleLineName = eventName.replace(/[\r\n]+/g, " ");
+  return `Belege werden am ${formatSwissDate(deletionDate)} gelöscht: «${singleLineName}»`;
 }
 
 /**
@@ -408,4 +435,19 @@ export function buildReminderText({
     ``,
     `Bei Fragen: hallo@chuchipirat.ch`,
   ].join("\n");
+}
+
+/**
+ * Entfernt Mailadressen aus einer Fehlermeldung. Meldungen von Brevo oder vom
+ * SMTP-Server können die Adresse enthalten, und die Fehler landen in Sentry
+ * und in `cron_job_log`.
+ *
+ * @param text - Fehlermeldung.
+ * @returns Text mit «[Adresse entfernt]» anstelle jeder Adresse.
+ * @example
+ * removeEmailAddresses("Rejected: anna@example.ch")
+ * // "Rejected: [Adresse entfernt]"
+ */
+export function removeEmailAddresses(text: string): string {
+  return text.replace(/[^\s<>,;:"']+@[^\s<>,;:"']+/g, "[Adresse entfernt]");
 }

@@ -51,8 +51,8 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 - **Belege im öffentlichen `media`-Bucket** (gefunden beim Security-Review Story 8.4, 2026-10-31) — Belege liegen unter `events/<eventUid>/expenses/<expenseUid>.<ext>` im **öffentlichen** Bucket und werden per `getPublicUrl` geladen (Anzeige, PDF, ZIP). Wer beide UUIDs kennt, liest den Beleg ohne Login. Belege können Namen, Adressen oder Kartenendziffern zeigen. Die UUIDs sind kaum zu erraten, darum kein akutes Loch. Besser: privater Bucket bzw. SELECT-Policy mit `is_event_cook` und signierte URLs; dann `handleGetAttachmentUrl` (`expenseTracking.tsx`) auf `createSignedUrl` umstellen (async, betrifft Vorschau, PDF und ZIP).
   **Priorität:** mittel · **Komplexität:** gross
 
-- **`expenses.attachment_path` ohne CHECK** (gefunden beim Security-Review Story 8.4, 2026-10-31) — Die Spalte ist ein freies `text` (Migration `20260905000002`), nur der Client baut den Pfad. Ein Koch könnte per direktem PostgREST-Update `events/x/../../users/abc.jpg` eintragen; die Anzeige bzw. der Export lädt dann eine andere Datei aus demselben öffentlichen Bucket. Kein SSRF (immer eigener Storage), nur ohnehin öffentliche Daten. Fix: CHECK `attachment_path ~ '^events/[0-9a-f-]+/expenses/[0-9a-f-]+\.(jpg|png|webp|pdf)$'` (Endungen vorher mit `ATTACHMENT_MIME_TO_EXTENSION` abgleichen).
-  **Priorität:** tief · **Komplexität:** klein
+- **`authenticateCronRequest` prüft die JWT-Signatur nicht** (gefunden beim Security-Review Story 9.4, 2026-11-01) — `supabase/volumes/functions/_shared/cronJobHelper.ts:70` dekodiert das Token nur und vertraut `role`. Geprüft wird die Signatur nur in `functions/main/index.ts` bei `VERIFY_JWT=true`; `.env.example` setzt `FUNCTIONS_VERIFY_JWT=false`. Ist das auf einer Umgebung aus, kann ein gefälschtes Token alle Cron-Funktionen auslösen. Auf TEST und PROD am 2026-11-01 geprüft: `false`. Das Flag muss aus bleiben, weil `payment-webhook` und `unsubscribe-newsletter` ohne JWT aufgerufen werden. Fix liegt auf Branch `fix/bugfixes-after-abrechnung`; Eintrag nach dem Merge entfernen.
+  **Priorität:** hoch · **Komplexität:** klein
 
 ## Performance
 

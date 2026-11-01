@@ -21,6 +21,8 @@ import {
   getExpenseTrackingUrl,
   getReminderDate,
   isDeletionDue,
+  isValidReceiptPath,
+  removeEmailAddresses,
   selectDueReceipts,
   selectReminderEventIds,
   selectReminderRecipients,
@@ -234,6 +236,51 @@ describe("toStoragePath", () => {
   });
 });
 
+describe("isValidReceiptPath", () => {
+  const EVENT_ID = "11111111-1111-4111-8111-111111111111";
+  const OTHER_EVENT_ID = "22222222-2222-4222-8222-222222222222";
+  const EXPENSE_ID = "33333333-3333-4333-8333-333333333333";
+  const OTHER_EXPENSE_ID = "44444444-4444-4444-8444-444444444444";
+
+  const receiptWithPath = (attachmentPath: string): ReceiptPathRow => ({
+    id: EXPENSE_ID,
+    event_id: EVENT_ID,
+    attachment_path: attachmentPath,
+  });
+
+  test.each(["pdf", "jpg", "png"])(
+    "eigener Pfad mit Endung %s ist gültig",
+    (extension) => {
+      const path = `${EVENT_ID}/expenses/${EXPENSE_ID}.${extension}`;
+
+      expect(isValidReceiptPath(receiptWithPath(path))).toBe(true);
+    },
+  );
+
+  // Jeder dieser Pfade könnte sonst eine fremde Datei löschen
+  test.each([
+    ["anderer Anlass", `${OTHER_EVENT_ID}/expenses/${EXPENSE_ID}.pdf`],
+    ["andere Ausgabe", `${EVENT_ID}/expenses/${OTHER_EXPENSE_ID}.pdf`],
+    ["Titelbild des Anlasses", `${EVENT_ID}/cover.jpg`],
+    ["falscher Ordner", `${EVENT_ID}/images/${EXPENSE_ID}.pdf`],
+    ["aus dem Ordner heraus", `${EVENT_ID}/expenses/../../${OTHER_EVENT_ID}/cover.jpg`],
+    ["Ordnerwechsel im Namen", `${EVENT_ID}/expenses/${EXPENSE_ID}.pdf/../x.pdf`],
+    ["Pfad davor", `x/${EVENT_ID}/expenses/${EXPENSE_ID}.pdf`],
+    ["mit führendem Schrägstrich", `/${EVENT_ID}/expenses/${EXPENSE_ID}.pdf`],
+    ["mit Präfix des Buckets", `events/${EVENT_ID}/expenses/${EXPENSE_ID}.pdf`],
+    ["ID nur als Anfang des Namens", `${EVENT_ID}/expenses/${EXPENSE_ID}x.pdf`],
+    ["ohne Endung", `${EVENT_ID}/expenses/${EXPENSE_ID}`],
+    ["leere Endung", `${EVENT_ID}/expenses/${EXPENSE_ID}.`],
+    ["zwei Endungen", `${EVENT_ID}/expenses/${EXPENSE_ID}.pdf.exe`],
+    ["zu lange Endung", `${EVENT_ID}/expenses/${EXPENSE_ID}.abcdef`],
+    ["Grossbuchstaben in der Endung", `${EVENT_ID}/expenses/${EXPENSE_ID}.PDF`],
+    ["Zeilenumbruch am Ende", `${EVENT_ID}/expenses/${EXPENSE_ID}.pdf\n`],
+    ["leerer Pfad", ""],
+  ])("ungültig: %s", (_case, path) => {
+    expect(isValidReceiptPath(receiptWithPath(path))).toBe(false);
+  });
+});
+
 describe("selectDueReceipts", () => {
   const receipt = (id: string, eventId: string): ReceiptPathRow => ({
     id,
@@ -405,10 +452,31 @@ describe("getExpenseTrackingUrl", () => {
 });
 
 describe("buildReminderSubject", () => {
+  test.each([
+    ["\n"],
+    ["\r\n"],
+  ])("Zeilenumbruch %j im Anlassnamen wird zum Leerzeichen", (lineBreak) => {
+    expect(
+      buildReminderSubject(`Sommer${lineBreak}lager`, "2027-07-14"),
+    ).toBe("Belege werden am 14.07.2027 gelöscht: «Sommer lager»");
+  });
+
   test("Anlass und Löschdatum im Schweizer Format", () => {
     expect(buildReminderSubject("Sommerlager", "2027-07-14")).toBe(
       "Belege werden am 14.07.2027 gelöscht: «Sommerlager»",
     );
+  });
+});
+
+describe("removeEmailAddresses", () => {
+  test.each([
+    ["Adresse im Text", "Rejected: anna@example.ch unknown", "Rejected: [Adresse entfernt] unknown"],
+    ["in spitzen Klammern", "550 <anna.muster+test@mail.example.ch>", "550 <[Adresse entfernt]>"],
+    ["mehrere Adressen", "a@x.ch, b@y.ch", "[Adresse entfernt], [Adresse entfernt]"],
+    ["ohne Adresse", "Connection refused", "Connection refused"],
+    ["leerer Text", "", ""],
+  ])("%s", (_case, text, expected) => {
+    expect(removeEmailAddresses(text)).toBe(expected);
   });
 });
 

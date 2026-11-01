@@ -46,13 +46,14 @@ import {
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   DIALOG_TITLE_DELETION_CONFIRMATION as TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
   DIALOG_SUBTITLE_DELETION_CONFIRMATION as TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
-  DIALOG_TEXT_DELETION_CONFIRMATION as TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
   CONSISTENCY_CHECK as TEXT_CONSISTENCY_CHECK,
   MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED as TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
   MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES as TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
   EVENT_NOT_FOUND_OR_NO_ACCESS as TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS,
+  EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES as TEXT_EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES,
+  EVENT_DELETION_CONFIRMATION_TEXT as TEXT_EVENT_DELETION_CONFIRMATION_TEXT,
 } from "../../../constants/text";
 
 import {HOME as ROUTE_HOME} from "../../../constants/routes";
@@ -1795,13 +1796,36 @@ const EventPage = () => {
       },
     });
   };
+
+  /**
+   * Text für den Löschdialog des Anlasses. Die Ausgaben werden erst hier
+   * geladen, weil die Seite sie nur im Tab «Abrechnung» kennt.
+   *
+   * @returns Text mit Hinweis auf Ausgaben und Belege, wenn der Anlass Ausgaben
+   *   hat oder das Laden fehlschlägt; sonst der kurze Text.
+   */
+  const getEventDeletionText = async () => {
+    try {
+      const expenses = await database.expenses.getExpensesForEvent(
+        state.event.uid,
+      );
+      return expenses.length > 0
+        ? TEXT_EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES
+        : TEXT_EVENT_DELETION_CONFIRMATION_TEXT;
+    } catch (error) {
+      // Lieber einmal zu viel warnen, als Belege ohne Hinweis zu löschen
+      Sentry.captureException(error);
+      return TEXT_EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES;
+    }
+  };
+
   const onEventDelete = async () => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.ConfirmSecure,
       deletionDialogProperties: {confirmationString: state.event.name},
       title: TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
       subtitle: TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
-      text: TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
+      text: await getEventDeletionText(),
       buttonTextCancel: TEXT_CANCEL,
       buttonTextConfirm: TEXT_DELETE,
     });

@@ -50,6 +50,8 @@ import {
   getExpenseTrackingUrl,
   ReceiptPathRow,
   ReceiptRow,
+  isValidReceiptPath,
+  removeEmailAddresses,
   selectDueReceipts,
   selectReminderEventIds,
   selectReminderRecipients,
@@ -236,7 +238,9 @@ serve(async (req: Request) => {
 /**
  * Löscht alle fälligen Belege: filtert mit `selectDueReceipts` und löscht
  * blockweise nacheinander, damit Storage und Datenbank nicht hunderte
- * Anfragen gleichzeitig bekommen.
+ * Anfragen gleichzeitig bekommen. Belege mit fremdem Pfad bleiben unangetastet
+ * und stehen ohne den Pfad in `errors`: Die Service Role umgeht die
+ * Storage-Regeln, ein manipulierter Pfad könnte sonst fremde Dateien löschen.
  *
  * @param client - Admin-Client (Service Role).
  * @param receipts - Alle Ausgaben mit Beleg.
@@ -251,14 +255,17 @@ async function deleteDueReceipts(
   today: string,
 ): Promise<DeletionResult> {
   const dueReceipts = selectDueReceipts(receipts, eventEndDates, today);
+  const validReceipts = dueReceipts.filter(isValidReceiptPath);
 
   const result: DeletionResult = {
     requested: dueReceipts.length,
     removed: 0,
     clearedExpenses: 0,
-    errors: [],
+    errors: dueReceipts
+      .filter((receipt) => !isValidReceiptPath(receipt))
+      .map((receipt) => `Ungültiger Belegpfad bei Ausgabe ${receipt.id}`),
   };
-  for (const block of chunkArray(dueReceipts, BLOCK_SIZE)) {
+  for (const block of chunkArray(validReceipts, BLOCK_SIZE)) {
     await deleteReceiptBlock(client, block, result);
   }
   return result;
@@ -414,7 +421,7 @@ async function sendReminderMail(
   try {
     await sendEmail(emailEnv, recipient.email, subject, html, text);
   } catch (error) {
-    errorMessage = String(error);
+    errorMessage = removeEmailAddresses(String(error));
   }
 
   await logReminderMail(

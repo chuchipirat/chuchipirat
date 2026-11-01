@@ -117,6 +117,10 @@ export const COPY_EVENT_SUBMITTING = "Kopiere…";
 export const COPY_EVENT_ERROR = "Beim Kopieren ist ein Fehler aufgetreten.";
 
 export const DELETE_EVENT = "Anlass löschen";
+export const EVENT_DELETION_CONFIRMATION_TEXT =
+  "Damit werden alle Daten des Anlasses gelöscht. Gib zur Bestätigung den Namen des Anlasses ein:";
+export const EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES =
+  "Damit werden alle Daten des Anlasses gelöscht, auch die Ausgaben und Belege der Abrechnung. Gib zur Bestätigung den Namen des Anlasses ein:";
 export const ATTENTION_ABOUT_TO_DELETE_PLANED_DAYS =
   "Achtung – Geplante Tage werden gelöscht!";
 export const DELETION_AFFECTS_PLANED_DAYS =
