@@ -51,7 +51,7 @@
       {
         "publicPath": "./html-report",
         "filename": "report.html",
-        "openReport": true
+        "openReport": false
       }
     ]
   ],

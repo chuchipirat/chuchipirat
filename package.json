@@ -56,7 +56,8 @@
     "lint:sql": "sqlfluff lint supabase/migrations",
     "format:sql": "sqlfluff fix supabase/migrations",
     "test": "jest --watch --coverage",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage",
+    "test:report": "open html-report/report.html"
   },
   "resolutions": {
     "@types/react": "^18.0.0",
