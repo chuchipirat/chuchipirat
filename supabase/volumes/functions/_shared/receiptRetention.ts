@@ -60,6 +60,17 @@ export type ReceiptPathRow = {
 };
 
 /**
+ * Ausgabe mit Beleg, wie der Job sie lädt: Pfad für das Löschen und
+ * zahlende Instanz für die Empfänger der Erinnerungsmail.
+ */
+/**
+ * Ausgabe mit Beleg, wie der Job sie einmal lädt: Pfad für das Löschen und
+ * zahlende Instanz für die Empfänger der Erinnerungsmail. Passt dank `&`
+ * überall, wo `ReceiptPathRow` oder `ReceiptExpenseRow` erwartet wird.
+ */
+export type ReceiptRow = ReceiptPathRow & ReceiptExpenseRow;
+
+/**
  * Datum in Zürich, unabhängig von der Zeitzone des Servers. Der Job läuft
  * nachts in UTC; um 23:30 UTC ist in Zürich schon der nächste Tag.
  *
@@ -252,4 +263,149 @@ export function selectDueReceipts(
     const eventEnd = eventEndDates.get(receipt.event_id);
     return eventEnd !== undefined && isDeletionDue(eventEnd, today);
   });
+}
+
+/**
+ * Anlässe, deren Erinnerungsmail heute fällig ist. Anders als beim Löschen
+ * nur genau am Stichtag: Nachholen hiesse, die Mail jeden Tag bis zum
+ * Löschen zu schicken.
+ *
+ * @param eventEndDates - Anlassende pro Anlass, aus `getEventEndDates`.
+ * @param today - Heutiges Datum in Zürich als `YYYY-MM-DD`.
+ * @returns Anlass-IDs in der Reihenfolge der Map, evtl. leer.
+ * @example
+ * selectReminderEventIds(new Map([["a1", "2026-07-14"]]), "2027-06-14") // ["a1"]
+ */
+export function selectReminderEventIds(
+  eventEndDates: Map<string, string>,
+  today: string,
+): string[] {
+  const reminderEventIds: string[] = [];
+
+  eventEndDates.forEach((eventEnd, eventId) => {
+    if (getReminderDate(eventEnd) === today) {
+      reminderEventIds.push(eventId);
+    }
+  });
+  return reminderEventIds;
+}
+
+/**
+ * Datum für Menschen, wie in der Schweiz üblich.
+ *
+ * @param isoDate - Datum als `YYYY-MM-DD`.
+ * @returns Datum als `TT.MM.JJJJ`, mit führenden Nullen.
+ * @example
+ * formatSwissDate("2027-01-05") // "05.01.2027"
+ */
+export function formatSwissDate(isoDate: string): string {
+  const [year, month, day] = isoDate.split("-");
+  return `${day}.${month}.${year}`;
+}
+
+/**
+ * Anzahl Belege mit passender Einzahl oder Mehrzahl.
+ *
+ * @param count - Anzahl Belege.
+ * @returns z.B. «1 Beleg», «3 Belege», «0 Belege».
+ * @example
+ * formatReceiptCount(1) // "1 Beleg"
+ */
+export function formatReceiptCount(count: number): string {
+  if (count === 1) {
+    return `1 Beleg`;
+  }
+  return `${count} Belege`;
+}
+
+/**
+ * Link auf den Tab «Abrechnung» eines Anlasses, für die Erinnerungsmail.
+ * Der Tab wird über `?tab=expensetracking` geöffnet (`TAB_QUERY_PARAM_MAP`
+ * in `event.tsx`). Ohne Anmeldung landet man zuerst auf dem Login.
+ *
+ * @param appUrl - `SITE_URL`, mit oder ohne `/` am Ende.
+ * @param eventId - ID des Anlasses.
+ * @returns Vollständige URL.
+ * @example
+ * getExpenseTrackingUrl("https://chuchipirat.ch/", "a1")
+ * // "https://chuchipirat.ch/event/a1?tab=expensetracking"
+ */
+export function getExpenseTrackingUrl(appUrl: string, eventId: string): string {
+  // SITE_URL kann mit oder ohne «/» am Ende gesetzt sein
+  const baseUrl = appUrl.endsWith("/") ? appUrl.slice(0, -1) : appUrl;
+  return `${baseUrl}/event/${eventId}?tab=expensetracking`;
+}
+
+/**
+ * Betreff der Erinnerungsmail. Das Datum steht vorne, weil SMTP lange Betreffe
+ * kürzt und es sonst bei langen Anlassnamen wegfällt.
+ *
+ * @param eventName - Name des Anlasses.
+ * @param deletionDate - Löschdatum als `YYYY-MM-DD`.
+ * @returns Betreff mit Anlass und Datum im Schweizer Format.
+ * @example
+ * buildReminderSubject("Sommerlager", "2027-07-14")
+ * // "Belege werden am 14.07.2027 gelöscht: «Sommerlager»"
+ */
+export function buildReminderSubject(
+  eventName: string,
+  deletionDate: string,
+): string {
+  return `Belege werden am ${formatSwissDate(deletionDate)} gelöscht: «${eventName}»`;
+}
+
+/**
+ * Erste Zeile der Erinnerungsmail, für HTML und Text gleich. Ohne Namen
+ * (`users.display_name` kann leer sein) steht nur die Anrede, ohne
+ * Leerzeichen vor dem Komma.
+ *
+ * @param displayName - Anzeigename, evtl. leer.
+ * @returns Anrede mit Komma.
+ * @example
+ * buildReminderGreeting("Anna") // "Hoi Anna,"
+ * buildReminderGreeting("") // "Hoi,"
+ */
+export function buildReminderGreeting(displayName: string): string {
+  return displayName ? `Hoi ${displayName},` : "Hoi,";
+}
+
+/**
+ * Textfassung der Erinnerungsmail, für Mailprogramme ohne HTML. Sagt, was
+ * wann gelöscht wird und wie man die Belege vorher sichert. Enthält keine
+ * Beträge und keine Namen anderer Personen, weil die Mail an mehrere
+ * Köch:innen gehen kann.
+ *
+ * @param params.recipientName - Name in der Anrede.
+ * @param params.eventName - Name des Anlasses.
+ * @param params.deletionDate - Löschdatum als `YYYY-MM-DD`.
+ * @param params.receiptCount - Anzahl Belege des Anlasses.
+ * @param params.url - Link zur Abrechnung, aus `getExpenseTrackingUrl`.
+ * @returns Mailtext mit Zeilenumbrüchen.
+ */
+export function buildReminderText({
+  recipientName,
+  eventName,
+  deletionDate,
+  receiptCount,
+  url,
+}: {
+  recipientName: string;
+  eventName: string;
+  deletionDate: string;
+  receiptCount: number;
+  url: string;
+}): string {
+  return [
+    `${buildReminderGreeting(recipientName)}`,
+    ``,
+    `in der Abrechnung eures Anlasses «${eventName}» sind noch ${formatReceiptCount(receiptCount)} gespeichert. Belege bewahren wir ein Jahr nach Anlassende auf. Am ${formatSwissDate(deletionDate)} werden sie endgültig gelöscht und können danach nicht wiederhergestellt werden. Die Ausgaben selbst bleiben erhalten.`,
+    ``,
+    `Brauchst du die Belege noch, zum Beispiel für die Kasse oder die Revision? Dann lade sie vorher herunter. Im Tab «Abrechnung» findest du unter «Exportieren» die Abrechnung als PDF (mit allen Belegen) oder alle Belege als ZIP.`,
+    ``,
+    `Zur Abrechnung: ${url}`,
+    ``,
+    `Wenn du die Belege nicht mehr brauchst, musst du nichts tun.`,
+    ``,
+    `Bei Fragen: hallo@chuchipirat.ch`,
+  ].join("\n");
 }

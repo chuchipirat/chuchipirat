@@ -11,11 +11,18 @@ import {
   EventDateRow,
   ReceiptExpenseRow,
   ReceiptPathRow,
+  buildReminderGreeting,
+  buildReminderSubject,
+  buildReminderText,
+  formatReceiptCount,
+  formatSwissDate,
   getDeletionDate,
   getEventEndDates,
+  getExpenseTrackingUrl,
   getReminderDate,
   isDeletionDue,
   selectDueReceipts,
+  selectReminderEventIds,
   selectReminderRecipients,
   toStoragePath,
   toZurichDate,
@@ -308,5 +315,159 @@ describe("selectDueReceipts", () => {
 
   test("ohne Belege leer", () => {
     expect(selectDueReceipts([], eventEndDates, "2027-07-14")).toEqual([]);
+  });
+});
+
+describe("selectReminderEventIds", () => {
+  // A: Ende 14.07.2026 → Erinnerung 14.06.2027
+  // B: Ende 29.02.2028 → Löschdatum 01.03.2029 → Erinnerung 30.01.2029
+  // C: Ende 15.07.2026 → Erinnerung 15.06.2027
+  const eventEndDates = new Map([
+    ["event-a", "2026-07-14"],
+    ["event-b", "2028-02-29"],
+    ["event-c", "2026-07-15"],
+  ]);
+
+  test("am Erinnerungstag", () => {
+    expect(selectReminderEventIds(eventEndDates, "2027-06-14")).toEqual([
+      "event-a",
+    ]);
+  });
+
+  test("einen Tag davor nicht", () => {
+    expect(selectReminderEventIds(eventEndDates, "2027-06-13")).toEqual([]);
+  });
+
+  // Anders als beim Löschen wird nicht nachgeholt: sonst käme die Mail
+  // jeden Tag bis zum Löschen.
+  test("einen Tag danach nicht mehr, nur der Anlass mit Erinnerung heute", () => {
+    expect(selectReminderEventIds(eventEndDates, "2027-06-15")).toEqual([
+      "event-c",
+    ]);
+  });
+
+  test("Erinnerung nach einem 29. Februar", () => {
+    expect(selectReminderEventIds(eventEndDates, "2029-01-30")).toEqual([
+      "event-b",
+    ]);
+  });
+
+  test("mehrere Anlässe am selben Tag, in der Reihenfolge der Map", () => {
+    const sameEnd = new Map([
+      ["event-x", "2026-07-14"],
+      ["event-y", "2026-07-14"],
+    ]);
+
+    expect(selectReminderEventIds(sameEnd, "2027-06-14")).toEqual([
+      "event-x",
+      "event-y",
+    ]);
+  });
+
+  test("ohne Anlässe leer", () => {
+    expect(selectReminderEventIds(new Map(), "2027-06-14")).toEqual([]);
+  });
+});
+
+describe("formatSwissDate", () => {
+  test.each([
+    ["2027-07-14", "14.07.2027"],
+    ["2027-01-05", "05.01.2027"],
+    ["2026-12-31", "31.12.2026"],
+  ])("%s → %s", (isoDate, expected) => {
+    expect(formatSwissDate(isoDate)).toBe(expected);
+  });
+});
+
+describe("formatReceiptCount", () => {
+  test.each([
+    [1, "1 Beleg"],
+    [2, "2 Belege"],
+    [0, "0 Belege"],
+    [23, "23 Belege"],
+  ])("%d → %s", (count, expected) => {
+    expect(formatReceiptCount(count)).toBe(expected);
+  });
+});
+
+describe("getExpenseTrackingUrl", () => {
+  test("führt auf den Tab Abrechnung des Anlasses", () => {
+    expect(getExpenseTrackingUrl("https://chuchipirat.ch", "event-a")).toBe(
+      "https://chuchipirat.ch/event/event-a?tab=expensetracking",
+    );
+  });
+
+  test("kein doppelter Schrägstrich, wenn SITE_URL mit / endet", () => {
+    expect(getExpenseTrackingUrl("https://chuchipirat.ch/", "event-a")).toBe(
+      "https://chuchipirat.ch/event/event-a?tab=expensetracking",
+    );
+  });
+});
+
+describe("buildReminderSubject", () => {
+  test("Anlass und Löschdatum im Schweizer Format", () => {
+    expect(buildReminderSubject("Sommerlager", "2027-07-14")).toBe(
+      "Belege werden am 14.07.2027 gelöscht: «Sommerlager»",
+    );
+  });
+});
+
+describe("buildReminderGreeting", () => {
+  test("mit Namen", () => {
+    expect(buildReminderGreeting("Anna")).toBe("Hoi Anna,");
+  });
+
+  test("ohne Namen nur die Anrede, ohne Leerzeichen vor dem Komma", () => {
+    expect(buildReminderGreeting("")).toBe("Hoi,");
+  });
+});
+
+describe("buildReminderText", () => {
+  // Erst im Test aufrufen, nicht beim Laden: sonst fällt die ganze Datei
+  // aus, solange die Funktion noch fehlt.
+  const buildTextFor = (receiptCount: number): string =>
+    buildReminderText({
+      recipientName: "Anna",
+      eventName: "Sommerlager",
+      deletionDate: "2027-07-14",
+      receiptCount,
+      url: "https://chuchipirat.ch/event/event-a?tab=expensetracking",
+    });
+
+  test.each([
+    ["Anrede mit Namen", "Hoi Anna"],
+    ["Anlass", "«Sommerlager»"],
+    ["Löschdatum im Schweizer Format", "14.07.2027"],
+    ["Anzahl Belege", "3 Belege"],
+    [
+      "Link zur Abrechnung",
+      "https://chuchipirat.ch/event/event-a?tab=expensetracking",
+    ],
+    ["Hinweis auf den Export", "ZIP"],
+  ])("enthält %s", (_case, expected) => {
+    expect(buildTextFor(3)).toContain(expected);
+  });
+
+  test("kein Datum im Format YYYY-MM-DD", () => {
+    expect(buildTextFor(3)).not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+
+  test("ohne Namen beginnt der Text mit «Hoi,»", () => {
+    const text = buildReminderText({
+      recipientName: "",
+      eventName: "Sommerlager",
+      deletionDate: "2027-07-14",
+      receiptCount: 3,
+      url: "https://chuchipirat.ch/event/event-a?tab=expensetracking",
+    });
+
+    expect(text.startsWith("Hoi,\n")).toBe(true);
+  });
+
+  test("ein Beleg in der Einzahl", () => {
+    const singleText = buildTextFor(1);
+
+    expect(singleText).toContain("1 Beleg");
+    expect(singleText).not.toContain("1 Belege");
   });
 });

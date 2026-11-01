@@ -7577,16 +7577,74 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 
 *Mutationsproben 9.2 (reine Funktionen), 2026-11-01:* 8 Proben, alle gefangen: Präfix fehlt, doppelt, ohne Slash; `<` statt `<=`; nur genau am Tag; Anlass ohne Ende fällig; nach Anlass sortiert; Erinnerungs- statt Löschdatum.
 
-#### Story 9.3 — Job Teil 2: Erinnerungsmail
-1. Template `receipt-retention-reminder` in `templateRenderer.ts` (HTML) plus Textfassung im Handler, wie `event-review` ✋
-2. `sendReminders`: Anlässe mit Erinnerungsdatum = heute, Empfänger nach E5, Mail pro Person, `mail_log`.
-3. Lokal mit MailPit: Fall nur `existing_user` (nur diese Personen), Fall mit `no_refund_needed` (alle Köch:innen), Fall mit `new_person` (alle).
+#### Story 9.3 — Job Teil 2: Erinnerungsmail ✅
+
+> Verfeinert 2026-11-01. Tests zuerst wie in 9.1/9.2. Arbeitsweise beim Handler wie in 9.2: Schritt für Schritt, Claude erklärt jede Funktion.
+
+**Fakten aus dem Code:**
+- `renderEmailTemplate(name, variables, rawVariables)` in `_shared/templateRenderer.ts`: Templates sind Strings in `BODY_TEMPLATES`, Header/Footer kommen automatisch dazu, Variablen werden HTML-escaped. Handlebars (`{{#if}}`) nur für Namen in `HANDLEBARS_TEMPLATES`.
+- `templateRenderer.ts` lädt Handlebars per URL und ist darum **nicht mit Jest testbar**. Alles mit Inhalt kommt als reine Funktion nach `receiptRetention.ts`; das Template bekommt fertige Strings und braucht kein Handlebars.
+- `sendEmail(env, to, subject, html, text)` aus `_shared/emailService.ts`; lokal landet alles in MailPit. `readEmailEnv()`/`isEmailConfigured()` prüfen den Versand. Vorbild für Köch:innen → `users` (E-Mail, Name) und `mail_log`: `cron-event-review-email`.
+- Deep-Link zur Abrechnung: `<SITE_URL>/event/<eventId>?tab=expensetracking` (`TAB_QUERY_PARAM_MAP` in `event.tsx`).
+
+**Entscheidungen:**
+- **E10 — Einmal laden, zweimal verwenden:** `serve` lädt Ausgaben mit Beleg und Anlassende **einmal** und gibt sie an `sendReminders` und `deleteDueReceipts`. Dafür lädt `loadReceipts` zusätzlich `payee_type` und `payee_user_id` (neuer Typ `ReceiptRow = ReceiptPathRow & ReceiptExpenseRow`), und `deleteDueReceipts` bekommt die geladenen Daten statt selbst zu laden. Kleiner Umbau am Code aus 9.2.
+- **E11 — Löschen hängt nicht an der Mail:** Ist kein Mailversand eingerichtet oder scheitert eine Mail, wird trotzdem gelöscht; der Fehler steht in `errors` und geht an Sentry. Umgekehrt wäre ein kaputter Mailserver ein Grund, nie zu löschen.
+- **E12 — Inhalt der Mail:** Anrede mit Namen, Anlassname, Löschdatum (`14.07.2027`), Anzahl Belege («1 Beleg»/«3 Belege»), Knopf «Zur Abrechnung», Hinweis auf PDF/ZIP-Export. Keine Beträge, keine Namen anderer Personen. Betreff: `Belege werden am <Datum> gelöscht: «<Anlass>»` (Datum vorne, weil SMTP lange Betreffe kürzt).
+- **E13 — Ein `mail_log`-Eintrag pro Mail** (geändert 2026-11-01, vorher pro Lauf): wie die Willkommens-Mail mit Adresse, echtem Betreff und HTML; Anlass in `details`; auch Fehlversände.
+
+**Neue reine Funktionen** in `_shared/receiptRetention.ts`:
+- `type ReceiptRow = ReceiptPathRow & ReceiptExpenseRow`
+- `selectReminderEventIds(eventEndDates, today)` → Anlass-IDs mit Erinnerungsdatum = heute (nur genau heute, E3)
+- `formatSwissDate(isoDate)` → `"14.07.2027"`
+- `formatReceiptCount(count)` → `"1 Beleg"` / `"3 Belege"`
+- `getExpenseTrackingUrl(appUrl, eventId)` → Deep-Link
+- `buildReminderSubject(eventName, deletionDate)` → Betreff
+- `buildReminderText({recipientName, eventName, deletionDate, receiptCount, url})` → Textfassung der Mail
+
+**Handler** (`cron-receipt-retention/index.ts`), neue Funktionen:
+- `sendReminders(client, emailEnv, receipts, eventEndDates, today, appUrl)` → `{remindedEvents, emailsSent, errors}`
+- `loadCookIds(client, eventId)` → User-IDs aus `event_cooks`
+- `loadUsers(client, userIds)` → `id, email, display_name` aus `users`
+- `sendReminderMail(…)` → eine Mail (HTML über `renderEmailTemplate("receipt-retention-reminder", …)`, Text über `buildReminderText`)
+
+**Tests** (`receiptRetention.test.ts`, ergänzt): `selectReminderEventIds` (am Tag ja, Tag davor/danach nein, mehrere Anlässe, Erinnerung nach 29.02.), `formatSwissDate` (inkl. führende Nullen), `formatReceiptCount` (0, 1, 2), `getExpenseTrackingUrl` (mit und ohne `/` am Ende von `appUrl`), `buildReminderSubject`, `buildReminderText` (enthält Name, Anlass, Schweizer Datum, Anzahl, Link; keine `YYYY-MM-DD`-Form).
+
+**Schritte:**
+1. Claude ergänzt die Tests, prüft gegen Wegwerf-Umsetzung ✋ ✅ (2026-11-01: 24 neue Tests, zusammen 63; Wegwerf-Umsetzung grün, danach entfernt)
+2. Nutzer: reine Funktionen → Tests grün ✋ (Review + JSDoc) ✅ (2026-11-01: 63 Tests grün, auch mit TZ=America/New_York)
+3. Nutzer: Template `receipt-retention-reminder` in `BODY_TEMPLATES` (Vorbild `event-review`, ohne Handlebars) ✋ ✅ (2026-11-01: Vorschau Desktop und 375px geprüft, Escaping ok)
+4. Nutzer: Handler-Umbau nach E10, dann `sendReminders` mit Hilfsfunktionen, Schritt für Schritt ✋ (Review + JSDoc, `deno check`) ✅ (2026-11-01; zusätzlich `buildReminderGreeting`, `loadEventName`, `remindEvent`, `logReminderMails`)
+5. Lokal mit MailPit (DEV, nie PROD): Testanlass mit Ende **heute − 1 Jahr + 30 Tage** (am 01.11.2026: Ende 01.12.2025), drei Fälle nacheinander per SQL umgestellt:
+   - nur `existing_user`, alle noch Koch → Mail nur an diese Personen;
+   - eine Ausgabe `no_refund_needed` → Mail an alle Köch:innen;
+   - zahlende Person, die nicht mehr Koch ist → Mail an alle aktuellen Köch:innen, nicht an sie.
+   Jeweils: Betreff, Datum, Anzahl, Link führt auf den Tab Abrechnung; Mail auf Handy-Breite lesbar; `mail_log`-Eintrag; Belege sind **nicht** gelöscht. ✅ (2026-11-01: alle drei Fälle plus zwei zahlende Köch:innen geprüft)
+
+*Mutationsproben 9.3 (reine Funktionen), 2026-11-01:* 12 Proben, alle gefangen: Erinnerung nachgeholt (`<=`), Lösch- statt Erinnerungsdatum, Datum im US-Format, ohne führende Null, immer Mehrzahl, 0 als Einzahl, `/` am Ende nicht entfernt, falscher Tab, Betreff bzw. Text mit ISO-Datum, Text ohne Link, ohne Export-Hinweis.
 
 #### Story 9.4 — Abschluss
-- Hinweis im Anlass-Löschdialog (E9), mit Test.
-- Helpcenter: Abschnitt «Wie lange bleiben Belege gespeichert?» in `docs/event/expensetracking.md`; Admin-Seite `docs/admin/cron_jobs.md` um den neuen Job ergänzen. Nicht committen (Sammel-Commit).
-- `security-reviewer`: Service-Role-Zugriff, nur fällige Pfade gelöscht, keine Daten anderer Personen in der Mail.
-- Browser/MailPit-Durchlauf, Mobile-Ansicht der Mail.
+
+> Verfeinert 2026-11-01.
+
+**Fakten aus dem Code:**
+- Anlass löschen: `onEventDelete` in `event.tsx` (`customDialog` mit `DialogType.ConfirmSecure`, Eingabe des Anlassnamens). Der Text kommt aus dem allgemeinen `DIALOG_TEXT_DELETION_CONFIRMATION` (`text/shared.ts`), den auch andere Löschdialoge nutzen. Technisch löscht der Anlass die Belege schon mit (`removeFolder` rekursiv + CASCADE).
+- `event.tsx` hat **keine Seitentests** (über 2400 Zeilen, `__tests__` deckt nur Teile wie `eventInfo`, `eventCard` ab).
+- Helpcenter: `docs/event/event_settings.md` → «Anlass löschen» zählt die gelöschten Daten auf (ohne Abrechnung); `docs/admin/cron_jobs.md` beschreibt jeden Job unter «Jobs»; `docs/event/expensetracking.md` hat noch nichts zur Aufbewahrung.
+
+**Entscheidungen:**
+- **E14 — Eigener Text nur für den Anlass:** neue Konstante `EVENT_DELETION_CONFIRMATION_TEXT` in `text/events.ts`, z.B. «Damit werden alle Daten des Anlasses gelöscht, auch die Ausgaben und Belege der Abrechnung. Gib zur Bestätigung den Namen des Anlasses ein:». Der allgemeine Text bleibt für die anderen Dialoge unverändert.
+- **E15 — Ausnahme von «Tests zuerst»:** kein Jest-Test für den Dialogtext. Die ganze Seite nur für einen Text zu rendern kostet mehr, als es bringt; geprüft wird im Browser. Gehört zu den Tests der Seite, sobald `event.tsx` in Epic 10 aufgeteilt wird.
+
+**Schritte:**
+1. Nutzer: Text-Konstante und Verwendung in `onEventDelete` ✋ (Review + JSDoc)
+2. Im Browser (DEV): Anlass löschen öffnen → neuer Text, Eingabe des Namens funktioniert, Abbrechen löscht nichts. Mobile-Breite. Danach den Testanlass `668c2a01…` wirklich löschen und prüfen, dass Ausgaben und Belegdateien weg sind; das räumt auch die Testdaten auf.
+3. Helpcenter (nicht committen, Sammel-Commit):
+   - `docs/event/expensetracking.md`: Abschnitt «Wie lange bleiben Belege gespeichert?» (1 Jahr nach Anlassende, Mail 30 Tage vorher an wen nach E5, danach Ausgabe ohne Beleg, vorher PDF/ZIP sichern, Link auf «Ausgaben exportieren»).
+   - `docs/event/event_settings.md` «Anlass löschen»: Abrechnung mit Ausgaben und Belegen in der Aufzählung.
+   - `docs/admin/cron_jobs.md`: Abschnitt `cron-receipt-retention` (Zeitplan, was er tut, Ergebnisfelder `requested`/`removed`/`clearedExpenses`/`remindedEvents`/`emailsSent`/`errors`, Erinnerung nur genau am Tag und nicht nachgeholt, manueller Start am selben Tag verschickt die Mails nochmals, ein `mail_log`-Eintrag pro Mail); dazu Tabelle «Übersicht» und Liste der Buttons unter «Jobs manuell ausführen» ergänzen.
+4. `security-reviewer` über 9.1–9.4: Service-Role-Zugriff nur auf fällige Pfade, keine Daten anderer Personen in der Mail, HTML-Escaping im Template, Deep-Link ohne Token.
+5. Epic 9 abschliessen: Plan ✅, Commit. Erinnerung für 10.2: `setup-cron-jobs.sql` auf TEST/PROD.
 
 ### Risiken
 

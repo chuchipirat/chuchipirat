@@ -239,7 +239,7 @@ const BODY_TEMPLATES: Record<string, string> = {
               {{buttonBlock}}`,
 
   /* ── Willkommen (bei Registrierung) ──────────────────────────── */
-  "welcome": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+  welcome: `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
                 Ahoi {{displayName}},
               </p>
               <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
@@ -379,6 +379,34 @@ const BODY_TEMPLATES: Record<string, string> = {
               <p style="margin: 0; font-size: 14px; color: #757575; line-height: 1.5;">
                 Danke, dass ihr dabei wart — und hoffentlich bis bald wieder im chuchipirat!
               </p>`,
+
+  /* ── Erinnerung: Belege werden gelöscht ─────────────────────── */
+  "receipt-retention-reminder": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                  {{greetingLine}}
+                </p>
+                <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                  in der Abrechnung eures Anlasses <strong>«{{eventName}}»</strong> sind noch {{receiptCountText}} gespeichert. Belege bewahren wir ein Jahr nach Anlassende auf. Am <strong>{{deletionDateText}}</strong> werden sie endgültig gelöscht und können danach nicht wiederhergestellt werden. Die Ausgaben selbst bleiben erhalten.
+                </p>
+                <p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
+                  Brauchst du die Belege noch, zum Beispiel für die Kasse oder die Revision? Dann lade sie vorher herunter. Im Tab «Abrechnung» findest du unter «Exportieren» die Abrechnung als PDF (mit allen Belegen) oder alle Belege als ZIP.
+                </p>
+
+                <!-- CTA: Zur Abrechnung -->
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td align="center" style="padding: 16px 0 0;">
+                      <a href="{{url}}"
+                         target="_blank"
+                         style="display: inline-block; background-color: #006064; color: #ffffff; text-decoration: none; font-size: 16px; font-weight: 600; padding: 14px 36px; border-radius: 8px; letter-spacing: 0.3px;">
+                        Zur Abrechnung
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+
+                <p style="margin: 24px 0 0; font-size: 14px; color: #757575; line-height: 1.5;">
+                  Wenn du die Belege nicht mehr brauchst, musst du nichts tun.
+                </p>`,
 
   /* ── Spendenbestätigung ─────────────────────────────────────── */
   "donation-confirmed": `<p style="margin: 0 0 16px; font-size: 16px; color: #212121; line-height: 1.5;">
@@ -538,7 +566,10 @@ export function renderEmailTemplate(
     // literalen Platzhalter "{{preheaderText}}"/"{{unsubscribeBlock}}" im
     // Ergebnis stehen haben (preheaderText landet sonst sichtbar im Preheader-
     // Block, den Gmails Vorschau-Text-Extraktion ausliest).
-    const safeVars: Record<string, string> = {preheaderText: "", unsubscribeBlock: ""};
+    const safeVars: Record<string, string> = {
+      preheaderText: "",
+      unsubscribeBlock: "",
+    };
     for (const [key, value] of Object.entries(variables)) {
       safeVars[key] = escapeHtml(String(value));
     }

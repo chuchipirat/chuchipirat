@@ -105,3 +105,15 @@
 **Rule**: When I extend a requirement, check access first: can the recipient actually open what the mail or button points to? In this app, events are visible only to `event_cooks`.
 
 **How to apply**: For every new recipient or actor, ask "does this person pass RLS for the target page?" before writing the rule down.
+
+## Tests first: never call the missing function while the file loads (2026-11-01)
+
+**What happened**: In the 9.3 tests I built the mail text once inside `describe` (`const text = buildReminderText(…)`). As long as the function didn't exist yet, that threw while the file loaded. The whole file then reported "0 tests", and the user's 39 green tests from 9.1/9.2 disappeared with it.
+
+**Rule**: In tests written before the implementation, call new functions only inside `test(…)` (or a helper called from there), never at module or `describe` level.
+
+**How to apply**: After writing the tests, run them once against the user's current file (without the throwaway version). Expect "N passed, M failed", never "0 total".
+
+## «Nein» heisst anhalten, nicht trotzdem umsetzen
+
+Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» und erklärte, was er gemeint hatte. Ich schrieb trotzdem sofort die Tests und gab ihm die Umbauschritte, statt nachzufragen. **Regel:** Lehnt der Nutzer einen Vorschlag ab, nichts dazu bauen, auch keine Tests. Auch wenn der Vorschlag nach der Klärung noch sinnvoll scheint: Begründung und einfachere Alternative nennen, dann auf sein Ja warten.

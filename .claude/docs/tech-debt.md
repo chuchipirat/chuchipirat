@@ -201,6 +201,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`ConfirmSecureDialog` mit hartcodiertem Rot** — `src/components/Shared/dialogs/ConfirmSecureDialog.tsx` färbt den Löschen-Button über `dialogDeletedeleteButton` (`#C62828`/`#b71c1c` in `src/constants/styles.ts`) statt mit `color="error"` aus dem Theme. Der einfache `ConfirmDialog` nutzt seit `destructive: true` bereits `color="error"`. Vereinheitlichen und den Style-Eintrag entfernen.
   **Priorität:** tief · **Komplexität:** klein
 
+- **Mail-Logo sprengt die Karte unter ~340px Breite** — `supabase/volumes/functions/_shared/templateRenderer.ts` (`HEADER`): Das Logo hat `width="220"`, die Header-Zelle `padding: 24px 40px`, die äussere Zelle `padding: 40px 20px`. Bei 320px Bildschirmbreite bleiben 200px für das 220px-Logo, die Karte wird rechts abgeschnitten (alle Mails betroffen; bei 375px ok). Vorschlag: `style="width: 100%; max-width: 220px; height: auto;"` am `<img>`, damit es mitschrumpft.
+  **Priorität:** tief · **Komplexität:** klein
+
 - **Mail-Versand ohne destruktive Bestätigung** — `src/components/Admin/mailConsole.tsx` bestätigt den (unumkehrbaren) Versand mit `DialogType.Confirm` ohne `destructive`: Fokus liegt auf «Senden», Enter verschickt sofort. Prüfen, ob `destructive: true` (oder ein eigenes Flag ohne Rot) hier passt.
   **Priorität:** mittel · **Komplexität:** klein
 
