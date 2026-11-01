@@ -107,7 +107,7 @@ describe("StorageRepository", () => {
 
       expect(storageMock.storageBucketMock.list).toHaveBeenCalledTimes(1);
       expect(storageMock.storageBucketMock.list).toHaveBeenCalledWith(
-        "users/user-1",
+        "users/user-1", {limit: 1000, offset: 0},
       );
       expect(storageMock.storageBucketMock.remove).toHaveBeenCalledTimes(1);
       expect(storageMock.storageBucketMock.remove).toHaveBeenCalledWith([
@@ -132,7 +132,7 @@ describe("StorageRepository", () => {
       expect(storageMock.storageBucketMock.list).toHaveBeenCalledTimes(2);
       expect(storageMock.storageBucketMock.list).toHaveBeenNthCalledWith(
         2,
-        "users/user-1/expenses",
+        "users/user-1/expenses", {limit: 1000, offset: 0},
       );
       expect(storageMock.storageBucketMock.remove).toHaveBeenCalledTimes(1);
       expect(storageMock.storageBucketMock.remove).toHaveBeenCalledWith([
@@ -185,6 +185,59 @@ describe("StorageRepository", () => {
   /* ------------------------------------------
   // getPublicUrl()
   // ------------------------------------------ */
+  describe("removeFolder() mit vielen Dateien", () => {
+    test("blättert, bis eine Seite nicht mehr voll ist", async () => {
+      const fullPage = Array.from({length: 1000}, (_unused, index) => ({
+        id: `id-${index}`,
+        name: `file-${index}.jpg`,
+      }));
+      storageMock.storageBucketMock.list
+        .mockResolvedValueOnce({data: fullPage, error: null} as never)
+        .mockResolvedValueOnce({
+          data: [{id: "last", name: "last.jpg"}],
+          error: null,
+        } as never);
+
+      await repo.removeFolder("evt");
+
+      expect(storageMock.storageBucketMock.list).toHaveBeenNthCalledWith(
+        1,
+        "users/evt",
+        {limit: 1000, offset: 0},
+      );
+      expect(storageMock.storageBucketMock.list).toHaveBeenNthCalledWith(
+        2,
+        "users/evt",
+        {limit: 1000, offset: 1000},
+      );
+      const removedPaths =
+        storageMock.storageBucketMock.remove.mock.calls[0][0];
+      expect(removedPaths).toHaveLength(1001);
+    });
+  });
+
+  describe("getSignedUrl()", () => {
+    test("liefert den zeitlich begrenzten Link", async () => {
+      const url = await repo.getSignedUrl("receipt.pdf", 300);
+
+      expect(storageMock.storageBucketMock.createSignedUrl).toHaveBeenCalledWith(
+        "users/receipt.pdf",
+        300,
+      );
+      expect(url).toContain("users/receipt.pdf");
+    });
+
+    test("wirft bei einem Fehler", async () => {
+      const denied = new Error("denied");
+      storageMock.storageBucketMock.createSignedUrl.mockResolvedValueOnce({
+        data: null,
+        error: denied,
+      } as never);
+
+      await expect(repo.getSignedUrl("receipt.pdf", 300)).rejects.toBe(denied);
+    });
+  });
+
   describe("getPublicUrl()", () => {
     test("Öffentliche URL generieren", () => {
       const url = repo.getPublicUrl("profile.jpg");

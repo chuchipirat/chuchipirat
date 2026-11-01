@@ -36,6 +36,9 @@ import {
   ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
   SHOW_EXPENSE_RECEIPT as TEXT_SHOW_EXPENSE_RECEIPT,
   UNDO_REMOVE_EXPENSE_RECEIPT as TEXT_UNDO_REMOVE_EXPENSE_RECEIPT,
+  EXPENSE_RECEIPT_OPEN_FAILED as TEXT_EXPENSE_RECEIPT_OPEN_FAILED,
+  EXPENSE_RECEIPT_OPEN_LINK as TEXT_EXPENSE_RECEIPT_OPEN_LINK,
+  EXPENSE_RECEIPT_TAB_BLOCKED as TEXT_EXPENSE_RECEIPT_TAB_BLOCKED,
 } from "../../../../constants/text";
 
 import {
@@ -56,6 +59,7 @@ import {
   Tooltip,
   useTheme,
   useMediaQuery,
+  Link,
 } from "@mui/material";
 
 import DeleteIcon from "@mui/icons-material/Delete";
@@ -106,7 +110,7 @@ interface ExpenseDetailDialogProps {
   onCreate: (budget: ExpenseDetailDialogState) => void;
   onEdit: (expenseId: string, expense: ExpenseDetailDialogState) => void;
   onDelete: (expense: ExpenseDomain) => void;
-  getAttachmentUrl?: (attachmentPath: string) => string;
+  handleOpenAttachment?: (attachmentPath: string) => Promise<string | null>;
 }
 
 /**
@@ -178,7 +182,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   onClose,
   onEdit,
   onDelete,
-  getAttachmentUrl,
+  handleOpenAttachment,
 }) => {
   const preselectedBudgetId =
     budgets.length === 1 ? budgets[0].id : (defaultBudgetId ?? "");
@@ -228,8 +232,28 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   const [attachmentError, setAttachmentError] = React.useState<string | null>(
     null,
   );
+  const [receiptFallbackUrl, setReceiptFallbackUrl] = React.useState<
+    string | null
+  >(null);
 
   /* ------------------------------------------
+  /**
+   * Öffnet den bestehenden Beleg. Blockiert der Browser den Tab, erscheint ein
+   * echter Link. Ein Fehler erscheint hier im Dialog, weil ein Hinweis auf der
+   * Seite dahinter nicht sichtbar wäre.
+   *
+   * @param attachmentPath - Beleg-Pfad der Ausgabe.
+   */
+  const handleOpenReceipt = async (attachmentPath: string) => {
+    setAttachmentError(null);
+    setReceiptFallbackUrl(null);
+    try {
+      setReceiptFallbackUrl((await handleOpenAttachment?.(attachmentPath)) ?? null);
+    } catch {
+      setAttachmentError(TEXT_EXPENSE_RECEIPT_OPEN_FAILED);
+    }
+  };
+
   // Formular beim Öffnen neu befüllen: `useState` liest den Startwert nur
   // beim ersten Rendern, der Dialog bleibt aber dauerhaft gemountet. Ohne
   // diesen Effekt blieben Werte eines früheren Budgets stehen.
@@ -239,6 +263,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
     setFormState(expenseToFormState(expense));
     setTouched(false);
     setAttachmentError(null);
+    setReceiptFallbackUrl(null);
   }, [open, expense]);
 
   /* ------------------------------------------
@@ -577,15 +602,14 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
                 </Button>
               ) : (
                 <Box sx={classes.attachmentActions}>
-                  {formState.attachmentPath && getAttachmentUrl && (
+                  {formState.attachmentPath && handleOpenAttachment && (
                     <Tooltip title={TEXT_SHOW_EXPENSE_RECEIPT}>
                       <IconButton
-                        component="a"
-                        href={getAttachmentUrl(formState.attachmentPath)}
-                        target="_blank"
-                        rel="noopener noreferrer"
                         size="small"
                         aria-label={TEXT_SHOW_EXPENSE_RECEIPT}
+                        onClick={() =>
+                          handleOpenReceipt(formState.attachmentPath as string)
+                        }
                       >
                         <OpenInNewOutlined fontSize="small" />
                       </IconButton>
@@ -649,8 +673,21 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
             </Typography>
           )}
 
+          {receiptFallbackUrl && !formState.removeAttachment && (
+            <Typography variant="caption" component="p">
+              {TEXT_EXPENSE_RECEIPT_TAB_BLOCKED}{" "}
+              <Link
+                href={receiptFallbackUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                {TEXT_EXPENSE_RECEIPT_OPEN_LINK}
+              </Link>
+            </Typography>
+          )}
+
           {attachmentError && (
-            <Typography variant="caption" color="error">
+            <Typography variant="caption" color="error" component="p">
               {attachmentError}
             </Typography>
           )}

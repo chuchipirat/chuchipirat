@@ -67,7 +67,7 @@ export const downloadExpenseZip = async ({
   expenses: ExpenseDomain[];
   budgets: BudgetDomain[];
   event: Event;
-  getAttachmentUrl: (attachmentPath: string) => string;
+  getAttachmentUrl: (attachmentPath: string) => Promise<string>;
   onProgress: (progress: ExportProgress) => void;
   fetchBlob?: (url: string) => Promise<Blob>;
 }): Promise<ExpenseZipResult> => {
@@ -125,7 +125,7 @@ const addReceiptsToZip = async ({
   zip: JSZip;
   receiptRows: ExportRow[];
   receiptFileNames: Map<string, string>;
-  getAttachmentUrl: (attachmentPath: string) => string;
+  getAttachmentUrl: (attachmentPath: string) => Promise<string>;
   fetchBlob: (url: string) => Promise<Blob>;
   onProgress: (progress: ExportProgress) => void;
 }): Promise<FailedReceipt[]> => {
@@ -143,7 +143,7 @@ const addReceiptsToZip = async ({
     if (row.attachmentPath === null) continue;
 
     try {
-      const blob = await fetchBlob(getAttachmentUrl(row.attachmentPath));
+      const blob = await fetchBlob(await getAttachmentUrl(row.attachmentPath));
       zip.file(
         `${TEXT_EXPORT_RECEIPT_FOLDER}/${receiptFileNames.get(row.expenseId)}`,
         blob,

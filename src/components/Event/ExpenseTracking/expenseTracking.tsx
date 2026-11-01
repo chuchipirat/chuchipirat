@@ -24,6 +24,8 @@ import {
   MenuItem,
   ListItemIcon,
   ListItemText,
+  Dialog,
+  DialogContent,
 } from "@mui/material";
 import {Event} from "../Event/event.class";
 
@@ -60,6 +62,8 @@ import {
   EXPORT_ZIP as TEXT_EXPORT_ZIP,
   NO_RECEIPTS_AVAILABLE as TEXT_NO_RECEIPTS_AVAILABLE,
   EXPORT_RECEIPTS_FAILED as TEXT_EXPORT_RECEIPTS_FAILED,
+  EXPENSE_RECEIPT_TAB_BLOCKED as TEXT_EXPENSE_RECEIPT_TAB_BLOCKED,
+  EXPENSE_RECEIPT_OPEN_LINK as TEXT_EXPENSE_RECEIPT_OPEN_LINK,
 } from "../../../constants/text";
 
 import {
@@ -188,6 +192,12 @@ interface EventExpenseTrackingPageProps {
 }
 
 /**
+ * Gültigkeit eines signierten Beleg-Links. Der Link wird direkt vor dem
+ * Öffnen oder Herunterladen erstellt, darum genügen wenige Minuten.
+ */
+const RECEIPT_LINK_VALIDITY_SECONDS = 300;
+
+/**
  * Abrechnungsseite eines Events (Tab «Abrechnung»).
  *
  * Ohne bestätigte Spende für den Anlass wird eine Freischaltungs-Ansicht mit
@@ -219,6 +229,10 @@ const EventExpenseTrackingPage = ({
       open: false,
     });
   /** Dialog «Abrechnung erstellen»; `key` zählt pro Öffnen hoch. */
+  const [receiptFallback, setReceiptFallback] = React.useState({
+    open: false,
+    url: "",
+  });
   const [reportDialog, setReportDialog] = React.useState({
     open: false,
     key: 0,
@@ -484,15 +498,78 @@ const EventExpenseTrackingPage = ({
     setBudgetDetailDialogProperties({budget: null, open: false});
   };
   /**
-   * Liefert die öffentliche URL eines Belegs. Wird als schmaler Callback an
-   * Liste und Dialog gereicht, damit diese die Datenbank nicht kennen müssen.
+   * Liefert einen zeitlich begrenzten Link auf einen Beleg.
    *
    * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner
    *   (`<eventId>/expenses/<expenseId>.<ext>`).
-   * @returns Öffentliche URL der Datei (synchron, kein Netzwerk-Call).
+   * @returns Signierter Link auf die Datei.
+   * @throws Error, wenn der Link nicht erstellt werden kann.
    */
-  const handleGetAttachmentUrl = (attachmentPath: string) => {
-    return database.storage.expenses.getPublicUrl(attachmentPath);
+  const handleGetAttachmentUrl = (attachmentPath: string) =>
+    database.storage.expenses.getSignedUrl(
+      attachmentPath,
+      RECEIPT_LINK_VALIDITY_SECONDS,
+    );
+  /**
+   * Öffnet einen Beleg in einem neuen Tab. Der Tab wird noch im Klick
+   * geöffnet und erst danach auf den Link gesetzt: Browser, vor allem Safari
+   * auf dem Handy, blockieren Tabs, die erst nach einer Serverantwort aufgehen.
+   *
+   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner.
+   * @returns `null`, wenn der Tab offen ist. Blockiert ihn der Browser (z.B.
+   *   Brave auf dem iPhone, auch ohne Pop-up-Blocker), der signierte Link: Einen
+   *   echten Link blockieren Browser nicht.
+   * @throws Error, wenn der Link nicht erstellt werden kann.
+   */
+  const openAttachment = async (
+    attachmentPath: string,
+  ): Promise<string | null> => {
+    const receiptTab = window.open("", "_blank");
+    if (!receiptTab) return handleGetAttachmentUrl(attachmentPath);
+    receiptTab.opener = null;
+
+    try {
+      receiptTab.location.href = await handleGetAttachmentUrl(attachmentPath);
+      return null;
+    } catch (error) {
+      receiptTab.close();
+      throw error;
+    }
+  };
+  /**
+   * Öffnet einen Beleg aus der Liste. Blockiert der Browser den Tab, erscheint
+   * ein kleiner Dialog mit Link; ein Fehler erscheint oben auf der Seite.
+   *
+   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner.
+   */
+  const handleOpenAttachmentFromList = (attachmentPath: string) => {
+    openAttachment(attachmentPath)
+      .then((url) => {
+        if (url) setReceiptFallback({open: true, url});
+      })
+      .catch((error) => handleError(error, "Beleg öffnen"));
+  };
+  /**
+   * Schliesst den Dialog mit dem Beleg-Link. Der Link behält sein Ziel: Der
+   * Browser folgt ihm erst nach dem Klick-Handler und täte sonst nichts.
+   */
+  const closeReceiptFallback = () =>
+    setReceiptFallback((current) => ({...current, open: false}));
+  /**
+   * Öffnet einen Beleg aus dem Dialog. Der Dialog zeigt den Fehler selbst, darum
+   * hier nur die Meldung an Sentry.
+   *
+   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner.
+   * @returns Siehe {@link openAttachment}.
+   * @throws Den Fehler aus {@link openAttachment}.
+   */
+  const handleOpenAttachmentFromDialog = async (attachmentPath: string) => {
+    try {
+      return await openAttachment(attachmentPath);
+    } catch (error) {
+      Sentry.captureException(error, {extra: {context: "Beleg öffnen"}});
+      throw error;
+    }
   };
   /**
    * Legt eine neue Ausgabe an. Der Dialog wird sofort geschlossen; ein
@@ -1211,7 +1288,7 @@ const EventExpenseTrackingPage = ({
                       : undefined
                   }
                   handleEditClick={handleEditExpense}
-                  getAttachmentUrl={handleGetAttachmentUrl}
+                  handleOpenAttachment={handleOpenAttachmentFromList}
                 />
               </>
             ) : (
@@ -1258,8 +1335,26 @@ const EventExpenseTrackingPage = ({
             open: false,
           })
         }
-        getAttachmentUrl={handleGetAttachmentUrl}
+        handleOpenAttachment={handleOpenAttachmentFromDialog}
       />
+      <Dialog
+        open={receiptFallback.open}
+        onClose={closeReceiptFallback}
+      >
+        <DialogContent>
+          <Typography>
+            {TEXT_EXPENSE_RECEIPT_TAB_BLOCKED}{" "}
+            <Link
+              href={receiptFallback.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={closeReceiptFallback}
+            >
+              {TEXT_EXPENSE_RECEIPT_OPEN_LINK}
+            </Link>
+          </Typography>
+        </DialogContent>
+      </Dialog>
       <ExpenseReportDialog
         key={reportDialog.key}
         open={reportDialog.open}

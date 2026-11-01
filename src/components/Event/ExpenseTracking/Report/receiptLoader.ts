@@ -66,7 +66,7 @@ export const getReceiptFileKind = (attachmentPath: string): ReceiptFileKind => {
  *   Standard: `pdf-lib`. Für Tests ersetzbar.
  */
 export type ReceiptLoaderDependencies = {
-  getAttachmentUrl: (attachmentPath: string) => string;
+  getAttachmentUrl: (attachmentPath: string) => Promise<string>;
   onProgress: (progress: ReportProgress) => void;
   fetchBlob?: (url: string) => Promise<Blob>;
   prepareImage?: (blob: Blob) => Promise<string>;
@@ -182,7 +182,7 @@ const downloadReceipt = async (
   {getAttachmentUrl, fetchBlob, prepareImage, preparePdf}: ReceiptPreparers,
 ): Promise<LoadedReceipt> => {
   try {
-    const blob = await fetchBlob(getAttachmentUrl(attachmentPath));
+    const blob = await fetchBlob(await getAttachmentUrl(attachmentPath));
     return fileKind === "image"
       ? {kind: "image", receipt, dataUrl: await prepareImage(blob)}
       : {kind: "pdf", receipt, ...(await preparePdf(blob))};

@@ -53,7 +53,7 @@ export type DownloadExpenseReportParams = {
   authUser: AuthUser;
   options: ReportOptions;
   refundDetails: PaymentDetailsFormValues | null;
-  getAttachmentUrl: (attachmentPath: string) => string;
+  getAttachmentUrl: (attachmentPath: string) => Promise<string>;
   onProgress: (progress: ReportProgress) => void;
   onError: (error: Error) => void;
 };

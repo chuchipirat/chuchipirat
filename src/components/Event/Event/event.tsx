@@ -1834,10 +1834,16 @@ const EventPage = () => {
     }
     dispatch({type: ReducerActions.EVENT_DELETE_START, payload: {}});
     try {
-      // Alle Dateien (Fehler ignorieren, falls kein Bild/Belege vorhanden)
+      // Titelbild (Fehler ignorieren, falls keines vorhanden)
       await database.storage.events
         .removeFolder(state.event.uid)
         .catch(() => {});
+      // Belege liegen im eigenen Bucket. Der Anlass wird trotzdem gelöscht,
+      // liegen gebliebene Belege müssen aber auffallen, weil sie Personendaten
+      // enthalten können
+      await database.storage.expenses
+        .removeFolder(state.event.uid)
+        .catch((error) => Sentry.captureException(error));
 
       // Event löschen — CASCADE entfernt alle Supabase-Kinder
       // (MaterialLists, ShoppingLists, UsedRecipes etc.)

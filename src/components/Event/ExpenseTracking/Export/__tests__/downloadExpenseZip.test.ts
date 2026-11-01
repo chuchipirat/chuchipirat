@@ -92,7 +92,7 @@ const JPG_FILE = "Belege/002 Gemüse Markt.jpg";
  * @param attachmentPath - Pfad im Storage.
  * @returns Die URL.
  */
-const getAttachmentUrl = (attachmentPath: string) =>
+const getAttachmentUrl = async (attachmentPath: string) =>
   `https://storage.test/${attachmentPath}`;
 
 /**

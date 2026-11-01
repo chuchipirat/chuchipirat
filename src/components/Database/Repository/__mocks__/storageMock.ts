@@ -21,6 +21,12 @@ export function createStorageMock() {
       data: [],
       error: null,
     }),
+    createSignedUrl: jest.fn((path: string) =>
+      Promise.resolve({
+        data: {signedUrl: `https://mock.supabase.co/storage/v1/object/sign/${path}?token=test`},
+        error: null,
+      }),
+    ),
     getPublicUrl: jest.fn((path: string, options?: any) => ({
       data: {
         publicUrl: options?.transform

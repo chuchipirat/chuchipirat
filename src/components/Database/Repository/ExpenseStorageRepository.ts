@@ -1,7 +1,8 @@
 /**
  * Storage-Repository für Ausgaben-Belege.
  *
- * Speichert Belege im `media`-Bucket. Pfad ist
+ * Speichert Belege im privaten `receipts`-Bucket, Zugriff nur über signierte
+ * Links (`getSignedUrl`), weil Belege Personendaten enthalten können. Pfad ist
  * `events/{eventId}/expenses/{expenseId}.{ext}` — genau ein Beleg pro
  * Ausgabe, der Dateiname ist die `expenseId` selbst (eindeutig, kein
  * zusätzlicher Unterordner nötig).
@@ -13,6 +14,6 @@
 import {StorageRepository} from "./StorageRepository";
 
 export class ExpenseStorageRepository extends StorageRepository {
-  bucketName = "media";
+  bucketName = "receipts";
   folderPath = "events/";
 }

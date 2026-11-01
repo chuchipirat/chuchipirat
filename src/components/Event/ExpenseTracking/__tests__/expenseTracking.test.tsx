@@ -210,9 +210,9 @@ const mockDatabase = {
     expenses: {
       upload: jest.fn(),
       remove: jest.fn(),
-      getPublicUrl: jest.fn(
-        (attachmentPath: string) =>
-          `https://mock.supabase.co/storage/v1/object/public/media/events/${attachmentPath}`,
+      getSignedUrl: jest.fn(
+        async (attachmentPath: string) =>
+          `https://mock.supabase.co/storage/v1/object/sign/receipts/events/${attachmentPath}?token=test`,
       ),
     },
   },
@@ -2801,6 +2801,89 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
     await waitForReportDialogClosed();
   };
 
+  describe("Beleg öffnen", () => {
+    const receiptExpense: ExpenseDomain = {
+      ...cookExpense,
+      attachmentPath: "evt-1/expenses/cook-receipt.pdf",
+    };
+
+    const openReceiptIcon = async () => {
+      await renderUnlockedPage([kitchenBudget], [receiptExpense]);
+      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+      fireEvent.click(
+        await screen.findByTestId(`expense-receipt-icon-${receiptExpense.id}`),
+      );
+    };
+
+    afterEach(() => jest.restoreAllMocks());
+
+    test("öffnet den Tab sofort und setzt danach den signierten Link", async () => {
+      const tab = {location: {href: ""}, opener: {}, close: jest.fn()};
+      const openSpy = jest
+        .spyOn(window, "open")
+        .mockReturnValue(tab as unknown as Window);
+
+      await openReceiptIcon();
+
+      // Vor dem Warten auf den Server, sonst blockiert Safari den Tab
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      await waitFor(() =>
+        expect(tab.location.href).toBe(
+          `https://mock.supabase.co/storage/v1/object/sign/receipts/events/${receiptExpense.attachmentPath}?token=test`,
+        ),
+      );
+      expect(tab.opener).toBeNull();
+      expect(tab.close).not.toHaveBeenCalled();
+    });
+
+    test("Link nicht erhältlich: schliesst den Tab und zeigt einen Fehler", async () => {
+      const tab = {location: {href: ""}, opener: {}, close: jest.fn()};
+      jest.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      mockDatabase.storage.expenses.getSignedUrl.mockRejectedValueOnce(
+        new Error("denied"),
+      );
+
+      await openReceiptIcon();
+
+      await waitFor(() => expect(tab.close).toHaveBeenCalled());
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+    });
+
+    test("Tab blockiert: bietet den Beleg als echten Link an", async () => {
+      jest.spyOn(window, "open").mockReturnValue(null);
+
+      await openReceiptIcon();
+
+      const link = await screen.findByRole("link", {name: "Beleg öffnen"});
+      expect(link).toHaveAttribute(
+        "href",
+        `https://mock.supabase.co/storage/v1/object/sign/receipts/events/${receiptExpense.attachmentPath}?token=test`,
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+      fireEvent.click(link);
+      // Der Browser folgt dem Link erst nach dem Klick-Handler, das Ziel muss
+      // also noch da sein, sonst passiert nichts
+      expect(link).toHaveAttribute("href", expect.stringContaining("token=test"));
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("link", {name: "Beleg öffnen"}),
+        ).not.toBeInTheDocument(),
+      );
+    });
+
+    test("Tab blockiert und kein Link erhältlich: zeigt einen Fehler", async () => {
+      jest.spyOn(window, "open").mockReturnValue(null);
+      mockDatabase.storage.expenses.getSignedUrl.mockRejectedValueOnce(
+        new Error("denied"),
+      );
+
+      await openReceiptIcon();
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+    });
+  });
+
   /** Knopf «Exportieren» in der Titelkarte. */
   const getExportButton = () => screen.getByRole("button", {name: TEXT_EXPORT});
 
@@ -2882,14 +2965,14 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
     await waitForReportDialogClosed();
   });
 
-  test("getAttachmentUrl liefert die Storage-URL des Belegs", async () => {
+  test("getAttachmentUrl liefert den signierten Link des Belegs", async () => {
     await renderUnlockedPage([kitchenBudget], [cookExpense]);
 
     await createReport();
 
     const {getAttachmentUrl} = mockedDownloadExpenseReport.mock.calls[0][0];
-    expect(getAttachmentUrl("evt-1/expenses/receipt.jpg")).toBe(
-      "https://mock.supabase.co/storage/v1/object/public/media/events/evt-1/expenses/receipt.jpg",
+    await expect(getAttachmentUrl("evt-1/expenses/receipt.jpg")).resolves.toBe(
+      "https://mock.supabase.co/storage/v1/object/sign/receipts/events/evt-1/expenses/receipt.jpg?token=test",
     );
   });
 
@@ -3495,8 +3578,10 @@ describe("EventExpenseTrackingPage: Ausgaben mit Belegen (ZIP)", () => {
         event: mockEvent,
       }),
     );
-    expect(params.getAttachmentUrl("evt-1/expenses/expense-zip-1.pdf")).toBe(
-      "https://mock.supabase.co/storage/v1/object/public/media/events/evt-1/expenses/expense-zip-1.pdf",
+    await expect(
+      params.getAttachmentUrl("evt-1/expenses/expense-zip-1.pdf"),
+    ).resolves.toBe(
+      "https://mock.supabase.co/storage/v1/object/sign/receipts/events/evt-1/expenses/expense-zip-1.pdf?token=test",
     );
     await waitFor(() =>
       expect(

@@ -1,4 +1,4 @@
-import {fireEvent, render, screen, within} from "@testing-library/react";
+import {fireEvent, render, screen, waitFor, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {ExpenseDetailDialog} from "../expenseDetailDialog";
 import {BudgetDomain} from "../../Budget/budget.types";
@@ -16,6 +16,9 @@ import {
   DROP_ATTACHMENT_HINT as TEXT_DROP_ATTACHMENT_HINT,
   ATTACHMENT_INVALID_TYPE as TEXT_ATTACHMENT_INVALID_TYPE,
   ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
+  EXPENSE_RECEIPT_OPEN_FAILED as TEXT_EXPENSE_RECEIPT_OPEN_FAILED,
+  EXPENSE_RECEIPT_OPEN_LINK as TEXT_EXPENSE_RECEIPT_OPEN_LINK,
+  EXPENSE_RECEIPT_TAB_BLOCKED as TEXT_EXPENSE_RECEIPT_TAB_BLOCKED,
 } from "../../../../../constants/text";
 import dayjs from "dayjs";
 import {Cook} from "../../../Event/event.class";
@@ -427,6 +430,94 @@ describe("Ausgaben-Beleg", () => {
     );
 
     expect(screen.getByText(TEXT_DROP_ATTACHMENT_HINT)).toBeInTheDocument();
+  });
+
+  test("«Beleg anzeigen» öffnet den bestehenden Beleg", () => {
+    const handleOpenAttachment = jest.fn();
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={{
+          ...expense,
+          attachmentPath: "evt-1/expenses/expense-id-001.pdf",
+          attachmentOriginalFilename: "quittung.pdf",
+        }}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+        handleOpenAttachment={handleOpenAttachment}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg anzeigen"}));
+
+    expect(handleOpenAttachment).toHaveBeenCalledWith(
+      "evt-1/expenses/expense-id-001.pdf",
+    );
+  });
+
+  const renderWithOpenAttachment = (handleOpenAttachment: jest.Mock) =>
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={{
+          ...expense,
+          attachmentPath: "evt-1/expenses/expense-id-001.pdf",
+          attachmentOriginalFilename: "quittung.pdf",
+        }}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+        handleOpenAttachment={handleOpenAttachment}
+      />,
+    );
+
+  test("Fehler beim Öffnen erscheint im Dialog", async () => {
+    renderWithOpenAttachment(jest.fn().mockRejectedValue(new Error("intern")));
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg anzeigen"}));
+
+    expect(
+      await screen.findByText(TEXT_EXPENSE_RECEIPT_OPEN_FAILED),
+    ).toBeInTheDocument();
+  });
+
+  test("Tab blockiert: zeigt einen echten Link auf den Beleg", async () => {
+    const signedUrl = "https://storage.test/sign/quittung.pdf?token=test";
+    renderWithOpenAttachment(jest.fn().mockResolvedValue(signedUrl));
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg anzeigen"}));
+
+    const link = await screen.findByRole("link", {
+      name: TEXT_EXPENSE_RECEIPT_OPEN_LINK,
+    });
+    expect(link).toHaveAttribute("href", signedUrl);
+    expect(link).toHaveAttribute("target", "_blank");
+    expect(link).toHaveAttribute("rel", "noopener noreferrer");
+    expect(screen.getByText(TEXT_EXPENSE_RECEIPT_TAB_BLOCKED)).toBeInTheDocument();
+  });
+
+  test("Tab geöffnet: zeigt weder Link noch Fehler", async () => {
+    const handleOpenAttachment = jest.fn().mockResolvedValue(null);
+    renderWithOpenAttachment(handleOpenAttachment);
+
+    fireEvent.click(screen.getByRole("button", {name: "Beleg anzeigen"}));
+
+    await waitFor(() => expect(handleOpenAttachment).toHaveBeenCalled());
+    expect(
+      screen.queryByRole("link", {name: TEXT_EXPENSE_RECEIPT_OPEN_LINK}),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_EXPENSE_RECEIPT_OPEN_FAILED),
+    ).not.toBeInTheDocument();
   });
 
   test("zeigt einen bestehenden Beleg direkt als Dateiname statt der Dropzone", () => {

@@ -42,7 +42,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -63,7 +63,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
         emptyText={TEXT_ALL_EXPENSES_HAVE_A_RECEIPT}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -93,7 +93,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -132,7 +132,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -160,7 +160,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -190,7 +190,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -227,7 +227,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -266,7 +266,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={jest.fn()}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -295,7 +295,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={onEdit}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={jest.fn()}
+        handleOpenAttachment={jest.fn()}
       />,
     );
 
@@ -305,7 +305,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
   });
   test("Richtiges Icon erscheint, je nachdem ob Beleg vorhanden", () => {
     const onEdit = jest.fn();
-    const onGetAttachmentUrl = jest.fn();
+    const onOpenAttachment = jest.fn();
 
     const mockExpenseGroup: ExpenseGroup[] = [
       {
@@ -333,7 +333,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
         expenseGroups={mockExpenseGroup}
         handleEditClick={onEdit}
         highlightedExpenseIds={new Set()}
-        getAttachmentUrl={onGetAttachmentUrl}
+        handleOpenAttachment={onOpenAttachment}
       />,
     );
     // Prüfen, dass die icons richtig sind
@@ -353,7 +353,7 @@ describe("ExpenseList, Standard Funktionalität ", () => {
     fireEvent.click(
       within(expenseRow1).getByTestId(`expense-receipt-icon-expense-id-001`),
     );
-    expect(onGetAttachmentUrl).toHaveBeenCalledWith(
+    expect(onOpenAttachment).toHaveBeenCalledWith(
       "/event-id/expenses/expense-id-001.pdf",
     );
 

@@ -9,11 +9,14 @@
  */
 
 /**
- * Ordner der Belege im Bucket `media`. In der DB steht `attachment_path`
+ * Ordner der Belege im Bucket `receipts`. In der DB steht `attachment_path`
  * ohne ihn. Muss zu `ExpenseStorageRepository.folderPath` passen, sonst
  * löscht der Job still nichts (Storage meldet fehlende Dateien nicht).
  */
 export const RECEIPT_STORAGE_PREFIX = "events/";
+
+/** Privater Bucket der Belege. */
+export const RECEIPT_BUCKET = "receipts";
 
 /**
  * Zeile aus `event_dates`, nur die benötigten Spalten.
@@ -228,7 +231,7 @@ export function selectReminderRecipients(
 }
 
 /**
- * Vollständiger Pfad eines Belegs im Bucket `media`, für `remove()`.
+ * Vollständiger Pfad eines Belegs im Bucket `receipts`, für `remove()`.
  *
  * @param attachmentPath - Pfad wie in der DB, ohne `events/`.
  * @returns Pfad mit `events/` davor.

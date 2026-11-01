@@ -26,6 +26,9 @@ export interface UploadResult {
   publicUrl: string;
 }
 
+/** Einträge pro Abfrage beim Auflisten eines Ordners. */
+const LIST_PAGE_SIZE = 1000;
+
 export abstract class StorageRepository {
   protected client: SupabaseClient;
 
@@ -135,21 +138,56 @@ export abstract class StorageRepository {
    * @throws Error bei Lesefehler.
    */
   private async listFilesRecursively(prefix: string): Promise<string[]> {
+    const paths: string[] = [];
+    let offset = 0;
+    let pageSize = 0;
+
+    // list() liefert ohne Angabe nur 100 Einträge und meldet das nicht:
+    // der Rest bliebe beim Löschen eines Ordners still liegen
+    do {
+      const {data, error} = await this.client.storage
+        .from(this.bucketName)
+        .list(prefix, {limit: LIST_PAGE_SIZE, offset});
+      if (error) throw error;
+
+      const entries = data ?? [];
+      for (const entry of entries) {
+        const entryPath = `${prefix}/${entry.name}`;
+        if (entry.id === null) {
+          paths.push(...(await this.listFilesRecursively(entryPath)));
+        } else {
+          paths.push(entryPath);
+        }
+      }
+      pageSize = entries.length;
+      offset += pageSize;
+    } while (pageSize === LIST_PAGE_SIZE);
+
+    return paths;
+  }
+
+  /**
+   * Erzeugt einen zeitlich begrenzten Link auf eine Datei in einem privaten
+   * Bucket. Der Server prüft dabei die Leserechte der angemeldeten Person.
+   *
+   * @param filename - Dateiname (ohne Ordnerpfad).
+   * @param expiresInSeconds - Gültigkeit des Links in Sekunden.
+   * @returns Signierter Link.
+   * @throws Error, wenn die Person keine Leserechte hat oder die Datei fehlt.
+   *
+   * @example
+   * const url = await repo.getSignedUrl("receipt.pdf", 300);
+   */
+  async getSignedUrl(
+    filename: string,
+    expiresInSeconds: number,
+  ): Promise<string> {
     const {data, error} = await this.client.storage
       .from(this.bucketName)
-      .list(prefix);
-    if (error) throw error;
+      .createSignedUrl(`${this.folderPath}${filename}`, expiresInSeconds);
 
-    const paths: string[] = [];
-    for (const entry of data ?? []) {
-      const entryPath = `${prefix}/${entry.name}`;
-      if (entry.id === null) {
-        paths.push(...(await this.listFilesRecursively(entryPath)));
-      } else {
-        paths.push(entryPath);
-      }
-    }
-    return paths;
+    if (error) throw error;
+    return data.signedUrl;
   }
 
   /**

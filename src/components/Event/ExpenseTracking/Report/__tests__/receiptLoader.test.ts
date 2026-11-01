@@ -46,7 +46,7 @@ const PDF_3 = makeReceipt(3, "event-1/expenses/expense-3.pdf");
 const IMAGE_4 = makeReceipt(4, "event-1/expenses/expense-4.png");
 
 /** URL eines Belegs, wie sie die Seite liefern würde. */
-const getAttachmentUrl = (attachmentPath: string) =>
+const getAttachmentUrl = async (attachmentPath: string) =>
   `https://storage.test/${attachmentPath}`;
 
 /**

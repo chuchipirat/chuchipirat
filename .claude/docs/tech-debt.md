@@ -30,6 +30,9 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 
 ## Security / Auth
 
+- **Signierte Beleg-Links können in Sentry landen** (gefunden beim Security-Review Story 10.0, 2026-11-01) — `fetch` auf `/object/sign/receipts/…?token=…` kann als Breadcrumb oder Span in Sentry erscheinen (nicht an einem echten Ereignis geprüft). Die Links gelten nur 5 Minuten. Fix: Token in `beforeBreadcrumb` und `beforeSendTransaction` entfernen.
+  **Priorität:** tief · **Komplexität:** klein
+
 - **`signIn.tsx` `setTimeout` delay** — 1× hardcoded `setTimeout(resolve, 2000)` wartet, bis der Auth-Context die Session übernommen hat. Richtiger Fix erfordert ein "ready"-Signal im Auth-Context oder `onAuthStateChange`-Subscription.
   **Priorität:** mittel · **Komplexität:** mittel
 
@@ -48,7 +51,7 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 - **`userPaymentDetailsCard.tsx:152` — Speicherfehler roh an Sentry** (gefunden bei Story 7.4, 2026-10-25) — `Sentry.captureException(error)` schickt den Supabase-Fehler unverändert. Lehnt ein CHECK-Constraint die Zeile ab, trägt `error.details` sie mit («Failing row contains (…, IBAN)»), also Adresse und IBAN. Praktisch selten, weil vorher `validatePaymentDetails` + `normalize` laufen. Fix wie in `Report/useOwnPaymentDetails.ts`: nur `new Error(toError(error).message)` melden (auch nicht `toError(error)`, das hängt den Rohfehler als `cause` an).
   **Priorität:** mittel · **Komplexität:** klein
 
-- **Belege im öffentlichen `media`-Bucket** (gefunden beim Security-Review Story 8.4, 2026-10-31) — Belege liegen unter `events/<eventUid>/expenses/<expenseUid>.<ext>` im **öffentlichen** Bucket und werden per `getPublicUrl` geladen (Anzeige, PDF, ZIP). Wer beide UUIDs kennt, liest den Beleg ohne Login. Belege können Namen, Adressen oder Kartenendziffern zeigen. Die UUIDs sind kaum zu erraten, darum kein akutes Loch. Besser: privater Bucket bzw. SELECT-Policy mit `is_event_cook` und signierte URLs; dann `handleGetAttachmentUrl` (`expenseTracking.tsx`) auf `createSignedUrl` umstellen (async, betrifft Vorschau, PDF und ZIP).
+- **Belege im öffentlichen `media`-Bucket** (gefunden beim Security-Review Story 8.4, 2026-10-31) — Belege liegen unter `events/<eventUid>/expenses/<expenseUid>.<ext>` im **öffentlichen** Bucket und werden per `getPublicUrl` geladen (Anzeige, PDF, ZIP). Wer beide UUIDs kennt, liest den Beleg ohne Login. Belege können Namen, Adressen oder Kartenendziffern zeigen. Die UUIDs sind kaum zu erraten, darum kein akutes Loch. Besser: privater Bucket bzw. SELECT-Policy mit `is_event_cook` und signierte URLs; dann `handleGetAttachmentUrl` (`expenseTracking.tsx`) auf `createSignedUrl` umstellen (async, betrifft Vorschau, PDF und ZIP). Wird in Epic 10 (Story 10.0) behoben.
   **Priorität:** mittel · **Komplexität:** gross
 
 - **`authenticateCronRequest` prüft die JWT-Signatur nicht** (gefunden beim Security-Review Story 9.4, 2026-11-01) — `supabase/volumes/functions/_shared/cronJobHelper.ts:70` dekodiert das Token nur und vertraut `role`. Geprüft wird die Signatur nur in `functions/main/index.ts` bei `VERIFY_JWT=true`; `.env.example` setzt `FUNCTIONS_VERIFY_JWT=false`. Ist das auf einer Umgebung aus, kann ein gefälschtes Token alle Cron-Funktionen auslösen. Auf TEST und PROD am 2026-11-01 geprüft: `false`. Das Flag muss aus bleiben, weil `payment-webhook` und `unsubscribe-newsletter` ohne JWT aufgerufen werden. Fix liegt auf Branch `fix/bugfixes-after-abrechnung`; Eintrag nach dem Merge entfernen.

@@ -49,6 +49,7 @@ import {
   getEventEndDates,
   getExpenseTrackingUrl,
   ReceiptPathRow,
+  RECEIPT_BUCKET,
   ReceiptRow,
   isValidReceiptPath,
   removeEmailAddresses,
@@ -575,7 +576,7 @@ async function deleteReceiptBlock(
   result: DeletionResult,
 ): Promise<void> {
   const {data: removedFiles, error: removeError} = await client.storage
-    .from("media")
+    .from(RECEIPT_BUCKET)
     .remove(block.map((receipt) => toStoragePath(receipt.attachment_path)));
 
   if (removeError) {

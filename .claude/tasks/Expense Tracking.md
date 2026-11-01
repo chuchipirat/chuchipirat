@@ -7653,18 +7653,45 @@ Der Umriss sah einen Hook `useExpenseExport` vor. Für die CSV gibt es aber kein
 
 ## Epic 10 — Politur & Abschluss
 
-_Wird vor Start verfeinert. Grober Zuschnitt:_
+> Verfeinert 2026-11-01. Reihenfolge geändert: erst aufräumen, dann der Regressionslauf, damit er den Stand prüft, der ausgeliefert wird.
 
-- 10.1 Voller Regressionslauf (`tsc`, `lint`, `test`), Mobile/Tablet-Check aller neuen Screens. Dazu aus Epic 7: Abrechnung mit 20–30 Handyfotos erstellen und die PDF-Grösse prüfen (Ziel: wenige MB, Mail-Anhang). Aus Epic 8: dasselbe als ZIP auf dem Handy (läuft der Speicher aus?).
-- **10.x Styles und Texte ordnen** (entschieden 2026-10-11): einmal am Ende, wenn alle Einträge aus Epic 7–9 bekannt sind; vorher wäre es doppelte Arbeit. Je Datei ein eigener Commit (`refactor(abrechnung): …`), **reines Umsortieren, Umbenennen und Löschen von Unbenutztem, keine Werte ändern**. `tsc` findet jede vergessene Umbenennung.
+**Fakten (2026-11-01):** `expenseTracking.tsx` 1292 Zeilen (Handler 370–983, JSX ab 984; Seitentests in `__tests__/expenseTracking.test.tsx`), Texte 618 Zeilen, Styles 387 Zeilen. Lint: 0 Fehler, 231 Warnungen. PR #243 noch offen. Die JWT-Korrektur liegt getrennt auf `fix/bugfixes-after-abrechnung` und gehört nicht in dieses Epic.
+
+**Reihenfolge entschieden 2026-11-01:** Privater Bucket als 10.0 vor dem Release, weil noch keine echten Belege existieren (Abrechnung weder in `develop` noch in `main`). Claude setzt 10.1 und 10.2 um, Nutzer prüft die Commits. Neue Punkte des Nutzers als 10.5 bis 10.8 nach dem Regressionslauf; Claude setzt sie um, Nutzer prüft und testet vor dem Commit.
+
+- **10.0 Belege in privaten Bucket, `media` wieder einschränken** ✅ (2026-11-01: Rollen mit echten Tokens geprüft, Security-Review, Safari und Brave auf dem iPhone, PDF und ZIP)
+  - Neuer Bucket `receipts` (privat, 10 MB, JPEG/PNG/WEBP/PDF). Lesen, Schreiben und Löschen für Köch:innen des Anlasses, Lesen auch für Admins (entschieden).
+  - `media` zurück auf den Stand von `20260719000001`: 2 MB, nur Bilder; `media_expenses_*` entfernen. Prüfen, ob die übrigen `media_events_*`-Regeln noch zu weit sind. Bestehende Dateien bleiben von den Limits unberührt.
+  - `ExpenseStorageRepository` mit signierten Links; `getAttachmentUrl` wird async (`receiptLoader`, `downloadExpenseZip`, Liste, Dialog).
+  - Belegsymbol: Tab zuerst öffnen, dann auf den signierten Link setzen; auf echtem iPhone prüfen. Geprüft 2026-11-01: Safari auf dem iPhone funktioniert; Brave auf dem iPhone blockiert den Tab auch mit ausgeschaltetem Pop-up-Blocker. Darum erscheint dann ein echter Link (entschieden: Option B), im Dialog unter dem Dateinamen, aus der Liste in einem kleinen Dialog.
+  - `cron-receipt-retention` auf den neuen Bucket; Anlass löschen räumt auch `receipts` ab, sonst bleiben private Belege liegen.
+  - Keine Datenmigration: Die Abrechnung ist neu, es gibt noch keine echten Belege (Nutzer, 2026-11-01). Anlass löschen entfernt zuerst die Belege, dann den Anlass (entschieden: Option A).
+  - Prüfung: Rollen (Koch, anderer Benutzer, Admin, ohne Login), abgelaufener Link, `security-reviewer`.
+
+- **10.1 `expenseTracking.tsx` aufteilen** (entschieden 2026-10-31): Die Seite ist zu gross (über 1200 Zeilen). Handler und State nach Bereichen in Hooks/Komponenten auslagern (Budgets, Ausgaben, Abrechnung, Export). Dabei der ZIP-Export: `handleDownloadReceiptsZip` wurde in 8.3 bewusst in der Seite gebaut statt im geplanten Hook `useExpenseZipExport`; beim Aufteilen in den Hook verschieben, inkl. `zipProgress`. Reines Verschieben, die Seitentests müssen unverändert grün bleiben.
+  - Schnitt nach Bereichen: `useBudgetActions` (Anlegen, Ändern, Löschen), `useExpenseActions` (dasselbe plus Beleg), `useExpenseReportExport` (PDF und CSV), `useExpenseZipExport`. Je Hook ein Commit, Seitentests nach jedem Schritt grün. Der JSX-Teil bleibt, ausser ein Abschnitt lässt sich sauber als Komponente lösen.
+- **10.2 Styles und Texte ordnen** (entschieden 2026-10-11): einmal am Ende, wenn alle Einträge aus Epic 7–9 bekannt sind; vorher wäre es doppelte Arbeit. Je Datei ein eigener Commit (`refactor(abrechnung): …`), **reines Umsortieren, Umbenennen und Löschen von Unbenutztem, keine Werte ändern**. `tsc` findet jede vergessene Umbenennung.
   - **Gemeinsame Abschnitte** für beide Dateien, in der Reihenfolge der Bildschirme (und passend zu den Unterordnern): Seite/Toolbar · Budget-Karte inkl. Hochrechnung · Budget-Dialog · Ausgabenliste · Ausgaben-Dialog (Formular, zahlende Instanz, Beleg) · Zahlende Instanz/Übersicht · Auswertung · PDF-Abrechnung · Export. Kopfkommentar im bestehenden Format (`/* ---- // Titel // ---- */` wie in `src/constants/styles.ts` bzw. `/* ==== */` wie oben in der Textdatei).
   - **Styles** (`src/constants/styles/expenseTracking.styles.ts`): Präfix vereinheitlichen `statistics*` → `evaluation*` (heute zwei Präfixe für dieselbe Ansicht); `budgetProjection*` zur Budget-Karte (liegt heute am Dateiende); innerhalb eines Abschnitts Container vor Kindern, Varianten (`…Selected`, `…Over`) direkt nach dem Grundstil. Prüfen: Anzahl Einträge vorher = nachher (`grep -cE "^  [a-zA-Z]+:" …`), Sichtprüfung aller Ansichten im Browser.
   - **Texte** (`src/constants/text/expenseTracking.ts`): Präfixe pro Bereich vereinheitlichen, z.B. `NO_EXPENSES_FOR_STATS` → `EVALUATION_NO_EXPENSES`, `DAY_X_OF_Y_IN_EVENT` → `PROJECTION_DAY_X_OF_Y`. Unbenutzte Konstanten löschen (Stand 2026-10-11: `BELEG`, `DELETE_BELEG` — zugleich deutsche Bezeichner und Duplikate von `EXPENSE_RECEIPT`/`REMOVE_EXPENSE_RECEIPT` — sowie `BUDGET_TYPE_PER_PERSON_PER_DAY_AMOUNT`). Prüfskript für Unbenutztes: jede exportierte Konstante per `grep -rnw` ausserhalb der Datei suchen. Texte, die auch in `src/constants/text/` anderer Bereiche vorkommen (`CANCEL`, `SAVE` …), bleiben dort.
   - **Grösse prüfen:** Ist eine der beiden Dateien danach über ca. 500 Zeilen, entlang der Abschnitte aufteilen (z.B. `expenseTrackingBudget.styles.ts`, `…Evaluation…`). Darunter bleibt es je eine Datei.
-  - Helpcenter Seiten erstellen.
-- **10.x `expenseTracking.tsx` aufteilen** (entschieden 2026-10-31): Die Seite ist zu gross (über 1200 Zeilen). Handler und State nach Bereichen in Hooks/Komponenten auslagern (Budgets, Ausgaben, Abrechnung, Export). Dabei der ZIP-Export: `handleDownloadReceiptsZip` wurde in 8.3 bewusst in der Seite gebaut statt im geplanten Hook `useExpenseZipExport`; beim Aufteilen in den Hook verschieben, inkl. `zipProgress`. Reines Verschieben, die Seitentests müssen unverändert grün bleiben.
 
-- 10.2 Finaler PR gegen `develop` + Release-Notes-Text. Nach dem Deploy pro Umgebung `supabase/scripts/setup-cron-jobs.sql` im Studio ausführen, sonst läuft `cron-receipt-retention` nie (TEST nach dem Merge, PROD beim Release durch den Nutzer).
+- **10.3 Kleine Schulden der Abrechnung** (einzeln entscheiden, sonst bleiben sie in `tech-debt.md`): `"CHF"` durch `DEFAULT_CURRENCY` ersetzen, Datumsanzeige `de-CH` zusammenführen. Bewusst nicht: Pagination über 1000 Zeilen (tief, praktisch unkritisch).
+- **10.4 Regressionslauf:** `tsc`, `lint` (Warnungen gegen `develop` vergleichen), alle Tests. Browser: alle neuen Ansichten auf Desktop, Tablet und Handy (`ui-review`). Aus Epic 7: Abrechnung mit 20–30 Handyfotos erstellen, PDF-Grösse prüfen (Ziel: wenige MB, Mail-Anhang). Aus Epic 8: dasselbe als ZIP auf dem Handy (reicht der Speicher?). Migrationskette prüfen.
+- **10.5 Vorschau der Abrechnung ohne Spende** (Anforderungen des Nutzers 2026-11-01; Claude setzt um, Nutzer prüft vor dem Commit. **Erst nach Freigabe des Plans umsetzen.**)
+  - Unter dem Spendenformular, nur ohne Spende (`hasDonation === false`). Auszug: zwei Budgetkarten, etwa drei Ausgaben, Auswertung; kein PDF. Auf dem Handy einspaltig.
+  - Höhe begrenzt, Ausblendung nach unten in die Hintergrundfarbe (Theme-Farben, hell und dunkel). Titel «So sieht die Abrechnung aus», Hinweis «Vorschau mit Beispieldaten» als Konstanten.
+  - Nur Ansicht: `pointer-events: none`, `inert`, `user-select: none`. Aktionsknöpfe werden nicht gerendert statt deaktiviert.
+  - Beispieldaten als Konstanten im Code, frei erfundene Namen, CHF, ein Budget fast voll, eines halb voll. Keine Datenbank, vorhandene Komponenten wiederverwenden.
+- **10.6 Warnung «Fehlender Beleg» nach der Löschung** (entschieden 2026-11-01): Warnungen nur zeigen, solange das Anlassende nicht länger als ein Jahr zurückliegt; danach weglassen, ohne Ersatztext. Ob es je einen Beleg gab, bleibt unbekannt. Betroffen: Hinweis in der Auswertung, Symbol und Filter in der Liste, Zähler im PDF-Dialog. Die Option für Leerseiten bleibt, damit Papierbelege weiterhin eingeklebt werden können. Upload bleibt möglich, mit Hinweis im Dialog, dass der Beleg in der nächsten Nacht gelöscht wird. Gleiche Datumsregel wie der Löschjob.
+- **10.7 Spende im Admin-Bereich erfassen** (entschieden 2026-11-01): auf allen Umgebungen, nur Admins, ohne Mail, klar als manuell erfasst markiert. Alle Felder ausser den Payrexx-Feldern (`payment_gateway_id`, `payment_reference_id`, `payment_transaction_id`), Anlass optional, Person verknüpfbar (`donor_uid`), damit sie die Spende im Profil sieht. Heute dürfen nur eigene Spenden eingefügt werden, darum braucht es eine Regel oder Funktion für Admins. Beim Ausarbeiten prüfen: Quittungsnummer und Statistik.
+- **10.8 Manuelle Testfälle** (entschieden 2026-11-01): Integrationstests von Hand für alle Punkte aller Epics, neues Präfix `AB` (`generate-testcases`, Ablage gemäss `.claude/docs/manual-testcases.md`). Bei Unklarheit den Nutzer fragen. Zuletzt, damit sie den Endstand beschreiben.
+- **10.9 Release vorbereiten:**
+  - Auf `develop` rebasen (siehe unten, inkl. PR #243).
+  - Finaler PR gegen `develop`, Release-Notes (`.claude/docs/release-notes.md`).
+  - Helpcenter: Sammel-Commit, erst wenn der Nutzer es sagt.
+  - Nach dem Deploy pro Umgebung `supabase/scripts/setup-cron-jobs.sql` im Studio ausführen, sonst läuft `cron-receipt-retention` nie (TEST nach dem Merge, PROD beim Release durch den Nutzer).
+  - Vor PROD: `SELECT` auf ungültige `attachment_path`, weil der CHECK `NOT VALID` ist.
 
 ---
 
@@ -7678,7 +7705,7 @@ Hintergrund: Der Commit «feat(dialog): destruktive Bestätigungen rot und mit F
 - [ ] Danach `npx tsc --noEmit`, `npm run lint`, `npx jest --watchAll=false`; Branch war schon gepusht → `git push --force-with-lease`.
 - [ ] Worktree aufräumen: `git worktree remove ../chuchipirat-destructive-dialog` und `git branch -d feature/destructive-confirm-dialog`.
 
-**Wichtig:** Der Rebase muss **vor** dem finalen PR (10.2) passieren (CLAUDE.md: vor jedem PR auf `develop` rebasen). Ist #243 bis dahin noch nicht gemergt, bleibt der Commit einfach im finalen PR mit drin. Das ist unschädlich, nur nicht ganz sauber.
+**Wichtig:** Der Rebase muss **vor** dem finalen PR (10.9) passieren (CLAUDE.md: vor jedem PR auf `develop` rebasen). Ist #243 bis dahin noch nicht gemergt, bleibt der Commit einfach im finalen PR mit drin. Das ist unschädlich, nur nicht ganz sauber.
 
 ---
 

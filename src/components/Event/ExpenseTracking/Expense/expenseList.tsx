@@ -37,13 +37,14 @@ import {ReceiptLongOutlined, ReportProblemOutlined} from "@mui/icons-material";
  *   passenderen Text (es gibt Ausgaben, nur keine, die den Filter erfüllen).
  * @param handleEditClick - Callback bei Klick auf eine Zeile, liefert die ID
  *   der angeklickten Ausgabe.
+ * @param handleOpenAttachment - Öffnet den Beleg einer Ausgabe.
  */
 interface ExpenseListProps {
   expenseGroups: ExpenseGroup[];
   highlightedExpenseIds: Set<string>;
   emptyText?: string;
   handleEditClick: (expenseId: string) => void;
-  getAttachmentUrl: (attachmentPath: string) => string;
+  handleOpenAttachment: (attachmentPath: string) => void;
 }
 
 /**
@@ -61,7 +62,7 @@ export const ExpenseList = ({
   highlightedExpenseIds,
   emptyText = TEXT_NO_EXPENSES_YET,
   handleEditClick,
-  getAttachmentUrl,
+  handleOpenAttachment,
 }: ExpenseListProps) => {
   const classes = useCustomStyles();
   const groupsWithExpenses = expenseGroups.filter(
@@ -81,7 +82,7 @@ export const ExpenseList = ({
                 expense={expense}
                 isHighlighted={highlightedExpenseIds.has(expense.id)}
                 handleClick={handleEditClick}
-                getAttachmentUrl={getAttachmentUrl}
+                handleOpenAttachment={handleOpenAttachment}
               />
             ))}
           </React.Fragment>
@@ -156,8 +157,8 @@ type ExpenseRowProps = {
   isHighlighted: boolean;
   /** Callback bei Klick auf die Zeile, liefert `expense.id`. */
   handleClick: (expenseId: string) => void;
-  /** Callback bei Klick auf das File Icon, liefert zu öffnende URL. */
-  getAttachmentUrl: (attachmentPath: string) => string;
+  /** Öffnet den Beleg bei Klick auf das Belegsymbol. */
+  handleOpenAttachment: (attachmentPath: string) => void;
 };
 
 /**
@@ -173,7 +174,7 @@ const ExpenseRow = ({
   expense,
   isHighlighted,
   handleClick,
-  getAttachmentUrl,
+  handleOpenAttachment,
 }: ExpenseRowProps) => {
   const classes = useCustomStyles();
 
@@ -216,15 +217,14 @@ const ExpenseRow = ({
             >
               {secondaryText}
             </Typography>
-            {expense.attachmentPath && getAttachmentUrl ? (
+            {expense.attachmentPath ? (
               <IconButton
-                component="a"
-                href={getAttachmentUrl(expense.attachmentPath)}
-                target="_blank"
-                rel="noopener noreferrer"
                 size="small"
                 aria-label={TEXT_SHOW_EXPENSE_RECEIPT}
-                onClick={(clickEvent) => clickEvent.stopPropagation()}
+                onClick={(clickEvent) => {
+                  clickEvent.stopPropagation();
+                  handleOpenAttachment(expense.attachmentPath as string);
+                }}
                 sx={classes.expenseReceiptIconPresent}
                 data-testid={`expense-receipt-icon-${expense.id}`}
               >
