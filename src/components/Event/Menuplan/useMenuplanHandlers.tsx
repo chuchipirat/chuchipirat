@@ -65,7 +65,7 @@ import {Product} from "../../Product/product.types";
 import {Material} from "../../Material/material.types";
 import {DialogType} from "../../Shared/customDialogContext";
 import {DialogSelectMenuesForRecipeDialogValues} from "./dialogSelectMenues";
-import {RECIPE_DRAWER_DATA_INITIAL_VALUES} from "../../Recipe/RecipeDrawer";
+import {createRecipeDrawerDataInitialValues} from "../../Recipe/RecipeDrawer";
 
 import {
   MenuplanSettings,
@@ -514,7 +514,7 @@ export function useMenuplanHandlers({
     });
   }, []);
   const onRecipeDrawerClose = useCallback(() => {
-    setRecipeDrawerData(RECIPE_DRAWER_DATA_INITIAL_VALUES);
+    setRecipeDrawerData(createRecipeDrawerDataInitialValues());
   }, []);
   const onRecipeCardClick = useCallback(
     ({recipe: recipeShort}: OnRecipeCardClickProps) => {
@@ -687,7 +687,7 @@ export function useMenuplanHandlers({
   const onNewRecipe = useCallback(() => {
     // Neues Rezept anlegen
     setRecipeDrawerData({
-      ...RECIPE_DRAWER_DATA_INITIAL_VALUES,
+      ...createRecipeDrawerDataInitialValues(),
       open: true,
       editMode: true,
     });
@@ -717,7 +717,7 @@ export function useMenuplanHandlers({
     onMenuplanUpdate({mealRecipes: updatedMealRecipes});
     trackEvent(AnalyticsEvent.MENUPLAN_RECIPE_REMOVED);
 
-    setRecipeDrawerData(RECIPE_DRAWER_DATA_INITIAL_VALUES);
+    setRecipeDrawerData(createRecipeDrawerDataInitialValues());
   }, []);
 
   /* ------------------------------------------
@@ -1330,7 +1330,7 @@ export function useMenuplanHandlers({
         },
       });
 
-      setRecipeDrawerData(RECIPE_DRAWER_DATA_INITIAL_VALUES);
+      setRecipeDrawerData(createRecipeDrawerDataInitialValues());
       setRecipeSearchDrawerData({
         open: false,
         isLoadingData: false,

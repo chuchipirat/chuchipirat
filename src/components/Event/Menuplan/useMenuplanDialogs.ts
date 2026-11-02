@@ -31,7 +31,7 @@ import {GoodsType} from "./menuplan.types";
 import {PlanedObject} from "./menuplan.constants";
 import {
   RecipeDrawerData,
-  RECIPE_DRAWER_DATA_INITIAL_VALUES,
+  createRecipeDrawerDataInitialValues,
 } from "../../Recipe/RecipeDrawer";
 import {DialogSelectMenuesForRecipeDialogValues} from "./dialogSelectMenues";
 import {RecipeShort} from "../../Recipe/recipe.types";
@@ -198,7 +198,7 @@ export function useMenuplanDialogs(): UseMenuplanDialogsReturn {
   const [recipeSearchReloadKey, setRecipeSearchReloadKey] = useState(0);
 
   const [recipeDrawerData, setRecipeDrawerData] = useState<RecipeDrawerData>(
-    RECIPE_DRAWER_DATA_INITIAL_VALUES
+    createRecipeDrawerDataInitialValues
   );
 
   const [dialogSelectMenueData, setDialogSelectMenueData] =

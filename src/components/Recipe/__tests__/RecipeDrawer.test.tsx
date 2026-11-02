@@ -14,7 +14,10 @@ import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 
-import {RecipeDrawer} from "../RecipeDrawer";
+import {
+  RecipeDrawer,
+  createRecipeDrawerDataInitialValues,
+} from "../RecipeDrawer";
 import Recipe from "../recipe.class";
 import AuthUser from "../../Session/authUser.class";
 
@@ -119,5 +122,52 @@ describe("RecipeDrawer", () => {
 
     // Kein Absturz, RecipeView wird gerendert
     expect(screen.getByTestId("recipe-view")).toBeInTheDocument();
+  });
+});
+
+/**
+ * Die Startwerte müssen bei jedem Aufruf ein eigenes Rezept liefern: der
+ * Editor schreibt Zutaten, Schritte und Material direkt ins übergebene
+ * Rezept. Ein geteiltes Rezept würde die Angaben des zuletzt erfassten
+ * Rezepts ins nächste neue Rezept übernehmen.
+ */
+describe("createRecipeDrawerDataInitialValues", () => {
+  it("liefert geschlossenen Drawer mit leerem Rezept", () => {
+    const initialValues = createRecipeDrawerDataInitialValues();
+
+    expect(initialValues.open).toBe(false);
+    expect(initialValues.editMode).toBe(false);
+    expect(initialValues.recipe.uid).toBe("");
+    expect(initialValues.recipe.name).toBe("");
+  });
+
+  it("liefert bei jedem Aufruf ein eigenes Rezept", () => {
+    const firstValues = createRecipeDrawerDataInitialValues();
+    const secondValues = createRecipeDrawerDataInitialValues();
+
+    expect(secondValues.recipe).not.toBe(firstValues.recipe);
+    expect(secondValues.recipe.ingredients.entries).not.toBe(
+      firstValues.recipe.ingredients.entries,
+    );
+  });
+
+  it("übernimmt Änderungen am vorherigen Rezept nicht ins nächste", () => {
+    const firstRecipe = createRecipeDrawerDataInitialValues().recipe;
+    const firstIngredientUid = firstRecipe.ingredients.order[0];
+    Object.assign(firstRecipe.ingredients.entries[firstIngredientUid], {
+      quantity: 3,
+    });
+    firstRecipe.ingredients.order.push("weitere-zutat");
+    firstRecipe.preparationSteps.order.push("weiterer-schritt");
+    firstRecipe.name = "Älplermagronen";
+
+    const nextRecipe = createRecipeDrawerDataInitialValues().recipe;
+
+    expect(nextRecipe.name).toBe("");
+    expect(nextRecipe.ingredients.order).toHaveLength(1);
+    expect(nextRecipe.preparationSteps.order).toHaveLength(1);
+    expect(
+      nextRecipe.ingredients.entries[nextRecipe.ingredients.order[0]],
+    ).toEqual(expect.objectContaining({quantity: 0}));
   });
 });
