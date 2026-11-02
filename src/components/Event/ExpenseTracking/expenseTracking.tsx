@@ -11,13 +11,11 @@ import {
   Typography,
   Link,
   Stack,
-  Grid,
   Button,
   ToggleButtonGroup,
   ToggleButton,
   SnackbarCloseReason,
   Tooltip,
-  Divider,
   Chip,
   CircularProgress,
   Menu,
@@ -40,31 +38,22 @@ import {
   EXPENSE_TRACKING_OVERVIEW as TEXT_EXPENSE_TRACKING_OVERVIEW,
   EXPENSE_TRACKING_EXPENSES as TEXT_EXPENSE_TRACKING_EXPENSES,
   EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
-  DELETE_BUDGET_SIMPLE as TEXT_DELETE_BUDGET_SIMPLE,
   NEW_EXPENSE as TEXT_NEW_EXPENSE,
   ALERT_TITLE_WAIT_A_MINUTE as TEXT_ALERT_TITLE_WAIT_A_MINUTE,
-  CANCEL as TEXT_CANCEL,
-  DELETE as TEXT_DELETE,
   PLEASE_CREATE_BUDGET_FIRST as TEXT_PLEASE_CREATE_BUDGET_FIRST,
-  DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
   ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
   CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
   CREATE_EXPENSE_REPORT_NO_EXPENSES as TEXT_CREATE_EXPENSE_REPORT_NO_EXPENSES,
   EXPORT as TEXT_EXPORT,
   EXPORT_CSV as TEXT_EXPORT_CSV,
-  REPORT_RECEIPTS_FAILED as TEXT_REPORT_RECEIPTS_FAILED,
-  REPORT_PAYMENT_DETAILS_SAVE_FAILED as TEXT_REPORT_PAYMENT_DETAILS_SAVE_FAILED,
   EXPORT_ZIP as TEXT_EXPORT_ZIP,
   NO_RECEIPTS_AVAILABLE as TEXT_NO_RECEIPTS_AVAILABLE,
-  EXPORT_RECEIPTS_FAILED as TEXT_EXPORT_RECEIPTS_FAILED,
   EXPENSE_RECEIPT_TAB_BLOCKED as TEXT_EXPENSE_RECEIPT_TAB_BLOCKED,
   EXPENSE_RECEIPT_OPEN_LINK as TEXT_EXPENSE_RECEIPT_OPEN_LINK,
 } from "../../../constants/text";
 
-import {
-  isTransientNetworkError,
-} from "../../../utils/errorUtils";
+import {isTransientNetworkError} from "../../../utils/errorUtils";
 import {DonationForm} from "../../Donate/DonationForm";
 import {useCustomStyles} from "../../../constants/styles";
 import {getHelpPageUrl} from "../../Navigation/helpCenter";
@@ -88,90 +77,30 @@ import {
   TableChartOutlined,
 } from "@mui/icons-material";
 
-import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
-import {trackEvent} from "../../Analytics/analyticsService";
-import {parseAmountToCents} from "../../Shared/utils/currencyUtils";
 import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.class";
-import {DialogType, useCustomDialog} from "../../Shared/customDialogContext";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
 import {ReducerActions} from "./expenseTracking.reducer";
-import {BudgetCard, AddBudgetCard} from "./Budget/budgetCard";
-import {
-  BudgetDetailDialog,
-} from "./Budget/budgetDetailDialog";
+import {BudgetDetailDialog} from "./Budget/budgetDetailDialog";
 import {Expense} from "./Expense/expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
+import {ExpenseOverview} from "./expenseOverview";
 import {useBudgetActions} from "./useBudgetActions";
+import {useExpenseActions} from "./useExpenseActions";
+import {useExpenseReportExport} from "./useExpenseReportExport";
+import {useExpenseZipExport} from "./useExpenseZipExport";
 import {ExpenseList} from "./Expense/expenseList";
-import {
-  ExpenseDomain,
-  ExpenseGroup,
-  ExpensePayeeType,
-  ATTACHMENT_MIME_TO_EXTENSION,
-} from "./Expense/expense.types";
-import {
-  ExpenseDetailDialog,
-  ExpenseDetailDialogState,
-} from "./Expense/expenseDetailDialog";
+import {ExpenseGroup} from "./Expense/expense.types";
+import {ExpenseDetailDialog} from "./Expense/expenseDetailDialog";
 import {ExpenseReportDialog} from "./Report/expenseReportDialog";
-import {PayeeBalanceAccordion} from "./Expense/payeeBalanceAccordion";
 import {getEventDateList} from "../Menuplan/menuplanService";
 import {MenuplanData} from "../Menuplan/menuplan.types";
 import {ExpenseEvaluation} from "./Evaluation/expenseEvaluation";
-import {
-  ReportOptions,
-  ReportProgress,
-  ReportRefund,
-} from "./Report/expenseReport.types";
 import {getAccountHolderName} from "./Report/expenseReportLabels";
-import {useOwnPaymentDetails} from "./Report/useOwnPaymentDetails";
-import {downloadExpenseCsv} from "./Export/downloadExpenseCsv";
-import {ExportProgress} from "./Export/expenseExport.types";
 import {ExportProgressDialog} from "./Export/exportProgressDialog";
 
 /** Ansicht der Abrechnungsseite: Budget-Übersicht, Ausgabenliste oder Auswertung. */
 type ExpenseTrackingView = "overview" | "expenses" | "evaluation";
-
-/**
- * Übersetzt die Formulareingaben des Ausgaben-Dialogs in ein `ExpenseDomain`-
- * Objekt für die Persistierung. Auf Modul-Ebene (nicht als Closure in der
- * Seite) definiert, damit sie unabhängig von der UI direkt getestet werden
- * kann — insbesondere die `payeeUserId`/`payeeName`-Zweige, die im normalen
- * Dialog-Ablauf nie mit einer zum `payeeType` inkonsistenten Kombination
- * aufgerufen werden (der Dialog setzt sie beim Typ-Wechsel bereits zurück),
- * hier aber trotzdem als zweite, unabhängige Absicherung greifen sollen.
- *
- * @param expenseInput - Die Formularwerte aus `ExpenseDetailDialogState`.
- * @param eventId - ID des Events, dem die Ausgabe zugeordnet wird.
- * @returns Das für `createExpense`/`updateExpense` vorbereitete Domain-Objekt.
- */
-export const transformInputToExpenseDomain = (
-  expenseInput: ExpenseDetailDialogState,
-  eventId: string,
-): ExpenseDomain => {
-  return {
-    id: "",
-    eventId,
-    budgetId: expenseInput.budgetId,
-    date: expenseInput.date?.toDate() ?? new Date(NaN),
-    amountInCents: parseAmountToCents(expenseInput.amount) ?? 0,
-    currency: expenseInput.currency,
-    label: expenseInput.label,
-    comment: expenseInput.comment.trim() || null,
-    payeeType: expenseInput.payeeType,
-    payeeUserId:
-      expenseInput.payeeType === ExpensePayeeType.EXISTING_USER
-        ? expenseInput.payeeUserId
-        : null,
-    payeeName:
-      expenseInput.payeeType === ExpensePayeeType.NEW_PERSON
-        ? expenseInput.payeeName.trim() || null
-        : null,
-    attachmentPath: null,
-    attachmentOriginalFilename: null,
-  };
-};
 
 /** Props für die Event-Abrechnungsseite. */
 interface EventExpenseTrackingPageProps {
@@ -184,12 +113,6 @@ interface EventExpenseTrackingPageProps {
   /** Datenbank-Service für Supabase-Zugriffe. */
   database: DatabaseService;
 }
-
-/**
- * Gültigkeit eines signierten Beleg-Links. Der Link wird direkt vor dem
- * Öffnen oder Herunterladen erstellt, darum genügen wenige Minuten.
- */
-const RECEIPT_LINK_VALIDITY_SECONDS = 300;
 
 /**
  * Abrechnungsseite eines Events (Tab «Abrechnung»).
@@ -212,27 +135,6 @@ const EventExpenseTrackingPage = ({
 
   const [hasDonation, setHasDonation] = React.useState<boolean | null>(null);
   const [view, setView] = React.useState<ExpenseTrackingView>("overview");
-  const [expenseDetailDialogProperties, setExpenseDetailDialogProperties] =
-    React.useState<{expense: ExpenseDomain | null; open: boolean}>({
-      expense: null,
-      open: false,
-    });
-  /** Link auf einen Beleg, falls der Browser den neuen Tab blockiert. */
-  const [receiptFallback, setReceiptFallback] = React.useState({
-    open: false,
-    url: "",
-  });
-  /** Dialog «Abrechnung erstellen»; `key` zählt pro Öffnen hoch. */
-  const [reportDialog, setReportDialog] = React.useState({
-    open: false,
-    key: 0,
-  });
-  const [zipProgress, setZipProgress] = React.useState<ExportProgress | null>(
-    null,
-  );
-
-  /** Ein Export läuft: Knopf «Exportieren» zeigt Fortschritt und ist gesperrt. */
-  const [isExporting, setIsExporting] = React.useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] =
     React.useState<HTMLElement | null>(null);
   const [showOnlyMissingReceipts, setShowOnlyMissingReceipts] =
@@ -241,9 +143,6 @@ const EventExpenseTrackingPage = ({
 
   const classes = useCustomStyles();
   const authUser = useAuthUser();
-  const {customDialog} = useCustomDialog();
-  const {ownPaymentDetails, loadOwnPaymentDetails, saveOwnPaymentDetails} =
-    useOwnPaymentDetails(database, authUser);
 
   const saveInProgressRef = React.useRef(0);
   const {
@@ -277,10 +176,59 @@ const EventExpenseTrackingPage = ({
     handleError,
     saveInProgressRef,
   });
-  const [lastUsedBudgetId, setLastUsedBudgetId] = React.useState<string | null>(
-    null,
-  );
-  const defaultBudgetId = lastUsedBudgetId ?? state.budgets?.[0]?.id ?? null;
+  const {
+    expenseDetailDialogProperties,
+    setExpenseDetailDialogProperties,
+    defaultBudgetId,
+    receiptFallback,
+    closeReceiptFallback,
+    getAttachmentUrl,
+    handleOpenAttachmentFromList,
+    handleOpenAttachmentFromDialog,
+    handleOpenCreateExpenseDialog,
+    handleEditExpense,
+    handleCreateExpense,
+    handleUpdateExpense,
+    handleDeleteExpense,
+  } = useExpenseActions({
+    event,
+    database,
+    authUser,
+    expenses: state.expenses,
+    budgets: state.budgets,
+    dispatch,
+    handleError,
+    saveInProgressRef,
+  });
+  const closeExportMenu = () => setExportMenuAnchor(null);
+  const {
+    reportDialog,
+    isExporting,
+    ownPaymentDetails,
+    handleOpenReportDialog,
+    handleCloseReportDialog,
+    handleExportCsv,
+    handleCreateReport,
+  } = useExpenseReportExport({
+    event,
+    database,
+    authUser,
+    expenses: state.expenses,
+    budgets: state.budgets,
+    getAttachmentUrl,
+    closeExportMenu,
+    dispatch,
+    handleError,
+  });
+  const {zipProgress, handleDownloadReceiptsZip} = useExpenseZipExport({
+    event,
+    expenses: state.expenses,
+    budgets: state.budgets,
+    getAttachmentUrl,
+    closeExportMenu,
+    dispatch,
+    handleError,
+  });
   const hasExpenses = (state.expenses?.length ?? 0) > 0;
   const hasReceipts =
     state.expenses?.some((expense) => expense.attachmentPath !== null) ?? false;
@@ -401,458 +349,6 @@ const EventExpenseTrackingPage = ({
   /* ------------------------------------------
   // Dialog Handling
   // ------------------------------------------ */
-  /** Öffnet den Dialog im Anlegen-Modus (ohne vorhandene Ausgabe). */
-  const handleOpenCreateExpenseDialog = () => {
-    setExpenseDetailDialogProperties({expense: null, open: true});
-  };
-  /**
-   * Öffnet den Bearbeiten-Dialog für eine Ausgabe.
-   *
-   * @param expenseId - ID der angeklickten Ausgabe.
-   */
-  const handleEditExpense = (expenseId: string) => {
-    const expense =
-      state.expenses?.find((expense) => expense.id === expenseId) ?? null;
-    setExpenseDetailDialogProperties({expense, open: true});
-  };
-  /**
-   * Validiert eine Ausgabe vor dem Speichern und zeigt Fehler an.
-   *
-   * @param expense - Zu prüfende Ausgabe.
-   * @returns `true`, wenn die Ausgabe gültig ist.
-   */
-  const checkExpenseInputdata = (expense: ExpenseDomain): boolean => {
-    try {
-      Expense.checkExpenseData(expense);
-    } catch (error) {
-      handleError(error, "Validierung Expense-Input");
-      return false;
-    }
-    return true;
-  };
-
-  /**
-   * Liefert einen zeitlich begrenzten Link auf einen Beleg.
-   *
-   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner
-   *   (`<eventId>/expenses/<expenseId>.<ext>`).
-   * @returns Signierter Link auf die Datei.
-   * @throws Error, wenn der Link nicht erstellt werden kann.
-   */
-  const handleGetAttachmentUrl = (attachmentPath: string) =>
-    database.storage.expenses.getSignedUrl(
-      attachmentPath,
-      RECEIPT_LINK_VALIDITY_SECONDS,
-    );
-  /**
-   * Öffnet einen Beleg in einem neuen Tab. Der Tab wird noch im Klick
-   * geöffnet und erst danach auf den Link gesetzt: Browser, vor allem Safari
-   * auf dem Handy, blockieren Tabs, die erst nach einer Serverantwort aufgehen.
-   *
-   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner.
-   * @returns `null`, wenn der Tab offen ist. Blockiert ihn der Browser (z.B.
-   *   Brave auf dem iPhone, auch ohne Pop-up-Blocker), der signierte Link: Einen
-   *   echten Link blockieren Browser nicht.
-   * @throws Error, wenn der Link nicht erstellt werden kann.
-   */
-  const openAttachment = async (
-    attachmentPath: string,
-  ): Promise<string | null> => {
-    const receiptTab = window.open("", "_blank");
-    if (!receiptTab) return handleGetAttachmentUrl(attachmentPath);
-    receiptTab.opener = null;
-
-    try {
-      receiptTab.location.href = await handleGetAttachmentUrl(attachmentPath);
-      return null;
-    } catch (error) {
-      receiptTab.close();
-      throw error;
-    }
-  };
-  /**
-   * Öffnet einen Beleg aus der Liste. Blockiert der Browser den Tab, erscheint
-   * ein kleiner Dialog mit Link; ein Fehler erscheint oben auf der Seite.
-   *
-   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner.
-   */
-  const handleOpenAttachmentFromList = (attachmentPath: string) => {
-    openAttachment(attachmentPath)
-      .then((url) => {
-        if (url) setReceiptFallback({open: true, url});
-      })
-      .catch((error) => handleError(error, "Beleg öffnen"));
-  };
-  /**
-   * Schliesst den Dialog mit dem Beleg-Link. Der Link behält sein Ziel: Der
-   * Browser folgt ihm erst nach dem Klick-Handler und täte sonst nichts.
-   */
-  const closeReceiptFallback = () =>
-    setReceiptFallback((current) => ({...current, open: false}));
-  /**
-   * Öffnet einen Beleg aus dem Dialog. Der Dialog zeigt den Fehler selbst, darum
-   * hier nur die Meldung an Sentry.
-   *
-   * @param attachmentPath - Beleg-Pfad relativ zum Ausgaben-Ordner.
-   * @returns Siehe {@link openAttachment}.
-   * @throws Den Fehler aus {@link openAttachment}.
-   */
-  const handleOpenAttachmentFromDialog = async (attachmentPath: string) => {
-    try {
-      return await openAttachment(attachmentPath);
-    } catch (error) {
-      Sentry.captureException(error, {extra: {context: "Beleg öffnen"}});
-      throw error;
-    }
-  };
-  /**
-   * Legt eine neue Ausgabe an. Der Dialog wird sofort geschlossen; ein
-   * Fehler erscheint oben auf der Seite.
-   *
-   * Beleg-Upload erfolgt zweiphasig: die Ausgabe muss zuerst angelegt sein,
-   * damit ihre (von der DB vergebene) ID als Speicherpfad verwendet werden
-   * kann. Ein fehlgeschlagener Upload wird separat gemeldet ("Beleg
-   * hochladen"), damit er nicht fälschlich als gescheitertes Anlegen der
-   * Ausgabe selbst erscheint.
-   *
-   * @param expenseInput - Eingaben aus dem Dialog.
-   */
-  const handleCreateExpense = async (
-    expenseInput: ExpenseDetailDialogState,
-  ) => {
-    const expense = transformInputToExpenseDomain(expenseInput, event.uid);
-    if (!checkExpenseInputdata(expense)) return;
-
-    saveInProgressRef.current += 1;
-    try {
-      const newExpense = await database.expenses.createExpense(
-        expense,
-        authUser!,
-      );
-      setLastUsedBudgetId(newExpense.value.budgetId);
-      trackEvent(AnalyticsEvent.EXPENSE_CREATED);
-      dispatch({
-        type: ReducerActions.EXPENSE_CREATED,
-        payload: newExpense.value,
-      });
-
-      if (expenseInput.attachmentFile) {
-        try {
-          const extension =
-            ATTACHMENT_MIME_TO_EXTENSION[expenseInput.attachmentFile.type];
-          const relativePath = `${event.uid}/expenses/${newExpense.value.id}.${extension}`;
-
-          // cacheControl "0": derselbe Pfad kann später wiederverwendet werden
-          // (z.B. beim Ersetzen mit gleicher Endung) — ohne das würde ein
-          // Browser/die CDN bis zu eine Stunde den alten Inhalt der gleichen
-          // URL ausliefern (Supabase-Standard: cacheControl "3600").
-          await database.storage.expenses.upload(
-            relativePath,
-            expenseInput.attachmentFile,
-            expenseInput.attachmentFile.type,
-            "0",
-          );
-          const updated = await database.expenses.updateExpense(
-            {
-              ...newExpense.value,
-              attachmentPath: relativePath,
-              attachmentOriginalFilename: expenseInput.attachmentFile.name,
-            },
-            authUser!,
-          );
-          dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
-        } catch (error) {
-          // Ausgabe existiert bereits — nur der Beleg-Upload ist fehlgeschlagen.
-          handleError(error, "Beleg hochladen");
-        }
-      }
-    } catch (error) {
-      handleError(error, "Ausgabe erstellen");
-    } finally {
-      setTimeout(() => {
-        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
-      }, 400);
-    }
-
-    setExpenseDetailDialogProperties({expense: null, open: false});
-  };
-
-  /**
-   * Speichert Änderungen an einer bestehenden Ausgabe.
-   *
-   * @param expenseId - ID der bearbeiteten Ausgabe.
-   * @param expenseInput - Neue Eingaben aus dem Dialog.
-   */
-  const handleUpdateExpense = async (
-    expenseId: string,
-    expenseInput: ExpenseDetailDialogState,
-  ) => {
-    const expense = {
-      ...transformInputToExpenseDomain(expenseInput, event.uid),
-      id: expenseId,
-    };
-    if (!checkExpenseInputdata(expense)) {
-      return;
-    }
-    saveInProgressRef.current += 1;
-    try {
-      const previousExpense = state.expenses?.find(
-        (expense) => expense.id === expenseId,
-      );
-
-      if (expenseInput.attachmentFile) {
-        const extension =
-          ATTACHMENT_MIME_TO_EXTENSION[expenseInput.attachmentFile.type];
-        const relativePath = `${event.uid}/expenses/${expenseId}.${extension}`;
-        // Nur löschen, wenn sich der Pfad tatsächlich ändert (andere Endung als
-        // vorher) — beim Ersetzen mit derselben Endung überschreibt
-        // `upsert: true` denselben Pfad automatisch, genau wie bei cover.jpg.
-        if (
-          previousExpense?.attachmentPath &&
-          previousExpense.attachmentPath !== relativePath
-        ) {
-          await database.storage.expenses.remove(
-            previousExpense.attachmentPath,
-          );
-        }
-        // cacheControl "0": siehe handleCreateExpense — derselbe Pfad kann bei
-        // gleicher Endung wiederverwendet werden, ohne den alten Inhalt bis zu
-        // eine Stunde lang aus dem Cache auszuliefern.
-        await database.storage.expenses.upload(
-          relativePath,
-          expenseInput.attachmentFile,
-          expenseInput.attachmentFile.type,
-          "0",
-        );
-        expense.attachmentPath = relativePath;
-        expense.attachmentOriginalFilename = expenseInput.attachmentFile.name;
-      } else if (expenseInput.removeAttachment) {
-        if (previousExpense?.attachmentPath) {
-          await database.storage.expenses.remove(
-            previousExpense.attachmentPath,
-          );
-        }
-        expense.attachmentPath = null;
-        expense.attachmentOriginalFilename = null;
-      } else {
-        // Beleg nicht angefasst — bestehenden Pfad/Dateinamen übernehmen,
-        // sonst überschreibt transformInputToExpenseDomain()'s hartkodiertes
-        // null das update() als volles Zeilen-Update.
-        expense.attachmentPath = previousExpense?.attachmentPath ?? null;
-        expense.attachmentOriginalFilename =
-          previousExpense?.attachmentOriginalFilename ?? null;
-      }
-
-      const updated = await database.expenses.updateExpense(expense, authUser!);
-      trackEvent(AnalyticsEvent.EXPENSE_UPDATED);
-      dispatch({type: ReducerActions.EXPENSE_UPDATED, payload: updated});
-    } catch (error) {
-      handleError(error, "Ausgabe aktualisieren");
-    } finally {
-      setTimeout(() => {
-        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
-      }, 400);
-    }
-  };
-  /**
-   * Löscht eine Ausgabe nach Rückfrage.
-   *
-   * @param expense - Die zu löschende Ausgabe.
-   */
-  const handleDeleteExpense = async (expense: ExpenseDomain) => {
-    const isConfirmed = await customDialog({
-      dialogType: DialogType.Confirm,
-      destructive: true,
-      title: TEXT_DELETE_EXPENSE_DIALOG(
-        expense.label,
-        expense.amountInCents,
-        expense.currency,
-      ),
-      text: TEXT_DELETE_BUDGET_SIMPLE,
-      buttonTextCancel: TEXT_CANCEL,
-      buttonTextConfirm: TEXT_DELETE,
-    });
-    if (!isConfirmed) return;
-
-    saveInProgressRef.current += 1;
-    try {
-      await database.expenses.deleteExpense(expense.id);
-      trackEvent(AnalyticsEvent.EXPENSE_DELETED);
-      dispatch({type: ReducerActions.EXPENSE_DELETED, payload: expense});
-
-      if (expense.attachmentPath) {
-        try {
-          await database.storage.expenses.remove(expense.attachmentPath);
-        } catch (error) {
-          handleError(error, "Beleg löschen");
-        }
-      }
-    } catch (error) {
-      handleError(error, "Ausgabe löschen");
-    } finally {
-      setTimeout(() => {
-        saveInProgressRef.current = Math.max(0, saveInProgressRef.current - 1);
-      }, 400);
-    }
-
-    setExpenseDetailDialogProperties({expense: null, open: false});
-  };
-  /**
-   * Öffnet den Dialog «Abrechnung erstellen» mit frischem Zustand und lädt
-   * erst jetzt die eigenen Zahlungsangaben (Story 7.4, F2).
-   */
-  const handleOpenReportDialog = () => {
-    setExportMenuAnchor(null);
-    loadOwnPaymentDetails();
-    setReportDialog((previous) => ({open: true, key: previous.key + 1}));
-  };
-
-  /**
-   * Menü «Exportieren» → «Ausgaben als CSV»: schliesst das Menü und lädt die
-   * CSV mit allen Ausgaben herunter. Ein Fehler erscheint oben auf der Seite
-   * und geht an Sentry; der Knopf «Exportieren» bleibt dabei bedienbar.
-   */
-  const handleExportCsv = () => {
-    setExportMenuAnchor(null);
-    trackEvent(AnalyticsEvent.EXPENSES_EXPORTED, {type: "csv"});
-    try {
-      downloadExpenseCsv({
-        expenses: state.expenses ?? [],
-        budgets: state.budgets ?? [],
-        event,
-      });
-    } catch (error) {
-      handleError(error, "CSV exportieren");
-    }
-  };
-
-  /** Schliesst den Dialog «Abrechnung erstellen». */
-  const handleCloseReportDialog = () => {
-    setReportDialog((previous) => ({...previous, open: false}));
-  };
-
-  /**
-   * Erstellt das ZIP mit CSV und Belegen und startet den Download.
-   * `downloadExpenseZip` meldet nicht geladene Belege selbst an Sentry,
-   * hier nur der Hinweis. Der Dialog öffnet sofort und schliesst in
-   * jedem Fall, auch bei einem Fehler.
-   */
-  const handleDownloadReceiptsZip = async () => {
-    setExportMenuAnchor(null);
-    trackEvent(AnalyticsEvent.EXPENSES_EXPORTED, {type: "zip"});
-    setZipProgress({loaded: 0, total: 0});
-
-    try {
-      const {downloadExpenseZip} = await import("./Export/downloadExpenseZip");
-      const {failedReceiptNumbers} = await downloadExpenseZip({
-        expenses: state.expenses ?? [],
-        budgets: state.budgets ?? [],
-        event,
-        getAttachmentUrl: handleGetAttachmentUrl,
-        onProgress: setZipProgress,
-      });
-
-      if (failedReceiptNumbers.length > 0) {
-        dispatch({
-          type: ReducerActions.SNACKBAR_SHOW,
-          payload: {
-            severity: "warning",
-            message: TEXT_EXPORT_RECEIPTS_FAILED(failedReceiptNumbers),
-          },
-        });
-      }
-    } catch (error) {
-      handleError(error, "ZIP exportieren");
-    } finally {
-      setZipProgress(null);
-    }
-  };
-
-  /**
-   * Erstellt die Abrechnung und startet den Download. Das PDF-Modul wird
-   * erst hier nachgeladen. Fehler beim Erstellen meldet
-   * `generateAndDownloadPdf` selbst an Sentry, darum nur anzeigen.
-   * Fehlten Belege, erscheint danach ein Hinweis (E6). Während des Exports
-   * ist der Knopf «Exportieren» gesperrt. Auf Wunsch werden vorher die
-   * eigenen Zahlungsangaben gespeichert; scheitert das, entsteht das PDF
-   * trotzdem (Story 7.4, F6).
-   *
-   * @param options - Im Dialog gewählte Optionen.
-   * @param refund - Adresse und IBAN; `null` bei «Alle Personen». Nie in
-   *   Analytics oder Sentry (F7).
-   * @param onProgress - Fortschritt für den Dialog (E10).
-   */
-  const handleCreateReport = async (
-    options: ReportOptions,
-    refund: ReportRefund | null,
-    onProgress: (progress: ReportProgress) => void,
-  ) => {
-    trackEvent(AnalyticsEvent.PDF_EXPORTED, {type: "expenseReport"});
-    setIsExporting(true);
-    const isSaveFailed = refund?.shouldSave
-      ? !(await saveOwnPaymentDetails(refund.details))
-      : false;
-    let isReportFailed = false;
-    try {
-      const {downloadExpenseReport} =
-        await import("./Report/downloadExpenseReport");
-      const result = await downloadExpenseReport({
-        expenses: state.expenses ?? [],
-        budgets: state.budgets ?? [],
-        event,
-        authUser: authUser!,
-        options,
-        refundDetails: refund?.details ?? null,
-        getAttachmentUrl: handleGetAttachmentUrl,
-        onProgress,
-        onError: (error) => {
-          isReportFailed = true;
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        },
-      });
-      // ohne PDF stimmt «trotzdem erstellt» nicht, der Fehler steht oben
-      showReportHints(
-        result.failedReceiptNumbers,
-        isSaveFailed && !isReportFailed,
-      );
-    } catch (error) {
-      // nur das Nachladen (Chunk nach einem Deploy weg) oder ein
-      // Programmierfehler kann werfen
-      handleError(error, "Abrechnung erstellen");
-    } finally {
-      // auch nach einem Fehler, sonst bliebe der Knopf gesperrt
-      setIsExporting(false);
-    }
-    handleCloseReportDialog();
-  };
-  /**
-   * Zeigt nach dem Erstellen einen Hinweis, wenn Belege fehlten (E6, B9)
-   * oder die Zahlungsangaben nicht gespeichert wurden (Story 7.4, F6).
-   * Beides in einer Snackbar, sonst überschriebe der zweite den ersten.
-   *
-   * @param failedReceiptNumbers - Nummern der nicht geladenen Belege.
-   * @param isPaymentDetailsSaveFailed - Speichern ins Profil gescheitert.
-   */
-  const showReportHints = (
-    failedReceiptNumbers: number[],
-    isPaymentDetailsSaveFailed: boolean,
-  ) => {
-    const hints = [
-      ...(failedReceiptNumbers.length > 0
-        ? [TEXT_REPORT_RECEIPTS_FAILED(failedReceiptNumbers)]
-        : []),
-      ...(isPaymentDetailsSaveFailed
-        ? [TEXT_REPORT_PAYMENT_DETAILS_SAVE_FAILED]
-        : []),
-    ];
-    if (hints.length === 0) {
-      return;
-    }
-    dispatch({
-      type: ReducerActions.SNACKBAR_SHOW,
-      payload: {severity: "warning", message: hints.join(" ")},
-    });
-  };
 
   /* ------------------------------------------
   // Snackbar-Handler
@@ -1078,33 +574,14 @@ const EventExpenseTrackingPage = ({
               ) : null}
             </Box>
             {view === "overview" ? (
-              <React.Fragment>
-                <Grid container spacing={2}>
-                  {budgetsWithProgress?.map((budget) => (
-                    <Grid
-                      key={`budgeCardGrid_${budget.budget.id}`}
-                      size={{xs: 12, md: 4}}
-                    >
-                      <BudgetCard
-                        key={`budgetCard_${budget.budget.id}`}
-                        budgetWithProgress={budget}
-                        isHighlighted={highlightedBudgetIds.has(
-                          budget.budget.id,
-                        )}
-                        handleEditClick={handleBudgetEditClick}
-                      />
-                    </Grid>
-                  ))}
-                  <Grid size={{xs: 12, md: 4}}>
-                    <AddBudgetCard onClick={handleOpenCreateBudgetDialog} />
-                  </Grid>
-                </Grid>
-                {state.expenses && state.expenses.length > 0 && <Divider />}
-                <PayeeBalanceAccordion
-                  expenses={state.expenses ?? []}
-                  cooks={event.cooks}
-                />
-              </React.Fragment>
+              <ExpenseOverview
+                budgetsWithProgress={budgetsWithProgress}
+                highlightedBudgetIds={highlightedBudgetIds}
+                expenses={state.expenses ?? []}
+                cooks={event.cooks}
+                handleEditBudgetClick={handleBudgetEditClick}
+                handleAddBudgetClick={handleOpenCreateBudgetDialog}
+              />
             ) : view === "expenses" ? (
               <>
                 {/* Ganzer Chip klickbar: das ✕ allein ist auf Mobile zu klein zum Tippen */}
@@ -1174,10 +651,7 @@ const EventExpenseTrackingPage = ({
         }
         handleOpenAttachment={handleOpenAttachmentFromDialog}
       />
-      <Dialog
-        open={receiptFallback.open}
-        onClose={closeReceiptFallback}
-      >
+      <Dialog open={receiptFallback.open} onClose={closeReceiptFallback}>
         <DialogContent>
           <Typography>
             {TEXT_EXPENSE_RECEIPT_TAB_BLOCKED}{" "}

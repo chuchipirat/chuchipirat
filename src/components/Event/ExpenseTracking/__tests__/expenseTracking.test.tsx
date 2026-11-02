@@ -23,8 +23,8 @@ import "@testing-library/jest-dom";
 
 import {
   EventExpenseTrackingPage,
-  transformInputToExpenseDomain,
 } from "../expenseTracking";
+import {transformInputToExpenseDomain} from "../useExpenseActions";
 import {getHelpPageUrl} from "../../../Navigation/helpCenter";
 import {AuthUserContext} from "../../../Session/authUserContext";
 import AuthUser from "../../../Session/authUser.class";
