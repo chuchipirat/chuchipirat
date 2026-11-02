@@ -18,6 +18,8 @@ import {
   Switch,
   TextField,
   Typography,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 
 import {
@@ -169,6 +171,9 @@ export const ExpenseReportDialog = ({
   onCreate,
   onClose,
 }: ExpenseReportDialogProps) => {
+  const theme = useTheme();
+  // Auf dem Handy als Vollbild wie die Dialoge für Budget und Ausgabe
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const classes = useCustomStyles();
   const modeLabelId = React.useId();
   const payeeOptions = React.useMemo(
@@ -246,6 +251,7 @@ export const ExpenseReportDialog = ({
       onClose={isCreating ? undefined : onClose}
       maxWidth="xs"
       fullWidth
+      fullScreen={fullScreen}
     >
       <DialogTitle>{TEXT_CREATE_EXPENSE_REPORT}</DialogTitle>
       <DialogContent>

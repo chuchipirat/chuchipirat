@@ -724,3 +724,42 @@ describe("ExpenseReportDialog: Rückerstattung an", () => {
     expect(querySaveCheckbox()).not.toBeInTheDocument();
   });
 });
+
+describe("ExpenseReportDialog: Handy", () => {
+  /**
+   * Simuliert eine schmale Anzeige: `useMediaQuery` fragt `matchMedia`, das
+   * jsdom nicht kennt.
+   *
+   * @param isNarrow - Ob die Abfrage zutrifft.
+   */
+  const mockScreenWidth = (isNarrow: boolean) => {
+    window.matchMedia = jest.fn().mockImplementation((query: string) => ({
+      matches: isNarrow,
+      media: query,
+      onchange: null,
+      addListener: jest.fn(),
+      removeListener: jest.fn(),
+      addEventListener: jest.fn(),
+      removeEventListener: jest.fn(),
+      dispatchEvent: jest.fn(),
+    }));
+  };
+
+  afterEach(() => {
+    delete (window as {matchMedia?: unknown}).matchMedia;
+  });
+
+  test("schmale Anzeige: Dialog als Vollbild", () => {
+    mockScreenWidth(true);
+    render(<ExpenseReportDialog {...makeProps()} />);
+
+    expect(document.querySelector(".MuiDialog-paperFullScreen")).not.toBeNull();
+  });
+
+  test("breite Anzeige: kein Vollbild", () => {
+    mockScreenWidth(false);
+    render(<ExpenseReportDialog {...makeProps()} />);
+
+    expect(document.querySelector(".MuiDialog-paperFullScreen")).toBeNull();
+  });
+});

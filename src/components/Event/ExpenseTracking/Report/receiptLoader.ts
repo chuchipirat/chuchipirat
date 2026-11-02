@@ -9,10 +9,14 @@ import {
   ReportReceipt,
 } from "./expenseReport.types";
 
-/** Längste Bildseite im PDF: gut lesbar, klein genug für den Mailversand. */
-const RECEIPT_IMAGE_MAX_DIMENSION = 2000;
+/**
+ * Längste Bildseite im PDF: auf A4 etwa 150 dpi, Kassenzettel bleiben lesbar.
+ * Mit 2000 px wurde eine Abrechnung mit 30 Handyfotos auf dem iPhone 18 MB
+ * gross, zu viel für den Mailversand.
+ */
+const RECEIPT_IMAGE_MAX_DIMENSION = 1600;
 /** JPEG-Qualität der Belegbilder. */
-const RECEIPT_IMAGE_QUALITY = 0.8;
+const RECEIPT_IMAGE_QUALITY = 0.7;
 
 /**
  * Ein PDF-Beleg ist passwortgeschützt; seine Seiten lassen sich nicht
