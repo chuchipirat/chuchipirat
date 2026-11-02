@@ -30,7 +30,7 @@ Numeric TypeScript enums that need conversion to string enums matching PostgreSQ
 
 ## Security / Auth
 
-- **`payment-webhook` prüft Fehler beim Bestätigen nicht** (gefunden beim Security-Review Story 10.7, 2026-11-02) — `supabase/volumes/functions/payment-webhook/index.ts:299-313` ignoriert Fehler von `generate_donation_receipt_number` und vom Update auf `donations`. Zeigt die Sequenz auf eine schon vergebene Nummer (lokal so vorgefunden), lehnt `donations_receipt_number_key` das Update ab: Die Spende bleibt `pending`, obwohl bezahlt, ohne Fehlermeldung. Fix: Fehler prüfen, bei doppelter Nummer neu ziehen oder Nicht-2xx zurückgeben, an Sentry melden; Sequenz auf TEST/PROD prüfen.
+- **`payment-webhook` prüft Fehler beim Bestätigen nicht** (gefunden beim Security-Review Story 10.7, 2026-11-02) — `supabase/volumes/functions/payment-webhook/index.ts:299-313` ignoriert Fehler von `generate_donation_receipt_number` und vom Update auf `donations`. Zeigt die Sequenz auf eine schon vergebene Nummer (lokal so vorgefunden), lehnt `donations_receipt_number_key` das Update ab: Die Spende bleibt `pending`, obwohl bezahlt, ohne Fehlermeldung. Fix liegt auf Branch `fix/bugfixes-after-abrechnung` (2026-11-02); Sequenz auf TEST und PROD geprüft, aktuell unkritisch. Eintrag nach dem Merge entfernen.
   **Priorität:** hoch · **Komplexität:** klein
 
 - **Signierte Beleg-Links können in Sentry landen** (gefunden beim Security-Review Story 10.0, 2026-11-01) — `fetch` auf `/object/sign/receipts/…?token=…` kann als Breadcrumb oder Span in Sentry erscheinen (nicht an einem echten Ereignis geprüft). Die Links gelten nur 5 Minuten. Fix: Token in `beforeBreadcrumb` und `beforeSendTransaction` entfernen.
