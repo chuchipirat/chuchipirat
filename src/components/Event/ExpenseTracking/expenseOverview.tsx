@@ -1,6 +1,8 @@
 import React from "react";
 import {Divider} from "@mui/material";
 
+import {useCustomStyles} from "../../../constants/styles";
+
 import {Cook} from "../Event/event.class";
 import {BudgetWithProgress} from "./Budget/budget.types";
 import {BudgetCardGrid} from "./Budget/budgetCardGrid";
@@ -38,15 +40,19 @@ export const ExpenseOverview = ({
   cooks,
   handleEditBudgetClick,
   handleAddBudgetClick,
-}: ExpenseOverviewProps) => (
-  <React.Fragment>
-    <BudgetCardGrid
-      budgetsWithProgress={budgetsWithProgress}
-      highlightedBudgetIds={highlightedBudgetIds}
-      handleEditClick={handleEditBudgetClick}
-      handleAddClick={handleAddBudgetClick}
-    />
-    {expenses.length > 0 && <Divider />}
-    <PayeeBalanceAccordion expenses={expenses} cooks={cooks} />
-  </React.Fragment>
-);
+}: ExpenseOverviewProps) => {
+  const classes = useCustomStyles();
+
+  return (
+    <React.Fragment>
+      <BudgetCardGrid
+        budgetsWithProgress={budgetsWithProgress}
+        highlightedBudgetIds={highlightedBudgetIds}
+        handleEditClick={handleEditBudgetClick}
+        handleAddClick={handleAddBudgetClick}
+      />
+      {expenses.length > 0 && <Divider sx={classes.expenseOverviewDivider} />}
+      <PayeeBalanceAccordion expenses={expenses} cooks={cooks} />
+    </React.Fragment>
+  );
+};

@@ -296,6 +296,11 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
   /* ------------------------------------------
   // Übersicht: Beträge pro Person
   // ------------------------------------------ */
+  expenseOverviewDivider: {
+    // Abstand zur letzten Budgetkarte und zu den Beträgen pro Person
+    marginTop: theme.spacing(3),
+    marginBottom: theme.spacing(2),
+  },
   payeeBalanceSummary: {
     display: "flex",
     justifyContent: "space-between",
@@ -419,5 +424,34 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     paddingLeft: theme.spacing(3),
     paddingRight: theme.spacing(3),
     paddingTop: theme.spacing(2),
+  },
+
+  /* ------------------------------------------
+  // Vorschau ohne Spende
+  // ------------------------------------------ */
+  expenseTrackingPreviewHeader: {
+    marginBottom: theme.spacing(2),
+  },
+  expenseTrackingPreviewArea: {
+    position: "relative",
+    // so hoch, dass der Verlauf in der Auswertung noch als Diagramm erkennbar
+    // ist; auf dem Handy einspaltig und darum höher
+    maxHeight: {xs: theme.spacing(170), md: theme.spacing(140)},
+    overflow: "hidden",
+    pointerEvents: "none",
+    userSelect: "none",
+    // blendet nach unten in den Seitenhintergrund aus, hell wie dunkel
+    "&::after": {
+      content: '""',
+      position: "absolute",
+      left: 0,
+      right: 0,
+      bottom: 0,
+      height: theme.spacing(16),
+      background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)}, ${theme.palette.background.default})`,
+    },
+  },
+  expenseTrackingPreviewSection: {
+    marginTop: theme.spacing(3),
   },
 });

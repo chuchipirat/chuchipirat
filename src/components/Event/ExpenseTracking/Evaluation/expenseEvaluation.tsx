@@ -52,6 +52,7 @@ import {formatLocalDate, parseLocalDate} from "../../../../utils/dateUtils";
  * @param handleEditClick - Öffnet den Bearbeiten-Dialog (Klick auf eine Top-5-Zeile).
  * @param handleShowMissingReceipts - Wechselt in die Ausgabenliste und zeigt
  *   dort nur Ausgaben ohne Beleg («Anzeigen» im Beleg-Hinweis).
+ * @param readOnly - Nur Ansicht, z.B. in der Vorschau: ohne Budget-Filter.
  */
 type ExpenseEvaluationProps = {
   eventId: string;
@@ -63,6 +64,8 @@ type ExpenseEvaluationProps = {
   menuplan: MenuplanData;
   handleEditClick: (expenseId: string) => void;
   handleShowMissingReceipts: () => void;
+  /** Nur Ansicht, z.B. in der Vorschau: ohne Budget-Filter. */
+  readOnly?: boolean;
 };
 /**
  * Ansicht «Auswertung» der Abrechnungsseite: Kennzahlen über die Ausgaben
@@ -104,6 +107,7 @@ export const ExpenseEvaluation = ({
   menuplan,
   handleEditClick,
   handleShowMissingReceipts,
+  readOnly = false,
 }: ExpenseEvaluationProps) => {
   const classes = useCustomStyles();
 
@@ -290,7 +294,7 @@ export const ExpenseEvaluation = ({
         {TEXT_EVALUATION_KEYFIGURES}
       </Typography>
       <Box sx={classes.evaluationFilterBar}>
-        {budgets.length > 1 && (
+        {!readOnly && budgets.length > 1 && (
           <BudgetFilter
             budgets={budgets}
             deselectedBudgetIds={excludedBudgetIds}

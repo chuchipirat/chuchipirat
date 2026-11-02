@@ -85,6 +85,8 @@ import {BudgetDetailDialog} from "./Budget/budgetDetailDialog";
 import {Expense} from "./Expense/expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
 import {ExpenseOverview} from "./expenseOverview";
+import {ExpenseTrackingPreview} from "./Preview/expenseTrackingPreview";
+import {EXPENSE_TRACKING_PREVIEW_DATA} from "./Preview/expenseTrackingPreview.data";
 import {useBudgetActions} from "./useBudgetActions";
 import {useExpenseActions} from "./useExpenseActions";
 import {useExpenseReportExport} from "./useExpenseReportExport";
@@ -521,6 +523,9 @@ const EventExpenseTrackingPage = ({
             ) : null}
           </CardContent>
         </Card>
+        {hasDonation === false && (
+          <ExpenseTrackingPreview data={EXPENSE_TRACKING_PREVIEW_DATA} />
+        )}
         {hasDonation === true && (
           <Box data-testid="expense-tracking-unlocked">
             <Box sx={classes.expenseTrackingToolbar}>

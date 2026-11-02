@@ -402,3 +402,11 @@ export const EVALUATION_NO_PLANNED_MEALS =
 /** Screenreader-Beschriftung der Mahlzeitentyp-Chips. */
 export const EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL =
   "Mahlzeiten für den Durchschnitt auswählen";
+
+/* =====================================================================
+// Vorschau ohne Spende
+// ===================================================================== */
+/** Titel der Vorschau unter dem Spendenformular. */
+export const EXPENSE_TRACKING_PREVIEW_TITLE = "So sieht die Abrechnung aus";
+/** Hinweis, dass die Vorschau nur Beispieldaten zeigt. */
+export const EXPENSE_TRACKING_PREVIEW_HINT = "Vorschau mit Beispieldaten";

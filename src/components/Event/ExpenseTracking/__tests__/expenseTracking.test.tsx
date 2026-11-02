@@ -21,9 +21,7 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom";
 
-import {
-  EventExpenseTrackingPage,
-} from "../expenseTracking";
+import {EventExpenseTrackingPage} from "../expenseTracking";
 import {transformInputToExpenseDomain} from "../useExpenseActions";
 import {getHelpPageUrl} from "../../../Navigation/helpCenter";
 import {AuthUserContext} from "../../../Session/authUserContext";
@@ -352,6 +350,50 @@ describe("EventExpenseTrackingPage", () => {
     expect(
       await screen.findByTestId("expense-tracking-locked"),
     ).toBeInTheDocument();
+  });
+
+  test("ohne Spende: Vorschau unter dem Spendenformular", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    expect(
+      await screen.findByTestId("expense-tracking-preview-area"),
+    ).toBeInTheDocument();
+  });
+
+  test("ohne Spende: Vorschau steht nicht in der Karte mit dem Spendenformular", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    const area = await screen.findByTestId("expense-tracking-preview-area");
+    expect(
+      screen.getByTestId("expense-tracking-locked").closest(".MuiCard-root"),
+    ).not.toContainElement(area);
+  });
+
+  test("mit Spende: keine Vorschau", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+
+    renderEventExpenseTrackingPage();
+
+    await screen.findByTestId("expense-tracking-unlocked");
+    expect(
+      screen.queryByTestId("expense-tracking-preview-area"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("während des Ladens: keine Vorschau", () => {
+    mockDatabase.donations.getEventDonations.mockReturnValueOnce(
+      new Promise(() => {}),
+    );
+
+    renderEventExpenseTrackingPage();
+
+    expect(
+      screen.queryByTestId("expense-tracking-preview-area"),
+    ).not.toBeInTheDocument();
   });
 
   test("gesperrte Ansicht: Helpcenter-Link zeigt auf die richtige Seite", async () => {
@@ -2866,7 +2908,10 @@ describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
       fireEvent.click(link);
       // Der Browser folgt dem Link erst nach dem Klick-Handler, das Ziel muss
       // also noch da sein, sonst passiert nichts
-      expect(link).toHaveAttribute("href", expect.stringContaining("token=test"));
+      expect(link).toHaveAttribute(
+        "href",
+        expect.stringContaining("token=test"),
+      );
       await waitFor(() =>
         expect(
           screen.queryByRole("link", {name: "Beleg öffnen"}),

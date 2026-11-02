@@ -8,14 +8,15 @@ import {BudgetWithProgress} from "./budget.types";
  *
  * @param budgetsWithProgress - Budgets mit Fortschritt, eine Karte pro Budget.
  * @param highlightedBudgetIds - Budgets, deren Karte kurz aufleuchtet.
- * @param handleEditClick - Öffnet den Dialog des angeklickten Budgets.
+ * @param handleEditClick - Öffnet den Dialog des angeklickten Budgets. Ohne
+ *   diesen Handler haben die Karten keinen Knopf zum Bearbeiten.
  * @param handleAddClick - Öffnet den Dialog für ein neues Budget. Ohne diesen
  *   Handler erscheint keine Karte zum Hinzufügen.
  */
 type BudgetCardGridProps = {
   budgetsWithProgress: BudgetWithProgress[];
   highlightedBudgetIds: Set<string>;
-  handleEditClick: (budgetId: string) => void;
+  handleEditClick?: (budgetId: string) => void;
   handleAddClick?: () => void;
 };
 

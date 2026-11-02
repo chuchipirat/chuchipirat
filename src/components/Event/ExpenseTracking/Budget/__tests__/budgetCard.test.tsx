@@ -185,3 +185,18 @@ describe("BudgetCard, Bearbeiten", () => {
     expect(handleEditClick).toHaveBeenCalledWith(budget.id);
   });
 });
+
+describe("BudgetCard, nur Ansicht", () => {
+  test("ohne Handler kein Knopf zum Bearbeiten", () => {
+    render(
+      <BudgetCard
+        budgetWithProgress={createBudgetWithProgress()}
+        isHighlighted={false}
+      />,
+    );
+
+    expect(
+      screen.queryByRole("button", {name: TEXT_EDIT_BUDGET}),
+    ).not.toBeInTheDocument();
+  });
+});

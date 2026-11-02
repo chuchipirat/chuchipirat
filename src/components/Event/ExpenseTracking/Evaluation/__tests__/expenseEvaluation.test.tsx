@@ -1159,3 +1159,24 @@ describe("ExpenseEvaluation, Ø pro Mahlzeit", () => {
     expect(getMealTile()).toHaveTextContent("8 Mahlzeiten");
   });
 });
+
+describe("ExpenseEvaluation, nur Ansicht", () => {
+  const twoBudgetExpenses = [
+    createExpense({id: "expense-a", budgetId: budget.id}),
+    createExpense({id: "expense-b", budgetId: budget2.id}),
+  ];
+
+  test("Standard: Budget-Filter sichtbar", () => {
+    renderEvaluation(twoBudgetExpenses);
+
+    expect(getBudgetFilterButton()).toBeInTheDocument();
+  });
+
+  test("readOnly: kein Budget-Filter", () => {
+    renderEvaluation(twoBudgetExpenses, {readOnly: true});
+
+    expect(
+      screen.queryByRole("button", {name: BUDGET_FILTER_BUTTON_NAME}),
+    ).not.toBeInTheDocument();
+  });
+});

@@ -36,7 +36,8 @@ import {BUDGET_ICON_MAP} from "./budgetIcons";
 interface BudgetCardProps {
   budgetWithProgress: BudgetWithProgress;
   isHighlighted: boolean;
-  handleEditClick: (budgetId: string) => void;
+  /** Ohne Handler kein Knopf zum Bearbeiten, z.B. in der Vorschau. */
+  handleEditClick?: (budgetId: string) => void;
 }
 
 /**
@@ -94,13 +95,15 @@ export const BudgetCard = ({
             {budgetWithProgress.budget.name}
           </Typography>
         </Box>
-        <IconButton
-          size="small"
-          aria-label={TEXT_EDIT_BUDGET}
-          onClick={() => handleEditClick(budgetWithProgress.budget.id)}
-        >
-          <EditOutlined fontSize="small" />
-        </IconButton>
+        {handleEditClick && (
+          <IconButton
+            size="small"
+            aria-label={TEXT_EDIT_BUDGET}
+            onClick={() => handleEditClick(budgetWithProgress.budget.id)}
+          >
+            <EditOutlined fontSize="small" />
+          </IconButton>
+        )}
       </Box>
 
       <Chip
