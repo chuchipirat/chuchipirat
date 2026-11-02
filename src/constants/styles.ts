@@ -637,6 +637,14 @@ const useCustomStyles = () => {
       animation: "remoteChangeGlow 2s ease-out",
     },
     /* ------------------------------------------
+    // Admin: Spenden
+    // ------------------------------------------ */
+    manualDonationToolbar: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginBottom: theme.spacing(2),
+    },
+    /* ------------------------------------------
     // ausgelagerte Styles
     // ------------------------------------------ */
     ...getExpenseTrackingStyles(theme),

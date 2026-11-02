@@ -167,3 +167,37 @@ export type DonationGoalStats = {
   donorCount: number;
   donationCount: number;
 };
+
+/* =====================================================================
+// Manuell erfasste Spenden
+// ===================================================================== */
+
+/**
+ * Zahlungsart einer von Admins erfassten Spende. Die Werte beginnen mit
+ * `manual_`, damit solche Spenden erkennbar bleiben; die Datenbank-Funktion
+ * `create_manual_donation` lässt nur diese zu.
+ */
+export enum ManualPaymentMethod {
+  bankTransfer = "manual_bank_transfer",
+  cash = "manual_cash",
+  test = "manual_test",
+}
+
+/**
+ * Eingaben für eine von Admins erfasste Spende.
+ *
+ * @param donorUid - Person, der die Spende gehört (sieht sie im Profil).
+ * @param eventId - Anlass der Person, `null` ohne Anlass.
+ * @param amountInCents - Betrag in Rappen, grösser als 0.
+ * @param paidAt - Datum der Zahlung.
+ * @param paymentMethod - Zahlungsart.
+ * @param donorMessage - Nachricht, leer für keine.
+ */
+export type ManualDonationInput = {
+  donorUid: string;
+  eventId: string | null;
+  amountInCents: number;
+  paidAt: Date;
+  paymentMethod: ManualPaymentMethod;
+  donorMessage: string;
+};

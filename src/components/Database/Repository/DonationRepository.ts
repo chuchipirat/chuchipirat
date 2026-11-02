@@ -17,6 +17,7 @@ import {
 } from "../../Shared/sessionStorageHandler.class";
 import {AuthUser} from "../../Session/authUser.class";
 import {
+  ManualDonationInput,
   DonationDomain,
   DonationRow,
   DonationStatus,
@@ -301,6 +302,41 @@ export class DonationRepository extends BaseRepository<DonationDomain, DonationR
       });
 
       if (error) throw error;
+    } catch (error) {
+      if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+        Sentry.captureException(error);
+      }
+      throw error;
+    }
+  }
+
+  /* =====================================================================
+  // Spende von Hand erfassen (RPC, nur Admins)
+  // ===================================================================== */
+
+  /**
+   * Erfasst eine Spende von Hand, z.B. eine Banküberweisung oder eine
+   * Testspende. Die Datenbank prüft, dass nur Admins das dürfen und dass die
+   * Person im Anlass kocht. Die Spende ist sofort bestätigt und bekommt eine
+   * Quittungsnummer; es geht keine Mail raus.
+   *
+   * @param input - Siehe {@link ManualDonationInput}.
+   * @returns ID der neuen Spende.
+   * @throws Den Fehler der Datenbank, z.B. bei fehlender Berechtigung.
+   */
+  async createManualDonation(input: ManualDonationInput): Promise<string> {
+    try {
+      const {data, error} = await this.client.rpc("create_manual_donation", {
+        p_donor_uid: input.donorUid,
+        p_event_id: input.eventId,
+        p_amount_in_cents: input.amountInCents,
+        p_paid_at: input.paidAt.toISOString(),
+        p_payment_method: input.paymentMethod,
+        p_donor_message: input.donorMessage.trim() || null,
+      });
+
+      if (error) throw error;
+      return data as string;
     } catch (error) {
       if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
         Sentry.captureException(error);
