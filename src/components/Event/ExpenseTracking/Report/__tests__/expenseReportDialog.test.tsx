@@ -763,3 +763,32 @@ describe("ExpenseReportDialog: Handy", () => {
     expect(document.querySelector(".MuiDialog-paperFullScreen")).toBeNull();
   });
 });
+
+describe("ExpenseReportDialog: Fortschritt", () => {
+  test("steht über den Knöpfen, nicht im scrollbaren Inhalt", () => {
+    let reportProgress: (progress: ReportProgress) => void = () => {};
+    const onCreate = jest.fn(
+      (
+        _options: ReportOptions,
+        _refund: ReportRefund | null,
+        onProgress: (progress: ReportProgress) => void,
+      ) =>
+        new Promise<void>(() => {
+          reportProgress = onProgress;
+        }),
+    );
+    render(<ExpenseReportDialog {...makeProps({onCreate})} />);
+    fireEvent.click(screen.getByRole("button", {name: "Erstellen"}));
+    act(() => reportProgress({stage: "loading", loaded: 7, total: 23}));
+
+    const status = screen.getByRole("status");
+    // Im scrollbaren Inhalt wäre er auf dem Handy unter den Kontoangaben
+    // verborgen
+    expect(status.closest(".MuiDialogContent-root")).toBeNull();
+    const actions = document.querySelector(".MuiDialogActions-root");
+    expect(
+      status.compareDocumentPosition(actions as Element) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+});

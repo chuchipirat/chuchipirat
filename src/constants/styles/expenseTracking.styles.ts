@@ -415,4 +415,9 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
   expenseReportDialogContent: {
     paddingTop: theme.spacing(1), // sonst schneidet DialogContent das Label des ersten Feldes ab
   },
+  expenseReportProgress: {
+    paddingLeft: theme.spacing(3),
+    paddingRight: theme.spacing(3),
+    paddingTop: theme.spacing(2),
+  },
 });

@@ -350,11 +350,14 @@ export const ExpenseReportDialog = ({
               saveOption={reportRefund.saveOption}
             />
           ) : null}
-          {progress !== null ? (
-            <ReportProgressIndicator progress={progress} />
-          ) : null}
         </Stack>
       </DialogContent>
+      {/* Ausserhalb des Inhalts, damit er auch auf dem Handy sichtbar bleibt */}
+      {progress !== null ? (
+        <Box sx={classes.expenseReportProgress}>
+          <ReportProgressIndicator progress={progress} />
+        </Box>
+      ) : null}
       <DialogActions>
         <Button onClick={onClose} disabled={isCreating}>
           {TEXT_CANCEL}
