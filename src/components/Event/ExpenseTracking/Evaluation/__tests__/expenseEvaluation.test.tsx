@@ -1180,3 +1180,13 @@ describe("ExpenseEvaluation, nur Ansicht", () => {
     ).not.toBeInTheDocument();
   });
 });
+
+describe("ExpenseEvaluation, Belege schon gelöscht", () => {
+  test("kein Hinweis auf fehlende Belege", () => {
+    renderEvaluation([createExpense({id: "chf-1"})], {
+      showMissingReceiptWarning: false,
+    });
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+});

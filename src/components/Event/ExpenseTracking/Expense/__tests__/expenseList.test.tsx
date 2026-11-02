@@ -365,3 +365,27 @@ describe("ExpenseList, Standard Funktionalität ", () => {
     expect(onEdit).toHaveBeenCalledWith("expense-id-002");
   });
 });
+
+describe("ExpenseList, Belege schon gelöscht", () => {
+  test("ohne Warnsymbol für fehlende Belege", () => {
+    render(
+      <ExpenseList
+        expenseGroups={[
+          {
+            budget,
+            expenses: [{...expenseChf, attachmentPath: null}],
+            totalsByCurrency: {},
+          },
+        ]}
+        handleEditClick={jest.fn()}
+        highlightedExpenseIds={new Set()}
+        handleOpenAttachment={jest.fn()}
+        showMissingReceiptWarning={false}
+      />,
+    );
+
+    expect(
+      screen.queryByTestId(`expense-receipt-missing-icon-${expenseChf.id}`),
+    ).not.toBeInTheDocument();
+  });
+});

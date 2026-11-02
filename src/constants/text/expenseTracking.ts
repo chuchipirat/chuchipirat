@@ -139,6 +139,12 @@ export const FORMER_EVENT_COOK = "Ehemalige Person";
 export const DROP_ATTACHMENT_HINT = "PDF oder Bild hierher ziehen";
 export const ATTACHMENT_RETENTION_HINT =
   "Wird 1 Jahr nach Anlassende automatisch gelöscht";
+/**
+ * Hinweis im Ausgaben-Dialog, wenn die Aufbewahrungsfrist schon vorbei ist:
+ * Ein neuer Beleg lässt sich noch für die Abrechnung nutzen.
+ */
+export const ATTACHMENT_DELETED_NEXT_NIGHT =
+  "Belege werden ein Jahr nach Anlassende gelöscht. Ein neuer Beleg wird deshalb in der nächsten Nacht gelöscht. Erstelle die Abrechnung vorher, wenn du ihn darin brauchst.";
 export const EXPENSE_RECEIPT = "Beleg";
 export const REMOVE_EXPENSE_RECEIPT = "Beleg löschen";
 export const UNDO_REMOVE_EXPENSE_RECEIPT = "Rückgängig";

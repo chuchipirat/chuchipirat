@@ -39,6 +39,8 @@ import {formatDisplayDate} from "../../../../utils/dateUtils";
  * @param handleEditClick - Callback bei Klick auf eine Zeile, liefert die ID
  *   der angeklickten Ausgabe.
  * @param handleOpenAttachment - Öffnet den Beleg einer Ausgabe.
+ * @param showMissingReceiptWarning - `false`, wenn die Belege nach Ablauf der
+ *   Frist gelöscht sind: dann fehlt das Warnsymbol bei Ausgaben ohne Beleg.
  */
 interface ExpenseListProps {
   expenseGroups: ExpenseGroup[];
@@ -46,6 +48,8 @@ interface ExpenseListProps {
   emptyText?: string;
   handleEditClick: (expenseId: string) => void;
   handleOpenAttachment: (attachmentPath: string) => void;
+  /** `false`, wenn die Belege nach Ablauf der Frist gelöscht sind. */
+  showMissingReceiptWarning?: boolean;
 }
 
 /**
@@ -64,6 +68,7 @@ export const ExpenseList = ({
   emptyText = TEXT_NO_EXPENSES_YET,
   handleEditClick,
   handleOpenAttachment,
+  showMissingReceiptWarning = true,
 }: ExpenseListProps) => {
   const classes = useCustomStyles();
   const groupsWithExpenses = expenseGroups.filter(
@@ -84,6 +89,7 @@ export const ExpenseList = ({
                 isHighlighted={highlightedExpenseIds.has(expense.id)}
                 handleClick={handleEditClick}
                 handleOpenAttachment={handleOpenAttachment}
+                showMissingReceiptWarning={showMissingReceiptWarning}
               />
             ))}
           </React.Fragment>
@@ -160,6 +166,8 @@ type ExpenseRowProps = {
   handleClick: (expenseId: string) => void;
   /** Öffnet den Beleg bei Klick auf das Belegsymbol. */
   handleOpenAttachment: (attachmentPath: string) => void;
+  /** Siehe {@link ExpenseListProps}. */
+  showMissingReceiptWarning: boolean;
 };
 
 /**
@@ -176,6 +184,7 @@ const ExpenseRow = ({
   isHighlighted,
   handleClick,
   handleOpenAttachment,
+  showMissingReceiptWarning,
 }: ExpenseRowProps) => {
   const classes = useCustomStyles();
 
@@ -227,7 +236,7 @@ const ExpenseRow = ({
               >
                 <ReceiptLongOutlined fontSize="small" />
               </IconButton>
-            ) : (
+            ) : showMissingReceiptWarning ? (
               <IconButton
                 size="small"
                 aria-label={TEXT_EXPENSE_RECEIPT_MISSING}
@@ -240,7 +249,7 @@ const ExpenseRow = ({
               >
                 <ReportProblemOutlined fontSize="small" />
               </IconButton>
-            )}
+            ) : null}
           </Box>
         }
       />

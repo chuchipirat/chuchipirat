@@ -85,6 +85,7 @@ import {BudgetDetailDialog} from "./Budget/budgetDetailDialog";
 import {Expense} from "./Expense/expense.class";
 import {useExpenseTrackingData} from "./useExpenseTrackingData";
 import {ExpenseOverview} from "./expenseOverview";
+import {getEventEnd, isReceiptRetentionOver} from "./receiptRetention";
 import {ExpenseTrackingPreview} from "./Preview/expenseTrackingPreview";
 import {EXPENSE_TRACKING_PREVIEW_DATA} from "./Preview/expenseTrackingPreview.data";
 import {useBudgetActions} from "./useBudgetActions";
@@ -231,6 +232,12 @@ const EventExpenseTrackingPage = ({
     dispatch,
     handleError,
   });
+  // Nach Ablauf der Frist sind Belege gelöscht; fehlende Belege sind dann
+  // keine Warnung mehr wert, weil unklar ist, ob es je einen gab
+  const receiptRetentionOver = isReceiptRetentionOver(
+    getEventEnd(event.dates),
+    new Date(),
+  );
   const hasExpenses = (state.expenses?.length ?? 0) > 0;
   const hasReceipts =
     state.expenses?.some((expense) => expense.attachmentPath !== null) ?? false;
@@ -608,6 +615,7 @@ const EventExpenseTrackingPage = ({
                   }
                   handleEditClick={handleEditExpense}
                   handleOpenAttachment={handleOpenAttachmentFromList}
+                  showMissingReceiptWarning={!receiptRetentionOver}
                 />
               </>
             ) : (
@@ -619,6 +627,7 @@ const EventExpenseTrackingPage = ({
                 eventDays={eventDays}
                 handleEditClick={handleEditExpense}
                 handleShowMissingReceipts={handleShowMissingReceipts}
+                showMissingReceiptWarning={!receiptRetentionOver}
                 today={new Date()}
                 menuplan={menuplan}
               />
@@ -655,6 +664,7 @@ const EventExpenseTrackingPage = ({
           })
         }
         handleOpenAttachment={handleOpenAttachmentFromDialog}
+        isReceiptRetentionOver={receiptRetentionOver}
       />
       <Dialog open={receiptFallback.open} onClose={closeReceiptFallback}>
         <DialogContent>
@@ -687,6 +697,7 @@ const EventExpenseTrackingPage = ({
         )}
         onCreate={handleCreateReport}
         onClose={handleCloseReportDialog}
+        showMissingReceiptWarning={!receiptRetentionOver}
       />
       <ExportProgressDialog progress={zipProgress} />
 

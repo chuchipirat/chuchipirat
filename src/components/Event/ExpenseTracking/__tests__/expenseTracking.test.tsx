@@ -396,6 +396,43 @@ describe("EventExpenseTrackingPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  test("Anlass vor über einem Jahr: keine Warnung zu fehlenden Belegen", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "old-expense",
+        budgetId: kitchenBudget.id,
+        label: "Alter Einkauf",
+        attachmentPath: null,
+      },
+    ]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+
+    renderEventExpenseTrackingPage({
+      event: {
+        ...mockEvent,
+        dates: [
+          {
+            uid: "date-old",
+            pos: 1,
+            from: new Date(2020, 5, 15),
+            to: new Date(2020, 5, 20),
+          },
+        ],
+      },
+    });
+
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    expect(await screen.findByText("Alter Einkauf")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-receipt-missing-icon-old-expense"),
+    ).not.toBeInTheDocument();
+  });
+
   test("gesperrte Ansicht: Helpcenter-Link zeigt auf die richtige Seite", async () => {
     mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
 

@@ -30,6 +30,7 @@ import {
   FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
   DROP_ATTACHMENT_HINT as TEXT_DROP_ATTACHMENT_HINT,
   ATTACHMENT_RETENTION_HINT as TEXT_ATTACHMENT_RETENTION_HINT,
+  ATTACHMENT_DELETED_NEXT_NIGHT as TEXT_ATTACHMENT_DELETED_NEXT_NIGHT,
   EXPENSE_RECEIPT as TEXT_EXPENSE_RECEIPT,
   REMOVE_EXPENSE_RECEIPT as TEXT_REMOVE_EXPENSE_RECEIPT,
   ATTACHMENT_INVALID_TYPE as TEXT_ATTACHMENT_INVALID_TYPE,
@@ -99,6 +100,10 @@ import {
  * @param onCreate - Wird beim Speichern einer neuen Ausgabe aufgerufen.
  * @param onEdit - Wird beim Speichern einer bestehenden Ausgabe aufgerufen.
  * @param onDelete - Wird beim Klick auf «Löschen» aufgerufen (nur im Bearbeiten-Modus).
+ * @param handleOpenAttachment - Öffnet den bestehenden Beleg; liefert einen
+ *   Link, wenn der Browser den neuen Tab blockiert.
+ * @param isReceiptRetentionOver - Frist vorbei: Der Dialog weist darauf hin,
+ *   dass ein neuer Beleg in der nächsten Nacht gelöscht wird.
  */
 interface ExpenseDetailDialogProps {
   open: boolean;
@@ -111,6 +116,8 @@ interface ExpenseDetailDialogProps {
   onEdit: (expenseId: string, expense: ExpenseDetailDialogState) => void;
   onDelete: (expense: ExpenseDomain) => void;
   handleOpenAttachment?: (attachmentPath: string) => Promise<string | null>;
+  /** Frist vorbei: Ein neuer Beleg wird in der nächsten Nacht gelöscht. */
+  isReceiptRetentionOver?: boolean;
 }
 
 /**
@@ -183,6 +190,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
   onEdit,
   onDelete,
   handleOpenAttachment,
+  isReceiptRetentionOver = false,
 }) => {
   const preselectedBudgetId =
     budgets.length === 1 ? budgets[0].id : (defaultBudgetId ?? "");
@@ -244,11 +252,19 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
    *
    * @param attachmentPath - Beleg-Pfad der Ausgabe.
    */
+  // Ist die Frist vorbei, löscht der Job einen neuen Beleg in der Nacht; er
+  // lässt sich aber noch für die Abrechnung nutzen
+  const retentionHint = isReceiptRetentionOver
+    ? TEXT_ATTACHMENT_DELETED_NEXT_NIGHT
+    : TEXT_ATTACHMENT_RETENTION_HINT;
+
   const handleOpenReceipt = async (attachmentPath: string) => {
     setAttachmentError(null);
     setReceiptFallbackUrl(null);
     try {
-      setReceiptFallbackUrl((await handleOpenAttachment?.(attachmentPath)) ?? null);
+      setReceiptFallbackUrl(
+        (await handleOpenAttachment?.(attachmentPath)) ?? null,
+      );
     } catch {
       setAttachmentError(TEXT_EXPENSE_RECEIPT_OPEN_FAILED);
     }
@@ -656,7 +672,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
               <CloudUploadOutlined />
               <Typography>{TEXT_DROP_ATTACHMENT_HINT}</Typography>
               <Typography variant="caption" color="text.secondary">
-                {TEXT_ATTACHMENT_RETENTION_HINT}
+                {retentionHint}
               </Typography>
               <input
                 type="file"
@@ -671,7 +687,7 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
 
           {currentFilename && !formState.removeAttachment && (
             <Typography variant="caption" color="text.secondary">
-              {TEXT_ATTACHMENT_RETENTION_HINT}
+              {retentionHint}
             </Typography>
           )}
 

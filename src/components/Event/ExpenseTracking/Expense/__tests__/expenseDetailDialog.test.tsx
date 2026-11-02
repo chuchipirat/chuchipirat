@@ -1,4 +1,10 @@
-import {fireEvent, render, screen, waitFor, within} from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {ExpenseDetailDialog} from "../expenseDetailDialog";
 import {BudgetDomain} from "../../Budget/budget.types";
@@ -17,6 +23,8 @@ import {
   ATTACHMENT_INVALID_TYPE as TEXT_ATTACHMENT_INVALID_TYPE,
   ATTACHMENT_TOO_LARGE as TEXT_ATTACHMENT_TOO_LARGE,
   EXPENSE_RECEIPT_OPEN_FAILED as TEXT_EXPENSE_RECEIPT_OPEN_FAILED,
+  ATTACHMENT_DELETED_NEXT_NIGHT as TEXT_ATTACHMENT_DELETED_NEXT_NIGHT,
+  ATTACHMENT_RETENTION_HINT as TEXT_ATTACHMENT_RETENTION_HINT,
   EXPENSE_RECEIPT_OPEN_LINK as TEXT_EXPENSE_RECEIPT_OPEN_LINK,
   EXPENSE_RECEIPT_TAB_BLOCKED as TEXT_EXPENSE_RECEIPT_TAB_BLOCKED,
 } from "../../../../../constants/text";
@@ -545,7 +553,9 @@ describe("Ausgaben-Beleg", () => {
     expect(link).toHaveAttribute("href", signedUrl);
     expect(link).toHaveAttribute("target", "_blank");
     expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    expect(screen.getByText(TEXT_EXPENSE_RECEIPT_TAB_BLOCKED)).toBeInTheDocument();
+    expect(
+      screen.getByText(TEXT_EXPENSE_RECEIPT_TAB_BLOCKED),
+    ).toBeInTheDocument();
   });
 
   test("Tab geöffnet: zeigt weder Link noch Fehler", async () => {
@@ -873,5 +883,45 @@ describe("Ausgaben-Beleg", () => {
         attachmentFile: expect.objectContaining({name: "beleg.pdf"}),
       }),
     );
+  });
+});
+
+describe("Aufbewahrungsfrist vorbei", () => {
+  const renderWithRetention = (isReceiptRetentionOver: boolean) =>
+    render(
+      <ExpenseDetailDialog
+        open
+        expense={null}
+        budgets={budgets}
+        defaultBudgetId={null}
+        cooks={cooks}
+        onClose={jest.fn()}
+        onCreate={jest.fn()}
+        onEdit={jest.fn()}
+        onDelete={jest.fn()}
+        isReceiptRetentionOver={isReceiptRetentionOver}
+      />,
+    );
+
+  test("Hinweis: neuer Beleg wird in der nächsten Nacht gelöscht", () => {
+    renderWithRetention(true);
+
+    expect(
+      screen.getByText(TEXT_ATTACHMENT_DELETED_NEXT_NIGHT),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_ATTACHMENT_RETENTION_HINT),
+    ).not.toBeInTheDocument();
+  });
+
+  test("innerhalb der Frist: der gewohnte Hinweis", () => {
+    renderWithRetention(false);
+
+    expect(
+      screen.getByText(TEXT_ATTACHMENT_RETENTION_HINT),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_ATTACHMENT_DELETED_NEXT_NIGHT),
+    ).not.toBeInTheDocument();
   });
 });

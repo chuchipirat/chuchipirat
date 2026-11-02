@@ -53,6 +53,8 @@ import {formatLocalDate, parseLocalDate} from "../../../../utils/dateUtils";
  * @param handleShowMissingReceipts - Wechselt in die Ausgabenliste und zeigt
  *   dort nur Ausgaben ohne Beleg («Anzeigen» im Beleg-Hinweis).
  * @param readOnly - Nur Ansicht, z.B. in der Vorschau: ohne Budget-Filter.
+ * @param showMissingReceiptWarning - `false`, wenn die Belege nach Ablauf der
+ *   Frist gelöscht sind: dann fehlt der Hinweis auf Ausgaben ohne Beleg.
  */
 type ExpenseEvaluationProps = {
   eventId: string;
@@ -66,6 +68,8 @@ type ExpenseEvaluationProps = {
   handleShowMissingReceipts: () => void;
   /** Nur Ansicht, z.B. in der Vorschau: ohne Budget-Filter. */
   readOnly?: boolean;
+  /** `false`, wenn die Belege nach Ablauf der Frist gelöscht sind. */
+  showMissingReceiptWarning?: boolean;
 };
 /**
  * Ansicht «Auswertung» der Abrechnungsseite: Kennzahlen über die Ausgaben
@@ -108,6 +112,7 @@ export const ExpenseEvaluation = ({
   handleEditClick,
   handleShowMissingReceipts,
   readOnly = false,
+  showMissingReceiptWarning = true,
 }: ExpenseEvaluationProps) => {
   const classes = useCustomStyles();
 
@@ -272,7 +277,7 @@ export const ExpenseEvaluation = ({
 
   return (
     <Box data-testid="expense-tracking-evaluation">
-      {missingReceiptCount > 0 && (
+      {showMissingReceiptWarning && missingReceiptCount > 0 && (
         <Alert
           severity="warning"
           sx={classes.evaluationMissingReceiptsAlert}

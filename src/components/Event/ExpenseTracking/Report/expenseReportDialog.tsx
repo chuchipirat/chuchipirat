@@ -121,6 +121,8 @@ const getDefaultPayeeValue = (
  *   `refund`: Angaben der gewählten Person; bei «Alle Personen» die eigenen;
  *   `null` ohne Formular (keine eigenen Ausgaben bei «Alle Personen»).
  * @param onClose - Schliesst den Dialog (Abbrechen, Klick daneben).
+ * @param showMissingReceiptWarning - `false`, wenn die Belege nach Ablauf der
+ *   Frist gelöscht sind: Der Schalter für Leerseiten bleibt, die Anzahl fehlt.
  */
 type ExpenseReportDialogProps = {
   open: boolean;
@@ -135,6 +137,7 @@ type ExpenseReportDialogProps = {
     onProgress: (progress: ReportProgress) => void,
   ) => Promise<void>;
   onClose: () => void;
+  showMissingReceiptWarning?: boolean;
 };
 
 /**
@@ -170,6 +173,7 @@ export const ExpenseReportDialog = ({
   ownAccountHolderName,
   onCreate,
   onClose,
+  showMissingReceiptWarning = true,
 }: ExpenseReportDialogProps) => {
   const theme = useTheme();
   // Auf dem Handy als Vollbild wie die Dialoge für Budget und Ausgabe
@@ -332,9 +336,11 @@ export const ExpenseReportDialog = ({
                   <Typography variant="body1">
                     {TEXT_REPORT_INCLUDE_MISSING_RECEIPT_PAGES}
                   </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    {TEXT_REPORT_MISSING_RECEIPTS_COUNT(missingReceiptCount)}
-                  </Typography>
+                  {showMissingReceiptWarning && (
+                    <Typography variant="body2" color="text.secondary">
+                      {TEXT_REPORT_MISSING_RECEIPTS_COUNT(missingReceiptCount)}
+                    </Typography>
+                  )}
                 </Box>
               }
             />

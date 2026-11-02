@@ -792,3 +792,20 @@ describe("ExpenseReportDialog: Fortschritt", () => {
     ).toBeTruthy();
   });
 });
+
+describe("ExpenseReportDialog, Belege schon gelöscht", () => {
+  test("Schalter für Leerseiten bleibt, ohne Anzahl fehlender Belege", () => {
+    render(
+      <ExpenseReportDialog
+        {...makeProps({showMissingReceiptWarning: false})}
+      />,
+    );
+
+    expect(queryMissingReceiptPagesSwitch()).toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        "1 Ausgabe ohne Beleg, zum Aufkleben von Papierquittungen",
+      ),
+    ).not.toBeInTheDocument();
+  });
+});
