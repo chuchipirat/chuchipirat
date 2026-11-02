@@ -14,6 +14,7 @@ import {BudgetDomain} from "../Budget/budget.types";
 import {EVALUATION_TOP_EXPENSES as TEXT_EVALUATION_TOP_EXPENSES} from "../../../../constants/text";
 import {useCustomStyles} from "../../../../constants/styles";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import {formatDisplayDate} from "../../../../utils/dateUtils";
 import {BUDGET_ICON_MAP} from "../Budget/budgetIcons";
 
 /**
@@ -57,11 +58,7 @@ export const TopExpensesTile = ({
           const BudgetIconComponent = budget
             ? BUDGET_ICON_MAP[budget.icon]
             : null;
-          const formattedDate = expense.date.toLocaleString("de-CH", {
-            year: "numeric",
-            month: "2-digit",
-            day: "2-digit",
-          });
+          const formattedDate = formatDisplayDate(expense.date);
 
           return (
             <ListItemButton

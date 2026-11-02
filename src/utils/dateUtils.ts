@@ -47,3 +47,19 @@ export function formatLocalDate(date: Date): string {
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
 }
+
+/**
+ * Datum für die Anzeige im Schweizer Format, ohne Uhrzeit.
+ *
+ * @param date - Das anzuzeigende Datum.
+ * @returns z.B. «09.07.2026».
+ * @example
+ * formatDisplayDate(new Date(2026, 6, 9)) // "09.07.2026"
+ */
+export function formatDisplayDate(date: Date): string {
+  return date.toLocaleDateString("de-CH", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+}

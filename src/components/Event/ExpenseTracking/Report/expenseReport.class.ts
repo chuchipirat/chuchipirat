@@ -19,6 +19,7 @@ import {
 } from "./expenseReport.types";
 
 import {REPORT_UNKNOWN_BUDGET as TEXT_REPORT_UNKNOWN_BUDGET} from "../../../../constants/text";
+import {DEFAULT_CURRENCY} from "../../../Shared/utils/currencyUtils";
 import {Expense} from "../Expense/expense.class";
 
 /**
@@ -430,8 +431,9 @@ export class ExpenseReport {
 
     return currencyTotal.sort(
       (totalA, totalB) =>
-        // CHF zuerst, danach alphabetisch
-        Number(totalB.currency === "CHF") - Number(totalA.currency === "CHF") ||
+        // Standardwährung zuerst, danach alphabetisch
+        Number(totalB.currency === DEFAULT_CURRENCY) -
+          Number(totalA.currency === DEFAULT_CURRENCY) ||
         totalA.currency.localeCompare(totalB.currency),
     );
   }

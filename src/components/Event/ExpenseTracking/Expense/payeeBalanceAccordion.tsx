@@ -21,6 +21,7 @@ import {
 } from "../../../../constants/text";
 import {Box} from "@mui/system";
 import {useCustomStyles} from "../../../../constants/styles";
+import {formatDisplayDate} from "../../../../utils/dateUtils";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
 
 /**
@@ -61,11 +62,7 @@ export const PayeeBalanceAccordion = ({
     .sort((a, b) => a.displayName.localeCompare(b.displayName, "de"));
 
   const formattedDate = (expense: ExpenseDomain) => {
-    return expense.date.toLocaleString("de-CH", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-    });
+    return formatDisplayDate(expense.date);
   };
 
   const secondaryText = (expense: ExpenseDomain) => {

@@ -14,6 +14,7 @@ import {
   ReportReceipt,
 } from "./expenseReport.types";
 import {ReceiptMeta} from "./expenseReportPdfHelpers";
+import {formatDisplayDate} from "../../../../utils/dateUtils";
 
 /**
  * Beschriftung und Erklärung eines Modus.
@@ -77,12 +78,7 @@ export const getReportFileName = (
  * @param date - Datum der Ausgabe.
  * @returns z.B. «09.07.2026».
  */
-export const formatReportDate = (date: Date): string =>
-  date.toLocaleDateString("de-CH", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
+export const formatReportDate = (date: Date): string => formatDisplayDate(date);
 
 /**
  * Linke Spalte im Footer der Abrechnungsseiten (Story 7.5).

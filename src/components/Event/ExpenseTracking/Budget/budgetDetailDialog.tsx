@@ -41,6 +41,7 @@ import {BUDGET_ICON_MAP} from "./budgetIcons";
 import {useCustomStyles} from "../../../../constants/styles";
 import {
   AVAILABLE_CURRENCIES,
+  DEFAULT_CURRENCY,
   parseAmountToCents,
 } from "../../../Shared/utils/currencyUtils";
 
@@ -69,7 +70,7 @@ const INITIAL_FORM_STATE: BudgetDetailDialogState = {
   name: "",
   budgetType: BudgetType.FIXED_AMOUNT,
   amount: "",
-  currency: "CHF",
+  currency: DEFAULT_CURRENCY,
   icon: null,
 };
 

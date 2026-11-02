@@ -22,6 +22,7 @@ import {
   EXPENSE_RECEIPT_MISSING as TEXT_EXPENSE_RECEIPT_MISSING,
 } from "../../../../constants/text/expenseTracking";
 import {ReceiptLongOutlined, ReportProblemOutlined} from "@mui/icons-material";
+import {formatDisplayDate} from "../../../../utils/dateUtils";
 
 /**
  * Props für {@link ExpenseList}.
@@ -178,11 +179,7 @@ const ExpenseRow = ({
 }: ExpenseRowProps) => {
   const classes = useCustomStyles();
 
-  const formattedDate = expense.date.toLocaleString("de-CH", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  const formattedDate = formatDisplayDate(expense.date);
   const secondaryText = expense.comment
     ? `${formattedDate} · ${expense.comment}`
     : formattedDate;
