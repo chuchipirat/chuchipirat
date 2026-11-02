@@ -214,6 +214,20 @@ describe("isJwtExpiredError", () => {
     expect(isJwtExpiredError(new Error("JWT expired"))).toBe(true);
   });
 
+  // Genau die Form aus CHUCHIPIRAT-J2 und -H4: erster Aufruf nach dem
+  // Auffrischen des Tokens, der nächste klappt
+  test("erkennt «JWT issued at future» als selbstheilend", () => {
+    expect(
+      isJwtExpiredError({
+        code: "PGRST303",
+        details: null,
+        hint: null,
+        message: "JWT issued at future",
+      }),
+    ).toBe(true);
+    expect(isMissingSessionError(new Error("JWT issued at future"))).toBe(true);
+  });
+
   test("liefert false für andere Postgres-/Auth-Fehler", () => {
     expect(
       isJwtExpiredError({code: "42501", message: "row-level security"}),

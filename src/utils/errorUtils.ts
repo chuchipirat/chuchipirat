@@ -108,11 +108,15 @@ export function isRlsViolationError(error: unknown): boolean {
 }
 
 /**
- * Erkennt einen abgelaufenen Supabase-JWT (`PGRST301` / "JWT expired").
+ * Erkennt einen abgelaufenen Supabase-JWT (`PGRST301` / "JWT expired") oder
+ * einen, der laut PostgREST «in der Zukunft» ausgestellt wurde
+ * ("JWT issued at future").
  *
  * Tritt auf, wenn ein API-Aufruf mit einem bereits abgelaufenen Access-Token
  * ausgeführt wird — z.B. nach längerer Inaktivität (Laptop im Standby, Tab im
  * Hintergrund) kurz bevor der `auth-js`-Client automatisch neu auffrischt.
+ * «Issued at future» trifft den ersten Aufruf direkt nach dem Auffrischen beim
+ * Seitenaufruf; die Serverzeit ist synchron, der nächste Aufruf klappt.
  * Erwartetes, selbstheilendes Verhalten (der nächste Aufruf nutzt ein
  * aufgefrischtes Token) — kein Code-Bug, daher kein Sentry-Report.
  *
@@ -121,7 +125,7 @@ export function isRlsViolationError(error: unknown): boolean {
  */
 export function isJwtExpiredError(error: unknown): boolean {
   if (isRecordLike(error) && error.code === "PGRST301") return true;
-  return /jwt expired/i.test(extractErrorText(error));
+  return /jwt expired|jwt issued at future/i.test(extractErrorText(error));
 }
 
 /**
