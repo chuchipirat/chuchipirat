@@ -17,9 +17,11 @@ import {BudgetDomain, BudgetIcon, BudgetType} from "../../Budget/budget.types";
 import {Cook} from "../../../Event/event.class";
 import {
   FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
+} from "../../../../../constants/text/expenseTracking";
+import {
   REPORT_NO_REFUND_GROUP as TEXT_REPORT_NO_REFUND_GROUP,
   REPORT_UNKNOWN_BUDGET as TEXT_REPORT_UNKNOWN_BUDGET,
-} from "../../../../../constants/text/expenseTracking";
+} from "../../../../../constants/text/expenseTrackingReport";
 
 /* =====================================================================
 // Fixture

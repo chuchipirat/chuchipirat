@@ -25,3 +25,4 @@ export * from "./mappings";
 export * from "./errors";
 export * from "./donations";
 export * from "./expenseTracking";
+export * from "./expenseTrackingReport";

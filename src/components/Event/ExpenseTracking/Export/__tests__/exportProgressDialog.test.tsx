@@ -7,7 +7,9 @@ import {render, screen, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import {ExportProgressDialog} from "../exportProgressDialog";
-import {EXPORT_ZIP_PROGRESS_TITLE as TEXT_EXPORT_ZIP_PROGRESS_TITLE} from "../../../../../constants/text/expenseTracking";
+import {
+  EXPORT_ZIP_PROGRESS_TITLE as TEXT_EXPORT_ZIP_PROGRESS_TITLE,
+} from "../../../../../constants/text/expenseTrackingReport";
 
 describe("ExportProgressDialog", () => {
   test("ohne Fortschritt kein Dialog", () => {

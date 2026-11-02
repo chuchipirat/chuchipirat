@@ -72,8 +72,8 @@ export const BudgetFilter = ({
         aria-expanded={Boolean(anchorElement)}
         aria-label={TEXT_EVALUATION_BUDGET_FILTER_ARIA_LABEL(selectionLabel)}
         sx={[
-          classes.statisticsFilterButton,
-          isFilterActive && classes.statisticsFilterButtonActive,
+          classes.evaluationFilterButton,
+          isFilterActive && classes.evaluationFilterButtonActive,
         ]}
       >
         <Typography component="span" variant="inherit" noWrap>
@@ -85,7 +85,7 @@ export const BudgetFilter = ({
         anchorEl={anchorElement}
         open={Boolean(anchorElement)}
         onClose={() => setAnchorElement(null)}
-        slotProps={{paper: {sx: classes.statisticsFilterMenuPaper}}}
+        slotProps={{paper: {sx: classes.evaluationFilterMenuPaper}}}
       >
         <MenuItem onClick={onSelectAllBudgets} disabled={!isFilterActive}>
           <ListItemText>{TEXT_EVALUATION_BUDGET_FILTER_ALL}</ListItemText>

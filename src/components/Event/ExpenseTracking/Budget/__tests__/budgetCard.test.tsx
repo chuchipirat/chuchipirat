@@ -15,7 +15,7 @@ import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 import {
   EDIT_BUDGET as TEXT_EDIT_BUDGET,
   PROJECTION_TILL_EVENT_END as TEXT_PROJECTION_TILL_EVENT_END,
-  DAY_X_OF_Y_IN_EVENT as TEXT_DAY_X_OF_Y_IN_EVENT,
+  PROJECTION_DAY_X_OF_Y as TEXT_PROJECTION_DAY_X_OF_Y,
   PROJECTION_ABOVE_BUDGET as TEXT_PROJECTION_ABOVE_BUDGET,
 } from "../../../../../constants/text/expenseTracking";
 
@@ -105,7 +105,7 @@ describe("BudgetCard, Hochrechnung", () => {
       screen.getByText(TEXT_PROJECTION_TILL_EVENT_END, {exact: false}),
     ).toHaveTextContent(expectedAmount(70000, "CHF"));
     expect(
-      screen.getByText(TEXT_DAY_X_OF_Y_IN_EVENT(3, 7)),
+      screen.getByText(TEXT_PROJECTION_DAY_X_OF_Y(3, 7)),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(TEXT_PROJECTION_ABOVE_BUDGET),

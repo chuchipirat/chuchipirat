@@ -18,9 +18,11 @@ import {
   PLEASE_PROVIDE_CURRENCY as TEXT_PLEASE_PROVIDE_CURRENCY,
   PLEASE_PROVIDE_PAYEE as TEXT_PLEASE_PROVIDE_PAYEE,
   PLEASE_PROVIDE_PAYEE_NAME as TEXT_PLEASE_PROVIDE_PAYEE_NAME,
-  REPORT_NO_REFUND_GROUP as TEXT_REPORT_NO_REFUND_GROUP,
   FORMER_EVENT_COOK as TEXT_FORMER_EVENT_COOK,
 } from "../../../../constants/text/expenseTracking";
+import {
+  REPORT_NO_REFUND_GROUP as TEXT_REPORT_NO_REFUND_GROUP,
+} from "../../../../constants/text/expenseTrackingReport";
 import {BudgetDomain} from "../Budget/budget.types";
 import {Cook} from "../../Event/event.class";
 

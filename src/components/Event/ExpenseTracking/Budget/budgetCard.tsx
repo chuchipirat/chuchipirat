@@ -17,7 +17,7 @@ import {
   SPENT_AMOUNT as TEXT_SPENT_AMOUNT,
   OF_LIMIT as TEXT_OF_LIMIT,
   PROJECTION_TILL_EVENT_END as TEXT_PROJECTION_TILL_EVENT_END,
-  DAY_X_OF_Y_IN_EVENT as TEXT_DAY_X_OF_Y_IN_EVENT,
+  PROJECTION_DAY_X_OF_Y as TEXT_PROJECTION_DAY_X_OF_Y,
   PROJECTION_ABOVE_BUDGET as TEXT_PROJECTION_ABOVE_BUDGET,
 } from "../../../../constants/text/expenseTracking";
 import {
@@ -200,7 +200,7 @@ export const BudgetCard = ({
             </Typography>
           )}
           <Typography variant="caption" color="text.secondary" component="p">
-            {TEXT_DAY_X_OF_Y_IN_EVENT(
+            {TEXT_PROJECTION_DAY_X_OF_Y(
               budgetWithProgress.projection.elapsedEventDays,
               budgetWithProgress.projection.totalEventDays,
             )}

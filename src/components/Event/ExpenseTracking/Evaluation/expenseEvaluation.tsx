@@ -14,7 +14,7 @@ import {BudgetFilter} from "./budgetFilter";
 import {getStatisticsScopeNote} from "./evaluationLabels";
 import {
   SHOW as TEXT_SHOW,
-  NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
+  EVALUATION_NO_EXPENSES as TEXT_EVALUATION_NO_EXPENSES,
   EVALUATION_TOTAL as TEXT_EVALUATION_TOTAL,
   EVALUATION_EXPENSE_COUNT as TEXT_EVALUATION_EXPENSE_COUNT,
   EVALUATION_AVERAGE_PER_PARTICIPANT as TEXT_EVALUATION_AVERAGE_PER_PARTICIPANT,
@@ -261,7 +261,7 @@ export const ExpenseEvaluation = ({
   if (expenses.length === 0) {
     return (
       <Typography sx={classes.centerCenter} color="text.secondary">
-        {TEXT_NO_EXPENSES_FOR_STATS}
+        {TEXT_EVALUATION_NO_EXPENSES}
       </Typography>
     );
   }
@@ -271,7 +271,7 @@ export const ExpenseEvaluation = ({
       {missingReceiptCount > 0 && (
         <Alert
           severity="warning"
-          sx={classes.statisticsMissingReceiptsAlert}
+          sx={classes.evaluationMissingReceiptsAlert}
           action={
             <Button
               color="inherit"
@@ -289,7 +289,7 @@ export const ExpenseEvaluation = ({
       <Typography variant="subtitle2" color="text.secondary" component="h2">
         {TEXT_EVALUATION_KEYFIGURES}
       </Typography>
-      <Box sx={classes.statisticsFilterBar}>
+      <Box sx={classes.evaluationFilterBar}>
         {budgets.length > 1 && (
           <BudgetFilter
             budgets={budgets}
@@ -302,7 +302,7 @@ export const ExpenseEvaluation = ({
           <Box
             role="group"
             aria-label={TEXT_EVALUATION_CURRENCY_FILTER_ARIA_LABEL}
-            sx={classes.statisticsCurrencyChips}
+            sx={classes.evaluationCurrencyChips}
           >
             {currencies.map((currency) => {
               const isSelected = currency === selectedCurrency;
@@ -317,7 +317,7 @@ export const ExpenseEvaluation = ({
                   aria-pressed={isSelected}
                   sx={
                     isSelected
-                      ? classes.statisticsCurrencyChipSelected
+                      ? classes.evaluationCurrencyChipSelected
                       : undefined
                   }
                 />
@@ -327,7 +327,7 @@ export const ExpenseEvaluation = ({
         )}
       </Box>
 
-      <Box sx={classes.statisticsScopeNote} aria-live="polite">
+      <Box sx={classes.evaluationScopeNote} aria-live="polite">
         {scopeNote && (
           <Typography variant="caption" color="text.secondary">
             {scopeNote}

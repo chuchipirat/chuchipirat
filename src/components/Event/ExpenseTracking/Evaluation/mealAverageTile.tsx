@@ -116,7 +116,7 @@ export const MealAverageTile = ({
               // der letzte ausgewählte Typ bleibt, sonst gäbe es nichts zu rechnen
               disabled={isSelected && selectedCount === 1}
               sx={
-                isSelected ? classes.statisticsCurrencyChipSelected : undefined
+                isSelected ? classes.evaluationCurrencyChipSelected : undefined
               }
             />
           );

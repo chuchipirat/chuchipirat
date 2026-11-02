@@ -9,6 +9,35 @@ import {alpha} from "@mui/system/colorManipulator";
  * @returns Style-Objekte für die `sx`-Prop.
  */
 export const getExpenseTrackingStyles = (theme: Theme) => ({
+  /* ------------------------------------------
+  // Seite und Toolbar
+  // ------------------------------------------ */
+  expenseTrackingToolbar: {
+    display: "flex",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: theme.spacing(1.5),
+    marginBottom: theme.spacing(2),
+  },
+  expenseToolbarToggleGroup: {
+    display: "flex",
+    width: "100%",
+    "& .MuiToggleButton-root": {flex: 1},
+    [theme.breakpoints.up("sm")]: {
+      display: "inline-flex",
+      width: "auto",
+      "& .MuiToggleButton-root": {flex: "none"},
+    },
+  },
+  expenseToolbarAction: {
+    width: "100%",
+    [theme.breakpoints.up("sm")]: {width: "auto"},
+  },
+
+  /* ------------------------------------------
+  // Budget-Karte inkl. Hochrechnung
+  // ------------------------------------------ */
   budgetCard: {
     position: "relative",
     height: "100%",
@@ -66,6 +95,20 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     paddingTop: theme.spacing(0.75),
     borderTop: `1px solid ${theme.palette.divider}`,
   },
+  budgetProjection: {
+    marginTop: theme.spacing(0.75),
+    paddingTop: theme.spacing(0.75),
+    borderTop: `1px solid ${theme.palette.divider}`, // gleiche Trennlinie wie Fremdwährungszeilen
+  },
+  budgetProjectionRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: theme.spacing(0.5),
+  },
+  budgetProjectionWarning: {
+    color: theme.palette.warning.main,
+    fontWeight: 500,
+  },
   budgetCardAddNew: {
     display: "flex",
     flexDirection: "column",
@@ -80,28 +123,10 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     color: theme.palette.text.secondary,
     cursor: "pointer",
   },
-  expenseTrackingToolbar: {
-    display: "flex",
-    flexWrap: "wrap",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: theme.spacing(1.5),
-    marginBottom: theme.spacing(2),
-  },
-  expenseToolbarToggleGroup: {
-    display: "flex",
-    width: "100%",
-    "& .MuiToggleButton-root": {flex: 1},
-    [theme.breakpoints.up("sm")]: {
-      display: "inline-flex",
-      width: "auto",
-      "& .MuiToggleButton-root": {flex: "none"},
-    },
-  },
-  expenseToolbarAction: {
-    width: "100%",
-    [theme.breakpoints.up("sm")]: {width: "auto"},
-  },
+
+  /* ------------------------------------------
+  // Budget-Dialog
+  // ------------------------------------------ */
   budgetFormAmountRow: {
     display: "flex",
     gap: theme.spacing(2),
@@ -137,6 +162,18 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     alignItems: "center",
     justifyContent: "center",
     color: theme.palette.primary.main,
+  },
+
+  /* ------------------------------------------
+  // Ausgabenliste
+  // ------------------------------------------ */
+  expenseListFilterChip: {
+    marginBottom: theme.spacing(1),
+  },
+  noExpensesHint: {
+    textAlign: "center",
+    color: theme.palette.text.secondary,
+    padding: theme.spacing(4, 2),
   },
   expenseGroupHeader: {
     display: "flex",
@@ -179,24 +216,20 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     flex: 1,
     minWidth: 0, // ohne das schrumpft ein Flex-Kind mit noWrap nicht unter seine Textbreite
   },
+  expenseRowAmount: {
+    flexShrink: 0,
+    fontWeight: 500,
+  },
   expenseReceiptIconPresent: {
     color: theme.palette.text.secondary,
   },
   expenseReceiptIconMissing: {
     color: theme.palette.warning.main,
   },
-  expenseRowAmount: {
-    flexShrink: 0,
-    fontWeight: 500,
-  },
-  expenseListFilterChip: {
-    marginBottom: theme.spacing(1),
-  },
-  noExpensesHint: {
-    textAlign: "center",
-    color: theme.palette.text.secondary,
-    padding: theme.spacing(4, 2),
-  },
+
+  /* ------------------------------------------
+  // Ausgaben-Dialog (Formular, zahlende Instanz, Beleg)
+  // ------------------------------------------ */
   expenseFormAmountRow: {
     display: "grid",
     gap: theme.spacing(2),
@@ -221,12 +254,6 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     borderRadius: "8px",
     padding: theme.spacing(1, 1.5),
     marginTop: theme.spacing(1),
-  },
-  payeeBalanceSummary: {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    width: "100%",
   },
   attachmentDropzone: {
     display: "flex",
@@ -265,19 +292,57 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     display: "flex",
     flexShrink: 0,
   },
-  budgetProjection: {
-    marginTop: theme.spacing(0.75),
-    paddingTop: theme.spacing(0.75),
-    borderTop: `1px solid ${theme.palette.divider}`, // gleiche Trennlinie wie Fremdwährungszeilen
-  },
-  budgetProjectionRow: {
+
+  /* ------------------------------------------
+  // Übersicht: Beträge pro Person
+  // ------------------------------------------ */
+  payeeBalanceSummary: {
     display: "flex",
+    justifyContent: "space-between",
     alignItems: "center",
-    gap: theme.spacing(0.5),
+    width: "100%",
   },
-  budgetProjectionWarning: {
-    color: theme.palette.warning.main,
-    fontWeight: 500,
+
+  /* ------------------------------------------
+  // Auswertung
+  // ------------------------------------------ */
+  evaluationMissingReceiptsAlert: {
+    marginBottom: theme.spacing(2),
+  },
+  evaluationFilterBar: {
+    display: "flex",
+    flexWrap: "wrap",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: theme.spacing(1),
+    marginBottom: theme.spacing(1.5),
+  },
+  evaluationFilterButton: {
+    maxWidth: "100%",
+    minWidth: 0,
+    borderRadius: "16px",
+    textTransform: "none", // Budgetnamen nicht in Grossbuchstaben verändern
+  },
+  evaluationFilterButtonActive: {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: alpha(theme.palette.primary.main, 0.12),
+  },
+  evaluationFilterMenuPaper: {
+    maxHeight: "360px", // bei vielen Budgets scrollbar
+    minWidth: "240px",
+  },
+  evaluationCurrencyChips: {
+    display: "flex",
+    gap: theme.spacing(1),
+  },
+  evaluationCurrencyChipSelected: {
+    borderColor: theme.palette.primary.main,
+    backgroundColor: alpha(theme.palette.primary.main, 0.12),
+    color: theme.palette.primary.main,
+  },
+  evaluationScopeNote: {
+    marginTop: theme.spacing(-1), // näher an die Chips, zu denen er gehört
+    marginBottom: theme.spacing(1.5),
   },
   evaluationTile: {
     height: "100%",
@@ -298,44 +363,6 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
   },
   evaluationTopExpenseIcon: {
     minWidth: theme.spacing(4),
-  },
-  statisticsMissingReceiptsAlert: {
-    marginBottom: theme.spacing(2),
-  },
-  statisticsCurrencyChips: {
-    display: "flex",
-    gap: theme.spacing(1),
-  },
-  statisticsCurrencyChipSelected: {
-    borderColor: theme.palette.primary.main,
-    backgroundColor: alpha(theme.palette.primary.main, 0.12),
-    color: theme.palette.primary.main,
-  },
-  statisticsScopeNote: {
-    marginTop: theme.spacing(-1), // näher an die Chips, zu denen er gehört
-    marginBottom: theme.spacing(1.5),
-  },
-  statisticsFilterBar: {
-    display: "flex",
-    flexWrap: "wrap",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing(1),
-    marginBottom: theme.spacing(1.5),
-  },
-  statisticsFilterButton: {
-    maxWidth: "100%",
-    minWidth: 0,
-    borderRadius: "16px",
-    textTransform: "none", // Budgetnamen nicht in Grossbuchstaben verändern
-  },
-  statisticsFilterButtonActive: {
-    borderColor: theme.palette.primary.main,
-    backgroundColor: alpha(theme.palette.primary.main, 0.12),
-  },
-  statisticsFilterMenuPaper: {
-    maxHeight: "360px", // bei vielen Budgets scrollbar
-    minWidth: "240px",
   },
   evaluationHistoryChart: {
     // gestrichelte Soll-Linie; x-charts vergibt pro Serie die Klasse `MuiLineElement-series-<id>`
@@ -381,6 +408,10 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     marginTop: theme.spacing(1.5),
   },
   /* PDF-Abrechnung */
+
+  /* ------------------------------------------
+  // PDF-Abrechnung
+  // ------------------------------------------ */
   expenseReportDialogContent: {
     paddingTop: theme.spacing(1), // sonst schneidet DialogContent das Label des ersten Feldes ab
   },

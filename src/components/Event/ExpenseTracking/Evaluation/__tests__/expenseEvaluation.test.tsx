@@ -36,7 +36,7 @@ import {getChartCategoryColors} from "../../../../App/customTheme";
 import {buildMenuplan, LOADING_MENUPLAN} from "../__mocks__/menuplan.mock";
 
 import {
-  NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
+  EVALUATION_NO_EXPENSES as TEXT_EVALUATION_NO_EXPENSES,
   EVALUATION_TOTAL as TEXT_EVALUATION_TOTAL,
   EVALUATION_EXPENSE_COUNT as TEXT_EVALUATION_EXPENSE_COUNT,
   EVALUATION_AVERAGE_PER_PARTICIPANT as TEXT_EVALUATION_AVERAGE_PER_PARTICIPANT,
@@ -269,7 +269,7 @@ describe("ExpenseEvaluation, leerer Zustand", () => {
   test("ohne Ausgaben: nur Hinweistext, keine Kacheln", () => {
     renderEvaluation([]);
 
-    expect(screen.getByText(TEXT_NO_EXPENSES_FOR_STATS)).toBeInTheDocument();
+    expect(screen.getByText(TEXT_EVALUATION_NO_EXPENSES)).toBeInTheDocument();
     expect(
       screen.queryByTestId("expense-tracking-evaluation"),
     ).not.toBeInTheDocument();

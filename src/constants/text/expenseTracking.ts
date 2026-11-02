@@ -1,11 +1,12 @@
 /**
- * UI-Textkonstanten für das Abrechnungsmodul.
+ * UI-Textkonstanten für das Abrechnungsmodul: Seite, Budgets, Ausgaben und
+ * Auswertung. PDF-Abrechnung und Export stehen in `expenseTrackingReport.ts`.
  */
 
 import {formatAmountFromCents} from "../../components/Shared/utils/currencyUtils";
 
 /* =====================================================================
-// Abrechnungsseite
+// Abrechnungsseite und Toolbar
 // ===================================================================== */
 export const EXPENSE_TRACKING = "Abrechnung";
 export const EXPENSE_TRACKING_NOT_ACTIVE =
@@ -22,17 +23,14 @@ export const EXPENSE_TRACKING_NOT_ACTIVE_DESCRIPTION =
  */
 export const EXPENSE_TRACKING_NOT_ACTIVE_DESCRIPTION_HELPCENTER_LINK =
   "Helpcenter";
+export const EXPENSE_TRACKING_OVERVIEW = "Übersicht";
+export const EXPENSE_TRACKING_EXPENSES = "Ausgaben";
+export const EXPENSE_TRACKING_EVALUATION = "Auswertung";
+export const PLEASE_CREATE_BUDGET_FIRST = "Lege zuerst ein Budget an.";
 
-export const BUDGET_TYPE_PER_PERSON_PER_DAY_AMOUNT = (
-  amountInCents: number | null,
-  currency: string,
-) => {
-  if (!amountInCents) {
-    return `${currency} - / Person & Tag`;
-  }
-  return `${formatAmountFromCents(amountInCents, currency)} / Person & Tag`;
-};
-
+/* =====================================================================
+// Budget-Karte inkl. Hochrechnung
+// ===================================================================== */
 export const EDIT_BUDGET = "Budget bearbeiten";
 export const BUDGET_TYPE_FIXED_AMOUNT = "Fixbetrag";
 export const BUDGET_TYPE_PER_PERSON_PER_DAY = "Pro Person & Tag";
@@ -50,7 +48,6 @@ export const BUDGET_PER_PERSON_PER_DAY = (
   rateInCents != null
     ? `${formatAmountFromCents(rateInCents, currency)} / Person & Tag`
     : "Budget noch nicht festgelegt";
-
 /**
  * Anzeige des Soll-Betrags eines Fixbetrag-Budgets.
  *
@@ -62,14 +59,24 @@ export const BUDGET_TARGET_AMOUNT = (
   amountInCents: number,
   currency: string,
 ): string => `Budget: ${formatAmountFromCents(amountInCents, currency)}`;
-
 /** Hinweistext, wenn fuer ein Fixbetrag-Budget noch kein Betrag hinterlegt ist. */
 export const BUDGET_TARGET_AMOUNT_MISSING = "Kein Betrag festgelegt";
 export const NEW_BUDGET = "Neues Budget";
+export const SPENT_AMOUNT = (amountInCents: number, currency: string): string =>
+  formatAmountFromCents(amountInCents, currency);
+export const OF_LIMIT = (amountInCents: number, currency: string): string =>
+  `von ${formatAmountFromCents(amountInCents, currency)}`;
+export const PROJECTION_TILL_EVENT_END = "Hochrechnung bis Anlassende:";
+export const PROJECTION_DAY_X_OF_Y = (
+  elapsedDays: number,
+  totalDays: number,
+): string => `Stand Anlasstag ${elapsedDays} von ${totalDays}`;
+export const PROJECTION_ABOVE_BUDGET = "Voraussichtlich über Budget";
+
+/* =====================================================================
+// Budget-Dialog
+// ===================================================================== */
 export const BUDGET = "Budget";
-export const EXPENSE_TRACKING_OVERVIEW = "Übersicht";
-export const EXPENSE_TRACKING_EXPENSES = "Ausgaben";
-export const EXPENSE_TRACKING_EVALUATION = "Auswertung";
 export const BUDGET_NAME = "Name";
 export const PLEASE_PROVIDE_NAME = "Bitte einen Namen angeben.";
 export const PLEASE_PROVIDE_AMOUNT = "Bitte einen gültigen Betrag angeben.";
@@ -89,28 +96,39 @@ export const DELETE_BUDGET_SIMPLE =
 export const BUDGET_CANT_BE_DELETED = "Budget kann nicht gelöscht werden.";
 export const BUDGET_HAS_EXPENSES =
   "Dieses Budget hat noch Ausgaben und kann nicht gelöscht werden.";
-export const SPENT_AMOUNT = (amountInCents: number, currency: string): string =>
-  formatAmountFromCents(amountInCents, currency);
 
-export const OF_LIMIT = (amountInCents: number, currency: string): string =>
-  `von ${formatAmountFromCents(amountInCents, currency)}`;
-export const PLEASE_CREATE_BUDGET_FIRST = "Lege zuerst ein Budget an.";
-// Ausgaben
+/* =====================================================================
+// Ausgabenliste
+// ===================================================================== */
+export const NO_EXPENSES_YET = "Noch keine Ausgaben.";
+export const NEW_EXPENSE = "Neue Ausgabe";
+/** Chip über der Ausgabenliste, solange der Filter «ohne Beleg» aktiv ist. */
+export const ONLY_WITHOUT_RECEIPT = "Nur ohne Beleg";
+/** Leere Ausgabenliste bei aktivem Filter «ohne Beleg»: Arbeit erledigt. */
+export const ALL_EXPENSES_HAVE_A_RECEIPT = "Alle Ausgaben haben einen Beleg.";
+export const EXPENSE_RECEIPT_MISSING = "Beleg fehlt";
+
+/* =====================================================================
+// Ausgaben-Dialog (Formular, zahlende Instanz, Beleg)
+// ===================================================================== */
 export const EXPENSE = "Ausgabe";
 export const PLEASE_PROVIDE_LABEL = "Bitte eine Bezeichnung angeben.";
 export const EXPENSE_AMOUNT_TOO_LARGE = "Bitte kleineren Ausgabebetrag wählen.";
 export const PLEASE_PROVIDE_BUDGET = "Bitte ein Budget wählen.";
 export const PLEASE_PROVIDE_DATE = "Bitte Ausgabedatum angeben.";
 export const PLEASE_PROVIDE_CURRENCY = "Bitte Währung wählen.";
-
-export const NO_EXPENSES_YET = "Noch keine Ausgaben.";
-export const NEW_EXPENSE = "Neue Ausgabe";
 export const LABEL = "Bezeichnung";
 export const PLACEHOLDER_LABEL = "z.B. Grosseinkauf Migros";
 export const OPTIONAL = "optional";
 export const EXPENSE_SAVED = "Ausgabe wurde gespeichert.";
 export const EXPENSE_UPDATED = "Ausgabe wurde angepasst.";
 export const EXPENSE_DELETED = "Ausgabe wurde gelöscht.";
+export const DELETE_EXPENSE_DIALOG = (
+  label: string,
+  amountInCents: number,
+  currency: string,
+): string =>
+  `Ausgabe «${label}» (${formatAmountFromCents(amountInCents, currency)}) löschen?`;
 export const PAYEE = "Wer hat bezahlt?";
 export const PAYEE_EXISTING_USER = "Bestehende Person";
 export const PLEASE_PROVIDE_PAYEE = "Bitte eine Person wählen.";
@@ -118,22 +136,12 @@ export const PAYEE_NEW_PERSON = "Neue Person erfassen";
 export const PLEASE_PROVIDE_PAYEE_NAME = "Bitte einen Namen angeben.";
 export const PAYEE_NO_REFUND_NEEDED = "Keine Rückerstattung nötig";
 export const FORMER_EVENT_COOK = "Ehemalige Person";
-export const DELETE_EXPENSE_DIALOG = (
-  label: string,
-  amountInCents: number,
-  currency: string,
-): string =>
-  `Ausgabe «${label}» (${formatAmountFromCents(amountInCents, currency)}) löschen?`;
-
-export const OPEN_AMOUNTS_PER_PERSON = "Ausgegebene Beträge pro Person";
-export const SHOW_EXPENSES = "Ausgaben anzeigen";
-export const BELEG = "Beleg";
-export const DELETE_BELEG = "Beleg löschen";
 export const DROP_ATTACHMENT_HINT = "PDF oder Bild hierher ziehen";
 export const ATTACHMENT_RETENTION_HINT =
   "Wird 1 Jahr nach Anlassende automatisch gelöscht";
 export const EXPENSE_RECEIPT = "Beleg";
 export const REMOVE_EXPENSE_RECEIPT = "Beleg löschen";
+export const UNDO_REMOVE_EXPENSE_RECEIPT = "Rückgängig";
 export const ATTACHMENT_INVALID_TYPE = "Nur PDF oder Bild (JPEG/PNG) erlaubt.";
 export const ATTACHMENT_TOO_LARGE = "Datei ist zu gross (max. 10 MB).";
 export const SHOW_EXPENSE_RECEIPT = "Beleg anzeigen";
@@ -142,20 +150,19 @@ export const EXPENSE_RECEIPT_TAB_BLOCKED =
 export const EXPENSE_RECEIPT_OPEN_LINK = "Beleg öffnen";
 export const EXPENSE_RECEIPT_OPEN_FAILED =
   "Der Beleg konnte nicht geöffnet werden. Versuche es nochmals.";
-export const EXPENSE_RECEIPT_MISSING = "Beleg fehlt";
-export const UNDO_REMOVE_EXPENSE_RECEIPT = "Rückgängig";
 
-export const PROJECTION_TILL_EVENT_END = "Hochrechnung bis Anlassende:";
-export const DAY_X_OF_Y_IN_EVENT = (
-  elapsedDays: number,
-  totalDays: number,
-): string => `Stand Anlasstag ${elapsedDays} von ${totalDays}`;
-export const PROJECTION_ABOVE_BUDGET = "Voraussichtlich über Budget";
+/* =====================================================================
+// Übersicht: Beträge pro Person
+// ===================================================================== */
+export const OPEN_AMOUNTS_PER_PERSON = "Ausgegebene Beträge pro Person";
+export const SHOW_EXPENSES = "Ausgaben anzeigen";
 
+/* =====================================================================
+// Auswertung
+// ===================================================================== */
 /** Hinweis in der Auswertung, solange es noch keine Ausgaben gibt. */
-export const NO_EXPENSES_FOR_STATS =
+export const EVALUATION_NO_EXPENSES =
   "Sobald ihr Ausgaben erfasst, siehst du hier die Auswertung.";
-
 export const EVALUATION_TOTAL = "Gesamtausgaben";
 /**
  * Anzahl Ausgaben unter dem Gesamttotal, mit Einzahl/Mehrzahl.
@@ -208,7 +215,6 @@ export const EVALUATION_TOP_EXPENSES = "Grösste Ausgaben";
 export const EVALUATION_KEYFIGURES = "Kennzahlen";
 /** Screenreader-Beschriftung der Währungs-Chips in der Auswertung. */
 export const EVALUATION_CURRENCY_FILTER_ARIA_LABEL = "Währungsfilter";
-
 /**
  * Verbindet Einträge zu einer lesbaren Aufzählung mit «und» vor dem letzten.
  *
@@ -265,11 +271,6 @@ export const EVALUATION_SCOPE_NOTE_BUDGETS = (budgetNames: string[]): string =>
 /** Ersetzt die Kacheln, wenn die gewählten Budgets keine Ausgaben haben (B6). */
 export const EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS =
   "Keine Ausgabe in der Budgetauswahl.";
-/** Chip über der Ausgabenliste, solange der Filter «ohne Beleg» aktiv ist. */
-export const ONLY_WITHOUT_RECEIPT = "Nur ohne Beleg";
-/** Leere Ausgabenliste bei aktivem Filter «ohne Beleg»: Arbeit erledigt. */
-export const ALL_EXPENSES_HAVE_A_RECEIPT = "Alle Ausgaben haben einen Beleg.";
-
 /** Titel der Diagramm-Karte in der Auswertung (Story 6.3). */
 export const EVALUATION_HISTORY_TITLE = "Ausgabenverlauf";
 /** Legende und Tooltip: kumulierte Ausgaben bis heute. */
@@ -317,7 +318,6 @@ export const EVALUATION_HISTORY_NOT_STARTED =
 /** Ersetzt das Diagramm, solange der Anlass keine Daten (Zeitscheiben) hat. */
 export const EVALUATION_HISTORY_NO_EVENT_DAYS =
   "Lege zuerst die Daten des Anlasses fest, dann erscheint hier der Verlauf.";
-
 /** Titel der Donut-Karte in der Auswertung (Story 6.4). */
 export const EVALUATION_SHARE_TITLE = "Verteilung nach Budget";
 /**
@@ -359,7 +359,6 @@ export const EVALUATION_SHARE_DETAIL = (
   percent: number,
 ): string =>
   `${formatAmountFromCents(amountInCents, currency)} · ${EVALUATION_SHARE_PERCENT(percent)}`;
-
 /** Titel der Kachel «Ø pro Mahlzeit» in der Auswertung (Story 6.5). */
 export const EVALUATION_AVERAGE_PER_MEAL = "Ø pro Mahlzeit";
 /**
@@ -403,221 +402,3 @@ export const EVALUATION_NO_PLANNED_MEALS =
 /** Screenreader-Beschriftung der Mahlzeitentyp-Chips. */
 export const EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL =
   "Mahlzeiten für den Durchschnitt auswählen";
-export const REPORT_NO_REFUND_GROUP = "Ohne Rückerstattung";
-export const REPORT_UNKNOWN_BUDGET = "Unbekanntes Budget";
-/* =====================================================================
-// PDF-Abrechnung 
-// ===================================================================== */
-export const CREATE_EXPENSE_REPORT = "Abrechnung erstellen (PDF)";
-export const CREATE_EXPENSE_REPORT_NO_EXPENSES = "Erfasse zuerst eine Ausgabe.";
-export const REPORT_PAYEE_SELECTION = "Für wen?";
-export const REPORT_ALL_PAYEES = "Alle Personen";
-
-/**
- * Eintrag einer Person in der Auswahl.
- *
- * @param displayName - Anzeigename der Person.
- * @param expenseCount - Anzahl ihrer Ausgaben.
- * @returns z.B. «Anna (3 Ausgaben)».
- */
-export const REPORT_PAYEE_OPTION = (
-  displayName: string,
-  expenseCount: number,
-): string =>
-  `${displayName} (${expenseCount} ${expenseCount === 1 ? "Ausgabe" : "Ausgaben"})`;
-
-/** Beschriftung der Modus-Auswahl. */
-export const REPORT_MODE = "Aufbau";
-export const REPORT_MODE_PER_PERSON = "Eine Tabelle";
-export const REPORT_MODE_PER_PERSON_DESCRIPTION =
-  "Alle Ausgaben in einer Tabelle, das Budget steht pro Zeile.";
-export const REPORT_MODE_PER_PERSON_AND_BUDGET = "Pro Budget";
-export const REPORT_MODE_PER_PERSON_AND_BUDGET_DESCRIPTION =
-  "Eine Tabelle pro Budget, mit Zwischensumme.";
-
-export const REPORT_INCLUDE_COMMENTS = "Kommentare anzeigen";
-export const REPORT_TITLE = "Abrechnung";
-export const REPORT_COLUMN_RECEIPT = "Beleg";
-export const REPORT_NO_RECEIPT_NUMBER = "–";
-
-/**
- * Beschriftung einer Summenzeile.
- *
- * @param name - Person oder Budget.
- * @returns z.B. «Total Anna».
- */
-export const REPORT_TOTAL_OF = (name: string): string => `Total ${name}`;
-
-export const REPORT_GRAND_TOTAL = "Gesamttotal";
-export const REPORT_NO_REFUND_HINT =
-  "Diese Ausgaben werden niemandem zurückerstattet.";
-export const EXPORT = "Exportieren";
-export const EXPORT_CSV = "Ausgaben als CSV";
-export const NO_RECEIPTS_AVAILABLE = "Keine Belege vorhanden";
-/** Schalter im Dialog (E11). */
-export const REPORT_INCLUDE_MISSING_RECEIPT_PAGES =
-  "Leerseiten für fehlende Belege einfügen";
-/**
- * Erklärung unter dem Schalter, mit Anzahl.
- *
- * @param count - Anzahl Ausgaben ohne Beleg in der Auswahl.
- * @returns z.B. «3 Ausgaben ohne Beleg, zum Aufkleben von Papierquittungen».
- */
-export const REPORT_MISSING_RECEIPTS_COUNT = (count: number): string =>
-  `${count} ${count === 1 ? "Ausgabe" : "Ausgaben"} ohne Beleg, zum Aufkleben von Papierquittungen`;
-/** Leerseite für eine Ausgabe ohne Beleg. */
-export const REPORT_RECEIPT_PASTE_HERE = "Beleg hier aufkleben";
-/** Seite für einen Beleg, der nicht geladen werden konnte. */
-export const REPORT_RECEIPT_LOAD_FAILED = "Beleg konnte nicht geladen werden";
-export const REPORT_RECEIPT_LOAD_FAILED_HINT =
-  "Bitte ausdrucken und hier aufkleben oder separat einreichen.";
-/**
- * Fortschritt beim Laden der Belege.
- *
- * @param loaded - Bereits geladene Belege.
- * @param total - Alle zu ladenden Belege.
- * @returns z.B. «Belege werden geladen (7 von 23)».
- */
-export const REPORT_PROGRESS_LOADING = (
-  loaded: number,
-  total: number,
-): string => `Belege werden geladen (${loaded} von ${total})`;
-/** Fortschritt, sobald alle Belege da sind. */
-export const REPORT_PROGRESS_RENDERING = "PDF wird erstellt …";
-/**
- * Hinweis nach dem Download, wenn Belege fehlten.
- *
- * @param receiptNumbers - Nummern der nicht geladenen Belege.
- * @returns z.B. «Beleg 3 konnte nicht geladen werden. …».
- */
-export const REPORT_RECEIPTS_FAILED = (receiptNumbers: number[]): string =>
-  receiptNumbers.length === 1
-    ? `Beleg ${receiptNumbers[0]} konnte nicht geladen werden. Im PDF steht an seiner Stelle eine Leerseite.`
-    : `Belege ${receiptNumbers.join(", ")} konnten nicht geladen werden. Im PDF stehen an ihrer Stelle Leerseiten.`;
-
-/** Überschrift des Rückerstattungs-Blocks im Dialog und im PDF. */
-export const REPORT_REFUND_TO = "Rückerstattung an";
-/** Zeile mit dem Namen, auf den das Konto lautet. */
-export const REPORT_ACCOUNT_HOLDER = "Kontoinhaber*in";
-/** Checkbox im Dialog, nur für die eigene Abrechnung. */
-export const REPORT_SAVE_PAYMENT_DETAILS = "Angaben in meinem Profil speichern";
-/** Erklärt, warum die Checkbox ausgegraut ist (nur vollständige Angaben). */
-export const REPORT_SAVE_PAYMENT_DETAILS_HINT =
-  "Zum Speichern Strasse, PLZ, Ort und eine gültige IBAN ausfüllen.";
-/** Hinweis unter dem Formular: nichts ist Pflicht. */
-export const REPORT_REFUND_OPTIONAL_HINT =
-  "Leere Felder erscheinen als Linien zum Ausfüllen.";
-/** Warn-Snackbar, wenn das Speichern ins Profil scheitert. */
-export const REPORT_PAYMENT_DETAILS_SAVE_FAILED =
-  "Angaben konnten nicht gespeichert werden. Die Abrechnung wurde trotzdem erstellt.";
-/** Ladehinweis, solange die eigenen Zahlungsangaben geladen werden. */
-export const REPORT_PAYMENT_DETAILS_LOADING =
-  "Zahlungsangaben werden geladen …";
-/** Zeile «PLZ Ort» im Rückerstattungs-Block des PDFs. */
-export const REPORT_POSTAL_CODE_CITY = "PLZ / Ort";
-/** Hinweis bei «Alle Personen»: das Formular gilt nur für die eigene Person. */
-export const REPORT_REFUND_ALL_PAYEES_HINT =
-  "Gilt für deinen Teil der Abrechnung. Bei den anderen Personen erscheinen Linien zum Ausfüllen.";
-/* =====================================================================
-// PDF-Abrechnung: Layout (Story 7.5)
-// ===================================================================== */
-/** Spaltenkopf der Belegnummer. */
-export const REPORT_COLUMN_NUMBER = "Nr.";
-/** Kennzahl auf Seite 1: was an Personen zurückgeht. */
-export const REPORT_KPI_TO_REFUND = "Zurückzuerstatten";
-/** Kennzahl bei einer Person: Anzahl Ausgaben. */
-export const REPORT_KPI_EXPENSES = "Ausgaben";
-/** Kennzahl bei einer Person: Anzahl Budgets, darunter ihre Namen. */
-export const REPORT_KPI_BUDGETS = "Budgets";
-/**
- * Rest der Budgetnamen, wenn nicht alle in die Kachel passen.
- *
- * @param count - Anzahl nicht genannter Budgets.
- * @returns z.B. «+2».
- */
-export const REPORT_KPI_MORE_BUDGETS = (count: number): string => `+${count}`;
-/** Kennzahl ohne Betrag (z.B. keine Ausgaben ohne Rückerstattung). */
-export const REPORT_NO_AMOUNT = "–";
-/** Zweite Zeile im Klebefeld einer Leerseite. */
-export const REPORT_RECEIPT_NOT_UPLOADED =
-  "Zu dieser Ausgabe wurde kein Beleg hochgeladen.";
-/**
- * Linke Spalte im Footer der Abrechnungsseiten.
- *
- * @param date - Datum, z.B. «27.10.2026».
- * @param time - Zeit, z.B. «18:21».
- * @param name - Wer die Abrechnung erstellt hat.
- * @returns z.B. «Erstellt am 27.10.2026, 18:21 von Gio».
- */
-export const REPORT_CREATED_AT_BY = (
-  date: string,
-  time: string,
-  name: string,
-): string => `Erstellt am ${date}, ${time} von ${name}`;
-/**
- * Linke Spalte im Footer einer Belegseite.
- *
- * @param receiptNumber - Belegnummer.
- * @param receiptCount - Anzahl Belege im PDF.
- * @returns z.B. «Beleg 2 von 5».
- */
-export const REPORT_RECEIPT_OF = (
-  receiptNumber: number,
-  receiptCount: number,
-): string => `Beleg ${receiptNumber} von ${receiptCount}`;
-/**
- * Seitenangabe: im Footer über das ganze PDF, im Kopf eines mehrseitigen
- * PDF-Belegs innerhalb des Belegs.
- *
- * @param pageNumber - Aktuelle Seite, ab 1.
- * @param pageCount - Anzahl Seiten.
- * @returns z.B. «Seite 1 von 8».
- */
-export const REPORT_PAGE_OF = (pageNumber: number, pageCount: number): string =>
-  `Seite ${pageNumber} von ${pageCount}`;
-/**
- * Verweis in der Spalte «Beleg» auf die Startseite des Belegs.
- *
- * @param pageNumber - Seite im PDF, ab 1.
- * @returns z.B. «S. 5».
- */
-export const REPORT_PAGE_REF = (pageNumber: number): string =>
-  `S. ${pageNumber}`;
-/* =====================================================================
-// Export (CSV und ZIP)
-// ===================================================================== */
-/** Präfix für die Export-Dateien. */
-export const EXPORT_FILE_PREFIX = "Ausgaben";
-/** Spaltentitel der CSV-Datei: Belegnummer. */
-export const EXPORT_COLUMN_RECEIPT_NUMBER = "Belegnummer";
-/** Spaltentitel der CSV-Datei: Betrag der Ausgabe. */
-export const EXPORT_COLUMN_AMOUNT = "Betrag";
-/** Spaltentitel der CSV-Datei: Person, die bezahlt hat, oder «Ohne Rückerstattung». */
-export const EXPORT_COLUMN_PAYEE = "Zahlende Instanz";
-/** Spaltentitel der CSV-Datei: Kommentar der Ausgabe. */
-export const EXPORT_COLUMN_COMMENT = "Kommentar";
-/** Spaltentitel der CSV-Datei: Dateiname des Belegs im ZIP. */
-export const EXPORT_COLUMN_RECEIPT_FILE = "Belegdatei";
-/** Menüeintrag «Exportieren»: ZIP mit CSV und Originalbelegen. */
-export const EXPORT_ZIP = "Ausgaben mit Belegen (ZIP)";
-/** Ordner im ZIP für die Originalbelege. */
-export const EXPORT_RECEIPT_FOLDER = "Belege";
-/** CSV-Zelle «Belegdatei», wenn der Beleg nicht ins ZIP kam. */
-export const EXPORT_RECEIPT_NOT_LOADED = "Beleg konnte nicht geladen werden";
-/** Titel des Fortschrittsdialogs beim ZIP-Export. */
-export const EXPORT_ZIP_PROGRESS_TITLE = "ZIP wird erstellt";
-/**
- * Hinweis nach dem ZIP-Export, wenn Belege fehlen; Einzahl oder Mehrzahl.
- *
- * @param receiptNumbers - Belegnummern der fehlenden Belege, mindestens eine.
- * @returns Hinweistext für die Snackbar.
- * @example
- * EXPORT_RECEIPTS_FAILED([2, 5])
- * // "Belege 2, 5 konnten nicht geladen werden und fehlen im ZIP."
- */
-export const EXPORT_RECEIPTS_FAILED = (receiptNumbers: number[]): string => {
-  if (receiptNumbers.length === 1) {
-    return `Beleg ${receiptNumbers[0]} konnte nicht geladen werden und fehlt im ZIP.`;
-  }
-  return `Belege ${receiptNumbers.join(", ")} konnten nicht geladen werden und fehlen im ZIP.`;
-};

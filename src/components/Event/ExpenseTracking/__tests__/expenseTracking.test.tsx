@@ -42,19 +42,21 @@ import {
   NEW_EXPENSE as TEXT_NEW_EXPENSE,
   EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
   EVALUATION_AVERAGE_PER_MEAL as TEXT_EVALUATION_AVERAGE_PER_MEAL,
-  NO_EXPENSES_FOR_STATS as TEXT_NO_EXPENSES_FOR_STATS,
+  EVALUATION_NO_EXPENSES as TEXT_EVALUATION_NO_EXPENSES,
   BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
   DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
   ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
+} from "../../../../constants/text/expenseTracking";
+import {
   CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
   EXPORT as TEXT_EXPORT,
   EXPORT_CSV as TEXT_EXPORT_CSV,
   EXPORT_ZIP as TEXT_EXPORT_ZIP,
   EXPORT_ZIP_PROGRESS_TITLE as TEXT_EXPORT_ZIP_PROGRESS_TITLE,
   NO_RECEIPTS_AVAILABLE as TEXT_NO_RECEIPTS_AVAILABLE,
-} from "../../../../constants/text/expenseTracking";
+} from "../../../../constants/text/expenseTrackingReport";
 import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
 import {ExpenseDomain, ExpensePayeeType} from "../Expense/expense.types";
 import {ExpenseDetailDialogState} from "../Expense/expenseDetailDialog";
@@ -463,7 +465,7 @@ describe("EventExpenseTrackingPage: Ansicht Auswertung", () => {
     );
 
     expect(
-      await screen.findByText(TEXT_NO_EXPENSES_FOR_STATS),
+      await screen.findByText(TEXT_EVALUATION_NO_EXPENSES),
     ).toBeInTheDocument();
     expect(
       screen.queryByRole("button", {name: TEXT_NEW_BUDGET}),
