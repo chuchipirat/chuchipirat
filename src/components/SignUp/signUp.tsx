@@ -590,7 +590,13 @@ const SignUpForm = ({
             <li>
               <Typography>
                 {TEXT_SIGN_UP_TERM_OF_USE_PREFIX}{" "}
-                <Link component="button" id="termOfUse" onClick={openDialog}>
+                {/* type="button": ein Knopf im Formular schickt es sonst ab */}
+                <Link
+                  component="button"
+                  type="button"
+                  id="termOfUse"
+                  onClick={openDialog}
+                >
                   {TEXT_TERM_OF_USE}
                 </Link>{" "}
                 {TEXT_SIGN_UP_TERM_OF_USE_SUFFIX}
@@ -601,6 +607,7 @@ const SignUpForm = ({
                 {TEXT_SIGN_UP_TERM_OF_USE_PREFIX}{" "}
                 <Link
                   component="button"
+                  type="button"
                   id="privacyPolicy"
                   onClick={openDialog}
                 >

@@ -280,7 +280,8 @@ export const ForgotPasswordLink = ({email}: ForgotPasswordLinkProps) => {
   return (
     <Typography variant="body2">
       {TEXT_HAVE_YOU_FORGOTEN_YOUR_PASSWORD}
-      <Link component="button" onClick={goToPasswordReset}>
+      {/* type="button": steht auch in Formularen und schickte sie sonst ab */}
+      <Link component="button" type="button" onClick={goToPasswordReset}>
         {TEXT_PASSWORD_RESET}
       </Link>
     </Typography>

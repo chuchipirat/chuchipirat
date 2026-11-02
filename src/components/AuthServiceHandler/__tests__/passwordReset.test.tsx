@@ -258,3 +258,22 @@ describe("ForgotPasswordLink", () => {
     expect(testLocation.pathname).toBe(ROUTES_PASSWORD_RESET);
   });
 });
+
+describe("ForgotPasswordLink in einem Formular", () => {
+  test("schickt das umgebende Formular nicht ab", async () => {
+    const onSubmit = jest.fn((event: React.FormEvent) =>
+      event.preventDefault(),
+    );
+    render(
+      <MemoryRouter>
+        <form onSubmit={onSubmit}>
+          <ForgotPasswordLink email="anna@example.ch" />
+        </form>
+      </MemoryRouter>,
+    );
+
+    await userEvent.click(screen.getByRole("button"));
+
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
