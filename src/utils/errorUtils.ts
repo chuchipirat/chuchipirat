@@ -129,6 +129,21 @@ export function isJwtExpiredError(error: unknown): boolean {
 }
 
 /**
+ * Erkennt falsche Anmeldedaten (Supabase `invalid_credentials` /
+ * "Invalid login credentials"). Ein Eingabefehler der Person, kein Bug: wird
+ * angezeigt, aber nicht an Sentry gemeldet.
+ *
+ * @param error - Der geworfene Wert.
+ * @returns `true` bei falscher E-Mail-Adresse oder falschem Passwort.
+ * @example
+ * isInvalidCredentialsError(new Error("Invalid login credentials")) // true
+ */
+export function isInvalidCredentialsError(error: unknown): boolean {
+  if (isRecordLike(error) && error.code === "invalid_credentials") return true;
+  return /invalid login credentials/i.test(extractErrorText(error));
+}
+
+/**
  * Nachrichten-Fragmente eines fehlgeschlagenen dynamischen Chunk-Imports
  * (`import()` von `React.lazy`). Jeder Browser formuliert das anders.
  */
