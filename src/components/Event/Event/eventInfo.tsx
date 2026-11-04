@@ -300,6 +300,7 @@ const EventInfoPage = ({
     } else {
       const isConfirmed = await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
         text: TEXT_QUESTION_DELETE_IMAGE,
         title: `${TEXT_DELETE_IMAGE}?`,
         buttonTextConfirm: TEXT_DELETE,

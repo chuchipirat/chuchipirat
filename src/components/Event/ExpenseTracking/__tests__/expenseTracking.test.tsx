@@ -1,0 +1,3779 @@
+/**
+ * Unit-Tests fuer EventExpenseTrackingPage.
+ *
+ * Prüfung ob je nach Spende die richtige Ansicht angezeigt wird.
+ */
+// Polyfill für jsdom (react-router benötigt TextEncoder/TextDecoder) — die
+// gesperrte Ansicht bindet jetzt DonationForm ein, das ueber authUserContext
+// transitiv react-router importiert (Muster: DonationForm.test.tsx).
+import {TextEncoder, TextDecoder} from "util";
+Object.assign(global, {TextEncoder, TextDecoder});
+
+import React from "react";
+import {
+  act,
+  fireEvent,
+  getDefaultNormalizer,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
+import "@testing-library/jest-dom";
+
+import {EventExpenseTrackingPage} from "../expenseTracking";
+import {transformInputToExpenseDomain} from "../useExpenseActions";
+import {getHelpPageUrl} from "../../../Navigation/helpCenter";
+import {AuthUserContext} from "../../../Session/authUserContext";
+import AuthUser from "../../../Session/authUser.class";
+import {BudgetType, BudgetIcon} from "../Budget/budget.types";
+import {EventGroupConfiguration} from "../../GroupConfiguration/groupConfiguration.class";
+import {budget2, budget as mockBudget} from "../Budget/__mocks__/budget.mock";
+import {
+  buildMenuplan,
+  LOADING_MENUPLAN,
+} from "../Evaluation/__mocks__/menuplan.mock";
+import {expense as mockExpense} from "../Expense/__mocks__/expense.mock";
+import {REALTIME_RECONNECTING as TEXT_REALTIME_RECONNECTING} from "../../../../constants/text";
+import {
+  NEW_BUDGET as TEXT_NEW_BUDGET,
+  NEW_EXPENSE as TEXT_NEW_EXPENSE,
+  EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
+  EVALUATION_AVERAGE_PER_MEAL as TEXT_EVALUATION_AVERAGE_PER_MEAL,
+  EVALUATION_NO_EXPENSES as TEXT_EVALUATION_NO_EXPENSES,
+  BUDGET_HAS_EXPENSES as TEXT_BUDGET_HAS_EXPENSES,
+  DELETE_BUDGET_DIALOG as TEXT_DELETE_BUDGET_DIALOG,
+  DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
+  ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
+  ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
+} from "../../../../constants/text/expenseTracking";
+import {
+  CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
+  EXPORT as TEXT_EXPORT,
+  EXPORT_CSV as TEXT_EXPORT_CSV,
+  EXPORT_ZIP as TEXT_EXPORT_ZIP,
+  EXPORT_ZIP_PROGRESS_TITLE as TEXT_EXPORT_ZIP_PROGRESS_TITLE,
+  NO_RECEIPTS_AVAILABLE as TEXT_NO_RECEIPTS_AVAILABLE,
+} from "../../../../constants/text/expenseTrackingReport";
+import {SHOW as TEXT_SHOW} from "../../../../constants/text/shared";
+import {ExpenseDomain, ExpensePayeeType} from "../Expense/expense.types";
+import {ExpenseDetailDialogState} from "../Expense/expenseDetailDialog";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+import dayjs from "dayjs";
+import * as Sentry from "@sentry/react";
+import {trackEvent} from "../../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../../Analytics/analyticsEvents";
+import {downloadExpenseReport} from "../Report/downloadExpenseReport";
+import {downloadExpenseCsv} from "../Export/downloadExpenseCsv";
+import {downloadExpenseZip} from "../Export/downloadExpenseZip";
+import {ExpenseReportResult, ReportMode} from "../Report/expenseReport.types";
+/**
+ * Mock: customDialog — die Tests steuern, was die Nutzer:in «antwortet».
+ * `jest.mock` muss auf oberster Ebene der Datei stehen: Es wird vor den
+ * Imports ausgeführt und wirkt nicht, wenn es in einem `describe` steht.
+ */
+const mockCustomDialog = jest.fn();
+jest.mock("../../../Shared/customDialogContext", () => ({
+  ...jest.requireActual("../../../Shared/customDialogContext"),
+  useCustomDialog: () => ({customDialog: mockCustomDialog}),
+}));
+/**
+ * Mock: Sentry — `jest.spyOn` scheitert am ESM-Export ("Cannot redefine
+ * property"), deshalb `captureException` hier ersetzen, um den gemeldeten
+ * Kontext prüfen zu können.
+ */
+jest.mock("@sentry/react", () => ({
+  ...jest.requireActual("@sentry/react"),
+  captureException: jest.fn(),
+}));
+jest.mock("@mui/x-date-pickers", () => ({
+  DatePicker: (props: any) => (
+    <div>
+      <input
+        data-testid={`datepicker-${props.label}`}
+        value={props.value?.isValid?.() ? props.value.format("YYYY-MM-DD") : ""}
+        onChange={(event) => props.onChange?.(dayjs(event.target.value))}
+      />
+      {props.slotProps?.textField?.helperText}
+    </div>
+  ),
+}));
+
+/**
+ * Mock: PDF-Modul der Abrechnung. Die Seite lädt es per `import()` nach
+ * (Story 7.2, P6); so muss dieser Test react-pdf nicht mocken und prüft nur,
+ * was die Seite übergibt.
+ */
+jest.mock("../Report/downloadExpenseReport", () => ({
+  downloadExpenseReport: jest.fn(),
+}));
+/**
+ * Mock: CSV-Download. Geprüft wird nur, was die Seite übergibt und wie sie
+ * auf einen Fehler reagiert; den Inhalt prüft `downloadExpenseCsv.test.ts`.
+ */
+jest.mock("../Export/downloadExpenseCsv", () => ({
+  downloadExpenseCsv: jest.fn(),
+}));
+/**
+ * Mock: ZIP-Download, per `import()` nachgeladen. Geprüft wird, was die
+ * Seite übergibt und wie sie Fortschritt, Hinweis und Fehler zeigt; den
+ * Inhalt prüft `downloadExpenseZip.test.ts`.
+ */
+jest.mock("../Export/downloadExpenseZip", () => ({
+  downloadExpenseZip: jest.fn(),
+}));
+/**
+ * Mock: Analytics — die Abrechnung prüft, dass `trackEvent` keine IBAN
+ * bekommt (Story 7.4, F7).
+ */
+jest.mock("../../../Analytics/analyticsService", () => ({
+  ...jest.requireActual("../../../Analytics/analyticsService"),
+  trackEvent: jest.fn(),
+}));
+
+const normalizer = getDefaultNormalizer();
+
+/** Ein bestehendes Budget, wie es die Datenbank liefert. */
+const kitchenBudget = {...mockBudget, id: "budget-001", name: "Küche"};
+const mottoBudget = {...budget2, id: "budget-002", name: "Motto"};
+
+/** Testdaten: Ein Event mit einem Koch und einer Datumsperiode. */
+const mockEvent = {
+  uid: "evt-1",
+  name: "Sommerlager",
+  motto: "Abenteuer",
+  location: "Pfadiheim",
+  dates: [
+    {
+      uid: "date-1",
+      pos: 1,
+      from: new Date("2027-06-15"),
+      to: new Date("2027-06-20"),
+    },
+  ],
+  cooks: [
+    {
+      uid: "user-123",
+      displayName: "Max Muster",
+      motto: "Kochen ist toll",
+      pictureSrc: "",
+    },
+  ],
+  pictureSrc: "",
+};
+const mockGroupConfiguration = {
+  totalPortions: 10,
+};
+
+// Handle, den `subscribeToBudgets` zurückgibt — als Konstanten, damit die Tests
+// prüfen können, ob unsubscribe/reconnect aufgerufen wurden.
+const mockUnsubscribeBudgets = jest.fn();
+const mockReconnectBudgets = jest.fn();
+const mockUnsubscribeExpenses = jest.fn();
+const mockReconnectExpenses = jest.fn();
+const mockDatabase = {
+  donations: {getEventDonations: jest.fn().mockResolvedValue([])},
+  userPaymentDetails: {
+    getPaymentDetails: jest.fn().mockResolvedValue(null),
+    savePaymentDetails: jest.fn(),
+  },
+  budgets: {
+    getBudgetsForEvent: jest.fn().mockResolvedValue([]),
+    createBudget: jest.fn(),
+    updateBudget: jest.fn(),
+    deleteBudget: jest.fn(),
+    subscribeToBudgets: jest.fn().mockReturnValue({
+      unsubscribe: mockUnsubscribeBudgets,
+      reconnect: mockReconnectBudgets,
+    }),
+  },
+  expenses: {
+    getExpensesForEvent: jest.fn().mockResolvedValue([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]),
+    createExpense: jest.fn(),
+    updateExpense: jest.fn(),
+    deleteExpense: jest.fn(),
+    subscribeToExpenses: jest.fn().mockReturnValue({
+      unsubscribe: mockUnsubscribeExpenses,
+      reconnect: mockReconnectExpenses,
+    }),
+  },
+  storage: {
+    expenses: {
+      upload: jest.fn(),
+      remove: jest.fn(),
+      getSignedUrl: jest.fn(
+        async (attachmentPath: string) =>
+          `https://mock.supabase.co/storage/v1/object/sign/receipts/events/${attachmentPath}?token=test`,
+      ),
+    },
+  },
+} as any;
+const mockAuthUser = new AuthUser();
+mockAuthUser.uid = "auth-uid-1";
+
+/**
+ * Rendert die EventExpenseTracking mit Standard-Props.
+ * Optionale Overrides können übergeben werden.
+ *
+ * @param overrides Partielle Props, die die Standardwerte überschreiben.
+ * @returns Das Render-Ergebnis von @testing-library/react.
+ */
+const renderEventExpenseTrackingPage = (
+  overrides: Record<string, any> = {},
+) => {
+  const defaultProps = {
+    event: mockEvent as any,
+    groupConfiguration: mockGroupConfiguration as EventGroupConfiguration,
+    menuplan: LOADING_MENUPLAN,
+    database: mockDatabase,
+  };
+
+  return render(
+    <AuthUserContext.Provider value={mockAuthUser}>
+      <EventExpenseTrackingPage {...defaultProps} {...overrides} />
+    </AuthUserContext.Provider>,
+  );
+};
+
+beforeEach(() => {
+  jest.clearAllMocks();
+  // `clearAllMocks` leert nur die Aufrufe, nicht die Warteschlange der
+  // `...Once`-Rückgabewerte. Ein nicht verbrauchter Wert würde sonst an den
+  // nächsten Test «vererbt» und dort einen Folgefehler auslösen.
+  mockDatabase.donations.getEventDonations.mockReset().mockResolvedValue([]);
+  mockDatabase.budgets.getBudgetsForEvent.mockReset().mockResolvedValue([]);
+  mockDatabase.expenses.getExpensesForEvent.mockReset().mockResolvedValue([]);
+  // Auch die Schreib-Mocks zurücksetzen: sonst überlebt ein in einem Test
+  // gesetzter, aber nie konsumierter `...Once`-Wert (z.B. weil der Löschen-
+  // Dialog abgebrochen wurde) bis in den nächsten Test hinein.
+  mockDatabase.expenses.createExpense.mockReset();
+  mockDatabase.expenses.updateExpense.mockReset();
+  mockDatabase.expenses.deleteExpense.mockReset();
+  mockDatabase.storage.expenses.upload.mockReset().mockResolvedValue(undefined);
+  mockDatabase.storage.expenses.remove.mockReset().mockResolvedValue(undefined);
+  mockDatabase.userPaymentDetails.getPaymentDetails
+    .mockReset()
+    .mockResolvedValue(null);
+  mockDatabase.userPaymentDetails.savePaymentDetails.mockReset();
+  mockCustomDialog.mockReset();
+});
+
+/**
+ * Baut eine PDF-Testdatei. `size` ist auf dem jsdom-`File` normalerweise aus
+ * dem Inhalt abgeleitet; für den "zu gross"-Test wird er direkt überschrieben,
+ * da ein echtes 10-MB-Array den Test unnötig verlangsamen würde.
+ *
+ * @param name - Dateiname.
+ * @param type - MIME-Typ.
+ * @param size - Optionale Grösse in Bytes (überschreibt die tatsächliche Länge).
+ * @returns Die Testdatei.
+ */
+const makeFile = (name: string, type: string, size?: number): File => {
+  const file = new File(["Testinhalt"], name, {type});
+  if (size != null) {
+    Object.defineProperty(file, "size", {value: size});
+  }
+  return file;
+};
+
+/**
+ * Wählt eine Datei über das versteckte `<input type="file">` der Dropzone
+ * aus — jsdom erlaubt das Setzen von `files` über `fireEvent.change`. Der
+ * MUI-`Dialog` rendert per Portal direkt in `document.body`, nicht in den
+ * `container` von `render()` — deshalb wird hier über `document` gesucht.
+ *
+ * @param file - Die auszuwählende Datei.
+ */
+const selectAttachmentFile = (file: File) => {
+  const input = document.querySelector(
+    'input[type="file"]',
+  ) as HTMLInputElement;
+  fireEvent.change(input, {target: {files: [file]}});
+};
+
+/**
+ * Rendert die freigeschaltete Seite, wartet bis die Subscription steht und
+ * liefert die Callbacks, die die Seite an `subscribeToBudgets` und `subscribeToExpenses`
+ * übergeben hat. Die Tests rufen sie selbst auf und simulieren damit
+ * Ereignisse von Supabase.
+ *
+ * @param initialBudgets Budgets, die der Erstlade-Aufruf liefert.
+ * @param expenses Bisher ausgegebene Beträge je Budget-ID  und Währung (in Rappen).
+ * @param pageOverrides Props der Seite, die vom Standard abweichen (z.B. `menuplan`).
+ * @returns Render-Ergebnis sowie `onChange` und `onStatusChange` der Seite.
+ */
+const renderUnlockedPage = async (
+  initialBudgets: unknown[] = [],
+  expenses: ExpenseDomain[] = [],
+  pageOverrides: Record<string, unknown> = {},
+) => {
+  mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+  mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce(initialBudgets);
+  mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce(expenses);
+
+  const view = renderEventExpenseTrackingPage(pageOverrides);
+  await waitFor(() =>
+    expect(mockDatabase.budgets.subscribeToBudgets).toHaveBeenCalled(),
+  );
+  await waitFor(() =>
+    expect(mockDatabase.expenses.subscribeToExpenses).toHaveBeenCalled(),
+  );
+
+  const [, onChange, , onStatusChange] =
+    mockDatabase.budgets.subscribeToBudgets.mock.calls[0];
+  const [, expensesOnChange, , expensesOnStatusChange] =
+    mockDatabase.expenses.subscribeToExpenses.mock.calls[0];
+  return {
+    view,
+    onChange,
+    onStatusChange,
+    expensesOnChange,
+    expensesOnStatusChange,
+  };
+};
+
+describe("EventExpenseTrackingPage", () => {
+  test("ohne Spende: gesperrte Ansicht", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    expect(
+      await screen.findByTestId("expense-tracking-locked"),
+    ).toBeInTheDocument();
+  });
+
+  test("ohne Spende: Vorschau unter dem Spendenformular", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    expect(
+      await screen.findByTestId("expense-tracking-preview-area"),
+    ).toBeInTheDocument();
+  });
+
+  test("ohne Spende: Vorschau steht nicht in der Karte mit dem Spendenformular", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    const area = await screen.findByTestId("expense-tracking-preview-area");
+    expect(
+      screen.getByTestId("expense-tracking-locked").closest(".MuiCard-root"),
+    ).not.toContainElement(area);
+  });
+
+  test("mit Spende: keine Vorschau", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+
+    renderEventExpenseTrackingPage();
+
+    await screen.findByTestId("expense-tracking-unlocked");
+    expect(
+      screen.queryByTestId("expense-tracking-preview-area"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("während des Ladens: keine Vorschau", () => {
+    mockDatabase.donations.getEventDonations.mockReturnValueOnce(
+      new Promise(() => {}),
+    );
+
+    renderEventExpenseTrackingPage();
+
+    expect(
+      screen.queryByTestId("expense-tracking-preview-area"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Anlass vor über einem Jahr: keine Warnung zu fehlenden Belegen", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "old-expense",
+        budgetId: kitchenBudget.id,
+        label: "Alter Einkauf",
+        attachmentPath: null,
+      },
+    ]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+
+    renderEventExpenseTrackingPage({
+      event: {
+        ...mockEvent,
+        dates: [
+          {
+            uid: "date-old",
+            pos: 1,
+            from: new Date(2020, 5, 15),
+            to: new Date(2020, 5, 20),
+          },
+        ],
+      },
+    });
+
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    expect(await screen.findByText("Alter Einkauf")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-receipt-missing-icon-old-expense"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("gesperrte Ansicht: Helpcenter-Link zeigt auf die richtige Seite", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    const helpLink = await screen.findByRole("link", {name: "Helpcenter"});
+    expect(helpLink).toHaveAttribute(
+      "href",
+      getHelpPageUrl("event", "expensetracking"),
+    );
+  });
+
+  test("mit Spende: Abrechnung sichtbar", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    renderEventExpenseTrackingPage();
+    expect(
+      await screen.findByTestId("expense-tracking-unlocked"),
+    ).toBeInTheDocument();
+  });
+
+  test("zeigt zuerst den Ladezustand", () => {
+    mockDatabase.donations.getEventDonations.mockReturnValueOnce(
+      new Promise(() => {}),
+    ); // nie resolven
+    renderEventExpenseTrackingPage();
+    expect(screen.getByTestId("expense-tracking-loading")).toBeInTheDocument();
+  });
+
+  test("Budget wird geladen, wenn Spende erfolgt", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    const existingBudget = {
+      id: "budget-001",
+      eventId: mockEvent.uid,
+      name: "Küche",
+      budgetType: BudgetType.FIXED_AMOUNT,
+      amountInCents: 50000,
+      currency: "CHF",
+      icon: BudgetIcon.KITCHEN,
+    };
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      existingBudget,
+    ]);
+
+    renderEventExpenseTrackingPage();
+
+    expect(await screen.findByTestId(existingBudget.id)).toBeInTheDocument();
+    expect(mockDatabase.budgets.createBudget).not.toHaveBeenCalled();
+  });
+  test("Toggle Button wechselt die Ansicht", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    renderEventExpenseTrackingPage();
+    expect(
+      await screen.findByTestId("expense-tracking-unlocked"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(
+      await screen.findByTestId("expense-tracking-expenses-list"),
+    ).toBeInTheDocument();
+  });
+});
+describe("EventExpenseTrackingPage: Ansicht Auswertung", () => {
+  test("Toggle «Auswertung» zeigt die Auswertung mit den Ausgaben des Anlasses", async () => {
+    await renderUnlockedPage(
+      [kitchenBudget],
+      [{...mockExpense, id: "expense-1", budgetId: kitchenBudget.id}],
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+
+    expect(
+      await screen.findByTestId("expense-tracking-evaluation"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("evaluation-top-expense-expense-1"),
+    ).toBeInTheDocument();
+  });
+
+  test("Menüplan wird an die Auswertung durchgereicht (Kachel «Ø pro Mahlzeit»)", async () => {
+    await renderUnlockedPage(
+      [kitchenBudget],
+      [{...mockExpense, id: "expense-1", budgetId: kitchenBudget.id}],
+      {
+        menuplan: buildMenuplan(
+          ["zmorge"],
+          [{date: "2026-07-05", mealType: "zmorge", menues: ["recipe"]}],
+        ),
+      },
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+
+    expect(
+      await screen.findByText(TEXT_EVALUATION_AVERAGE_PER_MEAL),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/^1 Mahlzeit/)).toBeInTheDocument();
+  });
+
+  test("in der Auswertung gibt es weder «Neues Budget» noch «Neue Ausgabe»", async () => {
+    await renderUnlockedPage([kitchenBudget]);
+
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+
+    expect(
+      await screen.findByText(TEXT_EVALUATION_NO_EXPENSES),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {name: TEXT_NEW_BUDGET}),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {name: TEXT_NEW_EXPENSE}),
+    ).not.toBeInTheDocument();
+  });
+});
+describe("EventExpenseTrackingPage: Filter «Nur ohne Beleg»", () => {
+  // Küche: eine Ausgabe ohne, eine mit Beleg. Motto: nur mit Beleg, damit
+  // sein Gruppenkopf im gefilterten Zustand verschwinden muss.
+  const kitchenMissing: ExpenseDomain = {
+    ...mockExpense,
+    id: "kitchen-missing",
+    budgetId: kitchenBudget.id,
+    label: "Migros",
+    amountInCents: 500,
+    currency: "CHF",
+    attachmentPath: null,
+  };
+  const kitchenWithReceipt: ExpenseDomain = {
+    ...mockExpense,
+    id: "kitchen-receipt",
+    budgetId: kitchenBudget.id,
+    label: "Coop",
+    amountInCents: 2000,
+    currency: "CHF",
+    attachmentPath: "evt-1/expenses/kitchen-receipt.pdf",
+  };
+  const mottoWithReceipt: ExpenseDomain = {
+    ...mockExpense,
+    id: "motto-receipt",
+    budgetId: mottoBudget.id,
+    label: "Bastelmaterial",
+    amountInCents: 3000,
+    currency: "CHF",
+    attachmentPath: "evt-1/expenses/motto-receipt.pdf",
+  };
+
+  /**
+   * Rendert die Seite mit beiden Budgets und allen drei Ausgaben, wechselt in
+   * die Auswertung und klickt im Beleg-Hinweis auf «Anzeigen».
+   *
+   * @returns Rückgabe von `renderUnlockedPage` (u.a. `onChange` für Realtime).
+   */
+  const openFilteredList = async () => {
+    const rendered = await renderUnlockedPage(
+      [kitchenBudget, mottoBudget],
+      [kitchenMissing, kitchenWithReceipt, mottoWithReceipt],
+    );
+    fireEvent.click(
+      screen.getByRole("button", {name: TEXT_EXPENSE_TRACKING_EVALUATION}),
+    );
+    fireEvent.click(
+      within(await screen.findByRole("alert")).getByRole("button", {
+        name: TEXT_SHOW,
+      }),
+    );
+    return rendered;
+  };
+
+  test("«Anzeigen» wechselt zu den Ausgaben, zeigt Chip und nur Zeilen ohne Beleg", async () => {
+    await openFilteredList();
+
+    expect(
+      await screen.findByTestId("expense-tracking-expenses-list"),
+    ).toBeInTheDocument();
+    expect(screen.getByText(TEXT_ONLY_WITHOUT_RECEIPT)).toBeInTheDocument();
+    expect(screen.getByTestId("expense-kitchen-missing")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-kitchen-receipt"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-motto-receipt"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Gruppenkopf zeigt die Summe nur der sichtbaren Ausgaben", async () => {
+    await openFilteredList();
+
+    const kitchenHeader = await screen.findByTestId(
+      `budget-subheader-${kitchenBudget.id}`,
+    );
+    expect(
+      within(kitchenHeader).getByText(
+        normalizer(formatAmountFromCents(500, "CHF")),
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(kitchenHeader).queryByText(
+        normalizer(formatAmountFromCents(2500, "CHF")),
+      ),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Budget, dessen Ausgaben alle einen Beleg haben, hat keinen Gruppenkopf", async () => {
+    await openFilteredList();
+
+    await screen.findByTestId("expense-tracking-expenses-list");
+    expect(
+      screen.queryByTestId(`budget-subheader-${mottoBudget.id}`),
+    ).not.toBeInTheDocument();
+  });
+
+  test("✕ am Chip zeigt wieder alle Ausgaben", async () => {
+    await openFilteredList();
+
+    // MUI rendert das ✕ eines Chips mit `onDelete` als CancelIcon
+    fireEvent.click(await screen.findByTestId("CancelIcon"));
+
+    expect(
+      screen.queryByText(TEXT_ONLY_WITHOUT_RECEIPT),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("expense-kitchen-receipt")).toBeInTheDocument();
+    expect(screen.getByTestId("expense-motto-receipt")).toBeInTheDocument();
+  });
+
+  test("Tippen auf den Chip selbst entfernt den Filter (grössere Fläche als ✕)", async () => {
+    await openFilteredList();
+
+    fireEvent.click(
+      await screen.findByRole("button", {name: TEXT_ONLY_WITHOUT_RECEIPT}),
+    );
+
+    expect(
+      screen.queryByText(TEXT_ONLY_WITHOUT_RECEIPT),
+    ).not.toBeInTheDocument();
+    expect(screen.getByTestId("expense-kitchen-receipt")).toBeInTheDocument();
+  });
+
+  test("Wechsel auf «Übersicht» und zurück setzt den Filter zurück", async () => {
+    await openFilteredList();
+    await screen.findByText(TEXT_ONLY_WITHOUT_RECEIPT);
+
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(
+      await screen.findByTestId("expense-kitchen-receipt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(TEXT_ONLY_WITHOUT_RECEIPT),
+    ).not.toBeInTheDocument();
+  });
+
+  test("erneuter Klick auf die aktive Ansicht «Ausgaben» lässt den Filter stehen", async () => {
+    await openFilteredList();
+    await screen.findByText(TEXT_ONLY_WITHOUT_RECEIPT);
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(screen.getByText(TEXT_ONLY_WITHOUT_RECEIPT)).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-kitchen-receipt"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("letzter Beleg nachgereicht (Realtime): «Alle Ausgaben haben einen Beleg.»", async () => {
+    const {onChange} = await openFilteredList();
+    await screen.findByTestId("expense-kitchen-missing");
+
+    // Eine andere Sitzung lädt den fehlenden Beleg hoch; der Reload liefert
+    // beide Tabellen neu (siehe Realtime-Tests der Ausgaben).
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {...kitchenMissing, attachmentPath: "evt-1/expenses/kitchen-missing.pdf"},
+      kitchenWithReceipt,
+      mottoWithReceipt,
+    ]);
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(
+      await screen.findByText(TEXT_ALL_EXPENSES_HAVE_A_RECEIPT),
+    ).toBeInTheDocument();
+    // Filter bleibt aktiv, damit sichtbar ist, dass die Arbeit erledigt ist (F4)
+    expect(screen.getByText(TEXT_ONLY_WITHOUT_RECEIPT)).toBeInTheDocument();
+  });
+});
+describe("Budget-Cards werden richtig dargestellt", () => {
+  test("Ausgaben in mehreren Währungen werden angezeigt", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    const existingBudget = {
+      id: "budget-001",
+      eventId: mockEvent.uid,
+      name: "Küche",
+      budgetType: BudgetType.FIXED_AMOUNT,
+      amountInCents: 60000,
+      currency: "CHF",
+      icon: BudgetIcon.KITCHEN,
+    };
+
+    const expenses: ExpenseDomain[] = [
+      {
+        id: "expense-id-001",
+        eventId: mockEvent.uid,
+        budgetId: "budget-001",
+        date: new Date(2026, 9, 21),
+        amountInCents: 4200,
+        currency: "CHF",
+        label: "Migros Brunaupark",
+        comment: "Vorweekend",
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "payee-id-001",
+        payeeName: null,
+        attachmentPath: null,
+        attachmentOriginalFilename: null,
+      },
+      {
+        id: "expense-id-002",
+        eventId: mockEvent.uid,
+        budgetId: "budget-001",
+        date: new Date(2026, 9, 21),
+        amountInCents: 1100,
+        currency: "EUR",
+        label: "EDEKA",
+        comment: "Vorweekend",
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "payee-id-001",
+        payeeName: null,
+        attachmentPath: null,
+        attachmentOriginalFilename: null,
+      },
+    ];
+    const normalizer = getDefaultNormalizer();
+
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      existingBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce(expenses);
+
+    renderEventExpenseTrackingPage();
+
+    expect(await screen.findByTestId(existingBudget.id)).toBeInTheDocument();
+
+    const card = screen.getByTestId(kitchenBudget.id);
+    expect(
+      within(card).getByText(normalizer(formatAmountFromCents(1100, "EUR"))),
+    ).toBeInTheDocument();
+  });
+  test("Fremdwährung erscheint als Zusatzzeile und zählt nicht zum Fortschritt", async () => {
+    // kitchenBudget: CHF, Sollbetrag 1000 Rappen (10.00 CHF)
+    await renderUnlockedPage(
+      [kitchenBudget],
+      [
+        {
+          ...mockExpense,
+          budgetId: kitchenBudget.id,
+          currency: "CHF",
+          amountInCents: 400,
+          id: "expense-1",
+        },
+        {
+          ...mockExpense,
+          budgetId: kitchenBudget.id,
+          currency: "EUR",
+          amountInCents: 500,
+          id: "expense-2",
+        },
+      ],
+    );
+    const normalizer = getDefaultNormalizer();
+    const card = await screen.findByTestId(kitchenBudget.id);
+
+    // Balken/Prozent zählen nur die 400 CHF, nicht die zusätzlichen 500 EUR
+    expect(within(card).getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "40",
+    );
+
+    // Beide Beträge sind sichtbar
+    expect(
+      within(card).getByText(normalizer(formatAmountFromCents(400, "CHF"))),
+    ).toBeInTheDocument();
+    expect(
+      within(card).getByText(normalizer(formatAmountFromCents(500, "EUR"))),
+    ).toBeInTheDocument();
+  });
+  test("Fortschrittsbalken wird richtig berechnet", async () => {
+    // kitchenBudget: CHF, Sollbetrag 7500 Rappen (75.00 CHF)
+    await renderUnlockedPage(
+      [{...kitchenBudget, amountInCents: 7500}],
+      [
+        {
+          ...mockExpense,
+          budgetId: kitchenBudget.id,
+          currency: "CHF",
+          amountInCents: 4200,
+          id: "expense-1",
+        },
+        {
+          ...mockExpense,
+          budgetId: kitchenBudget.id,
+          currency: "EUR",
+          amountInCents: 500,
+          id: "expense-2",
+        },
+      ],
+    );
+
+    const card = await screen.findByTestId(kitchenBudget.id);
+    // Balken/Prozent zählen nur die 42 CHF, nicht die zusätzlichen 5.00 EUR
+    expect(within(card).getByRole("progressbar")).toHaveAttribute(
+      "aria-valuenow",
+      "56",
+    );
+  });
+});
+/* =====================================================================
+// Realtime-Subscription der Budgets
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Realtime der Budgets", () => {
+  const transportBudget = {
+    ...mockBudget,
+    id: "budget-002",
+    name: "Transport",
+    icon: BudgetIcon.TRANSPORT,
+  };
+
+  test("abonniert erst, wenn eine Spende bestätigt ist", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    await screen.findByTestId("expense-tracking-locked");
+    expect(mockDatabase.budgets.subscribeToBudgets).not.toHaveBeenCalled();
+  });
+
+  test("abonniert die Budgets des Events", async () => {
+    await renderUnlockedPage();
+
+    expect(mockDatabase.budgets.subscribeToBudgets).toHaveBeenCalledWith(
+      mockEvent.uid,
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+    );
+  });
+
+  test("zeigt ein neues Budget, wenn eine andere Sitzung es anlegt", async () => {
+    const {onChange} = await renderUnlockedPage([kitchenBudget]);
+    expect(await screen.findByTestId("budget-001")).toBeInTheDocument();
+    expect(screen.queryByTestId("budget-002")).not.toBeInTheDocument();
+
+    // Supabase meldet eine Änderung, der Reload liefert jetzt zwei Budgets
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      transportBudget,
+    ]);
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(await screen.findByTestId("budget-002")).toBeInTheDocument();
+  });
+
+  test("entfernt eine Karte, wenn eine andere Sitzung das Budget löscht", async () => {
+    const {onChange} = await renderUnlockedPage([
+      kitchenBudget,
+      transportBudget,
+    ]);
+    expect(await screen.findByTestId("budget-002")).toBeInTheDocument();
+
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    await act(async () => {
+      await onChange();
+    });
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("budget-002")).not.toBeInTheDocument(),
+    );
+    expect(screen.getByTestId("budget-001")).toBeInTheDocument();
+  });
+
+  test("legt bei leerer Liste nie automatisch ein Budget an", async () => {
+    const {onChange} = await renderUnlockedPage([]);
+    await screen.findByTestId("expense-tracking-unlocked");
+    // Leerzustand: nur die «Neues Budget»-Elemente, keine Budget-Karte
+    expect(screen.getAllByText(TEXT_NEW_BUDGET).length).toBeGreaterThan(0);
+
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(mockDatabase.budgets.createBudget).not.toHaveBeenCalled();
+  });
+
+  test("lädt nach einem Verbindungsabbruch neu, aber nicht schon beim Abbruch", async () => {
+    const {onStatusChange} = await renderUnlockedPage([kitchenBudget]);
+    await screen.findByTestId("budget-001");
+    expect(mockDatabase.budgets.getBudgetsForEvent).toHaveBeenCalledTimes(1);
+
+    // Verbindung bricht ab: Hinweis erscheint, aber noch kein Reload
+    await act(async () => {
+      onStatusChange("reconnecting");
+    });
+    expect(screen.getByText(TEXT_REALTIME_RECONNECTING)).toBeInTheDocument();
+    expect(mockDatabase.budgets.getBudgetsForEvent).toHaveBeenCalledTimes(1);
+
+    // Verbindung steht wieder: in der Zwischenzeit verpasste Änderungen nachladen
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      transportBudget,
+    ]);
+    await act(async () => {
+      onStatusChange("connected");
+    });
+
+    expect(await screen.findByTestId("budget-002")).toBeInTheDocument();
+    expect(mockDatabase.budgets.getBudgetsForEvent).toHaveBeenCalledTimes(2);
+  });
+
+  test("abonniert nur einmal, auch wenn sich der Verbindungsstatus ändert", async () => {
+    const {onStatusChange} = await renderUnlockedPage([kitchenBudget]);
+    await screen.findByTestId("budget-001");
+
+    // Statuswechsel löst ein Re-Render aus. Wären die Dependencies des
+    // Effects instabil, würde die Seite dabei neu abonnieren.
+    await act(async () => {
+      onStatusChange("reconnecting");
+    });
+
+    expect(mockDatabase.budgets.subscribeToBudgets).toHaveBeenCalledTimes(1);
+    expect(mockUnsubscribeBudgets).not.toHaveBeenCalled();
+  });
+
+  test("beendet die Subscription, wenn die Seite verlassen wird", async () => {
+    const {view} = await renderUnlockedPage([kitchenBudget]);
+    await screen.findByTestId("budget-001");
+
+    view.unmount();
+
+    expect(mockUnsubscribeBudgets).toHaveBeenCalledTimes(1);
+  });
+
+  test("zeigt einen Fehler beim Neuladen und blendet ihn nach Erfolg wieder aus", async () => {
+    const {onChange} = await renderUnlockedPage([kitchenBudget]);
+    await screen.findByTestId("budget-001");
+
+    // Reload schlägt fehl → Fehlerhinweis
+    mockDatabase.budgets.getBudgetsForEvent.mockRejectedValueOnce(
+      new Error("Verbindung verloren"),
+    );
+    await act(async () => {
+      await onChange();
+    });
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    // Nächster Reload klappt → der Fehlerhinweis verschwindet wieder
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    await act(async () => {
+      await onChange();
+    });
+    await waitFor(() =>
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument(),
+    );
+  });
+});
+/* =====================================================================
+// Budget bearbeiten und löschen
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Budget bearbeiten und löschen", () => {
+  /** Öffnet den Bearbeiten-Dialog über das Stift-Icon der Karte. */
+  const openEditDialog = async (expenses: ExpenseDomain[] = []) => {
+    await renderUnlockedPage([kitchenBudget], expenses);
+    const card = await screen.findByTestId("budget-001");
+    fireEvent.click(
+      within(card).getByRole("button", {name: "Budget bearbeiten"}),
+    );
+    return screen.findByRole("dialog");
+  };
+
+  /** Öffnet den Bearbeiten-Dialog und klickt auf «Löschen». */
+  const openEditDialogAndClickDelete = async (
+    expenses: ExpenseDomain[] = [],
+  ) => {
+    const dialog = await openEditDialog(expenses);
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+  };
+
+  /* ------------------------------------------
+  // Bearbeiten
+  // ------------------------------------------ */
+  test("Klick auf das Stift-Icon öffnet den Dialog mit den Werten des Budgets", async () => {
+    const dialog = await openEditDialog();
+
+    expect(within(dialog).getByLabelText("Name")).toHaveValue("Küche");
+    expect(
+      within(dialog).getByRole("button", {name: "Löschen"}),
+    ).toBeInTheDocument();
+  });
+
+  test("Speichern ruft updateBudget auf und aktualisiert die Karte", async () => {
+    mockDatabase.budgets.updateBudget.mockResolvedValueOnce({
+      ...kitchenBudget,
+      name: "Motto",
+    });
+    const dialog = await openEditDialog();
+
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: {value: "Motto"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.budgets.updateBudget).toHaveBeenCalledWith(
+        expect.objectContaining({id: "budget-001", name: "Motto"}),
+        mockAuthUser,
+      ),
+    );
+    expect(
+      await within(screen.getByTestId("budget-001")).findByText("Motto"),
+    ).toBeInTheDocument();
+  });
+
+  test("schlägt das Speichern fehl, erscheint ein Fehler und die Karte bleibt unverändert", async () => {
+    mockDatabase.budgets.updateBudget.mockRejectedValueOnce(
+      new Error("Speichern fehlgeschlagen"),
+    );
+    const dialog = await openEditDialog();
+
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: {value: "Motto"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      within(screen.getByTestId("budget-001")).getByText("Küche"),
+    ).toBeInTheDocument();
+  });
+
+  /* ------------------------------------------
+  // Löschen
+  // ------------------------------------------ */
+  test("nach Bestätigung wird das Budget gelöscht und die Karte entfernt", async () => {
+    mockCustomDialog.mockResolvedValue(true); // Nutzer:in bestätigt
+    mockDatabase.budgets.deleteBudget.mockResolvedValueOnce(undefined);
+
+    await openEditDialogAndClickDelete();
+
+    await waitFor(() =>
+      expect(mockDatabase.budgets.deleteBudget).toHaveBeenCalledWith(
+        "budget-001",
+      ),
+    );
+    expect(mockCustomDialog).toHaveBeenCalledWith(
+      expect.objectContaining({title: TEXT_DELETE_BUDGET_DIALOG("Küche")}),
+    );
+    await waitFor(() =>
+      expect(screen.queryByTestId("budget-001")).not.toBeInTheDocument(),
+    );
+  });
+
+  test("bei Abbruch bleibt das Budget bestehen", async () => {
+    mockCustomDialog.mockResolvedValue(false); // Nutzer:in bricht ab
+
+    await openEditDialogAndClickDelete();
+
+    await waitFor(() => expect(mockCustomDialog).toHaveBeenCalledTimes(1));
+    expect(mockDatabase.budgets.deleteBudget).not.toHaveBeenCalled();
+    expect(screen.getByTestId("budget-001")).toBeInTheDocument();
+  });
+
+  test("ein Budget mit Ausgaben kann nicht gelöscht werden", async () => {
+    // Selbst wenn die Nutzer:in im Dialog «OK» klickt (true), darf nichts passieren
+    mockCustomDialog.mockResolvedValue(true);
+
+    await openEditDialogAndClickDelete([
+      {...mockExpense, budgetId: kitchenBudget.id},
+    ]); // 42.00 CHF ausgegeben
+    await waitFor(() =>
+      expect(mockCustomDialog).toHaveBeenCalledWith(
+        expect.objectContaining({text: TEXT_BUDGET_HAS_EXPENSES}),
+      ),
+    );
+    expect(mockCustomDialog).toHaveBeenCalledTimes(1); // nur der Hinweis, keine Rückfrage
+    expect(mockDatabase.budgets.deleteBudget).not.toHaveBeenCalled();
+    expect(screen.getByTestId("budget-001")).toBeInTheDocument();
+  });
+
+  test("Löschsperre gilt auch bei einer reinen Fremdwährungs-Ausgabe", async () => {
+    mockCustomDialog.mockResolvedValue(true);
+    await openEditDialogAndClickDelete([
+      {...mockExpense, budgetId: kitchenBudget.id, currency: "EUR"},
+    ]);
+    await waitFor(() =>
+      expect(mockCustomDialog).toHaveBeenCalledWith(
+        expect.objectContaining({text: TEXT_BUDGET_HAS_EXPENSES}),
+      ),
+    );
+  });
+
+  test("meldet die Datenbank einen Fremdschlüssel-Fehler, erscheint der Hinweis", async () => {
+    // Lokal sieht es nach «keine Ausgaben» aus, in der DB gibt es aber inzwischen welche
+    mockCustomDialog.mockResolvedValue(true);
+    mockDatabase.budgets.deleteBudget.mockRejectedValueOnce({
+      code: "23503",
+      message: "violates foreign key constraint",
+    });
+
+    await openEditDialogAndClickDelete();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      TEXT_BUDGET_HAS_EXPENSES,
+    );
+    expect(screen.getByTestId("budget-001")).toBeInTheDocument();
+  });
+
+  test("schlägt das Löschen aus anderem Grund fehl, erscheint ein Fehler und das Budget bleibt", async () => {
+    mockCustomDialog.mockResolvedValue(true);
+    mockDatabase.budgets.deleteBudget.mockRejectedValueOnce(
+      new Error("Löschen fehlgeschlagen"),
+    );
+
+    await openEditDialogAndClickDelete();
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.getByTestId("budget-001")).toBeInTheDocument();
+  });
+});
+/* =====================================================================
+// Ausgaben bearbeiten und löschen
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgaben bearbeiten und löschen", () => {
+  test("Neue Ausgabe deaktiviert, wenn kein Budget vorhanden", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([]);
+    renderEventExpenseTrackingPage();
+    expect(
+      await screen.findByTestId("expense-tracking-unlocked"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(
+      await screen.findByTestId("expense-tracking-expenses-list"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", {name: "Neue Ausgabe"})).toBeDisabled();
+  });
+  test("Neue Ausgabe aktiviert, sobald ein Budget vorhanden ist", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    expect(screen.getByRole("button", {name: "Neue Ausgabe"})).toBeEnabled();
+  });
+  test("Neue Ausgabe aktualisiert Liste und Fortschrittsbalken der Karte", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+
+    const newExpense = {
+      ...mockExpense,
+      id: "expense-new-1",
+      budgetId: kitchenBudget.id,
+      label: "Coop",
+      amountInCents: 1780,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: newExpense.id,
+      value: newExpense,
+    });
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    // Neue Zeile: eigener Betrag, gescoped auf ihre eigene Zeile
+    const newRow = await screen.findByTestId(`expense-${newExpense.id}`);
+    expect(
+      within(newRow).getByText(normalizer(formatAmountFromCents(1780, "CHF"))),
+    ).toBeInTheDocument();
+
+    // Gruppenkopf: Summe aus bestehender + neuer Ausgabe, gescoped auf den Kopf
+    const groupHeader = screen.getByTestId(
+      `budget-subheader-${kitchenBudget.id}`,
+    );
+    expect(
+      within(groupHeader).getByText(
+        normalizer(formatAmountFromCents(2280, "CHF")),
+      ),
+    ).toBeInTheDocument();
+
+    // Dialog schliesst mit Fade-Transition — erst warten, bis er wirklich
+    // weg ist, sonst ist der Rest der Seite noch aria-hidden.
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+    const card = await screen.findByTestId(kitchenBudget.id);
+    expect(
+      within(card).getByText(normalizer(formatAmountFromCents(2280, "CHF"))),
+    ).toBeInTheDocument();
+  });
+  test("Fehlerfall beim Speichern zeigt eine Fehlermeldung, State bleibt unverändert", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.createExpense.mockRejectedValueOnce(
+      new Error("Speichern fehlgeschlagen"),
+    );
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    // Kein neuer Eintrag: Liste zeigt weiterhin nur die bestehende Ausgabe
+    expect(screen.queryByText("Coop")).not.toBeInTheDocument();
+    const groupHeader = screen.getByTestId(
+      `budget-subheader-${kitchenBudget.id}`,
+    );
+    expect(
+      within(groupHeader).getByText(
+        normalizer(formatAmountFromCents(500, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+  test("Platzhalter für die zahlende Instanz werden beim Anlegen mitgeschickt", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-2",
+      value: {
+        ...mockExpense,
+        id: "expense-new-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 1780,
+        currency: "CHF",
+      },
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          budgetId: kitchenBudget.id,
+          label: "Coop",
+          amountInCents: 1780,
+          currency: "CHF",
+          payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+          payeeUserId: null,
+          payeeName: null,
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+  test("Budget-Auswahl merkt sich beim nächsten Anlegen das zuletzt verwendete Budget", async () => {
+    const mottoBudget = {...mockBudget, id: "budget-002", name: "Motto"};
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-3",
+      value: {
+        ...mockExpense,
+        id: "expense-new-3",
+        budgetId: mottoBudget.id,
+        label: "Deko",
+        amountInCents: 2500,
+        currency: "CHF",
+      },
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    // Erste Ausgabe: bewusst NICHT das erste Budget der Liste wählen
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    fireEvent.change(screen.getByLabelText("Bezeichnung"), {
+      target: {value: "Deko"},
+    });
+    fireEvent.change(screen.getByLabelText("Betrag"), {
+      target: {value: "25.00"},
+    });
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Währung"}));
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(screen.getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Motto"}));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalled(),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+
+    // Zweite Ausgabe: Budget-Auswahl soll bereits "Motto" zeigen, nicht
+    // "Küche" (das erste Budget in der Liste)
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    expect(screen.getByRole("combobox", {name: "Budget"})).toHaveTextContent(
+      "Motto",
+    );
+  });
+  test("Klick auf eine Zeile öffnet den Dialog mit den Werten der Ausgabe", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText("Bezeichnung")).toHaveValue("Migros");
+    expect(within(dialog).getByLabelText("Betrag")).toHaveValue("5.00");
+    expect(
+      within(dialog).getByRole("button", {name: "Löschen"}),
+    ).toBeInTheDocument();
+  });
+  test("Änderung einer Ausgabe", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-3",
+        budgetId: mottoBudget.id,
+        label: "Bau und Hobby",
+        amountInCents: 3300,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: mottoBudget.id,
+      label: "Coop",
+      amountInCents: 770,
+      currency: "CHF",
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+
+    const dialog = await screen.findByRole("dialog");
+
+    // Wert, Budget und Bezeichnung ändern
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "7.70"},
+    });
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Motto"}));
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "expense-existing-1",
+          eventId: "evt-1",
+          budgetId: "budget-002",
+          amountInCents: 770,
+          currency: "CHF",
+          label: "Coop",
+          comment: "Vorweekend",
+        }),
+        mockAuthUser,
+      ),
+    );
+
+    expect(
+      await within(screen.getByTestId("expense-expense-existing-1")).findByText(
+        "Coop",
+      ),
+    ).toBeInTheDocument();
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(kitchenBudget.id)).getByText(
+          normalizer(formatAmountFromCents(2500, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(mottoBudget.id)).getByText(
+          normalizer(formatAmountFromCents(4070, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+  test("Neue Ausgabe mit bestehender Person sendet payeeUserId", async () => {
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-1",
+      value: {...mockExpense, id: "expense-new-1"},
+    });
+
+    await renderUnlockedPage([kitchenBudget]);
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Sackmesser"},
+    });
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "12.00"},
+    });
+
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Währung"}),
+    );
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    fireEvent.click(
+      within(dialog).getByRole("radio", {name: "Bestehende Person"}),
+    );
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Name"}));
+    fireEvent.click(screen.getByRole("option", {name: "Max Muster"}));
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payeeType: "existing_user",
+          payeeUserId: "user-123",
+          payeeName: null,
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+  test("Neue Ausgabe mit Neuer Person sendet payerName", async () => {
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: "expense-new-1",
+      value: {...mockExpense, id: "expense-new-1"},
+    });
+
+    await renderUnlockedPage([kitchenBudget]);
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Sackmesser"},
+    });
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "12.00"},
+    });
+
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Währung"}),
+    );
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    fireEvent.click(
+      within(dialog).getByRole("radio", {name: "Neue Person erfassen"}),
+    );
+
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: {value: "Externe Person"},
+    });
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          payeeType: "new_person",
+          payeeUserId: null,
+          payeeName: "Externe Person",
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+
+  test("Änderung der Ausgabe, wird auf Budgetkarte wiederspiegelt", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 1595,
+      currency: "CHF",
+    });
+
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "15.95"},
+    });
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId("expense-expense-existing-1")).getByText(
+          normalizer(formatAmountFromCents(1595, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(kitchenBudget.id)).getByText(
+          normalizer(formatAmountFromCents(4095, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+  /* ------------------------------------------
+  // Löschen
+  // ------------------------------------------ */
+
+  test("nach Bestätigung wird die Ausgabe gelöscht, der Listeneintrag entfernt und die Budgetkarte aktualisiert", async () => {
+    mockCustomDialog.mockResolvedValue(true); // Nutzer:in bestätigt
+    mockDatabase.expenses.deleteExpense.mockResolvedValueOnce(undefined);
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 1600,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.deleteExpense).toHaveBeenCalledWith(
+        "expense-existing-1",
+      ),
+    );
+    expect(mockCustomDialog).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: TEXT_DELETE_EXPENSE_DIALOG("Migros", 500, "CHF"),
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("expense-expense-existing-1"),
+      ).not.toBeInTheDocument(),
+    );
+
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+    // 2) Zurück zur Übersicht: Fortschrittsbalken/Betrag der Karte ist aktualisiert
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    await waitFor(() =>
+      expect(
+        within(screen.getByTestId(kitchenBudget.id)).getByText(
+          normalizer(formatAmountFromCents(1600, "CHF")),
+        ),
+      ).toBeInTheDocument(),
+    );
+  });
+
+  test("bei Abbruch bleibt die Ausgabe bestehen", async () => {
+    mockCustomDialog.mockResolvedValue(false); // Nutzer:in bricht ab
+
+    mockDatabase.expenses.deleteExpense.mockResolvedValueOnce(undefined);
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 1600,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    await waitFor(() => expect(mockCustomDialog).toHaveBeenCalledTimes(1));
+    expect(mockDatabase.expenses.deleteExpense).not.toHaveBeenCalled();
+    expect(
+      screen.getByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+  });
+  test("Fehlerfall beim Bearbeiten zeigt eine Fehlermeldung, State bleibt unverändert", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.updateExpense.mockRejectedValueOnce(
+      new Error("Speichern fehlgeschlagen"),
+    );
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+
+    // State blieb unverändert: Zeile zeigt weiterhin die alte Bezeichnung
+    expect(
+      within(screen.getByTestId("expense-expense-existing-1")).getByText(
+        "Migros",
+      ),
+    ).toBeInTheDocument();
+  });
+  test("Fehlerfall beim Löschen zeigt eine Fehlermeldung, die Ausgabe bleibt bestehen", async () => {
+    mockCustomDialog.mockResolvedValue(true); // Nutzer:in bestätigt
+    mockDatabase.expenses.deleteExpense.mockRejectedValueOnce(
+      new Error("Löschen fehlgeschlagen"),
+    );
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+  });
+  test("Randfall: Ausgabe wurde von anderer Sitzung bereits gelöscht", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+    ]);
+    mockDatabase.expenses.updateExpense.mockRejectedValueOnce({
+      code: "PGRST116",
+      message: "JSON object requested, multiple (or no) rows returned",
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+  });
+});
+/* =====================================================================
+// Beleg-Upload (Story 4.2)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Beleg-Upload", () => {
+  /** Öffnet den Anlegen-Dialog und füllt die Pflichtfelder einer Ausgabe aus. */
+  const openNewExpenseDialogAndFillRequiredFields = async () => {
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+    fireEvent.click(screen.getByRole("button", {name: "Neue Ausgabe"}));
+    const dialog = await screen.findByRole("dialog");
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.change(within(dialog).getByLabelText("Betrag"), {
+      target: {value: "17.80"},
+    });
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Währung"}),
+    );
+    fireEvent.click(screen.getByRole("option", {name: "CHF"}));
+    fireEvent.mouseDown(within(dialog).getByRole("combobox", {name: "Budget"}));
+    fireEvent.click(screen.getByRole("option", {name: "Küche"}));
+
+    return dialog;
+  };
+
+  /** Öffnet den Bearbeiten-Dialog der übergebenen Ausgabe. */
+  const openExistingExpenseDialog = async (expense: ExpenseDomain) => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([expense]);
+
+    const result = renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+    fireEvent.click(screen.getByTestId(`expense-${expense.id}`));
+    const dialog = await screen.findByRole("dialog");
+
+    return {...result, dialog};
+  };
+
+  test("Neue Ausgabe mit Beleg: lädt die Datei erst nach dem Anlegen hoch und verknüpft sie", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    const createdExpense = {
+      ...mockExpense,
+      id: "expense-new-1",
+      budgetId: kitchenBudget.id,
+      label: "Coop",
+      amountInCents: 1780,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: createdExpense.id,
+      value: createdExpense,
+    });
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...createdExpense,
+      attachmentPath: "evt-1/expenses/expense-new-1.pdf",
+      attachmentOriginalFilename: "beleg.pdf",
+    });
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    const dialog = await openNewExpenseDialogAndFillRequiredFields();
+
+    selectAttachmentFile(makeFile("beleg.pdf", "application/pdf"));
+    // Dropzone ist weg, Dateiname wird stattdessen angezeigt
+    expect(within(dialog).getByText("beleg.pdf")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.createExpense).toHaveBeenCalled(),
+    );
+    // Upload erst NACH dem Anlegen, mit dem von der DB vergebenen Pfad
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.upload).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-new-1.pdf",
+        expect.any(File),
+        "application/pdf",
+        "0", // cacheControl: kein Stale-Cache beim Wiederverwenden des Pfads
+      ),
+    );
+    await waitFor(() =>
+      expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: "expense-new-1",
+          attachmentPath: "evt-1/expenses/expense-new-1.pdf",
+          attachmentOriginalFilename: "beleg.pdf",
+        }),
+        mockAuthUser,
+      ),
+    );
+  });
+
+  test("Schlägt der Beleg-Upload fehl, bleibt die neu angelegte Ausgabe trotzdem bestehen", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    const createdExpense = {
+      ...mockExpense,
+      id: "expense-new-1",
+      budgetId: kitchenBudget.id,
+      label: "Coop",
+      amountInCents: 1780,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.createExpense.mockResolvedValueOnce({
+      id: createdExpense.id,
+      value: createdExpense,
+    });
+    mockDatabase.storage.expenses.upload.mockRejectedValueOnce(
+      new Error("Upload fehlgeschlagen"),
+    );
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    await openNewExpenseDialogAndFillRequiredFields();
+    selectAttachmentFile(makeFile("beleg.pdf", "application/pdf"));
+    fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
+
+    // Die Ausgabe selbst wurde angelegt (nur der Beleg scheiterte) — daneben
+    // erscheint auch die normale Erfolgs-Snackbar fürs Anlegen, deshalb hier
+    // gezielt auf den Fehlertext statt auf role="alert" prüfen.
+    expect(
+      await screen.findByTestId(`expense-${createdExpense.id}`),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("Upload fehlgeschlagen"),
+    ).toBeInTheDocument();
+    expect(mockDatabase.expenses.updateExpense).not.toHaveBeenCalled();
+  });
+
+  test("Ersetzen mit anderer Dateiendung löscht den alten Pfad vor dem Hochladen", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.jpg",
+      attachmentOriginalFilename: "foto.jpg",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+      attachmentOriginalFilename: "beleg.pdf",
+    });
+
+    // Bestehenden Beleg erst zum Entfernen markieren, dann eine neue Datei
+    // auswählen — das hebt die Markierung wieder auf (siehe Dialog-Logik)
+    fireEvent.click(
+      within(dialog).getByRole("button", {name: "Beleg löschen"}),
+    );
+    selectAttachmentFile(makeFile("beleg.pdf", "application/pdf"));
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-existing-1.jpg",
+      ),
+    );
+    expect(mockDatabase.storage.expenses.upload).toHaveBeenCalledWith(
+      "evt-1/expenses/expense-existing-1.pdf",
+      expect.any(File),
+      "application/pdf",
+      "0", // cacheControl: kein Stale-Cache beim Wiederverwenden des Pfads
+    );
+    expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+        attachmentOriginalFilename: "beleg.pdf",
+      }),
+      mockAuthUser,
+    );
+  });
+
+  test("Ersetzen mit derselben Dateiendung überschreibt, ohne vorher zu löschen", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.jpg",
+      attachmentOriginalFilename: "altes-foto.jpg",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      attachmentOriginalFilename: "neues-foto.jpg",
+    });
+
+    fireEvent.click(
+      within(dialog).getByRole("button", {name: "Beleg löschen"}),
+    );
+    selectAttachmentFile(makeFile("neues-foto.jpg", "image/jpeg"));
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.upload).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-existing-1.jpg",
+        expect.any(File),
+        "image/jpeg",
+        "0", // cacheControl: kein Stale-Cache beim Wiederverwenden des Pfads
+      ),
+    );
+    // Gleicher Pfad wie vorher → kein explizites Löschen nötig (upsert überschreibt)
+    expect(mockDatabase.storage.expenses.remove).not.toHaveBeenCalled();
+  });
+
+  test("Beleg entfernen löscht ihn aus dem Storage und setzt den Pfad auf null", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.jpg",
+      attachmentOriginalFilename: "foto.jpg",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      attachmentPath: null,
+      attachmentOriginalFilename: null,
+    });
+
+    fireEvent.click(
+      within(dialog).getByRole("button", {name: "Beleg löschen"}),
+    );
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledWith(
+        "evt-1/expenses/expense-existing-1.jpg",
+      ),
+    );
+    expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+      expect.objectContaining({
+        attachmentPath: null,
+        attachmentOriginalFilename: null,
+      }),
+      mockAuthUser,
+    );
+    expect(mockDatabase.storage.expenses.upload).not.toHaveBeenCalled();
+  });
+
+  test("Bearbeiten ohne den Beleg anzufassen behält den bestehenden Pfad (Regressionstest)", async () => {
+    // Ohne den Fix würde transformInputToExpenseDomain()'s hartkodiertes
+    // null hier den bestehenden Beleg aus der DB löschen, obwohl nur die
+    // Bezeichnung geändert wurde.
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+      attachmentOriginalFilename: "beleg.pdf",
+    };
+    const {dialog} = await openExistingExpenseDialog(existingExpense);
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      label: "Coop",
+    });
+
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+    fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.updateExpense).toHaveBeenCalledWith(
+        expect.objectContaining({
+          label: "Coop",
+          attachmentPath: "evt-1/expenses/expense-existing-1.pdf",
+          attachmentOriginalFilename: "beleg.pdf",
+        }),
+        mockAuthUser,
+      ),
+    );
+    expect(mockDatabase.storage.expenses.upload).not.toHaveBeenCalled();
+    expect(mockDatabase.storage.expenses.remove).not.toHaveBeenCalled();
+  });
+});
+/* =====================================================================
+// Ausgabe mit Beleg löschen (Story 4.3)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgabe mit Beleg löschen", () => {
+  const ATTACHMENT_PATH = "evt-1/expenses/expense-existing-1.pdf";
+
+  /**
+   * Rendert die freigeschaltete Seite mit genau einer Ausgabe, öffnet deren
+   * Dialog und bestätigt das Löschen.
+   *
+   * @param attachmentPath - Beleg-Pfad der Ausgabe oder `null` (ohne Beleg).
+   */
+  const deleteExpenseViaDialog = async (attachmentPath: string | null) => {
+    mockCustomDialog.mockResolvedValue(true); // Nutzer:in bestätigt
+    mockDatabase.expenses.deleteExpense.mockResolvedValueOnce(undefined);
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([{}]);
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+        attachmentPath,
+        attachmentOriginalFilename: attachmentPath ? "beleg.pdf" : null,
+      },
+    ]);
+
+    renderEventExpenseTrackingPage();
+    await screen.findByTestId("expense-tracking-unlocked");
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-tracking-expenses-list");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", {name: "Löschen"}));
+
+    await waitFor(() =>
+      expect(mockDatabase.expenses.deleteExpense).toHaveBeenCalledWith(
+        "expense-existing-1",
+      ),
+    );
+  };
+
+  test("mit Beleg: entfernt zusätzlich das Storage-Objekt, nach deleteExpense", async () => {
+    await deleteExpenseViaDialog(ATTACHMENT_PATH);
+
+    await waitFor(() =>
+      expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledWith(
+        ATTACHMENT_PATH,
+      ),
+    );
+    // Erst die DB-Zeile, dann die Datei: scheitert das DB-Löschen, darf der
+    // Beleg nicht schon weg sein (sonst zeigt die Ausgabe auf eine leere Datei).
+    expect(
+      mockDatabase.expenses.deleteExpense.mock.invocationCallOrder[0],
+    ).toBeLessThan(
+      mockDatabase.storage.expenses.remove.mock.invocationCallOrder[0],
+    );
+    expect(mockDatabase.storage.expenses.remove).toHaveBeenCalledTimes(1);
+  });
+
+  test("ohne Beleg: ruft remove() nicht auf (Regressionstest)", async () => {
+    await deleteExpenseViaDialog(null);
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("expense-expense-existing-1"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(mockDatabase.storage.expenses.remove).not.toHaveBeenCalled();
+  });
+
+  test("scheitert das Entfernen des Belegs, bleibt die Ausgabe gelöscht und ein Fehler erscheint", async () => {
+    const sentrySpy = jest.mocked(Sentry.captureException);
+    const storageError = new Error("Beleg konnte nicht gelöscht werden");
+    mockDatabase.storage.expenses.remove.mockRejectedValueOnce(storageError);
+
+    await deleteExpenseViaDialog(ATTACHMENT_PATH);
+
+    // Zwei Alerts: die Erfolgs-Snackbar fürs Löschen und die Fehlermeldung.
+    const alerts = await screen.findAllByRole("alert");
+    expect(
+      alerts.some((alert) => alert.textContent?.includes(storageError.message)),
+    ).toBe(true);
+    expect(
+      screen.queryByTestId("expense-expense-existing-1"),
+    ).not.toBeInTheDocument();
+    // Der Kontext landet nur in Sentry, nicht im UI — daran ist erkennbar,
+    // dass der Fehler vom Beleg stammt und nicht vom Löschen der Ausgabe.
+    expect(sentrySpy).toHaveBeenCalledWith(storageError, {
+      extra: {context: "Beleg löschen"},
+    });
+    expect(sentrySpy).not.toHaveBeenCalledWith(expect.anything(), {
+      extra: {context: "Ausgabe löschen"},
+    });
+  });
+});
+/* =====================================================================
+// Realtime-Subscription der Ausgaben
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Realtime der Ausgaben", () => {
+  test("abonniert erst, wenn eine Spende bestätigt ist", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    await screen.findByTestId("expense-tracking-locked");
+    expect(mockDatabase.expenses.subscribeToExpenses).not.toHaveBeenCalled();
+  });
+
+  test("abonniert die Ausgaben des Events", async () => {
+    await renderUnlockedPage();
+
+    expect(mockDatabase.expenses.subscribeToExpenses).toHaveBeenCalledWith(
+      mockEvent.uid,
+      expect.any(Function),
+      expect.any(Function),
+      expect.any(Function),
+    );
+  });
+
+  test("zeigt eine neue Ausgabe, wenn eine andere Sitzung es anlegt", async () => {
+    // Bestehende Ausgabe direkt über renderUnlockedPage vorbelegen: die
+    // Subscription liefert keine Daten, nur ein Reload-Signal — der
+    // Ausgangszustand muss deshalb schon im Erstladen stehen, nicht in einem
+    // Mock-Wert, der erst nach dem Rendern gequeued wird (der würde nie
+    // konsumiert, weil der Tab-Wechsel selbst keinen Reload auslöst).
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+    const {onChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+
+    // Budgetkarte vor dem Update
+    expect(await screen.findByTestId("budget-001")).toBeInTheDocument();
+
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(500, "CHF")),
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    expect(
+      await screen.findByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("expense-expense-existing-2"),
+    ).not.toBeInTheDocument();
+
+    // Supabase meldet eine Änderung. `loadData` lädt bei jedem Reload beide
+    // Tabellen neu (Entscheidung 8) — ohne einen frischen Budgets-Mock würde
+    // getBudgetsForEvent auf den beforeEach-Default ([]) zurückfallen und
+    // groupByBudget hätte kein Budget mehr, über das es die Ausgaben gruppieren
+    // könnte.
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      existingExpense,
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2300,
+        currency: "CHF",
+      },
+    ]);
+
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(
+      await screen.findByTestId("expense-expense-existing-2"),
+    ).toBeInTheDocument();
+    // Prüfen, dass sich die Karten auch angepasst haben
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(2800, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("entfernt eine Ausgabe, wenn eine andere Sitzung die Ausgabe löscht", async () => {
+    const existingExpenses = [
+      {
+        ...mockExpense,
+        id: "expense-existing-1",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 500,
+        currency: "CHF",
+      },
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2100,
+        currency: "CHF",
+      },
+    ];
+
+    const {onChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      existingExpenses,
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    expect(
+      await screen.findByTestId("expense-expense-existing-1"),
+    ).toBeInTheDocument();
+
+    // Ohne frischen Budgets-Mock würde getBudgetsForEvent auf den
+    // beforeEach-Default ([]) zurückfallen — groupByBudget hätte dann kein
+    // Budget mehr, über das es die verbleibende Ausgabe gruppieren könnte,
+    // und die ganze Liste würde leer erscheinen (nicht nur die gelöschte Zeile).
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2100,
+        currency: "CHF",
+      },
+    ]);
+    await act(async () => {
+      await onChange();
+    });
+
+    await waitFor(() =>
+      expect(
+        screen.queryByTestId("expense-expense-existing-1"),
+      ).not.toBeInTheDocument(),
+    );
+    expect(
+      screen.getByTestId("expense-expense-existing-2"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(2100, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("lädt nach einem Verbindungsabbruch neu, aber nicht schon beim Abbruch", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    // Nutzt die Ausgaben-Subscription — nicht `onStatusChange` (Budgets):
+    // sonst wird nie die Statuswechsel-Behandlung der Ausgaben-Subscription
+    // selbst geprüft, nur die der Budgets-Subscription (die zufällig
+    // dieselbe `loadData` aufruft und den Test trotzdem grün macht).
+    const {expensesOnStatusChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+
+    await screen.findByTestId("expense-expense-existing-1");
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+
+    // Verbindung bricht ab: Hinweis erscheint, aber noch kein Reload
+    await act(async () => {
+      expensesOnStatusChange("reconnecting");
+    });
+    expect(screen.getByText(TEXT_REALTIME_RECONNECTING)).toBeInTheDocument();
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+
+    // Verbindung steht wieder: in der Zwischenzeit verpasste Änderungen nachladen
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      existingExpense,
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Migros",
+        amountInCents: 2200,
+        currency: "CHF",
+      },
+    ]);
+    await act(async () => {
+      expensesOnStatusChange("connected");
+    });
+
+    await screen.findByTestId("expense-expense-existing-2");
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(2);
+
+    fireEvent.click(screen.getByRole("button", {name: "Übersicht"}));
+
+    expect(
+      within(screen.getByTestId(kitchenBudget.id)).getByText(
+        normalizer(formatAmountFromCents(2700, "CHF")),
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("abonniert nur einmal, auch wenn sich der Verbindungsstatus ändert", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    const {expensesOnStatusChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+
+    // Statuswechsel löst ein Re-Render aus. Wären die Dependencies des
+    // Effects instabil, würde die Seite dabei neu abonnieren.
+    await act(async () => {
+      expensesOnStatusChange("reconnecting");
+    });
+
+    expect(mockDatabase.expenses.subscribeToExpenses).toHaveBeenCalledTimes(1);
+    expect(mockUnsubscribeExpenses).not.toHaveBeenCalled();
+  });
+
+  test("beendet die Subscription, wenn die Seite verlassen wird", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    const {view} = await renderUnlockedPage([kitchenBudget], [existingExpense]);
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+    view.unmount();
+
+    expect(mockUnsubscribeExpenses).toHaveBeenCalledTimes(1);
+    expect(mockUnsubscribeBudgets).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* =====================================================================
+// Hervorhebung von Fremdänderungen 
+// ===================================================================== */
+/**
+ * Prüft, ob ein Element aktuell die `remoteChangeGlow`-Animation aus seiner
+ * generierten CSS-Klasse anwendet. Ein reiner Klassennamen-Vergleich reicht
+ * nicht: MUI/Emotion erzeugt für jede `sx`-Kombination einen neuen Hash,
+ * unabhängig davon, ob die Animation tatsächlich enthalten ist — deshalb
+ * wird die generierte Regel selbst aus dem CSSOM gelesen und auf
+ * `remoteChangeGlow` geprüft.
+ */
+const hasRemoteChangeGlow = (element: HTMLElement): boolean => {
+  const hashClass = element.className
+    .split(" ")
+    .find((cls) => cls.startsWith("css-"));
+  if (!hashClass) return false;
+
+  for (const sheet of Array.from(document.styleSheets)) {
+    try {
+      for (const rule of Array.from(sheet.cssRules)) {
+        if (
+          rule.cssText.includes(hashClass) &&
+          rule.cssText.includes("remoteChangeGlow")
+        ) {
+          return true;
+        }
+      }
+    } catch {
+      // Cross-Origin-Stylesheets o.ä. — hier irrelevant.
+    }
+  }
+  return false;
+};
+
+describe("EventExpenseTrackingPage: Hervorhebung von Fremdänderungen", () => {
+  // jest.useFakeTimers() wird erst NACH renderUnlockedPage()/den Dialog-
+  // Interaktionen aktiviert: deren interne waitFor/findBy*-Aufrufe pollen
+  // über echte Timer und würden mit gefälschten Timern nie auflösen.
+  // Sicherheitsnetz, falls ein Test vor dem eigenen `useRealTimers()` wirft.
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  test("Fremd-Änderung einer Ausgabe hebt die Zeile 2 Sekunden lang hervor", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+
+    const {onChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+
+    expect(
+      hasRemoteChangeGlow(screen.getByTestId("expense-expense-existing-1")),
+    ).toBe(false);
+
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      existingExpense,
+      {
+        ...mockExpense,
+        id: "expense-existing-2",
+        budgetId: kitchenBudget.id,
+        label: "Coop",
+        amountInCents: 2300,
+        currency: "CHF",
+      },
+    ]);
+
+    jest.useFakeTimers();
+    // Promise-Auflösung (Microtasks) ist von gefälschten Timern unabhängig —
+    // fetchData() läuft hier trotzdem synchron innerhalb von act() durch.
+    await act(async () => {
+      await onChange();
+    });
+
+    const newRow = screen.getByTestId("expense-expense-existing-2");
+    expect(hasRemoteChangeGlow(newRow)).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(hasRemoteChangeGlow(newRow)).toBe(false);
+  });
+
+  test("Fremd-Änderung eines Budgets hebt die Karte hervor", async () => {
+    const {onChange} = await renderUnlockedPage([kitchenBudget]);
+    await screen.findByTestId(kitchenBudget.id);
+
+    expect(hasRemoteChangeGlow(screen.getByTestId(kitchenBudget.id))).toBe(
+      false,
+    );
+
+    mockDatabase.budgets.getBudgetsForEvent.mockResolvedValueOnce([
+      kitchenBudget,
+      mottoBudget,
+    ]);
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([]);
+
+    jest.useFakeTimers();
+    await act(async () => {
+      await onChange();
+    });
+
+    const newCard = screen.getByTestId(mottoBudget.id);
+    expect(hasRemoteChangeGlow(newCard)).toBe(true);
+
+    act(() => {
+      jest.advanceTimersByTime(2000);
+    });
+
+    expect(hasRemoteChangeGlow(newCard)).toBe(false);
+  });
+
+  test("Eigener Save einer Ausgabe löst keine Hervorhebung aus, obwohl ein Realtime-Echo folgt", async () => {
+    const existingExpense = {
+      ...mockExpense,
+      id: "expense-existing-1",
+      budgetId: kitchenBudget.id,
+      label: "Migros",
+      amountInCents: 500,
+      currency: "CHF",
+    };
+    mockDatabase.expenses.updateExpense.mockResolvedValueOnce({
+      ...existingExpense,
+      label: "Coop",
+    });
+
+    const {expensesOnChange} = await renderUnlockedPage(
+      [kitchenBudget],
+      [existingExpense],
+    );
+    fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+    await screen.findByTestId("expense-expense-existing-1");
+
+    fireEvent.click(screen.getByTestId("expense-expense-existing-1"));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Bezeichnung"), {
+      target: {value: "Coop"},
+    });
+
+    jest.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+    });
+    // Save dispatcht den zurückgelieferten Wert direkt — kein Reload.
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+
+    // Echo der eigenen Änderung trifft ein, bevor die 400ms-Nachlaufzeit von
+    // saveInProgressRef abgelaufen sind.
+    await act(async () => {
+      await expensesOnChange();
+    });
+
+    // Guard hat den Reload verhindert: kein zusätzlicher Ladeaufruf, keine
+    // Hervorhebung der eigenen Zeile.
+    expect(mockDatabase.expenses.getExpensesForEvent).toHaveBeenCalledTimes(1);
+    expect(
+      hasRemoteChangeGlow(screen.getByTestId("expense-expense-existing-1")),
+    ).toBe(false);
+  });
+
+  test("Eigener Save eines Budgets löst keine Hervorhebung aus, obwohl ein Realtime-Echo folgt", async () => {
+    mockDatabase.budgets.updateBudget.mockResolvedValueOnce({
+      ...kitchenBudget,
+      name: "Motto",
+    });
+
+    const {onChange} = await renderUnlockedPage([kitchenBudget]);
+    const card = await screen.findByTestId(kitchenBudget.id);
+    fireEvent.click(
+      within(card).getByRole("button", {name: "Budget bearbeiten"}),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.change(within(dialog).getByLabelText("Name"), {
+      target: {value: "Motto"},
+    });
+
+    jest.useFakeTimers();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Speichern"}));
+    });
+    expect(mockDatabase.budgets.getBudgetsForEvent).toHaveBeenCalledTimes(1);
+
+    // Echo der eigenen Änderung trifft ein, bevor die 400ms-Nachlaufzeit von
+    // saveInProgressRef abgelaufen sind.
+    await act(async () => {
+      await onChange();
+    });
+
+    expect(mockDatabase.budgets.getBudgetsForEvent).toHaveBeenCalledTimes(1);
+    expect(hasRemoteChangeGlow(screen.getByTestId(kitchenBudget.id))).toBe(
+      false,
+    );
+  });
+});
+
+/* =====================================================================
+// Abrechnung als PDF (Story 7.2)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Abrechnung erstellen", () => {
+  /** Ausgabe des einzigen Kochs im `mockEvent` (Max Muster). */
+  const cookExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-report-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: "user-123",
+  };
+  const mockedDownloadExpenseReport = jest.mocked(downloadExpenseReport);
+  /** Ergebnis ohne fehlende Belege (Standard des Mocks). */
+  const NO_FAILED_RECEIPTS: ExpenseReportResult = {failedReceiptNumbers: []};
+
+  beforeEach(() => {
+    mockedDownloadExpenseReport
+      .mockReset()
+      .mockResolvedValue(NO_FAILED_RECEIPTS);
+  });
+
+  /**
+   * Öffnet den Dialog, klickt «Erstellen» und wartet, bis er zu ist.
+   * Seite mit einer Ausgabe muss bereits gerendert sein.
+   */
+  const createReport = async () => {
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+    await waitForReportDialogClosed();
+  };
+
+  describe("Beleg öffnen", () => {
+    const receiptExpense: ExpenseDomain = {
+      ...cookExpense,
+      attachmentPath: "evt-1/expenses/cook-receipt.pdf",
+    };
+
+    const openReceiptIcon = async () => {
+      await renderUnlockedPage([kitchenBudget], [receiptExpense]);
+      fireEvent.click(screen.getByRole("button", {name: "Ausgaben"}));
+      fireEvent.click(
+        await screen.findByTestId(`expense-receipt-icon-${receiptExpense.id}`),
+      );
+    };
+
+    afterEach(() => jest.restoreAllMocks());
+
+    test("öffnet den Tab sofort und setzt danach den signierten Link", async () => {
+      const tab = {location: {href: ""}, opener: {}, close: jest.fn()};
+      const openSpy = jest
+        .spyOn(window, "open")
+        .mockReturnValue(tab as unknown as Window);
+
+      await openReceiptIcon();
+
+      // Vor dem Warten auf den Server, sonst blockiert Safari den Tab
+      expect(openSpy).toHaveBeenCalledTimes(1);
+      await waitFor(() =>
+        expect(tab.location.href).toBe(
+          `https://mock.supabase.co/storage/v1/object/sign/receipts/events/${receiptExpense.attachmentPath}?token=test`,
+        ),
+      );
+      expect(tab.opener).toBeNull();
+      expect(tab.close).not.toHaveBeenCalled();
+    });
+
+    test("Link nicht erhältlich: schliesst den Tab und zeigt einen Fehler", async () => {
+      const tab = {location: {href: ""}, opener: {}, close: jest.fn()};
+      jest.spyOn(window, "open").mockReturnValue(tab as unknown as Window);
+      mockDatabase.storage.expenses.getSignedUrl.mockRejectedValueOnce(
+        new Error("denied"),
+      );
+
+      await openReceiptIcon();
+
+      await waitFor(() => expect(tab.close).toHaveBeenCalled());
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+    });
+
+    test("Tab blockiert: bietet den Beleg als echten Link an", async () => {
+      jest.spyOn(window, "open").mockReturnValue(null);
+
+      await openReceiptIcon();
+
+      const link = await screen.findByRole("link", {name: "Beleg öffnen"});
+      expect(link).toHaveAttribute(
+        "href",
+        `https://mock.supabase.co/storage/v1/object/sign/receipts/events/${receiptExpense.attachmentPath}?token=test`,
+      );
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+      fireEvent.click(link);
+      // Der Browser folgt dem Link erst nach dem Klick-Handler, das Ziel muss
+      // also noch da sein, sonst passiert nichts
+      expect(link).toHaveAttribute(
+        "href",
+        expect.stringContaining("token=test"),
+      );
+      await waitFor(() =>
+        expect(
+          screen.queryByRole("link", {name: "Beleg öffnen"}),
+        ).not.toBeInTheDocument(),
+      );
+    });
+
+    test("Tab blockiert und kein Link erhältlich: zeigt einen Fehler", async () => {
+      jest.spyOn(window, "open").mockReturnValue(null);
+      mockDatabase.storage.expenses.getSignedUrl.mockRejectedValueOnce(
+        new Error("denied"),
+      );
+
+      await openReceiptIcon();
+
+      expect(await screen.findByRole("alert")).toBeInTheDocument();
+    });
+  });
+
+  /** Knopf «Exportieren» in der Titelkarte. */
+  const getExportButton = () => screen.getByRole("button", {name: TEXT_EXPORT});
+
+  /**
+   * Öffnet über «Exportieren» den Dialog «Abrechnung erstellen».
+   *
+   * @returns Der Dialog.
+   */
+  const openReportDialog = async () => {
+    fireEvent.click(getExportButton());
+    fireEvent.click(
+      await screen.findByRole("menuitem", {name: TEXT_CREATE_EXPENSE_REPORT}),
+    );
+    return screen.findByRole("dialog", {name: TEXT_CREATE_EXPENSE_REPORT});
+  };
+
+  /** Wartet, bis der Dialog geschlossen ist. */
+  const waitForReportDialogClosed = () =>
+    waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {name: TEXT_CREATE_EXPENSE_REPORT}),
+      ).not.toBeInTheDocument(),
+    );
+
+  test("gesperrte Ansicht: kein Knopf «Exportieren»", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+
+    renderEventExpenseTrackingPage();
+
+    await screen.findByTestId("expense-tracking-locked");
+    expect(
+      screen.queryByRole("button", {name: TEXT_EXPORT}),
+    ).not.toBeInTheDocument();
+  });
+
+  test("ohne Ausgaben deaktiviert, mit Ausgaben aktiv", async () => {
+    const {expensesOnChange} = await renderUnlockedPage([kitchenBudget], []);
+
+    await waitFor(() => expect(getExportButton()).toBeDisabled());
+
+    // eine Ausgabe trifft per Realtime ein
+    mockDatabase.expenses.getExpensesForEvent.mockResolvedValueOnce([
+      cookExpense,
+    ]);
+    await act(async () => {
+      await expensesOnChange();
+    });
+
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+  });
+
+  test("«Erstellen» übergibt Ausgaben, Budgets, Anlass und Optionen und schliesst den Dialog", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledTimes(1);
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledWith(
+      expect.objectContaining({
+        expenses: [cookExpense],
+        budgets: [kitchenBudget],
+        event: mockEvent,
+        authUser: mockAuthUser,
+        options: {
+          mode: ReportMode.PER_PERSON,
+          payeeSelection: {kind: "single", payeeKey: "user-123"},
+          includeComments: false,
+          // die Ausgabe hat keinen Beleg: Schalter sichtbar, Standard an
+          includeMissingReceiptPages: true,
+        },
+        getAttachmentUrl: expect.any(Function),
+        onProgress: expect.any(Function),
+      }),
+    );
+    await waitForReportDialogClosed();
+  });
+
+  test("getAttachmentUrl liefert den signierten Link des Belegs", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+
+    await createReport();
+
+    const {getAttachmentUrl} = mockedDownloadExpenseReport.mock.calls[0][0];
+    await expect(getAttachmentUrl("evt-1/expenses/receipt.jpg")).resolves.toBe(
+      "https://mock.supabase.co/storage/v1/object/sign/receipts/events/evt-1/expenses/receipt.jpg?token=test",
+    );
+  });
+
+  test("Belege nicht geladen: Hinweis mit den Nummern", async () => {
+    mockedDownloadExpenseReport.mockResolvedValueOnce({
+      failedReceiptNumbers: [3],
+    });
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+
+    await createReport();
+
+    expect(
+      await screen.findByText(
+        "Beleg 3 konnte nicht geladen werden. Im PDF steht an seiner Stelle eine Leerseite.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("alle Belege geladen: kein Hinweis", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+
+    await createReport();
+
+    expect(
+      screen.queryByText(/konnten? nicht geladen werden/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Fehler beim Erstellen erscheint oben auf der Seite", async () => {
+    mockedDownloadExpenseReport.mockImplementationOnce(async ({onError}) => {
+      onError(new Error("PDF konnte nicht erstellt werden"));
+      return NO_FAILED_RECEIPTS;
+    });
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    await waitForReportDialogClosed();
+  });
+
+  test("Knopf bleibt nach dem Erstellen nutzbar", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+    await waitForReportDialogClosed();
+
+    expect(getExportButton()).toBeEnabled();
+  });
+
+  test("während des Exports: Knopf gesperrt mit Fortschritt, danach wieder frei", async () => {
+    let finishDownload: () => void = () => {};
+    mockedDownloadExpenseReport.mockImplementationOnce(
+      () =>
+        new Promise<ExpenseReportResult>((resolve) => {
+          finishDownload = () => resolve(NO_FAILED_RECEIPTS);
+        }),
+    );
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    // Der offene Dialog setzt die Seite auf aria-hidden, darum `hidden: true`
+    const exportButton = screen.getByRole("button", {
+      name: TEXT_EXPORT,
+      hidden: true,
+    });
+    expect(exportButton).toBeDisabled();
+    expect(
+      within(exportButton).getByRole("progressbar", {hidden: true}),
+    ).toBeInTheDocument();
+
+    await act(async () => {
+      finishDownload();
+    });
+    await waitForReportDialogClosed();
+
+    expect(getExportButton()).toBeEnabled();
+    expect(
+      within(getExportButton()).queryByRole("progressbar"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Fehler beim Nachladen: Knopf wieder frei", async () => {
+    mockedDownloadExpenseReport.mockRejectedValueOnce(
+      new Error("Chunk nicht gefunden"),
+    );
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    const dialog = await openReportDialog();
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+    await waitForReportDialogClosed();
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(getExportButton()).toBeEnabled();
+  });
+
+  test("erneutes Öffnen startet mit der Vorauswahl (P8)", async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+
+    // «Alle Personen» wählen und abbrechen
+    let dialog = await openReportDialog();
+    fireEvent.mouseDown(
+      within(dialog).getByRole("combobox", {name: "Für wen?"}),
+    );
+    fireEvent.click(
+      within(screen.getByRole("listbox")).getByRole("option", {
+        name: "Alle Personen",
+      }),
+    );
+    expect(
+      within(dialog).getByRole("combobox", {name: "Für wen?"}),
+    ).toHaveTextContent("Alle Personen");
+    fireEvent.click(within(dialog).getByRole("button", {name: "Abbrechen"}));
+    await waitForReportDialogClosed();
+
+    dialog = await openReportDialog();
+
+    expect(
+      within(dialog).getByRole("combobox", {name: "Für wen?"}),
+    ).toHaveTextContent("Max Muster (1 Ausgabe)");
+  });
+});
+
+/* =====================================================================
+// Rückerstattung an (Story 7.4)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Abrechnung mit Zahlungsangaben", () => {
+  const mockedDownloadExpenseReport = jest.mocked(downloadExpenseReport);
+  /** Test-IBAN: darf weder in Analytics noch in Sentry auftauchen. */
+  const TEST_IBAN = "CH9300762011623852957";
+  /** Anlass, in dem die angemeldete Person selbst kocht. */
+  const ownEvent = {
+    ...mockEvent,
+    cooks: [
+      {
+        uid: mockAuthUser.uid,
+        displayName: "Max Muster",
+        motto: "",
+        pictureSrc: "",
+      },
+    ],
+  };
+  /** Ausgabe der angemeldeten Person: der Dialog wählt sie vor. */
+  const ownExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-own-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: mockAuthUser.uid,
+  };
+  const SAVED_DETAILS = {
+    userId: mockAuthUser.uid,
+    street: "Bahnhofstrasse 1",
+    postalCode: "8001",
+    city: "Zürich",
+    iban: TEST_IBAN,
+  };
+
+  beforeEach(() => {
+    mockedDownloadExpenseReport
+      .mockReset()
+      .mockResolvedValue({failedReceiptNumbers: []});
+  });
+
+  /** Rendert die Seite mit der eigenen Ausgabe. */
+  const renderOwnPage = async () => {
+    await renderUnlockedPage([kitchenBudget], [ownExpense], {event: ownEvent});
+    await waitFor(() =>
+      expect(screen.getByRole("button", {name: TEXT_EXPORT})).toBeEnabled(),
+    );
+  };
+
+  /**
+   * Öffnet den Dialog und wartet, bis das Formular da ist.
+   *
+   * @returns Der Dialog.
+   */
+  const openDialogWithForm = async () => {
+    fireEvent.click(screen.getByRole("button", {name: TEXT_EXPORT}));
+    fireEvent.click(
+      await screen.findByRole("menuitem", {name: TEXT_CREATE_EXPENSE_REPORT}),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: TEXT_CREATE_EXPENSE_REPORT,
+    });
+    await within(dialog).findByLabelText("Strasse");
+    return dialog;
+  };
+
+  /**
+   * Füllt das Formular vollständig, hakt «speichern» an und erstellt.
+   *
+   * @param dialog - Der offene Dialog.
+   */
+  const fillSaveAndCreate = async (dialog: HTMLElement) => {
+    const typeInto = (label: string, value: string) =>
+      fireEvent.change(within(dialog).getByLabelText(label), {
+        target: {value},
+      });
+    typeInto("Strasse", " Bahnhofstrasse 1 ");
+    typeInto("Postleitzahl", "8001");
+    typeInto("Ort", "Zürich");
+    typeInto("IBAN", "ch93 0076 2011 6238 5295 7");
+    fireEvent.click(
+      within(dialog).getByRole("checkbox", {
+        name: "Angaben in meinem Profil speichern",
+      }),
+    );
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+  };
+
+  test("Zahlungsangaben erst beim Öffnen des Dialogs laden (F2)", async () => {
+    await renderOwnPage();
+
+    expect(
+      mockDatabase.userPaymentDetails.getPaymentDetails,
+    ).not.toHaveBeenCalled();
+
+    await openDialogWithForm();
+
+    expect(
+      mockDatabase.userPaymentDetails.getPaymentDetails,
+    ).toHaveBeenCalledWith(mockAuthUser.uid);
+  });
+
+  test("hinterlegte Angaben füllen das Formular und gehen ans PDF", async () => {
+    mockDatabase.userPaymentDetails.getPaymentDetails.mockResolvedValue(
+      SAVED_DETAILS,
+    );
+    await renderOwnPage();
+
+    const dialog = await openDialogWithForm();
+    await waitFor(() =>
+      expect(within(dialog).getByLabelText("Strasse")).toHaveValue(
+        "Bahnhofstrasse 1",
+      ),
+    );
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    const {userId: _userId, ...expectedDetails} = SAVED_DETAILS;
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledWith(
+      expect.objectContaining({refundDetails: expectedDetails}),
+    );
+    // unverändert aus dem Profil: nichts zu speichern
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails,
+    ).not.toHaveBeenCalled();
+  });
+
+  test("Ladefehler: leeres Formular, kein Alarm, Sentry", async () => {
+    mockDatabase.userPaymentDetails.getPaymentDetails.mockRejectedValue(
+      new Error("RLS kaputt"),
+    );
+    await renderOwnPage();
+
+    const dialog = await openDialogWithForm();
+
+    expect(within(dialog).getByLabelText("Strasse")).toHaveValue("");
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(Sentry.captureException).toHaveBeenCalledWith(expect.any(Error), {
+      extra: {context: "Abrechnung: Zahlungsangaben laden"},
+    });
+  });
+
+  test("speichern: normalisiert mit eigener userId, danach das PDF", async () => {
+    mockDatabase.userPaymentDetails.savePaymentDetails.mockResolvedValue(
+      SAVED_DETAILS,
+    );
+    await renderOwnPage();
+
+    await fillSaveAndCreate(await openDialogWithForm());
+
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails,
+    ).toHaveBeenCalledWith(SAVED_DETAILS, mockAuthUser);
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails.mock
+        .invocationCallOrder[0],
+    ).toBeLessThan(mockedDownloadExpenseReport.mock.invocationCallOrder[0]);
+    expect(trackEvent).toHaveBeenCalledWith(
+      AnalyticsEvent.PAYMENT_DETAILS_CREATED,
+    );
+  });
+
+  test("Speichern scheitert: Warnung, PDF trotzdem erstellt (F6)", async () => {
+    mockDatabase.userPaymentDetails.savePaymentDetails.mockRejectedValue(
+      new Error("Speichern abgelehnt"),
+    );
+    await renderOwnPage();
+
+    await fillSaveAndCreate(await openDialogWithForm());
+
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledTimes(1);
+    expect(
+      await screen.findByText(
+        "Angaben konnten nicht gespeichert werden. Die Abrechnung wurde trotzdem erstellt.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("ohne Häkchen: kein Speichern", async () => {
+    await renderOwnPage();
+
+    const dialog = await openDialogWithForm();
+    fireEvent.change(within(dialog).getByLabelText("Strasse"), {
+      target: {value: "Dorfweg 3"},
+    });
+    await act(async () => {
+      fireEvent.click(within(dialog).getByRole("button", {name: "Erstellen"}));
+    });
+
+    expect(mockedDownloadExpenseReport).toHaveBeenCalledTimes(1);
+    expect(
+      mockDatabase.userPaymentDetails.savePaymentDetails,
+    ).not.toHaveBeenCalled();
+  });
+
+  test("IBAN nie in Analytics oder Sentry (F7)", async () => {
+    // so sieht ein abgelehntes Speichern bei Supabase aus: die Zeile steckt
+    // in `details`
+    mockDatabase.userPaymentDetails.savePaymentDetails.mockRejectedValue({
+      code: "23514",
+      message: "new row violates check constraint",
+      details: `Failing row contains (Bahnhofstrasse 1, 8001, ${TEST_IBAN}).`,
+    });
+    await renderOwnPage();
+
+    await fillSaveAndCreate(await openDialogWithForm());
+
+    expect(Sentry.captureException).toHaveBeenCalled();
+    // JSON.stringify zeigt bei einem Error sonst nur «{}»
+    const reported = JSON.stringify(
+      [
+        jest.mocked(trackEvent).mock.calls,
+        jest.mocked(Sentry.captureException).mock.calls,
+      ],
+      (_key, value: unknown) =>
+        value instanceof Error
+          ? {message: value.message, cause: value.cause}
+          : value,
+    );
+    expect(reported).not.toContain(TEST_IBAN);
+    expect(reported).not.toContain("Bahnhofstrasse");
+  });
+});
+
+/* =====================================================================
+// transformInputToExpenseDomain (reine Funktion, direkt getestet)
+// ===================================================================== */
+describe("transformInputToExpenseDomain", () => {
+  const validFormState: ExpenseDetailDialogState = {
+    label: "Sackmesser",
+    amount: "12.00",
+    currency: "CHF",
+    budgetId: kitchenBudget.id,
+    date: dayjs("2026-10-01"),
+    comment: "",
+    payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+    payeeUserId: null,
+    payeeName: "",
+    attachmentFile: null,
+    attachmentPath: null,
+    removeAttachment: false,
+  };
+
+  test("ignoriert eine stehengebliebene payeeUserId, wenn payeeType NEW_PERSON ist", () => {
+    // Zustand, den der Dialog über sein eigenes RadioGroup-Reset nie
+    // produzieren würde: payeeType NEW_PERSON, aber payeeUserId noch von
+    // einer früheren "Bestehende Person"-Auswahl gesetzt. Prüft die zweite,
+    // von der Dialog-Logik unabhängige Absicherung in dieser Funktion.
+    const result = transformInputToExpenseDomain(
+      {
+        ...validFormState,
+        payeeType: ExpensePayeeType.NEW_PERSON,
+        payeeUserId: "stale-user-id",
+        payeeName: "Jemand",
+      },
+      "event-1",
+    );
+
+    expect(result.payeeUserId).toBeNull();
+    expect(result.payeeName).toBe("Jemand");
+  });
+
+  test("ignoriert einen stehengebliebenen payeeName, wenn payeeType EXISTING_USER ist", () => {
+    const result = transformInputToExpenseDomain(
+      {
+        ...validFormState,
+        payeeType: ExpensePayeeType.EXISTING_USER,
+        payeeUserId: "user-123",
+        payeeName: "Stehengebliebener Name",
+      },
+      "event-1",
+    );
+
+    expect(result.payeeName).toBeNull();
+    expect(result.payeeUserId).toBe("user-123");
+  });
+
+  test("setzt beide Payee-Felder auf null bei NO_REFUND_NEEDED, auch wenn beide gesetzt wären", () => {
+    const result = transformInputToExpenseDomain(
+      {
+        ...validFormState,
+        payeeType: ExpensePayeeType.NO_REFUND_NEEDED,
+        payeeUserId: "stale-user-id",
+        payeeName: "Stehengebliebener Name",
+      },
+      "event-1",
+    );
+
+    expect(result.payeeUserId).toBeNull();
+    expect(result.payeeName).toBeNull();
+  });
+});
+
+/* =====================================================================
+// Ausgaben als CSV
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgaben als CSV", () => {
+  /** Ausgabe des einzigen Kochs im `mockEvent`. */
+  const cookExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-csv-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: "user-123",
+  };
+  const mockedDownloadExpenseCsv = jest.mocked(downloadExpenseCsv);
+
+  beforeEach(() => {
+    mockedDownloadExpenseCsv.mockReset();
+    jest.mocked(trackEvent).mockClear();
+    jest.mocked(Sentry.captureException).mockClear();
+  });
+
+  /** Knopf «Exportieren» in der Titelkarte. */
+  const getExportButton = () => screen.getByRole("button", {name: TEXT_EXPORT});
+
+  /**
+   * Rendert die freigeschaltete Seite mit einer Ausgabe und öffnet das Menü
+   * «Exportieren».
+   *
+   * @returns Der Menüeintrag «Ausgaben als CSV».
+   */
+  const openCsvMenuItem = async () => {
+    await renderUnlockedPage([kitchenBudget], [cookExpense]);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+    fireEvent.click(getExportButton());
+    return screen.findByRole("menuitem", {name: TEXT_EXPORT_CSV});
+  };
+
+  test("Menü «Exportieren» zeigt «Ausgaben als CSV»", async () => {
+    expect(await openCsvMenuItem()).toBeInTheDocument();
+  });
+
+  test("Klick übergibt Ausgaben, Budgets und Anlass und schliesst das Menü", async () => {
+    const menuItem = await openCsvMenuItem();
+
+    fireEvent.click(menuItem);
+
+    expect(mockedDownloadExpenseCsv).toHaveBeenCalledTimes(1);
+    expect(mockedDownloadExpenseCsv).toHaveBeenCalledWith({
+      expenses: [cookExpense],
+      budgets: [kitchenBudget],
+      event: mockEvent,
+    });
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("menuitem", {name: TEXT_EXPORT_CSV}),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  test("meldet den Export an Analytics, mit Typ «csv»", async () => {
+    fireEvent.click(await openCsvMenuItem());
+
+    expect(trackEvent).toHaveBeenCalledWith(AnalyticsEvent.EXPENSES_EXPORTED, {
+      type: "csv",
+    });
+  });
+
+  test("Fehler erscheint oben auf der Seite, geht an Sentry, Knopf bleibt nutzbar", async () => {
+    const downloadError = new Error("Download blockiert");
+    mockedDownloadExpenseCsv.mockImplementationOnce(() => {
+      throw downloadError;
+    });
+
+    fireEvent.click(await openCsvMenuItem());
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(Sentry.captureException).toHaveBeenCalledWith(downloadError, {
+      extra: {context: "CSV exportieren"},
+    });
+    expect(getExportButton()).toBeEnabled();
+  });
+});
+
+/* =====================================================================
+// Ausgaben mit Belegen (ZIP)
+// ===================================================================== */
+describe("EventExpenseTrackingPage: Ausgaben mit Belegen (ZIP)", () => {
+  /** Ausgabe mit Beleg des einzigen Kochs im `mockEvent`. */
+  const receiptExpense: ExpenseDomain = {
+    ...mockExpense,
+    id: "expense-zip-1",
+    budgetId: kitchenBudget.id,
+    payeeType: ExpensePayeeType.EXISTING_USER,
+    payeeUserId: "user-123",
+    attachmentPath: "evt-1/expenses/expense-zip-1.pdf",
+  };
+  /** Dieselbe Ausgabe ohne Beleg. */
+  const expenseWithoutReceipt: ExpenseDomain = {
+    ...receiptExpense,
+    id: "expense-zip-2",
+    attachmentPath: null,
+  };
+  const mockedDownloadExpenseZip = jest.mocked(downloadExpenseZip);
+
+  beforeEach(() => {
+    mockedDownloadExpenseZip
+      .mockReset()
+      .mockResolvedValue({failedReceiptNumbers: []});
+    jest.mocked(trackEvent).mockClear();
+    jest.mocked(Sentry.captureException).mockClear();
+  });
+
+  /** Knopf «Exportieren» in der Titelkarte. */
+  const getExportButton = () => screen.getByRole("button", {name: TEXT_EXPORT});
+
+  /**
+   * Rendert die freigeschaltete Seite und öffnet das Menü «Exportieren».
+   * Der Name des Eintrags kann eine Zweitzeile enthalten, darum der
+   * Vergleich über den Anfang.
+   *
+   * @param expenses - Ausgaben des Anlasses.
+   * @returns Der Menüeintrag «Ausgaben mit Belegen (ZIP)».
+   */
+  const openZipMenuItem = async (
+    expenses: ExpenseDomain[] = [receiptExpense],
+  ) => {
+    await renderUnlockedPage([kitchenBudget], expenses);
+    await waitFor(() => expect(getExportButton()).toBeEnabled());
+    fireEvent.click(getExportButton());
+    return screen.findByRole("menuitem", {
+      name: (accessibleName) => accessibleName.startsWith(TEXT_EXPORT_ZIP),
+    });
+  };
+
+  /** Wartet, bis der Fortschrittsdialog wieder zu ist. */
+  const waitForDialogClosed = () =>
+    waitFor(() =>
+      expect(
+        screen.queryByRole("dialog", {name: TEXT_EXPORT_ZIP_PROGRESS_TITLE}),
+      ).not.toBeInTheDocument(),
+    );
+
+  test("ohne Beleg ist der Eintrag gesperrt und sagt warum", async () => {
+    const menuItem = await openZipMenuItem([expenseWithoutReceipt]);
+
+    expect(menuItem).toHaveAttribute("aria-disabled", "true");
+    expect(menuItem).toHaveTextContent(TEXT_NO_RECEIPTS_AVAILABLE);
+  });
+
+  test("mit Beleg ist der Eintrag aktiv, ohne Zweitzeile", async () => {
+    const menuItem = await openZipMenuItem();
+
+    expect(menuItem).not.toHaveAttribute("aria-disabled", "true");
+    expect(menuItem).not.toHaveTextContent(TEXT_NO_RECEIPTS_AVAILABLE);
+  });
+
+  test("Klick übergibt Ausgaben, Budgets, Anlass und Beleg-URL und schliesst das Menü", async () => {
+    fireEvent.click(await openZipMenuItem());
+
+    await waitFor(() =>
+      expect(mockedDownloadExpenseZip).toHaveBeenCalledTimes(1),
+    );
+    const [params] = mockedDownloadExpenseZip.mock.calls[0];
+    expect(params).toEqual(
+      expect.objectContaining({
+        expenses: [receiptExpense],
+        budgets: [kitchenBudget],
+        event: mockEvent,
+      }),
+    );
+    await expect(
+      params.getAttachmentUrl("evt-1/expenses/expense-zip-1.pdf"),
+    ).resolves.toBe(
+      "https://mock.supabase.co/storage/v1/object/sign/receipts/events/evt-1/expenses/expense-zip-1.pdf?token=test",
+    );
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("menuitem", {name: TEXT_EXPORT_CSV}),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
+  test("meldet den Export an Analytics, mit Typ «zip»", async () => {
+    fireEvent.click(await openZipMenuItem());
+
+    await waitFor(() =>
+      expect(trackEvent).toHaveBeenCalledWith(
+        AnalyticsEvent.EXPENSES_EXPORTED,
+        {type: "zip"},
+      ),
+    );
+  });
+
+  test("während des Downloads Dialog mit Fortschritt, danach weg", async () => {
+    let finishDownload: () => void = () => undefined;
+    mockedDownloadExpenseZip.mockImplementation(async ({onProgress}) => {
+      onProgress({loaded: 1, total: 3});
+      await new Promise<void>((resolve) => {
+        finishDownload = resolve;
+      });
+      return {failedReceiptNumbers: []};
+    });
+
+    fireEvent.click(await openZipMenuItem());
+
+    const dialog = await screen.findByRole("dialog", {
+      name: TEXT_EXPORT_ZIP_PROGRESS_TITLE,
+    });
+    expect(await within(dialog).findByRole("status")).toHaveTextContent(
+      "Belege werden geladen (1 von 3)",
+    );
+
+    await act(async () => finishDownload());
+    await waitForDialogClosed();
+  });
+
+  test("Dialog erscheint sofort, schon vor dem ersten Fortschritt", async () => {
+    let finishDownload: () => void = () => undefined;
+    mockedDownloadExpenseZip.mockImplementation(async () => {
+      await new Promise<void>((resolve) => {
+        finishDownload = resolve;
+      });
+      return {failedReceiptNumbers: []};
+    });
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(
+      await screen.findByRole("dialog", {name: TEXT_EXPORT_ZIP_PROGRESS_TITLE}),
+    ).toBeInTheDocument();
+
+    await act(async () => finishDownload());
+    await waitForDialogClosed();
+  });
+
+  test("ein Beleg nicht geladen: Hinweis mit der Nummer", async () => {
+    mockedDownloadExpenseZip.mockResolvedValue({failedReceiptNumbers: [2]});
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(
+      await screen.findByText(
+        "Beleg 2 konnte nicht geladen werden und fehlt im ZIP.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("mehrere Belege nicht geladen: Hinweis mit allen Nummern", async () => {
+    mockedDownloadExpenseZip.mockResolvedValue({failedReceiptNumbers: [2, 5]});
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(
+      await screen.findByText(
+        "Belege 2, 5 konnten nicht geladen werden und fehlen im ZIP.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  test("alles geladen: kein Hinweis", async () => {
+    fireEvent.click(await openZipMenuItem());
+
+    await waitFor(() =>
+      expect(mockedDownloadExpenseZip).toHaveBeenCalledTimes(1),
+    );
+    await waitForDialogClosed();
+    expect(
+      screen.queryByText(/konnten? nicht geladen werden/),
+    ).not.toBeInTheDocument();
+  });
+
+  test("Fehler erscheint oben auf der Seite, geht an Sentry, Dialog schliesst", async () => {
+    const zipError = new Error("ZIP kaputt");
+    mockedDownloadExpenseZip.mockRejectedValue(zipError);
+
+    fireEvent.click(await openZipMenuItem());
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(Sentry.captureException).toHaveBeenCalledWith(zipError, {
+      extra: {context: "ZIP exportieren"},
+    });
+    await waitForDialogClosed();
+    expect(getExportButton()).toBeEnabled();
+  });
+});

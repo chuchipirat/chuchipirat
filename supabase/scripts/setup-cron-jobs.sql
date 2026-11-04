@@ -22,7 +22,8 @@ SELECT cron.unschedule(jobname)
     'cron-daily-digest',
     'cron-support-user-cleanup',
     'cron-event-review-email',
-    'cron-housekeeping'
+    'cron-housekeeping',
+    'cron-receipt-retention'
   );
 
 -- ─────────────────────────────────────────────────────────────────────────────
@@ -76,6 +77,20 @@ SELECT cron.schedule(
   '0 3 * * 0',
   $$SELECT net.http_post(
     url := current_setting('app.supabase_url') || '/functions/v1/cron-housekeeping',
+    headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_role_key')),
+    body := '{}'::jsonb
+  )$$
+);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- 5. Beleg-Aufbewahrung — Löscht Belege der Abrechnung 1 Jahr nach Anlassende
+--    Zeitplan: Täglich um 01:30 UTC (02:30/03:30 Zürich)
+-- ─────────────────────────────────────────────────────────────────────────────
+SELECT cron.schedule(
+  'cron-receipt-retention',
+  '30 1 * * *',
+  $$SELECT net.http_post(
+    url := current_setting('app.supabase_url') || '/functions/v1/cron-receipt-retention',
     headers := jsonb_build_object('Authorization', 'Bearer ' || current_setting('app.service_role_key')),
     body := '{}'::jsonb
   )$$

@@ -30,6 +30,7 @@ import {
   PLANED_RECIPES as TEXT_PLANED_RECIPES,
   SHOPPING_LIST as TEXT_SHOPPING_LIST,
   MATERIAL_LIST as TEXT_MATERIAL_LIST,
+  EXPENSE_TRACKING as TEXT_EXPENSE_TRACKING,
   EVENT_INFO_SHORT as TEXT_EVENT_INFO_SHORT,
   MATERIAL_CREATED as TEXT_MATERIAL_CREATED,
   PRODUCT_CREATED as TEXT_PRODUCT_CREATED,
@@ -45,13 +46,14 @@ import {
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
   DIALOG_TITLE_DELETION_CONFIRMATION as TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
   DIALOG_SUBTITLE_DELETION_CONFIRMATION as TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
-  DIALOG_TEXT_DELETION_CONFIRMATION as TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
   CANCEL as TEXT_CANCEL,
   DELETE as TEXT_DELETE,
   CONSISTENCY_CHECK as TEXT_CONSISTENCY_CHECK,
   MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED as TEXT_MENUPLAN_CONSISTENCY_CHECK_FIXES_APPLIED,
   MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES as TEXT_MENUPLAN_CONSISTENCY_CHECK_NO_ISSUES,
   EVENT_NOT_FOUND_OR_NO_ACCESS as TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS,
+  EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES as TEXT_EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES,
+  EVENT_DELETION_CONFIRMATION_TEXT as TEXT_EVENT_DELETION_CONFIRMATION_TEXT,
 } from "../../../constants/text";
 
 import {HOME as ROUTE_HOME} from "../../../constants/routes";
@@ -98,6 +100,7 @@ import {
   headersDomainToMaterialList,
   itemsDomainToMaterialListItems,
 } from "../MaterialList/materialListAdapter";
+import {EventExpenseTrackingPage} from "../ExpenseTracking/expenseTracking";
 import {EventInfoPage} from "./eventInfo";
 import {
   FieldValidationError,
@@ -121,7 +124,10 @@ import {useAuthUser} from "../../Session/authUserContext";
 import {AlertMessage} from "../../Shared/AlertMessage";
 import {RealtimeStatusBanner} from "../../Shared/RealtimeStatusBanner";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
-import {trackEvent, trackVirtualPageview} from "../../Analytics/analyticsService";
+import {
+  trackEvent,
+  trackVirtualPageview,
+} from "../../Analytics/analyticsService";
 import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
 import {HighlightedMenueContext} from "../Menuplan/highlightContext";
 import {HighlightedShoppingListItemContext} from "../ShoppingList/shoppingListHighlightContext";
@@ -136,6 +142,7 @@ enum EventTabs {
   usedRecipes,
   shoppingList,
   materialList,
+  expenseTracking,
   eventInfo,
 }
 interface DeriveEventUid {
@@ -860,6 +867,7 @@ const TAB_QUERY_PARAM_MAP: Record<string, EventTabs> = {
   usedrecipes: EventTabs.usedRecipes,
   shoppinglist: EventTabs.shoppingList,
   materiallist: EventTabs.materialList,
+  expensetracking: EventTabs.expenseTracking,
   eventinfo: EventTabs.eventInfo,
 };
 
@@ -895,7 +903,9 @@ const EventPage = () => {
   // Pages-Report), da der aktive Tab nur über einen Query-Parameter
   // abgebildet ist und Umami Query-Strings nicht trackt (data-exclude-search).
   React.useEffect(() => {
-    trackVirtualPageview(`${location.pathname}/${TAB_TO_QUERY_PARAM[activeTab]}`);
+    trackVirtualPageview(
+      `${location.pathname}/${TAB_TO_QUERY_PARAM[activeTab]}`,
+    );
   }, [activeTab, location.pathname]);
 
   const [eventDraft, setEventDraft] = React.useState(INTITIAL_STATE_EVENT_DRAF);
@@ -943,7 +953,8 @@ const EventPage = () => {
   const materialListRef = React.useRef<MaterialList | null>(null);
   const getMaterialListPersistedItemIds = React.useCallback(
     (listId: string): string[] =>
-      materialListRef.current?.lists[listId]?.items.map((item) => item.id) ?? [],
+      materialListRef.current?.lists[listId]?.items.map((item) => item.id) ??
+      [],
     [],
   );
   // Unsubscribe der aktuell aktiven Items-Subscription. Synchron gesetzt/
@@ -1018,7 +1029,9 @@ const EventPage = () => {
             // (ungültiger/veralteter Link, entferntes Event) — kein Bug.
             dispatch({
               type: ReducerActions.GENERIC_ERROR,
-              payload: new FieldValidationError(TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS),
+              payload: new FieldValidationError(
+                TEXT_EVENT_NOT_FOUND_OR_NO_ACCESS,
+              ),
             });
           }
         })
@@ -1504,7 +1517,9 @@ const EventPage = () => {
           // Hintergrund-Reload, der nächste Realtime-Event lädt erneut.
           try {
             for (const header of headers) {
-              const items = await database.materialLists.getListItems(header.id);
+              const items = await database.materialLists.getListItems(
+                header.id,
+              );
               ml.lists[header.id].items = itemsDomainToMaterialListItems(items);
             }
           } catch (error) {
@@ -1754,6 +1769,7 @@ const EventPage = () => {
     ) {
       const userInput = (await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
         title: TEXT_ATTENTION_ABOUT_TO_DELETE_PLANED_DAYS,
         text: TEXT_DELETION_AFFECTS_PLANED_DAYS,
         buttonTextConfirm: TEXT_PROCEED,
@@ -1780,13 +1796,36 @@ const EventPage = () => {
       },
     });
   };
+
+  /**
+   * Text für den Löschdialog des Anlasses. Die Ausgaben werden erst hier
+   * geladen, weil die Seite sie nur im Tab «Abrechnung» kennt.
+   *
+   * @returns Text mit Hinweis auf Ausgaben und Belege, wenn der Anlass Ausgaben
+   *   hat oder das Laden fehlschlägt; sonst der kurze Text.
+   */
+  const getEventDeletionText = async () => {
+    try {
+      const expenses = await database.expenses.getExpensesForEvent(
+        state.event.uid,
+      );
+      return expenses.length > 0
+        ? TEXT_EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES
+        : TEXT_EVENT_DELETION_CONFIRMATION_TEXT;
+    } catch (error) {
+      // Lieber einmal zu viel warnen, als Belege ohne Hinweis zu löschen
+      Sentry.captureException(error);
+      return TEXT_EVENT_DELETION_CONFIRMATION_TEXT_WITH_EXPENSES;
+    }
+  };
+
   const onEventDelete = async () => {
     const isConfirmed = await customDialog({
       dialogType: DialogType.ConfirmSecure,
       deletionDialogProperties: {confirmationString: state.event.name},
       title: TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
       subtitle: TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
-      text: TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
+      text: await getEventDeletionText(),
       buttonTextCancel: TEXT_CANCEL,
       buttonTextConfirm: TEXT_DELETE,
     });
@@ -1795,10 +1834,16 @@ const EventPage = () => {
     }
     dispatch({type: ReducerActions.EVENT_DELETE_START, payload: {}});
     try {
-      // Bild löschen (Fehler ignorieren, falls kein Bild vorhanden)
+      // Titelbild (Fehler ignorieren, falls keines vorhanden)
       await database.storage.events
-        .remove(state.event.uid + "/cover.jpg")
+        .removeFolder(state.event.uid)
         .catch(() => {});
+      // Belege liegen im eigenen Bucket. Der Anlass wird trotzdem gelöscht,
+      // liegen gebliebene Belege müssen aber auffallen, weil sie Personendaten
+      // enthalten können
+      await database.storage.expenses
+        .removeFolder(state.event.uid)
+        .catch((error) => Sentry.captureException(error));
 
       // Event löschen — CASCADE entfernt alle Supabase-Kinder
       // (MaterialLists, ShoppingLists, UsedRecipes etc.)
@@ -2103,80 +2148,84 @@ const EventPage = () => {
 
         // Realtime-Subscription für Item-Änderungen
         {
-          const {unsubscribe, reconnect} = database.shoppingLists.subscribeToListItems(
-            objectUid as string,
-            (items) => {
-              // Läuft gerade ein eigener Save, wird das Echo komplett ignoriert
-              // (analog Material-Liste). Der Zähler geht erst nach dem `await`
-              // in persistListItems wieder auf 0 — das dann eintreffende Echo
-              // aktualisiert den State als regulärer Reconcile und zieht dabei
-              // auch parallele Änderungen anderer Köch:innen nach.
-              if (shoppingListSaveInProgress.current > 0) {
-                return;
-              }
-
-              const newShoppingList = itemsDomainToShoppingList(
-                items,
-                objectUid as string,
-              );
-
-              // Bringt das Echo gegenüber dem letzten Stand nichts Neues
-              // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
-              // dispatchen — spart einen vollständigen Re-Render der Liste.
-              if (
-                shoppingListsAreEquivalent(
-                  shoppingListRef.current,
-                  newShoppingList,
-                )
-              ) {
-                return;
-              }
-
-              // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
-              // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
-              // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
-              const newItemCount = Object.values(newShoppingList.list).reduce(
-                (sum, dept) => sum + dept.items.length,
-                0,
-              );
-
-              // Highlighting für Änderungen anderer Köch:innen.
-              if (newItemCount > 0) {
-                const changedKeys = getChangedShoppingListItemKeys(
-                  shoppingListRef.current,
-                  newShoppingList,
-                );
-                if (changedKeys.size > 0) {
-                  setHighlightedShoppingItemKeys(changedKeys);
-                  if (shoppingHighlightTimeoutRef.current)
-                    clearTimeout(shoppingHighlightTimeoutRef.current);
-                  shoppingHighlightTimeoutRef.current = setTimeout(
-                    () => setHighlightedShoppingItemKeys(new Set()),
-                    2000,
-                  );
+          const {unsubscribe, reconnect} =
+            database.shoppingLists.subscribeToListItems(
+              objectUid as string,
+              (items) => {
+                // Läuft gerade ein eigener Save, wird das Echo komplett ignoriert
+                // (analog Material-Liste). Der Zähler geht erst nach dem `await`
+                // in persistListItems wieder auf 0 — das dann eintreffende Echo
+                // aktualisiert den State als regulärer Reconcile und zieht dabei
+                // auch parallele Änderungen anderer Köch:innen nach.
+                if (shoppingListSaveInProgress.current > 0) {
+                  return;
                 }
-              }
 
-              // Ref sofort aktualisieren, damit der nächste Realtime-Callback
-              // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
-              // asynchronen useEffect-Zyklus zu warten. `newShoppingList` geht
-              // in den Ref (unveränderliche DB-Wahrheit); der Reducer bekommt
-              // eine eigene Instanz, die die Handler optimistisch mutieren
-              // dürfen, ohne den Ref zu verunreinigen.
-              shoppingListRef.current = newShoppingList;
+                const newShoppingList = itemsDomainToShoppingList(
+                  items,
+                  objectUid as string,
+                );
 
-              dispatch({
-                type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
-                payload: itemsDomainToShoppingList(items, objectUid as string),
-              });
-            },
-            (error) => {
-              Sentry.captureException(error, {
-                extra: {context: "Realtime shopping list items subscription"},
-              });
-            },
-            (status) => realtime.setStatus("shoppinglistitems", status),
-          );
+                // Bringt das Echo gegenüber dem letzten Stand nichts Neues
+                // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
+                // dispatchen — spart einen vollständigen Re-Render der Liste.
+                if (
+                  shoppingListsAreEquivalent(
+                    shoppingListRef.current,
+                    newShoppingList,
+                  )
+                ) {
+                  return;
+                }
+
+                // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
+                // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
+                // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
+                const newItemCount = Object.values(newShoppingList.list).reduce(
+                  (sum, dept) => sum + dept.items.length,
+                  0,
+                );
+
+                // Highlighting für Änderungen anderer Köch:innen.
+                if (newItemCount > 0) {
+                  const changedKeys = getChangedShoppingListItemKeys(
+                    shoppingListRef.current,
+                    newShoppingList,
+                  );
+                  if (changedKeys.size > 0) {
+                    setHighlightedShoppingItemKeys(changedKeys);
+                    if (shoppingHighlightTimeoutRef.current)
+                      clearTimeout(shoppingHighlightTimeoutRef.current);
+                    shoppingHighlightTimeoutRef.current = setTimeout(
+                      () => setHighlightedShoppingItemKeys(new Set()),
+                      2000,
+                    );
+                  }
+                }
+
+                // Ref sofort aktualisieren, damit der nächste Realtime-Callback
+                // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
+                // asynchronen useEffect-Zyklus zu warten. `newShoppingList` geht
+                // in den Ref (unveränderliche DB-Wahrheit); der Reducer bekommt
+                // eine eigene Instanz, die die Handler optimistisch mutieren
+                // dürfen, ohne den Ref zu verunreinigen.
+                shoppingListRef.current = newShoppingList;
+
+                dispatch({
+                  type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
+                  payload: itemsDomainToShoppingList(
+                    items,
+                    objectUid as string,
+                  ),
+                });
+              },
+              (error) => {
+                Sentry.captureException(error, {
+                  extra: {context: "Realtime shopping list items subscription"},
+                });
+              },
+              (status) => realtime.setStatus("shoppinglistitems", status),
+            );
           realtime.register("shoppinglistitems", reconnect);
           shoppingListItemsUnsubRef.current = unsubscribe;
           dispatch({
@@ -2240,9 +2289,11 @@ const EventPage = () => {
                   ? TEXT_SHOPPING_LIST
                   : activeTab === EventTabs.materialList
                     ? TEXT_MATERIAL_LIST
-                    : activeTab === EventTabs.eventInfo
-                      ? TEXT_EVENT_INFO_SHORT
-                      : "xx"
+                    : activeTab === EventTabs.expenseTracking
+                      ? TEXT_EXPENSE_TRACKING
+                      : activeTab === EventTabs.eventInfo
+                        ? TEXT_EVENT_INFO_SHORT
+                        : "xx"
         }`}
       />
       {/* ===== BODY ===== */}
@@ -2305,7 +2356,8 @@ const EventPage = () => {
                 <Tab label={TEXT_PLANED_RECIPES} {...tabProps(2)} />
                 <Tab label={TEXT_SHOPPING_LIST} {...tabProps(3)} />
                 <Tab label={TEXT_MATERIAL_LIST} {...tabProps(4)} />
-                <Tab label={TEXT_EVENT_INFO_SHORT} {...tabProps(5)} />
+                <Tab label={TEXT_EXPENSE_TRACKING} {...tabProps(5)} />
+                <Tab label={TEXT_EVENT_INFO_SHORT} {...tabProps(6)} />
               </Tabs>
             </Box>
           </React.Fragment>
@@ -2329,7 +2381,9 @@ const EventPage = () => {
                 fetchMissingData={fetchMissingData}
                 onMasterdataCreate={onMasterdataCreate}
                 onRecipeUpdate={onRecipeUpdate}
-                initialOpenRecipeMealId={searchParams.get("openRecipe") ?? undefined}
+                initialOpenRecipeMealId={
+                  searchParams.get("openRecipe") ?? undefined
+                }
               />
             </HighlightedMenueContext.Provider>
           ) : activeTab == EventTabs.quantityCalculation ? (
@@ -2392,6 +2446,15 @@ const EventPage = () => {
                 fetchMissingData={fetchMissingData}
                 onMaterialListUpdate={onMaterialListUpdate}
                 onMasterdataCreate={onMasterdataCreate}
+              />
+            </Container>
+          ) : activeTab == EventTabs.expenseTracking ? (
+            <Container>
+              <EventExpenseTrackingPage
+                event={state.event}
+                groupConfiguration={state.groupConfig}
+                menuplan={state.menuplan}
+                database={database}
               />
             </Container>
           ) : (

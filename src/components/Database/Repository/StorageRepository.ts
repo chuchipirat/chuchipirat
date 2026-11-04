@@ -26,6 +26,9 @@ export interface UploadResult {
   publicUrl: string;
 }
 
+/** Einträge pro Abfrage beim Auflisten eines Ordners. */
+const LIST_PAGE_SIZE = 1000;
+
 export abstract class StorageRepository {
   protected client: SupabaseClient;
 
@@ -48,6 +51,12 @@ export abstract class StorageRepository {
    * @param filename - Dateiname (ohne Ordnerpfad).
    * @param data - Dateiinhalt als Blob oder File.
    * @param contentType - MIME-Type der Datei (z.B. "image/jpeg").
+   * @param cacheControl - `Cache-Control: max-age=<Sekunden>` für Browser/CDN.
+   *   Supabase setzt ohne diesen Parameter standardmässig `"3600"` (1 Stunde) —
+   *   beim Ersetzen einer Datei am **gleichen** Pfad (`upsert`, keine neue URL)
+   *   liefert ein Browser/die Supabase-CDN sonst bis zu eine Stunde lang den
+   *   alten Inhalt derselben URL aus. `"0"` übergeben, wenn der Pfad nach einem
+   *   Ersetzen wiederverwendet werden kann (z.B. Ausgaben-Belege).
    * @returns Pfad und öffentliche URL der hochgeladenen Datei.
    * @throws Error bei Upload-Fehler.
    *
@@ -58,15 +67,16 @@ export abstract class StorageRepository {
   async upload(
     filename: string,
     data: Blob | File,
-    contentType?: string
+    contentType?: string,
+    cacheControl?: string,
   ): Promise<UploadResult> {
     const fullPath = `${this.folderPath}${filename}`;
-
     const {error} = await this.client.storage
       .from(this.bucketName)
       .upload(fullPath, data, {
         contentType,
         upsert: true,
+        cacheControl,
       });
 
     if (error) throw error;
@@ -92,6 +102,92 @@ export abstract class StorageRepository {
       .remove([fullPath]);
 
     if (error) throw error;
+  }
+
+  /**
+   * Löscht alle Dateien unterhalb eines Ordners rekursiv.
+   *
+   * Supabase Storage kennt kein atomares "Ordner löschen" — Ordner sind rein
+   * virtuell (aus Dateipfaden abgeleitet). `list()` liefert deshalb nur eine
+   * Ebene; Unterordner erscheinen als Einträge mit `id: null` und werden hier
+   * rekursiv selbst nochmal aufgelistet, bis nur noch echte Dateien übrig sind.
+   *
+   * @param folderPrefix - Ordnerpfad relativ zu `folderPath` (ohne führenden/folgenden Slash).
+   * @throws Error bei Lese- oder Löschfehler.
+   *
+   * @example
+   * await repo.removeFolder("evt-123"); // löscht alles unter events/evt-123/*, rekursiv
+   */
+  async removeFolder(folderPrefix: string): Promise<void> {
+    const filePaths = await this.listFilesRecursively(
+      `${this.folderPath}${folderPrefix}`,
+    );
+    if (filePaths.length === 0) return;
+
+    const {error} = await this.client.storage
+      .from(this.bucketName)
+      .remove(filePaths);
+    if (error) throw error;
+  }
+
+  /**
+   * Sammelt rekursiv die vollständigen Pfade aller Dateien unter `prefix`.
+   *
+   * @param prefix - Vollständiger Ordnerpfad im Bucket (inkl. `folderPath`).
+   * @returns Pfade aller gefundenen Dateien, Unterordner aufgelöst.
+   * @throws Error bei Lesefehler.
+   */
+  private async listFilesRecursively(prefix: string): Promise<string[]> {
+    const paths: string[] = [];
+    let offset = 0;
+    let pageSize = 0;
+
+    // list() liefert ohne Angabe nur 100 Einträge und meldet das nicht:
+    // der Rest bliebe beim Löschen eines Ordners still liegen
+    do {
+      const {data, error} = await this.client.storage
+        .from(this.bucketName)
+        .list(prefix, {limit: LIST_PAGE_SIZE, offset});
+      if (error) throw error;
+
+      const entries = data ?? [];
+      for (const entry of entries) {
+        const entryPath = `${prefix}/${entry.name}`;
+        if (entry.id === null) {
+          paths.push(...(await this.listFilesRecursively(entryPath)));
+        } else {
+          paths.push(entryPath);
+        }
+      }
+      pageSize = entries.length;
+      offset += pageSize;
+    } while (pageSize === LIST_PAGE_SIZE);
+
+    return paths;
+  }
+
+  /**
+   * Erzeugt einen zeitlich begrenzten Link auf eine Datei in einem privaten
+   * Bucket. Der Server prüft dabei die Leserechte der angemeldeten Person.
+   *
+   * @param filename - Dateiname (ohne Ordnerpfad).
+   * @param expiresInSeconds - Gültigkeit des Links in Sekunden.
+   * @returns Signierter Link.
+   * @throws Error, wenn die Person keine Leserechte hat oder die Datei fehlt.
+   *
+   * @example
+   * const url = await repo.getSignedUrl("receipt.pdf", 300);
+   */
+  async getSignedUrl(
+    filename: string,
+    expiresInSeconds: number,
+  ): Promise<string> {
+    const {data, error} = await this.client.storage
+      .from(this.bucketName)
+      .createSignedUrl(`${this.folderPath}${filename}`, expiresInSeconds);
+
+    if (error) throw error;
+    return data.signedUrl;
   }
 
   /**
@@ -127,7 +223,7 @@ export abstract class StorageRepository {
    */
   getTransformedUrl(
     filename: string,
-    options: {width?: number; height?: number}
+    options: {width?: number; height?: number},
   ): string {
     const fullPath = `${this.folderPath}${filename}`;
     const {data} = this.client.storage

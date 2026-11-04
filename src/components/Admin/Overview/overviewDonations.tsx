@@ -17,11 +17,13 @@ import {
   Stack,
   Chip,
   Box,
+  Button,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import {DataGrid, GridColDef, GridToolbar} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import * as Sentry from "@sentry/react";
+import {AddOutlined} from "@mui/icons-material";
 
 import {PageTitle} from "../../Shared/pageTitle";
 import {SYSTEM_BREADCRUMB} from "../system";
@@ -29,6 +31,7 @@ import {AlertMessage} from "../../Shared/AlertMessage";
 import {useCustomStyles} from "../../../constants/styles";
 import {useDatabase} from "../../Database/DatabaseContext";
 import {useAuthUser} from "../../Session/authUserContext";
+import {ManualDonationDialog} from "./manualDonationDialog";
 
 import {DonationDomain, DonationStatus, COUNTABLE_DONATION_STATUSES} from "../../Donate/donation.types";
 
@@ -45,6 +48,8 @@ import {
   DONATION_DONOR as TEXT_DONOR,
   EVENT as TEXT_EVENT,
   DONATION_RECEIPT_NUMBER as TEXT_RECEIPT_NUMBER,
+  DONATION_PAYMENT_METHOD_LABEL as TEXT_DONATION_PAYMENT_METHOD_LABEL,
+  MANUAL_DONATION_CREATE as TEXT_MANUAL_DONATION_CREATE,
 } from "../../../constants/text";
 
 /* ===================================================================
@@ -84,6 +89,11 @@ const OverviewDonationsPage = () => {
   const [donations, setDonations] = useState<DonationDomain[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  /** Dialog «Spende erfassen»; `key` zählt pro Öffnen hoch, damit er leer startet. */
+  const [manualDonationDialog, setManualDonationDialog] = useState({
+    open: false,
+    key: 0,
+  });
 
   /** Daten laden. */
   const loadDonations = useCallback(async () => {
@@ -170,8 +180,9 @@ const OverviewDonationsPage = () => {
       {
         field: "paymentMethod",
         headerName: TEXT_PAYMENT_METHOD,
-        width: 130,
-        valueFormatter: (value: string | null) => value ?? "—",
+        width: 220,
+        valueFormatter: (value: string | null) =>
+          TEXT_DONATION_PAYMENT_METHOD_LABEL(value),
       },
       {
         field: "donorDisplayName",
@@ -200,6 +211,31 @@ const OverviewDonationsPage = () => {
     [],
   );
 
+  /** Sucht die Person für eine manuell erfasste Spende über ihre E-Mail. */
+  const findDonor = async (email: string) => {
+    const donorUid = await database.users.findByEmail(email);
+    if (!donorUid) return null;
+    const displayNames = await database.users.findDisplayNamesByIds([donorUid]);
+    return {uid: donorUid, displayName: displayNames.get(donorUid) ?? email};
+  };
+
+  /** Anlässe, in denen die Person kocht. */
+  const loadDonorEvents = async (donorUid: string) =>
+    (await database.events.getAllEventsForUser(donorUid)).map((event) => ({
+      uid: event.uid,
+      name: event.name,
+    }));
+
+  /** Speichert die Spende; die Liste lädt danach neu. */
+  const createDonation = async (
+    input: Parameters<typeof database.donations.createManualDonation>[0],
+  ) => {
+    await database.donations.createManualDonation(input);
+  };
+
+  const closeManualDonationDialog = () =>
+    setManualDonationDialog((previous) => ({...previous, open: false}));
+
   if (!authUser) return null;
 
   return (
@@ -209,6 +245,32 @@ const OverviewDonationsPage = () => {
         breadcrumbs={[SYSTEM_BREADCRUMB]}
       />
       <Container sx={classes.container} component="main" maxWidth="lg">
+        <Box sx={classes.manualDonationToolbar}>
+          <Button
+            variant="contained"
+            startIcon={<AddOutlined />}
+            onClick={() =>
+              setManualDonationDialog((previous) => ({
+                open: true,
+                key: previous.key + 1,
+              }))
+            }
+          >
+            {TEXT_MANUAL_DONATION_CREATE}
+          </Button>
+        </Box>
+        <ManualDonationDialog
+          key={manualDonationDialog.key}
+          open={manualDonationDialog.open}
+          findDonor={findDonor}
+          loadDonorEvents={loadDonorEvents}
+          createDonation={createDonation}
+          onClose={closeManualDonationDialog}
+          onCreated={() => {
+            closeManualDonationDialog();
+            loadDonations();
+          }}
+        />
         {isLoading && (
           <Backdrop sx={classes.backdrop} open>
             <CircularProgress color="inherit" />

@@ -154,3 +154,49 @@ export const DONATION_CUSTOM_PLACEHOLDER = "z.B. 15";
 export const DONATION_RESULT_UNKNOWN_TITLE = "Unbekannter Status";
 export const DONATION_RESULT_UNKNOWN_TEXT =
   "Der Status der Zahlung konnte nicht ermittelt werden.";
+
+/* =====================================================================
+// Manuell erfasste Spenden (Admin)
+// ===================================================================== */
+export const MANUAL_DONATION_CREATE = "Spende erfassen";
+export const MANUAL_DONATION_DIALOG_HINT =
+  "Die Spende ist sofort bestätigt, bekommt eine Quittungsnummer und schaltet die Abrechnung des Anlasses frei. Es geht keine Mail raus.";
+export const MANUAL_DONATION_DONOR_EMAIL = "E-Mail der Person";
+export const MANUAL_DONATION_SEARCH = "Suchen";
+export const MANUAL_DONATION_SEARCH_FIRST =
+  "Suche zuerst die Person über ihre E-Mail-Adresse.";
+export const MANUAL_DONATION_DONOR_NOT_FOUND =
+  "Keine Person mit dieser E-Mail-Adresse gefunden.";
+export const MANUAL_DONATION_EVENT = "Anlass";
+export const MANUAL_DONATION_NO_EVENT = "Kein Anlass";
+export const MANUAL_DONATION_AMOUNT = "Betrag (CHF)";
+export const MANUAL_DONATION_AMOUNT_HINT = "Zwischen CHF 5 und CHF 10'000";
+export const MANUAL_DONATION_AMOUNT_RANGE =
+  "Gib einen Betrag zwischen CHF 5 und CHF 10'000 ein.";
+export const MANUAL_DONATION_PAID_AT = "Bezahlt am";
+export const MANUAL_DONATION_PAID_AT_RANGE =
+  "Das Datum darf nicht in der Zukunft und höchstens ein Jahr zurück liegen.";
+export const MANUAL_DONATION_PAYMENT_METHOD = "Zahlungsart";
+export const MANUAL_DONATION_MESSAGE = "Nachricht (optional)";
+export const MANUAL_DONATION_SUBMIT = "Erfassen";
+export const MANUAL_DONATION_CREATE_FAILED =
+  "Die Spende konnte nicht erfasst werden.";
+/** Bezeichnung der Zahlungsarten manuell erfasster Spenden. */
+export const MANUAL_PAYMENT_METHOD_LABELS: Record<string, string> = {
+  manual_bank_transfer: "Banküberweisung",
+  manual_cash: "Bar",
+  manual_test: "Test",
+};
+/**
+ * Zahlungsart in der Übersicht. Manuell erfasste Spenden sind markiert.
+ *
+ * @param paymentMethod - Gespeicherte Zahlungsart, z.B. «twint».
+ * @returns z.B. «Banküberweisung (manuell erfasst)».
+ */
+export const DONATION_PAYMENT_METHOD_LABEL = (
+  paymentMethod: string | null,
+): string => {
+  if (!paymentMethod) return "—";
+  const manualLabel = MANUAL_PAYMENT_METHOD_LABELS[paymentMethod];
+  return manualLabel ? `${manualLabel} (manuell erfasst)` : paymentMethod;
+};

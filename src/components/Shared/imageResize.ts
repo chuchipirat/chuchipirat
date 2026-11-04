@@ -17,7 +17,8 @@
  * `maxDimension` sind, werden nicht vergrössert, sondern lediglich als
  * JPEG mit der angegebenen Qualität exportiert.
  *
- * @param file - Die Bilddatei (File-Objekt aus einem Input-Element).
+ * @param file - Das Bild als `File` (Input-Element) oder `Blob` (z.B. aus
+ *  `fetch`); ein `File` ist ein `Blob`.
  * @param maxDimension - Maximale Breite oder Höhe in Pixel (Standard: 1200).
  * @param quality - JPEG-Qualität zwischen 0 und 1 (Standard: 0.85).
  * @returns JPEG-Blob des skalierten Bildes.
@@ -29,15 +30,15 @@
  * await storageRepository.upload("profile.jpg", blob, "image/jpeg");
  */
 export async function resizeImage(
-  file: File,
+  file: Blob,
   maxDimension = 1200,
-  quality = 0.85
+  quality = 0.85,
 ): Promise<Blob> {
   const img = await loadImage(file);
   const {width, height} = calculateDimensions(
     img.naturalWidth,
     img.naturalHeight,
-    maxDimension
+    maxDimension,
   );
 
   const canvas = document.createElement("canvas");
@@ -61,7 +62,7 @@ export async function resizeImage(
         }
       },
       "image/jpeg",
-      quality
+      quality,
     );
   });
 }
@@ -80,7 +81,7 @@ export async function resizeImage(
 export function calculateDimensions(
   originalWidth: number,
   originalHeight: number,
-  maxDimension: number
+  maxDimension: number,
 ): {width: number; height: number} {
   // Kein Upscaling, wenn Bild bereits kleiner
   if (originalWidth <= maxDimension && originalHeight <= maxDimension) {
@@ -89,7 +90,7 @@ export function calculateDimensions(
 
   const ratio = Math.min(
     maxDimension / originalWidth,
-    maxDimension / originalHeight
+    maxDimension / originalHeight,
   );
 
   return {
@@ -101,11 +102,11 @@ export function calculateDimensions(
 /**
  * Lädt eine Bilddatei in ein HTMLImageElement.
  *
- * @param file - Die zu ladende Bilddatei.
+ * @param file - Die zu ladende Bilddatei (`File` oder `Blob`).
  * @returns Das geladene Image-Element.
  * @throws {Error} Wenn das Bild nicht geladen werden kann.
  */
-function loadImage(file: File): Promise<HTMLImageElement> {
+function loadImage(file: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     const objectUrl = URL.createObjectURL(file);

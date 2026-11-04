@@ -15,3 +15,8 @@ volumes/db/data.pg15-*
 .env
 .env.test
 .env.production
+
+# Lokale Compose-Override (z.B. S3/MinIO-Storage-Backend statt Dateisystem,
+# wegen macOS-Docker-Desktop-Bind-Mount-Problemen) — pro Maschine
+# unterschiedlich, nicht Teil des gemeinsamen Setups.
+docker-compose.override.yml

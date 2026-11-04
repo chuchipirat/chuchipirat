@@ -26,6 +26,7 @@ import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 import {matchTransactionToDonation} from "../_shared/paymentVerification.ts";
 import {confirmDonation} from "../_shared/donationConfirmation.ts";
 import {trackServerEvent} from "../_shared/umamiHelper.ts";
+import {notifyDonationBoard} from "./notifyDonationBoard.ts";
 
 /* =====================================================================
 // Zahlungsanbieter API Hilfsfunktionen
@@ -325,6 +326,9 @@ serve(async (req: Request) => {
         source_object_uid: referenceId,
         source_object_data: {amount: donation.amount_in_cents},
       });
+
+      // Spende auf dem Vestaboard zeigen (wirft nie, siehe notifyDonationBoard)
+      await notifyDonationBoard(adminClient, donation);
 
       // Bestätigungs-E-Mail senden
       const emailEnv = readEmailEnv();

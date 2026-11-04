@@ -90,6 +90,9 @@ export const getMatchingHelpPage = ({
         case NavigationObject.materialList:
           page = "materiallist";
           break;
+        case NavigationObject.expenseTracking:
+          page = "expensetracking";
+          break;
         case NavigationObject.eventSettings:
           page = "settings";
           break;

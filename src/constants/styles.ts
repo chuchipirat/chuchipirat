@@ -2,6 +2,8 @@ import {alpha} from "@mui/system/colorManipulator";
 import {useTheme} from "@mui/material/styles";
 import {Utils} from "../components/Shared/utils.class";
 
+import {getExpenseTrackingStyles} from "./styles/expenseTracking.styles";
+import {getUserStyles} from "./styles/user.styles";
 /**
  * Zentrale MUI-Styles für die gesamte App.
  *
@@ -634,6 +636,19 @@ const useCustomStyles = () => {
       },
       animation: "remoteChangeGlow 2s ease-out",
     },
+    /* ------------------------------------------
+    // Admin: Spenden
+    // ------------------------------------------ */
+    manualDonationToolbar: {
+      display: "flex",
+      justifyContent: "flex-end",
+      marginBottom: theme.spacing(2),
+    },
+    /* ------------------------------------------
+    // ausgelagerte Styles
+    // ------------------------------------------ */
+    ...getExpenseTrackingStyles(theme),
+    ...getUserStyles(theme),
   };
 };
 

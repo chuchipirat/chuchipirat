@@ -10,9 +10,18 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
-import {render, screen, waitFor, within} from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import {MemoryRouter} from "react-router";
+import {LocalizationProvider} from "@mui/x-date-pickers";
+import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
+import "dayjs/locale/de";
 
 import OverviewDonationsPage from "../overviewDonations";
 import {DatabaseContext} from "../../../Database/DatabaseContext";
@@ -76,9 +85,11 @@ const mockDatabase: any = {
 const renderPage = () =>
   render(
     <MemoryRouter>
-      <DatabaseContext.Provider value={mockDatabase}>
-        <OverviewDonationsPage />
-      </DatabaseContext.Provider>
+      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de">
+        <DatabaseContext.Provider value={mockDatabase}>
+          <OverviewDonationsPage />
+        </DatabaseContext.Provider>
+      </LocalizationProvider>
     </MemoryRouter>,
   );
 
@@ -138,4 +149,28 @@ test("4 – 'Total dieses Jahr' schliesst ausstehende Spenden aus", async () => 
   renderPage();
 
   expect(await findTotalThisYearValue()).toBe("CHF 50.00");
+});
+
+describe("OverviewDonationsPage: manuell erfasste Spenden", () => {
+  test("Knopf «Spende erfassen» öffnet den Dialog", async () => {
+    mockGetAllDonations.mockResolvedValue([]);
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", {name: "Spende erfassen"}),
+    );
+
+    expect(await screen.findByRole("dialog")).toBeInTheDocument();
+  });
+
+  test("Zahlungsart zeigt «manuell erfasst»", async () => {
+    mockGetAllDonations.mockResolvedValue([
+      createDonationMock({paymentMethod: "manual_bank_transfer"}),
+    ]);
+    renderPage();
+
+    expect(
+      await screen.findByText("Banküberweisung (manuell erfasst)"),
+    ).toBeInTheDocument();
+  });
 });

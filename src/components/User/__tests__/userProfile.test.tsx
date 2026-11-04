@@ -7,7 +7,7 @@ global.URL.createObjectURL = jest.fn(() => "blob:mock-url");
 global.URL.revokeObjectURL = jest.fn();
 
 import React from "react";
-import {render, screen, waitFor} from "@testing-library/react";
+import {render, screen, waitFor, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter} from "react-router";
@@ -107,6 +107,11 @@ import {AuthUserContext} from "../../Session/authUserContext";
 import {User} from "../user.class";
 import authUserMock from "../../Session/__mocks__/authuser.mock";
 import {DonationDomain, DonationStatus} from "../../Donate/donation.types";
+import {
+  DELETE as TEXT_DELETE,
+  PAYMENT_DETAILS_SAVED as TEXT_PAYMENT_DETAILS_SAVED,
+  PAYMENT_DETAILS_DELETED as TEXT_PAYMENT_DETAILS_DELETED,
+} from "../../../constants/text";
 
 // Typisierte Referenzen auf die Mock-Funktionen
 const mockGetFullProfile = User.getFullProfile as jest.Mock;
@@ -119,6 +124,10 @@ const mockCheckUserProfileData = User.checkUserProfileData as jest.Mock;
 const mockGetMyDonations = jest.fn().mockResolvedValue([]);
 const mockDatabase = {
   donations: {getMyDonations: mockGetMyDonations},
+  userPaymentDetails: {
+    getPaymentDetails: jest.fn().mockResolvedValue(null),
+    deletePaymentDetails: jest.fn(),
+  },
 } as any;
 
 /* ===================================================================
@@ -291,10 +300,10 @@ describe("UserProfilePage", () => {
       expect(screen.getByText(/Bewertungen/i)).toBeInTheDocument();
 
       // Prüfe die konkreten Werte aus den Testdaten
-      expect(screen.getByText("8")).toBeInTheDocument();    // noRecipesPublic
-      expect(screen.getByText("5")).toBeInTheDocument();    // noComments
-      expect(screen.getByText("9")).toBeInTheDocument();    // noRatings
-      expect(screen.getByText("10")).toBeInTheDocument();   // noEvents
+      expect(screen.getByText("8")).toBeInTheDocument(); // noRecipesPublic
+      expect(screen.getByText("5")).toBeInTheDocument(); // noComments
+      expect(screen.getByText("9")).toBeInTheDocument(); // noRatings
+      expect(screen.getByText("10")).toBeInTheDocument(); // noEvents
     });
 
     test("Zeigt Bug-Anzahl wenn > 0", async () => {
@@ -325,9 +334,21 @@ describe("UserProfilePage", () => {
   describe("Spenden", () => {
     test("Zeigt bestätigte und migrierte Spenden an, aber keine ausstehenden", async () => {
       mockGetMyDonations.mockResolvedValueOnce([
-        createDonationMock({id: "d1", status: DonationStatus.confirmed, eventName: "Sommerlager"}),
-        createDonationMock({id: "d2", status: DonationStatus.migrated, eventName: "Winterlager"}),
-        createDonationMock({id: "d3", status: DonationStatus.pending, eventName: "Herbstlager"}),
+        createDonationMock({
+          id: "d1",
+          status: DonationStatus.confirmed,
+          eventName: "Sommerlager",
+        }),
+        createDonationMock({
+          id: "d2",
+          status: DonationStatus.migrated,
+          eventName: "Winterlager",
+        }),
+        createDonationMock({
+          id: "d3",
+          status: DonationStatus.pending,
+          eventName: "Herbstlager",
+        }),
       ]);
 
       renderUserProfilePage();
@@ -337,6 +358,37 @@ describe("UserProfilePage", () => {
       });
       expect(screen.getByText("Winterlager")).toBeInTheDocument();
       expect(screen.queryByText("Herbstlager")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("Zahlungsangaben", () => {
+    test("Adresse und IBAN liegen in Card und Dialog in einem data-sentry-block-Bereich", async () => {
+      // Sentry-Replay zeichnet Texte und Eingaben auf — diese Bereiche müssen geblockt sein
+      mockDatabase.userPaymentDetails.getPaymentDetails.mockResolvedValueOnce({
+        userId: authUserMock.uid,
+        street: "Teststrasse 1",
+        postalCode: "8000",
+        city: "Zürich",
+        iban: "CH9300762011623852957",
+      });
+
+      renderUserProfilePage();
+
+      const street = await screen.findByText(/Teststrasse 1/);
+      expect(street.closest("[data-sentry-block]")).not.toBeNull();
+      expect(
+        screen
+          .getByText("CH93 0076 2011 6238 5295 7")
+          .closest("[data-sentry-block]"),
+      ).not.toBeNull();
+
+      const card = screen.getByText("Zahlungsangaben").closest(".MuiCard-root");
+      await userEvent.click(
+        within(card as HTMLElement).getByRole("button", {name: "anpassen"}),
+      );
+
+      const ibanInput = await screen.findByLabelText("IBAN");
+      expect(ibanInput.closest("[data-sentry-block]")).not.toBeNull();
     });
   });
 
@@ -619,6 +671,54 @@ describe("UserProfilePage", () => {
         name: /Mail \/ Passwort ändern/i,
       });
       expect(pwButton).toBeInTheDocument();
+    });
+  });
+
+  /* ------------------------------------------
+  // Zahlungsangaben — Verdrahtung Seite ↔ Card
+  // (Card-Verhalten selbst: userPaymentDetailsCard.test.tsx)
+  // ------------------------------------------ */
+  describe("Zahlungsangaben", () => {
+    const storedDetails = {
+      userId: authUserMock.uid,
+      street: "Musterstrasse 1",
+      postalCode: "1234",
+      city: "Hinterpfuffikon",
+      iban: "CH9300762011623852957",
+    };
+
+    test("Erfolgsmeldung der Card erscheint als Snackbar mit ihrem Text", async () => {
+      mockDatabase.userPaymentDetails.getPaymentDetails.mockResolvedValueOnce(
+        storedDetails,
+      );
+      mockDatabase.userPaymentDetails.deletePaymentDetails.mockResolvedValueOnce(
+        undefined,
+      );
+      mockCustomDialog.mockResolvedValue(true);
+      renderUserProfilePage();
+
+      await screen.findByText("CH93 0076 2011 6238 5295 7");
+      await userEvent.click(screen.getByRole("button", {name: TEXT_DELETE}));
+
+      // die Seite zeigt den Text, den die Card meldet — nicht einen festen
+      expect(
+        await screen.findByText(TEXT_PAYMENT_DETAILS_DELETED),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText(TEXT_PAYMENT_DETAILS_SAVED),
+      ).not.toBeInTheDocument();
+    });
+
+    test("Fehler der Card erscheint als Fehlermeldung, nicht als Erfolg", async () => {
+      mockDatabase.userPaymentDetails.getPaymentDetails.mockRejectedValueOnce(
+        new Error("permission denied"),
+      );
+      renderUserProfilePage();
+
+      expect(await screen.findByText("permission denied")).toBeInTheDocument();
+      expect(
+        screen.queryByText(TEXT_PAYMENT_DETAILS_DELETED),
+      ).not.toBeInTheDocument();
     });
   });
 });

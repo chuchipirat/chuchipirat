@@ -14,6 +14,7 @@ interface ConfirmDialogProps {
   text: string | JSX.Element;
   buttonTextConfirm: string;
   buttonTextCancel: string;
+  destructive?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -26,6 +27,8 @@ interface ConfirmDialogProps {
  * @param text Dialogtext.
  * @param buttonTextConfirm Text des Bestätigen-Buttons.
  * @param buttonTextCancel Text des Abbrechen-Buttons.
+ * @param destructive Bestätigung löscht oder verwirft etwas: Bestätigen-Button
+ *   rot, Fokus auf "Abbrechen" (Enter löst so nicht versehentlich das Löschen aus).
  * @param onConfirm Callback bei Bestätigung.
  * @param onCancel Callback bei Abbruch.
  */
@@ -35,6 +38,7 @@ export const ConfirmDialog = ({
   text,
   buttonTextConfirm,
   buttonTextCancel,
+  destructive = false,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) => {
@@ -51,10 +55,15 @@ export const ConfirmDialog = ({
         </DialogContentText>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onCancel} color="primary">
+        <Button onClick={onCancel} color="primary" autoFocus={destructive}>
           {buttonTextCancel}
         </Button>
-        <Button onClick={onConfirm} color="primary" autoFocus>
+        <Button
+          onClick={onConfirm}
+          color={destructive ? "error" : "primary"}
+          variant={destructive ? "contained" : "text"}
+          autoFocus={!destructive}
+        >
           {buttonTextConfirm}
         </Button>
       </DialogActions>

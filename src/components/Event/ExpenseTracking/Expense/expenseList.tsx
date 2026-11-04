@@ -1,0 +1,258 @@
+import React from "react";
+
+import {
+  IconButton,
+  List,
+  ListItemButton,
+  ListItemText,
+  ListSubheader,
+  Typography,
+} from "@mui/material";
+
+import {ExpenseDomain, ExpenseGroup} from "./expense.types";
+
+import {Box} from "@mui/system";
+import {BUDGET_ICON_MAP} from "../Budget/budgetIcons";
+import {useCustomStyles} from "../../../../constants/styles";
+import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
+
+import {
+  NO_EXPENSES_YET as TEXT_NO_EXPENSES_YET,
+  SHOW_EXPENSE_RECEIPT as TEXT_SHOW_EXPENSE_RECEIPT,
+  EXPENSE_RECEIPT_MISSING as TEXT_EXPENSE_RECEIPT_MISSING,
+} from "../../../../constants/text/expenseTracking";
+import {ReceiptLongOutlined, ReportProblemOutlined} from "@mui/icons-material";
+import {formatDisplayDate} from "../../../../utils/dateUtils";
+
+/**
+ * Props für {@link ExpenseList}.
+ *
+ * @param expenseGroups - Ausgaben gruppiert nach Budget (siehe
+ *   `Expense.groupByBudget`), bereits sortiert und summiert — `ExpenseList`
+ *   berechnet selbst nichts, nur Darstellung.
+ * @param highlightedExpenseIds - IDs von Ausgaben, die eine andere Sitzung
+ *   gerade angelegt oder geändert hat (Paket 2.8) — die betroffene Zeile
+ *   leuchtet kurz auf (`classes.remoteChangeGlow`).
+ * @param emptyText - Hinweis, wenn keine Gruppe Ausgaben enthält. Standard:
+ *   «Noch keine Ausgaben.» Bei aktivem Filter übergibt die Seite einen
+ *   passenderen Text (es gibt Ausgaben, nur keine, die den Filter erfüllen).
+ * @param handleEditClick - Callback bei Klick auf eine Zeile, liefert die ID
+ *   der angeklickten Ausgabe.
+ * @param handleOpenAttachment - Öffnet den Beleg einer Ausgabe.
+ * @param showMissingReceiptWarning - `false`, wenn die Belege nach Ablauf der
+ *   Frist gelöscht sind: dann fehlt das Warnsymbol bei Ausgaben ohne Beleg.
+ */
+interface ExpenseListProps {
+  expenseGroups: ExpenseGroup[];
+  highlightedExpenseIds: Set<string>;
+  emptyText?: string;
+  handleEditClick: (expenseId: string) => void;
+  handleOpenAttachment: (attachmentPath: string) => void;
+  /** `false`, wenn die Belege nach Ablauf der Frist gelöscht sind. */
+  showMissingReceiptWarning?: boolean;
+}
+
+/**
+ * Liste aller Ausgaben eines Events, gruppiert nach Budget.
+ *
+ * Zeigt pro Budget einen Gruppenkopf ({@link ExpenseGroupHeader}) mit den
+ * Summen je Währung, darunter die einzelnen Ausgaben ({@link ExpenseRow}).
+ * Budgets ohne Ausgaben werden nicht angezeigt; hat **kein** Budget
+ * Ausgaben, erscheint stattdessen ein Hinweistext.
+ *
+ * @param props - Siehe {@link ExpenseListProps}.
+ */
+export const ExpenseList = ({
+  expenseGroups,
+  highlightedExpenseIds,
+  emptyText = TEXT_NO_EXPENSES_YET,
+  handleEditClick,
+  handleOpenAttachment,
+  showMissingReceiptWarning = true,
+}: ExpenseListProps) => {
+  const classes = useCustomStyles();
+  const groupsWithExpenses = expenseGroups.filter(
+    (group) => group.expenses.length > 0,
+  );
+  return (
+    <List data-testid="expense-tracking-expenses-list">
+      {groupsWithExpenses.length === 0 ? (
+        <Typography sx={classes.noExpensesHint}>{emptyText}</Typography>
+      ) : (
+        groupsWithExpenses.map((group, index) => (
+          <React.Fragment key={"expense_budget_" + group.budget.id}>
+            <ExpenseGroupHeader group={group} isFirstGroup={index === 0} />
+            {group.expenses.map((expense) => (
+              <ExpenseRow
+                key={"expenseRow_" + expense.id}
+                expense={expense}
+                isHighlighted={highlightedExpenseIds.has(expense.id)}
+                handleClick={handleEditClick}
+                handleOpenAttachment={handleOpenAttachment}
+                showMissingReceiptWarning={showMissingReceiptWarning}
+              />
+            ))}
+          </React.Fragment>
+        ))
+      )}
+    </List>
+  );
+};
+
+/** Props für {@link ExpenseGroupHeader}. */
+type ExpenseGroupHeaderProps = {
+  /** Die Gruppe (Budget + zugehörige Ausgaben + Summen je Währung). */
+  group: ExpenseGroup;
+  /**
+   * Ob dies der erste angezeigte Gruppenkopf ist. Nur nachfolgende Köpfe
+   * bekommen zusätzlichen Abstand nach oben (Abgrenzung zur letzten Zeile
+   * der vorherigen Gruppe) — der erste Kopf sitzt sonst mit unnötigem
+   * Leerraum unter der Toolbar.
+   */
+  isFirstGroup: boolean;
+};
+
+/**
+ * Kopf einer Budget-Gruppe in der Ausgaben-Liste: Icon, Name des Budgets und
+ * die Summen der Ausgaben dieser Gruppe, je Währung. Bleibt beim Scrollen
+ * innerhalb der Gruppe sichtbar (`ListSubheader` ist standardmässig `sticky`).
+ *
+ * @param props - Siehe {@link ExpenseGroupHeaderProps}.
+ */
+const ExpenseGroupHeader = ({group, isFirstGroup}: ExpenseGroupHeaderProps) => {
+  const BudgetIconComponent = BUDGET_ICON_MAP[group.budget.icon];
+  const classes = useCustomStyles();
+
+  // Alphabetisch nach Währungscode — gleiches Muster wie die
+  // Fremdwährungs-Zeilen in Budget.getSpentAmounts, stabile Reihenfolge bei
+  // jedem Reload.
+  const currencyTotals = Object.entries(group.totalsByCurrency).sort(
+    ([currencyA], [currencyB]) => currencyA.localeCompare(currencyB),
+  );
+
+  return (
+    <ListSubheader
+      sx={[
+        classes.expenseGroupHeader,
+        !isFirstGroup && classes.expenseGroupHeaderSpacing,
+      ]}
+      data-testid={"budget-subheader-" + group.budget.id}
+    >
+      <Box sx={classes.expenseGroupHeaderName}>
+        <BudgetIconComponent fontSize="small" />
+        <Typography variant="subtitle1" sx={{fontWeight: "inherit"}}>
+          {group.budget.name}
+        </Typography>
+      </Box>
+      <Box sx={classes.expenseGroupHeaderTotals}>
+        {currencyTotals.map(([currency, amountInCents]) => (
+          <Typography
+            key={currency}
+            variant="subtitle1"
+            sx={{fontWeight: "inherit"}}
+          >
+            {formatAmountFromCents(amountInCents, currency)}
+          </Typography>
+        ))}
+      </Box>
+    </ListSubheader>
+  );
+};
+/** Props für {@link ExpenseRow}. */
+type ExpenseRowProps = {
+  expense: ExpenseDomain;
+  isHighlighted: boolean;
+  /** Callback bei Klick auf die Zeile, liefert `expense.id`. */
+  handleClick: (expenseId: string) => void;
+  /** Öffnet den Beleg bei Klick auf das Belegsymbol. */
+  handleOpenAttachment: (attachmentPath: string) => void;
+  /** Siehe {@link ExpenseListProps}. */
+  showMissingReceiptWarning: boolean;
+};
+
+/**
+ * Eine Zeile der Ausgaben-Liste: Bezeichnung und Betrag als Kopfzeile
+ * (`ListItemText.primary`), Datum und Kommentar als Zweitzeile darunter
+ * (`ListItemText.secondary`, Kommentar nur wenn vorhanden). Die ganze Zeile
+ * ist klickbar (`ListItemButton`) und öffnet den Bearbeiten-Dialog (Paket
+ * 2.6 verdrahtet `handleClick`).
+ *
+ * @param props - Siehe {@link ExpenseRowProps}.
+ */
+const ExpenseRow = ({
+  expense,
+  isHighlighted,
+  handleClick,
+  handleOpenAttachment,
+  showMissingReceiptWarning,
+}: ExpenseRowProps) => {
+  const classes = useCustomStyles();
+
+  const formattedDate = formatDisplayDate(expense.date);
+  const secondaryText = expense.comment
+    ? `${formattedDate} · ${expense.comment}`
+    : formattedDate;
+
+  return (
+    <ListItemButton
+      divider
+      onClick={() => handleClick(expense.id)}
+      data-testid={`expense-${expense.id}`}
+      sx={[isHighlighted && classes.remoteChangeGlow]}
+    >
+      <ListItemText
+        slotProps={{secondary: {component: "div"}}}
+        primary={
+          <Box sx={classes.expenseRowPrimary}>
+            <Typography component="span" noWrap>
+              {expense.label}
+            </Typography>
+            <Typography component="span" sx={classes.expenseRowAmount}>
+              {formatAmountFromCents(expense.amountInCents, expense.currency)}
+            </Typography>
+          </Box>
+        }
+        secondary={
+          <Box sx={classes.expenseRowSecondary}>
+            <Typography
+              component="span"
+              variant="body2"
+              color="text.secondary"
+              noWrap
+              sx={classes.expenseRowSecondaryText}
+            >
+              {secondaryText}
+            </Typography>
+            {expense.attachmentPath ? (
+              <IconButton
+                size="small"
+                aria-label={TEXT_SHOW_EXPENSE_RECEIPT}
+                onClick={(clickEvent) => {
+                  clickEvent.stopPropagation();
+                  handleOpenAttachment(expense.attachmentPath as string);
+                }}
+                sx={classes.expenseReceiptIconPresent}
+                data-testid={`expense-receipt-icon-${expense.id}`}
+              >
+                <ReceiptLongOutlined fontSize="small" />
+              </IconButton>
+            ) : showMissingReceiptWarning ? (
+              <IconButton
+                size="small"
+                aria-label={TEXT_EXPENSE_RECEIPT_MISSING}
+                onClick={(clickEvent) => {
+                  clickEvent.stopPropagation();
+                  handleClick(expense.id);
+                }}
+                sx={classes.expenseReceiptIconMissing}
+                data-testid={`expense-receipt-missing-icon-${expense.id}`}
+              >
+                <ReportProblemOutlined fontSize="small" />
+              </IconButton>
+            ) : null}
+          </Box>
+        }
+      />
+    </ListItemButton>
+  );
+};

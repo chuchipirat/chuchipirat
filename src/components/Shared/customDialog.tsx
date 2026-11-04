@@ -27,6 +27,7 @@ const CustomDialog = () => {
             text={dialogState.text}
             buttonTextConfirm={dialogState.buttonTextConfirm}
             buttonTextCancel={dialogState.buttonTextCancel}
+            destructive={dialogState.destructive}
             onConfirm={onConfirm}
             onCancel={onCancel}
           />

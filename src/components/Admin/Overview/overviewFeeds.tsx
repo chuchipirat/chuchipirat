@@ -298,6 +298,7 @@ const OverviewFeedsPage = () => {
 
     const isConfirmed = await customDialog({
       dialogType: DialogType.Confirm,
+      destructive: true,
       text: TEXT_SHOULD_FEED_ENTRY_BE_DELETED,
       title: `⚠️  ${TEXT_ATTENTION}`,
       buttonTextConfirm: TEXT_DELETE,

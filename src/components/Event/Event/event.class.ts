@@ -11,10 +11,7 @@ import {
   ERROR_OVERLAPPING_DATES as TEXT_ERROR_OVERLAPPING_DATES,
 } from "../../../constants/text";
 
-import {
-  AuthUser,
-  AuthUserPublicProfile,
-} from "../../Session/authUser.class";
+import {AuthUser, AuthUserPublicProfile} from "../../Session/authUser.class";
 import {ChangeRecord} from "../../Shared/global.interface";
 import {
   FieldValidationError,
@@ -92,7 +89,7 @@ export class Event {
     this.authUsers = [];
     this.created = {date: new Date(0), fromUid: "", fromDisplayName: ""};
     this.lastChange = {date: new Date(0), fromUid: "", fromDisplayName: ""};
-  }  /**
+  } /**
    * Erzeugt ein neues Event mit dem angemeldeten Benutzer als erstem Koch
    * und einer leeren Datumszeile.
    *
@@ -116,7 +113,7 @@ export class Event {
     emptyDateLine.pos = 1;
     event.dates = [emptyDateLine];
     return event;
-  }  /**
+  } /**
    * Erzeugt einen leeren Datumseintrag mit generierter UID.
    *
    * @returns Neuer Datumseintrag mit Epoch-Daten (1.1.1970) und Position 0.
@@ -128,7 +125,7 @@ export class Event {
       from: new Date(0),
       to: new Date(0),
     };
-  }  /**
+  } /**
    * Validiert die Datumseinträge eines Events auf Konsistenz und Überlappungen.
    * Prüft ob Von-/Bis-Daten gesetzt sind, ob Von vor Bis liegt und ob sich
    * Zeitscheiben überschneiden.
@@ -225,7 +222,7 @@ export class Event {
     });
 
     return errors;
-  }  /**
+  } /**
    * Prüft die Pflichtfelder eines Events und wirft eine Exception bei Fehlern.
    * Validiert Name, Köche und Datumsangaben.
    *
@@ -272,7 +269,7 @@ export class Event {
         formValidation,
       );
     }
-  }  /**
+  } /**
    * Bereitet einen Event fürs Speichern vor: berechnet maxDate,
    * Anzahl Tage, sortiert Dates und extrahiert berechtigte Benutzer.
    *
@@ -302,7 +299,7 @@ export class Event {
     });
     event.authUsers = this.getAuthUsersFromCooks(event.cooks);
     return event;
-  }  /**
+  } /**
    * Berechnet die Gesamtdauer eines Events in Tagen anhand der Zeitscheiben.
    *
    * @param dates Array der Datumseinträge des Events.
@@ -310,6 +307,16 @@ export class Event {
    */
   static defineEventDuration(dates: Event["dates"]) {
     return dates.reduce((result, dateSlice) => {
+      // Platzhalter-Zeitscheiben (Von/Bis = 1.1.1970, noch nicht befüllt)
+      // überspringen — sonst zählt jede leere Zeile fälschlicherweise
+      // als 1 Tag mit in die Gesamtdauer (siehe deleteEmptyDates).
+      if (
+        dateSlice.from.getFullYear() === 1970 &&
+        dateSlice.to.getFullYear() === 1970
+      ) {
+        return result;
+      }
+
       const difference = Utils.differenceBetweenTwoDates({
         dateFrom: dateSlice.from,
         dateTo: dateSlice.to,
@@ -321,7 +328,7 @@ export class Event {
 
       return result;
     }, 0);
-  }  /**
+  } /**
    * Extrahiert die UIDs aller Köche als Array berechtigter Benutzer.
    *
    * @param cooks Array der Köche des Events.
@@ -329,7 +336,7 @@ export class Event {
    */
   static getAuthUsersFromCooks(cooks: Cook[]) {
     return cooks.map((cook) => cook.uid);
-  }  /**
+  } /**
    * Entfernt leere Datumszeilen (Von und Bis = 1.1.1970), behält aber immer
    * den ersten Eintrag, damit mindestens eine Zeile vorhanden bleibt.
    *

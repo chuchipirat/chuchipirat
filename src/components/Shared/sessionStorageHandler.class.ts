@@ -177,6 +177,12 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
     respectPrefix: false,
     excludeFromCaching: true,
   },
+  USER_PAYMENT_DETAILS: {
+    durationOfValidity: 0,
+    uid: "/userPaymentDetails",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
   NONE: {
     durationOfValidity: 0,
     uid: "",
@@ -246,6 +252,18 @@ export const STORAGE_OBJECT_PROPERTY: {[key: string]: StorageObjectProperty} = {
   MATERIAL_LISTS: {
     durationOfValidity: 0,
     uid: "/materialLists",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  EVENT_BUDGETS: {
+    durationOfValidity: 0,
+    uid: "/eventBudgets",
+    respectPrefix: false,
+    excludeFromCaching: true,
+  },
+  EVENT_EXPENSES: {
+    durationOfValidity: 0,
+    uid: "/eventExpenses",
     respectPrefix: false,
     excludeFromCaching: true,
   },
@@ -369,7 +387,7 @@ export class SessionStorageHandler {
     const documentPrefixUid = SessionStorageHandler.mergeStorageDocumentUid(
       storageObjectProperty,
       documentUid,
-      prefix
+      prefix,
     );
 
     // Neuer Wert einfügen/überklatschen
@@ -450,7 +468,7 @@ export class SessionStorageHandler {
     const documentPrefixUid = SessionStorageHandler.mergeStorageDocumentUid(
       storageObjectProperty,
       documentUid,
-      prefix
+      prefix,
     );
 
     // Wert überklatschen
@@ -489,7 +507,7 @@ export class SessionStorageHandler {
     const documentPrefixUid = SessionStorageHandler.mergeStorageDocumentUid(
       storageObjectProperty,
       documentUid,
-      prefix
+      prefix,
     );
 
     // Gibt es das Dokument im Session Storage
@@ -541,14 +559,14 @@ export class SessionStorageHandler {
     }
     // Objekt in Array umwandeln
     Object.values(sessionStorage).forEach((value) =>
-      validSessionStorageEntries.push(value)
+      validSessionStorageEntries.push(value),
     );
 
     // Alles was veraltet ist rausfiltern
     validSessionStorageEntries = validSessionStorageEntries.filter(
       (entry) =>
         new Date().getTime() - new Date(entry.date).getTime() / 60000 >
-        storageObjectProperty.durationOfValidity
+        storageObjectProperty.durationOfValidity,
     );
     if (where) {
       // Ausfiltern...
@@ -577,7 +595,7 @@ export class SessionStorageHandler {
               case Operator.notIn:
                 throw Error(ERROR_NOT_IMPLEMENTED_YET);
             }
-          }
+          },
         );
       });
     }
@@ -622,7 +640,7 @@ export class SessionStorageHandler {
     const documentPrefixUid = SessionStorageHandler.mergeStorageDocumentUid(
       storageObjectProperty,
       documentUid,
-      prefix
+      prefix,
     );
 
     if (!sessionStorageValue || !sessionStorageValue[documentPrefixUid]) {
@@ -669,7 +687,7 @@ export class SessionStorageHandler {
     const documentPrefixUid = SessionStorageHandler.mergeStorageDocumentUid(
       storageObjectProperty,
       documentUid,
-      prefix
+      prefix,
     );
 
     if (!sessionStorageValue || !sessionStorageValue[documentPrefixUid]) {
@@ -727,7 +745,7 @@ export class SessionStorageHandler {
     const documentPrefixUid = SessionStorageHandler.mergeStorageDocumentUid(
       storageObjectProperty,
       documentUid,
-      prefix
+      prefix,
     );
     // Dokument löschen und zurückschreiben
     delete sessionStorageValue[documentPrefixUid];
@@ -767,7 +785,7 @@ export class SessionStorageHandler {
     const documentPrefixUid = SessionStorageHandler.mergeStorageDocumentUid(
       storageObjectProperty,
       documentUid,
-      prefix
+      prefix,
     );
 
     // Feld löschen und zurückschreiben
@@ -788,11 +806,11 @@ export class SessionStorageHandler {
     storageObjectProperty,
   }: GetSessionStorageEntry) => {
     const sessionStorageValue = sessionStorage.getItem(
-      storageObjectProperty.uid
+      storageObjectProperty.uid,
     );
     if (sessionStorageValue) {
       return SessionStorageHandler.convertStoredData(
-        JSON.parse(sessionStorageValue)
+        JSON.parse(sessionStorageValue),
       ) as T;
     } else {
       return null;
@@ -846,7 +864,7 @@ export class SessionStorageHandler {
   static mergeStorageDocumentUid(
     storageObjectProperty: StorageObjectProperty,
     documentUid: string,
-    prefix?: string
+    prefix?: string,
   ) {
     // Dokument-ID erstellen
     if (storageObjectProperty.respectPrefix && prefix !== "") {

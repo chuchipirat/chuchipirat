@@ -1,5 +1,6 @@
 import {AuthService} from "./AuthService";
 import {UserRepository} from "./Repository/UserRepository";
+import {UserPaymentDetailsRepository} from "./Repository/UserPaymentDetailsRepository";
 import {UserStorageRepository} from "./Repository/UserStorageRepository";
 import {EventStorageRepository} from "./Repository/EventStorageRepository";
 import {GlobalSettingsRepository} from "./Repository/GlobalSettingsRepository";
@@ -23,6 +24,8 @@ import {MenuplanRepository} from "./Repository/MenuplanRepository";
 import {UsedRecipeListRepository} from "./Repository/UsedRecipeListRepository";
 import {ShoppingListRepository} from "./Repository/ShoppingListRepository";
 import {MaterialListRepository} from "./Repository/MaterialListRepository";
+import {ExpenseRepository} from "./Repository/ExpenseRepository";
+import {BudgetRepository} from "./Repository/BudgetRepository";
 import {RequestRepository} from "./Repository/RequestRepository";
 import {RequestCommentRepository} from "./Repository/RequestCommentRepository";
 import {FeedRepository} from "./Repository/FeedRepository";
@@ -31,6 +34,7 @@ import {StatsRepository} from "./Repository/StatsRepository";
 import {AdminOperationsRepository} from "./Repository/AdminOperationsRepository";
 import {CronJobLogRepository} from "./Repository/CronJobLogRepository";
 import {MailLogRepository} from "./Repository/MailLogRepository";
+import {ExpenseStorageRepository} from "./Repository/ExpenseStorageRepository";
 /* =====================================================================
 // DatabaseService — Zentraler Einstiegspunkt für Datenbankzugriff
 // Bündelt alle Repository-Instanzen und den AuthService.
@@ -47,6 +51,7 @@ import {MailLogRepository} from "./Repository/MailLogRepository";
  *
  * @property auth - Service für Supabase Auth Operationen
  * @property users - Repository für Benutzer-CRUD-Operationen (RLS aktiv)
+ * @property userPaymentDetails - Repository für Zahlungsdetails eines Benutzers
  * @property globalSettings - Repository für globale Einstellungen
  * @property systemMessages - Repository für Systemmeldungen
  * @property departments - Repository für Abteilungen
@@ -67,6 +72,8 @@ import {MailLogRepository} from "./Repository/MailLogRepository";
  * @property usedRecipeLists - Repository für benannte Rezeptlisten eines Events
  * @property shoppingLists - Repository für Einkaufslisten eines Events
  * @property materialLists - Repository für Materiallisten eines Events
+ * @property expenses - Repository für Ausgaben eines Events
+ * @property budgets - Repository für Budgets eines Events
  * @property requests - Repository für Anträge (Rezept-Veröffentlichung, Fehlermeldungen)
  * @property requestComments - Repository für Antrags-Kommentare
  * @property feeds - Repository für Feed-Einträge (Aktivitätsübersicht)
@@ -78,6 +85,7 @@ import {MailLogRepository} from "./Repository/MailLogRepository";
 export class DatabaseService {
   auth: AuthService;
   users: UserRepository;
+  userPaymentDetails: UserPaymentDetailsRepository;
   globalSettings: GlobalSettingsRepository;
   systemMessages: SystemMessageRepository;
   departments: DepartmentRepository;
@@ -99,6 +107,8 @@ export class DatabaseService {
   usedRecipeLists: UsedRecipeListRepository;
   shoppingLists: ShoppingListRepository;
   materialLists: MaterialListRepository;
+  expenses: ExpenseRepository;
+  budgets: BudgetRepository;
   requests: RequestRepository;
   requestComments: RequestCommentRepository;
   feeds: FeedRepository;
@@ -107,11 +117,16 @@ export class DatabaseService {
   adminOps: AdminOperationsRepository;
   cronJobLog: CronJobLogRepository;
   mailLog: MailLogRepository;
-  storage: {users: UserStorageRepository; events: EventStorageRepository};
+  storage: {
+    users: UserStorageRepository;
+    events: EventStorageRepository;
+    expenses: ExpenseStorageRepository;
+  };
 
   constructor() {
     this.auth = new AuthService();
     this.users = new UserRepository();
+    this.userPaymentDetails = new UserPaymentDetailsRepository();
     this.globalSettings = new GlobalSettingsRepository();
     this.systemMessages = new SystemMessageRepository();
     this.departments = new DepartmentRepository();
@@ -133,6 +148,8 @@ export class DatabaseService {
     this.usedRecipeLists = new UsedRecipeListRepository();
     this.shoppingLists = new ShoppingListRepository();
     this.materialLists = new MaterialListRepository();
+    this.expenses = new ExpenseRepository();
+    this.budgets = new BudgetRepository();
     this.requests = new RequestRepository();
     this.requestComments = new RequestCommentRepository();
     this.feeds = new FeedRepository();
@@ -141,7 +158,11 @@ export class DatabaseService {
     this.adminOps = new AdminOperationsRepository();
     this.cronJobLog = new CronJobLogRepository();
     this.mailLog = new MailLogRepository();
-    this.storage = {users: new UserStorageRepository(), events: new EventStorageRepository()};
+    this.storage = {
+      users: new UserStorageRepository(),
+      events: new EventStorageRepository(),
+      expenses: new ExpenseStorageRepository(),
+    };
   }
 }
 

@@ -51,6 +51,7 @@ import {
   DONATION_GOAL_DELETED as TEXT_DELETED,
   SAVE as TEXT_SAVE,
   ALERT_TITLE_UUPS as TEXT_ALERT_TITLE_UUPS,
+  DELETE as TEXT_DELETE,
 } from "../../../constants/text";
 import {POSTGRES_INT4_MAX} from "../../../constants/defaultValues";
 
@@ -294,6 +295,8 @@ const DonationGoalsPage = () => {
 
       const confirmed = await customDialog({
         dialogType: DialogType.Confirm,
+        destructive: true,
+        buttonTextConfirm: TEXT_DELETE,
         title: TEXT_DELETE_CONFIRM,
         text: `«${section.label}» (${section.year})`,
       });

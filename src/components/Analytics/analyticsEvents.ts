@@ -57,6 +57,15 @@ export const AnalyticsEvent = {
   MATERIAL_LIST_REFRESHED: "material_list_refreshed",
   MATERIAL_LIST_DELETED: "material_list_deleted",
 
+  // ── Expense Tracking ──
+  BUDGET_CREATED: "budget_created",
+  BUDGET_UPDATED: "budget_updated",
+  BUDGET_DELETED: "budget_deleted",
+  EXPENSE_CREATED: "expense_created",
+  EXPENSE_UPDATED: "expense_updated",
+  EXPENSE_DELETED: "expense_deleted",
+  EXPENSES_EXPORTED: "expenses_exported",
+
   // ── Masterdata ──
   PRODUCT_CREATED: "product_created",
   PRODUCT_DELETED: "product_deleted",
@@ -70,6 +79,11 @@ export const AnalyticsEvent = {
 
   // ── PDF / Export ──
   PDF_EXPORTED: "pdf_exported",
+
+  // ── User ──
+  PAYMENT_DETAILS_CREATED: "payment_details_created",
+  PAYMENT_DETAILS_UPDATED: "payment_details_updated",
+  PAYMENT_DETAILS_DELETED: "payment_details_deleted",
 
   // ── Spenden-Funnel ──
   DONATION_PAGE_VIEWED: "donation_page_viewed",
