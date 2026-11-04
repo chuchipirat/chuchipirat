@@ -5,6 +5,7 @@ import {
   isForeignKeyViolationError,
   isJwtExpiredError,
   isMissingSessionError,
+  isInvalidCredentialsError,
   isRlsViolationError,
   isTransientNetworkError,
   toError,
@@ -214,6 +215,20 @@ describe("isJwtExpiredError", () => {
     expect(isJwtExpiredError(new Error("JWT expired"))).toBe(true);
   });
 
+  // Genau die Form aus CHUCHIPIRAT-J2 und -H4: erster Aufruf nach dem
+  // Auffrischen des Tokens, der nächste klappt
+  test("erkennt «JWT issued at future» als selbstheilend", () => {
+    expect(
+      isJwtExpiredError({
+        code: "PGRST303",
+        details: null,
+        hint: null,
+        message: "JWT issued at future",
+      }),
+    ).toBe(true);
+    expect(isMissingSessionError(new Error("JWT issued at future"))).toBe(true);
+  });
+
   test("liefert false für andere Postgres-/Auth-Fehler", () => {
     expect(
       isJwtExpiredError({code: "42501", message: "row-level security"}),
@@ -375,5 +390,36 @@ describe("captureUnexpectedError", () => {
     captureUnexpectedError(error);
 
     expect(Sentry.captureException).toHaveBeenCalledWith(error, undefined);
+  });
+});
+
+/* ===================================================================
+// ======================== isInvalidCredentialsError ================
+// =================================================================== */
+
+describe("isInvalidCredentialsError", () => {
+  // Genau die Form aus CHUCHIPIRAT-J5 (Reauthentifizierung, falsches Passwort)
+  test("erkennt den Supabase-AuthApiError mit code invalid_credentials", () => {
+    const error = Object.assign(new Error("Invalid login credentials"), {
+      name: "AuthApiError",
+      code: "invalid_credentials",
+      status: 400,
+    });
+
+    expect(isInvalidCredentialsError(error)).toBe(true);
+  });
+
+  test("erkennt die Meldung auch ohne code", () => {
+    expect(
+      isInvalidCredentialsError(new Error("Invalid login credentials")),
+    ).toBe(true);
+  });
+
+  test("liefert false für andere Fehler", () => {
+    expect(isInvalidCredentialsError(new Error("Failed to fetch"))).toBe(false);
+    expect(isInvalidCredentialsError({code: "email_not_confirmed"})).toBe(
+      false,
+    );
+    expect(isInvalidCredentialsError(null)).toBe(false);
   });
 });

@@ -3,6 +3,7 @@ import {TextEncoder, TextDecoder} from "util";
 Object.assign(global, {TextEncoder, TextDecoder});
 
 import React from "react";
+import * as Sentry from "@sentry/react";
 import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
 import userEvent from "@testing-library/user-event";
@@ -30,6 +31,11 @@ const mockDatabase = {
 } as unknown as import("../../Database/DatabaseService").default;
 
 /** Mock: User.registerSignIn (kein Seiteneffekt nötig) */
+jest.mock("@sentry/react", () => ({
+  ...jest.requireActual("@sentry/react"),
+  captureException: jest.fn(),
+}));
+
 jest.mock("../../User/user.class", () => ({
   __esModule: true,
   User: {
@@ -219,6 +225,27 @@ describe("DialogReauthenticate", () => {
   });
 
   describe("Fehlgeschlagene Reauthentifizierung", () => {
+    // CHUCHIPIRAT-J5: ein falsches Passwort ist ein Eingabefehler, kein Bug
+    test("falsche Anmeldedaten gehen nicht an Sentry", async () => {
+      mockSignInWithPassword.mockRejectedValueOnce(
+        Object.assign(new Error("Invalid login credentials"), {
+          name: "AuthApiError",
+          code: "invalid_credentials",
+        }),
+      );
+      renderDialog();
+
+      await userEvent.type(getPasswordField(), "falsch");
+      await userEvent.click(screen.getByRole("button", {name: /anmelden/i}));
+
+      await waitFor(() => {
+        expect(
+          screen.getByText(/Invalid login credentials|Ungültige/i),
+        ).toBeInTheDocument();
+      });
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+    });
+
     test("Fehlermeldung wird bei falschen Anmeldedaten angezeigt", async () => {
       mockSignInWithPassword.mockRejectedValueOnce(
         new Error("Invalid login credentials")

@@ -529,3 +529,20 @@ describe("DialogPrivacyPolicy", () => {
     expect(onClose).toHaveBeenCalled();
   });
 });
+
+describe("SignUpPage, Links im Formular", () => {
+  // CHUCHIPIRAT-J3: Der Link «Nutzungsbedingungen» war ein Submit-Knopf und
+  // schickte das leere Formular ab («Anonymous sign-ins are disabled»)
+  test.each([["termOfUse"], ["privacyPolicy"]])(
+    "Link %s schickt das Formular nicht ab",
+    async (linkId) => {
+      renderSignUpPage();
+
+      const link = document.getElementById(linkId) as HTMLElement;
+      expect(link).toHaveAttribute("type", "button");
+      await userEvent.click(link);
+
+      expect(mockAuthSignUp).not.toHaveBeenCalled();
+    },
+  );
+});

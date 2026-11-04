@@ -3,7 +3,7 @@ import Recipe, {Recipes} from "../../Recipe/recipe.class";
 import {MealRecipe, Menue, MenuplanData} from "../Menuplan/menuplan.types";
 import {RecipeShort} from "../../Recipe/recipe.types";
 import {
-  RECIPE_DRAWER_DATA_INITIAL_VALUES,
+  createRecipeDrawerDataInitialValues,
   RecipeDrawerData,
 } from "../../Recipe/RecipeDrawer";
 import {FetchMissingDataProps, FetchMissingDataType} from "../Event/event";
@@ -20,7 +20,7 @@ const useRecipeDrawer = ({
   fetchMissingData,
 }: UseRecipeDrawerProps) => {
   const [recipeDrawerData, setRecipeDrawerData] =
-    React.useState<RecipeDrawerData>(RECIPE_DRAWER_DATA_INITIAL_VALUES);
+    React.useState<RecipeDrawerData>(createRecipeDrawerDataInitialValues);
 
   // Update drawer data when recipes load (moved from render body to useEffect)
   React.useEffect(() => {

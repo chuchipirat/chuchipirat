@@ -9,6 +9,8 @@
 export const RECIPE_SAVE_SUCCESS = "Arrr..... Rezept wurde gespeichert";
 export const THIS_FIELD_CANT_BE_EMPTY =
   "Dieses Feld darf nicht leer gelassen werden.";
+export const RECIPE_NOT_FOUND_OR_NO_ACCESS =
+  "Dieses Rezept existiert nicht oder du hast keine Berechtigung dafür.";
 export const RECIPE_NAME_CANT_BE_EMPTY =
   "Der Name des Rezept darf nicht leer sein.";
 export const RECIPE_VARIANT_NAME_CANT_BE_EMPTY =

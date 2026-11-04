@@ -230,6 +230,8 @@ export const SUPABASE_MESSAGES: Record<string, string> = {
   // Abgelaufener Supabase-JWT (PGRST301/PGRST303) — selbstheilend nach einem
   // Reload, aber ohne Übersetzung würde die rohe englische Meldung angezeigt.
   "JWT expired": ERROR_SESSION_EXPIRED,
+  // Erster Aufruf direkt nach dem Auffrischen des Tokens; ein Reload hilft
+  "JWT issued at future": ERROR_SESSION_EXPIRED,
 };
 
 /* =====================================================================

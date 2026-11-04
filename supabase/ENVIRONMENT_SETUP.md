@@ -83,7 +83,7 @@ SELECT pg_reload_conf();
 ### Produktions-Checkliste Edge Functions
 
 - [ ] `VESTABOARD_READ_WRITE_KEY` in `.env` setzen
-- [ ] `FUNCTIONS_VERIFY_JWT` auf `true` setzen (produktiv JWT-Verifizierung aktivieren)
+- [ ] `FUNCTIONS_VERIFY_JWT` auf `false` lassen: `payment-webhook` und `unsubscribe-newsletter` werden ohne JWT aufgerufen; die übrigen Funktionen prüfen das Token selbst
 - [ ] `BREVO_API_KEY` in `.env` setzen (Brevo Transactional Email für `notify-recipe-comment`)
 - [ ] Brevo Sender-Adresse `hallo@chuchipirat.ch` im Brevo-Konto als verifizierte Absenderadresse einrichten
 - [x] `SITE_URL` in `.env` setzen (z.B. `https://chuchipirat.ch`) — bereits als Pflicht-Variable für Auth (GoTrue) vorhanden, wird von Edge Functions für E-Mail-Links/CORS-Origin mitverwendet (kein separates `APP_URL` mehr)
@@ -146,6 +146,6 @@ Wird durch die Baseline-Migration `20260401000007_grants_indexes.sql` erstellt. 
 | `SMTP_PORT`                 | `1025`                      | TBD           | `587`                    |
 | `ENABLE_EMAIL_AUTOCONFIRM`  | `false`                     | `false`       | `false`                  |
 | `VESTABOARD_READ_WRITE_KEY` | `949a380f...`               | `949a380f...` | `949a380f...`            |
-| `FUNCTIONS_VERIFY_JWT`      | `false`                     | `true`        | `true`                   |
+| `FUNCTIONS_VERIFY_JWT`      | `false`                     | `false`       | `false`                  |
 | `BREVO_API_KEY`             | _(leer — SMTP-Fallback)_    | TBD           | Brevo API Key            |
 | `VITE_SUPPORT_USER_ID`      | Auth-UUID des Support-Users | Auth-UUID     | Auth-UUID                |

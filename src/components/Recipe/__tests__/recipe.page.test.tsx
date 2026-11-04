@@ -76,6 +76,18 @@ describe("RecipePage — Rezept laden", () => {
     expect(Sentry.captureException).not.toHaveBeenCalled();
   });
 
+  // CHUCHIPIRAT-J8: Aufruf von /recipe/swissmilk.ch, ein Rezept mit dieser
+  // UID gibt es nicht
+  test("meldet ein nicht vorhandenes Rezept nicht an Sentry", async () => {
+    mockGetRecipe.mockResolvedValue(null);
+
+    renderPage();
+
+    await waitFor(() => expect(mockGetRecipe).toHaveBeenCalledWith("recipe-1"));
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
   test("meldet einen echten Fehler weiterhin an Sentry", async () => {
     mockGetRecipe.mockRejectedValue({
       code: "42P01",

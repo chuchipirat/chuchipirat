@@ -58,15 +58,27 @@ export interface RecipeDrawerData extends DrawerSettings {
   editMode: boolean;
 }
 
-/** Standardwerte für RecipeDrawerData (Drawer geschlossen, leeres Rezept). */
-export const RECIPE_DRAWER_DATA_INITIAL_VALUES: RecipeDrawerData = {
+/**
+ * Erstellt die Standardwerte für RecipeDrawerData (Drawer geschlossen,
+ * leeres Rezept).
+ *
+ * Bewusst eine Funktion statt einer Konstante: der Editor schreibt Zutaten,
+ * Schritte und Material direkt ins übergebene Rezept. Ein geteiltes Rezept
+ * würde die Angaben des zuletzt erfassten Rezepts ins nächste neue Rezept
+ * übernehmen.
+ *
+ * @returns Neue Drawer-Daten mit eigenem, leerem Rezept.
+ * @example
+ * setRecipeDrawerData({...createRecipeDrawerDataInitialValues(), open: true});
+ */
+export const createRecipeDrawerDataInitialValues = (): RecipeDrawerData => ({
   open: false,
   isLoadingData: false,
   recipe: new Recipe(),
   mealPlan: [],
   scaledPortions: 0,
   editMode: false,
-};
+});
 
 /* =====================================================================
 // Props

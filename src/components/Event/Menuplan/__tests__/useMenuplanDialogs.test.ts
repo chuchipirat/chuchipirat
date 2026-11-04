@@ -13,7 +13,10 @@ import {MenuplanDragDropTypes, PlanedObject} from "../menuplan.constants";
 
 // RecipeDrawer-Modul mocken, damit kein echter Import nötig ist
 jest.mock("../../../Recipe/RecipeDrawer", () => ({
-  RECIPE_DRAWER_DATA_INITIAL_VALUES: {open: false, isLoadingData: false},
+  createRecipeDrawerDataInitialValues: () => ({
+    open: false,
+    isLoadingData: false,
+  }),
 }));
 
 // Hook erst nach dem Mock importieren
@@ -55,7 +58,7 @@ describe("useMenuplanDialogs – Initialwerte", () => {
     expect(result.current.recipeSearchResetKey).toBe(0);
   });
 
-  it("sollte recipeDrawerData mit gemockten RECIPE_DRAWER_DATA_INITIAL_VALUES initialisieren", () => {
+  it("sollte recipeDrawerData mit gemockten createRecipeDrawerDataInitialValues initialisieren", () => {
     const {result} = renderHook(() => useMenuplanDialogs());
 
     expect(result.current.recipeDrawerData).toEqual({

@@ -21,7 +21,9 @@ import {
   PROCEED as TEXT_PROCEED,
   ARE_YOU_SURE_YOU_WANT_TO_CHANGE as TEXT_ARE_YOU_SURE_YOU_WANT_TO_CHANGE,
   PUBLIC_RECIPE as TEXT_PUBLIC_RECIPE,
+  RECIPE_NOT_FOUND_OR_NO_ACCESS as TEXT_RECIPE_NOT_FOUND_OR_NO_ACCESS,
 } from "../../constants/text";
+import {FieldValidationError} from "../Shared/fieldValidation.error.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {useDatabase} from "../Database/DatabaseContext";
 import {
@@ -301,7 +303,10 @@ export const RecipePage = () => {
         ])
           .then(async ([header, ingredients, steps, materials, myRatingDomain]) => {
             if (!header) {
-              throw new Error(`Rezept ${recipeUid} nicht gefunden.`);
+              // z.B. veralteter oder falsch kopierter Link: Hinweis, kein Bug
+              throw new FieldValidationError(
+                TEXT_RECIPE_NOT_FOUND_OR_NO_ACCESS,
+              );
             }
             const recipe = Recipe.fromRepositoryData(
               header,
@@ -326,7 +331,11 @@ export const RecipePage = () => {
           .catch((error) => {
             // Netzaussetzer (z.B. postgrest-Wrapper eines fehlgeschlagenen
             // fetch()) und abgelaufene Sitzungen nur anzeigen, nicht melden
-            if (!isTransientNetworkError(error) && !isMissingSessionError(error)) {
+            if (
+              !(error instanceof FieldValidationError) &&
+              !isTransientNetworkError(error) &&
+              !isMissingSessionError(error)
+            ) {
               Sentry.captureException(toError(error), {
                 extra: {context: "RecipePage: Rezept laden fehlgeschlagen"},
               });

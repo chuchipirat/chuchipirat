@@ -24,6 +24,7 @@ import {
 import {renderEmailTemplate} from "../_shared/templateRenderer.ts";
 import {sentryCaptureError} from "../_shared/sentryHelper.ts";
 import {matchTransactionToDonation} from "../_shared/paymentVerification.ts";
+import {confirmDonation} from "../_shared/donationConfirmation.ts";
 import {trackServerEvent} from "../_shared/umamiHelper.ts";
 
 /* =====================================================================
@@ -295,21 +296,15 @@ serve(async (req: Request) => {
     );
 
     if (mappedStatus === "confirmed") {
-      // Quittungsnummer generieren
-      const {data: receiptResult} = await adminClient.rpc("generate_donation_receipt_number");
-      const receiptNumber = receiptResult ?? null;
-
-      // Spende aktualisieren
-      await adminClient
-        .from("donations")
-        .update({
-          status: "confirmed",
-          paid_at: new Date().toISOString(),
-          payment_method: paymentMethod,
-          payment_transaction_id: transactionId,
-          receipt_number: receiptNumber,
-        })
-        .eq("id", referenceId);
+      // Wirft bei jedem Fehler: Der catch-Block meldet an Sentry und antwortet
+      // mit 500, der Zahlungsanbieter stellt erneut zu. Die Spende bleibt dann
+      // «pending», der Check auf Endstatus oben lässt den neuen Versuch durch.
+      const receiptNumber = await confirmDonation(adminClient, {
+        donationId: referenceId,
+        paymentMethod,
+        transactionId,
+        paidAt: new Date(),
+      });
 
       // Umsatz-Tracking (Umami Revenue) — der Webhook ist die einzige
       // zuverlässige Quelle für eine bestätigte Spende (siehe
@@ -412,13 +407,18 @@ serve(async (req: Request) => {
       }
     } else {
       // failed oder cancelled
-      await adminClient
+      const {error: statusError} = await adminClient
         .from("donations")
         .update({
           status: mappedStatus,
           payment_transaction_id: transactionId,
         })
         .eq("id", referenceId);
+      if (statusError) {
+        throw new Error(
+          `Spendenstatus speichern fehlgeschlagen: ${statusError.message}`,
+        );
+      }
     }
 
     console.log(`payment-webhook: Donation ${referenceId} updated to '${mappedStatus}'`);
