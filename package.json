@@ -24,7 +24,7 @@
     "@mui/x-date-pickers": "^7.29.4",
     "@react-pdf/renderer": "^4.3.2",
     "@sentry/react": "^10.46.0",
-    "@supabase/supabase-js": "^2.97.0",
+    "@supabase/supabase-js": "^2.119.0",
     "@tiptap/extension-link": "^3.22.1",
     "@tiptap/pm": "^3.22.1",
     "@tiptap/react": "^3.22.1",

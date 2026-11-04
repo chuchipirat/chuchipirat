@@ -175,10 +175,10 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     authUser: _authUser,
     id,
   }: InsertParams<TDomain>): Promise<{id: string; value: TDomain}> {
-    const row = this.toRow(value);
+    const row: Record<string, unknown> = this.toRow(value);
 
     if (id) {
-      (row as Record<string, unknown>)[this.primaryKeyColumn] = id;
+      row[this.primaryKeyColumn] = id;
     }
 
     const {data, error} = await this.client
@@ -319,9 +319,9 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     value,
     authUser: _authUser,
   }: UpdateParams<TDomain>): Promise<TDomain> {
-    const row = this.toRow(value);
+    const row: Record<string, unknown> = this.toRow(value);
     // Primärschlüssel aus dem Update-Payload entfernen
-    delete (row as Record<string, unknown>)[this.primaryKeyColumn];
+    delete row[this.primaryKeyColumn];
 
     const {data, error} = await this.client
       .from(this.tableName)
@@ -372,8 +372,8 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     value,
     authUser: _authUser,
   }: UpsertParams<TDomain>): Promise<TDomain> {
-    const row = this.toRow(value);
-    (row as Record<string, unknown>)[this.primaryKeyColumn] = id;
+    const row: Record<string, unknown> = this.toRow(value);
+    row[this.primaryKeyColumn] = id;
 
     const {data, error} = await this.client
       .from(this.tableName)
@@ -447,8 +447,8 @@ export abstract class BaseRepository<TDomain, TRow extends Record<string, unknow
     if (items.length === 0) return [];
 
     const rows = items.map((item) => {
-      const row = this.toRow(item);
-      (row as Record<string, unknown>)[this.primaryKeyColumn] = getIdFn(item);
+      const row: Record<string, unknown> = this.toRow(item);
+      row[this.primaryKeyColumn] = getIdFn(item);
       return row;
     });
 
