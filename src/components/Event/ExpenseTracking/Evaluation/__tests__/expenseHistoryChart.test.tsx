@@ -44,13 +44,16 @@ jest.mock("@mui/x-charts/LineChart", () => ({
 const getLastChartProps = (): LineChartProps => mockLineChart.mock.lastCall[0];
 
 /**
- * Normalisiert Leerzeichen eines Textes (geschützte → normale), für Texte,
- * die einen formatierten Betrag enthalten (Lehre aus 6.1).
+ * Normalisiert die Teile formatierter Beträge, die je nach ICU-Version von
+ * Node anders ausfallen: geschützte Leerzeichen → normale, typografischer
+ * Tausender-Apostroph (’) → gerader ('). Node 20.17 liefert für de-CH «’»,
+ * neuere Node-20-Versionen auf CI «'».
  *
  * @param text - Zu normalisierender Text.
- * @returns Text mit normalen Leerzeichen.
+ * @returns Text mit normalen Leerzeichen und geradem Apostroph.
  */
-const normalizeSpaces = (text: string): string => text.replace(/\s/g, " ");
+const normalizeFormatting = (text: string): string =>
+  text.replace(/\s/g, " ").replace(/’/g, "'");
 
 /** Anlass mit 7 Tagen, 5.–11. Juli 2026. */
 const EVENT_DAYS = [
@@ -176,8 +179,8 @@ describe("ExpenseHistoryChart, Textzeile", () => {
       screen.getByText(
         (_content, element) =>
           element?.tagName === "SPAN" &&
-          normalizeSpaces(element.textContent ?? "") ===
-            normalizeSpaces(
+          normalizeFormatting(element.textContent ?? "") ===
+            normalizeFormatting(
               TEXT_EVALUATION_HISTORY_SUMMARY(3, 7, "CHF", 135000, 102857),
             ),
       ),
@@ -205,21 +208,23 @@ describe("ExpenseHistoryChart, Textzeile", () => {
 describe("EVALUATION_HISTORY_SUMMARY", () => {
   test("während des Anlasses «Soll bis heute», ohne Zeilenumbruch", () => {
     expect(
-      normalizeSpaces(TEXT_EVALUATION_HISTORY_SUMMARY(3, 7, "CHF", 135000, 102857)),
+      normalizeFormatting(
+        TEXT_EVALUATION_HISTORY_SUMMARY(3, 7, "CHF", 135000, 102857),
+      ),
     ).toEqual(
-      "Stand Anlasstag 3 von 7: CHF 1’350.00 ausgegeben, Soll bis heute CHF 1’028.57.",
+      "Stand Anlasstag 3 von 7: CHF 1'350.00 ausgegeben, Soll bis heute CHF 1'028.57.",
     );
   });
 
   test("am letzten Anlasstag und danach «Soll gesamt»", () => {
     expect(
-      normalizeSpaces(TEXT_EVALUATION_HISTORY_SUMMARY(4, 4, "CHF", 20300, 69100)),
+      normalizeFormatting(TEXT_EVALUATION_HISTORY_SUMMARY(4, 4, "CHF", 20300, 69100)),
     ).toEqual("Stand Anlasstag 4 von 4: CHF 203.00 ausgegeben, Soll gesamt CHF 691.00.");
   });
 
   test("ohne Sollbetrag nur der Ist-Teil", () => {
     expect(
-      normalizeSpaces(TEXT_EVALUATION_HISTORY_SUMMARY(4, 4, "CHF", 20300, null)),
+      normalizeFormatting(TEXT_EVALUATION_HISTORY_SUMMARY(4, 4, "CHF", 20300, null)),
     ).toEqual("Stand Anlasstag 4 von 4: CHF 203.00 ausgegeben.");
   });
 });
