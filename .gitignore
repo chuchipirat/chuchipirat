@@ -75,3 +75,8 @@ supabase/html-report/*
 # Migration
 generate-auth-import.mjs
 supabase/volumes/functions/.DS_Store
+
+# Story-Dateien für Features (Coaching-Workflow), bewusst nicht in Git
+.claude/tasks/*
+!.claude/tasks/lessons.md
+!.claude/tasks/todo.md

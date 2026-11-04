@@ -101,6 +101,7 @@ For deeper context, see `.claude/docs/`:
 | `security-guidelines.md`    | Forms, auth flows, file uploads, RLS, input validation            |
 | `git-workflow.md`           | Creating, Branches, Working with Git and commintg                 |
 | `sentry-bugfix-workflow.md` | Triaging and fixing Sentry-reported issues (noise vs. real bugs)  |
+| `coaching-workflow.md`      | Multi-package features: user codes, Claude plans/tests/reviews (`/coach`) |
 | `release-notes.md`          | Writing user-facing Helpcenter release notes for a release batch  |
 
 ## Helpcenter
