@@ -22,6 +22,11 @@ import {isTransientNetworkError, toError} from "../../../utils/errorUtils";
 
 /** Basis-Verzögerung für den exponentiellen Backoff (1s). */
 const BASE_DELAY_MS = 1000;
+/**
+ * Dauert ein Versuch länger, war die Seite eingefroren (iOS im Hintergrund,
+ * Standby): Ein Timeout von Realtime dauert sonst etwa 10 Sekunden.
+ */
+const SUSPENSION_THRESHOLD_MS = 60 * 1000;
 /** Obergrenze für die Backoff-Verzögerung (30s). */
 const MAX_DELAY_MS = 30_000;
 /** Standard-Anzahl an Reconnect-Versuchen vor dem permanenten Fehler. */
@@ -124,6 +129,8 @@ export function subscribeWithRetry({
 }: SubscribeWithRetryParams): RealtimeSubscriptionHandle {
   let retryCount = 0;
   let retryTimer: ReturnType<typeof setTimeout> | null = null;
+  // Beginn des aktuellen Versuchs, um eine eingefrorene Seite zu erkennen
+  let attemptStartedAt = Date.now();
   let activeChannel: ReturnType<typeof client.channel> | null = null;
   let cancelled = false;
   // Nur gesetzt, nachdem onStatusChange mindestens einmal mit "reconnecting"
@@ -185,6 +192,7 @@ export function subscribeWithRetry({
    */
   const connect = () => {
     if (cancelled) return;
+    attemptStartedAt = Date.now();
 
     let channel = client.channel(channelName);
     for (const binding of bindings) {
@@ -225,6 +233,17 @@ export function subscribeWithRetry({
 
         client.removeChannel(channel);
         activeChannel = null;
+
+        // Seite war eingefroren: Die Fehlversuche sagen nichts über den Server.
+        // Das Retry-Budget neu beginnen, sonst bliebe die Verbindung tot,
+        // wenn iOS beim Aufwachen kein visibilitychange auslöst.
+        if (Date.now() - attemptStartedAt > SUSPENSION_THRESHOLD_MS) {
+          retryCount = 0;
+          lastReportedStatus = "reconnecting";
+          onStatusChange?.("reconnecting");
+          connect();
+          return;
+        }
 
         if (retryCount >= maxRetries) {
           reportPermanentFailure();

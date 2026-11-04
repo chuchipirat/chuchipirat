@@ -84,7 +84,7 @@ import {DialogMaterial,
 } from "../../Material/dialogMaterial";
 import {MaterialAutocomplete} from "../../Material/materialAutocomplete";
 import {
-  RECIPE_DRAWER_DATA_INITIAL_VALUES,
+  createRecipeDrawerDataInitialValues,
   RecipeDrawer,
   RecipeDrawerData,
 } from "../../Recipe/RecipeDrawer";
@@ -251,7 +251,7 @@ const EventMaterialListPage = ({
   const realtime = useRealtimeConnectionStatus();
 
   const [recipeDrawerData, setRecipeDrawerData] =
-    React.useState<RecipeDrawerData>(RECIPE_DRAWER_DATA_INITIAL_VALUES);
+    React.useState<RecipeDrawerData>(createRecipeDrawerDataInitialValues);
 
   // Handler-Hook initialisieren
   const handlers = useMaterialListHandlers({

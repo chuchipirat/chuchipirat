@@ -25,7 +25,10 @@ import {
   SIGN_IN as TEXT_SIGN_IN,
 } from "../../constants/text";
 import {User} from "../User/user.class";
-import {captureUnexpectedError} from "../../utils/errorUtils";
+import {
+  captureUnexpectedError,
+  isInvalidCredentialsError,
+} from "../../utils/errorUtils";
 
 import {AlertMessage} from "../Shared/AlertMessage";
 import DatabaseService from "../Database/DatabaseService";
@@ -179,7 +182,12 @@ const DialogReauthenticate = ({
         state.reAuthData.password
       );
     } catch (error) {
-      Sentry.captureException(error, {extra: {context: "Reauthentifizierung"}});
+      // Ein falsches Passwort ist ein Eingabefehler, kein Bug
+      if (!isInvalidCredentialsError(error)) {
+        Sentry.captureException(error, {
+          extra: {context: "Reauthentifizierung"},
+        });
+      }
       dispatch({
         type: ReducerActions.GENERIC_ERROR,
         payload: error as Error,

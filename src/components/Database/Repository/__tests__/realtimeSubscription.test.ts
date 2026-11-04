@@ -257,6 +257,32 @@ describe("subscribeWithRetry", () => {
       expect(channels).toHaveLength(3);
     });
 
+    // CHUCHIPIRAT-J7: iOS friert die Seite im Hintergrund ein. Der letzte
+    // Fehlversuch kommt erst nach dem Aufwachen an, die Seite ist dann schon
+    // sichtbar und online. Kein Server-Problem, sondern ein Neustart nötig.
+    test("nach eingefrorener Seite: verbindet sofort neu statt zu scheitern", () => {
+      const {client, channels} = createClientMock();
+      const onStatusChange = jest.fn();
+      subscribeWithRetry({...baseParams(client), onStatusChange});
+
+      for (const delay of [1000, 2000, 4000, 8000, 16000]) {
+        lastStatusCallback(channels)("TIMED_OUT");
+        jest.advanceTimersByTime(delay);
+      }
+      // Seite fünf Minuten eingefroren: Zeit vergeht, Timer laufen nicht
+      jest.setSystemTime(Date.now() + 5 * 60 * 1000);
+      lastStatusCallback(channels)("TIMED_OUT");
+
+      expect(Sentry.captureException).not.toHaveBeenCalled();
+      expect(onStatusChange).not.toHaveBeenCalledWith("failed");
+      expect(channels).toHaveLength(7);
+
+      // Danach hat die Verbindung wieder das volle Retry-Budget
+      lastStatusCallback(channels)("TIMED_OUT");
+      jest.advanceTimersByTime(1000);
+      expect(channels).toHaveLength(8);
+    });
+
     test("behandelt TIMED_OUT wie CHANNEL_ERROR", () => {
       const {client, channels} = createClientMock();
       subscribeWithRetry(baseParams(client));

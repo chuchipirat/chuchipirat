@@ -165,6 +165,15 @@ describe("SupabaseMessageHandler", () => {
       expect(result).toMatch(/Seite neu/);
     });
 
+    // CHUCHIPIRAT-J2/-H4: erster Aufruf direkt nach dem Auffrischen des Tokens
+    test("Übersetzt 'JWT issued at future' in denselben Sitzungs-Hinweis", () => {
+      const error = {code: "PGRST303", message: "JWT issued at future"};
+
+      const result = SupabaseMessageHandler.translateMessage(error);
+
+      expect(result).toBe(SUPABASE_MESSAGES["JWT expired"]);
+    });
+
     test("Übersetzt eine RLS-Verletzung (variabler Tabellenname) in denselben Sitzungs-Hinweis", () => {
       const error = {
         message: 'new row violates row-level security policy for table "events"',

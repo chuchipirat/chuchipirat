@@ -10,6 +10,7 @@
  * const logId = await startCronJob(supabaseAdmin, "cron-daily-digest");
  * const checkInId = await sentryCheckIn("cron-daily-digest", "in_progress");
  */
+import * as jose from "https://deno.land/x/jose@v4.14.4/index.ts";
 
 /* =====================================================================
 // Typen
@@ -56,6 +57,9 @@ type SentryCheckInStatus = "in_progress" | "ok" | "error";
  * Prüft ob der Request von einem service_role-Client oder einem
  * authentifizierten Admin-Benutzer stammt.
  *
+ * Die Signatur wird immer geprüft, die Rolle aus dem Token gilt erst danach.
+ *
+ * - Ungültige Signatur oder abgelaufenes Token → abgelehnt
  * - service_role JWT → sofort erlaubt (pg_cron, Admin-Client)
  * - authenticated JWT → Admin-Rolle wird via PostgREST geprüft
  * - Alle anderen → abgelehnt
@@ -75,7 +79,15 @@ export async function authenticateCronRequest(
 
   try {
     const token = authHeader.split(" ")[1];
-    const payload = JSON.parse(atob(token.split(".")[1]));
+    const jwtSecret = Deno.env.get("JWT_SECRET");
+    if (!jwtSecret) throw new Error("JWT_SECRET not configured");
+
+    // Die Signatur muss hier geprüft werden: VERIFY_JWT bleibt aus, weil
+    // payment-webhook und unsubscribe-newsletter ohne JWT aufgerufen werden
+    const {payload} = await jose.jwtVerify(
+      token,
+      new TextEncoder().encode(jwtSecret),
+    );
 
     if (payload.role === "service_role") {
       return null; // Erlaubt
