@@ -180,9 +180,6 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 - **`src/components/Shared/localStorageHandler.class.ts`** — `values: any` im Interface `LocalStorageValue`, keine localStorage-Validierung. Migration nach Supabase-Typen erforderlich. (Der ursprünglich hier vermerkte Firebase-`ValueObject`-Import wurde im Rahmen des Firebase-Abbaus, Issue #215, bereits behoben — `ValueObject` kommt jetzt aus `global.interface.ts`.) Zudem **keine Fehlerbehandlung**: `getItem`/`setItem`/`JSON.parse` stehen ohne `try/catch`, ein blockierter oder voller Speicher (privates Fenster, Cookies blockiert) oder kaputter Inhalt wirft bis in die aufrufende Komponente. Und es lassen sich **nur Objekte** speichern, keine Arrays oder einfachen Werte. Darum nutzt die Budget-Auswahl der Auswertung (Story 6.2b) stattdessen den Hook `src/hooks/useStoredIdSet.ts`, der alle drei Punkte löst; beim Aufräumen prüfen, ob der Handler auf dasselbe Muster umgestellt werden kann.
   **Priorität:** tief · **Komplexität:** klein
 
-- **`display: "table" as any` in PDF-Style-Dateien** — `pdfTokens.ts`, `stylesRecipePdf.ts` und alle PDF-Style-Dateien verwenden `as any` für `display: "table"`, weil `@react-pdf/renderer` den Wert `"table"` nicht in seinem `Display`-Typ definiert. Wird behoben, sobald die Bibliothek den Typ erweitert.
-  **Priorität:** tief · **Komplexität:** klein
-
 - **`ProductDomain` ↔ `Product` Typ-Vereinheitlichung** — `ProductRepository` verwendet `ProductDomain` mit `nameSingular`-Feld, die App verwendet `Product` (aus `product.types.ts`) ohne dieses Feld. Verursacht unsicheren Cast in `products.tsx` (`{...product, nameSingular: product.name}`). Vereinheitlichung erfordert Repository-Änderungen + alle Konsumenten.
   **Priorität:** mittel · **Komplexität:** mittel
 
