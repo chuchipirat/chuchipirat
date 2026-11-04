@@ -52,5 +52,24 @@
     "editor.formatOnSave": false,
     "editor.formatOnPaste": false,
     "editor.formatOnType": false
+  },
+
+  // ── TS/JS: nur geänderte Zeilen formatieren ───────────────────────────
+  // Viele Dateien sind nicht im Prettier-Standard (80 Zeichen) formatiert.
+  // Mit globalem "editor.formatOnSave": true formatierte Prettier beim
+  // Speichern die ganze Datei, der Diff bestand dann zur Hälfte aus
+  // Umbrüchen ohne inhaltliche Änderung. "modifications" formatiert nur die
+  // selbst geänderten Zeilen (laut Git), der Rest der Datei bleibt, wie er ist.
+  "[typescript]": {
+    "editor.formatOnSaveMode": "modifications"
+  },
+  "[typescriptreact]": {
+    "editor.formatOnSaveMode": "modifications"
+  },
+  "[javascript]": {
+    "editor.formatOnSaveMode": "modifications"
+  },
+  "[javascriptreact]": {
+    "editor.formatOnSaveMode": "modifications"
   }
 }
