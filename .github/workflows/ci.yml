@@ -4,11 +4,16 @@ on:
   pull_request:
     branches:
       - main
+      - develop
 
 jobs:
   # ─── 1. Quellbranch validieren ────────────────────────
+  # Nur für PRs nach main: dorthin darf ausschliesslich develop. PRs nach
+  # develop kommen von beliebigen Branches; der übersprungene Job zählt dort
+  # als erfolgreich.
   validate-branch:
     name: Validate source branch
+    if: github.base_ref == 'main'
     runs-on: ubuntu-latest
     steps:
       - name: Nur develop → main erlaubt
