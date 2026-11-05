@@ -118,6 +118,10 @@ Allgemein, jedes Paket:
 
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npx jest <Muster> --watchAll=false` grün
 - [ ] `git status` durchgesehen: nur Dateien des Pakets, kein Formatter-Rauschen, keine Reste
+- [ ] Nach dem Speichern `git diff --stat`: nur eigene Zeilen. Kommentare/JSDoc *zwischen*
+      Methoden mit «Save without Formatting» (`⌘K S`) speichern, sonst formatiert Prettier die
+      ganze Klasse
+- [ ] Untracked Dateien im Repo: gezielt `git add <pfade>`, nicht `git add -A`
 - [ ] Dateinamen == Hauptexport; JSDoc-`@example` zeigt existierende Methodennamen
 
 Repositories/Domain-Typen:
@@ -152,6 +156,16 @@ Tests:
 - [ ] Mutationsprobe gemacht: Code absichtlich kaputt → Test wird rot
 - [ ] Beträge mit Tausender-Apostroph/geschütztem Leerzeichen über die Formatierungsfunktion
       erwarten, nicht hart codiert
+
+Abhängigkeits-Upgrades:
+
+- [ ] Nutzungsstellen aus den echten Importen bestimmt (`grep` nach dem Paketnamen), Browser-Test
+      daraus abgeleitet, nicht aus der Erinnerung
+- [ ] Laufen die Tests die Bibliothek echt oder ist sie überall weggemockt? Wenn weggemockt: vor
+      dem Upgrade einen Test mit der echten Bibliothek schreiben
+- [ ] Nach `npm update --save`: Bereiche in `package.json` gegen `npm ls` abgeglichen (gemeinsam
+      genutzte Pakete werden nicht immer angehoben)
+- [ ] Risikobereich im Browser geprüft, auch wenn der Changelog harmlos aussieht
 
 Migrationen:
 

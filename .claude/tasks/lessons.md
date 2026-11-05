@@ -117,3 +117,12 @@
 ## «Nein» heisst anhalten, nicht trotzdem umsetzen
 
 Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» und erklärte, was er gemeint hatte. Ich schrieb trotzdem sofort die Tests und gab ihm die Umbauschritte, statt nachzufragen. **Regel:** Lehnt der Nutzer einen Vorschlag ab, nichts dazu bauen, auch keine Tests. Auch wenn der Vorschlag nach der Klärung noch sinnvoll scheint: Begründung und einfachere Alternative nennen, dann auf sein Ja warten.
+
+## Browser-Checklisten aus den Importen ableiten, nicht aus der Erinnerung (2026-11-05)
+
+**What happened**: Im Abhängigkeits-Upgrade schrieb ich zweimal falsche Prüfschritte: Tiptap «im Rezept» (steckt nur in Mail-Konsole und Systemmeldungen) und Fuse «in der Rezeptsuche» (die sucht per Datenbank-`ilike`, Fuse nur im Duplikat-Hinweis). Der Nutzer suchte dann nach einem Fehler, der keiner war.
+
+**Rule**: Bevor ich einen Browser-Test für ein Paket vorschlage, `grep -rln "<paket>" src` und daraus die Seiten ableiten.
+
+**How to apply**: Die Fundstellen (Datei:Zeile) direkt in den Prüfschritt schreiben, damit der Nutzer sieht, woher er kommt.
+
