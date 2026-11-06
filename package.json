@@ -70,7 +70,7 @@
     "@types/react-dom": "^18.3.7",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
-    "@vitejs/plugin-react": "^4.7.0",
+    "@vitejs/plugin-react": "^6.2.1",
     "eslint": "^8.57.1",
     "eslint-plugin-react": "^7.33.2",
     "jest": "^30.5.2",
@@ -80,6 +80,6 @@
     "ts-jest": "^29.4.15",
     "ts-jest-mock-import-meta": "^1.3.2",
     "typescript": "^6.0.3",
-    "vite": "^6.4.5"
+    "vite": "^8.3.6"
   }
 }
