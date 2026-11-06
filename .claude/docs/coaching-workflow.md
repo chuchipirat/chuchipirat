@@ -170,6 +170,8 @@ Abhängigkeits-Upgrades:
       es als Fehler gilt
 - [ ] Bundle-Zahlen aus den Dateien gemessen, die `build/index.html` beim Start lädt (nicht nur
       der grösste Chunk)
+- [ ] Jedes importierte Paket steht in `package.json` (nicht nur indirekt über ein anderes Paket);
+      sonst springt es bei einem Update unbemerkt die Hauptversion
 - [ ] Aus einer Bibliothek abgeleitete Typen geprüft: Mutationsprobe (falscher Wert → `tsc` rot);
       viele Bibliotheken typisieren Optionen als `any`
 
