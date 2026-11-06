@@ -20,7 +20,7 @@ interface ConfirmSecureDialogProps {
   visible: boolean;
   title: string;
   subtitle: string;
-  text: string | JSX.Element;
+  text: string | React.JSX.Element;
   buttonTextConfirm: string;
   buttonTextCancel: string;
   confirmationString?: string;

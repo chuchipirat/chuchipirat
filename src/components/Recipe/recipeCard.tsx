@@ -65,7 +65,7 @@ interface RecipeCardProps {
   recipe: RecipeShort;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   ribbon?: CardRibbonProps;
-  fabButtonIcon?: JSX.Element;
+  fabButtonIcon?: React.JSX.Element;
   onFabButtonClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
 }
 // ===================================================================== */
@@ -280,13 +280,13 @@ const RecipeCardLoading = () => {
  */
 export interface CardRibbonProps {
   cssProperty: string;
-  icon: JSX.Element;
+  icon: React.JSX.Element;
   tooltip?: string;
 }
 /**
  * Ribon auf der Karte
  * @param Object - Siehe CardRibbonProps
- * @returns JSX.Element
+ * @returns React.JSX.Element
  */
 export const CardRibbon = ({cssProperty, icon, tooltip}: CardRibbonProps) => {
   return (

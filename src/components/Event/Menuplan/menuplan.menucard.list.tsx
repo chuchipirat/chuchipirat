@@ -63,8 +63,8 @@ import {EventGroupConfiguration} from "../GroupConfiguration/groupConfiguration.
 
 export type TListItem = {
   id: string;
-  primaryText: JSX.Element | string | null;
-  secondaryText: JSX.Element | JSX.Element[] | string | null;
+  primaryText: React.JSX.Element | string | null;
+  secondaryText: React.JSX.Element | React.JSX.Element[] | string | null;
   type: MenuplanDragDropTypes;
 };
 
@@ -706,8 +706,8 @@ interface MenuCardListItemProps {
   index: number;
   lastElement: boolean;
   listItemKey: string;
-  primaryText: JSX.Element | string | null;
-  secondaryText: JSX.Element | JSX.Element[] | string | null;
+  primaryText: React.JSX.Element | string | null;
+  secondaryText: React.JSX.Element | React.JSX.Element[] | string | null;
   menueUid: Menue["uid"];
   dragAndDropListType: MenuplanDragDropTypes;
   state: TListItemState;

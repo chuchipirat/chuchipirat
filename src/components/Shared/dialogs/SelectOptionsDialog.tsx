@@ -18,7 +18,7 @@ interface SelectOption {
 interface SelectOptionsDialogProps {
   visible: boolean;
   title: string;
-  text: string | JSX.Element;
+  text: string | React.JSX.Element;
   buttonTextCancel: string;
   options: SelectOption[];
   onSelect: (key: number | string) => void;

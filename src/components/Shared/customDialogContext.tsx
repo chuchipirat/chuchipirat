@@ -68,7 +68,7 @@ type State = {
   dialogType: DialogType;
   visible: boolean;
   title: string;
-  text: string | JSX.Element;
+  text: string | React.JSX.Element;
   subtitle: string;
   buttonTextConfirm: string;
   buttonTextCancel: string;
@@ -91,7 +91,7 @@ interface SingleTextInputProperties {
 interface DialogContentProps {
   dialogType: DialogType;
   title?: string;
-  text?: string | JSX.Element;
+  text?: string | React.JSX.Element;
   subtitle?: string;
   buttonTextConfirm?: string;
   buttonTextCancel?: string;
@@ -120,7 +120,7 @@ const reducer = (state: State, action: DispatchAction): State => {
 };
 
 interface CustomDialogContextProviderProps {
-  children: JSX.Element;
+  children: React.JSX.Element;
 }
 
 /**

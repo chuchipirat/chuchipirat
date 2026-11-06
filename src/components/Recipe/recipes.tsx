@@ -318,7 +318,7 @@ interface RecipeSearchProps {
   onCardClick: ({event, recipe}: OnRecipeCardClickProps) => void;
   onFabButtonClick?: ({event, recipe}: OnRecipeCardClickProps) => void;
   embeddedMode?: boolean;
-  fabButtonIcon?: JSX.Element;
+  fabButtonIcon?: React.JSX.Element;
   authUser: AuthUser;
   eventUid?: string;
   enabled?: boolean;
@@ -969,7 +969,7 @@ interface RecipeResultsGridProps {
   isLoading: boolean;
   hasConfirmedNoResults: boolean;
   embeddedMode: boolean;
-  fabButtonIcon?: JSX.Element;
+  fabButtonIcon?: React.JSX.Element;
   onCardClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onFabButtonClick?: (event: React.MouseEvent<HTMLButtonElement>) => void;
   onNewClick: () => void;

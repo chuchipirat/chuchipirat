@@ -60,7 +60,7 @@ import type {
  */
 interface UseMenuplanDragDropParams {
   menuplan: MenuplanData;
-  scrollableRef: React.RefObject<HTMLDivElement>;
+  scrollableRef: React.RefObject<HTMLDivElement | null>;
   onMenuplanUpdateSuper: (menuplan: MenuplanData) => void;
   setDialogSelectMenueData: React.Dispatch<
     React.SetStateAction<DialogSelectMenueData>

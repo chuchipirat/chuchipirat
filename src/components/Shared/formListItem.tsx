@@ -34,10 +34,10 @@ import {
  * @param maxLength Maximale Zeichenlänge für das Eingabefeld.
  */
 interface FormListItemProps {
-  value?: string | number | Date | JSX.Element | JSX.Element[];
+  value?: string | number | Date | React.JSX.Element | React.JSX.Element[];
   id: string;
   label: string;
-  icon?: JSX.Element;
+  icon?: React.JSX.Element;
   type?: string;
   checked?: boolean;
   multiLine?: boolean;
@@ -49,8 +49,8 @@ interface FormListItemProps {
   onChange?: (event: React.ChangeEvent<HTMLInputElement>) => void;
   displayAsCode?: boolean;
   withDivider?: boolean;
-  secondaryAction?: JSX.Element;
-  endAdornment?: JSX.Element;
+  secondaryAction?: React.JSX.Element;
+  endAdornment?: React.JSX.Element;
 }
 
 /**

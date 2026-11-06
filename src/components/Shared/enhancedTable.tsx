@@ -83,7 +83,7 @@ export interface Column {
   disablePadding: boolean;
   label: string;
   visible: boolean;
-  iconButton?: JSX.Element;
+  iconButton?: React.JSX.Element;
   monoSpaces?: boolean;
 }
 

@@ -918,13 +918,16 @@ const EventPage = () => {
   const [highlightedMenueUids, setHighlightedMenueUids] = React.useState<
     Set<string>
   >(new Set());
-  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const highlightTimeoutRef = React.useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
 
   // Shopping-List-Item-Keys, die durch einen anderen Benutzer geändert wurden.
   const [highlightedShoppingItemKeys, setHighlightedShoppingItemKeys] =
     React.useState<Set<string>>(new Set());
-  const shoppingHighlightTimeoutRef =
-    React.useRef<ReturnType<typeof setTimeout>>();
+  const shoppingHighlightTimeoutRef = React.useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
   // Zähler laufender Shopping-List-Saves. > 0 bedeutet: eigener Save aktiv —
   // die Realtime-Subscription ignoriert dann eingehende Snapshots, damit ein
   // Echo den optimistischen lokalen Stand nicht überschreibt. Zähler statt

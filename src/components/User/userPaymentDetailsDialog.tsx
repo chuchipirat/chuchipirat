@@ -124,7 +124,7 @@ export const UserPaymentDetailsDialog: React.FC<
    *
    * @param event - Submit-Event des Formulars.
    */
-  const handleSave = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleSave = (event: React.FormEvent<HTMLElement>) => {
     event.preventDefault(); // kein Neuladen der Seite durch den Browser
     if (isSaving) return; // Enter während des Speicherns: kein Doppel-Submit
     const validationErrors = UserPaymentDetails.validatePaymentDetails(values);

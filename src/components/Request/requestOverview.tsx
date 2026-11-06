@@ -88,7 +88,7 @@ import {Role} from "../../constants/roles";
 interface RequestUi {
   uid: string;
   number: number;
-  status: JSX.Element;
+  status: React.JSX.Element;
   recipeName: string;
   createDate: Date;
   assigneeDisplayName: string;

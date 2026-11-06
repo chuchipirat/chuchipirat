@@ -1,3 +1,4 @@
+import type {JSX} from "react";
 import {Alert, AlertColor, AlertTitle, Button} from "@mui/material";
 import SupabaseMessageHandler from "../Database/supabaseMessageHandler.class";
 import {useCustomStyles} from "../../constants/styles";
