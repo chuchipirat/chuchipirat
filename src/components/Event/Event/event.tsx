@@ -854,7 +854,6 @@ const INTITIAL_STATE_EVENT_DRAF: EventDraftState = {
   localPicture: null,
   formValidation: [],
 };
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 
 /**
  * Zuordnung von URL-Query-Parameter `?tab=` auf den passenden EventTabs-Wert.
@@ -1907,7 +1906,6 @@ const EventPage = () => {
       category: "event.consistency",
       message: "Konsistenzprüfung abgeschlossen",
     });
-    ("Konsistenzprüfung abgeschlossen.");
   };
   /* ------------------------------------------
   // Fehlende Daten holen

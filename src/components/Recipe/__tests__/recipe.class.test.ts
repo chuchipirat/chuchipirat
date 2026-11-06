@@ -621,7 +621,7 @@ describe("Recipe.defineDietProperties()", () => {
   test("unknown Product", () => {
     const recipeMock = structuredClone(recipe);
     const productsMock = structuredClone(products);
-    (recipeMock.ingredients.entries.abc = {
+    recipeMock.ingredients.entries.abc = {
       uid: "abc",
       product: {uid: "123", name: "Fake"},
       posType: PositionType.ingredient,
@@ -629,13 +629,13 @@ describe("Recipe.defineDietProperties()", () => {
       unit: "",
       detail: "",
       scalingFactor: 1,
-    }),
-      expect(() =>
-        Recipe.defineDietProperties({
-          recipe: recipeMock,
-          products: productsMock,
-        })
-      ).toThrow(TEXT_ERROR_PRODUCT_UNKNOWN("Fake"));
+    };
+    expect(() =>
+      Recipe.defineDietProperties({
+        recipe: recipeMock,
+        products: productsMock,
+      })
+    ).toThrow(TEXT_ERROR_PRODUCT_UNKNOWN("Fake"));
   });
   // Regression CHUCHIPIRAT-J0: ein (vom Admin deaktiviertes) Produkt fehlt in
   // der Produktliste → Nutzer-Hinweis statt App-Fehler, damit onSave in

@@ -199,7 +199,6 @@ describe("DialogAddUser", () => {
 
   it("zeigt sichere Fehlermeldung statt error.toString() bei Nicht-Error-Fehler", async () => {
     mockIsEmail.mockReturnValue(true);
-    // eslint-disable-next-line prefer-promise-reject-errors
     mockGetUidByEmail.mockRejectedValue("string-error");
     renderDialog();
 

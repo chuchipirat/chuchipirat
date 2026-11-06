@@ -175,7 +175,7 @@ serve(async (req: Request) => {
       } else {
         results.push({task: "cron.job_run_details (> 90 Tage)", deleted: -1});
       }
-    } catch (err) {
+    } catch {
       // pg_cron interne Tabelle — nicht über PostgREST erreichbar, überspringen
       results.push({task: "cron.job_run_details", deleted: 0, error: "Nicht via PostgREST erreichbar — manuell bereinigen"});
     }
