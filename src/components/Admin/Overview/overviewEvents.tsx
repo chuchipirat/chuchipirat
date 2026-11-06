@@ -44,7 +44,7 @@ import {
   ViewModule as ViewModuleIcon,
   ViewList as ViewListIcon,
 } from "@mui/icons-material";
-import {DataGrid, GridColDef, GridToolbar} from "@mui/x-data-grid";
+import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import * as Sentry from "@sentry/react";
 
@@ -812,7 +812,7 @@ const OverviewEventsPage = () => {
                   onRowClick={(params) =>
                     onCardClick(params.row as EventOverviewItem)
                   }
-                  slots={{toolbar: GridToolbar}}
+                  showToolbar
                 />
               </Box>
             </Box>

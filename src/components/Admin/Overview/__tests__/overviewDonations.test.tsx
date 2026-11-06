@@ -120,6 +120,19 @@ test("1 – getAllDonations wird beim Mount aufgerufen", async () => {
   });
 });
 
+test("1b – DataGrid zeigt seine Werkzeugleiste (Spalten, Filter, Export)", async () => {
+  // Seit MUI X 8 erscheint die Leiste nur mit `showToolbar`
+  renderPage();
+
+  await waitFor(() => {
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+  expect(screen.getByRole("toolbar")).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /spalten/i})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /filter/i})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /export/i})).toBeInTheDocument();
+});
+
 test("2 – 'Total dieses Jahr' zählt nur Spenden mit paidAt im aktuellen Jahr", async () => {
   mockGetAllDonations.mockResolvedValue([
     createDonationMock({id: "d1", amountInCents: 5000, paidAt: new Date(`${CURRENT_YEAR}-03-15`)}),

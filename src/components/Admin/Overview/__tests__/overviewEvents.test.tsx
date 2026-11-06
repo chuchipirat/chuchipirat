@@ -210,6 +210,22 @@ test("8 – Ansichts-Toggle wechselt zwischen Karten und DataGrid", async () => 
   });
 });
 
+test("8b – Listenansicht zeigt die Werkzeugleiste des DataGrids", async () => {
+  // Seit MUI X 8 erscheint die Leiste nur mit `showToolbar`
+  renderPage();
+  await screen.findByText("Sommerlager");
+
+  await userEvent.click(screen.getByRole("button", {name: /listenansicht/i}));
+
+  await waitFor(() => {
+    expect(screen.getByRole("grid")).toBeInTheDocument();
+  });
+  expect(screen.getByRole("toolbar")).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /spalten/i})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /filter/i})).toBeInTheDocument();
+  expect(screen.getByRole("button", {name: /export/i})).toBeInTheDocument();
+});
+
 test("9 – Fehler beim Laden zeigt AlertMessage", async () => {
   mockGetAllEventsShort.mockRejectedValue(new Error("DB-Fehler"));
 
