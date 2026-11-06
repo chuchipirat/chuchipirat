@@ -107,6 +107,10 @@ import {detectMaterialIssues, MaterialIssue} from "./materialQaUtils";
 import {trackEvent} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 import {useDebouncedValue} from "../../hooks/useDebouncedValue";
+import {
+  fromGridRowSelection,
+  toGridRowSelection,
+} from "../Shared/dataGridSelection";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -1204,7 +1208,12 @@ const MaterialsTable = ({
   // Selektion (DataGrid)
   // ------------------------------------------ */
   const handleSelectionChange = (selectionModel: GridRowSelectionModel) => {
-    onSelectionChange(selectionModel as string[]);
+    onSelectionChange(
+      fromGridRowSelection(
+        selectionModel,
+        filteredMaterialsUi.map((row) => row.uid),
+      ),
+    );
   };
 
   /* ------------------------------------------
@@ -1257,7 +1266,7 @@ const MaterialsTable = ({
           pagination
           checkboxSelection={editMode}
           keepNonExistentRowsSelected
-          rowSelectionModel={selectedMaterialUids}
+          rowSelectionModel={toGridRowSelection(selectedMaterialUids)}
           onRowSelectionModelChange={handleSelectionChange}
           localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
           paginationModel={paginationModel}

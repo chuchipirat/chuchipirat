@@ -29,7 +29,9 @@ import {
  * Tests Reihen und Achsen prüfen können.
  */
 const mockLineChart = jest.fn();
+// Nur LineChart ersetzen; der Rest (z.B. lineClasses für die Styles) bleibt echt
 jest.mock("@mui/x-charts/LineChart", () => ({
+  ...jest.requireActual("@mui/x-charts/LineChart"),
   LineChart: (props: LineChartProps) => {
     mockLineChart(props);
     return <div data-testid="line-chart" />;
@@ -42,6 +44,15 @@ jest.mock("@mui/x-charts/LineChart", () => ({
  * @returns Props, die die Karte an `LineChart` übergeben hat.
  */
 const getLastChartProps = (): LineChartProps => mockLineChart.mock.lastCall[0];
+
+/**
+ * Formatierer einer Achse, wie ihn der Test aufruft. MUI X typisiert ihn als
+ * Vereinigung pro Skalentyp; ohne Festlegung ist er nicht aufrufbar.
+ */
+type AxisFormatter = (
+  value: unknown,
+  context: {location: "tick" | "tooltip"},
+) => string;
 
 /**
  * Normalisiert die Teile formatierter Beträge, die je nach ICU-Version von
@@ -155,7 +166,9 @@ describe("ExpenseHistoryChart, Diagramm", () => {
   test("Achsenbeschriftung: Datum kurz, im Tooltip mit Wochentag", () => {
     renderChart();
 
-    const formatDay = getLastChartProps().xAxis?.[0].valueFormatter;
+    const formatDay = getLastChartProps().xAxis?.[0].valueFormatter as
+      | AxisFormatter
+      | undefined;
     const sunday = parseLocalDate("2026-07-05");
     expect(formatDay?.(sunday, {location: "tick"})).toEqual("05.07.");
     expect(formatDay?.(sunday, {location: "tooltip"})).toMatch(/^So.*05\.07\.$/);
@@ -164,7 +177,9 @@ describe("ExpenseHistoryChart, Diagramm", () => {
   test("y-Achse: Betrag ohne Währung und ohne Rappen", () => {
     renderChart();
 
-    const formatAmount = getLastChartProps().yAxis?.[0].valueFormatter;
+    const formatAmount = getLastChartProps().yAxis?.[0].valueFormatter as
+      | AxisFormatter
+      | undefined;
     const formatted = formatAmount?.(120050, {location: "tick"}) ?? "";
     expect(formatted).not.toMatch(/CHF|\./);
     expect(formatted.replace(/\D/g, "")).toEqual("1201");

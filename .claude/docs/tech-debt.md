@@ -312,9 +312,6 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Other
 
-- **`@mui/x-*` gemeinsam auf v8 heben** (Story 6.3, 2026-10-16) — `@mui/x-charts` (7.29), `@mui/x-data-grid` (7.29) und `@mui/x-date-pickers` (7.29) teilen sich `@mui/x-internals`; deshalb bewusst alle auf v7. Ein Upgrade nur gemeinsam (zwei Kopien von `x-internals` im Bundle vermeiden), mit Migrationsleitfaden der MUI-X-Doku. Bei v8 prüfen: `expenseHistoryChart.tsx` leitet `AxisValueFormatterContext` aus `AxisConfig` ab (in v7 nicht öffentlich exportiert, in v8 evtl. direkt importierbar) und stylt die Soll-Linie über die Klasse `.MuiLineElement-series-target`.
-  **Priorität:** tief · **Komplexität:** mittel
-
 - **Duplikate Produkte in `products`-Tabelle** — Mind. 7 Produkte existieren als zwei separate DB-Zeilen mit identischem Namen, aber unterschiedlicher `uid` (bestätigt: Äpfel, Birnen, Diverse Früchte, Frühstücksflocken, Mascarpone vegan, Rotkabis, Weisswein alkoholfrei — siehe [[RC-001 Rezept erstellen]]). Hat einen React-Key-Kollisions-Bug im Produkt-Autocomplete verursacht (behoben via `getOptionKey`), macht Produktauswahl in Zutaten-/Einkaufslisten aber weiterhin für Nutzer verwirrend (zwei identisch benannte, evtl. unterschiedlich klassifizierte Einträge zur Auswahl). Bereinigung (Duplikate zusammenführen oder eindeutig benennen) erfordert Prüfung, ob beide Zeilen bereits in Rezepten/Einkaufslisten referenziert werden.
   **Priorität:** mittel · **Komplexität:** mittel
 

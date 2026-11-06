@@ -111,7 +111,7 @@ export const ExpenseBudgetShareChart = ({
               },
             ]}
             // eigene Legende daneben, die eingebaute SVG-Legende bricht nicht um
-            slotProps={{legend: {hidden: true}}}
+            hideLegend
           />
         </Box>
         <List

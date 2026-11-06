@@ -64,7 +64,9 @@ import {SHOW as TEXT_SHOW} from "../../../../../constants/text/shared";
  * damit die Tests die übergebenen Reihen prüfen können.
  */
 const mockLineChart = jest.fn();
+// Nur LineChart ersetzen; der Rest (z.B. lineClasses für die Styles) bleibt echt
 jest.mock("@mui/x-charts/LineChart", () => ({
+  ...jest.requireActual("@mui/x-charts/LineChart"),
   LineChart: (props: LineChartProps) => {
     mockLineChart(props);
     return <div data-testid="line-chart" />;

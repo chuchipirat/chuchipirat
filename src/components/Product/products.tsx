@@ -123,6 +123,10 @@ import {CHECK_WHERE_USED as TEXT_CHECK_WHERE_USED} from "../../constants/text/pr
 import {trackEvent, getAnalyticsRole} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 import {useDebouncedValue} from "../../hooks/useDebouncedValue";
+import {
+  fromGridRowSelection,
+  toGridRowSelection,
+} from "../Shared/dataGridSelection";
 
 /** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
 const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
@@ -1110,7 +1114,12 @@ const ProductsTable = ({
   // Selection
   // ------------------------------------------ */
   const handleSelectionChange = (selectionModel: GridRowSelectionModel) => {
-    onSelectionChange(selectionModel as string[]);
+    onSelectionChange(
+      fromGridRowSelection(
+        selectionModel,
+        filteredProductsUi.map((row) => row.uid),
+      ),
+    );
   };
 
   /* ------------------------------------------
@@ -1241,7 +1250,7 @@ const ProductsTable = ({
           pagination
           checkboxSelection={editMode}
           keepNonExistentRowsSelected
-          rowSelectionModel={selectedProductUids}
+          rowSelectionModel={toGridRowSelection(selectedProductUids)}
           onRowSelectionModelChange={handleSelectionChange}
           localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
           getRowClassName={(params) => {

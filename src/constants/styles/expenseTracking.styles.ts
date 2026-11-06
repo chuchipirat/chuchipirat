@@ -1,5 +1,6 @@
 import {Theme} from "@mui/material/styles";
 import {alpha} from "@mui/system/colorManipulator";
+import {lineClasses} from "@mui/x-charts/LineChart";
 
 /**
  * Styles der Abrechnungsseite (Budget-Karten, Fortschritt, Dialog-Formular).
@@ -370,11 +371,14 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     minWidth: theme.spacing(4),
   },
   evaluationHistoryChart: {
-    // gestrichelte Soll-Linie; x-charts vergibt pro Serie die Klasse `MuiLineElement-series-<id>`
-    "& .MuiLineElement-series-target": {strokeDasharray: "6 4"},
+    // gestrichelte Soll-Linie. x-charts kennzeichnet die Serie über das
+    // Attribut `data-series` (Wert = Serien-ID, siehe TARGET_SERIES_ID in
+    // expenseHistoryChart.tsx); die Klassen kommen aus `lineClasses`, damit
+    // eine Umbenennung in x-charts als Typfehler auffällt statt still zu brechen.
+    [`& .${lineClasses.line}[data-series="target"]`]: {strokeDasharray: "6 4"},
     // heller «Budgetraum» unter der Soll-Linie, aus primary abgeleitet: passt
     // in Light/Dark und zum lila TEST-Theme. Sonst füllt x-charts deckend in der Linienfarbe.
-    "& .MuiAreaElement-series-target": {
+    [`& .${lineClasses.area}[data-series="target"]`]: {
       fill: alpha(theme.palette.primary.main, 0.08),
     },
   },
