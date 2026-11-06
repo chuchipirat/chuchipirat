@@ -318,9 +318,7 @@ export const HomePage = () => {
       });
   }, [authUser]);
 
-  if (!authUser) {
-    return null;
-  }
+
 
   /* ------------------------------------------
   // Vergangene Anlässe anzeigen/ausblenden
@@ -431,6 +429,9 @@ export const HomePage = () => {
     },
     [],
   );
+  if (!authUser) {
+    return null;
+  }
 
   return (
     <React.Fragment>

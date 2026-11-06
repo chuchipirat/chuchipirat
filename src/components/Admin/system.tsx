@@ -173,12 +173,6 @@ const SystemPage = () => {
   const classes = useCustomStyles();
   const navigate = useNavigate();
 
-  if (!authUser) {
-    return null;
-  }
-
-  const isAdmin = authUser.roles.includes(Role.admin);
-
   /** Navigation zu einer internen Seite. */
   const goToDestination = useCallback(
     (routeDestination: string) => {
@@ -186,6 +180,11 @@ const SystemPage = () => {
     },
     [navigate],
   );
+  if (!authUser) {
+    return null;
+  }
+
+  const isAdmin = authUser.roles.includes(Role.admin);
 
   return (
     <>

@@ -108,7 +108,7 @@ UI/Komponenten:
 
 - [ ] Jeder Schreibaufruf in `try/catch` → zentrales `handleError`; Dialog schliesst nicht
       «erfolgreich», wenn nichts gespeichert wurde
-- [ ] Keine Hooks nach frühem `return` (ESLint-Regel ist nicht aktiv, Absturz erst zur Laufzeit)
+- [ ] Keine Hooks nach frühem `return` (prüft ESLint `rules-of-hooks` als Fehler); `exhaustive-deps`-Warnungen nicht durch blosses Ergänzen der Abhängigkeiten «beheben», erst fragen, ob der Effekt bei jeder Änderung wirklich neu laufen soll
 - [ ] Keine Importe aus `__mocks__`/Tests in Produktivcode; kein `console.log`, `debugger`,
       auskommentierter Code, ungenutzte Exporte
 - [ ] Eigener Analytics-Event pro Aktion (kein kopiertes `..._CREATED`)

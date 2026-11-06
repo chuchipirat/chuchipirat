@@ -329,11 +329,7 @@ const UnitsPage = () => {
       .catch((error) => {
         dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
       });
-  }, []);
-
-  if (!authUser) {
-    return null;
-  }
+  }, [database.units]);
 
   /* ------------------------------------------
   // onChangeField
@@ -353,6 +349,51 @@ const UnitsPage = () => {
     },
     [],
   );
+  /* ------------------------------------------
+  // Einheit löschen (mit ConfirmSecure-Dialog)
+  // ------------------------------------------ */
+  /**
+   * Öffnet den ConfirmSecure-Dialog für die angegebene Einheit.
+   * Die Einheit wird nur gelöscht, wenn der Benutzer den Schlüssel
+   * korrekt eingibt und bestätigt.
+   *
+   * @param unit - Die zu löschende Einheit
+   */
+  const onDeleteUnit = React.useCallback(
+    async (unit: Unit) => {
+      const isConfirmed = await customDialog({
+        dialogType: DialogType.ConfirmSecure,
+        deletionDialogProperties: {confirmationString: unit.key},
+        title: TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
+        subtitle: TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
+        text: TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
+        buttonTextCancel: TEXT_CANCEL,
+        buttonTextConfirm: TEXT_DELETE,
+      });
+      if (!authUser) return;
+      if (!isConfirmed) return;
+
+      database.units
+        .deleteUnit(unit.key, authUser)
+        .then(() => {
+          trackEvent(AnalyticsEvent.UNIT_DELETED, {
+            unit: unit.key,
+            deletedBy: authUser.uid,
+            role: getAnalyticsRole(authUser),
+          });
+
+          dispatch({type: ReducerActions.UNIT_DELETED, payload: unit.key});
+        })
+        .catch((error) => {
+          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
+        });
+    },
+    [customDialog, database.units, authUser],
+  );
+
+  if (!authUser) {
+    return null;
+  }
 
   /* ------------------------------------------
   // Speichern (nur geänderte Einheiten)
@@ -431,48 +472,6 @@ const UnitsPage = () => {
 
     setUnitCreateDialogOpen(false);
   };
-
-  /* ------------------------------------------
-  // Einheit löschen (mit ConfirmSecure-Dialog)
-  // ------------------------------------------ */
-  /**
-   * Öffnet den ConfirmSecure-Dialog für die angegebene Einheit.
-   * Die Einheit wird nur gelöscht, wenn der Benutzer den Schlüssel
-   * korrekt eingibt und bestätigt.
-   *
-   * @param unit - Die zu löschende Einheit
-   */
-  const onDeleteUnit = React.useCallback(
-    async (unit: Unit) => {
-      const isConfirmed = await customDialog({
-        dialogType: DialogType.ConfirmSecure,
-        deletionDialogProperties: {confirmationString: unit.key},
-        title: TEXT_DIALOG_TITLE_DELETION_CONFIRMATION,
-        subtitle: TEXT_DIALOG_SUBTITLE_DELETION_CONFIRMATION,
-        text: TEXT_DIALOG_TEXT_DELETION_CONFIRMATION,
-        buttonTextCancel: TEXT_CANCEL,
-        buttonTextConfirm: TEXT_DELETE,
-      });
-      if (!isConfirmed) {
-        return;
-      }
-      database.units
-        .deleteUnit(unit.key, authUser)
-        .then(() => {
-          trackEvent(AnalyticsEvent.UNIT_DELETED, {
-            unit: unit.key,
-            deletedBy: authUser.uid,
-            role: getAnalyticsRole(authUser),
-          });
-
-          dispatch({type: ReducerActions.UNIT_DELETED, payload: unit.key});
-        })
-        .catch((error) => {
-          dispatch({type: ReducerActions.GENERIC_ERROR, payload: error});
-        });
-    },
-    [customDialog, database.units, authUser],
-  );
 
   /* ------------------------------------------
   // Snackbar schliessen
@@ -567,7 +566,7 @@ const UnitsPage = () => {
       />
     </React.Fragment>
   );
-};
+};;
 
 /* ===================================================================
 // =============================== Table =============================

@@ -41,9 +41,7 @@ export default tseslint.config(
       "react-hooks": reactHooks,
     },
     rules: {
-      // Vorübergehend Warnung, bis die bekannten Verstösse behoben sind;
-      // danach Fehler, damit Hooks nach frühem `return` in CI auffallen.
-      "react-hooks/rules-of-hooks": "warn",
+      "react-hooks/rules-of-hooks": "error",
       "react-hooks/exhaustive-deps": "warn",
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/no-unused-vars": [

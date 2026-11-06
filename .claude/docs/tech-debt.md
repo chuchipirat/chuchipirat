@@ -127,6 +127,9 @@ _(Claude Code: append entries here when you encounter `console.log` / `console.e
 - **`Event/Menuplan/menuplan.menucard.list.tsx:99` — `getCardListItemData` verlangt `itemType` und ignoriert es** (2026-11-06) — Der Parametertyp `Omit<TListItemData, typeof cardListItemKey>` enthält `itemType`, die Funktion nimmt aber `listItem.type`. Aufrufer müssen einen Wert übergeben, der nie gelesen wird. Fix: `itemType` aus dem Parametertyp ausnehmen (`Omit<…, typeof cardListItemKey | "itemType">`) und beim Aufrufer weglassen.
   **Priorität:** tief · **Komplexität:** klein
 
+- **`react-hooks/exhaustive-deps`: 159 Warnungen** (seit ESLint 9 mit `eslint-plugin-react-hooks` 7 sichtbar, 2026-11-06, #244) — Die Regel meldet, dass ein Effekt/Callback Werte liest, die nicht in den Abhängigkeiten stehen. **Nicht blind ergänzen:** Beim Beheben der Hooks-Regeln wurden testweise Abhängigkeiten ergänzt und wieder zurückgenommen, weil sie Verhalten ändern: `Home.tsx` `navigationValuesContext` (Endlosschleife, steht im Kommentar), `state.snackbar.open` (Snackbar öffnet nach dem Schliessen wieder, weil `location.state` gesetzt bleibt), `activeSlice`/`nearestSlice` als Objekte in `EventCardWithLifecycle` (Checkliste lädt bei jeder neuen Referenz neu, darum bewusst per `uid`). Pro Stelle entscheiden: ergänzen, umbauen (`ref`, Funktion in den Effekt, Vergleich per ID) oder mit Begründung per `eslint-disable-next-line` ausnehmen. Datei für Datei, mit Browser-Test.
+  **Priorität:** mittel · **Komplexität:** gross
+
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_
