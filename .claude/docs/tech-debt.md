@@ -180,6 +180,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Type Safety
 
+- **`src/index.jsx` ist JavaScript** (gefunden bei Sentry 11, 2026-11-06) — Einstiegspunkt der App, weder von `tsc` geprüft noch von ESLint erfasst. Die Sentry-Optionen liegen seit Sentry 11 deshalb in `src/sentryOptions.ts`; übrig sind ErrorBoundary-Handler, Provider-Baum und `createRoot`. Fix: in `index.tsx` umbenennen, `index.html` anpassen, `handleErrorBoundaryError` typisieren, `document.getElementById("root")` auf `null` prüfen.
+  **Priorität:** tief · **Komplexität:** klein
+
 - **Edge Functions: `SupabaseAdminClient` in `_shared/cronJobHelper.ts` passt nicht zum Supabase-Client** (gefunden bei Story 9.2, 2026-11-01) — `deno check` meldet in jedem Cron-Job `TS2345` beim Übergeben von `supabaseAdmin` an `startCronJob`/`completeCronJob`/`failCronJob` (die eigene Typ-Schnittstelle erwartet `Promise`, supabase-js liefert `PostgrestBuilder`). `cron-housekeeping` hat zusätzlich eigene Fehler (`cleanupTable`-Filtertyp, `sentryCheckIn` mit 2 Argumenten). Läuft trotzdem, weil die Edge Runtime nicht typprüft; dadurch fallen aber echte Typfehler in neuen Jobs nicht auf. Fix: die Schnittstelle auf `PromiseLike` bzw. den echten `SupabaseClient`-Typ umstellen, dann `deno check` über alle `volumes/functions/*/index.ts` in CI.
   **Priorität:** tief · **Komplexität:** klein
 
