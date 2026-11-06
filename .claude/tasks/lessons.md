@@ -158,3 +158,21 @@ Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» un
 
 **Rule**: Bei Realtime-/Echo-Fehlern klären, ob der Zeitpunkt oder die Verarbeitung des Echos falsch ist, und einen Test mit mehreren aufeinanderfolgenden Echos schreiben (eigenes, dann fremdes).
 
+
+## Datenschutz-Option erst beim Leser prüfen (2026-11-06)
+
+**What happened**: Für Sentry 11 schlug ich `httpHeaders: false` vor, um keine Header zu senden. Im Browser liest `httpContextIntegration` aber genau daraus den User-Agent; ohne ihn fehlen Browser/OS an jedem Event und Sentrys Crawler-Filter greift nicht mehr. Aufgefallen erst durch die Rückfrage des Nutzers.
+
+**Rule**: Bevor eine SDK-Option ausgeschaltet wird, im Quellcode (`node_modules/@sentry/*/build/esm`) nachsehen, welche Integrationen sie lesen, und die Folgen nennen. Bei einem neuen Major die Vorgaben in den Typen lesen; sie können still mehr Daten sammeln.
+
+## Asynchroner Test, der vor dem Ergebnis grün ist (2026-11-06)
+
+**What happened**: Der zxcvbn-Test ohne Mock erwartete «Schwach» für «passwort» und ein deutsches Wort. Die Anzeige startet mit Score 0 = «Schwach», also war der Test grün, bevor die Bibliothek antwortete; die Mutation «ohne deutsches Wörterbuch» blieb grün.
+
+**Rule**: Entspricht der Startzustand dem erwarteten Ergebnis, zuerst einen anderen Zustand herstellen und abwarten (starkes Passwort → «Stark»), dann per `rerender` auf das Ziel wechseln. Mutationsprobe vor dem Commit.
+
+## Vergleichsbuilds mit explizitem Node (2026-11-06)
+
+**What happened**: Ein Build im Worktree unter `$CLAUDE_JOB_DIR` lief mit Node 20 und brach ab; `.nvmrc` greift dort nicht.
+
+**Rule**: Für Builds ausserhalb des Repos `PATH=~/.nvm/versions/node/v24.*/bin:$PATH` setzen und beide Seiten eines Vergleichs mit derselben Version bauen.

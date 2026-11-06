@@ -154,6 +154,8 @@ Tests:
       leeren (`clearAllMocks` leert sie nicht)
 - [ ] Realtime/Callbacks: Callback aus dem Mock lesen und selbst aufrufen
 - [ ] Mutationsprobe gemacht: Code absichtlich kaputt → Test wird rot
+- [ ] Asynchrones Ergebnis: Entspricht der Startzustand schon dem erwarteten Ergebnis (z.B.
+      Score 0 = «Schwach»), zuerst einen anderen Zustand herstellen und abwarten, dann wechseln
 - [ ] Beträge mit Tausender-Apostroph/geschütztem Leerzeichen über die Formatierungsfunktion
       erwarten, nicht hart codiert
 
@@ -177,6 +179,11 @@ Abhängigkeits-Upgrades:
       exportierte Klassen (`lineClasses`, `alertClasses` …) statt fester Namen
 - [ ] Aus einer Bibliothek abgeleitete Typen geprüft: Mutationsprobe (falscher Wert → `tsc` rot);
       viele Bibliotheken typisieren Optionen als `any`
+- [ ] SDK mit Datenschutz-Optionen (Sentry, Analytics): Vorgaben der neuen Version in den Typen
+      bzw. im Quellcode gelesen (neue Version kann mehr sammeln) und im Quellcode nachgesehen,
+      **wer** eine Option liest, bevor sie ausgeschaltet wird
+- [ ] Vergleichsbuilds (vorher/nachher) mit derselben Node-Version, Node-Pfad explizit gesetzt
+      (`.nvmrc` greift ausserhalb des Repos nicht)
 
 Migrationen:
 
