@@ -24,7 +24,7 @@
     "@mui/x-data-grid": "^9.17.0",
     "@mui/x-date-pickers": "^9.17.0",
     "@react-pdf/renderer": "^4.9.0",
-    "@sentry/react": "^10.78.0",
+    "@sentry/react": "^11.11.0",
     "@supabase/supabase-js": "^2.119.0",
     "@tiptap/pm": "^3.32.2",
     "@tiptap/react": "^3.32.2",
@@ -60,7 +60,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
-    "@sentry/vite-plugin": "^5.4.1",
+    "@sentry/vite-plugin": "^11.11.0",
     "@testing-library/dom": "^10.4.2",
     "@testing-library/jest-dom": "^7.0.1",
     "@testing-library/react": "^16.3.3",
