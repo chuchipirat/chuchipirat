@@ -86,14 +86,12 @@ import {
 } from "../../Unit/unitConversion.class";
 import {EventShoppingListPage} from "../ShoppingList/shoppingList";
 import {ShoppingListCollection} from "../ShoppingList/shoppingListCollection.class";
-import {
-  ShoppingList,
-  ShoppingListItem,
-} from "../ShoppingList/shoppingList.class";
+import {ShoppingList} from "../ShoppingList/shoppingList.class";
 import {
   headersDomainToCollection,
   itemsDomainToShoppingList,
 } from "../ShoppingList/shoppingListAdapter";
+import {classifyShoppingListEcho} from "../ShoppingList/shoppingListEcho";
 import {EventMaterialListPage} from "../MaterialList/materialList";
 import {MaterialList} from "../MaterialList/materialList.class";
 import {
@@ -197,86 +195,6 @@ function getChangedMenueUids(
       changed.add(uid);
     }
   }
-  return changed;
-}
-
-/**
- * Stabiler Vergleichs-Key für ein Shopping-List-Item — die client-generierte
- * Zeilen-ID, die über Speichervorgänge und Realtime hinweg konstant bleibt.
- */
-function shoppingListItemKey(item: ShoppingListItem): string {
-  return item.id;
-}
-
-/**
- * Prüft, ob zwei Einkaufslisten inhaltlich gleich sind (persistierte Felder je
- * Position). Dient dazu, ein Realtime-Echo zu verwerfen, das nichts Neues
- * bringt — dann muss der State nicht ersetzt und die Liste nicht neu gerendert
- * werden.
- */
-function shoppingListsAreEquivalent(
-  a: ShoppingList | null,
-  b: ShoppingList | null,
-): boolean {
-  if (!a || !b) return false;
-  const signature = (list: ShoppingList): string =>
-    Object.values(list.list)
-      .flatMap((department) =>
-        department.items.map(
-          (item) =>
-            `${item.id}|${item.quantity}|${item.checked ? 1 : 0}|${item.unit}|` +
-            `${item.item.uid}|${item.item.name}`,
-        ),
-      )
-      .sort()
-      .join("\n");
-  return signature(a) === signature(b);
-}
-
-/**
- * Vergleicht zwei ShoppingLists und liefert die IDs der Items zurück,
- * die sich geändert haben oder neu hinzugekommen sind.
- *
- * @param oldList - Bisherige Einkaufsliste (oder null)
- * @param newList - Neu geladene Einkaufsliste
- * @returns Set von geänderten Item-IDs
- */
-function getChangedShoppingListItemKeys(
-  oldList: ShoppingList | null,
-  newList: ShoppingList,
-): Set<string> {
-  const changed = new Set<string>();
-
-  // Alte Items in eine Map packen: key → {quantity, checked}
-  const oldMap = new Map<string, {quantity: number; checked: boolean}>();
-  if (oldList) {
-    Object.values(oldList.list).forEach((dept) => {
-      dept.items.forEach((item) => {
-        const key = shoppingListItemKey(item);
-        oldMap.set(key, {quantity: item.quantity, checked: item.checked});
-      });
-    });
-  }
-
-  // Neue Items durchgehen und mit alten vergleichen
-  Object.values(newList.list).forEach((dept) => {
-    dept.items.forEach((item) => {
-      const key = shoppingListItemKey(item);
-      const old = oldMap.get(key);
-
-      if (!old) {
-        // Neues Item
-        changed.add(key);
-      } else if (
-        old.quantity !== item.quantity ||
-        old.checked !== item.checked
-      ) {
-        // Geänderte Menge oder Checkbox
-        changed.add(key);
-      }
-    });
-  });
-
   return changed;
 }
 
@@ -2131,8 +2049,8 @@ const EventPage = () => {
             // (`onChangeItem` pusht/filtert `list[pos].items`). Würden beide
             // dieselben verschachtelten Arrays teilen, landete jede
             // optimistische Mutation (z.B. eine Mengen-Zeile ohne Artikel) auch
-            // im Ref → `shoppingListsAreEquivalent` schlägt fehl und das nächste
-            // Echo überschreibt die laufende Eingabe.
+            // im Ref → der Vergleich in `classifyShoppingListEcho` schlägt
+            // fehl und das nächste Echo überschreibt die laufende Eingabe.
             shoppingListRef.current = itemsDomainToShoppingList(
               items,
               objectUid as string,
@@ -2153,64 +2071,33 @@ const EventPage = () => {
             database.shoppingLists.subscribeToListItems(
               objectUid as string,
               (items) => {
-                // Läuft gerade ein eigener Save, wird das Echo komplett ignoriert
-                // (analog Material-Liste). Der Zähler geht erst nach dem `await`
-                // in persistListItems wieder auf 0 — das dann eintreffende Echo
-                // aktualisiert den State als regulärer Reconcile und zieht dabei
-                // auch parallele Änderungen anderer Köch:innen nach.
-                if (shoppingListSaveInProgress.current > 0) {
-                  return;
-                }
+                const decision = classifyShoppingListEcho({
+                  previous: shoppingListRef.current,
+                  incoming: itemsDomainToShoppingList(
+                    items,
+                    objectUid as string,
+                  ),
+                  ownSaveInProgress: shoppingListSaveInProgress.current > 0,
+                });
+                // Immer den DB-Stand als Vergleichsbasis merken, auch beim Echo
+                // eines eigenen Saves: sonst leuchten beim nächsten Echo eigene
+                // frühere Änderungen als fremde auf. Synchron im Ref, ohne auf
+                // den useEffect-Zyklus zu warten; der Reducer bekommt unten eine
+                // eigene Instanz, die die Handler optimistisch mutieren dürfen.
+                shoppingListRef.current = decision.nextReference;
+                // Eigener Save (Ansicht bleibt optimistisch) oder nichts Neues
+                if (!decision.apply) return;
 
-                const newShoppingList = itemsDomainToShoppingList(
-                  items,
-                  objectUid as string,
-                );
-
-                // Bringt das Echo gegenüber dem letzten Stand nichts Neues
-                // (z.B. ein durchgerutschtes Eigen-Echo), gar nicht erst
-                // dispatchen — spart einen vollständigen Re-Render der Liste.
-                if (
-                  shoppingListsAreEquivalent(
-                    shoppingListRef.current,
-                    newShoppingList,
-                  )
-                ) {
-                  return;
-                }
-
-                // Der Diff-RPC-Save hat keine transiente delete-all-Phase mehr;
-                // ein leerer Snapshot bedeutet „die Liste ist wirklich leer".
-                // Eigene Saves sind bereits oben per Zähler-Guard rausgefiltert.
-                const newItemCount = Object.values(newShoppingList.list).reduce(
-                  (sum, dept) => sum + dept.items.length,
-                  0,
-                );
-
-                // Highlighting für Änderungen anderer Köch:innen.
-                if (newItemCount > 0) {
-                  const changedKeys = getChangedShoppingListItemKeys(
-                    shoppingListRef.current,
-                    newShoppingList,
+                // Highlighting für Änderungen anderer Köch:innen
+                if (decision.changedKeys.size > 0) {
+                  setHighlightedShoppingItemKeys(decision.changedKeys);
+                  if (shoppingHighlightTimeoutRef.current)
+                    clearTimeout(shoppingHighlightTimeoutRef.current);
+                  shoppingHighlightTimeoutRef.current = setTimeout(
+                    () => setHighlightedShoppingItemKeys(new Set()),
+                    2000,
                   );
-                  if (changedKeys.size > 0) {
-                    setHighlightedShoppingItemKeys(changedKeys);
-                    if (shoppingHighlightTimeoutRef.current)
-                      clearTimeout(shoppingHighlightTimeoutRef.current);
-                    shoppingHighlightTimeoutRef.current = setTimeout(
-                      () => setHighlightedShoppingItemKeys(new Set()),
-                      2000,
-                    );
-                  }
                 }
-
-                // Ref sofort aktualisieren, damit der nächste Realtime-Callback
-                // den aktuellen Stand als Vergleichsbasis hat — ohne auf den
-                // asynchronen useEffect-Zyklus zu warten. `newShoppingList` geht
-                // in den Ref (unveränderliche DB-Wahrheit); der Reducer bekommt
-                // eine eigene Instanz, die die Handler optimistisch mutieren
-                // dürfen, ohne den Ref zu verunreinigen.
-                shoppingListRef.current = newShoppingList;
 
                 dispatch({
                   type: ReducerActions.SHOPPINGLIST_FETCH_SUCCESS_DATA,
