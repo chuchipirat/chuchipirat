@@ -184,6 +184,11 @@ Abhängigkeits-Upgrades:
       **wer** eine Option liest, bevor sie ausgeschaltet wird
 - [ ] Vergleichsbuilds (vorher/nachher) mit derselben Node-Version, Node-Pfad explizit gesetzt
       (`.nvmrc` greift ausserhalb des Repos nicht)
+- [ ] Vor jeder Messung `node -v` / `npm -v` geprüft (Hintergrund-Sitzungen erben nicht den
+      nvm-Standard; npm 10 zeigt in `npm outdated` falsche «Latest»-Werte)
+- [ ] Befund aus einem Regressionsrundgang erst als Regression werten, wenn er nicht älter ist
+      als das Upgrade (`git log -L`, Code-Herkunft); ältere Befunde als eigenes Issue, nicht im
+      Upgrade-PR beheben
 
 Migrationen:
 

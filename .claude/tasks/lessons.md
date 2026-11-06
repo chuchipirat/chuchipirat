@@ -176,3 +176,15 @@ Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» un
 **What happened**: Ein Build im Worktree unter `$CLAUDE_JOB_DIR` lief mit Node 20 und brach ab; `.nvmrc` greift dort nicht.
 
 **Rule**: Für Builds ausserhalb des Repos `PATH=~/.nvm/versions/node/v24.*/bin:$PATH` setzen und beide Seiten eines Vergleichs mit derselben Version bauen.
+
+## Sitzungs-Node vor dem Messen prüfen (2026-11-06)
+
+**What happened**: Die Hintergrund-Sitzung lief mit Node 20 / npm 10.8, obwohl `.nvmrc` und der nvm-Standard des Nutzers 24 sind. `npm outdated` zeigte darum «Latest»-Versionen, die älter waren als die installierten, und ich erklärte das zuerst falsch mit Registry-dist-tags.
+
+**Rule**: Am Anfang jeder Messung `node -v && npm -v` ausgeben. Weicht die Version ab, `PATH=~/.nvm/versions/node/v24.*/bin:$PATH` setzen und Messungen wiederholen. Unplausible Werte eines Werkzeugs zuerst auf die Umgebung prüfen, bevor eine Erklärung behauptet wird.
+
+## Browser-Rundgang: Layoutverschiebung und Geräteansicht (2026-11-06)
+
+**What happened**: Zwei gebündelte Klicks auf DataGrid-Zeilen trafen «alle auswählen», weil nach dem ersten Klick eine Auswahlleiste erschien und die Tabelle nach unten schob. In der DevTools-Geräteansicht liefen Mausklicks der Chrome-Erweiterung in einen 30-s-Timeout.
+
+**Rule**: Nach einem Klick, der Layout ändern kann (Auswahl, Dialog, Leiste), vor dem nächsten Klick einen Screenshot nehmen. Bei offener Geräteansicht Buttons per `element.click()` über `javascript_tool` auslösen und nur das Layout per Screenshot prüfen.
