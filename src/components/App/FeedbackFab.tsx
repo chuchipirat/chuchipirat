@@ -1,11 +1,60 @@
 import {useEffect, useRef} from "react";
 import Fab from "@mui/material/Fab";
-import {useTheme} from "@mui/material/styles";
+import {createTheme} from "@mui/material/styles";
 import * as Sentry from "@sentry/react";
 
 import {FeedbackIcon} from "../Shared/icons";
 import {useCustomStyles} from "../../constants/styles";
 import {FEEDBACK as TEXT_FEEDBACK} from "../../constants/text";
+import {getTheme} from "./customTheme";
+
+/**
+ * Farben des Sentry-Feedback-Formulars für einen Modus (hell oder dunkel).
+ *
+ * Eigener Typ, weil Sentry die Optionen von `feedbackIntegration` als `any`
+ * typisiert und den eigentlichen Typ nur im nicht direkt installierten
+ * `@sentry/core` exportiert. Die übrigen Felder (`boxShadow`, `outline`)
+ * bleiben beim Sentry-Standard.
+ *
+ * @property foreground Textfarbe.
+ * @property background Hintergrund des Formulars.
+ * @property accentBackground Hintergrund von Knöpfen und Hervorhebungen.
+ * @property accentForeground Textfarbe auf `accentBackground`.
+ * @property successColor Farbe der Erfolgsmeldung.
+ * @property errorColor Farbe von Fehlermeldungen.
+ */
+type FeedbackColors = {
+  foreground: string;
+  background: string;
+  accentBackground: string;
+  accentForeground: string;
+  successColor: string;
+  errorColor: string;
+};
+
+/**
+ * Leitet die Formularfarben aus der App-Palette des gewünschten Modus ab.
+ *
+ * Nutzt `getTheme()`, damit die Umgebungsfarben (lila auf TEST) und der
+ * Admin-Schalter «Originalfarben» auch im Feedback-Formular gelten.
+ *
+ * @param prefersDarkMode `true` für die Farben des Dunkelmodus.
+ * @returns Farben für `themeLight` bzw. `themeDark` der Feedback-Integration.
+ * @example
+ * buildFeedbackTheme(false).accentBackground // "#006064" (PROD, hell)
+ */
+const buildFeedbackTheme = (prefersDarkMode: boolean): FeedbackColors => {
+  const palette = createTheme({palette: getTheme(prefersDarkMode)}).palette;
+
+  return {
+    foreground: palette.text.primary,
+    background: palette.background.default,
+    accentBackground: palette.primary.main,
+    accentForeground: palette.primary.contrastText,
+    successColor: palette.success.main,
+    errorColor: palette.error.main,
+  };
+};
 
 /**
  * Schwebender Feedback-Button — öffnet beim Klick das Sentry-Feedback-Formular.
@@ -22,19 +71,22 @@ import {FEEDBACK as TEXT_FEEDBACK} from "../../constants/text";
  */
 const FeedbackFab = () => {
   const classes = useCustomStyles();
-  const theme = useTheme();
   const buttonRef = useRef<HTMLButtonElement>(null);
 
-  // Feedback-Formular an den Button hängen, sobald er im DOM ist. Abhängig von
-  // `theme`, damit die Formularfarben dem Light-/Dark-Wechsel folgen.
+  // Einmal pro Mount; den Hell/Dunkel-Wechsel übernimmt Sentry
+  // über colorScheme: "system"
   useEffect(() => {
     const button = buttonRef.current;
     if (!button) return;
 
-    const feedback = Sentry.feedbackIntegration({autoInject: false});
+    const feedback = Sentry.feedbackIntegration({
+      autoInject: false,
+      colorScheme: "system",
+      themeLight: buildFeedbackTheme(false),
+      themeDark: buildFeedbackTheme(true),
+    });
     const detach = feedback.attachTo(button, {
       formTitle: TEXT_FEEDBACK.title,
-      colorScheme: "system",
       submitButtonLabel: TEXT_FEEDBACK.submitButton,
       cancelButtonLabel: TEXT_FEEDBACK.cancelButton,
       addScreenshotButtonLabel: TEXT_FEEDBACK.addScreenshotButton,
@@ -45,25 +97,10 @@ const FeedbackFab = () => {
       messagePlaceholder: TEXT_FEEDBACK.messagePlaceholder,
       successMessageText: TEXT_FEEDBACK.successMessage,
       isRequiredLabel: TEXT_FEEDBACK.isRequired,
-      themeLight: {
-        foreground: theme.palette.text.primary,
-        background: theme.palette.background.default,
-        accentBackground: theme.palette.primary.main,
-        successColor: theme.palette.success.main,
-        errorColor: theme.palette.error.main,
-      },
-      themeDark: {
-        foreground: "#fff",
-        background: "#121212",
-        accentBackground: "#00bcd4",
-        accentForeground: "#000",
-        successColor: "#4caf50",
-        errorColor: "#f44336",
-      },
     });
 
     return detach;
-  }, [theme]);
+  }, []);
 
   return (
     <Fab
