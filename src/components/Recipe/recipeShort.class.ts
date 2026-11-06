@@ -58,8 +58,7 @@ export class RecipeShort {
    * @returns Kurzrezept
    */
   static createShortRecipeFromRecipe(recipe: Recipe): RecipeShort {
-    //ATTENTION: muss auch im File rebuildFile000AllRecipes angepasst werden
-    const recipeShort = {
+    const recipeShort: RecipeShort = {
       uid: recipe.uid,
       name: recipe.name,
       source: recipe.source,
@@ -78,7 +77,7 @@ export class RecipeShort {
     };
 
     if (recipe.type == RecipeType.variant) {
-      recipeShort["variantName"] = recipe.variantProperties?.variantName;
+      recipeShort.variantName = recipe.variantProperties?.variantName;
     }
     return recipeShort;
   }

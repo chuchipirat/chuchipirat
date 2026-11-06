@@ -152,7 +152,6 @@ export function createShortRecipeFromRecipe(recipe: {
   rating: {avgRating?: number; noRatings?: number};
   variantProperties?: {variantName?: string};
 }): RecipeShort {
-  // ATTENTION: Muss auch im File rebuildFile000AllRecipes angepasst werden
   const recipeShort: RecipeShort = {
     uid: recipe.uid,
     name: recipe.name,

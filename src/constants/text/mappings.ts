@@ -5,6 +5,12 @@
 import {MATERIAL_TYPE_CONSUMABLE, MATERIAL_TYPE_USAGE} from "./masterdata";
 import {LACTOSE, GLUTEN} from "./recipes";
 import {ERROR_SESSION_EXPIRED} from "./errors";
+import {SelectableMenuType} from "../../components/Recipe/recipe.class";
+import {
+  Allergen,
+  Diet,
+  SelectableAllergen,
+} from "../../components/Product/product.types";
 
 /* =====================================================================
 // Rollen
@@ -65,7 +71,7 @@ export const RECIPIENT_TYPE = {
 /* =====================================================================
 // Menü- und Diät-Typen
 // ===================================================================== */
-export const MENU_TYPES = {
+export const MENU_TYPES: Record<SelectableMenuType, string> = {
   1: "Hauptgang",
   2: "Beilage",
   3: "Vorspeise",
@@ -75,22 +81,22 @@ export const MENU_TYPES = {
   7: "Apero",
   8: "Getränk",
 };
-export const DIET_TYPES = {
+export const DIET_TYPES: Record<Diet, string> = {
   1: "Fleisch",
   2: "vegetarisch",
   3: "vegan",
 };
 // Wenn der Key fehlt, ist es...
-export const ALLERGENS_FREE_TYPES = {
+export const ALLERGENS_FREE_TYPES: Record<SelectableAllergen, string> = {
   1: "Laktosefrei",
   2: "Glutenfrei",
 };
-export const ALLERGEN_KEY_TEXT = {
+export const ALLERGEN_KEY_TEXT: Record<Allergen, string> = {
   0: "-",
   1: LACTOSE,
   2: GLUTEN,
 };
-export const MATERIAL_TYPE_KEY_TEXT = {
+export const MATERIAL_TYPE_KEY_TEXT: Record<number, string> = {
   0: "-",
   1: MATERIAL_TYPE_CONSUMABLE,
   2: MATERIAL_TYPE_USAGE,

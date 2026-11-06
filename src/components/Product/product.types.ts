@@ -22,6 +22,22 @@ export enum Allergen {
 }
 
 /**
+ * Allergen, das ein Rezept oder Produkt enthalten kann (alle ausser
+ * `Allergen.None`).
+ */
+export type SelectableAllergen = Exclude<Allergen, Allergen.None>;
+
+/**
+ * Alle echten Allergene, z.B. für die «…frei»-Hinweise auf der Rezeptkarte.
+ * Über die Werte iterieren, nicht über `Object.keys`: Das liefert bei einem
+ * Array die Indizes, bei einem numerischen Enum auch die Namen.
+ */
+export const SELECTABLE_ALLERGENS: SelectableAllergen[] = [
+  Allergen.Lactose,
+  Allergen.Gluten,
+];
+
+/**
  * Diaet-Klassifikation fuer Produkte.
  * Numerische Werte bleiben erhalten (String-Umstellung ist Tech-Debt).
  */

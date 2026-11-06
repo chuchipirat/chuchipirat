@@ -129,6 +129,26 @@ export enum MenuType {
 }
 
 /**
+ * Menüart, die man auswählen kann (alle ausser `MenuType.None`).
+ */
+export type SelectableMenuType = Exclude<MenuType, MenuType.None>;
+
+/**
+ * Menüarten, die in Auswahllisten angeboten werden, in Anzeigereihenfolge.
+ * `MenuType.None` fehlt bewusst: «keine Menüart» ist keine wählbare Option.
+ */
+export const SELECTABLE_MENU_TYPES: SelectableMenuType[] = [
+  MenuType.MainCourse,
+  MenuType.SideDish,
+  MenuType.Appetizer,
+  MenuType.Dessert,
+  MenuType.Breakfast,
+  MenuType.Snack,
+  MenuType.Apero,
+  MenuType.Beverage,
+];
+
+/**
  * Produkt-Referenz im Zutaten-Context.
  */
 export interface IngredientProduct {

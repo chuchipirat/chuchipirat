@@ -34,7 +34,11 @@ import {
 } from "../../constants/text";
 
 import {Utils} from "../Shared/utils.class";
-import {Allergen, Diet, DietProperties} from "../Product/product.types";
+import {
+  Diet,
+  DietProperties,
+  SELECTABLE_ALLERGENS,
+} from "../Product/product.types";
 import {RecipeType} from "./recipe.class";
 // ===================================================================== */
 /**
@@ -90,20 +94,11 @@ export const RecipeCard = ({
       infoLine = addTextEntry(infoLine, TEXT_DIET_TYPES[dietProperties.diet]);
     }
 
-    if (dietProperties.allergens.length > 0) {
-      Object.keys(Allergen).map((allergen) => {
-        if (
-          parseInt(allergen) > 0 &&
-          !isNaN(parseInt(allergen)) &&
-          !dietProperties.allergens.includes(parseInt(allergen))
-        ) {
-          infoLine = addTextEntry(
-            infoLine,
-            TEXT_ALLERGENS_FREE_TYPES[parseInt(allergen)],
-          );
-        }
-      });
-    }
+    SELECTABLE_ALLERGENS.filter(
+      (allergen) => !dietProperties.allergens.includes(allergen),
+    ).forEach((allergen) => {
+      infoLine = addTextEntry(infoLine, TEXT_ALLERGENS_FREE_TYPES[allergen]);
+    });
 
     return infoLine;
   };

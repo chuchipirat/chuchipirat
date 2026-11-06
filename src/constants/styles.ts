@@ -307,7 +307,7 @@ const useCustomStyles = () => {
           // borderRadius: "4px",
         },
       },
-      preview: (dragging) => {
+      preview: (dragging: DOMRect) => {
         return {
           width: dragging.width,
           height: dragging.height,
@@ -363,7 +363,7 @@ const useCustomStyles = () => {
         // // backgroundColor: theme.palette.primary.light,
         // // opacity: "0.4",
       },
-      preview: (dragging) => {
+      preview: (dragging: DOMRect) => {
         return {
           width: dragging.width,
           height: dragging.height,

@@ -12,6 +12,7 @@ import Recipe, {
   ScaledIngredients,
   ScaledMaterials,
   ScalingOptions,
+  SELECTABLE_MENU_TYPES,
 } from "./recipe.class";
 import {useNavigate} from "react-router";
 
@@ -1493,7 +1494,9 @@ export const RecipeInfoPanel = ({
               <FormListItem
                 key={"menuType"}
                 id={"menuType"}
-                value={recipe.menuTypes
+                value={SELECTABLE_MENU_TYPES.filter((menuType) =>
+                  recipe.menuTypes.includes(menuType),
+                )
                   .map((menuType) => TEXT_MENU_TYPES[menuType])
                   .join(", ")}
                 label={TEXT_MENU_TYPE}
