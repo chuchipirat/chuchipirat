@@ -126,3 +126,17 @@ Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» un
 
 **How to apply**: Die Fundstellen (Datei:Zeile) direkt in den Prüfschritt schreiben, damit der Nutzer sieht, woher er kommt.
 
+## Behauptungen über Bibliotheken und Bundles erst messen (2026-11-06)
+
+**What happened**: Im Tooling-Epic sagte ich zweimal etwas Falsches mit Überzeugung: «FeedbackFab-Farben wirken nie» (Sentry übernimmt sie zur Laufzeit doch, nur der Typ verbietet es) und «Haupt-Bundle 30 % kleiner mit Vite 8» (die Startladung war gleich, nur auf 65 Dateien verteilt). Dazu schlug ich einen abgeleiteten Typ vor, der in Wahrheit `any` war.
+
+**Rule**: Vor einer Aussage über Bibliotheksverhalten den Code in `node_modules` lesen; Bundle-Gewinne an den Dateien messen, die `build/index.html` beim Start lädt; jeden aus einer Bibliothek abgeleiteten Typ mit einem falschen Wert gegen `tsc` prüfen.
+
+**How to apply**: In Plänen kennzeichnen, was gemessen und was vermutet ist («Vermutung, prüfe ich beim Umsetzen»).
+
+## «Darf nicht vorkommen»-Tests vollständig machen (2026-11-06)
+
+**What happened**: Mein Test «`attachTo` bekommt nur Texte» prüfte `themeLight`/`themeDark`, nicht `colorScheme`; das doppelte `colorScheme` fiel erst im Review auf.
+
+**Rule**: Bei Negativ-Tests jede Eigenschaft prüfen, die vor der Änderung an dieser Stelle stand.
+

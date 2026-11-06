@@ -166,6 +166,12 @@ Abhängigkeits-Upgrades:
 - [ ] Nach `npm update --save`: Bereiche in `package.json` gegen `npm ls` abgeglichen (gemeinsam
       genutzte Pakete werden nicht immer angehoben)
 - [ ] Risikobereich im Browser geprüft, auch wenn der Changelog harmlos aussieht
+- [ ] Behauptetes Fehlverhalten einer Bibliothek im Quellcode (`node_modules/…`) nachgelesen, bevor
+      es als Fehler gilt
+- [ ] Bundle-Zahlen aus den Dateien gemessen, die `build/index.html` beim Start lädt (nicht nur
+      der grösste Chunk)
+- [ ] Aus einer Bibliothek abgeleitete Typen geprüft: Mutationsprobe (falscher Wert → `tsc` rot);
+      viele Bibliotheken typisieren Optionen als `any`
 
 Migrationen:
 
