@@ -71,6 +71,7 @@ import {GlobalSettingsContext} from "../globalSettingsContext";
 import AuthUser from "../../Session/authUser.class";
 import {Role} from "../../../constants/roles";
 import * as Sentry from "@sentry/react";
+import type {AuthChangeEvent, Session} from "@supabase/supabase-js";
 
 /* ===================================================================
 // ======================== Hilfs-Funktionen ==========================
@@ -332,7 +333,7 @@ describe("isValidCachedAuthUser", () => {
 describe("AuthUserProvider — findOwnProfile-Fehlerbehandlung", () => {
   const mockFindOwnProfile = jest.fn();
   let authStateChangeCallback:
-    | ((event: string, session: {user: {id: string; email_confirmed_at: string}} | null) => void)
+    | ((event: AuthChangeEvent, session: Session | null) => void)
     | null = null;
 
   beforeEach(() => {
@@ -342,15 +343,16 @@ describe("AuthUserProvider — findOwnProfile-Fehlerbehandlung", () => {
       authStateChangeCallback = callback;
       return () => {};
     });
-    (mockDatabase.users as {findOwnProfile: jest.Mock}).findOwnProfile =
-      mockFindOwnProfile;
+    mockDatabase.users.findOwnProfile = mockFindOwnProfile;
   });
 
   /** Simuliert ein SIGNED_IN-Event und wartet, bis der setTimeout(0)-Aufruf durchgelaufen ist. */
   const triggerSignedIn = async () => {
-    authStateChangeCallback?.("SIGNED_IN", {
+    // Nur die Felder, die der Listener liest; der Rest einer Session ist hier egal.
+    const session = {
       user: {id: "3f2504e0-4f89-41d3-9a0c-0305e82c3301", email_confirmed_at: "2026-01-01"},
-    });
+    } as Session;
+    authStateChangeCallback?.("SIGNED_IN", session);
     // setTimeout(..., 0) im Listener abwarten
     await new Promise((resolve) => setTimeout(resolve, 0));
   };

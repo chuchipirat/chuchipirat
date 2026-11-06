@@ -58,7 +58,7 @@ const buildMenueCoordinate = (
   date: new Date("2026-03-15"),
   menueName: "Menü 1",
   mealUid: "meal-1",
-  mealType: {uid: "mt-1", name: "Mittagessen", pos: 1},
+  mealType: {uid: "mt-1", name: "Mittagessen"},
   ...overrides,
 });
 

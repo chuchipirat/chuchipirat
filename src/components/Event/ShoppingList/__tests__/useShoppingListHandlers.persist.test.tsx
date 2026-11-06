@@ -72,6 +72,7 @@ const makeShoppingList = (): ShoppingList => {
     departmentName: "Abteilung 0",
     items: [
       {
+        id: "row-a",
         checked: false,
         quantity: 1,
         unit: "kg",
@@ -79,6 +80,7 @@ const makeShoppingList = (): ShoppingList => {
         type: ItemType.custom,
       },
       {
+        id: "row-b",
         checked: false,
         quantity: 2,
         unit: "kg",

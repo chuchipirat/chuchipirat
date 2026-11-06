@@ -16,6 +16,7 @@ import {
 import {MemoryRouter, useLocation} from "react-router";
 import {AuthUserContext} from "../../Session/authUserContext";
 import authUser from "../../Session/__mocks__/authuser.mock";
+import {AuthUser} from "../../Session/authUser.class";
 
 
 // IntersectionObserver-Mock: observe() löst Callback aus (nach Konstruktor-Return)
@@ -43,7 +44,7 @@ const LocationDisplay = () => {
   return null;
 };
 
-const renderLanding = (authUserValue: unknown = null) => {
+const renderLanding = (authUserValue: AuthUser | null = null) => {
   return render(
     <MemoryRouter initialEntries={["/"]}>
       <AuthUserContext.Provider value={authUserValue}>

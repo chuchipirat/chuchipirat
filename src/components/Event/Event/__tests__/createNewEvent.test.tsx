@@ -100,17 +100,21 @@ const mockCheckEventData = jest.fn();
 const mockDeleteEmptyDates = jest.fn((dates: unknown[]) => dates);
 
 jest.mock("../event.class", () => {
-  const EventMock = jest.fn().mockImplementation(() => ({
-    uid: "",
-    name: "",
-    dates: [],
-    cooks: [],
-  }));
-  EventMock.factory = (...args: unknown[]) => mockEventFactory(...args);
-  EventMock.checkEventData = (...args: unknown[]) =>
-    mockCheckEventData(...args);
-  EventMock.deleteEmptyDates = (...args: unknown[]) =>
-    mockDeleteEmptyDates(...args);
+  // Konstruktor-Mock plus statische Methoden in einem Objekt, damit die
+  // Zusatzfelder typisiert sind (jest.fn() allein kennt sie nicht).
+  const EventMock = Object.assign(
+    jest.fn().mockImplementation(() => ({
+      uid: "",
+      name: "",
+      dates: [],
+      cooks: [],
+    })),
+    {
+      factory: (...args: unknown[]) => mockEventFactory(...args),
+      checkEventData: (...args: unknown[]) => mockCheckEventData(...args),
+      deleteEmptyDates: (dates: unknown[]) => mockDeleteEmptyDates(dates),
+    },
+  );
   return {
     __esModule: true,
     Event: EventMock,

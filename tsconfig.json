@@ -17,13 +17,7 @@
     "strictNullChecks": true,
     "noFallthroughCasesInSwitch": true,
     "skipLibCheck": true,
-    "types": ["vite/client", "jest", "node"]
+    "types": ["vite/client", "jest", "@testing-library/jest-dom", "node"]
   },
-  "include": ["./src/**/*.ts", "./src/**/*.tsx"],
-  "exclude": [
-    "./src/**/__tests__/**",
-    "./src/**/*.test.ts",
-    "./src/**/*.test.tsx",
-    "./src/**/__mocks__/**"
-  ]
+  "include": ["./src/**/*.ts", "./src/**/*.tsx"]
 }

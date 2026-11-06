@@ -19,13 +19,13 @@ import {MemoryRouter} from "react-router";
 /** Mock: User-Klasse (statische Methoden) */
 jest.mock("../user.class", () => {
   // Konstruktor als Funktion (wird für initialState benötigt)
-  function MockUser() {
-    (this as any).uid = "";
-    (this as any).firstName = "";
-    (this as any).lastName = "";
-    (this as any).email = "";
-    (this as any).noLogins = 0;
-    (this as any).roles = [];
+  function MockUser(this: Record<string, unknown>) {
+    this.uid = "";
+    this.firstName = "";
+    this.lastName = "";
+    this.email = "";
+    this.noLogins = 0;
+    this.roles = [];
   }
   MockUser.getFullProfile = jest.fn();
   MockUser.saveFullProfile = jest.fn();

@@ -50,6 +50,8 @@ function createTestProduct(overrides: Partial<Product> = {}): Product {
     shoppingUnit: "kg",
     dietProperties: {allergens: [], diet: Diet.Vegan},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
     ...overrides,
   };
 }

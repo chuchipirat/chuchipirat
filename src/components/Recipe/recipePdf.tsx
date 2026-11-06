@@ -9,9 +9,9 @@ import Recipe, {
   Ingredient,
   PositionType,
   PreparationStep,
-  RecipeMaterialPosition,
-  RecipeObjectStructure,
   RecipeType,
+  ScaledIngredients,
+  ScaledMaterials,
   Section,
 } from "./recipe.class";
 import AuthUser from "../Session/authUser.class";
@@ -33,8 +33,8 @@ import {Footer} from "../Shared/pdfComponents";
 interface RecipePdfProps {
   recipe: Recipe;
   scaledPortions: number | null;
-  scaledIngredients: RecipeObjectStructure<Ingredient>;
-  scaledMaterials: RecipeObjectStructure<RecipeMaterialPosition>;
+  scaledIngredients: ScaledIngredients;
+  scaledMaterials: ScaledMaterials;
   authUser: AuthUser;
 }
 export const RecipePdf = ({
@@ -77,8 +77,8 @@ export const RecipePdf = ({
 interface RecipePageProps {
   recipe: Recipe;
   scaledPortions: number | null;
-  scaledIngredients: RecipeObjectStructure<Ingredient>;
-  scaledMaterials: RecipeObjectStructure<RecipeMaterialPosition>;
+  scaledIngredients: ScaledIngredients;
+  scaledMaterials: ScaledMaterials;
   actualDate: Date;
   authUser: AuthUser;
 }
@@ -322,7 +322,7 @@ export const RecipeHeader = ({
 interface RecipeIngredientsProps {
   ingredients: Recipe["ingredients"];
   scaledPortions?: number | null;
-  scaledIngredients: Recipe["ingredients"];
+  scaledIngredients: ScaledIngredients;
 }
 export const RecipeIngredients = ({
   ingredients,
@@ -611,7 +611,7 @@ const RecipeSection = ({section}: RecipeSectionProps) => {
 interface RecipeMaterialProps {
   materials: Recipe["materials"];
   scaledPortions?: number | null;
-  scaledMaterials: Recipe["materials"];
+  scaledMaterials: ScaledMaterials;
 }
 export const RecipeMaterial = ({
   materials,

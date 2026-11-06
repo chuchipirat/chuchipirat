@@ -58,8 +58,8 @@ import Recipe, {
   PositionType,
   PreparationStep,
   RecipeMaterialPosition,
-  RecipeObjectStructure,
   RecipeType,
+  ScaledIngredients,
   Section,
 } from "../recipe.class";
 import AuthUser from "../../Session/authUser.class";
@@ -265,7 +265,7 @@ describe("RecipePdf Komponente", () => {
       },
     } as any);
 
-    const scaledIngredients: RecipeObjectStructure<Ingredient> = {
+    const scaledIngredients: ScaledIngredients = {
       "ing-1": {...ingredient, quantity: 1000} as Ingredient,
     };
 

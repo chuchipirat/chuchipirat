@@ -161,6 +161,7 @@ function buildCardListItemSource(itemType: MenuplanDragDropTypes) {
   return {
     data: getCardListItemData({
       listItem: {id: "dragged-item", primaryText: "", secondaryText: "", type: itemType},
+      itemType,
       rect: FAKE_RECT,
       menueUid: MENUE_UID,
     }),
