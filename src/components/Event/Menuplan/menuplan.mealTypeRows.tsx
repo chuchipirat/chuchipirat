@@ -370,7 +370,7 @@ const MealTypeRow = memo(function MealTypeRow({
 
   const mealRowRef = useRef<HTMLDivElement>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
-  const dragHandleRef = useRef<HTMLButtonElement>(null);
+  const dragHandleRef = useRef<HTMLDivElement>(null);
   // **const scrollableRef = useRef<HTMLDivElement | null>(null);
   const [draggableState, setDraggableState] =
     useState<DraggableState>(idleState);

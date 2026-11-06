@@ -2496,10 +2496,10 @@ const IngredientListEntry = ({
 }: IngredientListEntryProps) => {
   const {registerItem, instanceId} = useIngredientListContext();
 
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLLIElement>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
-  const dragHandleRef = useRef<HTMLButtonElement>(null);
+  const dragHandleRef = useRef<HTMLLIElement>(null);
 
   const [draggableState, setDraggableState] =
     useState<DraggableState>(idleState);
@@ -2965,10 +2965,10 @@ const PreparationStepListEntry = ({
 }: PreparationStepListEntryProps) => {
   const {registerItem, instanceId} = usePreparationListContext();
 
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLLIElement>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
-  const dragHandleRef = useRef<HTMLButtonElement>(null);
+  const dragHandleRef = useRef<HTMLLIElement>(null);
 
   const [draggableState, setDraggableState] =
     useState<DraggableState>(idleState);
@@ -3349,10 +3349,10 @@ const MaterialListEntry = ({
 }: MaterialListEntryProps) => {
   const {registerItem, instanceId} = useMaterialListContext();
 
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLLIElement>(null);
   const [closestEdge, setClosestEdge] = useState<Edge | null>(null);
 
-  const dragHandleRef = useRef<HTMLButtonElement>(null);
+  const dragHandleRef = useRef<HTMLLIElement>(null);
 
   const [draggableState, setDraggableState] =
     useState<DraggableState>(idleState);
