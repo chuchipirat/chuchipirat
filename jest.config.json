@@ -1,6 +1,7 @@
 {
   "preset": "ts-jest",
   "testEnvironment": "jsdom",
+  "roots": ["<rootDir>/src", "<rootDir>/supabase/volumes/functions"],
   "transform": {
     "^.+\\.tsx?$": [
       "ts-jest",
