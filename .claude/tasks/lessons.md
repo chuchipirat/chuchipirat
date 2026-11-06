@@ -140,3 +140,9 @@ Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» un
 
 **Rule**: Bei Negativ-Tests jede Eigenschaft prüfen, die vor der Änderung an dieser Stelle stand.
 
+## Commit nur hinter grünem Testlauf (2026-11-06)
+
+**What happened**: Im MUI-Epic committete ich, obwohl der volle Jest-Lauf 69 Fehler zeigte. Die Befehlskette prüfte nur die Ausgabe per `grep`, nicht den Exit-Code. Ursache der Fehler: Test-Mocks von `@mui/x-charts/LineChart` versteckten den neu importierten `lineClasses`.
+
+**Rule**: `git commit` nur in einer Kette hinter `npx jest --watchAll=false && npx tsc --noEmit && npm run lint`. Wird ein Modul in Tests gemockt, das neu auch Hilfswerte exportiert, im Mock `...jest.requireActual(...)` behalten.
+

@@ -172,6 +172,9 @@ Abhängigkeits-Upgrades:
       der grösste Chunk)
 - [ ] Jedes importierte Paket steht in `package.json` (nicht nur indirekt über ein anderes Paket);
       sonst springt es bei einem Update unbemerkt die Hauptversion
+- [ ] Hauptversion einer UI-Bibliothek: CSS-Selektoren auf deren Klassen und Slot-/Toolbar-Props
+      gezielt gesucht und im Browser geprüft (brechen still, ohne Typfehler); Selektoren über
+      exportierte Klassen (`lineClasses`, `alertClasses` …) statt fester Namen
 - [ ] Aus einer Bibliothek abgeleitete Typen geprüft: Mutationsprobe (falscher Wert → `tsc` rot);
       viele Bibliotheken typisieren Optionen als `any`
 
