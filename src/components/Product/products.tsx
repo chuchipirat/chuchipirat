@@ -71,7 +71,7 @@ import {
   Cached as CachedIcon,
   Warning as WarningIcon,
   FindReplace as FindReplaceIcon,
-  CheckCircleOutline as CheckCircleOutlineIcon,
+  CheckCircleOutlined as CheckCircleOutlineIcon,
   Delete as DeleteIcon,
   ZoomOutMap as ZoomOutMapIcon,
 } from "@mui/icons-material";
@@ -865,9 +865,12 @@ const ProductsTable = ({
                 <TextField
                   {...inputParams}
                   variant="standard"
-                  InputProps={{
-                    ...inputParams.InputProps,
-                    disableUnderline: true,
+                  slotProps={{
+                    ...inputParams.slotProps,
+                    input: {
+                      ...inputParams.slotProps.input,
+                      disableUnderline: true,
+                    },
                   }}
                 />
               )}
@@ -912,9 +915,12 @@ const ProductsTable = ({
                 <TextField
                   {...inputParams}
                   variant="standard"
-                  InputProps={{
-                    ...inputParams.InputProps,
-                    disableUnderline: true,
+                  slotProps={{
+                    ...inputParams.slotProps,
+                    input: {
+                      ...inputParams.slotProps.input,
+                      disableUnderline: true,
+                    },
                   }}
                 />
               )}

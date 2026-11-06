@@ -10,6 +10,7 @@ Object.assign(global, {TextEncoder, TextDecoder});
 import React from "react";
 import {render, screen, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
+import {stepperClasses} from "@mui/material/Stepper";
 import userEvent from "@testing-library/user-event";
 
 import {DialogRequest} from "../dialogRequest";
@@ -208,8 +209,12 @@ describe("DialogRequest", () => {
     expect(screen.getByText("Erledigt")).toBeInTheDocument();
 
     // Prüfe, dass genau 3 Step-Elemente gerendert werden
-    const stepper = screen.getByRole("list");
-    const steps = within(stepper).getAllByRole("listitem");
+    // Der Dialog enthält mehrere Listen; den Stepper über seine Klasse finden
+    const stepper = document.querySelector<HTMLElement>(
+      `.${stepperClasses.root}`,
+    );
+    expect(stepper).not.toBeNull();
+    const steps = within(stepper as HTMLElement).getAllByRole("listitem");
     // Jeder MUI-Step rendert ein listitem — wir erwarten mindestens 3
     expect(steps.length).toBeGreaterThanOrEqual(3);
   });

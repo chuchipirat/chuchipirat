@@ -26,8 +26,8 @@ import {
   Alert,
 } from "@mui/material";
 import {
-  CheckCircleOutline as CheckCircleIcon,
-  ErrorOutline as ErrorIcon,
+  CheckCircleOutlined as CheckCircleIcon,
+  ErrorOutlined as ErrorIcon,
   WarningAmber as WarningIcon,
 } from "@mui/icons-material";
 

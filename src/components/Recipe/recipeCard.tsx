@@ -19,7 +19,7 @@ import {
 import {
   Info as InfoIcon,
   Add as AddIcon,
-  ChatBubbleOutline as ChatBubbleOutlineIcon,
+  ChatBubbleOutlined as ChatBubbleOutlineIcon,
 } from "@mui/icons-material";
 
 import {RecipeShort} from "./recipe.types";

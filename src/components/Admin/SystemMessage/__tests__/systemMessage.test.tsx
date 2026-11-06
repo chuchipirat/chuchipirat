@@ -12,6 +12,7 @@ Object.assign(global, {TextEncoder, TextDecoder});
 import React from "react";
 import {render, screen, waitFor} from "@testing-library/react";
 import "@testing-library/jest-dom";
+import {alertClasses} from "@mui/material/Alert";
 import userEvent from "@testing-library/user-event";
 import {MemoryRouter, useLocation, Route, Routes} from "react-router";
 
@@ -371,7 +372,7 @@ describe("AlertSystemMessage", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toBeInTheDocument();
-    expect(alert).toHaveClass("MuiAlert-standardWarning");
+    expect(alert).toHaveClass(alertClasses.colorWarning);
   });
 
   test("Zeigt keinen Titel wenn leer", () => {
