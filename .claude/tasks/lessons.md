@@ -146,3 +146,15 @@ Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» un
 
 **Rule**: `git commit` nur in einer Kette hinter `npx jest --watchAll=false && npx tsc --noEmit && npm run lint`. Wird ein Modul in Tests gemockt, das neu auch Hilfswerte exportiert, im Mock `...jest.requireActual(...)` behalten.
 
+## zsh: Dateilisten nie als einfache Variable (2026-11-06)
+
+**What happened**: Für eine Wegwerf-Prüfung legte ich `FILES="a b c"` an und sicherte mit `for f in $FILES`. zsh teilt unquotierte Variablen nicht auf; Sicherung und Rücksetzen schlugen fehl, die Dateien des Nutzers enthielten danach meine Probeänderungen. Wiederhergestellt per Gegen-Ersetzung.
+
+**Rule**: Listen als Array (`files=(a b c)`, `for f in $files`) oder über `… | while read -r f`. Vor jedem Rücksetzen prüfen, dass die Sicherung existiert (`ls`), und danach mit `git diff` gegen den erwarteten Nutzerstand vergleichen.
+
+## Realtime-Fehler gegen einen Ablauf testen, nicht gegen ein Echo (2026-11-06)
+
+**What happened**: «Eigene Änderung leuchtet auf» behob ich zuerst mit einer längeren Nachlaufzeit. Die Ursache war, dass verworfene eigene Echos die Vergleichsbasis veralten liessen; das zeigte sich erst beim zweiten Klick.
+
+**Rule**: Bei Realtime-/Echo-Fehlern klären, ob der Zeitpunkt oder die Verarbeitung des Echos falsch ist, und einen Test mit mehreren aufeinanderfolgenden Echos schreiben (eigenes, dann fremdes).
+
