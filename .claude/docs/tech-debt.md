@@ -141,9 +141,6 @@ _(Claude Code: append entries here when you encounter English comments that shou
 
 ## MUI Deprecated APIs
 
-- **`InputProps` → `slotProps.input`** — Multiple components use the deprecated `InputProps` prop on MUI `<TextField>`. MUI 7 renamed this to `slotProps: { input: { ... } }`. Known locations: `src/components/AuthServiceHandler/resetPassword.tsx` (line ~166). Likely present in many more form-heavy files (SignIn, SignUp, UserProfile, Recipe, Event, etc.). Codebase-wide search + replace needed.
-  **Priorität:** mittel · **Komplexität:** mittel
-
 - **`departmentAutocomplete.tsx` Zeile 89** — Unsicherer Cast `event as unknown as React.ChangeEvent<HTMLInputElement>`. Fix erfordert Änderung des `onChange`-Prop-Typs zu `React.SyntheticEvent` und Aktualisierung von 2 Konsumenten (`dialogProduct.tsx`, `convertItem.tsx`).
   **Priorität:** tief · **Komplexität:** klein
 

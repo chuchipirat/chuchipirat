@@ -930,7 +930,13 @@ export const RecipeView = ({
         <Backdrop sx={classes.backdrop} open={isLoading || state.isLoading}>
           <CircularProgress color="inherit" />
         </Backdrop>
-        <Grid container spacing={4} justifyContent="center">
+        <Grid
+          container
+          spacing={4}
+          sx={{
+            justifyContent: "center",
+          }}
+        >
           {(error || state.error) && (
             <Grid size={12} key={"error"}>
               <AlertMessage
@@ -1792,22 +1798,24 @@ export const DialogTagAdd = ({
         <TextField
           fullWidth
           multiline
-          InputProps={{
-            startAdornment: tags.map((item) => (
-              <Chip
-                sx={classes.chip}
-                key={item}
-                tabIndex={-1}
-                label={item}
-                onDelete={() => handleTagDelete(item)}
-                size="small"
-              />
-            )),
-            onChange: (event) => {
-              handleInputChange(event);
+          value={textFieldValue}
+          slotProps={{
+            input: {
+              startAdornment: tags.map((item) => (
+                <Chip
+                  sx={classes.chip}
+                  key={item}
+                  tabIndex={-1}
+                  label={item}
+                  onDelete={() => handleTagDelete(item)}
+                  size="small"
+                />
+              )),
+              onChange: (event) => {
+                handleInputChange(event);
+              },
             },
           }}
-          value={textFieldValue}
         />
       </DialogContent>
       <DialogActions>
@@ -1870,7 +1878,12 @@ export const RecipeIngredients = ({
       <Typography component="div" align="center">
         {TEXT_FOR_ACCUSATIVE}
         {"  "}
-        <Box fontWeight="fontWeightBold" display="inline">
+        <Box
+          sx={{
+            fontWeight: "fontWeightBold",
+            display: "inline",
+          }}
+        >
           {scaledPortions ? scaledPortions : recipe.portions}
         </Box>
         {"  "}
@@ -1880,7 +1893,12 @@ export const RecipeIngredients = ({
         <Typography component="div" align="center" color="textSecondary">
           {TEXT_ORIGINAL}
           {"  "}
-          <Box fontWeight="fontWeightBold" display="inline">
+          <Box
+            sx={{
+              fontWeight: "fontWeightBold",
+              display: "inline",
+            }}
+          >
             {recipe?.portions}
           </Box>
           {"  "}
@@ -2084,7 +2102,12 @@ export const RecipeIngredients = ({
                       >
                         {ingredient.product?.name}
                         {ingredient.detail && (
-                          <Box display="inline" color="text.secondary">
+                          <Box
+                            sx={{
+                              display: "inline",
+                              color: "text.secondary",
+                            }}
+                          >
                             {`, ${ingredient.detail}`}
                           </Box>
                         )}
@@ -2348,7 +2371,13 @@ const RecipeVariantNote = ({recipe}: RecipeVariantNoteProps) => {
       >
         {TEXT_VARIANT_NOTE}
       </Typography>
-      <Grid container spacing={1} alignItems="center">
+      <Grid
+        container
+        spacing={1}
+        sx={{
+          alignItems: "center",
+        }}
+      >
         <Grid size={12} key={"recipe_variant_note_grid"}>
           <Typography key={"recipe_variant_note"} color="textPrimary">
             {recipe.variantProperties?.note}
@@ -2590,8 +2619,10 @@ const RecipeComments = ({
             placeholder={TEXT_FIELD_PLACEHOLDER_COMMENT}
             value={newComment}
             onChange={(event) => setNewComment(event.target.value)}
-            inputProps={{maxLength: MAX_COMMENT_LENGTH}}
             helperText={`${newComment.length} / ${MAX_COMMENT_LENGTH}`}
+            slotProps={{
+              htmlInput: {maxLength: MAX_COMMENT_LENGTH},
+            }}
           />
           <Tooltip title={TEXT_BUTTON_SAVE_COMMENT}>
             <span>
@@ -2660,12 +2691,19 @@ const RecipeComments = ({
                   <Box>
                     <Typography
                       variant="subtitle2"
-                      fontWeight="bold"
-                      lineHeight={1.3}
+                      sx={{
+                        fontWeight: "bold",
+                        lineHeight: 1.3,
+                      }}
                     >
                       {comment.displayName || "–"}
                     </Typography>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                      }}
+                    >
                       {comment.createdAt.toLocaleString("de-CH", {
                         day: "2-digit",
                         month: "2-digit",
@@ -2712,8 +2750,10 @@ const RecipeComments = ({
                       size="small"
                       value={editingText}
                       onChange={(event) => setEditingText(event.target.value)}
-                      inputProps={{maxLength: MAX_COMMENT_LENGTH}}
                       helperText={`${editingText.length} / ${MAX_COMMENT_LENGTH}`}
+                      slotProps={{
+                        htmlInput: {maxLength: MAX_COMMENT_LENGTH},
+                      }}
                     />
                     <Box sx={{display: "flex", gap: 1, mt: 0.5}}>
                       <IconButton

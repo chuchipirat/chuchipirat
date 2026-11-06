@@ -480,7 +480,9 @@ export const DialogGoods = ({
                 <ProductAutocomplete
                   componentKey={""}
                   product={
-                    dialogValues.product ? dialogValues.product : createEmptyProduct()
+                    dialogValues.product
+                      ? dialogValues.product
+                      : createEmptyProduct()
                   }
                   products={products}
                   onChange={onChangeField}
@@ -513,11 +515,13 @@ export const DialogGoods = ({
                 }
                 label={TEXT_QUANTITY}
                 type="number"
-                inputProps={{min: 0}}
                 onChange={onChangeField}
                 error={quantityError !== ""}
                 helperText={quantityError}
                 fullWidth
+                slotProps={{
+                  htmlInput: {min: 0},
+                }}
               />
             </Grid>
             {goodsType === GoodsType.PRODUCT && (

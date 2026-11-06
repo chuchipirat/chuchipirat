@@ -727,7 +727,9 @@ const DepartmentTable = ({
                     onChange={(_event, checked) =>
                       onToggleUsable(department.uid, checked)
                     }
-                    inputProps={{"aria-label": TEXT_ACTIVE}}
+                    slotProps={{
+                      input: {"aria-label": TEXT_ACTIVE},
+                    }}
                   />
                 </Grid>
                 <Grid key={"gridItemDivider_" + department.uid} size={12}>

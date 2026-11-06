@@ -212,7 +212,12 @@ export const UserPaymentDetailsCard: React.FC<UserPaymentDetailsCardProps> = ({
             </>
           ) : (
             <>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {TEXT_PAYMENT_DETAILS_HINT}
               </Typography>
               {isNameMissing && (
@@ -225,7 +230,12 @@ export const UserPaymentDetailsCard: React.FC<UserPaymentDetailsCardProps> = ({
                 // data-sentry-block: Adresse und IBAN nicht im Sentry-Replay aufzeichnen
                 <Stack spacing={2} sx={{mt: 2}} data-sentry-block>
                   <div>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                      }}
+                    >
                       {TEXT_ADDRESS}
                     </Typography>
                     <Typography
@@ -240,7 +250,12 @@ export const UserPaymentDetailsCard: React.FC<UserPaymentDetailsCardProps> = ({
                     </Typography>
                   </div>
                   <div>
-                    <Typography variant="caption" color="text.secondary">
+                    <Typography
+                      variant="caption"
+                      sx={{
+                        color: "text.secondary",
+                      }}
+                    >
                       {TEXT_IBAN}
                     </Typography>
                     <Typography sx={classes.paymentDetailsIban}>

@@ -94,14 +94,23 @@ export const ExpenseHistoryChart = ({
 
   return (
     <Card variant="outlined" sx={classes.evaluationTile}>
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography
+        variant="subtitle2"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {TEXT_EVALUATION_HISTORY_TITLE}
       </Typography>
       {hint ? (
         <Typography
           variant="body2"
-          color="text.secondary"
-          sx={classes.evaluationTileHint}
+          sx={[
+            {
+              color: "text.secondary",
+            },
+            classes.evaluationTileHint,
+          ]}
         >
           {hint}
         </Typography>
@@ -121,7 +130,12 @@ export const ExpenseHistoryChart = ({
             grid={{horizontal: true}}
             sx={classes.evaluationHistoryChart}
           />
-          <Typography variant="caption" color="text.secondary">
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_EVALUATION_HISTORY_SUMMARY(
               elapsedEventDays,
               eventDays.length,

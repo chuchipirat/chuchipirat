@@ -345,7 +345,10 @@ const DonationGoalsPage = () => {
         )}
 
         {state.error && (
-          <AlertMessage error={state.error} messageTitle={TEXT_ALERT_TITLE_UUPS} />
+          <AlertMessage
+            error={state.error}
+            messageTitle={TEXT_ALERT_TITLE_UUPS}
+          />
         )}
 
         {!state.isLoading && (
@@ -354,7 +357,9 @@ const DonationGoalsPage = () => {
               <Card key={section.id || `new-${index}`} sx={classes.card}>
                 <CardHeader
                   title={section.label || "Neuer Abschnitt"}
-                  subheader={section.id ? `ID: ${section.id}` : "Noch nicht gespeichert"}
+                  subheader={
+                    section.id ? `ID: ${section.id}` : "Noch nicht gespeichert"
+                  }
                   action={
                     <IconButton
                       onClick={() => handleDelete(index)}
@@ -439,7 +444,11 @@ const DonationGoalsPage = () => {
                         label="Details"
                         value={section.details}
                         onChange={(event) =>
-                          handleFieldChange(index, "details", event.target.value)
+                          handleFieldChange(
+                            index,
+                            "details",
+                            event.target.value,
+                          )
                         }
                         fullWidth
                         size="small"
@@ -472,7 +481,12 @@ const DonationGoalsPage = () => {
             </Button>
 
             {state.sections.length === 0 && (
-              <Typography color="text.secondary" align="center">
+              <Typography
+                align="center"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 Keine Spendenziel-Abschnitte vorhanden.
               </Typography>
             )}

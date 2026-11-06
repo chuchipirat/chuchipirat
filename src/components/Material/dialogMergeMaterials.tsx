@@ -144,14 +144,29 @@ export const DialogMergeMaterials = ({
           {role}
         </Typography>
         <Typography variant="h6">{material.name}</Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           Typ: {MATERIAL_TYPE_LABELS[material.type] ?? "—"}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           {TEXT_USABLE}: {material.usable ? "Ja" : "Nein"}
         </Typography>
         {refCount !== null && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {MERGE_MATERIAL_REFERENCES_LABEL}: {refCount}
           </Typography>
         )}

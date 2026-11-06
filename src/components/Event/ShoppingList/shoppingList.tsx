@@ -664,13 +664,15 @@ const QuantityField = React.memo(
         value={localValue}
         label={TEXT_FIELD_QUANTITY}
         type="number"
-        inputProps={{min: 0, inputMode: "decimal"}}
         onChange={(event) =>
           setLocalValue(sanitizeQuantityInput(event.target.value))
         }
         onBlur={handleBlur}
         fullWidth
         size="small"
+        slotProps={{
+          htmlInput: {min: 0, inputMode: "decimal"},
+        }}
       />
     );
   },
@@ -885,11 +887,6 @@ const EventShoppingListList = React.memo(
                         <>
                           <ListItemText
                             sx={classes.eventListItemTextQuantity}
-                            primaryTypographyProps={
-                              item.checked
-                                ? {color: "textSecondary"}
-                                : {color: "textPrimary"}
-                            }
                             key={"quantity" + item.item.uid + "_" + item.unit}
                             primary={
                               item.checked ? (
@@ -910,26 +907,26 @@ const EventShoppingListList = React.memo(
                                 }).format(item.quantity)
                               )
                             }
+                            slotProps={{
+                              primary: item.checked
+                                ? {color: "textSecondary"}
+                                : {color: "textPrimary"},
+                            }}
                           />
                           <ListItemText
                             sx={classes.eventListItemTextUnit}
-                            primaryTypographyProps={
-                              item.checked
-                                ? {color: "textSecondary"}
-                                : {color: "textPrimary"}
-                            }
                             key={"unit_" + item.item.uid + "_" + item.unit}
                             primary={
                               item.checked ? <del>{item.unit}</del> : item.unit
                             }
+                            slotProps={{
+                              primary: item.checked
+                                ? {color: "textSecondary"}
+                                : {color: "textPrimary"},
+                            }}
                           />
                           <ListItemText
                             sx={classes.eventListItemTextProduct}
-                            primaryTypographyProps={
-                              item.checked
-                                ? {color: "textSecondary"}
-                                : {color: "textPrimary"}
-                            }
                             key={"itemName_" + item.item.uid + "_" + item.unit}
                             primary={
                               item.checked ? (
@@ -938,14 +935,22 @@ const EventShoppingListList = React.memo(
                                 item.item.name
                               )
                             }
+                            slotProps={{
+                              primary: item.checked
+                                ? {color: "textSecondary"}
+                                : {color: "textPrimary"},
+                            }}
                           />
                         </>
                       ) : (
                         <Grid
                           container
                           spacing={2}
-                          alignItems="center"
-                          sx={{flex: 1, minWidth: 0}}
+                          sx={{
+                            alignItems: "center",
+                            flex: 1,
+                            minWidth: 0,
+                          }}
                         >
                           <Grid
                             size={{xs: 6, sm: 3}}

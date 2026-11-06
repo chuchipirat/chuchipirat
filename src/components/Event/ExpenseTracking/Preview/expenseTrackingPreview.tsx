@@ -51,7 +51,12 @@ export const ExpenseTrackingPreview = ({data}: ExpenseTrackingPreviewProps) => {
         <Typography variant="h6" component="h2">
           {TEXT_EXPENSE_TRACKING_PREVIEW_TITLE}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           {TEXT_EXPENSE_TRACKING_PREVIEW_HINT}
         </Typography>
       </Box>
@@ -61,7 +66,12 @@ export const ExpenseTrackingPreview = ({data}: ExpenseTrackingPreviewProps) => {
         data-testid="expense-tracking-preview-area"
         {...INERT_ATTRIBUTE}
       >
-        <Typography variant="subtitle2" color="text.secondary">
+        <Typography
+          variant="subtitle2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           {TEXT_EXPENSE_TRACKING_OVERVIEW}
         </Typography>
         <BudgetCardGrid
@@ -70,7 +80,12 @@ export const ExpenseTrackingPreview = ({data}: ExpenseTrackingPreviewProps) => {
         />
 
         <Box sx={classes.expenseTrackingPreviewSection}>
-          <Typography variant="subtitle2" color="text.secondary">
+          <Typography
+            variant="subtitle2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_EXPENSE_TRACKING_EXPENSES}
           </Typography>
           <ExpenseList
@@ -82,7 +97,12 @@ export const ExpenseTrackingPreview = ({data}: ExpenseTrackingPreviewProps) => {
         </Box>
 
         <Box sx={classes.expenseTrackingPreviewSection}>
-          <Typography variant="subtitle2" color="text.secondary">
+          <Typography
+            variant="subtitle2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_EXPENSE_TRACKING_EVALUATION}
           </Typography>
           <ExpenseEvaluation

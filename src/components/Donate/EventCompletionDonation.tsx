@@ -222,7 +222,12 @@ const EventCompletionDonation = ({
           <Typography variant="h5">
             {TEXT_DONATION_EVENT_READY(eventName)}
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography
+            variant="body1"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_DONATION_EVENT_READY_SUBTEXT}
           </Typography>
         </Stack>
@@ -451,8 +456,11 @@ const DonationAppealCard = ({
           </Box>
           <Typography
             variant="caption"
-            color="text.secondary"
-            sx={{mt: 0.5, display: "block"}}
+            sx={{
+              color: "text.secondary",
+              mt: 0.5,
+              display: "block",
+            }}
           >
             {isGoalReached
               ? TEXT_DONATION_GOAL_REACHED_EXTENDED
@@ -470,7 +478,12 @@ const DonationAppealCard = ({
         {sections.map((section, index) => (
           <Box key={section.id}>
             <Box sx={{display: "flex", alignItems: "center", gap: 0.5}}>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {section.label}: {formatChf(section.targetCents)}{" "}
                 {TEXT_DONATION_COST_PER_YEAR}
               </Typography>
@@ -485,8 +498,11 @@ const DonationAppealCard = ({
             <Collapse in={expandedBreakdown === index}>
               <Typography
                 variant="caption"
-                color="text.disabled"
-                sx={{pl: 3, display: "block"}}
+                sx={{
+                  color: "text.disabled",
+                  pl: 3,
+                  display: "block",
+                }}
               >
                 {section.details}
               </Typography>

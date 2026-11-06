@@ -501,16 +501,23 @@ const MaterialPage = () => {
           <React.Fragment>
             <Typography
               variant="body2"
-              color="warning.main"
               gutterBottom
-              sx={{fontWeight: "bold"}}
+              sx={{
+                color: "warning.main",
+                fontWeight: "bold",
+              }}
             >
               {TEXT_MATERIAL_IN_USE_WARNING}
             </Typography>
             <WhereUsedResultPanel entries={references} />
           </React.Fragment>
         ) : (
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_MATERIAL_NOT_IN_USE}
           </Typography>
         );

@@ -341,10 +341,20 @@ type StatCardProps = {
 const StatCard = ({label, value}: StatCardProps) => (
   <Card>
     <CardContent>
-      <Typography variant="caption" color="text.secondary">
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {label}
       </Typography>
-      <Typography variant="h5" fontWeight={600}>
+      <Typography
+        variant="h5"
+        sx={{
+          fontWeight: 600,
+        }}
+      >
         {value}
       </Typography>
     </CardContent>

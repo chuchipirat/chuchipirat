@@ -250,7 +250,12 @@ const DonationForm = ({
         />
 
         {/* Spender-Info (read-only) */}
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           Spender*in: {authUser.publicProfile.displayName} ({authUser.email})
         </Typography>
 

@@ -66,19 +66,34 @@ const FooterComponent = () => {
   return (
     <footer>
       <Container sx={classes.container}>
-        <Grid container justifyContent="center" alignItems="center" spacing={4}>
+        <Grid
+          container
+          spacing={4}
+          sx={{
+            justifyContent: "center",
+            alignItems: "center",
+          }}
+        >
           <Grid size={2} />
           <Grid size={3}>
             <Divider sx={classes.mediumDivider} />
           </Grid>
-          <Grid size={2} container justifyContent="center">
+          <Grid
+            size={2}
+            container
+            sx={{
+              justifyContent: "center",
+            }}
+          >
             <Box
               component="img"
               src={
                 ImageRepository.getEnvironmentRelatedPicture().VECTOR_LOGO_GREY
               }
               alt=""
-              width="50px"
+              sx={{
+                width: "50px",
+              }}
             />
           </Grid>
           <Grid size={3}>

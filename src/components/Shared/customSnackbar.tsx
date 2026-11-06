@@ -79,7 +79,9 @@ function CustomSnackbar({
       open={snackbarOpen}
       onClose={handleClose}
       autoHideDuration={6000}
-      TransitionComponent={Fade}
+      slots={{
+        transition: Fade,
+      }}
     >
       <div>
         <CustomAlert

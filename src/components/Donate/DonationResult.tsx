@@ -206,7 +206,13 @@ const DonationResultPage = () => {
               <Typography variant="h5" align="center">
                 {title}
               </Typography>
-              <Typography variant="body1" align="center" color="text.secondary">
+              <Typography
+                variant="body1"
+                align="center"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {text}
               </Typography>
 

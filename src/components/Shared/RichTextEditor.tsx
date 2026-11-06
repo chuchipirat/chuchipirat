@@ -119,7 +119,10 @@ export const RichTextEditor = ({value, onChange, style}: RichTextEditorProps) =>
     <Box
       sx={{
         border: 1,
-        borderColor: theme.palette.mode === "dark" ? "rgba(255,255,255,0.23)" : "rgba(0,0,0,0.23)",
+        borderColor:
+          theme.palette.mode === "dark"
+            ? "rgba(255,255,255,0.23)"
+            : "rgba(0,0,0,0.23)",
         borderRadius: 1,
         "&:focus-within": {
           borderColor: theme.palette.primary.main,
@@ -227,7 +230,11 @@ export const RichTextEditor = ({value, onChange, style}: RichTextEditorProps) =>
             onClick={handleSetLink}
             color={editor.isActive("link") ? "primary" : "default"}
           >
-            <LinkIcon fontSize="small" />
+            <LinkIcon
+              sx={{
+                fontSize: "small",
+              }}
+            />
           </IconButton>
         </Tooltip>
         <Tooltip title="Link entfernen">

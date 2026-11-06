@@ -148,7 +148,9 @@ const MealTypeCard = memo(function MealTypeCard({
             </IconButton>
           }
           title={mealType.name}
-          titleTypographyProps={{variant: "h6"}}
+          slotProps={{
+            title: {variant: "h6"},
+          }}
         />
       </Card>
       <Menu

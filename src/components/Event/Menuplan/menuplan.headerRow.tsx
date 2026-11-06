@@ -327,12 +327,14 @@ const MenuplanHeaderRow = memo(function MenuplanHeaderRow({
                   </IconButton>
                 }
                 title={date.toLocaleString("default", {weekday: "long"})}
-                titleTypographyProps={{variant: "h6"}}
                 subheader={date.toLocaleString("de-CH", {
                   year: "numeric",
                   month: "2-digit",
                   day: "2-digit",
                 })}
+                slotProps={{
+                  title: {variant: "h6"},
+                }}
               />
               {note && (
                 <CardContent>

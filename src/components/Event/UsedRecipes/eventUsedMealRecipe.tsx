@@ -73,9 +73,11 @@ const EventUsedMealRecipe = React.memo(function EventUsedMealRecipe({
     >
       <Grid
         container
-        justifyContent="center"
         spacing={2}
         key={"recipeGridUsedRecipe_" + mealRecipe.uid}
+        sx={{
+          justifyContent: "center",
+        }}
       >
         {/* Titel */}
         <EventUsedMealRecipeTitle
@@ -126,12 +128,16 @@ const EventUsedMealRecipe = React.memo(function EventUsedMealRecipe({
           <Divider key={"recipeDividerLeft_" + mealRecipe.uid}>
             <Box
               component="img"
-              sx={classes.marginCenter}
               src={
                 ImageRepository.getEnvironmentRelatedPicture().VECTOR_LOGO_GREY
               }
               alt=""
-              width="50px"
+              sx={[
+                {
+                  width: "50px",
+                },
+                classes.marginCenter,
+              ]}
             />
           </Divider>
         </Grid>
@@ -180,7 +186,12 @@ const EventUsedMealRecipeTitle = React.memo(function EventUsedMealRecipeTitle({
         </Typography>
       )}
       <Typography align="center">
-        <Box component="span" color={theme.palette.text.secondary}>
+        <Box
+          component="span"
+          sx={{
+            color: theme.palette.text.secondary,
+          }}
+        >
           {TEXT_PLANED_FOR}
           {": "}
         </Box>
@@ -190,7 +201,12 @@ const EventUsedMealRecipeTitle = React.memo(function EventUsedMealRecipeTitle({
           month: "2-digit",
           day: "2-digit",
         })}
-        <Box component="span" color={theme.palette.text.secondary}>
+        <Box
+          component="span"
+          sx={{
+            color: theme.palette.text.secondary,
+          }}
+        >
           {", "}
           {TEXT_FOR_DATIVE}
           {": "}

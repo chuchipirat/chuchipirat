@@ -180,7 +180,13 @@ const SummaryCard = ({label, value}: SummaryCardProps) => {
         <Typography variant="h3" component="p" sx={{color}}>
           {value}
         </Typography>
-        <Typography color="text.secondary">{label}</Typography>
+        <Typography
+          sx={{
+            color: "text.secondary",
+          }}
+        >
+          {label}
+        </Typography>
       </CardContent>
     </Card>
   );
@@ -210,7 +216,11 @@ const RunningEvents = ({events, onOpenEvent}: RunningEventsProps) => {
               <Typography variant="h6" component="p">
                 {event.name}
               </Typography>
-              <Typography color="text.secondary">
+              <Typography
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {event.location} · {event.dateFrom.toLocaleDateString("de-CH")}{" "}
                 – {event.dateTo.toLocaleDateString("de-CH")}
               </Typography>
@@ -262,7 +272,11 @@ const ActivityList = ({activities, now, isMobile}: ActivityListProps) => {
               <Typography>
                 {AREA_LABELS[activity.area]} · {activity.objectName}
               </Typography>
-              <Typography color="text.secondary">
+              <Typography
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {formatMinutesAgo(getMinutesAgo(activity.lastActivityAt, now))}
               </Typography>
             </CardContent>
@@ -448,8 +462,14 @@ const DeployReadinessPage = () => {
               {TEXT_REFRESH}
             </Button>
             {state.fetchedAt && (
-              <Typography variant="body2" color="text.secondary">
-                {TEXT_LAST_REFRESH}: {state.fetchedAt.toLocaleTimeString("de-CH")}
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
+                {TEXT_LAST_REFRESH}:{" "}
+                {state.fetchedAt.toLocaleTimeString("de-CH")}
               </Typography>
             )}
           </Box>
@@ -473,7 +493,12 @@ const DeployReadinessPage = () => {
               now={now}
               isMobile={isMobile}
             />
-            <Typography variant="body2" color="text.secondary">
+            <Typography
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
               {TEXT_HINT}
             </Typography>
           </Stack>

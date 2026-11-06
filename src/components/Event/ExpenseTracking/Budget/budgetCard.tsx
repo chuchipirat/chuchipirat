@@ -202,7 +202,13 @@ export const BudgetCard = ({
               {TEXT_PROJECTION_ABOVE_BUDGET}
             </Typography>
           )}
-          <Typography variant="caption" color="text.secondary" component="p">
+          <Typography
+            variant="caption"
+            component="p"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_PROJECTION_DAY_X_OF_Y(
               budgetWithProgress.projection.elapsedEventDays,
               budgetWithProgress.projection.totalEventDays,

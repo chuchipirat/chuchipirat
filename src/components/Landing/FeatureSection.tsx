@@ -103,7 +103,12 @@ const FeatureSectionBase = ({feature, index}: FeatureSectionProps) => {
           <Typography variant="h5" component="h3" sx={{fontWeight: 600, mb: 1}}>
             {feature.title}
           </Typography>
-          <Typography variant="body1" color="text.secondary">
+          <Typography
+            variant="body1"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {feature.description}
           </Typography>
         </Box>
@@ -135,8 +140,10 @@ const FeatureSectionBase = ({feature, index}: FeatureSectionProps) => {
             <Grid
               container
               spacing={4}
-              alignItems="center"
               direction={isEven ? "row" : "row-reverse"}
+              sx={{
+                alignItems: "center",
+              }}
             >
               {isEven ? (
                 <>

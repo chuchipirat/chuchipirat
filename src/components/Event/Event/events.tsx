@@ -300,8 +300,10 @@ const EventsGrid = ({
     <Grid
       container
       spacing={2}
-      justifyContent="center"
       style={{marginBottom: "3rem"}}
+      sx={{
+        justifyContent: "center",
+      }}
     >
       {isLoading && (
         <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
@@ -358,7 +360,13 @@ const EventsGrid = ({
               }}
             >
               <AddIcon sx={{fontSize: 48, color: "text.secondary", mb: 1}} />
-              <Typography color="text.secondary">{TEXT_CREATE_EVENT}</Typography>
+              <Typography
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
+                {TEXT_CREATE_EVENT}
+              </Typography>
             </CardActionArea>
           </Card>
         </Grid>

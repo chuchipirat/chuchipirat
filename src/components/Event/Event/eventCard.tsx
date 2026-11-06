@@ -302,7 +302,9 @@ const EventCard = ({
                     variant="caption"
                     color="textSecondary"
                     key={i}
-                    display="block"
+                    sx={{
+                      display: "block",
+                    }}
                   >
                     {line}
                   </Typography>
@@ -311,8 +313,10 @@ const EventCard = ({
                   <Typography
                     variant="caption"
                     color="textSecondary"
-                    display="block"
-                    sx={{mt: 0.75}}
+                    sx={{
+                      display: "block",
+                      mt: 0.75,
+                    }}
                   >
                     {weatherDays
                       .map(
@@ -332,7 +336,12 @@ const EventCard = ({
           innerhalb eines anderen Buttons verschachtelt werden darf. */}
       {readiness && readiness.length > 0 && (
         <Box sx={{px: 2, pt: 1, pb: 0.5}}>
-          <Typography variant="caption" color="text.secondary">
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_READINESS_CHECKLIST_TITLE}
           </Typography>
           <List dense disablePadding>

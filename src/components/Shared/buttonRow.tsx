@@ -144,7 +144,12 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
 
   return (
     <React.Fragment>
-      <Grid container justifyContent="center">
+      <Grid
+        container
+        sx={{
+          justifyContent: "center",
+        }}
+      >
         {visibleButtons.map((button) => (
           <Grid key={"grid_" + button.id}>
             {button.visible && (
@@ -167,7 +172,7 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
         {/* Nur sichtbare zählen */}
         {overflowItems.reduce(
           (counter, button) => (button.visible ? counter + 1 : counter),
-          0
+          0,
         ) > 0 && (
           <React.Fragment>
             <IconButton
@@ -196,7 +201,7 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
                     >
                       {menuItem.label}
                     </MenuItem>
-                  )
+                  ),
               )}
             </Menu>
           </React.Fragment>
@@ -276,7 +281,7 @@ const ButtonRow = ({buttons, buttonGroup, splitButtons}: ButtonRowProps) => {
                               >
                                 {button.label}
                               </MenuItem>
-                            )
+                            ),
                         )}
                       </MenuList>
                     </ClickAwayListener>

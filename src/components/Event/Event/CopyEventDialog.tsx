@@ -382,7 +382,13 @@ const CopyEventDialog = ({
             />
 
             {/* Foto */}
-            <Stack direction="row" spacing={2} alignItems="center">
+            <Stack
+              direction="row"
+              spacing={2}
+              sx={{
+                alignItems: "center",
+              }}
+            >
               <Button variant="outlined" component="label" size="small">
                 {TEXT_COPY_EVENT_CHOOSE_PHOTO}
                 <input
@@ -397,11 +403,21 @@ const CopyEventDialog = ({
                   component="img"
                   src={photoPreview}
                   alt="Vorschau"
-                  sx={{width: 60, height: 40, objectFit: "cover", borderRadius: 1}}
+                  sx={{
+                    width: 60,
+                    height: 40,
+                    objectFit: "cover",
+                    borderRadius: 1,
+                  }}
                 />
               )}
               {!photoPreview && (
-                <Typography variant="caption" color="text.secondary">
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                  }}
+                >
                   {TEXT_COPY_EVENT_NO_PHOTO}
                 </Typography>
               )}
@@ -412,7 +428,9 @@ const CopyEventDialog = ({
 
           {/* ── Sektion 2: Zeitscheiben ── */}
           <Stack spacing={2}>
-            <Typography variant="subtitle2">{TEXT_COPY_EVENT_TIMESLICES}</Typography>
+            <Typography variant="subtitle2">
+              {TEXT_COPY_EVENT_TIMESLICES}
+            </Typography>
             {slices.map((slice, sliceIndex) => {
               const newEndDate = computeEndDate(
                 slice.newFrom,
@@ -420,8 +438,18 @@ const CopyEventDialog = ({
               );
               return (
                 <Stack key={sliceIndex} spacing={1}>
-                  <Typography variant="caption" color="text.secondary">
-                    {TEXT_COPY_EVENT_TIMESLICE_LABEL(sliceIndex + 1, formatDate(slice.originalFrom), formatDate(slice.originalTo), slice.durationDays)}
+                  <Typography
+                    variant="caption"
+                    sx={{
+                      color: "text.secondary",
+                    }}
+                  >
+                    {TEXT_COPY_EVENT_TIMESLICE_LABEL(
+                      sliceIndex + 1,
+                      formatDate(slice.originalFrom),
+                      formatDate(slice.originalTo),
+                      slice.durationDays,
+                    )}
                   </Typography>
                   <Stack direction="row" spacing={2}>
                     <DatePicker
@@ -452,7 +480,9 @@ const CopyEventDialog = ({
 
           {/* ── Sektion 3: Optionen ── */}
           <Stack spacing={1}>
-            <Typography variant="subtitle2">{TEXT_COPY_EVENT_OPTIONS}</Typography>
+            <Typography variant="subtitle2">
+              {TEXT_COPY_EVENT_OPTIONS}
+            </Typography>
             <FormGroup>
               <FormControlLabel
                 control={<Checkbox checked disabled />}
@@ -481,7 +511,12 @@ const CopyEventDialog = ({
                 label={TEXT_COPY_EVENT_COOKS}
               />
             </FormGroup>
-            <Typography variant="caption" color="text.secondary">
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
               {TEXT_COPY_EVENT_LISTS_INFO}
             </Typography>
           </Stack>

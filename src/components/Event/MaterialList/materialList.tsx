@@ -654,13 +654,15 @@ const QuantityField = React.memo(
         value={localValue}
         label={TEXT_FIELD_QUANTITY}
         type="number"
-        inputProps={{min: 0, inputMode: "decimal"}}
         onChange={(event) =>
           setLocalValue(sanitizeQuantityInput(event.target.value))
         }
         onBlur={handleBlur}
         fullWidth
         size="small"
+        slotProps={{
+          htmlInput: {min: 0, inputMode: "decimal"},
+        }}
       />
     );
   },
@@ -785,7 +787,8 @@ const EventMaterialListList = React.memo(
                   key={"materialListItem_" + material.id}
                   sx={{
                     ...classes.eventListItem,
-                    ...(highlightedItemUids.has(material.id) && classes.remoteChangeGlow),
+                    ...(highlightedItemUids.has(material.id) &&
+                      classes.remoteChangeGlow),
                   }}
                 >
                   <ListItemIcon>
@@ -800,17 +803,26 @@ const EventMaterialListList = React.memo(
                   <Grid
                     container
                     spacing={2}
-                    alignItems="center"
-                    sx={{flex: 1, minWidth: 0}}
+                    sx={{
+                      alignItems: "center",
+                      flex: 1,
+                      minWidth: 0,
+                    }}
                   >
-                    <Grid size={{xs: 3, sm: 2}} key={"quantity_grid_" + material.uid}>
+                    <Grid
+                      size={{xs: 3, sm: 2}}
+                      key={"quantity_grid_" + material.uid}
+                    >
                       <QuantityField
                         materialUid={material.uid}
                         quantity={material.quantity}
                         onChangeItem={onChangeItem}
                       />
                     </Grid>
-                    <Grid size={{xs: 5, sm: 5}} key={"material_grid_" + material.uid}>
+                    <Grid
+                      size={{xs: 5, sm: 5}}
+                      key={"material_grid_" + material.uid}
+                    >
                       <MaterialAutocomplete
                         componentKey={material.uid}
                         material={
@@ -844,11 +856,18 @@ const EventMaterialListList = React.memo(
                         }}
                       />
                     </Grid>
-                    <Grid size={{xs: 4, sm: 5}} key={"cook_grid_" + material.uid}>
+                    <Grid
+                      size={{xs: 4, sm: 5}}
+                      key={"cook_grid_" + material.uid}
+                    >
                       <Autocomplete
                         freeSolo
                         options={cookOptions}
-                        value={material.resolvedCookName || material.assignedCookName || ""}
+                        value={
+                          material.resolvedCookName ||
+                          material.assignedCookName ||
+                          ""
+                        }
                         onChange={(_event, newValue) => {
                           onAssignedCookChange(
                             material.uid,
@@ -857,8 +876,12 @@ const EventMaterialListList = React.memo(
                           );
                         }}
                         onBlur={(event) => {
-                          const inputValue = (event.target as HTMLInputElement).value;
-                          const currentValue = material.resolvedCookName || material.assignedCookName || "";
+                          const inputValue = (event.target as HTMLInputElement)
+                            .value;
+                          const currentValue =
+                            material.resolvedCookName ||
+                            material.assignedCookName ||
+                            "";
                           if (inputValue !== currentValue) {
                             onAssignedCookChange(
                               material.uid,

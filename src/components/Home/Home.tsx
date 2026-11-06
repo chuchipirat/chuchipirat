@@ -437,7 +437,13 @@ export const HomePage = () => {
     <React.Fragment>
       <HomeHeader authUser={authUser} />
       <Container sx={classes.container} component="main" maxWidth="xl">
-        <Grid container spacing={2} justifyContent="center">
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            justifyContent: "center",
+          }}
+        >
           {state.systemMessages.map((msg) => (
             <Grid size={12} key={`systemMessage_${msg.uid}`}>
               <AlertSystemMessage systemMessage={msg} />
@@ -884,9 +890,11 @@ const HomeOngoingEventSection = React.memo(
         </Typography>
         <Typography
           variant="body2"
-          color="text.secondary"
           align="center"
-          sx={{mb: 1.5}}
+          sx={{
+            color: "text.secondary",
+            mb: 1.5,
+          }}
         >
           {`${event.name} · ${TEXT_EVENT_DAY_OF_TOTAL(dayNumber, totalDays)}`}
         </Typography>
@@ -895,7 +903,13 @@ const HomeOngoingEventSection = React.memo(
             <Typography variant="subtitle2" align="center" sx={{mb: 1}}>
               {group.mealTypeName}
             </Typography>
-            <Grid container spacing={1} justifyContent="center">
+            <Grid
+              container
+              spacing={1}
+              sx={{
+                justifyContent: "center",
+              }}
+            >
               {group.recipes.map((recipe) => (
                 <Grid
                   key={"ongoingRecipe_" + recipe.mealPlanRecipeUid}
@@ -915,7 +929,12 @@ const HomeOngoingEventSection = React.memo(
                         alt={recipe.recipeName}
                       />
                       <CardContent sx={{p: 1, "&:last-child": {pb: 1}}}>
-                        <Typography variant="caption" display="block">
+                        <Typography
+                          variant="caption"
+                          sx={{
+                            display: "block",
+                          }}
+                        >
                           {recipe.recipeName}
                           {recipe.variantName
                             ? ` [Variante: ${recipe.variantName}]`
@@ -923,8 +942,10 @@ const HomeOngoingEventSection = React.memo(
                         </Typography>
                         <Typography
                           variant="caption"
-                          color="text.secondary"
-                          display="block"
+                          sx={{
+                            color: "text.secondary",
+                            display: "block",
+                          }}
                         >
                           {generatePlanedPortionsText({
                             uid: recipe.mealPlanRecipeUid,
@@ -1143,7 +1164,13 @@ const HomeNextEvents = React.memo(
             messageTitle={TEXT_ALERT_TITLE_WAIT_A_MINUTE}
           />
         )}
-        <Grid container spacing={2} justifyContent="center">
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            justifyContent: "center",
+          }}
+        >
           {isLoadingEvents && (
             <Grid size={{xs: 12, sm: 6, md: 4, lg: 3}}>
               <EventCardLoading key={"loadingEventCard"} />
@@ -1195,7 +1222,11 @@ const HomeNextEvents = React.memo(
                 }}
               >
                 <AddIcon sx={{fontSize: 48, color: "text.secondary", mb: 1}} />
-                <Typography color="text.secondary">
+                <Typography
+                  sx={{
+                    color: "text.secondary",
+                  }}
+                >
                   {TEXT_CREATE_EVENT}
                 </Typography>
               </CardActionArea>
@@ -1251,7 +1282,13 @@ const HomePassedEvents = React.memo(
 
     return (
       <React.Fragment>
-        <Grid container spacing={2} justifyContent="center">
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            justifyContent: "center",
+          }}
+        >
           {!showPassedEvents ? (
             <Grid size={12} sx={classes.centerCenter}>
               <Button
@@ -1325,7 +1362,13 @@ const HomeNewestRecipes = React.memo(
     const classes = useCustomStyles();
 
     return (
-      <Grid container spacing={2} justifyContent="center">
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          justifyContent: "center",
+        }}
+      >
         <Grid size={12} key={"recipeTitle"}>
           <Typography
             align="center"
@@ -1437,7 +1480,13 @@ const HomeFeed = React.memo(
       : feed.slice(0, DEFAULT_VALUES_FEEDS_DISPLAY_COLLAPSED);
 
     return (
-      <Grid container spacing={2} justifyContent="center">
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          justifyContent: "center",
+        }}
+      >
         <Grid size={12}>
           <Typography
             align="center"
@@ -1598,7 +1647,13 @@ const HomeStats = React.memo(({stats, isLoadingStats}: HomeStatsProps) => {
   );
 
   return (
-    <Grid container spacing={2} justifyContent="center">
+    <Grid
+      container
+      spacing={2}
+      sx={{
+        justifyContent: "center",
+      }}
+    >
       {/* {!isMobile && ( */}
       <Grid size={12}>
         <Typography

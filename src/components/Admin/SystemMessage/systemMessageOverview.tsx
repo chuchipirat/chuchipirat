@@ -326,8 +326,10 @@ const SystemMessageOverviewPage = () => {
             <Stack spacing={2}>
               <Stack
                 direction="row"
-                justifyContent="space-between"
-                alignItems="center"
+                sx={{
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                }}
               >
                 <FormControlLabel
                   control={

@@ -196,10 +196,21 @@ export const ManualDonationDialog = ({
       <DialogTitle>{TEXT_MANUAL_DONATION_CREATE}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{paddingTop: 1}}>
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_MANUAL_DONATION_DIALOG_HINT}
           </Typography>
-          <Stack direction="row" spacing={1} alignItems="flex-start">
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              alignItems: "flex-start",
+            }}
+          >
             <TextField
               label={TEXT_MANUAL_DONATION_DONOR_EMAIL}
               type="email"

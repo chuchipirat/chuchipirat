@@ -48,7 +48,11 @@ const ImpressumText = () => {
       <Typography variant="h6" gutterBottom>
         Verantwortlich für den Inhalt
       </Typography>
-      <Typography paragraph>
+      <Typography
+        sx={{
+          marginBottom: "16px",
+        }}
+      >
         Verein chuchipirat
         <br />
         8041 Zürich
@@ -59,7 +63,11 @@ const ImpressumText = () => {
       <Typography variant="h6" gutterBottom>
         Zweck
       </Typography>
-      <Typography paragraph>
+      <Typography
+        sx={{
+          marginBottom: "16px",
+        }}
+      >
         chuchipirat ist eine kostenlose, quelloffene Webapp für Schweizer
         Jugendorganisationen (Jungwacht Blauring, Pfadi uvm.), um die Lagerküche
         zu planen. Der Verein chuchipirat betreibt die Webapp ehrenamtlich und
@@ -69,7 +77,11 @@ const ImpressumText = () => {
       <Typography variant="h6" gutterBottom>
         Haftungsausschluss
       </Typography>
-      <Typography paragraph>
+      <Typography
+        sx={{
+          marginBottom: "16px",
+        }}
+      >
         Die Inhalte dieser Website wurden mit grösster Sorgfalt erstellt. Für
         die Richtigkeit, Vollständigkeit und Aktualität der Inhalte können wir
         jedoch keine Gewähr übernehmen. Als Diensteanbieter sind wir für eigene
@@ -77,7 +89,11 @@ const ImpressumText = () => {
         Eine Verpflichtung zur Überwachung übermittelter oder gespeicherter
         fremder Informationen besteht jedoch nicht.
       </Typography>
-      <Typography paragraph>
+      <Typography
+        sx={{
+          marginBottom: "16px",
+        }}
+      >
         Verpflichtungen zur Entfernung oder Sperrung der Nutzung von
         Informationen nach den allgemeinen Gesetzen bleiben hiervon unberührt.
         Eine diesbezügliche Haftung ist jedoch erst ab dem Zeitpunkt der
