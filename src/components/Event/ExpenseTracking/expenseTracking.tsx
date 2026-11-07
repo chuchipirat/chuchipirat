@@ -88,6 +88,9 @@ import {ExpenseOverview} from "./expenseOverview";
 import {getEventEnd, isReceiptRetentionOver} from "./receiptRetention";
 import {ExpenseTrackingPreview} from "./Preview/expenseTrackingPreview";
 import {EXPENSE_TRACKING_PREVIEW_DATA} from "./Preview/expenseTrackingPreview.data";
+import {trackEvent} from "../../Analytics/analyticsService";
+import {AnalyticsEvent} from "../../Analytics/analyticsEvents";
+import {scrollToElementAndFocus} from "../../../utils/scrollUtils";
 import {useBudgetActions} from "./useBudgetActions";
 import {useExpenseActions} from "./useExpenseActions";
 import {useExpenseReportExport} from "./useExpenseReportExport";
@@ -148,6 +151,18 @@ const EventExpenseTrackingPage = ({
   const authUser = useAuthUser();
 
   const saveInProgressRef = React.useRef(0);
+  // Ziel von «Zur Spende» am Ende der Vorschau
+  const donationFormRef = React.useRef<HTMLDivElement>(null);
+
+  /**
+   * Springt von «Zur Spende» am Ende der Vorschau zum Spendenformular und
+   * zählt den Klick, damit sich mit `donation_started` vergleichen lässt, ob
+   * der Button zu Spenden führt.
+   */
+  const handleDonateClick = React.useCallback(() => {
+    trackEvent(AnalyticsEvent.DONATION_PREVIEW_CTA_CLICKED);
+    scrollToElementAndFocus(donationFormRef.current);
+  }, []);
   const {
     state,
     dispatch,
@@ -516,6 +531,9 @@ const EventExpenseTrackingPage = ({
                 </Typography>
 
                 <Container
+                  ref={donationFormRef}
+                  // per Code fokussierbar (nach «Zur Spende»), nicht per Tab
+                  tabIndex={-1}
                   data-testid="expense-tracking-locked"
                   maxWidth="sm"
                   sx={classes.container}
@@ -531,7 +549,10 @@ const EventExpenseTrackingPage = ({
           </CardContent>
         </Card>
         {hasDonation === false && (
-          <ExpenseTrackingPreview data={EXPENSE_TRACKING_PREVIEW_DATA} />
+          <ExpenseTrackingPreview
+            data={EXPENSE_TRACKING_PREVIEW_DATA}
+            onDonateClick={handleDonateClick}
+          />
         )}
         {hasDonation === true && (
           <Box data-testid="expense-tracking-unlocked">

@@ -451,9 +451,21 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
       left: 0,
       right: 0,
       bottom: 0,
-      height: "50%",
-      background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)}, ${theme.palette.background.default})`,
+      height: "45%",
+      // unteres Viertel deckend, damit der Schlusstext darauf lesbar ist
+      background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)} 0%, ${theme.palette.background.default} 75%, ${theme.palette.background.default} 100%)`,
     },
+  },
+  expenseTrackingPreviewClosing: {
+    // liegt über dem deckenden Ende des Verlaufs von expenseTrackingPreviewArea
+    position: "relative",
+    zIndex: 1,
+    marginTop: theme.spacing(-18),
+    paddingX: theme.spacing(2),
+    textAlign: "center",
+  },
+  expenseTrackingPreviewClosingText: {
+    marginBottom: theme.spacing(2),
   },
   expenseTrackingPreviewSection: {
     marginTop: theme.spacing(3),

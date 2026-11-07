@@ -87,6 +87,7 @@ export const AnalyticsEvent = {
 
   // ── Spenden-Funnel ──
   DONATION_PAGE_VIEWED: "donation_page_viewed",
+  DONATION_PREVIEW_CTA_CLICKED: "donation_preview_cta_clicked",
   DONATION_SKIPPED: "donation_skipped",
   DONATION_STARTED: "donation_started",
   DONATION_AMOUNT_CHANGED: "donation_amount_changed",
