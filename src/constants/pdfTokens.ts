@@ -51,7 +51,6 @@ export const PDF_TOKENS = {
 
   /** Standard-Tabelleneinstellungen. */
   table: {
-    display: "table" as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- @react-pdf/renderer typisiert Display nicht mit "table"
     width: "auto" as const,
     marginTop: 10,
     marginBottom: 10,

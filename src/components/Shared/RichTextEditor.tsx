@@ -13,7 +13,6 @@
 import React from "react";
 import {useEditor, EditorContent} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
-import Link from "@tiptap/extension-link";
 import {
   Box,
   IconButton,
@@ -49,7 +48,8 @@ type RichTextEditorProps = {
  * Rich-Text-Editor mit Material-UI-Toolbar.
  *
  * Nutzt TipTap mit StarterKit (Fett, Kursiv, Durchgestrichen, Überschriften,
- * Aufzählungen, Blockquote, Code, Trennlinie) und Link-Erweiterung.
+ * Aufzählungen, Blockquote, Code, Trennlinie, Link). Links öffnen sich beim
+ * Bearbeiten nicht per Klick und tragen `rel="noopener noreferrer nofollow"`.
  *
  * @param value HTML-Inhalt des Editors.
  * @param onChange Callback bei jeder Inhaltsänderung.
@@ -60,11 +60,14 @@ export const RichTextEditor = ({value, onChange, style}: RichTextEditorProps) =>
 
   const editor = useEditor({
     extensions: [
-      StarterKit,
-      Link.configure({
-        openOnClick: false,
-        HTMLAttributes: {
-          rel: "noopener noreferrer nofollow",
+      StarterKit.configure({
+        // Link ist seit StarterKit v3 enthalten; hier konfigurieren statt
+        // separat registrieren, sonst gibt es zwei Link-Erweiterungen.
+        link: {
+          openOnClick: false,
+          HTMLAttributes: {
+            rel: "noopener noreferrer nofollow",
+          },
         },
       }),
     ],
@@ -76,7 +79,12 @@ export const RichTextEditor = ({value, onChange, style}: RichTextEditorProps) =>
 
   // Kontrollierter Wert: Externen Wert synchronisieren, falls er sich ändert
   React.useEffect(() => {
-    if (editor && value !== editor.getHTML()) {
+    // Eine zerstörte Instanz hat kein Schema mehr; getHTML() würde werfen.
+    // Passiert, wenn useEditor die Instanz ersetzt (z.B. StrictMode).
+    if (!editor || editor.isDestroyed) {
+      return;
+    }
+    if (value !== editor.getHTML()) {
       editor.commands.setContent(value, {emitUpdate: false});
     }
   }, [value, editor]);

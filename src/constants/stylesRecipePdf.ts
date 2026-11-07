@@ -71,14 +71,12 @@ export const pdfStyles = StyleSheet.create({
 
   /* ── Metadaten-Tabelle (Quelle, Portionen, Zeiten) ── */
   table: {
-    display: "table" as any, // eslint-disable-line @typescript-eslint/no-explicit-any -- @react-pdf/renderer typisiert Display nicht mit "table"
     width: "auto",
     marginTop: 4,
     marginBottom: 4,
   },
 
   tableNoMargin: {
-    display: "table" as any, // eslint-disable-line @typescript-eslint/no-explicit-any
     width: "auto",
   },
 

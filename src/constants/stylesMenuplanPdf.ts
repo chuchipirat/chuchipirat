@@ -72,7 +72,6 @@ export function createMenuplanPdfStyles(baseFontSize: number) {
 
     /* ── Tabelle ───────────────────────────────────── */
     table: {
-      display: "table" as any, // eslint-disable-line @typescript-eslint/no-explicit-any
       width: "auto",
       marginTop: 4,
       flexGrow: 1,

@@ -118,6 +118,9 @@ _(Claude Code: append entries here when you encounter `console.log` / `console.e
 - **Unbehandelte Promise-Rejections per Lint verhindern** (2026-09-28, CHUCHIPIRAT-FV) — Ein einmaliger Sweep mit `@typescript-eslint/no-floating-promises` + `no-misused-promises` (typed linting) fand 233 Treffer, davon 7 echte Lücken (alle behoben) und 2 theoretische (`authUserContext.tsx` `getSession().then` ohne catch — rejected nur beim bereits ignorierten Web-Locks-Timeout; `event.tsx` `onEventSaveChanges` wirft Nicht-Validierungsfehler aus einer synchronen Prüfung weiter). Die übrigen sind Fehlalarme: v.a. 68× `navigate()` (react-router v7 typisiert es als `void | Promise<void>`, unter `BrowserRouter` aber synchron), `await customDialog()` (rejected nie), `removeChannel()` (resolved immer), async-Handler mit vollständigem try/catch. Damit neue Lücken nicht wieder als nicht lokalisierbare UnhandledRejection in Sentry landen: beide Regeln dauerhaft aktivieren (`parserOptions.project` nötig; `navigate`-Aufrufe mit `void` markieren oder per Regel-Option ausnehmen).
   **Priorität:** mittel · **Komplexität:** mittel
 
+- **`src/index.jsx` — Sentry-Filter für Web-Locks-Timeouts vermutlich tot** (gefunden beim Supabase-Update auf 2.119, 2026-11-04) — `ignoreErrors` enthält `/Navigator LockManager lock .* timed out/` für `@supabase/auth-js`. Seit supabase-js 2.107 nutzt Auth standardmässig keinen `navigator.locks`-Mutex mehr (wir setzen keine eigene `lock`-Option), der Fehler sollte also nicht mehr entstehen. Ebenso ist der `setTimeout(0)`-Umweg in `authUserContext.tsx` (`onAuthStateChange`) nicht mehr nötig, schadet aber nicht. Fix: einige Wochen nach dem Release in Sentry prüfen, ob der Filter noch greift; wenn nicht, Eintrag entfernen. Den `setTimeout` nur anfassen, wenn die Datei ohnehin geändert wird.
+  **Priorität:** tief · **Komplexität:** klein
+
 ## Comments / Documentation
 
 _(Claude Code: append entries here when you encounter English comments that should be German, missing JSDoc, or outdated/misleading comments.)_
@@ -178,9 +181,6 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   **Priorität:** hoch · **Komplexität:** mittel
 
 - **`src/components/Shared/localStorageHandler.class.ts`** — `values: any` im Interface `LocalStorageValue`, keine localStorage-Validierung. Migration nach Supabase-Typen erforderlich. (Der ursprünglich hier vermerkte Firebase-`ValueObject`-Import wurde im Rahmen des Firebase-Abbaus, Issue #215, bereits behoben — `ValueObject` kommt jetzt aus `global.interface.ts`.) Zudem **keine Fehlerbehandlung**: `getItem`/`setItem`/`JSON.parse` stehen ohne `try/catch`, ein blockierter oder voller Speicher (privates Fenster, Cookies blockiert) oder kaputter Inhalt wirft bis in die aufrufende Komponente. Und es lassen sich **nur Objekte** speichern, keine Arrays oder einfachen Werte. Darum nutzt die Budget-Auswahl der Auswertung (Story 6.2b) stattdessen den Hook `src/hooks/useStoredIdSet.ts`, der alle drei Punkte löst; beim Aufräumen prüfen, ob der Handler auf dasselbe Muster umgestellt werden kann.
-  **Priorität:** tief · **Komplexität:** klein
-
-- **`display: "table" as any` in PDF-Style-Dateien** — `pdfTokens.ts`, `stylesRecipePdf.ts` und alle PDF-Style-Dateien verwenden `as any` für `display: "table"`, weil `@react-pdf/renderer` den Wert `"table"` nicht in seinem `Display`-Typ definiert. Wird behoben, sobald die Bibliothek den Typ erweitert.
   **Priorität:** tief · **Komplexität:** klein
 
 - **`ProductDomain` ↔ `Product` Typ-Vereinheitlichung** — `ProductRepository` verwendet `ProductDomain` mit `nameSingular`-Feld, die App verwendet `Product` (aus `product.types.ts`) ohne dieses Feld. Verursacht unsicheren Cast in `products.tsx` (`{...product, nameSingular: product.name}`). Vereinheitlichung erfordert Repository-Änderungen + alle Konsumenten.
@@ -312,9 +312,6 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   **Priorität:** tief · **Komplexität:** klein
 
 ## Other
-
-- **Testausgabe «Make sure the element is present in the document or that it's not display none.»** (gefunden beim Ordner-Split vor Epic 7, 2026-10-16) — MUI `Popover` (Menü/Popover mit `anchorEl`) meldet in jsdom ein `console.error`, weil das Ankerelement kein Layout hat. Tritt u.a. in `Evaluation/__tests__/expenseEvaluation.test.tsx` (47×, Budget-Filter-Menü), `Expense/__tests__/expenseDetailDialog.test.tsx`, `Budget/__tests__/budgetDetailDialog.test.tsx` und `__tests__/expenseTracking.test.tsx` auf. Tests sind grün, aber das Rauschen verdeckt echte Fehler. Lösung: in `jestSetup.ts` `Element.prototype.getBoundingClientRect` für Anker sinnvoll stubben oder die Meldung gezielt filtern.
-  **Priorität:** tief · **Komplexität:** klein
 
 - **`@mui/x-*` gemeinsam auf v8 heben** (Story 6.3, 2026-10-16) — `@mui/x-charts` (7.29), `@mui/x-data-grid` (7.29) und `@mui/x-date-pickers` (7.29) teilen sich `@mui/x-internals`; deshalb bewusst alle auf v7. Ein Upgrade nur gemeinsam (zwei Kopien von `x-internals` im Bundle vermeiden), mit Migrationsleitfaden der MUI-X-Doku. Bei v8 prüfen: `expenseHistoryChart.tsx` leitet `AxisValueFormatterContext` aus `AxisConfig` ab (in v7 nicht öffentlich exportiert, in v8 evtl. direkt importierbar) und stylt die Soll-Linie über die Klasse `.MuiLineElement-series-target`.
   **Priorität:** tief · **Komplexität:** mittel
