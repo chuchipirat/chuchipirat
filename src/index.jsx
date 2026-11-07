@@ -17,103 +17,20 @@ import DatabaseService from "./components/Database/DatabaseService";
 import {ErrorPage} from "./components/500/500";
 import {Utils} from "./components/Shared/utils.class";
 import {initAnalytics} from "./components/Analytics/analyticsService";
-import {
-  CHUNK_LOAD_ERROR_PATTERNS,
-  isChunkLoadError,
-  redactSupabaseErrorDetails,
-} from "./utils/errorUtils";
+import {isChunkLoadError} from "./utils/errorUtils";
+import {buildSentryOptions} from "./sentryOptions";
 import {LocalizationProvider} from "@mui/x-date-pickers";
 import {AdapterDayjs} from "@mui/x-date-pickers/AdapterDayjs";
 import "dayjs/locale/de";
 
-/**
- * Hostnamen, für die HTTP-Requests als `http.client`-Performance-Spans erfasst
- * werden sollen: unsere eigene Domain (Frontend + Supabase-API, alle
- * Subdomains — PROD/TEST) sowie `localhost` für die lokale Entwicklung.
- */
-const TRACED_REQUEST_HOSTNAME_PATTERN = /(^|\.)chuchipirat\.ch$|^localhost$/;
-
-/**
- * Entscheidet, ob für einen ausgehenden Request ein Performance-Span erfasst
- * wird. Ohne diese Einschränkung instrumentiert `browserTracingIntegration`
- * jeden `fetch`/`XHR`-Aufruf auf der Seite — auch solche, die gar nicht aus
- * unserem Code stammen (z.B. eine Browser-Extension, die im Hintergrund eine
- * eigene Firebase-Remote-Config abruft, CHUCHIPIRAT-B6). Sentrys
- * Performance-Heuristik meldet einen fehlgeschlagenen Drittanbieter-Request
- * dann fälschlich als App-Problem.
- *
- * @param url - Die (ggf. relative) URL des ausgehenden Requests.
- * @returns `true`, wenn der Host zu unserer eigenen Infrastruktur gehört.
- */
-const shouldCreateSpanForRequest = (url) => {
-  try {
-    return TRACED_REQUEST_HOSTNAME_PATTERN.test(
-      new URL(url, window.location.origin).hostname,
-    );
-  } catch {
-    return false;
-  }
-};
-
-Sentry.init({
-  dsn: import.meta.env.VITE_SENTRY_DSN,
-  enabled: !Utils.isDevEnvironment(),
-  environment: import.meta.env.VITE_ENVIRONMENT,
-  release: packageJson.version,
-  integrations: [
-    Sentry.browserTracingIntegration({shouldCreateSpanForRequest}),
-    Sentry.replayIntegration({
-      // Eingaben und Texte sichtbar lassen, damit Replays beim Debuggen
-      // helfen. Passwortfelder werden per CSS-Selektor maskiert; Bereiche mit
-      // sensiblen Daten (z.B. IBAN, Adresse) tragen `data-sentry-block` und
-      // erscheinen im Replay nur als graue Fläche.
-      maskAllInputs: false,
-      maskAllText: false,
-      blockAllMedia: false,
-      mask: ['input[type="password"]'],
-    }),
-    Sentry.consoleLoggingIntegration({levels: ["log", "warn", "error"]}),
-  ],
-  // Rauschen von Drittanbietern / Browser-APIs ausfiltern, das nicht aus
-  // unserem Code stammt und über das die App keine Kontrolle hat.
-  ignoreErrors: [
-    // Der SafeLink-/Vorschau-Crawler von Microsoft Outlook injiziert beim
-    // Vorab-Scannen von E-Mail-Links (u.a. /authservicehandler) eine kaputte
-    // Bridge und wirft dann diesen String als unhandled rejection. Kein
-    // App-Fehler, kein Stacktrace, nur von Crawler-"Nutzern" ausgelöst.
-    /Object Not Found Matching Id/,
-    // @supabase/auth-js kann den Web-Locks-API-Lock für den Auth-Token nicht
-    // innerhalb von 10s bekommen, wenn ein anderer Tab (oder ein gedrosselter
-    // Hintergrund-Tab / Crawler) ihn hält. Transient, der Client verbindet
-    // sich anschliessend selbst neu — kein App-Fehler.
-    /Navigator LockManager lock .* timed out/,
-    // Fehlgeschlagener Chunk-Import nach einem Deployment (alter Tab verweist
-    // noch auf gelöschte JS-Dateien mit altem Content-Hash) — wird unten per
-    // Reload selbst geheilt, kein App-Fehler.
-    ...CHUNK_LOAD_ERROR_PATTERNS,
-  ],
-  // Fehler, deren Stacktrace komplett aus einer Browser-Extension stammt
-  // (z.B. "UnavailableError" aus der PayPal-Honey-Safari-Extension,
-  // CHUCHIPIRAT-HA), statt aus unserem eigenen Code herauswerfen. Filterung
-  // per URL statt per Fehlermeldung, da jede Extension eigene, generische
-  // Fehlertexte wirft ("UnavailableError", "Extension context invalidated"
-  // etc.) — ein Abgleich der Herkunfts-URL ist robuster als eine Liste aller
-  // möglichen Meldungen.
-  denyUrls: [
-    /^chrome-extension:\/\//i,
-    /^moz-extension:\/\//i,
-    /^safari-extension:\/\//i,
-    /^safari-web-extension:\/\//i,
-    /\.appex\//i, // native Safari App Extensions (macOS), z.B. .../Extension.appex/...
-  ],
-  tracesSampleRate: 1.0,
-  tracePropagationTargets: ["localhost", /^https:\/\/chuchipirat\.ch/],
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1.0,
-  enableLogs: true,
-  // Supabase-Fehler enthalten in `details` ganze Zeilen (z.B. IBAN)
-  beforeSend: redactSupabaseErrorDetails,
-});
+Sentry.init(
+  buildSentryOptions({
+    dsn: import.meta.env.VITE_SENTRY_DSN,
+    environment: import.meta.env.VITE_ENVIRONMENT,
+    release: packageJson.version,
+    enabled: !Utils.isDevEnvironment(),
+  }),
+);
 
 // Umami Analytics initialisieren (cookie-freies, datenschutzkonformes Tracking)
 initAnalytics();

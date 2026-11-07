@@ -20,8 +20,9 @@ import {PasswordStrengthMeter} from "../passwordStrengthMeter";
 /** Mock fuer @zxcvbn-ts/core — gibt einen kontrollierten Score zurueck. */
 let mockScore = 0;
 jest.mock("@zxcvbn-ts/core", () => ({
-  zxcvbnAsync: jest.fn(() => Promise.resolve({score: mockScore})),
-  zxcvbnOptions: {setOptions: jest.fn()},
+  ZxcvbnFactory: jest.fn(() => ({
+    checkAsync: jest.fn(() => Promise.resolve({score: mockScore})),
+  })),
 }));
 
 /** Mock fuer die Sprachpakete — leere Objekte genuegen fuer Tests. */

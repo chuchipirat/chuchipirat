@@ -8,12 +8,13 @@ import {
   Box,
 } from "@mui/material";
 
-import {zxcvbnAsync, zxcvbnOptions} from "@zxcvbn-ts/core";
+import {ZxcvbnFactory} from "@zxcvbn-ts/core";
 import * as zxcvbnCommonPackage from "@zxcvbn-ts/language-common";
 import * as zxcvbnDePackage from "@zxcvbn-ts/language-de";
 
-// zxcvbn-ts Optionen einmalig konfigurieren (Wörterbücher und Tastaturlayouts)
-zxcvbnOptions.setOptions({
+// Einmal pro Modul statt pro Render: aus den grossen Wörterbüchern baut die
+// Fabrik ihre Matcher, das soll nicht bei jedem Tastendruck passieren.
+const zxcvbn = new ZxcvbnFactory({
   translations: zxcvbnDePackage.translations,
   graphs: zxcvbnCommonPackage.adjacencyGraphs,
   dictionary: {
@@ -88,7 +89,7 @@ const PasswordStrengthMeter = ({password}: PasswordStrengthMeterProps) => {
     let cancelled = false;
 
     // Asynchrone Bewertung, damit der Main-Thread nicht blockiert wird
-    zxcvbnAsync(password).then((result) => {
+    zxcvbn.checkAsync(password).then((result) => {
       if (!cancelled) {
         setScore(result.score);
       }
