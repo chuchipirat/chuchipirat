@@ -1,0 +1,49 @@
+name: Dependency Audit
+
+# Wöchentliche Prüfung der Abhängigkeiten auf `develop`. Schlägt fehl, wenn
+# eine Abhängigkeit der App (ohne Dev-Werkzeuge) eine Sicherheitslücke der
+# Stufe «high» oder «critical» hat; GitHub meldet den fehlgeschlagenen Lauf
+# per E-Mail. Dependabot-Sicherheits-PRs gehen nur gegen `main`, wohin bei uns
+# nur `develop` darf, darum diese Prüfung statt automatischer PRs.
+#
+# Geplante Läufe startet GitHub nur aus dem Standard-Branch (`main`); bis die
+# Datei dort ist, lässt sich der Lauf über «Run workflow» von Hand starten.
+
+on:
+  schedule:
+    # Montag 05:00 UTC (06:00/07:00 in der Schweiz)
+    - cron: "0 5 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: develop
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: ".nvmrc"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Nur zur Übersicht in der Zusammenfassung des Laufs, schlägt nie fehl
+      - name: Rückstände (npm outdated)
+        run: |
+          {
+            echo "## npm outdated"
+            echo '```'
+            npm outdated || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Sicherheitslücken der App (high/critical)
+        run: npm audit --omit=dev --audit-level=high

@@ -48,6 +48,7 @@ Für ein Bündel mehrerer kleiner, unabhängiger Fixes, die gemeinsam versionier
 main → release/x.y.z (mehrere Fixes + Version-Bump) → PR → develop (TEST-Validierung) → [später] Release-Batch (PROD-Promotion) unten
 ```
 
+0. Abhängigkeiten: Minor-Runde nach `.claude/commands/deps-update.md` (`/deps-update minor`), als eigener PR nach `develop`, damit sie im Batch mitgetestet wird
 1. `git checkout -b release/x.y.z` (von **`main`**, NICHT `develop`) — damit unfertige Feature-Arbeit auf `develop` den Release nicht verzögert oder verschmutzt
 2. Jeden Fix einzeln committen (ein Commit pro behobenem Bug/Issue, mit Begründung im Body — nicht alles in einen Riesencommit)
 3. Versions-Bump als letzten Commit: `npm version x.y.z --no-git-tag-version`, dann `package.json` + `package-lock.json` committen (`chore: Version auf x.y.z`)
