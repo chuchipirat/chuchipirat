@@ -188,3 +188,9 @@ Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» un
 **What happened**: Zwei gebündelte Klicks auf DataGrid-Zeilen trafen «alle auswählen», weil nach dem ersten Klick eine Auswahlleiste erschien und die Tabelle nach unten schob. In der DevTools-Geräteansicht liefen Mausklicks der Chrome-Erweiterung in einen 30-s-Timeout.
 
 **Rule**: Nach einem Klick, der Layout ändern kann (Auswahl, Dialog, Leiste), vor dem nächsten Klick einen Screenshot nehmen. Bei offener Geräteansicht Buttons per `element.click()` über `javascript_tool` auslösen und nur das Layout per Screenshot prüfen.
+
+## Gestapelte PRs: zuerst umhängen, dann Branch löschen (2026-11-07)
+
+**What happened**: Beim Mergen des PR-Stapels (#252 → #261) löschte `gh pr merge --delete-branch` den Branch von #252. GitHub hat den darauf aufbauenden PR #254 dabei nicht umgehängt, sondern **geschlossen**. Reparatur: Branch aus dem Head-Commit wiederherstellen, #254 öffnen, Basis auf `develop`, Branch wieder löschen.
+
+**Rule**: Vor jedem Merge eines gestapelten PRs den nächsten PR per `gh pr edit <next> --base develop` umhängen, erst dann mit `--delete-branch` mergen. CI startet nach einem Basiswechsel nicht von selbst (nur `opened`/`synchronize`/`reopened`), darum den umgehängten PR einmal schliessen und wieder öffnen. Zwischen zwei Merges auf den TEST-Deploy warten, der Workflow hat keine `concurrency`-Sperre. Und: `gh pr merge` wechselt lokal auf die Basis und löscht den lokalen Branch, wenn man auf dem Head-Branch steht.
