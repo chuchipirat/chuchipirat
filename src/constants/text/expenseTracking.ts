@@ -416,3 +416,11 @@ export const EVALUATION_MEAL_TYPE_FILTER_ARIA_LABEL =
 export const EXPENSE_TRACKING_PREVIEW_TITLE = "So sieht die Abrechnung aus";
 /** Hinweis, dass die Vorschau nur Beispieldaten zeigt. */
 export const EXPENSE_TRACKING_PREVIEW_HINT = "Vorschau mit Beispieldaten";
+/** Titel am Ende der Vorschau, im deckenden Teil des Verlaufs. */
+export const EXPENSE_TRACKING_PREVIEW_CLOSING_TITLE =
+  "So sieht eure Abrechnung aus, nur mit euren Zahlen.";
+/** Satz unter dem Titel am Ende der Vorschau. */
+export const EXPENSE_TRACKING_PREVIEW_CLOSING_TEXT =
+  "Eine Spende für diesen Anlass genügt, und ihr könnt loslegen.";
+/** Button am Ende der Vorschau, springt zum Spendenformular. */
+export const EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON = "Zur Spende";

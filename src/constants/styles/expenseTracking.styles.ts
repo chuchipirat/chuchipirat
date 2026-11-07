@@ -440,7 +440,7 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     position: "relative",
     // so hoch, dass der Verlauf in der Auswertung noch als Diagramm erkennbar
     // ist; auf dem Handy einspaltig und darum höher
-    maxHeight: {xs: theme.spacing(170), md: theme.spacing(140)},
+    maxHeight: {xs: theme.spacing(270), md: theme.spacing(140)},
     overflow: "hidden",
     pointerEvents: "none",
     userSelect: "none",
@@ -451,9 +451,21 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
       left: 0,
       right: 0,
       bottom: 0,
-      height: theme.spacing(16),
-      background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)}, ${theme.palette.background.default})`,
+      height: "45%",
+      // unteres Viertel deckend, damit der Schlusstext darauf lesbar ist
+      background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)} 0%, ${theme.palette.background.default} 75%, ${theme.palette.background.default} 100%)`,
     },
+  },
+  expenseTrackingPreviewClosing: {
+    // liegt über dem deckenden Ende des Verlaufs von expenseTrackingPreviewArea
+    position: "relative",
+    zIndex: 1,
+    marginTop: theme.spacing(-18),
+    paddingX: theme.spacing(2),
+    textAlign: "center",
+  },
+  expenseTrackingPreviewClosingText: {
+    marginBottom: theme.spacing(2),
   },
   expenseTrackingPreviewSection: {
     marginTop: theme.spacing(3),

@@ -2,21 +2,34 @@
  * Unit-Tests für die Vorschau der Abrechnung ohne Spende
  * (expenseTrackingPreview.tsx).
  */
-import {render, screen, within} from "@testing-library/react";
+import {fireEvent, render, screen, within} from "@testing-library/react";
 import "@testing-library/jest-dom";
 
 import {ExpenseTrackingPreview} from "../expenseTrackingPreview";
 import {EXPENSE_TRACKING_PREVIEW_DATA} from "../expenseTrackingPreview.data";
 import {
   EDIT_BUDGET as TEXT_EDIT_BUDGET,
+  EXPENSE_TRACKING_PREVIEW_CLOSING_TEXT as TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TEXT,
+  EXPENSE_TRACKING_PREVIEW_CLOSING_TITLE as TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TITLE,
+  EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON as TEXT_EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON,
   EXPENSE_TRACKING_PREVIEW_HINT as TEXT_EXPENSE_TRACKING_PREVIEW_HINT,
   EXPENSE_TRACKING_PREVIEW_TITLE as TEXT_EXPENSE_TRACKING_PREVIEW_TITLE,
   NEW_BUDGET as TEXT_NEW_BUDGET,
   NEW_EXPENSE as TEXT_NEW_EXPENSE,
 } from "../../../../../constants/text/expenseTracking";
 
-const renderPreview = () =>
-  render(<ExpenseTrackingPreview data={EXPENSE_TRACKING_PREVIEW_DATA} />);
+/**
+ * Rendert die Vorschau mit den Beispieldaten.
+ *
+ * @param onDonateClick Callback für den Button «Zur Spende».
+ */
+const renderPreview = (onDonateClick: () => void = jest.fn()) =>
+  render(
+    <ExpenseTrackingPreview
+      data={EXPENSE_TRACKING_PREVIEW_DATA}
+      onDonateClick={onDonateClick}
+    />,
+  );
 
 /** Der Bereich mit den Beispieldaten, gesperrt für Maus, Tastatur und Screenreader. */
 const getPreviewArea = () =>
@@ -63,6 +76,43 @@ describe("ExpenseTrackingPreview", () => {
       within(area).queryByRole("button", {name: TEXT_EDIT_BUDGET}),
     ).not.toBeInTheDocument();
     expect(within(area).queryByText(TEXT_NEW_EXPENSE)).not.toBeInTheDocument();
+  });
+
+  test("Schlusstext und Button stehen ausserhalb des gesperrten Bereichs", () => {
+    // im inert-Bereich wäre der Button nicht klickbar und für Screenreader unsichtbar
+    renderPreview();
+
+    const title = screen.getByText(TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TITLE);
+    const text = screen.getByText(TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TEXT);
+    const button = screen.getByRole("button", {
+      name: TEXT_EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON,
+    });
+    expect(getPreviewArea()).not.toContainElement(title);
+    expect(getPreviewArea()).not.toContainElement(text);
+    expect(getPreviewArea()).not.toContainElement(button);
+  });
+
+  test("Schlusstext steht nach dem gesperrten Bereich", () => {
+    renderPreview();
+
+    const closing = screen.getByTestId("expense-tracking-preview-closing");
+    expect(
+      getPreviewArea().compareDocumentPosition(closing) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test("Button «Zur Spende» meldet den Klick genau einmal", () => {
+    const onDonateClick = jest.fn();
+    renderPreview(onDonateClick);
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: TEXT_EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON,
+      }),
+    );
+
+    expect(onDonateClick).toHaveBeenCalledTimes(1);
   });
 });
 

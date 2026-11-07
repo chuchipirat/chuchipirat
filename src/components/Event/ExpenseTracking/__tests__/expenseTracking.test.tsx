@@ -46,6 +46,7 @@ import {
   DELETE_EXPENSE_DIALOG as TEXT_DELETE_EXPENSE_DIALOG,
   ONLY_WITHOUT_RECEIPT as TEXT_ONLY_WITHOUT_RECEIPT,
   ALL_EXPENSES_HAVE_A_RECEIPT as TEXT_ALL_EXPENSES_HAVE_A_RECEIPT,
+  EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON as TEXT_EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON,
 } from "../../../../constants/text/expenseTracking";
 import {
   CREATE_EXPENSE_REPORT as TEXT_CREATE_EXPENSE_REPORT,
@@ -371,6 +372,32 @@ describe("EventExpenseTrackingPage", () => {
     expect(
       screen.getByTestId("expense-tracking-locked").closest(".MuiCard-root"),
     ).not.toContainElement(area);
+  });
+
+  test("ohne Spende: «Zur Spende» zählt den Klick, scrollt zum Formular und fokussiert es", async () => {
+    mockDatabase.donations.getEventDonations.mockResolvedValueOnce([]);
+    // jsdom kennt scrollIntoView nicht; nach dem Test wieder entfernen
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
+    const scrollIntoView = jest.fn();
+    Element.prototype.scrollIntoView = scrollIntoView;
+
+    try {
+      renderEventExpenseTrackingPage();
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: TEXT_EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON,
+        }),
+      );
+
+      const donationForm = screen.getByTestId("expense-tracking-locked");
+      expect(trackEvent).toHaveBeenCalledWith(
+        AnalyticsEvent.DONATION_PREVIEW_CTA_CLICKED,
+      );
+      expect(scrollIntoView.mock.contexts).toContain(donationForm);
+      expect(document.activeElement).toBe(donationForm);
+    } finally {
+      Element.prototype.scrollIntoView = originalScrollIntoView;
+    }
   });
 
   test("mit Spende: keine Vorschau", async () => {

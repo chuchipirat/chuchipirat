@@ -1,11 +1,14 @@
 import React from "react";
-import {Box, Typography} from "@mui/material";
+import {Box, Button, Typography} from "@mui/material";
 
 import {useCustomStyles} from "../../../../constants/styles";
 import {
   EXPENSE_TRACKING_EVALUATION as TEXT_EXPENSE_TRACKING_EVALUATION,
   EXPENSE_TRACKING_EXPENSES as TEXT_EXPENSE_TRACKING_EXPENSES,
   EXPENSE_TRACKING_OVERVIEW as TEXT_EXPENSE_TRACKING_OVERVIEW,
+  EXPENSE_TRACKING_PREVIEW_CLOSING_TEXT as TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TEXT,
+  EXPENSE_TRACKING_PREVIEW_CLOSING_TITLE as TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TITLE,
+  EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON as TEXT_EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON,
   EXPENSE_TRACKING_PREVIEW_HINT as TEXT_EXPENSE_TRACKING_PREVIEW_HINT,
   EXPENSE_TRACKING_PREVIEW_TITLE as TEXT_EXPENSE_TRACKING_PREVIEW_TITLE,
 } from "../../../../constants/text/expenseTracking";
@@ -22,9 +25,12 @@ const ignoreClick = () => undefined;
  * Props für {@link ExpenseTrackingPreview}.
  *
  * @param data - Beispieldaten, siehe `expenseTrackingPreview.data.ts`.
+ * @param onDonateClick - Klick auf «Zur Spende» am Ende der Vorschau. Die Seite
+ *   entscheidet, wohin gesprungen wird, weil das Spendenformular dort liegt.
  */
 type ExpenseTrackingPreviewProps = {
   data: ExpenseTrackingPreviewData;
+  onDonateClick: () => void;
 };
 
 /**
@@ -33,9 +39,22 @@ type ExpenseTrackingPreviewProps = {
  * fokussierbar, und es gibt keine Aktionsknöpfe. Titel und Hinweis stehen
  * ausserhalb des gesperrten Bereichs, damit Screenreader sie vorlesen.
  *
+ * Unten blendet die Vorschau aus. Im deckenden Teil des Verlaufs steht ein
+ * Schlusstext mit dem Button «Zur Spende»; er liegt nach dem gesperrten
+ * Bereich, sonst wäre der Button nicht klickbar.
+ *
  * @param props - Siehe {@link ExpenseTrackingPreviewProps}.
+ * @returns Titel, gesperrte Vorschau und Schlusstext.
+ * @example
+ * <ExpenseTrackingPreview
+ *   data={EXPENSE_TRACKING_PREVIEW_DATA}
+ *   onDonateClick={handleDonateClick}
+ * />
  */
-export const ExpenseTrackingPreview = ({data}: ExpenseTrackingPreviewProps) => {
+export const ExpenseTrackingPreview = ({
+  data,
+  onDonateClick,
+}: ExpenseTrackingPreviewProps) => {
   const classes = useCustomStyles();
   const expenseGroups = Expense.groupByBudget(data.expenses, data.budgets);
 
@@ -112,6 +131,27 @@ export const ExpenseTrackingPreview = ({data}: ExpenseTrackingPreviewProps) => {
             readOnly
           />
         </Box>
+      </Box>
+
+      <Box
+        sx={classes.expenseTrackingPreviewClosing}
+        data-testid="expense-tracking-preview-closing"
+      >
+        <Typography variant="subtitle1" component="p" sx={{fontWeight: "bold"}}>
+          {TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TITLE}
+        </Typography>
+        <Typography
+          variant="body2"
+          sx={[
+            {color: "text.secondary"},
+            classes.expenseTrackingPreviewClosingText,
+          ]}
+        >
+          {TEXT_EXPENSE_TRACKING_PREVIEW_CLOSING_TEXT}
+        </Typography>
+        <Button variant="contained" onClick={onDonateClick}>
+          {TEXT_EXPENSE_TRACKING_PREVIEW_DONATE_BUTTON}
+        </Button>
       </Box>
     </Box>
   );
