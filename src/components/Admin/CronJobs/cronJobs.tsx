@@ -378,7 +378,11 @@ const CronJobsPage = () => {
                 {JSON.stringify(detailsDialog.details, null, 2)}
               </Typography>
             ) : (
-              <Typography color="text.secondary">
+              <Typography
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {TEXT_CRON_JOBS_NO_DETAILS}
               </Typography>
             )}

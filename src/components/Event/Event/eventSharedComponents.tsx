@@ -42,7 +42,7 @@ import {
 import {
   Edit as EditIcon,
   Delete as DeleteIcon,
-  ErrorOutline as ErrorOutlineIcon,
+  ErrorOutlined as ErrorOutlineIcon,
   CallSplit as CallSplitIcon,
   Info as InfoIcon,
 } from "@mui/icons-material";

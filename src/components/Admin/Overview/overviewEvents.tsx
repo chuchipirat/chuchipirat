@@ -44,7 +44,7 @@ import {
   ViewModule as ViewModuleIcon,
   ViewList as ViewListIcon,
 } from "@mui/icons-material";
-import {DataGrid, GridColDef, GridToolbar} from "@mui/x-data-grid";
+import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import * as Sentry from "@sentry/react";
 
@@ -286,22 +286,51 @@ const EventCardAdmin = ({event, onClick}: EventCardAdminProps) => {
     <Card sx={{height: "100%", display: "flex", flexDirection: "column"}}>
       <CardActionArea
         onClick={() => onClick(event)}
-        sx={{flexGrow: 1, display: "flex", flexDirection: "column", alignItems: "stretch"}}
+        sx={{
+          flexGrow: 1,
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "stretch",
+        }}
       >
         <CardMedia sx={classes.cardMedia} image={imageSrc} title={event.name} />
         <CardContent sx={{pb: "8px !important", flexGrow: 1}}>
-          <Typography variant="subtitle1" fontWeight="bold" noWrap>
+          <Typography
+            variant="subtitle1"
+            noWrap
+            sx={{
+              fontWeight: "bold",
+            }}
+          >
             {event.name}
           </Typography>
           <Chip
             label={event.uid}
             size="small"
-            sx={{fontFamily: "monospace", fontSize: "0.65rem", mb: 0.5, maxWidth: "100%"}}
+            sx={{
+              fontFamily: "monospace",
+              fontSize: "0.65rem",
+              mb: 0.5,
+              maxWidth: "100%",
+            }}
           />
           {event.location && (
-            <Stack direction="row" spacing={0.5} alignItems="center" mt={0.5}>
+            <Stack
+              direction="row"
+              spacing={0.5}
+              sx={{
+                alignItems: "center",
+                mt: 0.5,
+              }}
+            >
               <LocationOnIcon fontSize="small" color="action" />
-              <Typography variant="caption" color="text.secondary" noWrap>
+              <Typography
+                variant="caption"
+                noWrap
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {event.location}
               </Typography>
             </Stack>
@@ -309,18 +338,37 @@ const EventCardAdmin = ({event, onClick}: EventCardAdminProps) => {
           {dateRange && (
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{
+                color: "text.secondary",
+                display: "block",
+              }}
             >
               {dateRange}
             </Typography>
           )}
-          <Stack direction="row" spacing={1} mt={0.5}>
-            <Typography variant="caption" color="text.secondary">
+          <Stack
+            direction="row"
+            spacing={1}
+            sx={{
+              mt: 0.5,
+            }}
+          >
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
               {event.noOfCooks} {TEXT_NO_OF_COOKS}
             </Typography>
           </Stack>
-          <Typography variant="caption" color="text.secondary" noWrap>
+          <Typography
+            variant="caption"
+            noWrap
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {event.createdByName}
           </Typography>
         </CardContent>
@@ -705,8 +753,10 @@ const OverviewEventsPage = () => {
               <Stack spacing={1}>
                 <Stack
                   direction="row"
-                  justifyContent="space-between"
-                  alignItems="center"
+                  sx={{
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
                 >
                   <Box sx={{flexGrow: 1}}>
                     <SearchPanel
@@ -762,7 +812,7 @@ const OverviewEventsPage = () => {
                   onRowClick={(params) =>
                     onCardClick(params.row as EventOverviewItem)
                   }
-                  slots={{toolbar: GridToolbar}}
+                  showToolbar
                 />
               </Box>
             </Box>

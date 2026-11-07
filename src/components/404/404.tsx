@@ -34,15 +34,20 @@ export const NotFoundPage = () => {
     <Container component="main" maxWidth="sm">
       <Stack
         spacing={4}
-        alignItems="center"
-        justifyContent="center"
-        sx={{minHeight: "60vh", py: theme.spacing(4)}}
+        sx={{
+          alignItems: "center",
+          justifyContent: "center",
+          minHeight: "60vh",
+          py: theme.spacing(4),
+        }}
       >
         <Box
           component="img"
           src={ImageRepository.getEnvironmentRelatedPicture().LANDING_LOGO}
-          width="35em"
           alt="Logo"
+          sx={{
+            width: "35em",
+          }}
         />
 
         <Typography variant="h2" color="textSecondary" align="center">

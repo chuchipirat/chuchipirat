@@ -1752,7 +1752,13 @@ const RecipeEdit = ({
           <CircularProgress color="inherit" />
         </Backdrop>
 
-        <Grid container spacing={4} justifyContent="center">
+        <Grid
+          container
+          spacing={4}
+          sx={{
+            justifyContent: "center",
+          }}
+        >
           {state.error && (
             <Grid size={12} key={"error"}>
               <AlertMessage
@@ -2096,10 +2102,12 @@ const RecipeInfoPanel = ({
   const ITEM_HEIGHT = 48;
   const ITEM_PADDING_TOP = 8;
   const MenuProps = {
-    PaperProps: {
-      style: {
-        maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-        width: 250,
+    slotProps: {
+      paper: {
+        style: {
+          maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+          width: 250,
+        },
       },
     },
   };
@@ -2412,7 +2420,13 @@ const RecipeIngredients = ({
       >
         {TEXT.INGREDIENTS}
       </Typography>
-      <Grid container spacing={2} alignItems="center">
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          alignItems: "center",
+        }}
+      >
         <Grid size={6} sx={classes.centerCenter}>
           <TextField
             id={"portions"}
@@ -2661,7 +2675,13 @@ const IngredientPosition = ({
 
   return (
     <ListItemText>
-      <Grid container spacing={2} alignItems="center">
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          alignItems: "center",
+        }}
+      >
         {!breakpointIsXs && (
           <Grid
             size={{xs: gridSize.pos.xs, sm: gridSize.pos.sm}}
@@ -2690,9 +2710,11 @@ const IngredientPosition = ({
             }
             label={TEXT.FIELD_QUANTITY}
             type="number"
-            inputProps={{min: 0}}
             onChange={onChangeIngredient}
             fullWidth
+            slotProps={{
+              htmlInput: {min: 0},
+            }}
           />
         </Grid>
 
@@ -2727,10 +2749,12 @@ const IngredientPosition = ({
               type="number"
               onChange={onChangeIngredient}
               fullWidth
-              inputProps={{
-                min: "0.1",
-                max: "1",
-                step: "0.1",
+              slotProps={{
+                htmlInput: {
+                  min: "0.1",
+                  max: "1",
+                  step: "0.1",
+                },
               }}
             />
           </Grid>
@@ -2916,7 +2940,13 @@ const RecipePreparationSteps = ({
       >
         {TEXT.PREPARATION}
       </Typography>
-      <Grid container spacing={2} alignItems="center">
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          alignItems: "center",
+        }}
+      >
         <Grid size={12} sx={classes.centerCenter}>
           <PreparationListContext.Provider value={contextValue}>
             <List key={"listPreparationSteps"} sx={{flexGrow: 1}}>
@@ -3113,7 +3143,13 @@ const PreparationStepPosition = ({
   return (
     <React.Fragment>
       <ListItemText>
-        <Grid container spacing={2} alignItems="center">
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            alignItems: "center",
+          }}
+        >
           <Grid
             size={1}
             key={"preparationstep_pos_grid_" + preparationStep.uid}
@@ -3304,7 +3340,13 @@ const RecipeMaterials = ({
       >
         {TEXT.MATERIAL}
       </Typography>
-      <Grid container spacing={2} alignItems="center">
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          alignItems: "center",
+        }}
+      >
         <Grid size={12} sx={classes.centerCenter}>
           <MaterialListContext.Provider value={contextValue}>
             <List key={"listMaterials"} sx={{flexGrow: 1}}>
@@ -3484,7 +3526,13 @@ const MaterialPosition = ({
   return (
     <React.Fragment>
       <ListItemText>
-        <Grid container spacing={2} alignItems="center">
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            alignItems: "center",
+          }}
+        >
           <Grid
             size={1}
             key={"material_pos_grid_" + material.uid}
@@ -3506,9 +3554,11 @@ const MaterialPosition = ({
               }
               label={TEXT.FIELD_QUANTITY}
               type="number"
-              inputProps={{min: 0}}
               onChange={onChangeMaterial}
               fullWidth
+              slotProps={{
+                htmlInput: {min: 0},
+              }}
             />
           </Grid>
           <Grid
@@ -3550,7 +3600,13 @@ const SectionPosition = ({
   return (
     <React.Fragment>
       <ListItemText>
-        <Grid container spacing={2} alignItems="center">
+        <Grid
+          container
+          spacing={2}
+          sx={{
+            alignItems: "center",
+          }}
+        >
           {index !== 1 && <Grid size={12} sx={{marginTop: "0.5em"}} />}
           {!breakpointIsXs && (
             <Grid
@@ -3686,7 +3742,13 @@ const RecipeVariantNote = ({recipe, onChange}: RecipeVariantNoteProps) => {
       >
         {TEXT.VARIANT_NOTE}
       </Typography>
-      <Grid container spacing={2} alignItems="center">
+      <Grid
+        container
+        spacing={2}
+        sx={{
+          alignItems: "center",
+        }}
+      >
         <Grid size={1} key={"grid_pos_note"} />
         <Grid size={11} key={"grid_note_note"}>
           <TextField

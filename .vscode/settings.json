@@ -58,18 +58,20 @@
   // Viele Dateien sind nicht im Prettier-Standard (80 Zeichen) formatiert.
   // Mit globalem "editor.formatOnSave": true formatierte Prettier beim
   // Speichern die ganze Datei, der Diff bestand dann zur Hälfte aus
-  // Umbrüchen ohne inhaltliche Änderung. "modifications" formatiert nur die
-  // selbst geänderten Zeilen (laut Git), der Rest der Datei bleibt, wie er ist.
+  // Umbrüchen ohne inhaltliche Änderung. "modificationsIfAvailable" formatiert
+  // nur die selbst geänderten Zeilen (laut Git), der Rest der Datei bleibt, wie
+  // er ist. Neue, noch nicht committete Dateien haben in Git keine Vorlage;
+  // dann formatiert es die ganze Datei ("modifications" täte gar nichts).
   "[typescript]": {
-    "editor.formatOnSaveMode": "modifications"
+    "editor.formatOnSaveMode": "modificationsIfAvailable"
   },
   "[typescriptreact]": {
-    "editor.formatOnSaveMode": "modifications"
+    "editor.formatOnSaveMode": "modificationsIfAvailable"
   },
   "[javascript]": {
-    "editor.formatOnSaveMode": "modifications"
+    "editor.formatOnSaveMode": "modificationsIfAvailable"
   },
   "[javascriptreact]": {
-    "editor.formatOnSaveMode": "modifications"
+    "editor.formatOnSaveMode": "modificationsIfAvailable"
   }
 }

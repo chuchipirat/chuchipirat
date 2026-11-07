@@ -262,7 +262,13 @@ const RecipeCardAdmin = ({
           />
         </Box>
         <CardContent sx={{pb: "8px !important"}}>
-          <Typography variant="subtitle1" fontWeight="bold" noWrap>
+          <Typography
+            variant="subtitle1"
+            noWrap
+            sx={{
+              fontWeight: "bold",
+            }}
+          >
             {recipe.name}
           </Typography>
           <Chip
@@ -275,7 +281,14 @@ const RecipeCardAdmin = ({
               maxWidth: "100%",
             }}
           />
-          <Stack direction="row" spacing={0.5} alignItems="center" mt={0.5}>
+          <Stack
+            direction="row"
+            spacing={0.5}
+            sx={{
+              alignItems: "center",
+              mt: 0.5,
+            }}
+          >
             {isPublic ? (
               <PublicIcon
                 fontSize="small"
@@ -285,7 +298,13 @@ const RecipeCardAdmin = ({
             ) : (
               <LockIcon fontSize="small" color="action" titleAccess="privat" />
             )}
-            <Typography variant="caption" color="text.secondary" noWrap>
+            <Typography
+              variant="caption"
+              noWrap
+              sx={{
+                color: "text.secondary",
+              }}
+            >
               {creatorName ?? recipe.createdBy}
             </Typography>
           </Stack>
@@ -346,7 +365,13 @@ export const DialogRecipeAdminDetail = ({
 
   // Typ-Wert als JSX mit Icon
   const recipeTypeValue = (
-    <Stack direction="row" spacing={0.5} alignItems="center">
+    <Stack
+      direction="row"
+      spacing={0.5}
+      sx={{
+        alignItems: "center",
+      }}
+    >
       {isVariant ? (
         <CategoryIcon fontSize="small" sx={{color: "purple"}} />
       ) : isPublic ? (
@@ -801,7 +826,12 @@ const OverviewRecipePage = () => {
                   </RadioGroup>
                 </FormControl>
 
-                <Box display="flex" justifyContent="flex-end">
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "flex-end",
+                  }}
+                >
                   <Button
                     variant="contained"
                     color="primary"
@@ -820,8 +850,10 @@ const OverviewRecipePage = () => {
           {!state.hasSearched && !state.isLoading && (
             <Typography
               variant="body2"
-              color="text.secondary"
-              textAlign="center"
+              sx={{
+                color: "text.secondary",
+                textAlign: "center",
+              }}
             >
               Suchbegriff eingeben und auf «{TEXT_BUTTON_SEARCH}» klicken…
             </Typography>
@@ -829,15 +861,22 @@ const OverviewRecipePage = () => {
 
           {state.hasSearched && !state.isLoading && (
             <>
-              <Typography variant="subtitle2" color="text.secondary">
+              <Typography
+                variant="subtitle2"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {state.recipes.length} {TEXT_RECIPES}
               </Typography>
 
               {state.recipes.length === 0 && (
                 <Typography
                   variant="body2"
-                  color="text.secondary"
-                  textAlign="center"
+                  sx={{
+                    color: "text.secondary",
+                    textAlign: "center",
+                  }}
                 >
                   Keine Rezepte gefunden.
                 </Typography>

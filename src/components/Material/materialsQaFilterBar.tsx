@@ -112,19 +112,21 @@ export const MaterialsQaFilterBar = ({
           value={searchString}
           onChange={onUpdateSearchString}
           sx={{minWidth: 200, flex: 1, maxWidth: 400}}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon fontSize="small" />
-              </InputAdornment>
-            ),
-            endAdornment: searchString ? (
-              <InputAdornment position="end">
-                <IconButton size="small" onClick={onClearSearchString}>
-                  <ClearIcon fontSize="small" />
-                </IconButton>
-              </InputAdornment>
-            ) : null,
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon fontSize="small" />
+                </InputAdornment>
+              ),
+              endAdornment: searchString ? (
+                <InputAdornment position="end">
+                  <IconButton size="small" onClick={onClearSearchString}>
+                    <ClearIcon fontSize="small" />
+                  </IconButton>
+                </InputAdornment>
+              ) : null,
+            },
           }}
         />
 
@@ -135,14 +137,18 @@ export const MaterialsQaFilterBar = ({
             label={FILTER_MATERIAL_TYPE}
             value={materialTypeFilter}
             onChange={(event: SelectChangeEvent) =>
-              onMaterialTypeFilterChange(event.target.value as MaterialTypeFilter)
+              onMaterialTypeFilterChange(
+                event.target.value as MaterialTypeFilter,
+              )
             }
           >
             <MenuItem value="">
               <em>Alle Typen</em>
             </MenuItem>
             <MenuItem value="none">Kein Typ</MenuItem>
-            <MenuItem value="consumable">{TEXT_MATERIAL_TYPE_CONSUMABLE}</MenuItem>
+            <MenuItem value="consumable">
+              {TEXT_MATERIAL_TYPE_CONSUMABLE}
+            </MenuItem>
             <MenuItem value="usage">{TEXT_MATERIAL_TYPE_USAGE}</MenuItem>
           </Select>
         </FormControl>
@@ -174,7 +180,10 @@ export const MaterialsQaFilterBar = ({
       </Box>
 
       {/* Materialanzahl */}
-      <Typography variant="body2" sx={{marginTop: "0.5em", marginBottom: "1em"}}>
+      <Typography
+        variant="body2"
+        sx={{marginTop: "0.5em", marginBottom: "1em"}}
+      >
         {filteredCount === totalCount
           ? `${totalCount} ${TEXT_MATERIALS}`
           : `${filteredCount} ${TEXT_FROM.toLowerCase()} ${totalCount} ${TEXT_MATERIALS}`}

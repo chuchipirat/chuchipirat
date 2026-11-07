@@ -767,11 +767,19 @@ const EventGroupConfigLeadColumn = ({
           </Typography>
         </Grid>
         {groupConfig.intolerances.order.map((intoleranceUid) => (
-          <Grid size={12}
+          <Grid
+            size={12}
             sx={classes.itemGroupConfigurationRow}
             key={"intolerance_grid_" + intoleranceUid}
           >
-            <Grid container alignItems="center" wrap="nowrap" sx={{width: "100%"}}>
+            <Grid
+              container
+              wrap="nowrap"
+              sx={{
+                alignItems: "center",
+                width: "100%",
+              }}
+            >
               <Grid sx={{overflow: "hidden", flex: 1, minWidth: 0}}>
                 <Typography variant="body1">
                   {groupConfig.intolerances.entries[intoleranceUid].name}
@@ -844,14 +852,17 @@ const EventGroupConfigDietColumn = ({
         <Box key={"grid_diet" + dietUid} sx={{flex: 1, minWidth: 0}}>
           <Grid container spacing={2}>
             <Grid size={12} sx={classes.itemGroupConfigurationRow}>
-              <Grid container alignItems="center" wrap="nowrap" sx={{width: "100%"}}>
+              <Grid
+                container
+                wrap="nowrap"
+                sx={{
+                  alignItems: "center",
+                  width: "100%",
+                }}
+              >
                 <Grid sx={{overflow: "hidden", flex: 1, minWidth: 0}}>
                   <Tooltip title={groupConfig.diets.entries[dietUid].name}>
-                    <Typography
-                      variant="h6"
-                      component="h2"
-                      noWrap
-                    >
+                    <Typography variant="h6" component="h2" noWrap>
                       {groupConfig.diets.entries[dietUid].name}
                     </Typography>
                   </Tooltip>
@@ -871,7 +882,8 @@ const EventGroupConfigDietColumn = ({
             </Grid>
 
             {groupConfig.intolerances.order.map((intoleranceUid) => (
-              <Grid size={12}
+              <Grid
+                size={12}
                 sx={classes.itemGroupConfigurationRow}
                 key={
                   "grid_column_" + dietUid + "_intolerance_" + intoleranceUid
@@ -885,18 +897,20 @@ const EventGroupConfigDietColumn = ({
                   type="number"
                   size="small"
                   fullWidth
-                  InputProps={{
-                    inputProps: {
-                      min: 0,
-                      step: 1,
-                    },
-                    inputComponent: "input",
-                  }}
                   onWheel={(event) =>
                     event.target instanceof HTMLElement && event.target.blur()
                   }
                   value={groupConfig.portions[dietUid][intoleranceUid]}
                   onChange={onFieldChange}
+                  slotProps={{
+                    input: {
+                      inputProps: {
+                        min: 0,
+                        step: 1,
+                      },
+                      inputComponent: "input",
+                    },
+                  }}
                 />
               </Grid>
             ))}
@@ -915,14 +929,16 @@ const EventGroupConfigDietColumn = ({
                 disabled
                 size="small"
                 fullWidth
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <strong>=</strong>
-                    </InputAdornment>
-                  ),
-                }}
                 value={groupConfig.diets.entries[dietUid].totalPortions}
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <strong>=</strong>
+                      </InputAdornment>
+                    ),
+                  },
+                }}
               />
             </Grid>
           </Grid>
@@ -956,7 +972,8 @@ const EventGroupConfigTotalColumn = ({
           </Typography>
         </Grid>
         {groupConfig.intolerances.order.map((intoleranceUid) => (
-          <Grid size={12}
+          <Grid
+            size={12}
             sx={classes.itemGroupConfigurationRow}
             key={"grid_total_colum_" + intoleranceUid}
           >
@@ -967,20 +984,23 @@ const EventGroupConfigTotalColumn = ({
               size="small"
               fullWidth
               disabled
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <strong>=</strong>
-                  </InputAdornment>
-                ),
-              }}
               value={
                 groupConfig.intolerances.entries[intoleranceUid].totalPortions
               }
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <strong>=</strong>
+                    </InputAdornment>
+                  ),
+                },
+              }}
             />
           </Grid>
         ))}
-        <Grid size={12}
+        <Grid
+          size={12}
           sx={classes.itemGroupConfigurationRow}
           style={{alignItems: "center"}}
         >
@@ -996,14 +1016,16 @@ const EventGroupConfigTotalColumn = ({
             size="small"
             fullWidth
             disabled
-            InputProps={{
-              startAdornment: (
-                <InputAdornment position="start">
-                  <strong>=</strong>
-                </InputAdornment>
-              ),
-            }}
             value={groupConfig.totalPortions}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <strong>=</strong>
+                  </InputAdornment>
+                ),
+              },
+            }}
           />
         </Grid>
       </Grid>

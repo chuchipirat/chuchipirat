@@ -221,8 +221,10 @@ const PanelActivateSupportUser = ({
           value={eventUid}
           onChange={onChangeField}
           fullWidth
-          InputLabelProps={{
-            shrink: true,
+          slotProps={{
+            inputLabel: {
+              shrink: true,
+            },
           }}
         />
         <Button

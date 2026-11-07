@@ -75,7 +75,12 @@ export const ExpenseBudgetShareChart = ({
 
   return (
     <Card variant="outlined" sx={classes.evaluationTile}>
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography
+        variant="subtitle2"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {TEXT_EVALUATION_SHARE_TITLE}
       </Typography>
       <Stack direction="row" sx={classes.evaluationShareLayout}>
@@ -106,7 +111,7 @@ export const ExpenseBudgetShareChart = ({
               },
             ]}
             // eigene Legende daneben, die eingebaute SVG-Legende bricht nicht um
-            slotProps={{legend: {hidden: true}}}
+            hideLegend
           />
         </Box>
         <List

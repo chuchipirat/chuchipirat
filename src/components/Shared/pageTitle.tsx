@@ -161,7 +161,13 @@ const BreadcrumbBar = ({
           {crumb.label}
         </Link>
       ))}
-      <Typography color="text.primary">{currentPage}</Typography>
+      <Typography
+        sx={{
+          color: "text.primary",
+        }}
+      >
+        {currentPage}
+      </Typography>
     </Breadcrumbs>
   );
 };

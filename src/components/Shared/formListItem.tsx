@@ -125,11 +125,11 @@ export const FormListItem = ({
               <ListItemText
                 sx={classes.listItemContent}
                 primary={value}
-                primaryTypographyProps={
-                  displayAsCode
+                slotProps={{
+                  primary: displayAsCode
                     ? {sx: classes.typographyCode}
-                    : undefined
-                }
+                    : undefined,
+                }}
               />
             ) : value instanceof Date ? (
               <ListItemText sx={classes.listItemContent}>

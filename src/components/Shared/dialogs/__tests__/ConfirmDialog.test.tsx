@@ -1,6 +1,7 @@
 import React from "react";
 import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
+import {buttonClasses} from "@mui/material/Button";
 import userEvent from "@testing-library/user-event";
 
 import {ConfirmDialog} from "../ConfirmDialog";
@@ -44,7 +45,10 @@ describe("ConfirmDialog", () => {
 
       expect(screen.getByRole("button", {name: "Abbrechen"})).toHaveFocus();
       const confirmButton = screen.getByRole("button", {name: "Löschen"});
-      expect(confirmButton).toHaveClass("MuiButton-containedError");
+      expect(confirmButton).toHaveClass(
+        buttonClasses.contained,
+        buttonClasses.colorError,
+      );
     });
 
     test("Enter direkt nach dem Öffnen bricht ab statt zu löschen", async () => {
@@ -71,7 +75,10 @@ describe("ConfirmDialog", () => {
 
       const confirmButton = screen.getByRole("button", {name: "Löschen"});
       expect(confirmButton).toHaveFocus();
-      expect(confirmButton).toHaveClass("MuiButton-textPrimary");
+      expect(confirmButton).toHaveClass(
+        buttonClasses.text,
+        buttonClasses.colorPrimary,
+      );
     });
   });
 });

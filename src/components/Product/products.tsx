@@ -71,7 +71,7 @@ import {
   Cached as CachedIcon,
   Warning as WarningIcon,
   FindReplace as FindReplaceIcon,
-  CheckCircleOutline as CheckCircleOutlineIcon,
+  CheckCircleOutlined as CheckCircleOutlineIcon,
   Delete as DeleteIcon,
   ZoomOutMap as ZoomOutMapIcon,
 } from "@mui/icons-material";
@@ -123,6 +123,10 @@ import {CHECK_WHERE_USED as TEXT_CHECK_WHERE_USED} from "../../constants/text/pr
 import {trackEvent, getAnalyticsRole} from "../Analytics/analyticsService";
 import {AnalyticsEvent} from "../Analytics/analyticsEvents";
 import {useDebouncedValue} from "../../hooks/useDebouncedValue";
+import {
+  fromGridRowSelection,
+  toGridRowSelection,
+} from "../Shared/dataGridSelection";
 
 /** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
 const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
@@ -245,16 +249,23 @@ const ProductsPage = () => {
           <React.Fragment>
             <Typography
               variant="body2"
-              color="warning.main"
               gutterBottom
-              sx={{fontWeight: "bold"}}
+              sx={{
+                color: "warning.main",
+                fontWeight: "bold",
+              }}
             >
               {TEXT_PRODUCT_IN_USE_WARNING}
             </Typography>
             <WhereUsedResultPanel entries={references} />
           </React.Fragment>
         ) : (
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_PRODUCT_NOT_IN_USE}
           </Typography>
         );
@@ -811,8 +822,10 @@ const ProductsTable = ({
                   onProductChange({...product, name: event.target.value});
                 }
               }}
-              InputProps={{disableUnderline: true}}
               sx={{fontSize: "0.875rem"}}
+              slotProps={{
+                input: {disableUnderline: true},
+              }}
             />
           );
         },
@@ -852,9 +865,12 @@ const ProductsTable = ({
                 <TextField
                   {...inputParams}
                   variant="standard"
-                  InputProps={{
-                    ...inputParams.InputProps,
-                    disableUnderline: true,
+                  slotProps={{
+                    ...inputParams.slotProps,
+                    input: {
+                      ...inputParams.slotProps.input,
+                      disableUnderline: true,
+                    },
                   }}
                 />
               )}
@@ -899,9 +915,12 @@ const ProductsTable = ({
                 <TextField
                   {...inputParams}
                   variant="standard"
-                  InputProps={{
-                    ...inputParams.InputProps,
-                    disableUnderline: true,
+                  slotProps={{
+                    ...inputParams.slotProps,
+                    input: {
+                      ...inputParams.slotProps.input,
+                      disableUnderline: true,
+                    },
                   }}
                 />
               )}
@@ -1101,7 +1120,12 @@ const ProductsTable = ({
   // Selection
   // ------------------------------------------ */
   const handleSelectionChange = (selectionModel: GridRowSelectionModel) => {
-    onSelectionChange(selectionModel as string[]);
+    onSelectionChange(
+      fromGridRowSelection(
+        selectionModel,
+        filteredProductsUi.map((row) => row.uid),
+      ),
+    );
   };
 
   /* ------------------------------------------
@@ -1232,7 +1256,7 @@ const ProductsTable = ({
           pagination
           checkboxSelection={editMode}
           keepNonExistentRowsSelected
-          rowSelectionModel={selectedProductUids}
+          rowSelectionModel={toGridRowSelection(selectedProductUids)}
           onRowSelectionModelChange={handleSelectionChange}
           localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
           getRowClassName={(params) => {
@@ -1376,7 +1400,12 @@ const DuplicatesPanel = ({
                   <strong>{pair.product_a_name}</strong> ↔{" "}
                   <strong>{pair.product_b_name}</strong>
                 </Typography>
-                <Typography variant="caption" color="text.secondary">
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: "text.secondary",
+                  }}
+                >
                   {pair.match_type === "synonym"
                     ? "Synonym-Treffer"
                     : `Ähnlichkeit: ${(pair.similarity * 100).toFixed(0)}%`}

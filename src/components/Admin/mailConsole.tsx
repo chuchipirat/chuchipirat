@@ -46,7 +46,7 @@ import {
   IconButton,
 } from "@mui/material";
 import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 
 import Grid from "@mui/material/Grid";
 
@@ -877,8 +877,10 @@ const SendResultCard = ({sendResult}: SendResultCardProps) => {
             <Typography
               key={index}
               variant="caption"
-              display="block"
-              sx={{ml: 1}}
+              sx={{
+                display: "block",
+                ml: 1,
+              }}
             >
               • {failureDetail}
             </Typography>
@@ -924,10 +926,12 @@ const MailRecipients = ({
   const ITEM_PADDING_TOP = 8;
 
   const MenuProps = {
-    PaperProps: {
-      style: {
-        maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-        width: 250,
+    slotProps: {
+      paper: {
+        style: {
+          maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+          width: 250,
+        },
       },
     },
   };
@@ -1061,7 +1065,12 @@ const MailRecipients = ({
                   <Chip key={index} label={chip} size="small" />
                 ))}
               </Box>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {TEXT_MAIL_RECIPIENTS_DETECTED(recipientCount)}
               </Typography>
             </Grid>
@@ -1199,7 +1208,14 @@ const MailEditor = ({
             >
               {TEXT_MAILTEXT}
             </Typography>
-            <Typography variant="caption" color="text.secondary" display="block" sx={{mb: 1}}>
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+                display: "block",
+                mb: 1,
+              }}
+            >
               {TEXT_MAIL_PERSONALIZATION_HELPER_TEXT}
             </Typography>
             <RichTextEditor onChange={onMailTextChange} value="" />
@@ -1241,8 +1257,10 @@ const MailEditor = ({
             />
             <Typography
               variant="caption"
-              color="text.secondary"
-              display="block"
+              sx={{
+                color: "text.secondary",
+                display: "block",
+              }}
             >
               {TEXT_MAIL_INCLUDE_UNSUBSCRIBE_HELPER}
             </Typography>
@@ -1427,14 +1445,24 @@ const Preview = ({mailObject, includeUnsubscribe}: PreviewProps) => {
         <Grid container spacing={2}>
           {mailObject.title && (
             <Grid size={12}>
-              <Typography variant="h5" fontWeight="bold">
+              <Typography
+                variant="h5"
+                sx={{
+                  fontWeight: "bold",
+                }}
+              >
                 {mailObject.title}
               </Typography>
             </Grid>
           )}
           {mailObject.subtitle && (
             <Grid size={12}>
-              <Typography variant="body2" color="text.secondary">
+              <Typography
+                variant="body2"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {mailObject.subtitle}
               </Typography>
             </Grid>
@@ -1451,9 +1479,11 @@ const Preview = ({mailObject, includeUnsubscribe}: PreviewProps) => {
           {mailObject.buttonLink && mailObject.buttonText && (
             <Grid
               size={12}
-              alignContent="center"
-              justifyContent="center"
               style={{display: "flex"}}
+              sx={{
+                alignContent: "center",
+                justifyContent: "center",
+              }}
             >
               <Button
                 color="primary"
@@ -1471,7 +1501,12 @@ const Preview = ({mailObject, includeUnsubscribe}: PreviewProps) => {
           )}
           {includeUnsubscribe && (
             <Grid size={12}>
-              <Typography variant="caption" color="text.disabled">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.disabled",
+                }}
+              >
                 {TEXT_MAIL_UNSUBSCRIBE_PREVIEW}
               </Typography>
             </Grid>

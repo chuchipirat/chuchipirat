@@ -127,10 +127,7 @@ export const ResetPasswordPage = () => {
               {TEXT_PASSWORD_RESET_SUCCESS_REDIRECT(timer)}
             </Typography>
             <Typography sx={{mt: 1}}>
-              <Link
-                component="button"
-                onClick={() => navigate(ROUTES.SIGN_IN)}
-              >
+              <Link component="button" onClick={() => navigate(ROUTES.SIGN_IN)}>
                 {TEXT_PASSWORD_RESET_GO_TO_SIGN_IN}
               </Link>
             </Typography>
@@ -168,19 +165,21 @@ export const ResetPasswordPage = () => {
               label={TEXT_PASSWORD}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              InputProps={{
-                endAdornment: (
-                  <InputAdornment position="end">
-                    <IconButton
-                      aria-label={TEXT_SHOW_PASSWORD}
-                      onClick={handleClickShowPassword}
-                      onMouseDown={handleMouseDownPassword}
-                      size="large"
-                    >
-                      {showPassword ? <Visibility /> : <VisibilityOff />}
-                    </IconButton>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        aria-label={TEXT_SHOW_PASSWORD}
+                        onClick={handleClickShowPassword}
+                        onMouseDown={handleMouseDownPassword}
+                        size="large"
+                      >
+                        {showPassword ? <Visibility /> : <VisibilityOff />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                },
               }}
             />
             <PasswordStrengthMeter password={password} />

@@ -303,7 +303,12 @@ export const ExpenseReportDialog = ({
                       <Typography variant="body1">
                         {REPORT_MODE_LABELS[reportMode].label}
                       </Typography>
-                      <Typography variant="body2" color="text.secondary">
+                      <Typography
+                        variant="body2"
+                        sx={{
+                          color: "text.secondary",
+                        }}
+                      >
                         {REPORT_MODE_LABELS[reportMode].description}
                       </Typography>
                     </Box>
@@ -337,7 +342,12 @@ export const ExpenseReportDialog = ({
                     {TEXT_REPORT_INCLUDE_MISSING_RECEIPT_PAGES}
                   </Typography>
                   {showMissingReceiptWarning && (
-                    <Typography variant="body2" color="text.secondary">
+                    <Typography
+                      variant="body2"
+                      sx={{
+                        color: "text.secondary",
+                      }}
+                    >
                       {TEXT_REPORT_MISSING_RECEIPTS_COUNT(missingReceiptCount)}
                     </Typography>
                   )}
@@ -400,7 +410,13 @@ const ReportProgressIndicator = ({progress}: {progress: ReportProgress}) => (
     ) : (
       <LinearProgress />
     )}
-    <Typography variant="body2" color="text.secondary" role="status">
+    <Typography
+      variant="body2"
+      role="status"
+      sx={{
+        color: "text.secondary",
+      }}
+    >
       {progress.stage === "loading"
         ? TEXT_REPORT_PROGRESS_LOADING(progress.loaded, progress.total)
         : TEXT_REPORT_PROGRESS_RENDERING}

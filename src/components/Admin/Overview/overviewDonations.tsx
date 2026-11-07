@@ -20,7 +20,7 @@ import {
   Button,
 } from "@mui/material";
 import Grid from "@mui/material/Grid";
-import {DataGrid, GridColDef, GridToolbar} from "@mui/x-data-grid";
+import {DataGrid, GridColDef} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 import * as Sentry from "@sentry/react";
 import {AddOutlined} from "@mui/icons-material";
@@ -311,7 +311,7 @@ const OverviewDonationsPage = () => {
                 }}
                 pageSizeOptions={[10, 25, 50, 100]}
                 disableRowSelectionOnClick
-                slots={{toolbar: GridToolbar}}
+                showToolbar
                 localeText={deDE.components.MuiDataGrid.defaultProps.localeText}
                 autoHeight
               />
@@ -341,10 +341,20 @@ type StatCardProps = {
 const StatCard = ({label, value}: StatCardProps) => (
   <Card>
     <CardContent>
-      <Typography variant="caption" color="text.secondary">
+      <Typography
+        variant="caption"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {label}
       </Typography>
-      <Typography variant="h5" fontWeight={600}>
+      <Typography
+        variant="h5"
+        sx={{
+          fontWeight: 600,
+        }}
+      >
         {value}
       </Typography>
     </CardContent>

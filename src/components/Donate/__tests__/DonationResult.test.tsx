@@ -135,8 +135,8 @@ describe("DonationResultPage", () => {
     test("zeigt ein Check-Icon an (success.main Farbe)", () => {
       renderResult("?status=success");
 
-      // Das CheckCircleOutline-Icon wird als SVG gerendert (data-testid=CheckCircleOutlineIcon)
-      const icon = document.querySelector("[data-testid='CheckCircleOutlineIcon']");
+      // Das Icon wird als SVG gerendert (data-testid=CheckCircleOutlinedIcon)
+      const icon = document.querySelector("[data-testid='CheckCircleOutlinedIcon']");
       expect(icon).toBeInTheDocument();
     });
   });
@@ -158,7 +158,7 @@ describe("DonationResultPage", () => {
     test("zeigt ein Error-Icon an", () => {
       renderResult("?status=failed");
 
-      const icon = document.querySelector("[data-testid='ErrorOutlineIcon']");
+      const icon = document.querySelector("[data-testid='ErrorOutlinedIcon']");
       expect(icon).toBeInTheDocument();
     });
   });

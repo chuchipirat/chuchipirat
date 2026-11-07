@@ -5,6 +5,7 @@ Object.assign(global, {TextEncoder, TextDecoder});
 import React from "react";
 import {render, screen} from "@testing-library/react";
 import "@testing-library/jest-dom";
+import {alertClasses} from "@mui/material/Alert";
 
 import {AlertMessage} from "../AlertMessage";
 
@@ -144,15 +145,15 @@ describe("AlertMessage", () => {
       renderAlertMessage();
 
       const alert = screen.getByRole("alert");
-      // MUI setzt die Klasse MuiAlert-standardError fuer severity="error"
-      expect(alert).toHaveClass("MuiAlert-standardError");
+      // Klassennamen aus MUI selbst: eine Umbenennung fällt dann als Typfehler auf
+      expect(alert).toHaveClass(alertClasses.colorError);
     });
 
     test("Verwendet die uebergebene severity", () => {
       renderAlertMessage({severity: "success"});
 
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveClass("MuiAlert-standardSuccess");
+      expect(alert).toHaveClass(alertClasses.colorSuccess);
     });
   });
 });

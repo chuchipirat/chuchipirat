@@ -80,18 +80,40 @@ export const RefundDetailsSection = ({
   // data-sentry-block: Name, Adresse und IBAN nie im Sentry-Replay
   <Box data-sentry-block>
     <Typography variant="subtitle1">{TEXT_REPORT_REFUND_TO}</Typography>
-    <Typography variant="body2" color="text.secondary">
+    <Typography
+      variant="body2"
+      sx={{
+        color: "text.secondary",
+      }}
+    >
       {TEXT_REPORT_ACCOUNT_HOLDER}: {accountHolderName}
     </Typography>
     {isAllPayees ? (
-      <Typography variant="body2" color="text.secondary">
+      <Typography
+        variant="body2"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {TEXT_REPORT_REFUND_ALL_PAYEES_HINT}
       </Typography>
     ) : null}
     {isLoading ? (
-      <Stack direction="row" spacing={1} alignItems="center" sx={{mt: 2}}>
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{
+          alignItems: "center",
+          mt: 2,
+        }}
+      >
         <CircularProgress size={16} />
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           {TEXT_REPORT_PAYMENT_DETAILS_LOADING}
         </Typography>
       </Stack>
@@ -103,7 +125,12 @@ export const RefundDetailsSection = ({
           autoFocus={false}
           onFieldChange={onFieldChange}
         />
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           {TEXT_REPORT_REFUND_OPTIONAL_HINT}
         </Typography>
         {saveOption.isVisible ? <SaveOption saveOption={saveOption} /> : null}

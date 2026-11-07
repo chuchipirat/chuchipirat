@@ -811,17 +811,20 @@ const DeleteFeedsPanel = ({
           id={"daysOffset"}
           key={"daysOffset"}
           type="number"
-          InputProps={{
-            inputProps: {min: DAYS_OFFSET_MIN, max: DAYS_OFFSET_MAX},
-          }}
           label={TEXT_DELETE_FEEDS_OLDER_THAN}
           name={"daysOffset"}
           required
           value={daysOffset}
           onChange={onChangeDayOffset}
           fullWidth
-          InputLabelProps={{
-            shrink: true,
+          slotProps={{
+            input: {
+              inputProps: {min: DAYS_OFFSET_MIN, max: DAYS_OFFSET_MAX},
+            },
+
+            inputLabel: {
+              shrink: true,
+            },
           }}
         />
         {isDeleting && (

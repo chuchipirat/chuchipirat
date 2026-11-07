@@ -300,7 +300,13 @@ const BulkDeleteControls = ({
           : `Alle ${deletableCount} löschen`}
       </Button>
       {check.bulkDelete && skippedCount > 0 && (
-        <Typography variant="caption" color="text.secondary" display="block">
+        <Typography
+          variant="caption"
+          sx={{
+            color: "text.secondary",
+            display: "block",
+          }}
+        >
           {check.bulkDelete.skippedHint(skippedCount)}
         </Typography>
       )}
@@ -558,7 +564,13 @@ const UserDetailDialog = ({
 
       <DialogContent dividers sx={{p: 0}}>
         {state.loading && (
-          <Box display="flex" justifyContent="center" py={4}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              py: 4,
+            }}
+          >
             <CircularProgress />
           </Box>
         )}
@@ -999,14 +1011,20 @@ const DataIntegrityPage = () => {
                                     secondaryAction={
                                       <Stack direction="row" spacing={0.5}>
                                         {check.openInApp && (
-                                          <Tooltip title={check.openInApp.tooltip}>
+                                          <Tooltip
+                                            title={check.openInApp.tooltip}
+                                          >
                                             <IconButton
                                               edge="end"
                                               size="small"
                                               onClick={() =>
                                                 navigate(
                                                   `${check.openInApp!.route}/${itemId}`,
-                                                  {state: {action: Action.VIEW}},
+                                                  {
+                                                    state: {
+                                                      action: Action.VIEW,
+                                                    },
+                                                  },
                                                 )
                                               }
                                             >
@@ -1064,8 +1082,10 @@ const DataIntegrityPage = () => {
                                             <Typography
                                               component="span"
                                               variant="caption"
-                                              color="text.secondary"
-                                              display="block"
+                                              sx={{
+                                                color: "text.secondary",
+                                                display: "block",
+                                              }}
                                             >
                                               {itemDescription}
                                             </Typography>
@@ -1152,7 +1172,13 @@ const DataIntegrityPage = () => {
       {/* Lade-Dialog während Rezeptdaten geladen werden */}
       <Dialog open={recipeDetail.open && recipeDetail.loading} maxWidth="xs">
         <DialogContent>
-          <Box display="flex" justifyContent="center" py={4}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              py: 4,
+            }}
+          >
             <CircularProgress />
           </Box>
         </DialogContent>

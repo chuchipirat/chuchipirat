@@ -132,20 +132,45 @@ export const DialogMergeProducts = ({
           {role}
         </Typography>
         <Typography variant="h6">{product.name}</Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           Abteilung: {product.department.name || "—"}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           Einkaufseinheit: {product.shoppingUnit || "—"}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           Diät: {TEXT_DIET_TYPES[product.dietProperties.diet]}
         </Typography>
-        <Typography variant="body2" color="text.secondary">
+        <Typography
+          variant="body2"
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           Nutzbar: {product.usable ? "Ja" : "Nein"}
         </Typography>
         {refCount !== null && (
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {MERGE_REFERENCES_LABEL}: {refCount}
           </Typography>
         )}

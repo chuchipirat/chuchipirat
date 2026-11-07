@@ -142,8 +142,14 @@ export const DialogScaleRecipe = ({
         {TEXT_DIALOG_TITLE_SCALE_RECIPE}
       </DialogTitle>
       <DialogContent>
-        <Grid container alignItems="center" spacing={1}>
- <Grid size={12} >
+        <Grid
+          container
+          spacing={1}
+          sx={{
+            alignItems: "center",
+          }}
+        >
+          <Grid size={12}>
             <TextField
               margin="dense"
               id="scaledPortions"
@@ -157,21 +163,21 @@ export const DialogScaleRecipe = ({
               slotProps={{htmlInput: {min: 0, max: MAX_SCALABLE_PORTIONS}}}
             />
           </Grid>
- <Grid size={10} >
+          <Grid size={10}>
             <Typography variant="body1">{TEXT_CONVERT_UNITS}</Typography>
           </Grid>
- <Grid size={2} sx={{textAlign: "right"}}>
+          <Grid size={2} sx={{textAlign: "right"}}>
             <Switch
               checked={formFields.convertUnits}
               onChange={onChangeSwitch}
             />
           </Grid>
- <Grid size={12} >
+          <Grid size={12}>
             <Typography variant="body2" color="textSecondary">
               {TEXT_CONVERT_UNITS_EXPLANATION}
             </Typography>
           </Grid>
- <Grid size={12} >
+          <Grid size={12}>
             <Alert severity="info" sx={{marginTop: theme.spacing(1)}}>
               <AlertTitle>{TEXT_INFO_PANEL_TITLE_SCALE}</AlertTitle>
               {TEXT_INFO_PANEL_TEXT_SCALE}

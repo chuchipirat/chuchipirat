@@ -633,12 +633,7 @@ const DialogUser = ({
     : ImageRepository.getEnvironmentRelatedPicture().CARD_PLACEHOLDER_MEDIA;
 
   return (
-    <Dialog
-      open={dialogOpen}
-      onClose={handleClose}
-      fullWidth
-      maxWidth="sm"
-    >
+    <Dialog open={dialogOpen} onClose={handleClose} fullWidth maxWidth="sm">
       <DialogTitle
         sx={classes.dialogHeaderWithPicture}
         style={{
@@ -659,7 +654,13 @@ const DialogUser = ({
       </DialogTitle>
       <DialogContent>
         {isLoading ? (
-          <Box display="flex" justifyContent="center" py={4}>
+          <Box
+            sx={{
+              display: "flex",
+              justifyContent: "center",
+              py: 4,
+            }}
+          >
             <CircularProgress />
           </Box>
         ) : (
@@ -791,30 +792,57 @@ const DialogUser = ({
 
             {/* Tab 2: Anlässe */}
             {activeTab === 2 && (
-              <Box py={1}>
+              <Box
+                sx={{
+                  py: 1,
+                }}
+              >
                 {userEvents.length === 0 ? (
-                  <Typography variant="body2" color="textSecondary" sx={{py: 2}}>
+                  <Typography
+                    variant="body2"
+                    color="textSecondary"
+                    sx={{py: 2}}
+                  >
                     Keine Anlässe vorhanden.
                   </Typography>
                 ) : (
                   <React.Fragment>
-                    <Typography variant="body2" color="textSecondary" sx={{mb: 1}}>
-                      {userEvents.length} {userEvents.length === 1 ? "Anlass" : "Anlässe"}
+                    <Typography
+                      variant="body2"
+                      color="textSecondary"
+                      sx={{mb: 1}}
+                    >
+                      {userEvents.length}{" "}
+                      {userEvents.length === 1 ? "Anlass" : "Anlässe"}
                     </Typography>
                     <List dense>
                       {userEvents.map((event) => {
                         // Datumsbereich berechnen
-                        const startDate = event.dates.length > 0
-                          ? event.dates.reduce((min, d) => d.dateFrom < min ? d.dateFrom : min, event.dates[0].dateFrom)
-                          : null;
-                        const endDate = event.dates.length > 0
-                          ? event.dates.reduce((max, d) => d.dateTo > max ? d.dateTo : max, event.dates[0].dateTo)
-                          : null;
-                        const dateStr = startDate && endDate
-                          ? startDate.toLocaleDateString("de-CH", {dateStyle: "medium"}) +
-                            " – " +
-                            endDate.toLocaleDateString("de-CH", {dateStyle: "medium"})
-                          : "";
+                        const startDate =
+                          event.dates.length > 0
+                            ? event.dates.reduce(
+                                (min, d) =>
+                                  d.dateFrom < min ? d.dateFrom : min,
+                                event.dates[0].dateFrom,
+                              )
+                            : null;
+                        const endDate =
+                          event.dates.length > 0
+                            ? event.dates.reduce(
+                                (max, d) => (d.dateTo > max ? d.dateTo : max),
+                                event.dates[0].dateTo,
+                              )
+                            : null;
+                        const dateStr =
+                          startDate && endDate
+                            ? startDate.toLocaleDateString("de-CH", {
+                                dateStyle: "medium",
+                              }) +
+                              " – " +
+                              endDate.toLocaleDateString("de-CH", {
+                                dateStyle: "medium",
+                              })
+                            : "";
 
                         return (
                           <FormListItem

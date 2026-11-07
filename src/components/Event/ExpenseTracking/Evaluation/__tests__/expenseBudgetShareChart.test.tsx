@@ -127,7 +127,7 @@ describe("ExpenseBudgetShareChart, Donut", () => {
   test("eingebaute Legende ausgeblendet (eigene Legende daneben)", () => {
     renderChart();
 
-    expect(getLastChartProps().slotProps?.legend?.hidden).toBe(true);
+    expect(getLastChartProps().hideLegend).toBe(true);
   });
 
   test("Tooltip: Betrag mit Währung und Anteil", () => {

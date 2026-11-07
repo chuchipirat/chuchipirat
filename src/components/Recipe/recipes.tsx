@@ -165,10 +165,12 @@ const ITEM_PADDING_TOP = 8;
 
 /** Konfiguration für das Menütyp-Dropdown-Menü (maximale Höhe und Breite). */
 const MenuProps = {
-  PaperProps: {
-    style: {
-      maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
-      width: 250,
+  slotProps: {
+    paper: {
+      style: {
+        maxHeight: ITEM_HEIGHT * 4.5 + ITEM_PADDING_TOP,
+        width: 250,
+      },
     },
   },
 };
@@ -654,7 +656,13 @@ export const RecipeSearch = ({
           <Typography align="center" sx={{my: 2}}>
             {TEXT_RECIPE_LIST_LOAD_ERROR}
           </Typography>
-          <Grid container justifyContent="center" sx={{mb: 2}}>
+          <Grid
+            container
+            sx={{
+              justifyContent: "center",
+              mb: 2,
+            }}
+          >
             <Button variant="outlined" onClick={list.reload}>
               {TEXT_RECIPE_LIST_RETRY}
             </Button>
@@ -663,7 +671,9 @@ export const RecipeSearch = ({
       )}
       <RecipeResultsGrid
         recipes={list.recipes}
-        isLoading={list.isProvisional && list.recipes.length === 0 && !list.error}
+        isLoading={
+          list.isProvisional && list.recipes.length === 0 && !list.error
+        }
         hasConfirmedNoResults={list.hasConfirmedNoResults}
         embeddedMode={embeddedMode}
         fabButtonIcon={fabButtonIcon}
@@ -736,14 +746,22 @@ const RecipeFilterPanel = ({
   return (
     <Collapse in={searchSettings.showAdvancedSearch} sx={{mt: 1}}>
       <Paper variant="outlined" sx={{p: 2, borderRadius: 2}}>
-        <Grid container spacing={4} alignItems="center">
+        <Grid
+          container
+          spacing={4}
+          sx={{
+            alignItems: "center",
+          }}
+        >
           {/* Ernährung */}
           <Grid size="auto">
             <Typography
               variant="caption"
-              display="block"
               color="textSecondary"
-              sx={{mb: 0.5}}
+              sx={{
+                display: "block",
+                mb: 0.5,
+              }}
             >
               {TEXT_RESTRICTIONS}
             </Typography>
@@ -773,9 +791,11 @@ const RecipeFilterPanel = ({
           <Grid size="auto">
             <Typography
               variant="caption"
-              display="block"
               color="textSecondary"
-              sx={{mb: 0.5}}
+              sx={{
+                display: "block",
+                mb: 0.5,
+              }}
             >
               {TEXT_CONSIDER_INTOLERANCES}
             </Typography>
@@ -853,9 +873,11 @@ const RecipeFilterPanel = ({
           <Grid size="auto">
             <Typography
               variant="caption"
-              display="block"
               color="textSecondary"
-              sx={{mb: 0.5}}
+              sx={{
+                display: "block",
+                mb: 0.5,
+              }}
             >
               {TEXT_RECIPETYPE}
             </Typography>
@@ -1021,7 +1043,10 @@ const RecipeResultsGrid = ({
       ) : (
         <React.Fragment>
           {recipes.map((recipe) => (
-            <Grid size={getCardGridSize(embeddedMode)} key={"recipe_" + recipe.uid}>
+            <Grid
+              size={getCardGridSize(embeddedMode)}
+              key={"recipe_" + recipe.uid}
+            >
               <RecipeCard
                 key={"recipe_card_" + recipe.uid}
                 recipe={recipe}
@@ -1046,7 +1071,9 @@ const RecipeResultsGrid = ({
               />
             </Grid>
           ))}
-          {isLoadingMore && <LoadingCards count={4} embeddedMode={embeddedMode} />}
+          {isLoadingMore && (
+            <LoadingCards count={4} embeddedMode={embeddedMode} />
+          )}
           {/* Keine Rezepte gefunden --> Neues Erfassen? */}
           {hasConfirmedNoResults && (
             <Grid size={{xs: 12, sm: 12, md: 12}} key={"noRecipe"}>
@@ -1062,7 +1089,13 @@ const RecipeResultsGrid = ({
               <Typography align="center" sx={{mb: 2}}>
                 {TEXT_CREATE_A_NEW_ONE}
               </Typography>
-              <Grid container spacing={2} justifyContent="center">
+              <Grid
+                container
+                spacing={2}
+                sx={{
+                  justifyContent: "center",
+                }}
+              >
                 <Grid>
                   <Fab
                     onClick={onNewClick}
@@ -1085,14 +1118,20 @@ const RecipeResultsGrid = ({
           {needsLoadMoreButton && (
             <Grid size={12} sx={{display: "flex", justifyContent: "center"}}>
               <Button variant="outlined" onClick={onLoadMore}>
-                {loadMoreError ? TEXT_RECIPE_LIST_RETRY : TEXT_RECIPE_LIST_LOAD_MORE}
+                {loadMoreError
+                  ? TEXT_RECIPE_LIST_RETRY
+                  : TEXT_RECIPE_LIST_LOAD_MORE}
               </Button>
             </Grid>
           )}
           {/* Unsichtbares Ende der Liste: Sobald es sich nähert, wird nachgeladen */}
           {hasMore && (
             <Grid size={12}>
-              <div ref={sentinelRef} data-testid="recipeListSentinel" style={{height: 1}} />
+              <div
+                ref={sentinelRef}
+                data-testid="recipeListSentinel"
+                style={{height: 1}}
+              />
             </Grid>
           )}
         </React.Fragment>

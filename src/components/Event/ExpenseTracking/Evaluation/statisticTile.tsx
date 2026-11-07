@@ -39,14 +39,23 @@ export const StatisticTile = ({
 
   return (
     <Card variant="outlined" sx={classes.evaluationTile}>
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography
+        variant="subtitle2"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {title}
       </Typography>
       {hint ? (
         <Typography
           variant="body2"
-          color="text.secondary"
-          sx={classes.evaluationTileHint}
+          sx={[
+            {
+              color: "text.secondary",
+            },
+            classes.evaluationTileHint,
+          ]}
         >
           {hint}
         </Typography>
@@ -59,7 +68,13 @@ export const StatisticTile = ({
             </Typography>
           </Box>
           {details.map((detail) => (
-            <Typography key={detail} variant="body2" color="text.secondary">
+            <Typography
+              key={detail}
+              variant="body2"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
               {detail}
             </Typography>
           ))}

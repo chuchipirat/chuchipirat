@@ -129,16 +129,19 @@ export const DialogSynonymPairs = ({
 
         {/* Bestehende Paare */}
         {synonymPairs.length === 0 ? (
-          <Typography variant="body2" color="text.secondary">
+          <Typography
+            variant="body2"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             Noch keine Synonym-Paare vorhanden.
           </Typography>
         ) : (
           <List dense>
             {synonymPairs.map((synonym) => (
               <ListItem key={synonym.uid}>
-                <ListItemText
-                  primary={`${synonym.nameA} ↔ ${synonym.nameB}`}
-                />
+                <ListItemText primary={`${synonym.nameA} ↔ ${synonym.nameB}`} />
                 <ListItemSecondaryAction>
                   <IconButton
                     edge="end"

@@ -364,7 +364,10 @@ const MealTypeCutoffTimesPage = () => {
         )}
 
         {state.error && (
-          <AlertMessage error={state.error} messageTitle={TEXT_ALERT_TITLE_UUPS} />
+          <AlertMessage
+            error={state.error}
+            messageTitle={TEXT_ALERT_TITLE_UUPS}
+          />
         )}
 
         {!state.isLoading && (
@@ -375,7 +378,9 @@ const MealTypeCutoffTimesPage = () => {
                 <Card key={cutoff.id || `new-${index}`} sx={classes.card}>
                   <CardHeader
                     title={cutoff.names.join(", ") || "Neue Cutoff-Zeit"}
-                    subheader={cutoff.id ? `ID: ${cutoff.id}` : "Noch nicht gespeichert"}
+                    subheader={
+                      cutoff.id ? `ID: ${cutoff.id}` : "Noch nicht gespeichert"
+                    }
                     action={
                       <IconButton
                         onClick={() => handleDelete(index)}
@@ -486,7 +491,12 @@ const MealTypeCutoffTimesPage = () => {
             </Button>
 
             {state.cutoffs.length === 0 && (
-              <Typography color="text.secondary" align="center">
+              <Typography
+                align="center"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {TEXT_EMPTY}
               </Typography>
             )}

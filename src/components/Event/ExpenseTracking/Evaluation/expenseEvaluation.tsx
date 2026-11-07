@@ -269,7 +269,14 @@ export const ExpenseEvaluation = ({
   );
   if (expenses.length === 0) {
     return (
-      <Typography sx={classes.centerCenter} color="text.secondary">
+      <Typography
+        sx={[
+          {
+            color: "text.secondary",
+          },
+          classes.centerCenter,
+        ]}
+      >
         {TEXT_EVALUATION_NO_EXPENSES}
       </Typography>
     );
@@ -295,7 +302,13 @@ export const ExpenseEvaluation = ({
         </Alert>
       )}
 
-      <Typography variant="subtitle2" color="text.secondary" component="h2">
+      <Typography
+        variant="subtitle2"
+        component="h2"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {TEXT_EVALUATION_KEYFIGURES}
       </Typography>
       <Box sx={classes.evaluationFilterBar}>
@@ -338,14 +351,23 @@ export const ExpenseEvaluation = ({
 
       <Box sx={classes.evaluationScopeNote} aria-live="polite">
         {scopeNote && (
-          <Typography variant="caption" color="text.secondary">
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {scopeNote}
           </Typography>
         )}
       </Box>
 
       {expensesOfSelectedBudgets.length === 0 ? (
-        <Typography color="text.secondary">
+        <Typography
+          sx={{
+            color: "text.secondary",
+          }}
+        >
           {TEXT_EVALUATION_NO_EXPENSES_IN_SELECTED_BUDGETS}
         </Typography>
       ) : (

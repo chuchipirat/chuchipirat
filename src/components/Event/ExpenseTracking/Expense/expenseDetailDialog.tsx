@@ -671,7 +671,12 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
             >
               <CloudUploadOutlined />
               <Typography>{TEXT_DROP_ATTACHMENT_HINT}</Typography>
-              <Typography variant="caption" color="text.secondary">
+              <Typography
+                variant="caption"
+                sx={{
+                  color: "text.secondary",
+                }}
+              >
                 {retentionHint}
               </Typography>
               <input
@@ -686,7 +691,12 @@ export const ExpenseDetailDialog: React.FC<ExpenseDetailDialogProps> = ({
           )}
 
           {currentFilename && !formState.removeAttachment && (
-            <Typography variant="caption" color="text.secondary">
+            <Typography
+              variant="caption"
+              sx={{
+                color: "text.secondary",
+              }}
+            >
               {retentionHint}
             </Typography>
           )}

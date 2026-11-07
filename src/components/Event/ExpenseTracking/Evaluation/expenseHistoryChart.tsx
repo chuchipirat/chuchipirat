@@ -1,6 +1,10 @@
 import React from "react";
 import {Card, Theme, Typography, useTheme} from "@mui/material";
-import {LineChart, type LineChartProps} from "@mui/x-charts/LineChart";
+import {
+  LineChart,
+  type LineChartProps,
+  type LineSeries,
+} from "@mui/x-charts/LineChart";
 
 import {
   EVALUATION_HISTORY_NO_EVENT_DAYS as TEXT_EVALUATION_HISTORY_NO_EVENT_DAYS,
@@ -12,16 +16,7 @@ import {
 } from "../../../../constants/text";
 import {useCustomStyles} from "../../../../constants/styles";
 import {formatAmountFromCents} from "../../../Shared/utils/currencyUtils";
-import type {AxisConfig} from "@mui/x-charts/models";
-
-/**
- * Kontext, den x-charts einem Achsen-Formatter übergibt (`location`: Achse,
- * Tooltip oder Legende). In v7 nicht öffentlich exportiert, darum aus der
- * öffentlichen `AxisConfig` abgeleitet statt aus `@mui/x-charts/internals`.
- */
-type AxisValueFormatterContext = Parameters<
-  NonNullable<AxisConfig["valueFormatter"]>
->[1];
+import type {AxisValueFormatterContext} from "@mui/x-charts/models";
 
 /**
  * Props für {@link ExpenseHistoryChart}.
@@ -43,7 +38,7 @@ type ExpenseHistoryChartProps = {
 
 /** Feste Höhe des Diagramms in Pixeln; die Breite passt sich dem Container an. */
 const CHART_HEIGHT = 280;
-// muss zum Selektor `.MuiLineElement-series-target` in expenseTracking.styles.ts passen
+// muss zum Selektor `[data-series="target"]` in expenseTracking.styles.ts passen
 const TARGET_SERIES_ID = "target";
 
 /**
@@ -94,14 +89,23 @@ export const ExpenseHistoryChart = ({
 
   return (
     <Card variant="outlined" sx={classes.evaluationTile}>
-      <Typography variant="subtitle2" color="text.secondary">
+      <Typography
+        variant="subtitle2"
+        sx={{
+          color: "text.secondary",
+        }}
+      >
         {TEXT_EVALUATION_HISTORY_TITLE}
       </Typography>
       {hint ? (
         <Typography
           variant="body2"
-          color="text.secondary"
-          sx={classes.evaluationTileHint}
+          sx={[
+            {
+              color: "text.secondary",
+            },
+            classes.evaluationTileHint,
+          ]}
         >
           {hint}
         </Typography>
@@ -121,7 +125,12 @@ export const ExpenseHistoryChart = ({
             grid={{horizontal: true}}
             sx={classes.evaluationHistoryChart}
           />
-          <Typography variant="caption" color="text.secondary">
+          <Typography
+            variant="caption"
+            sx={{
+              color: "text.secondary",
+            }}
+          >
             {TEXT_EVALUATION_HISTORY_SUMMARY(
               elapsedEventDays,
               eventDays.length,
@@ -162,32 +171,32 @@ const buildSeries = ({
   const formatTooltipAmount = (value: number | null) =>
     value === null ? null : formatAmountFromCents(value, currency);
 
-  // typisiertes Array: sonst wird `curve: "linear"` zu `string` verbreitert
-  const series: LineChartProps["series"] = [
-    {
-      id: "actual",
-      label: TEXT_EVALUATION_HISTORY_ACTUAL,
-      data: actualValues,
-      // gerade Linien: kumulierte Tageswerte steigen sprunghaft, nicht allmählich
-      curve: "linear",
-      color: theme.palette.primary.main,
-      valueFormatter: formatTooltipAmount,
-    },
-  ];
-  if (targetValues) {
-    series.push({
-      id: TARGET_SERIES_ID,
-      label: TEXT_EVALUATION_HISTORY_TARGET,
-      data: targetValues,
-      curve: "linear",
-      color: theme.palette.text.secondary,
-      // Fläche unter dem Soll = «Budgetraum»; Füllfarbe kommt aus expenseTracking.styles.ts
-      area: true,
-      showMark: false,
-      valueFormatter: formatTooltipAmount,
-    });
+  // Typ angeben: sonst wird `curve: "linear"` zu `string` verbreitert
+  const actualSeries: LineSeries = {
+    id: "actual",
+    label: TEXT_EVALUATION_HISTORY_ACTUAL,
+    data: actualValues,
+    // gerade Linien: kumulierte Tageswerte steigen sprunghaft, nicht allmählich
+    curve: "linear",
+    color: theme.palette.primary.main,
+    valueFormatter: formatTooltipAmount,
+  };
+  if (!targetValues) {
+    return [actualSeries];
   }
-  return series;
+
+  const targetSeries: LineSeries = {
+    id: TARGET_SERIES_ID,
+    label: TEXT_EVALUATION_HISTORY_TARGET,
+    data: targetValues,
+    curve: "linear",
+    color: theme.palette.text.secondary,
+    // Fläche unter dem Soll = «Budgetraum»; Füllfarbe kommt aus expenseTracking.styles.ts
+    area: true,
+    showMark: false,
+    valueFormatter: formatTooltipAmount,
+  };
+  return [actualSeries, targetSeries];
 };
 
 /**

@@ -1081,12 +1081,14 @@ const DialogPlanPortionsMealBlock = ({
           disabled
           value={getDietTabPortions(dietPlan) || ""}
           label={TEXT_TOTAL_PORTIONS}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <strong>=</strong>
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <strong>=</strong>
+                </InputAdornment>
+              ),
+            },
           }}
         />
       </Grid>
@@ -1111,12 +1113,14 @@ const DialogPlanPortionsMealBlock = ({
                 disabled
                 value={entry.portions || ""}
                 label={entry.name}
-                InputProps={{
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <strong>+</strong>
-                    </InputAdornment>
-                  ),
+                slotProps={{
+                  input: {
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <strong>+</strong>
+                      </InputAdornment>
+                    ),
+                  },
                 }}
               />
             </Grid>
@@ -1138,12 +1142,14 @@ const DialogPlanPortionsMealBlock = ({
               disabled
               value={grandTotal || ""}
               label={TEXT_TOTAL_PORTIONS}
-              InputProps={{
-                startAdornment: (
-                  <InputAdornment position="start">
-                    <strong>=</strong>
-                  </InputAdornment>
-                ),
+              slotProps={{
+                input: {
+                  startAdornment: (
+                    <InputAdornment position="start">
+                      <strong>=</strong>
+                    </InputAdornment>
+                  ),
+                },
               }}
             />
           </Grid>
@@ -1273,12 +1279,14 @@ export const DialogPlanPortionsMealBlockRow = ({
           disabled
           value={totalPortions == 0 ? "" : totalPortions}
           label={TEXT_TOTAL_PORTIONS}
-          InputProps={{
-            startAdornment: (
-              <InputAdornment position="start">
-                <strong>=</strong>
-              </InputAdornment>
-            ),
+          slotProps={{
+            input: {
+              startAdornment: (
+                <InputAdornment position="start">
+                  <strong>=</strong>
+                </InputAdornment>
+              ),
+            },
           }}
         />
       </Grid>

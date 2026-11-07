@@ -217,9 +217,13 @@ const ExpenseRow = ({
             <Typography
               component="span"
               variant="body2"
-              color="text.secondary"
               noWrap
-              sx={classes.expenseRowSecondaryText}
+              sx={[
+                {
+                  color: "text.secondary",
+                },
+                classes.expenseRowSecondaryText,
+              ]}
             >
               {secondaryText}
             </Typography>
