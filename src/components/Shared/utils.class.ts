@@ -1,7 +1,7 @@
 import AuthUser from "../Session/authUser.class";
 import {SortOrder} from "./global.interface";
 import {ChangeRecord} from "./global.interface";
-import {once} from "@atlaskit/pragmatic-drag-and-drop/once";
+import {once} from "@atlaskit/pragmatic-drag-and-drop/utils/once";
 
 /**
  * Schnittstelle für Utils.insertArrayElementAtPosition
