@@ -117,3 +117,80 @@
 ## «Nein» heisst anhalten, nicht trotzdem umsetzen
 
 Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» und erklärte, was er gemeint hatte. Ich schrieb trotzdem sofort die Tests und gab ihm die Umbauschritte, statt nachzufragen. **Regel:** Lehnt der Nutzer einen Vorschlag ab, nichts dazu bauen, auch keine Tests. Auch wenn der Vorschlag nach der Klärung noch sinnvoll scheint: Begründung und einfachere Alternative nennen, dann auf sein Ja warten.
+
+## Browser-Checklisten aus den Importen ableiten, nicht aus der Erinnerung (2026-11-05)
+
+**What happened**: Im Abhängigkeits-Upgrade schrieb ich zweimal falsche Prüfschritte: Tiptap «im Rezept» (steckt nur in Mail-Konsole und Systemmeldungen) und Fuse «in der Rezeptsuche» (die sucht per Datenbank-`ilike`, Fuse nur im Duplikat-Hinweis). Der Nutzer suchte dann nach einem Fehler, der keiner war.
+
+**Rule**: Bevor ich einen Browser-Test für ein Paket vorschlage, `grep -rln "<paket>" src` und daraus die Seiten ableiten.
+
+**How to apply**: Die Fundstellen (Datei:Zeile) direkt in den Prüfschritt schreiben, damit der Nutzer sieht, woher er kommt.
+
+## Behauptungen über Bibliotheken und Bundles erst messen (2026-11-06)
+
+**What happened**: Im Tooling-Epic sagte ich zweimal etwas Falsches mit Überzeugung: «FeedbackFab-Farben wirken nie» (Sentry übernimmt sie zur Laufzeit doch, nur der Typ verbietet es) und «Haupt-Bundle 30 % kleiner mit Vite 8» (die Startladung war gleich, nur auf 65 Dateien verteilt). Dazu schlug ich einen abgeleiteten Typ vor, der in Wahrheit `any` war.
+
+**Rule**: Vor einer Aussage über Bibliotheksverhalten den Code in `node_modules` lesen; Bundle-Gewinne an den Dateien messen, die `build/index.html` beim Start lädt; jeden aus einer Bibliothek abgeleiteten Typ mit einem falschen Wert gegen `tsc` prüfen.
+
+**How to apply**: In Plänen kennzeichnen, was gemessen und was vermutet ist («Vermutung, prüfe ich beim Umsetzen»).
+
+## «Darf nicht vorkommen»-Tests vollständig machen (2026-11-06)
+
+**What happened**: Mein Test «`attachTo` bekommt nur Texte» prüfte `themeLight`/`themeDark`, nicht `colorScheme`; das doppelte `colorScheme` fiel erst im Review auf.
+
+**Rule**: Bei Negativ-Tests jede Eigenschaft prüfen, die vor der Änderung an dieser Stelle stand.
+
+## Commit nur hinter grünem Testlauf (2026-11-06)
+
+**What happened**: Im MUI-Epic committete ich, obwohl der volle Jest-Lauf 69 Fehler zeigte. Die Befehlskette prüfte nur die Ausgabe per `grep`, nicht den Exit-Code. Ursache der Fehler: Test-Mocks von `@mui/x-charts/LineChart` versteckten den neu importierten `lineClasses`.
+
+**Rule**: `git commit` nur in einer Kette hinter `npx jest --watchAll=false && npx tsc --noEmit && npm run lint`. Wird ein Modul in Tests gemockt, das neu auch Hilfswerte exportiert, im Mock `...jest.requireActual(...)` behalten.
+
+## zsh: Dateilisten nie als einfache Variable (2026-11-06)
+
+**What happened**: Für eine Wegwerf-Prüfung legte ich `FILES="a b c"` an und sicherte mit `for f in $FILES`. zsh teilt unquotierte Variablen nicht auf; Sicherung und Rücksetzen schlugen fehl, die Dateien des Nutzers enthielten danach meine Probeänderungen. Wiederhergestellt per Gegen-Ersetzung.
+
+**Rule**: Listen als Array (`files=(a b c)`, `for f in $files`) oder über `… | while read -r f`. Vor jedem Rücksetzen prüfen, dass die Sicherung existiert (`ls`), und danach mit `git diff` gegen den erwarteten Nutzerstand vergleichen.
+
+## Realtime-Fehler gegen einen Ablauf testen, nicht gegen ein Echo (2026-11-06)
+
+**What happened**: «Eigene Änderung leuchtet auf» behob ich zuerst mit einer längeren Nachlaufzeit. Die Ursache war, dass verworfene eigene Echos die Vergleichsbasis veralten liessen; das zeigte sich erst beim zweiten Klick.
+
+**Rule**: Bei Realtime-/Echo-Fehlern klären, ob der Zeitpunkt oder die Verarbeitung des Echos falsch ist, und einen Test mit mehreren aufeinanderfolgenden Echos schreiben (eigenes, dann fremdes).
+
+
+## Datenschutz-Option erst beim Leser prüfen (2026-11-06)
+
+**What happened**: Für Sentry 11 schlug ich `httpHeaders: false` vor, um keine Header zu senden. Im Browser liest `httpContextIntegration` aber genau daraus den User-Agent; ohne ihn fehlen Browser/OS an jedem Event und Sentrys Crawler-Filter greift nicht mehr. Aufgefallen erst durch die Rückfrage des Nutzers.
+
+**Rule**: Bevor eine SDK-Option ausgeschaltet wird, im Quellcode (`node_modules/@sentry/*/build/esm`) nachsehen, welche Integrationen sie lesen, und die Folgen nennen. Bei einem neuen Major die Vorgaben in den Typen lesen; sie können still mehr Daten sammeln.
+
+## Asynchroner Test, der vor dem Ergebnis grün ist (2026-11-06)
+
+**What happened**: Der zxcvbn-Test ohne Mock erwartete «Schwach» für «passwort» und ein deutsches Wort. Die Anzeige startet mit Score 0 = «Schwach», also war der Test grün, bevor die Bibliothek antwortete; die Mutation «ohne deutsches Wörterbuch» blieb grün.
+
+**Rule**: Entspricht der Startzustand dem erwarteten Ergebnis, zuerst einen anderen Zustand herstellen und abwarten (starkes Passwort → «Stark»), dann per `rerender` auf das Ziel wechseln. Mutationsprobe vor dem Commit.
+
+## Vergleichsbuilds mit explizitem Node (2026-11-06)
+
+**What happened**: Ein Build im Worktree unter `$CLAUDE_JOB_DIR` lief mit Node 20 und brach ab; `.nvmrc` greift dort nicht.
+
+**Rule**: Für Builds ausserhalb des Repos `PATH=~/.nvm/versions/node/v24.*/bin:$PATH` setzen und beide Seiten eines Vergleichs mit derselben Version bauen.
+
+## Sitzungs-Node vor dem Messen prüfen (2026-11-06)
+
+**What happened**: Die Hintergrund-Sitzung lief mit Node 20 / npm 10.8, obwohl `.nvmrc` und der nvm-Standard des Nutzers 24 sind. `npm outdated` zeigte darum «Latest»-Versionen, die älter waren als die installierten, und ich erklärte das zuerst falsch mit Registry-dist-tags.
+
+**Rule**: Am Anfang jeder Messung `node -v && npm -v` ausgeben. Weicht die Version ab, `PATH=~/.nvm/versions/node/v24.*/bin:$PATH` setzen und Messungen wiederholen. Unplausible Werte eines Werkzeugs zuerst auf die Umgebung prüfen, bevor eine Erklärung behauptet wird.
+
+## Browser-Rundgang: Layoutverschiebung und Geräteansicht (2026-11-06)
+
+**What happened**: Zwei gebündelte Klicks auf DataGrid-Zeilen trafen «alle auswählen», weil nach dem ersten Klick eine Auswahlleiste erschien und die Tabelle nach unten schob. In der DevTools-Geräteansicht liefen Mausklicks der Chrome-Erweiterung in einen 30-s-Timeout.
+
+**Rule**: Nach einem Klick, der Layout ändern kann (Auswahl, Dialog, Leiste), vor dem nächsten Klick einen Screenshot nehmen. Bei offener Geräteansicht Buttons per `element.click()` über `javascript_tool` auslösen und nur das Layout per Screenshot prüfen.
+
+## Gestapelte PRs: zuerst umhängen, dann Branch löschen (2026-11-07)
+
+**What happened**: Beim Mergen des PR-Stapels (#252 → #261) löschte `gh pr merge --delete-branch` den Branch von #252. GitHub hat den darauf aufbauenden PR #254 dabei nicht umgehängt, sondern **geschlossen**. Reparatur: Branch aus dem Head-Commit wiederherstellen, #254 öffnen, Basis auf `develop`, Branch wieder löschen.
+
+**Rule**: Vor jedem Merge eines gestapelten PRs den nächsten PR per `gh pr edit <next> --base develop` umhängen, erst dann mit `--delete-branch` mergen. CI startet nach einem Basiswechsel nicht von selbst (nur `opened`/`synchronize`/`reopened`), darum den umgehängten PR einmal schliessen und wieder öffnen. Zwischen zwei Merges auf den TEST-Deploy warten, der Workflow hat keine `concurrency`-Sperre. Und: `gh pr merge` wechselt lokal auf die Basis und löscht den lokalen Branch, wenn man auf dem Head-Branch steht.

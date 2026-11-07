@@ -9,8 +9,8 @@ Vor allem anderen `.claude/docs/coaching-workflow.md` lesen. Es enthält Rollen,
 Story-Datei, Ablauf pro Paket, Regeln und die Pre-Commit-Checkliste. Dieser Skill sagt nur, was
 pro Einstieg zu tun ist.
 
-Die Story-Datei liegt in `.claude/tasks/<Feature>.md` und ist nicht in Git. Gibt es mehrere,
-fragen, welche gemeint ist.
+Die Story-Datei liegt in `.claude/tasks/<Feature>/<Feature>.md` und ist nicht in Git. Gibt es
+mehrere Features, fragen, welches gemeint ist.
 
 ## `plan <issue oder Feature>`: Feature starten
 
@@ -23,8 +23,10 @@ fragen, welche gemeint ist.
 
 ## `next`: nächstes Paket ausarbeiten
 
-1. Story-Datei lesen, nächstes offenes Paket finden. Ist ein Epic abgeschlossen: zuerst Rückblick
-   schreiben und neue Regeln in die Pre-Commit-Checkliste von `coaching-workflow.md` übernehmen.
+1. Story-Datei lesen, nächstes offenes Paket finden. Ist ein Epic abgeschlossen, zuerst:
+   - Rückblick schreiben, neue Regeln in die Pre-Commit-Checkliste von `coaching-workflow.md`
+   - Epic archivieren (vollständig nach `Epic NN - <Titel>.md`, Kurzfassung in der Story-Datei)
+   - PR des Epics gegen `develop` vorschlagen
 2. Umriss mit dem aktuellen Code abgleichen, Abweichungen festhalten.
 3. Paket ausarbeiten: Worum es geht, Entscheidungen mit *Warum*, Schnittstellen (Namen,
    Signaturen, Pfade, kein fertiger Code), Texte, Tests, Mutationsproben, Schritte mit ✋,
@@ -38,7 +40,8 @@ fragen, welche gemeint ist.
 1. `git status` und `git diff` (Working Tree gegen HEAD), neue Dateien vollständig lesen.
 2. Selbst prüfen: `npx tsc --noEmit`, `npx jest <Muster> --watchAll=false`, `npm run lint`.
 3. Feedback in den vier Kategorien aus dem Workflow-Dokument, getrennt nach **Muss** und **Kann**,
-   mit Datei:Zeile und Begründung. Pre-Commit-Checkliste durchgehen. Den Code des Nutzers nicht
+   mit Datei:Zeile und dem Prinzip dahinter. Pre-Commit-Checkliste durchgehen, Dateigrösse der
+   berührten Dateien prüfen (`wc -l`, über ca. 500 Zeilen = Befund). Den Code des Nutzers nicht
    umschreiben.
 4. Mindestens eine Mutationsprobe vorschlagen oder selbst machen (danach zurücksetzen).
 5. JSDoc (Deutsch, ohne Plan-IDs) für neue/geänderte Funktionen direkt in die Dateien schreiben.
