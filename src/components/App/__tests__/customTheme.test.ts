@@ -25,6 +25,7 @@ jest.mock("../../Shared/utils.class", () => {
 
 import {getChartCategoryColors, getTheme} from "../customTheme";
 import {LocalStorageKey} from "../../../constants/localStorage";
+import {getLuminance} from "@mui/material/styles";
 
 describe("getTheme", () => {
   afterEach(() => {
@@ -92,6 +93,33 @@ describe("getTheme", () => {
     const palette = getTheme(false);
     expect((palette.primary as {main: string}).main).toBe("#6a1b9a");
   });
+});
+
+describe("getTheme: Hover-Farbe von Buttons", () => {
+  afterEach(() => {
+    mockEnvironment = Environment.production;
+  });
+
+  // MUI färbt gefüllte Buttons beim Hover mit `primary.dark`. Ist das heller
+  // als `main` (im dunklen Prod-Theme war es Weiss), springt der Button beim
+  // Überfahren auf Weiss, statt etwas dunkler zu werden.
+  test.each([
+    ["Prod hell", Environment.production, false],
+    ["Prod dunkel", Environment.production, true],
+    ["Test hell", Environment.test, false],
+    ["Test dunkel", Environment.test, true],
+  ])(
+    "%s: primary.dark ist dunkler als primary.main",
+    (_label, environment, prefersDarkMode) => {
+      mockEnvironment = environment;
+      const {main, dark} = getTheme(prefersDarkMode).primary as {
+        main: string;
+        dark: string;
+      };
+
+      expect(getLuminance(dark)).toBeLessThan(getLuminance(main));
+    },
+  );
 });
 
 describe("getChartCategoryColors", () => {

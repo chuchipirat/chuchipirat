@@ -49,7 +49,14 @@ const PRIMARY_COLORS: Record<
       dark: "#00363a",
       contrastText: "#fff",
     },
-    dark: {main: "#00bcd4", light: "#fff", dark: "#fff", contrastText: "#000"},
+    // `dark` ist die Hover-Farbe gefüllter Buttons und muss darum dunkler als
+    // `main` sein; `light` bleibt Weiss (Drag-and-Drop-Platzhalter im Menüplan)
+    dark: {
+      main: "#00bcd4",
+      light: "#fff",
+      dark: "#008ba3",
+      contrastText: "#000",
+    },
   },
   test: {
     light: {

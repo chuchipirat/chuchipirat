@@ -75,13 +75,6 @@ import {
   PORTIONS as TEXT_PORTIONS,
   ALL as TEXT_ALL,
   THIS_RECIPE_IS_PLANNED_FOR as TEXT_THIS_RECIPE_IS_PLANNED_FOR,
-  HAS_MEAT as TEXT_HAS_MEAT,
-  IS_VEGAN as TEXT_IS_VEGAN,
-  IS_VEGETARIAN as TEXT_IS_VEGETARIAN,
-  IS_GLUTENFREE as TEXT_IS_GLUTENFREE,
-  HAS_GLUTEN as TEXT_HAS_GLUTEN,
-  IS_LACTOSEFREE as TEXT_IS_LACTOSEFREE,
-  HAS_LACTOSE as TEXT_HAS_LACTOSE,
   FIELD_TAGS as TEXT_FIELD_TAGS,
   FIELD_HINT as TEXT_FIELD_HINT,
   MENU_TYPE as TEXT_MENU_TYPE,
@@ -143,15 +136,7 @@ import {AlertMessage} from "../Shared/AlertMessage";
 import AuthUser from "../Session/authUser.class";
 import {useAuthUser} from "../Session/authUserContext";
 import {OnUpdateRecipeProps, RecipeDivider} from "./recipe";
-import {
-  GlutenFreeIcon,
-  GlutenIcon,
-  LactoseFreeIcon,
-  LactoseIcon,
-  MeatIcon,
-  VeganIcon,
-  VegetarianIcon,
-} from "../Shared/icons";
+import {DietProperties} from "./recipeDietProperties";
 import {useDatabase} from "../Database/DatabaseContext";
 import {RecipeCommentDomain} from "../Database/Repository/RecipeCommentRepository";
 import {FeedType} from "../Shared/feed.class";
@@ -162,7 +147,7 @@ import {RequestService} from "../Request/requestService";
 import {DialogScaleRecipe, OnScale} from "./dialogScaleRecipe";
 import {DialogPublishRecipe} from "./dialogPublishRecipe";
 
-import {Product, Allergen, Diet} from "../Product/product.types";
+import {Product} from "../Product/product.types";
 import {RecipeShort, createShortRecipeFromRecipe} from "./recipe.types";
 import {
   PlanedMealsRecipe,
@@ -1560,64 +1545,6 @@ export const RecipeInfoPanel = ({
         </List>
       </CardContent>
     </Card>
-  );
-};
-/* ===================================================================
-// ======================= Diät-Eigenschaften ========================
-// =================================================================== */
-interface DietPropertiesProps {
-  recipe: Recipe;
-}
-const DietProperties = ({recipe}: DietPropertiesProps) => {
-  return (
-    <React.Fragment>
-      <Grid container spacing={2}>
-        <Grid size={4} sx={{textAlign: "center"}}>
-          {recipe.dietProperties.allergens.includes(Allergen.Lactose) ? (
-            <React.Fragment>
-              <LactoseIcon fontSize="large" />
-              <Typography variant="body2">{TEXT_HAS_LACTOSE}</Typography>
-            </React.Fragment>
-          ) : (
-            <React.Fragment>
-              <LactoseFreeIcon fontSize="large" />
-              <Typography variant="body2">{TEXT_IS_LACTOSEFREE}</Typography>
-            </React.Fragment>
-          )}
-        </Grid>
-        <Grid size={4} sx={{textAlign: "center"}}>
-          {recipe.dietProperties.allergens.includes(Allergen.Gluten) ? (
-            <React.Fragment>
-              <GlutenIcon fontSize="large" />
-              <Typography variant="body2">{TEXT_HAS_GLUTEN}</Typography>
-            </React.Fragment>
-          ) : (
-            <React.Fragment>
-              <GlutenFreeIcon fontSize="large" />
-              <Typography variant="body2">{TEXT_IS_GLUTENFREE}</Typography>
-            </React.Fragment>
-          )}
-        </Grid>
-        <Grid size={4} sx={{textAlign: "center"}}>
-          {recipe.dietProperties.diet === Diet.Vegetarian ? (
-            <React.Fragment>
-              <VegetarianIcon fontSize="large" />
-              <Typography variant="body2">{TEXT_IS_VEGETARIAN}</Typography>
-            </React.Fragment>
-          ) : recipe.dietProperties.diet === Diet.Vegan ? (
-            <React.Fragment>
-              <VeganIcon fontSize="large" />
-              <Typography variant="body2">{TEXT_IS_VEGAN}</Typography>
-            </React.Fragment>
-          ) : (
-            <React.Fragment>
-              <MeatIcon fontSize="large" />
-              <Typography variant="body2">{TEXT_HAS_MEAT}</Typography>
-            </React.Fragment>
-          )}
-        </Grid>
-      </Grid>
-    </React.Fragment>
   );
 };
 /* ===================================================================
