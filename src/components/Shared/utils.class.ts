@@ -16,13 +16,14 @@ export interface InsertArrayElementAtPosition<T> {
   newElement: T;
 }
 /**
- * Schnittstelle für Util.RenumberArray
- * @param array - Array
- * @param field - Name des Object.Key
+ * Schnittstelle für Utils.renumberArray.
+ *
+ * @param array Einträge, die neu nummeriert werden (wird direkt verändert).
+ * @param field Schlüssel des Felds, das die Position enthält (muss eine Zahl sein).
  */
-export interface RenumberArray<T> {
+export interface RenumberArray<T, K extends keyof T> {
   array: T[];
-  field: string;
+  field: K;
 }
 /**
  * Schnittstelle für Util.differenceBetweenTwoDates
@@ -142,8 +143,29 @@ export class Utils {
   /* =====================================================================
   // Array nach bestimmten Feld neu Nummerieren
   // ===================================================================== */
-  static renumberArray<T>({array, field}: RenumberArray<T>) {
-    array.forEach((entry, index) => (entry[field] = index + 1));
+  /**
+   * Nummeriert die Einträge fortlaufend ab 1 im angegebenen Zahlenfeld.
+   *
+   * Verändert das übergebene Array direkt und gibt es zurück.
+   *
+   * @param params.array Einträge in der gewünschten Reihenfolge.
+   * @param params.field Schlüssel des Positionsfelds; der Typ erlaubt nur
+   *   Felder mit Zahlenwert.
+   * @returns Dasselbe Array mit neu gesetzten Positionen.
+   * @example
+   * Utils.renumberArray({array: event.dates, field: "pos"});
+   * // pos: 1, 2, 3, …
+   */
+  static renumberArray<T extends Record<K, number>, K extends keyof T>({
+    array,
+    field,
+  }: RenumberArray<T, K>): T[] {
+    array.forEach((entry, index) => {
+      // T[K] kann enger sein als number (z.B. 1 | 2), darum lässt TypeScript
+      // `index + 1` nicht direkt zu. Die Sicht als Record<K, number> ist durch
+      // die Einschränkung von T gedeckt.
+      (entry as Record<K, number>)[field] = index + 1;
+    });
     return array;
   }
   /* =====================================================================

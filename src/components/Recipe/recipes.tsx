@@ -70,7 +70,7 @@ import {
 import {useCustomStyles} from "../../constants/styles";
 
 import {RecipeShort} from "./recipe.types";
-import {MenuType, RecipeType} from "./recipe.class";
+import {MenuType, RecipeType, SELECTABLE_MENU_TYPES} from "./recipe.class";
 import {parseMenuTypeSelection} from "./parseMenuTypeSelection";
 import {
   INITIAL_SEARCH_SETTINGS,
@@ -813,31 +813,24 @@ const RecipeFilterPanel = ({
                 value={searchSettings.menuTypes}
                 onChange={onMenuTypeUpdate}
                 input={<OutlinedInput fullWidth label={TEXT_MENU_TYPE} />}
-                renderValue={(selected) => {
-                  const selectedValues = selected as unknown as string[];
-                  const textArray = selectedValues.map(
-                    (value) => TEXT_MENU_TYPES[value],
-                  ) as string[];
-                  return (textArray as string[]).join(", ");
-                }}
+                renderValue={(selected) =>
+                  SELECTABLE_MENU_TYPES.filter((menuType) =>
+                    selected.includes(menuType),
+                  )
+                    .map((menuType) => TEXT_MENU_TYPES[menuType])
+                    .join(", ")
+                }
                 MenuProps={MenuProps}
                 fullWidth
               >
-                {Object.keys(MenuType).map(
-                  (menuType) =>
-                    parseInt(menuType) > 0 && (
-                      <MenuItem key={menuType} value={menuType}>
-                        <Checkbox
-                          checked={
-                            searchSettings.menuTypes.indexOf(
-                              parseInt(menuType),
-                            ) > -1
-                          }
-                        />
-                        <ListItemText primary={TEXT_MENU_TYPES[menuType]} />
-                      </MenuItem>
-                    ),
-                )}
+                {SELECTABLE_MENU_TYPES.map((menuType) => (
+                  <MenuItem key={menuType} value={menuType}>
+                    <Checkbox
+                      checked={searchSettings.menuTypes.includes(menuType)}
+                    />
+                    <ListItemText primary={TEXT_MENU_TYPES[menuType]} />
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </Grid>

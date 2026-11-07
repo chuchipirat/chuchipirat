@@ -204,7 +204,12 @@ const mockRecipeFeed: FeedDomain = {
   title: "Neues Rezept publiziert",
   text: "Ein tolles Rezept",
   user: {uid: "user-1", displayName: "Koch Anna", pictureSrc: ""},
-  sourceObject: {uid: "recipe-1", name: "Spaghetti Bolognese", pictureSrc: ""},
+  sourceObject: {
+    type: "recipe",
+    uid: "recipe-1",
+    name: "Spaghetti Bolognese",
+    pictureSrc: "",
+  },
   createdAt: new Date("2026-03-01"),
 };
 
@@ -215,7 +220,7 @@ const mockFeedEntry: FeedDomain = {
   title: "Kommentar geschrieben",
   text: "Lecker!",
   user: {uid: "user-2", displayName: "Koch Bruno", pictureSrc: ""},
-  sourceObject: {uid: "recipe-2", name: "Risotto", pictureSrc: ""},
+  sourceObject: {type: "recipe", uid: "recipe-2", name: "Risotto", pictureSrc: ""},
   createdAt: new Date("2026-03-02"),
 };
 
@@ -228,9 +233,9 @@ const mockStats: Kpi[] = [
 
 const mockSystemMessage: SystemMessageDomain = {
   uid: "msg-1",
+  title: "Wartung",
   text: "Wartungsarbeiten am Samstag",
-  severity: "info",
-  validFrom: new Date("2026-03-01"),
+  type: "info",
   validTo: new Date("2026-12-31"),
 };
 

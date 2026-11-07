@@ -72,6 +72,7 @@ const createMockAuthUser = (
   authUser.roles = overrides.roles ?? [Role.communityLeader];
   authUser.publicProfile = {
     displayName: overrides.displayName ?? "Test-Benutzer",
+    motto: "",
     pictureSrc: "",
   };
   return authUser;

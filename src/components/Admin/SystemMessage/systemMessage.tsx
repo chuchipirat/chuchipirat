@@ -167,9 +167,6 @@ const SystemMessagePage = () => {
     snackbar: SNACKBAR_INITIAL_STATE_VALUES,
   });
 
-  if (!authUser) {
-    return null;
-  }
   /* ------------------------------------------
   // Initialer DB-Read (nur im Bearbeitmodus)
   // ------------------------------------------ */
@@ -276,6 +273,9 @@ const SystemMessagePage = () => {
   };
 
   const pageTitle = isNewMode ? TEXT_NEW_SYSTEM_MESSAGE : TEXT_EDIT_SYSTEM_MESSAGE;
+  if (!authUser) {
+    return null;
+  }
 
   return (
     <React.Fragment>

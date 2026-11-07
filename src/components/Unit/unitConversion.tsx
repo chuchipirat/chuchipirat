@@ -319,10 +319,6 @@ const UnitConversionPage = () => {
     }
   }, [editMode]);
 
-  if (!authUser) {
-    return null;
-  }
-
   /* ------------------------------------------
   // Edit Mode starten — Snapshot anlegen
   // ------------------------------------------ */
@@ -582,6 +578,11 @@ const UnitConversionPage = () => {
     }
   }, [tabValue]);
 
+  if (!authUser) {
+    return null;
+  }
+
+  
   return (
     <React.Fragment>
       {/*===== HEADER ===== */}

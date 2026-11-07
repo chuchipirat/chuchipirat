@@ -34,6 +34,25 @@ export interface RecipeObjectStructure<T> {
 }
 
 /**
+ * Skalierte Zutaten eines Rezepts, flach nach Positions-UID.
+ *
+ * Bewusst keine `RecipeObjectStructure`: Die Skalierung braucht weder eine
+ * Reihenfolge noch Abschnitte, die Anzeige liest die Reihenfolge weiterhin
+ * aus `recipe.ingredients.order` und schlägt hier nur die Menge nach.
+ * Positionen ohne Produkt (Abschnitte, leere Zeilen) fehlen.
+ *
+ * @example
+ * scaledIngredients[ingredientUid]?.quantity
+ */
+export type ScaledIngredients = Record<string, Ingredient>;
+
+/**
+ * Skalierte Materialien eines Rezepts, flach nach Positions-UID.
+ * Siehe {@link ScaledIngredients}.
+ */
+export type ScaledMaterials = Record<string, RecipeMaterialPosition>;
+
+/**
  * Skalierungsoptionen für die Zutatenberechnung.
  */
 export interface ScalingOptions {
@@ -108,6 +127,26 @@ export enum MenuType {
   Apero,
   Beverage,
 }
+
+/**
+ * Menüart, die man auswählen kann (alle ausser `MenuType.None`).
+ */
+export type SelectableMenuType = Exclude<MenuType, MenuType.None>;
+
+/**
+ * Menüarten, die in Auswahllisten angeboten werden, in Anzeigereihenfolge.
+ * `MenuType.None` fehlt bewusst: «keine Menüart» ist keine wählbare Option.
+ */
+export const SELECTABLE_MENU_TYPES: SelectableMenuType[] = [
+  MenuType.MainCourse,
+  MenuType.SideDish,
+  MenuType.Appetizer,
+  MenuType.Dessert,
+  MenuType.Breakfast,
+  MenuType.Snack,
+  MenuType.Apero,
+  MenuType.Beverage,
+];
 
 /**
  * Produkt-Referenz im Zutaten-Context.
@@ -1010,7 +1049,7 @@ export default class Recipe {
    * @param unitConversionBasic - Standard-Umrechnungsregeln.
    * @param unitConversionProducts - Produkt-spezifische Umrechnungsregeln.
    * @param products - Produktliste (benötigt bei convertUnits).
-   * @returns Neue `RecipeObjectStructure` mit skalierten Zutatenmengen.
+   * @returns Skalierte Zutaten nach Positions-UID (ohne Abschnitte und leere Zeilen).
    */
   static scaleIngredients = ({
     recipe,
@@ -1020,8 +1059,8 @@ export default class Recipe {
     unitConversionBasic,
     unitConversionProducts,
     products,
-  }: Scale) => {
-    const scaledIngredients = {} as RecipeObjectStructure<Ingredient>;
+  }: Scale): ScaledIngredients => {
+    const scaledIngredients: ScaledIngredients = {};
 
     Object.values(recipe?.ingredients?.entries ?? {}).forEach((ingredient) => {
       if (ingredient.posType == PositionType.ingredient) {
@@ -1166,10 +1205,10 @@ export default class Recipe {
    *
    * @param recipe - Das Originalrezept.
    * @param portionsToScale - Zielportionenzahl.
-   * @returns Neue `RecipeObjectStructure` mit skalierten Materialmengen.
+   * @returns Skalierte Materialien nach Positions-UID.
    */
-  static scaleMaterials = ({recipe, portionsToScale}: Scale) => {
-    const scaledMaterials = {} as RecipeObjectStructure<RecipeMaterialPosition>;
+  static scaleMaterials = ({recipe, portionsToScale}: Scale): ScaledMaterials => {
+    const scaledMaterials: ScaledMaterials = {};
 
     Object.values(recipe.materials.entries).forEach((material) => {
       const scaledMaterial = {...material};

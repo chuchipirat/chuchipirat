@@ -174,7 +174,7 @@ const runDownload = async (options: ReportOptions = OPTIONS) => {
   const authUser = new AuthUser();
   authUser.uid = "user-anna";
   const getAttachmentUrl = jest.fn(
-    (attachmentPath: string) => `https://storage.test/${attachmentPath}`,
+    async (attachmentPath: string) => `https://storage.test/${attachmentPath}`,
   );
   const onProgress = jest.fn<void, [ReportProgress]>();
   const onError = jest.fn();

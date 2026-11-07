@@ -16,6 +16,7 @@ import userEvent from "@testing-library/user-event";
 import {RecipeCard, RecipeCardLoading} from "../recipeCard";
 import {RecipeShort, createEmptyRecipeShort} from "../recipe.types";
 import {RecipeType} from "../recipe.class";
+import {Allergen, Diet} from "../../Product/product.types";
 
 /* ===================================================================
 // ======================== Mocks =====================================
@@ -147,5 +148,49 @@ describe("RecipeCard", () => {
     await userEvent.click(fabButton!);
 
     expect(onFabButtonClick).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("RecipeCard Infozeile (Diät und Allergene)", () => {
+  /**
+   * Rendert die Karte mit den angegebenen Diät-Eigenschaften.
+   */
+  const renderWithDiet = (diet: Diet, allergens: Allergen[]) =>
+    render(
+      <RecipeCard
+        {...baseProps}
+        recipe={{...mockRecipe, dietProperties: {diet, allergens}}}
+      />,
+    );
+
+  test("zeigt keine Diät bei Fleisch", () => {
+    renderWithDiet(Diet.Meat, [Allergen.Lactose, Allergen.Gluten]);
+
+    expect(screen.queryByText(/Fleisch/)).not.toBeInTheDocument();
+  });
+
+  test("zeigt die Diät, wenn sie nicht Fleisch ist", () => {
+    renderWithDiet(Diet.Vegan, [Allergen.Lactose, Allergen.Gluten]);
+
+    expect(screen.getByText("vegan")).toBeInTheDocument();
+  });
+
+  test("zeigt nur die Allergene, die das Rezept nicht enthält", () => {
+    renderWithDiet(Diet.Vegetarian, [Allergen.Lactose]);
+
+    expect(screen.getByText("vegetarisch, Glutenfrei")).toBeInTheDocument();
+    expect(screen.queryByText(/Laktosefrei/)).not.toBeInTheDocument();
+  });
+
+  test("zeigt keinen «frei»-Hinweis, wenn das Rezept alle Allergene enthält", () => {
+    renderWithDiet(Diet.Meat, [Allergen.Lactose, Allergen.Gluten]);
+
+    expect(screen.queryByText(/frei/)).not.toBeInTheDocument();
+  });
+
+  test("zeigt alle «frei»-Hinweise, wenn das Rezept keine Allergene enthält", () => {
+    renderWithDiet(Diet.Meat, []);
+
+    expect(screen.getByText("Laktosefrei, Glutenfrei")).toBeInTheDocument();
   });
 });

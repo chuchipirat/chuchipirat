@@ -21,9 +21,9 @@ import type {Material} from "../material.types";
 // =================================================================== */
 
 const mockMaterials: Material[] = [
-  {uid: "mat-1", name: "Schwingbesen", type: MaterialType.usage, usable: true},
-  {uid: "mat-2", name: "Servietten", type: MaterialType.consumable, usable: true},
-  {uid: "mat-3", name: "Teller", type: MaterialType.usage, usable: true},
+  {uid: "mat-1", name: "Schwingbesen", type: MaterialType.usage, usable: true, qaChecked: false, qaCheckedAt: null},
+  {uid: "mat-2", name: "Servietten", type: MaterialType.consumable, usable: true, qaChecked: false, qaCheckedAt: null},
+  {uid: "mat-3", name: "Teller", type: MaterialType.usage, usable: true, qaChecked: false, qaCheckedAt: null},
 ];
 
 /* ===================================================================

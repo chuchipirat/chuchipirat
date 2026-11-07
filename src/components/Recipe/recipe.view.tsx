@@ -6,12 +6,13 @@ import {generateAndDownloadPdf} from "../Shared/pdfUtils";
 import Recipe, {
   RecipeType,
   Ingredient,
-  RecipeMaterialPosition,
   PositionType,
   Section,
   PreparationStep,
-  RecipeObjectStructure,
+  ScaledIngredients,
+  ScaledMaterials,
   ScalingOptions,
+  SELECTABLE_MENU_TYPES,
 } from "./recipe.class";
 import {useNavigate} from "react-router";
 
@@ -254,8 +255,8 @@ export interface OnAddToEvent {
 }
 interface ScalingInformation {
   portions: number;
-  ingredients: RecipeObjectStructure<Ingredient>;
-  materials: RecipeObjectStructure<RecipeMaterialPosition>;
+  ingredients: ScaledIngredients;
+  materials: ScaledMaterials;
   scalingOptions: ScalingOptions;
 }
 
@@ -321,8 +322,8 @@ export const RecipeView = ({
   const [scalingInformation, setScalingInformation] =
     React.useState<ScalingInformation>({
       portions: 0,
-      ingredients: {} as RecipeObjectStructure<Ingredient>,
-      materials: {} as RecipeObjectStructure<RecipeMaterialPosition>,
+      ingredients: {},
+      materials: {},
       scalingOptions: {} as ScalingOptions,
     });
   const [publishRecipeDialogOpen, setPublishRecipeDialogOpen] =
@@ -381,8 +382,8 @@ export const RecipeView = ({
       } else {
         setScalingInformation({
           portions: 0,
-          ingredients: {} as RecipeObjectStructure<Ingredient>,
-          materials: {} as RecipeObjectStructure<RecipeMaterialPosition>,
+          ingredients: {},
+          materials: {},
           scalingOptions: {} as ScalingOptions,
         });
       }
@@ -498,8 +499,8 @@ export const RecipeView = ({
     setScaleRecipeDialogOpen(true);
   };
   const onRecipeScale = async ({scaledPortions, scalingOptions}: OnScale) => {
-    let scaledIngredients = {} as RecipeObjectStructure<Ingredient>;
-    let scaledMaterials = {} as RecipeObjectStructure<RecipeMaterialPosition>;
+    let scaledIngredients: ScaledIngredients = {};
+    let scaledMaterials: ScaledMaterials = {};
     let unitConversionBasic = state.unitConversionBasic;
     let unitConversionProducts = state.unitConversionProducts;
     let products = state.products;
@@ -643,8 +644,8 @@ export const RecipeView = ({
     );
 
     if (mealPlanRecipe) {
-      let scaledIngredients = {} as RecipeObjectStructure<Ingredient>;
-      let scaledMaterials = {} as RecipeObjectStructure<RecipeMaterialPosition>;
+      let scaledIngredients: ScaledIngredients = {};
+      let scaledMaterials: ScaledMaterials = {};
       const scaledPortions = mealPlanRecipe.mealPlan.reduce(
         (runningSum, portion) => runningSum + portion.totalPortions,
         0,
@@ -1493,7 +1494,9 @@ export const RecipeInfoPanel = ({
               <FormListItem
                 key={"menuType"}
                 id={"menuType"}
-                value={recipe.menuTypes
+                value={SELECTABLE_MENU_TYPES.filter((menuType) =>
+                  recipe.menuTypes.includes(menuType),
+                )
                   .map((menuType) => TEXT_MENU_TYPES[menuType])
                   .join(", ")}
                 label={TEXT_MENU_TYPE}
@@ -1824,7 +1827,7 @@ export const DialogTagAdd = ({
 interface RecipeIngredientsProps {
   recipe: Recipe;
   scaledPortions?: number;
-  scaledIngredients?: RecipeObjectStructure<Ingredient>;
+  scaledIngredients?: ScaledIngredients;
 }
 export const RecipeIngredients = ({
   recipe,
@@ -2200,7 +2203,7 @@ export const RecipePreparation = ({recipe}: RecipePreparationProps) => {
 interface RecipeMaterialProps {
   recipe: Recipe;
   scaledPortions?: number;
-  scaledMaterials?: RecipeObjectStructure<RecipeMaterialPosition>;
+  scaledMaterials?: ScaledMaterials;
 }
 
 export const RecipeMaterial = ({

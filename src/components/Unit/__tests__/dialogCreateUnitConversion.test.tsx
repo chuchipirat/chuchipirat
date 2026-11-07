@@ -48,6 +48,8 @@ const mockProducts: Product[] = [
     shoppingUnit: "g",
     dietProperties: {allergens: [], diet: 1},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
   {
     uid: "prod-2",
@@ -56,6 +58,8 @@ const mockProducts: Product[] = [
     shoppingUnit: "kg",
     dietProperties: {allergens: [], diet: 1},
     usable: true,
+    qaChecked: false,
+    qaCheckedAt: null,
   },
 ];
 

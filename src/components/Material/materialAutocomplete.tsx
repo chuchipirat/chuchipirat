@@ -165,7 +165,6 @@ const MaterialAutocomplete = ({
         return option.name;
       }}
       renderOption={(props, option) => {
-        // eslint-disable-next-line react/prop-types
         const {key, ...optionProps} = props;
         return (
           <li key={key} {...optionProps}>

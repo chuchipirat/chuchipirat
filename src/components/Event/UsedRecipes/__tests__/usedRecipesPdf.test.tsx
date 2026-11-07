@@ -151,7 +151,7 @@ const buildMenueCoordinate = (
   date: new Date("2026-03-15"),
   menueName: "Menü 1",
   mealUid: "meal-1",
-  mealType: {uid: "mt-1", name: "Mittagessen", pos: 1},
+  mealType: {uid: "mt-1", name: "Mittagessen"},
   ...overrides,
 });
 
@@ -372,7 +372,10 @@ describe("UsedRecipesPdf", () => {
         variantProperties: {
           note: "Ohne Weizen",
           variantName: "Glutenfrei",
+          eventUid: "event-1",
           originalRecipeUid: "r-base",
+          originalRecipeType: RecipeType.public,
+          originalRecipeCreator: "user-1",
         },
       });
 
@@ -389,7 +392,10 @@ describe("UsedRecipesPdf", () => {
         variantProperties: {
           note: "",
           variantName: "Glutenfrei",
+          eventUid: "event-1",
           originalRecipeUid: "r-base",
+          originalRecipeType: RecipeType.public,
+          originalRecipeCreator: "user-1",
         },
       });
 
@@ -416,7 +422,9 @@ describe("UsedRecipesPdf", () => {
       props.list.recipes["r-1"] = buildRecipe("r-1", {
         name: "Pasta",
         materials: {
-          entries: {"mat-1": {uid: "mat-1", name: "Topf", quantity: 1, unit: "Stk"}},
+          entries: {
+            "mat-1": {uid: "mat-1", quantity: 1, material: {uid: "m-topf", name: "Topf"}},
+          },
           order: ["mat-1"],
         },
       });
@@ -443,7 +451,9 @@ describe("UsedRecipesPdf", () => {
       props.list.recipes["r-1"] = buildRecipe("r-1", {
         name: "Pasta",
         materials: {
-          entries: {"mat-placeholder": {uid: "", name: "", quantity: 0, unit: ""}},
+          entries: {
+            "mat-placeholder": {uid: "", quantity: 0, material: {uid: "", name: ""}},
+          },
           order: ["mat-placeholder"],
         },
       });

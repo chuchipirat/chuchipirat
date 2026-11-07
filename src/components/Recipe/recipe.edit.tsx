@@ -28,6 +28,7 @@ import Recipe, {
   PositionType,
   Section,
   RecipeObjectStructure,
+  SELECTABLE_MENU_TYPES,
 } from "./recipe.class";
 import {parseMenuTypeSelection} from "./parseMenuTypeSelection";
 import {OnUpdateRecipeProps, RecipeDivider, SwitchEditMode} from "./recipe";
@@ -1067,7 +1068,7 @@ const RecipeEdit = ({
   // Prüfen ob es das Rezept bereits gibt
   const onBlurRecipeName = (event: React.FocusEvent<HTMLInputElement>) => {
     // Die Prüfung macht nur Sinn, wenn es sich um ein neues Rezept handelt
-    if (state.recipe.uid) {
+    if (state.recipe.uid || !event.target.value) {
       return;
     }
 
@@ -2167,29 +2168,22 @@ const RecipeInfoPanel = ({
                 value={recipe.menuTypes}
                 onChange={onChange}
                 input={<OutlinedInput label={TEXT.MENU_TYPE} />}
-                renderValue={(selected) => {
-                  const selectedValues = selected as unknown as string[];
-                  const textArray = selectedValues.map(
-                    (value) => TEXT.MENU_TYPES[value],
-                  ) as string[];
-                  return (textArray as string[]).join(", ");
-                }}
+                renderValue={(selected) =>
+                  SELECTABLE_MENU_TYPES.filter((menuType) =>
+                    selected.includes(menuType),
+                  )
+                    .map((menuType) => TEXT.MENU_TYPES[menuType])
+                    .join(", ")
+                }
                 MenuProps={MenuProps}
                 fullWidth
               >
-                {Object.keys(MenuType).map(
-                  (menuType) =>
-                    parseInt(menuType) > 0 && (
-                      <MenuItem key={menuType} value={menuType}>
-                        <Checkbox
-                          checked={
-                            recipe.menuTypes.indexOf(parseInt(menuType)) > -1
-                          }
-                        />
-                        <ListItemText primary={TEXT.MENU_TYPES[menuType]} />
-                      </MenuItem>
-                    ),
-                )}
+                {SELECTABLE_MENU_TYPES.map((menuType) => (
+                  <MenuItem key={menuType} value={menuType}>
+                    <Checkbox checked={recipe.menuTypes.includes(menuType)} />
+                    <ListItemText primary={TEXT.MENU_TYPES[menuType]} />
+                  </MenuItem>
+                ))}
               </Select>
             </FormControl>
           </ListItem>

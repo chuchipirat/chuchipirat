@@ -148,9 +148,6 @@ const SystemMessageOverviewPage = () => {
     window.history.replaceState({}, document.title);
   }
 
-  if (!authUser) {
-    return null;
-  }
 
   /* ------------------------------------------
   // Daten laden
@@ -297,6 +294,11 @@ const SystemMessageOverviewPage = () => {
       ),
     },
   ];
+
+  if (!authUser) {
+    return null;
+  }
+
 
   return (
     <React.Fragment>

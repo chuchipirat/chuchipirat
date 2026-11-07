@@ -102,7 +102,12 @@ import {
   toError,
 } from "../../utils/errorUtils";
 import {useDatabase} from "../Database/DatabaseContext";
-import {DataGrid, GridColDef, GridRowSelectionModel} from "@mui/x-data-grid";
+import {
+  DataGrid,
+  GridColDef,
+  GridRenderCellParams,
+  GridRowSelectionModel,
+} from "@mui/x-data-grid";
 import {deDE} from "@mui/x-data-grid/locales";
 
 import {useProductsQa, QaFilterStatus, ProductIssue} from "./useProductsQa";
@@ -940,9 +945,11 @@ const ProductsTable = ({
         headerName: TEXT_DIET,
         editable: false,
         width: 150,
-        renderCell: (params) => {
+        renderCell: (params: GridRenderCellParams<Product, Diet>) => {
           if (!editMode) {
-            return TEXT_DIET_TYPES[params.value as number];
+            return params.value !== undefined
+              ? TEXT_DIET_TYPES[params.value]
+              : "";
           }
           return (
             <Select

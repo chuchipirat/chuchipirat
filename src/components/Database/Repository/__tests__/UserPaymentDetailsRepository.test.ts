@@ -95,7 +95,7 @@ describe("UserPaymentDetailsRepository", () => {
       expect(row.city).toBe("Hinterpfuffikon");
       expect(row.iban).toBe("CH9300762011623852957");
       // id darf nicht mitgesendet werden
-      expect(row["id"]).toBeUndefined();
+      expect("id" in row).toBe(false);
     });
 
     test("toDomain(): DB-Zeile → Domain (mit uid)", () => {
