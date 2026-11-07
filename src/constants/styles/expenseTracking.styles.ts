@@ -440,7 +440,7 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
     position: "relative",
     // so hoch, dass der Verlauf in der Auswertung noch als Diagramm erkennbar
     // ist; auf dem Handy einspaltig und darum höher
-    maxHeight: {xs: theme.spacing(170), md: theme.spacing(140)},
+    maxHeight: {xs: theme.spacing(270), md: theme.spacing(140)},
     overflow: "hidden",
     pointerEvents: "none",
     userSelect: "none",
@@ -451,7 +451,7 @@ export const getExpenseTrackingStyles = (theme: Theme) => ({
       left: 0,
       right: 0,
       bottom: 0,
-      height: theme.spacing(16),
+      height: "50%",
       background: `linear-gradient(to bottom, ${alpha(theme.palette.background.default, 0)}, ${theme.palette.background.default})`,
     },
   },
