@@ -13,7 +13,7 @@ import {
 interface SingleTextInputDialogProps {
   visible: boolean;
   title: string;
-  text: string | JSX.Element;
+  text: string | React.JSX.Element;
   buttonTextConfirm: string;
   buttonTextCancel: string;
   initialValue?: string;

@@ -133,6 +133,14 @@ export const ADD_ITEM_DIALOG_INITIAL_VALUES = {
   unit: "",
 };
 
+/**
+ * Nachlaufzeit, während der `saveInProgressRef` nach einem eigenen Save noch
+ * oben bleibt. Das Realtime-Echo der eigenen Änderung trifft oft erst nach der
+ * Antwort des Servers ein; ohne Nachlauf gälte es als Änderung einer anderen
+ * Köch:in (Aufleuchten, Reconcile).
+ */
+const OWN_ECHO_GRACE_MS = 400;
+
 export const TRACE_ITEM_DIALOG_INITIAL_VALUES = {
   open: false,
   sortedMenues: [] as MenueCoordinates[],
@@ -518,7 +526,7 @@ const useShoppingListHandlers = ({
               0,
               saveInProgressRef.current - 1,
             );
-          }, 400);
+          }, OWN_ECHO_GRACE_MS);
           const next = pendingSaveRef.current;
           pendingSaveRef.current = null;
           if (next) {
@@ -1593,7 +1601,14 @@ const useShoppingListHandlers = ({
             captureUnexpectedError(error);
           })
           .finally(() => {
-            saveInProgressRef.current -= 1;
+            // wie persistListItems: erst nach dem Nachlauf, sonst leuchtet das
+            // eigene Echo als fremde Änderung auf
+            setTimeout(() => {
+              saveInProgressRef.current = Math.max(
+                0,
+                saveInProgressRef.current - 1,
+              );
+            }, OWN_ECHO_GRACE_MS);
           });
       } else {
         // Fallback: alle Positionen neu speichern (zählt selbst hoch/runter)

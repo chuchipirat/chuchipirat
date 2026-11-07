@@ -468,7 +468,7 @@ type AdminTileProps = {
   /** Beschreibungstext unterhalb des Titels. */
   description: string;
   /** Icon-Element links im Header. */
-  icon: JSX.Element;
+  icon: React.JSX.Element;
   /** Callback für Navigation. */
   action: (routeDestination: string) => void;
   /** Ziel-Route. */
@@ -511,7 +511,7 @@ type ExternalLinkTileProps = {
   /** Angezeigter Titel. */
   text: string;
   /** Icon-Element links im Header. */
-  icon: JSX.Element;
+  icon: React.JSX.Element;
   /** Externe URL. */
   url: string;
 };

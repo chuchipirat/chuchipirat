@@ -19,12 +19,6 @@ import {ExpenseTrackingPreviewData} from "./expenseTrackingPreview.data";
 const ignoreClick = () => undefined;
 
 /**
- * `inert` hält Tastatur und Screenreader fern. React 18 kennt das Attribut
- * noch nicht als boolesches Attribut, darum als leerer String.
- */
-const INERT_ATTRIBUTE = {inert: ""} as React.HTMLAttributes<HTMLDivElement>;
-
-/**
  * Props für {@link ExpenseTrackingPreview}.
  *
  * @param data - Beispieldaten, siehe `expenseTrackingPreview.data.ts`.
@@ -64,7 +58,7 @@ export const ExpenseTrackingPreview = ({data}: ExpenseTrackingPreviewProps) => {
       <Box
         sx={classes.expenseTrackingPreviewArea}
         data-testid="expense-tracking-preview-area"
-        {...INERT_ATTRIBUTE}
+        inert
       >
         <Typography
           variant="subtitle2"

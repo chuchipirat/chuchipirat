@@ -120,7 +120,9 @@ export const useExpenseTrackingData = ({
   const [highlightedExpenseIds, setHighlightedExpenseIds] = React.useState<
     Set<string>
   >(new Set());
-  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const highlightTimeoutRef = React.useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
 
   // Hält die Refs auch nach dem Erstladen aktuell (das ruft `loadData`
   // direkt auf, nicht `loadDataAndHighlightChanges`, siehe unten).

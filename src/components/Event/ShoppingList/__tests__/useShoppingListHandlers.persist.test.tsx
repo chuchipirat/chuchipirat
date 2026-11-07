@@ -336,6 +336,94 @@ describe("useShoppingListHandlers — Kontextmenü-Delete (B3) + Save-Flag (B1a)
   });
 });
 
+describe("useShoppingListHandlers — Abhaken einer Position", () => {
+  beforeEach(() => jest.clearAllMocks());
+
+  /**
+   * Hakt die Position `item-a` (Abteilung 0, Einheit kg) ab. Die Checkbox
+   * heisst `chk_<Abteilung>_<UID>_<Einheit>`.
+   */
+  const clickCheckboxOfItemA = (
+    result: {current: ReturnType<typeof useShoppingListHandlers>},
+  ) => {
+    act(() => {
+      result.current.onCheckboxClick({
+        target: {name: "chk_0_item-a_kg"},
+      } as never);
+    });
+  };
+
+  test("hält saveInProgressRef nach dem Speichern noch kurz oben, damit das eigene Echo ignoriert wird", async () => {
+    // Das Realtime-Echo des eigenen Abhakens kommt oft erst nach der Antwort
+    // des Servers. Fällt der Zähler sofort auf 0, gilt es als fremde Änderung
+    // und die Position leuchtet auf.
+    jest.useFakeTimers();
+    const deferred = defer();
+    const updateItemChecked = jest.fn().mockReturnValue(deferred.promise);
+    const {result, saveInProgressRef, shoppingList} = renderHandlers({
+      database: {
+        shoppingLists: {
+          saveListItems: jest.fn().mockResolvedValue(undefined),
+          updateListHeader: jest.fn().mockResolvedValue(undefined),
+          updateItemChecked,
+        },
+      },
+    });
+    // Bereits gespeicherte Position: granularer Update-Pfad
+    shoppingList.list[0].items[0].supabaseId = "db-row-a";
+
+    clickCheckboxOfItemA(result);
+
+    expect(updateItemChecked).toHaveBeenCalledWith("db-row-a", true);
+    expect(saveInProgressRef.current).toBe(1);
+
+    await act(async () => {
+      deferred.resolve();
+      await deferred.promise;
+    });
+
+    // Nach der Antwort noch oben (Nachlauf-Fenster für das Echo) …
+    act(() => {
+      jest.advanceTimersByTime(399);
+    });
+    expect(saveInProgressRef.current).toBe(1);
+
+    // … und erst nach 400 ms wieder frei
+    act(() => {
+      jest.advanceTimersByTime(1);
+    });
+    expect(saveInProgressRef.current).toBe(0);
+    jest.useRealTimers();
+  });
+
+  test("zählt auch nach einem Fehler beim Speichern wieder auf 0 herunter", async () => {
+    jest.useFakeTimers();
+    const updateItemChecked = jest.fn().mockRejectedValue(new Error("offline"));
+    const {result, saveInProgressRef, shoppingList} = renderHandlers({
+      database: {
+        shoppingLists: {
+          saveListItems: jest.fn().mockResolvedValue(undefined),
+          updateListHeader: jest.fn().mockResolvedValue(undefined),
+          updateItemChecked,
+        },
+      },
+    });
+    shoppingList.list[0].items[0].supabaseId = "db-row-a";
+
+    clickCheckboxOfItemA(result);
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    act(() => {
+      jest.advanceTimersByTime(400);
+    });
+
+    expect(saveInProgressRef.current).toBe(0);
+    jest.useRealTimers();
+  });
+});
+
 describe("useShoppingListHandlers — Kontextmenü «Herkunft» (CHUCHIPIRAT-FV)", () => {
   /** postgrest-Wrapper eines fehlgeschlagenen fetch() auf iOS Safari. */
   const NETWORK_ERROR = {

@@ -1,4 +1,4 @@
-import {pdf} from "@react-pdf/renderer";
+import {pdf, type DocumentProps} from "@react-pdf/renderer";
 import fileSaver from "file-saver";
 import * as Sentry from "@sentry/react";
 
@@ -29,7 +29,9 @@ import * as Sentry from "@sentry/react";
  * );
  */
 export const generateAndDownloadPdf = async (
-  pdfElement: React.ReactElement | (() => Promise<React.ReactElement>),
+  pdfElement:
+    | React.ReactElement<DocumentProps>
+    | (() => Promise<React.ReactElement<DocumentProps>>),
   filename: string,
   onError?: (error: Error) => void,
   sentryContext?: Record<string, unknown>,

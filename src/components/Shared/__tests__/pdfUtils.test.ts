@@ -15,15 +15,19 @@ jest.mock("file-saver", () => ({
 jest.mock("@sentry/react", () => ({captureException: jest.fn()}));
 
 import React from "react";
-import {pdf} from "@react-pdf/renderer";
+import {pdf, type DocumentProps} from "@react-pdf/renderer";
 import fileSaver from "file-saver";
 import * as Sentry from "@sentry/react";
 
 import {generateAndDownloadPdf} from "../pdfUtils";
 
 const mockedPdf = jest.mocked(pdf);
-/** Platzhalter für das PDF-Element; `pdf` ist gemockt. */
-const PDF_ELEMENT = React.createElement("div");
+/**
+ * Platzhalter für ein `<Document>` von react-pdf. `pdf()` ist gemockt, es
+ * zählt nur, dass das Element den Typ eines PDF-Dokuments hat.
+ */
+const FakeDocument = (_props: DocumentProps) => null;
+const PDF_ELEMENT = React.createElement(FakeDocument, {});
 
 /**
  * Lässt `pdf(...).toBlob()` mit dem gegebenen Ergebnis antworten.

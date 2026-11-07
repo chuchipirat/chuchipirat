@@ -247,7 +247,9 @@ const EventMaterialListPage = ({
 
   const [state, dispatch] = React.useReducer(materialListReducer, initialState);
   const [highlightedItemUids, setHighlightedItemUids] = React.useState<Set<string>>(new Set());
-  const highlightTimeoutRef = React.useRef<ReturnType<typeof setTimeout>>();
+  const highlightTimeoutRef = React.useRef<
+    ReturnType<typeof setTimeout> | undefined
+  >(undefined);
   const realtime = useRealtimeConnectionStatus();
 
   const [recipeDrawerData, setRecipeDrawerData] =

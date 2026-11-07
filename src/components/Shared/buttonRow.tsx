@@ -44,7 +44,7 @@ export interface CustomButton {
   onClick: (event?: React.MouseEvent<HTMLButtonElement>) => void;
   disabled?: boolean;
   visible: boolean;
-  startIcon?: JSX.Element;
+  startIcon?: React.JSX.Element;
 }
 
 interface ButtonRowProps {

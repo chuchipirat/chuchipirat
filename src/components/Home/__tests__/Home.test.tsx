@@ -742,7 +742,10 @@ describe("HomePage", () => {
       });
       // 1 bestehender Trenner (vor Rezepte/Feed) + 1 neuer nach "Läuft gerade"
       // (Trenner der Statistik-Gruppen sind <li>, nicht <hr>, und daher ausgeschlossen)
-      expect(container.querySelectorAll("hr")).toHaveLength(2);
+      // Die Sichtbarkeit meldet die Sektion per Effekt, React 19 einen Takt später
+      await waitFor(() => {
+        expect(container.querySelectorAll("hr")).toHaveLength(2);
+      });
     });
 
     test("zeigt keinen zusaetzlichen Trenner, wenn der Abschnitt nicht sichtbar ist", async () => {
