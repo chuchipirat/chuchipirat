@@ -68,6 +68,14 @@ import {UnitAutocomplete} from "../Unit/unitAutocomplete";
 
 import {DepartmentAutocomplete} from "../Department/departmentAutocomplete";
 import {useDatabase} from "../Database/DatabaseContext";
+import {
+  CreationDecision,
+  CreationItemType,
+  CreationOrigin,
+} from "./CreationLog/creationLog.types";
+import {useItemCreationLog} from "./CreationLog/useItemCreationLog";
+import {toLoggedHint} from "./CreationLog/toLoggedHint";
+import {NameHintKind} from "./Matching/nameHint.types";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -118,6 +126,7 @@ export enum ProductDialog {
  * @param productDietProperties - Vorausgefüllte Diät-Eigenschaften
  * @param productUsable - Vorausgefüllter Usable-Status
  * @param products - Alle bekannten Produkte (für Duplikat-Prüfung)
+ * @param origin - Von wo aus der Dialog geöffnet wurde (für das Anlegen-Protokoll)
  * @param dialogOpen - Gibt an, ob der Dialog geöffnet ist
  * @param handleOk - Callback bei Bestätigung
  * @param handleClose - Callback beim Schliessen
@@ -136,6 +145,7 @@ interface DialogProductProps {
   productDietProperties: Product["dietProperties"];
   productUsable?: Product["usable"];
   products: Product[];
+  origin: CreationOrigin;
   dialogOpen: boolean;
   handleOk: (product: Product) => void;
   handleClose: () => void;
@@ -160,6 +170,7 @@ const DialogProduct = ({
   productUid = "",
   productDietProperties,
   products = [],
+  origin,
   dialogOpen,
   handleOk,
   handleClose,
@@ -172,6 +183,10 @@ const DialogProduct = ({
   authUser,
 }: DialogProductProps) => {
   const database = useDatabase();
+  const {startAttempt, recordHint, finishAttempt} = useItemCreationLog({
+    itemType: CreationItemType.PRODUCT,
+    origin,
+  });
 
   const [productPopUpValues, setProductPopUpValues] = React.useState(
     PRODUCT_POP_UP_VALUES_INITIAL_STATE,
@@ -191,6 +206,12 @@ const DialogProduct = ({
     if (!dialogOpen) {
       return;
     }
+    // Nur Anlegen wird protokolliert. Ohne gestarteten Vorgang schreiben die
+    // Abschlüsse beim Bearbeiten nichts, darum brauchen sie keine Prüfung.
+    if (dialogType === ProductDialog.CREATE) {
+      startAttempt(productName);
+    }
+
     // Im CREATE-Modus auf ähnliche Produkte prüfen
     if (dialogType === ProductDialog.CREATE && productName) {
       const similar = findSimilarProducts({
@@ -198,6 +219,10 @@ const DialogProduct = ({
         existingProducts: products,
       });
       if (similar.length > 0) {
+        recordHint(
+          toLoggedHint(NameHintKind.SIMILAR_PRODUCT, similar, "product"),
+        );
+
         setSimilarProductPopupValues({
           similarProducts: similar,
           popUpOpen: true,
@@ -318,6 +343,7 @@ const DialogProduct = ({
     setProductPopUpValues({
       ...PRODUCT_POP_UP_VALUES_INITIAL_STATE,
     });
+    finishAttempt({decision: CreationDecision.CANCELLED});
     handleClose();
   };
 
@@ -350,15 +376,21 @@ const DialogProduct = ({
       });
       hasError = true;
     }
+
+    const existingProduct = products.find(
+      (product) =>
+        product.name.toLowerCase() ===
+        productPopUpValues.name.toLowerCase().trim(),
+    );
+
     if (
       // Nur wenn keine UID
       !productPopUpValues.uid &&
-      products.find(
-        (product) =>
-          product.name.toLowerCase() ===
-          productPopUpValues.name.toLowerCase().trim(),
-      ) !== undefined
+      existingProduct !== undefined
     ) {
+      recordHint(
+        toLoggedHint(NameHintKind.EXACT_PRODUCT, [existingProduct], "product"),
+      );
       // Ein Produkt mit diesem Namen besteht schon. --> Abbruch
       setValidation({
         ...validation,
@@ -411,11 +443,21 @@ const DialogProduct = ({
             trackEvent(AnalyticsEvent.PRODUCT_CREATED, {
               role: getAnalyticsRole(authUser),
             });
+
+            finishAttempt({
+              decision: CreationDecision.CREATED,
+              finalName: productPopUpValues.name,
+              resultProductId: result.uid,
+              resultName: result.name,
+            });
+
             handleOk(createdProduct);
             setProductPopUpValues({...PRODUCT_POP_UP_VALUES_INITIAL_STATE});
           })
           .catch((error) => {
-            Sentry.captureException(error, {extra: {context: "Produkt anlegen"}});
+            Sentry.captureException(error, {
+              extra: {context: "Produkt anlegen"},
+            });
           });
         break;
       case ProductDialog.EDIT: {
@@ -451,6 +493,7 @@ const DialogProduct = ({
     if (reason === "backdropClick") {
       return;
     }
+    finishAttempt({decision: CreationDecision.CANCELLED});
     handleClose();
   };
 
@@ -466,6 +509,12 @@ const DialogProduct = ({
     if (!product) {
       return;
     }
+
+    finishAttempt({
+      decision: CreationDecision.SUGGESTION_TAKEN,
+      resultProductId: product.uid,
+      resultName: product.name,
+    });
 
     handleChooseExisting(product);
     setSimilarProductPopupValues(SIMILAR_PRODUCTS_POPUP_INITIAL_STATE);

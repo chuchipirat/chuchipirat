@@ -162,6 +162,7 @@ import {
   HELPCENTER_URL,
   POSTGRES_NUMERIC_12_4_MAX,
 } from "../../constants/defaultValues";
+import {CreationOrigin} from "../Product/CreationLog/creationLog.types";
 /* ===================================================================
 // ======================== globale Funktionen =======================
 // =================================================================== */
@@ -1859,6 +1860,7 @@ const RecipeEdit = ({
         products={state.products}
         units={state.units}
         departments={state.departments}
+        origin={CreationOrigin.RECIPE}
         authUser={authUser}
       />
       <DialogMaterial

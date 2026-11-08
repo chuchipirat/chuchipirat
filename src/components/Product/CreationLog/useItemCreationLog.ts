@@ -124,7 +124,7 @@ export const useItemCreationLog = ({
       const notebook = notebookRef.current;
       notebookRef.current = null;
 
-      // Öffnete der Dialog ohne Namen (Admin-Seite), gilt der Endname als
+      // Öffnete der Dialog ohne Namen, gilt der Endname als
       // Eingabe. Ganz ohne Namen ist der Vorgang wertlos und verletzte den CHECK.
       const enteredName =
         notebook.enteredName || toLoggableName(finalName ?? "");

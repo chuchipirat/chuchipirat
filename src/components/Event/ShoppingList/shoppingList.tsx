@@ -123,6 +123,7 @@ import {
   ItemChange,
 } from "./useShoppingListHandlers";
 import * as Sentry from "@sentry/react";
+import {CreationOrigin} from "../../Product/CreationLog/creationLog.types";
 
 enum ReducerActions {
   SHOW_LOADING,
@@ -1348,6 +1349,7 @@ const DialogHandleItem = ({
         products={products}
         units={units}
         departments={departments}
+        origin={CreationOrigin.SHOPPING_LIST}
         authUser={authUser}
       />
     </React.Fragment>
