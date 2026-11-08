@@ -111,6 +111,7 @@ import {
   fromGridRowSelection,
   toGridRowSelection,
 } from "../Shared/dataGridSelection";
+import {CreationOrigin} from "../Product/CreationLog/creationLog.types";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -1315,6 +1316,7 @@ const MaterialsTable = ({
         materialType={materialPopUpValues.materialType}
         materialUsable={materialPopUpValues.usable}
         materials={materials}
+        origin={CreationOrigin.MATERIALS_ADMIN}
         dialogOpen={materialPopUpValues.popUpOpen}
         handleOk={onPopUpOk}
         handleClose={onPopUpClose}

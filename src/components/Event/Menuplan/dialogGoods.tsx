@@ -562,6 +562,7 @@ export const DialogGoods = ({
         materialType={materialAddPopupValues.type}
         materialUsable={materialAddPopupValues.usable}
         materials={materials}
+        origin={CreationOrigin.MENUPLAN}
         dialogType={MaterialDialog.CREATE}
         dialogOpen={materialAddPopupValues.popUpOpen}
         handleOk={onMaterialCreate}

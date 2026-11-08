@@ -1330,6 +1330,7 @@ const DialogHandleItem = ({
         materialType={materialAddPopupValues.type}
         materialUsable={materialAddPopupValues.usable}
         materials={materials}
+        origin={CreationOrigin.SHOPPING_LIST}
         dialogType={MaterialDialog.CREATE}
         dialogOpen={materialAddPopupValues.popUpOpen}
         handleOk={onMaterialCreate}

@@ -1869,6 +1869,7 @@ const RecipeEdit = ({
         materialType={materialAddPopupValues.type}
         materialUsable={materialAddPopupValues.usable}
         materials={state.materials}
+        origin={CreationOrigin.RECIPE}
         dialogType={MaterialDialog.CREATE}
         dialogOpen={materialAddPopupValues.popUpOpen}
         handleOk={onCreateMaterialToAdd}

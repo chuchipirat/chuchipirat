@@ -101,6 +101,7 @@ import {
   headersDomainToMaterialList,
   itemsDomainToMaterialListItems,
 } from "./materialListAdapter";
+import {CreationOrigin} from "../../Product/CreationLog/creationLog.types";
 
 enum ReducerActions {
   SHOW_LOADING,
@@ -1094,6 +1095,7 @@ const DialogHandleMaterial = ({
         materialType={materialAddPopupValues.type}
         materialUsable={materialAddPopupValues.usable}
         materials={materials}
+        origin={CreationOrigin.MATERIAL_LIST}
         dialogType={MaterialDialog.CREATE}
         dialogOpen={materialAddPopupValues.popUpOpen}
         handleOk={onMaterialCreate}

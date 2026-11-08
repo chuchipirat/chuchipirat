@@ -247,6 +247,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
   4. `Shared/utils.class.ts` aufteilen: statische Methoden thematisch in einzelne Funktions-Module unter `src/utils/` (z.B. `urlUtils.ts`, `validationUtils.ts`, Datum → `dateUtils.ts`), Sammelklasse danach entfernen. Grösster Brocken (64 Importer) — schrittweise, pro Thema ein Commit; dabei auf Überschneidungen mit `dateUtils.ts` achten.
   **Priorität:** tief · **Komplexität:** klein (Schritte 1–3), mittel (Schritt 4)
 
+- **Ternärer Ausdruck als Anweisung in `dialogMaterial.tsx`** (gefunden bei Product Matching 1.5, 2026-11-08) — `onOkClick` (~Z. 224–236) setzt `tempValidation.name`/`.type` mit `bedingung ? (x = …) : (x = …);`. Prettier muss die Zuweisungen in Klammern setzen, das Semikolon steht dann hinter der schliessenden Klammer und wirkt verirrt. Besser: `tempValidation.name = bedingung ? {…} : {…};` oder `if`/`else`.
+  **Priorität:** tief · **Komplexität:** klein
+
 - **Spendenwährung «CHF» hart codiert** (aus dem Eintrag «Fixe Währung», 2026-11-02) — `Donate/DonationResult.tsx` meldet `currency: "CHF"` an Analytics. Bewusst nicht auf `DEFAULT_CURRENCY` umgestellt: Das ist die Standardwährung der Abrechnung, Spenden laufen aber über Payrexx in CHF. Falls nötig eigene Konstante für die Spendenwährung.
   **Priorität:** tief · **Komplexität:** klein
 

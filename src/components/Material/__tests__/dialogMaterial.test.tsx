@@ -19,6 +19,13 @@ import {DialogMaterial, MaterialDialog} from "../dialogMaterial";
 import {MaterialType} from "../material.types";
 import AuthUser from "../../Session/authUser.class";
 import {DatabaseContext} from "../../Database/DatabaseContext";
+import {
+  CreationDecision,
+  CreationItemType,
+  CreationOrigin,
+} from "../../Product/CreationLog/creationLog.types";
+import {NameHintKind} from "../../Product/Matching/nameHint.types";
+import {ERROR_MATERIAL_WITH_THIS_NAME_ALREADY_EXISTS} from "../../../constants/text/masterdata";
 
 /* ===================================================================
 // ======================== Mocks =====================================
@@ -30,8 +37,10 @@ jest.mock("@sentry/react");
 
 /** Mock-DatabaseService mit insertMaterial-Stub (nur fuer CREATE-Pfad) */
 const mockInsertMaterial = jest.fn();
+const mockLogCreation = jest.fn().mockResolvedValue(undefined);
 const mockDatabase = {
   materials: {insertMaterial: mockInsertMaterial},
+  itemCreationLogs: {logCreation: mockLogCreation},
 } as any;
 
 const mockAuthUser = {
@@ -81,6 +90,7 @@ const renderEditDialog = (options: RenderEditOptions = {}) => {
     <DatabaseContext.Provider value={mockDatabase}>
       <DialogMaterial
         dialogType={MaterialDialog.EDIT}
+        origin={CreationOrigin.MATERIALS_ADMIN}
         materialName={materialName}
         materialUid={materialUid}
         materialType={materialType}
@@ -126,6 +136,7 @@ const renderCreateDialog = (options: RenderCreateOptions = {}) => {
     <DatabaseContext.Provider value={mockDatabase}>
       <DialogMaterial
         dialogType={MaterialDialog.CREATE}
+        origin={CreationOrigin.MATERIAL_LIST}
         materialName={materialName}
         materialUid=""
         materialType={materialType}
@@ -372,5 +383,160 @@ describe("DialogMaterial — CREATE", () => {
     expect(handleOk).not.toHaveBeenCalled();
 
     sentrySpy.mockRestore();
+  });
+});
+
+/* ===================================================================
+// ======================== Anlegen-Protokoll =========================
+// =================================================================== */
+
+/** Ein angelegtes Material, wie es insertMaterial zurückgibt. */
+const insertedPan = {
+  uid: "new-mat-99",
+  name: "Pfanne",
+  type: MaterialType.usage,
+  usable: true,
+  qaChecked: false,
+  qaCheckedAt: null,
+};
+
+/** Wartet einen Makrotask ab, damit nicht abgewartete Promises fertig sind. */
+const flushPromises = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+/** Der Eintrag, der beim ersten Aufruf an logCreation ging. */
+const loggedEntry = () => mockLogCreation.mock.calls[0][0];
+
+/** Wählt den Typ und klickt auf «Erstellen». */
+const submitAsUsageMaterial = async () => {
+  await userEvent.click(
+    screen.getByRole("radio", {name: /gebrauchsmaterial/i}),
+  );
+  await userEvent.click(screen.getByRole("button", {name: /erstellen/i}));
+};
+
+describe("DialogMaterial — Anlegen-Protokoll", () => {
+  beforeEach(() => {
+    mockLogCreation.mockResolvedValue(undefined);
+  });
+
+  test("Abbrechen schreibt einen Abbruch mit Art und Herkunft", async () => {
+    renderCreateDialog({materialName: "Pfanne"});
+    await waitFor(() => screen.getByDisplayValue("Pfanne"));
+
+    await userEvent.click(screen.getByRole("button", {name: /abbrechen/i}));
+
+    expect(mockLogCreation).toHaveBeenCalledTimes(1);
+    expect(loggedEntry()).toEqual({
+      itemType: CreationItemType.MATERIAL,
+      origin: CreationOrigin.MATERIAL_LIST,
+      enteredName: "Pfanne",
+      finalName: null,
+      decision: CreationDecision.CANCELLED,
+      hints: [],
+      rulesVersion: 0,
+      resultProductId: null,
+      resultMaterialId: null,
+      resultName: null,
+    });
+  });
+
+  test("Anlegen schreibt created mit dem neuen Material", async () => {
+    mockInsertMaterial.mockResolvedValueOnce(insertedPan);
+    const {handleOk} = renderCreateDialog({materialName: "Pfanne"});
+    await waitFor(() => screen.getByDisplayValue("Pfanne"));
+
+    await submitAsUsageMaterial();
+    await waitFor(() => expect(handleOk).toHaveBeenCalledTimes(1));
+
+    expect(mockLogCreation).toHaveBeenCalledTimes(1);
+    expect(loggedEntry()).toMatchObject({
+      itemType: CreationItemType.MATERIAL,
+      enteredName: "Pfanne",
+      finalName: "Pfanne",
+      decision: CreationDecision.CREATED,
+      hints: [],
+      resultProductId: null,
+      resultMaterialId: "new-mat-99",
+      resultName: "Pfanne",
+    });
+  });
+
+  test("OK mit bestehendem Namen merkt sich den Hinweis exact_product", async () => {
+    renderCreateDialog({
+      materialName: "Schwingbesen",
+      materials: mockMaterials,
+    });
+    await waitFor(() => screen.getByDisplayValue("Schwingbesen"));
+
+    await submitAsUsageMaterial();
+    expect(
+      screen.getByText(ERROR_MATERIAL_WITH_THIS_NAME_ALREADY_EXISTS),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", {name: /abbrechen/i}));
+
+    expect(mockLogCreation).toHaveBeenCalledTimes(1);
+    expect(loggedEntry().decision).toBe(CreationDecision.CANCELLED);
+    expect(loggedEntry().hints).toEqual([
+      {
+        kind: NameHintKind.EXACT_PRODUCT,
+        rule: null,
+        score: null,
+        word: null,
+        suggestions: [{id: "mat-1", name: "Schwingbesen", source: "material"}],
+      },
+    ]);
+  });
+
+  test("ESC schreibt einen Abbruch", async () => {
+    renderCreateDialog({materialName: "Pfanne"});
+    await waitFor(() => screen.getByDisplayValue("Pfanne"));
+
+    await userEvent.keyboard("{Escape}");
+
+    expect(mockLogCreation).toHaveBeenCalledTimes(1);
+    expect(loggedEntry().decision).toBe(CreationDecision.CANCELLED);
+  });
+
+  test("Klick auf den Hintergrund schreibt nichts (Dialog bleibt offen)", async () => {
+    const {handleClose} = renderCreateDialog({materialName: "Pfanne"});
+    await waitFor(() => screen.getByDisplayValue("Pfanne"));
+
+    const dialogContainer = document.querySelector(".MuiDialog-container");
+    expect(dialogContainer).not.toBeNull();
+    await userEvent.click(dialogContainer as Element);
+
+    expect(handleClose).not.toHaveBeenCalled();
+    expect(mockLogCreation).not.toHaveBeenCalled();
+  });
+
+  test("Anlegen schlägt fehl: kein Eintrag, der Vorgang läuft weiter", async () => {
+    mockInsertMaterial.mockRejectedValueOnce(new Error("insert failed"));
+    renderCreateDialog({materialName: "Pfanne"});
+    await waitFor(() => screen.getByDisplayValue("Pfanne"));
+
+    await submitAsUsageMaterial();
+    await flushPromises();
+
+    expect(mockLogCreation).not.toHaveBeenCalled();
+
+    // Danach abbrechen: derselbe Vorgang wird als Abbruch geschrieben
+    await userEvent.click(screen.getByRole("button", {name: /abbrechen/i}));
+    expect(mockLogCreation).toHaveBeenCalledTimes(1);
+    expect(loggedEntry()).toMatchObject({
+      enteredName: "Pfanne",
+      decision: CreationDecision.CANCELLED,
+    });
+  });
+
+  test("EDIT-Modus schreibt weder bei Speichern noch bei Abbrechen oder ESC", async () => {
+    renderEditDialog();
+    await waitFor(() => screen.getByDisplayValue("Schwingbesen"));
+
+    await userEvent.click(screen.getByRole("button", {name: /speichern/i}));
+    await userEvent.click(screen.getByRole("button", {name: /abbrechen/i}));
+    await userEvent.keyboard("{Escape}");
+
+    expect(mockLogCreation).not.toHaveBeenCalled();
   });
 });
