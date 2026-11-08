@@ -11,8 +11,8 @@ import {
 import {useDatabase} from "../../Database/DatabaseContext";
 import {captureUnexpectedError} from "../../../utils/errorUtils";
 
-/** Höchstlänge von `entered_name`, entspricht dem CHECK der Tabelle. */
-const MAX_ENTERED_NAME_LENGTH = 200;
+/** Höchstlänge der Namensspalten, entspricht den CHECKs der Tabelle. */
+const MAX_NAME_LENGTH = 200;
 
 /** Feste Angaben zum Dialog, der den Hook verwendet. */
 type UseItemCreationLogParams = {
@@ -43,14 +43,25 @@ const hintKey = (hint: LoggedNameHint): string => {
 };
 
 /**
- * Bereitet einen Namen für `entered_name` auf: getrimmt und auf die erlaubte
+ * Bereitet einen Namen fürs Protokoll auf: getrimmt und auf die erlaubte
  * Länge gekürzt, damit das Protokoll nie am CHECK der Tabelle scheitert.
  *
  * @param name Name, wie er im Dialog stand.
  * @returns Getrimmter, höchstens 200 Zeichen langer Name (evtl. leer).
  */
 const toLoggableName = (name: string): string => {
-  return name.trim().substring(0, MAX_ENTERED_NAME_LENGTH);
+  return name.trim().substring(0, MAX_NAME_LENGTH);
+};
+
+/**
+ * Wie `toLoggableName`, für die optionalen Spalten `final_name` und
+ * `result_name`: Die Tabelle erlaubt dort NULL, aber keinen leeren Text.
+ *
+ * @param name Name oder nichts.
+ * @returns Aufbereiteter Name, `null` wenn nichts übrig bleibt.
+ */
+const toOptionalLoggableName = (name?: string | null): string | null => {
+  return toLoggableName(name ?? "") || null;
 };
 
 /**
@@ -124,23 +135,23 @@ export const useItemCreationLog = ({
       const notebook = notebookRef.current;
       notebookRef.current = null;
 
+      const loggableFinalName = toOptionalLoggableName(finalName);
       // Öffnete der Dialog ohne Namen, gilt der Endname als
       // Eingabe. Ganz ohne Namen ist der Vorgang wertlos und verletzte den CHECK.
-      const enteredName =
-        notebook.enteredName || toLoggableName(finalName ?? "");
+      const enteredName = notebook.enteredName || loggableFinalName;
       if (!enteredName) return;
 
       const logEntry: ItemCreationLogDomain = {
         itemType: itemType,
         origin: origin,
         enteredName: enteredName,
-        finalName: finalName ?? null,
+        finalName: loggableFinalName,
         decision: decision,
         hints: notebook.hints,
         rulesVersion: LEGACY_RULES_VERSION,
         resultProductId: resultProductId ?? null,
         resultMaterialId: resultMaterialId ?? null,
-        resultName: resultName ?? null,
+        resultName: toOptionalLoggableName(resultName),
       };
 
       // Bewusst ohne await: Das Protokoll darf den Dialog nie aufhalten.

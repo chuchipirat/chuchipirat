@@ -283,6 +283,60 @@ describe("useItemCreationLog", () => {
   });
 
   /* ------------------------------------------
+  // Grenzfälle End- und Ergebnisname (CHECK 1–200 Zeichen oder NULL)
+  // ------------------------------------------ */
+  describe("End- und Ergebnisname", () => {
+    test("kürzt zu lange Namen auf 200 Zeichen", () => {
+      const {result} = renderLogHook();
+
+      result.current.startAttempt("Tomatem");
+      result.current.finishAttempt({
+        decision: CreationDecision.CREATED,
+        finalName: "f".repeat(250),
+        resultProductId: "product-2",
+        resultName: "r".repeat(250),
+      });
+
+      expect(loggedEntry().finalName).toHaveLength(200);
+      expect(loggedEntry().resultName).toHaveLength(200);
+    });
+
+    test("trimmt die Namen", () => {
+      const {result} = renderLogHook();
+
+      result.current.startAttempt("Tomatem");
+      result.current.finishAttempt({
+        decision: CreationDecision.CREATED,
+        finalName: "  Tomaten  ",
+        resultProductId: "product-2",
+        resultName: " Tomaten ",
+      });
+
+      expect(loggedEntry()).toMatchObject({
+        finalName: "Tomaten",
+        resultName: "Tomaten",
+      });
+    });
+
+    test("nur Leerzeichen wird null", () => {
+      const {result} = renderLogHook();
+
+      result.current.startAttempt("Tomatem");
+      result.current.finishAttempt({
+        decision: CreationDecision.CREATED,
+        finalName: "   ",
+        resultProductId: "product-2",
+        resultName: "",
+      });
+
+      expect(loggedEntry()).toMatchObject({
+        finalName: null,
+        resultName: null,
+      });
+    });
+  });
+
+  /* ------------------------------------------
   // Fehlerpfad
   // ------------------------------------------ */
   describe("Fehler beim Schreiben", () => {
