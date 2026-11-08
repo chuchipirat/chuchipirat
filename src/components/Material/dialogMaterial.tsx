@@ -45,6 +45,14 @@ import {
 
 import * as Sentry from "@sentry/react";
 import AuthUser from "../Session/authUser.class";
+import {
+  CreationDecision,
+  CreationItemType,
+  CreationOrigin,
+} from "../Product/CreationLog/creationLog.types";
+import {useItemCreationLog} from "../Product/CreationLog/useItemCreationLog";
+import {toLoggedHint} from "../Product/CreationLog/toLoggedHint";
+import {NameHintKind} from "../Product/Matching/nameHint.types";
 
 /* ===================================================================
 // ======================== globale Funktionen =======================
@@ -70,15 +78,27 @@ export enum MaterialDialog {
  * Props für den DialogMaterial.
  */
 interface DialogMaterialProps {
+  /** Anlegen oder Bearbeiten. */
   dialogType: MaterialDialog;
+  /** Vorausgefüllter Name (beim Anlegen die Eingabe aus dem Suchfeld). */
   materialName: Material["name"];
+  /** UID des bearbeiteten Materials, beim Anlegen leer. */
   materialUid: Material["uid"];
+  /** Vorausgewählter Materialtyp. */
   materialType: Material["type"];
+  /** Vorausgefüllter Status «nutzbar». */
   materialUsable: Material["usable"];
+  /** Alle bekannten Materialien (für die Prüfung auf doppelte Namen). */
   materials: Material[];
+  /** Von wo aus der Dialog geöffnet wurde (für das Anlegen-Protokoll). */
+  origin: CreationOrigin;
+  /** Gibt an, ob der Dialog geöffnet ist. */
   dialogOpen: boolean;
+  /** Callback mit dem angelegten bzw. geänderten Material. */
   handleOk: (material: Material) => void;
+  /** Callback beim Schliessen ohne Ergebnis. */
   handleClose: () => void;
+  /** Angemeldete Person, wird beim Anlegen als Ersteller gespeichert. */
   authUser: AuthUser;
 }
 
@@ -97,6 +117,7 @@ const DialogMaterial = ({
   materials = [],
   materialType = MaterialType.none,
   materialUsable,
+  origin,
   dialogOpen,
   handleOk,
   handleClose,
@@ -104,9 +125,13 @@ const DialogMaterial = ({
 }: DialogMaterialProps) => {
   const theme = useTheme();
   const database = useDatabase();
+  const {startAttempt, recordHint, finishAttempt} = useItemCreationLog({
+    itemType: CreationItemType.MATERIAL,
+    origin,
+  });
 
   const [materialPopUpValues, setMaterialPopUpValues] = React.useState(
-    MATERIAL_POP_UP_VALUES_INITIAL_STATE
+    MATERIAL_POP_UP_VALUES_INITIAL_STATE,
   );
   const [validation, setValidation] = React.useState({
     name: {hasError: false, errorText: ""},
@@ -116,6 +141,13 @@ const DialogMaterial = ({
   // Formularfelder beim Öffnen des Dialogs initialisieren
   React.useEffect(() => {
     if (!dialogOpen) return;
+
+    // Nur Anlegen wird protokolliert. Ohne gestarteten Vorgang schreiben die
+    // Abschlüsse beim Bearbeiten nichts, darum brauchen sie keine Prüfung.
+    if (dialogType === MaterialDialog.CREATE) {
+      startAttempt(materialName);
+    }
+
     setMaterialPopUpValues({
       ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
       uid: materialUid,
@@ -178,6 +210,7 @@ const DialogMaterial = ({
     setMaterialPopUpValues({
       ...MATERIAL_POP_UP_VALUES_INITIAL_STATE,
     });
+    finishAttempt({decision: CreationDecision.CANCELLED});
     handleClose();
   };
 
@@ -202,19 +235,28 @@ const DialogMaterial = ({
         })
       : (tempValidation.type = {hasError: false, errorText: ""});
 
+    const existingMaterial = materials.find(
+      (material) =>
+        material.name.toLowerCase() ===
+        materialPopUpValues.name.toLowerCase().trim(),
+    );
+
     if (
       // Sicherstellen, dass nicht zwei Materialien mit demselben Namen erfasst werden
       !materialPopUpValues.uid &&
-      materials.find(
-        (material) =>
-          material.name.toLowerCase() ===
-          materialPopUpValues.name.toLowerCase().trim()
-      ) !== undefined
+      existingMaterial !== undefined
     ) {
       tempValidation.name = {
         hasError: true,
         errorText: ERROR_MATERIAL_WITH_THIS_NAME_ALREADY_EXISTS,
       };
+      recordHint(
+        toLoggedHint(
+          NameHintKind.EXACT_PRODUCT,
+          [existingMaterial],
+          "material",
+        ),
+      );
     }
 
     if (tempValidation.name.hasError || tempValidation.type.hasError) {
@@ -233,11 +275,17 @@ const DialogMaterial = ({
                 qaChecked: false,
                 qaCheckedAt: null,
               },
-              authUser
+              authUser,
             )
             .then((domain) => {
               trackEvent(AnalyticsEvent.MATERIAL_CREATED, {
                 role: getAnalyticsRole(authUser),
+              });
+              finishAttempt({
+                decision: CreationDecision.CREATED,
+                finalName: materialPopUpValues.name,
+                resultMaterialId: domain.uid,
+                resultName: domain.name,
               });
               handleOk({
                 uid: domain.uid,
@@ -253,7 +301,9 @@ const DialogMaterial = ({
               });
             })
             .catch((error) => {
-              Sentry.captureException(error, {extra: {context: "Material erstellen"}});
+              Sentry.captureException(error, {
+                extra: {context: "Material erstellen"},
+              });
             });
           break;
         case MaterialDialog.EDIT: {
@@ -283,6 +333,7 @@ const DialogMaterial = ({
   // ------------------------------------------ */
   const onClose = (_event: object, reason: string) => {
     if (reason === "backdropClick") return;
+    // ESC zählt als Abbruch und wird in onCancelClick protokolliert.
     onCancelClick();
   };
 
@@ -369,9 +420,7 @@ const DialogMaterial = ({
           {BUTTON_CANCEL}
         </Button>
         <Button onClick={onOkClick} color="primary" variant="contained">
-          {dialogType === MaterialDialog.CREATE
-            ? TEXT_CREATE
-            : BUTTON_SAVE}
+          {dialogType === MaterialDialog.CREATE ? TEXT_CREATE : BUTTON_SAVE}
         </Button>
       </DialogActions>
     </Dialog>

@@ -93,6 +93,8 @@ Allgemein, jedes Paket:
 - [ ] `npx tsc --noEmit`, `npm run lint`, `npx jest <Muster> --watchAll=false` grün
 - [ ] `git status` durchgesehen: nur Dateien des Pakets, kein Formatter-Rauschen, keine Reste
 - [ ] Dateinamen == Hauptexport; JSDoc-`@example` zeigt existierende Methodennamen
+- [ ] Editor formatiert beim Speichern mit Prettier (nicht dem TypeScript-Formatter); nach dem
+      Speichern `tsc` laufen lassen, bevor es weitergeht
 
 Repositories/Domain-Typen:
 
@@ -103,6 +105,8 @@ Repositories/Domain-Typen:
 - [ ] `orderBy`/`filters`/`.eq(...)` mit DB-Spaltennamen (snake_case), nicht Domain-Feldnamen
 - [ ] Domain-Typen importieren keine Domain-Klassen nur für einen Feldtyp
 - [ ] Nullability der Domain-Felder == Tabellendefinition
+- [ ] Row-Typ ohne Index-Signatur (`[key: string]: unknown` lässt fehlende oder vertippte Felder
+      durch); ein `type` erfüllt `Record<string, unknown>` auch ohne
 
 UI/Komponenten:
 
@@ -117,6 +121,8 @@ UI/Komponenten:
 - [ ] `localStorage`-Zugriff in `try/catch` (kann werfen), ohne Sentry
 - [ ] Komponenten mit eigener Logik in eigene Datei (Richtwert < 500 Zeilen)
 - [ ] Dialoge auf dem Handy (xs) als Vollbild, Touch-Ziele gross genug
+- [ ] Dialoge mit CREATE/EDIT: modusabhängige Logik dort an den Modus binden, wo sie startet
+      (z.B. im Öffnen-Effekt), und den anderen Modus im Test prüfen
 
 Tests:
 
@@ -124,6 +130,8 @@ Tests:
       leeren (`clearAllMocks` leert sie nicht)
 - [ ] Realtime/Callbacks: Callback aus dem Mock lesen und selbst aufrufen
 - [ ] Mutationsprobe gemacht: Code absichtlich kaputt → Test wird rot
+- [ ] Vorab geschriebene Tests nie an den Code anpassen; scheint ein Test falsch, im Review melden
+- [ ] Jeder Wert eines Entscheidungs-/Ergebnis-Enums hat mindestens einen Test
 - [ ] Beträge mit Tausender-Apostroph/geschütztem Leerzeichen über die Formatierungsfunktion
       erwarten, nicht hart codiert
 
@@ -132,5 +140,9 @@ Migrationen:
 - [ ] Bestehende Migrationen nie ändern; Präfix eindeutig
       (`ls supabase/migrations | sed 's/_.*//' | sort | uniq -d` ist leer)
 - [ ] Transaktional gegen die laufende `supabase-db-test` angewendet; RLS mit mehreren Rollen geprüft
+- [ ] INSERT-Policy auf Tabellen mit `created_by`: `WITH CHECK (created_by = (SELECT auth.uid()))`
+      (der `DEFAULT auth.uid()` greift nur, wenn die Spalte fehlt)
+- [ ] Nach `REVOKE ALL … FROM anon, authenticated` nur die nötigen Rechte `GRANT`en, nie `GRANT ALL`
+      (sonst bleibt z.B. `TRUNCATE` offen)
 
 UI-Pakete zusätzlich: im Browser auf Desktop und Handy angesehen (`ui-review`).

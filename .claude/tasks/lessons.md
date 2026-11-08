@@ -117,3 +117,19 @@
 ## «Nein» heisst anhalten, nicht trotzdem umsetzen
 
 Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» und erklärte, was er gemeint hatte. Ich schrieb trotzdem sofort die Tests und gab ihm die Umbauschritte, statt nachzufragen. **Regel:** Lehnt der Nutzer einen Vorschlag ab, nichts dazu bauen, auch keine Tests. Auch wenn der Vorschlag nach der Klärung noch sinnvoll scheint: Begründung und einfachere Alternative nennen, dann auf sein Ja warten.
+
+## Before planning, prove claims about the code with grep/ls (2026-11-08)
+
+**What happened**: In Product Matching 1.3/1.4 I justified a hook fallback with "the admin pages open the dialog in CREATE mode with an empty name". Both `/products` and `/materials` open it in EDIT mode only. In 1.5 the plan said "`dialogMaterial.test.tsx` doesn't exist yet"; it had 12 tests.
+
+**Rule**: A statement in a plan about call sites, modes or existing files is backed by a command I actually ran, not by memory of the outline.
+
+**How to apply**: For every call site in a plan, `grep -n "<Component"` and read the `dialogType`/mode prop. For every file the plan creates, `ls` it first.
+
+## Bulk replace only on my own files (2026-11-08)
+
+**What happened**: Renaming `product_creation_logs` → `item_creation_logs` with `sed` across the folder also changed the user's `creationLog.types.ts` in coaching mode.
+
+**Rule**: In coaching mode, bulk edits (`sed`, scripts) touch only files I wrote. For the user's files, list the places and let the user change them.
+
+**How to apply**: Before a `sed -i` over several files, `grep -l` first and drop every file that isn't mine.

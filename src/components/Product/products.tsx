@@ -127,6 +127,7 @@ import {
   fromGridRowSelection,
   toGridRowSelection,
 } from "../Shared/dataGridSelection";
+import {CreationOrigin} from "./CreationLog/creationLog.types";
 
 /** Verzögerung bevor eine erfolglose Suche als Analytics-Event getrackt wird. */
 const SEARCH_ANALYTICS_DEBOUNCE_MS = 600;
@@ -1323,6 +1324,7 @@ const ProductsTable = ({
         usable={productPopUpValues.usable}
         departments={departments}
         units={units}
+        origin={CreationOrigin.PRODUCTS_ADMIN}
         authUser={authUser}
       />
     </React.Fragment>

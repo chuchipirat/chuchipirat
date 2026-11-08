@@ -66,6 +66,7 @@ import {
   QUANTITY_MUST_NOT_BE_NEGATIVE as TEXT_QUANTITY_MUST_NOT_BE_NEGATIVE,
   QUANTITY_TOO_LARGE as TEXT_QUANTITY_TOO_LARGE,
 } from "../../../constants/text";
+import {CreationOrigin} from "../../Product/CreationLog/creationLog.types";
 
 /**
  * Props für den DialogGoods-Komponenten.
@@ -561,6 +562,7 @@ export const DialogGoods = ({
         materialType={materialAddPopupValues.type}
         materialUsable={materialAddPopupValues.usable}
         materials={materials}
+        origin={CreationOrigin.MENUPLAN}
         dialogType={MaterialDialog.CREATE}
         dialogOpen={materialAddPopupValues.popUpOpen}
         handleOk={onMaterialCreate}
@@ -580,6 +582,7 @@ export const DialogGoods = ({
         products={products}
         units={units}
         departments={departments}
+        origin={CreationOrigin.MENUPLAN}
         authUser={authUser}
       />
     </React.Fragment>
