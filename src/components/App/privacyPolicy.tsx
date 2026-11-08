@@ -81,7 +81,7 @@ const PrivacyPolicyPage = () => {
 const PrivacyPolicyText = () => {
   return (
     <>
-      <Typography>Stand: 21. März 2026</Typography>
+      <Typography>Stand: 8. November 2026</Typography>
 
       <Box component="ol" sx={customStyles.customOrderedList}>
         <Box component="li" sx={customStyles.listItem}>
@@ -166,6 +166,20 @@ const PrivacyPolicyText = () => {
               Diese Daten dienen ausschliesslich internen und statistischen
               Zwecken, um die Sicherheit und Stabilität der Webapp zu
               gewährleisten.
+            </Box>
+            <Box
+              component="li"
+              sx={[customStyles.listItem, customStyles.subListItem]}
+            >
+              Wenn du ein neues Produkt oder Material anlegst, speichern wir
+              zusätzlich, welchen Namen du eingegeben hast, welche Hinweise auf
+              bestehende Einträge dir angezeigt wurden und wie du dich
+              entschieden hast (angelegt, Vorschlag übernommen oder
+              abgebrochen). Damit prüfen wir, ob die Hinweise doppelte Einträge
+              verhindern, und verbessern sie. Diese Angaben sind mit deinem
+              Konto verknüpft und nur für Administrator*innen einsehbar. Nach
+              zwei Jahren entfernen wir die Verknüpfung mit deinem Konto und
+              die eingegebenen Namen.
             </Box>
           </Box>
         </Box>

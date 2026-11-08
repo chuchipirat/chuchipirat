@@ -50,7 +50,15 @@ describe("PrivacyPolicyText", () => {
     expect(emailLinks[0]).toHaveAttribute("href", "mailto:hallo@chuchipirat.ch");
   });
 
+  test("informiert über das Protokoll beim Anlegen von Produkten und Materialien", () => {
+    expect(
+      screen.getByText(/Wenn du ein neues Produkt oder Material anlegst/),
+    ).toHaveTextContent(
+      /Nach zwei Jahren entfernen wir die Verknüpfung mit deinem Konto/,
+    );
+  });
+
   test("enthält aktuelles Stand-Datum", () => {
-    expect(screen.getByText("Stand: 21. März 2026")).toBeInTheDocument();
+    expect(screen.getByText("Stand: 8. November 2026")).toBeInTheDocument();
   });
 });
