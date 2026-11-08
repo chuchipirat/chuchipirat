@@ -9,7 +9,7 @@ import {ItemCreationLogRepository} from "../ItemCreationLogRepository";
 import {
   CreationDecision,
   CreationItemType,
-  CreationLogEntry,
+  ItemCreationLogDomain,
   CreationOrigin,
   LEGACY_RULES_VERSION,
   ItemCreationLogRow,
@@ -38,7 +38,7 @@ jest.mock("../../../Shared/sessionStorageHandler.class", () => {
 /* =====================================================================
 // Test-Daten
 // ===================================================================== */
-const createdEntry: CreationLogEntry = {
+const createdEntry: ItemCreationLogDomain = {
   itemType: CreationItemType.PRODUCT,
   origin: CreationOrigin.RECIPE,
   enteredName: "Tomatem",
@@ -59,7 +59,7 @@ const createdEntry: CreationLogEntry = {
   resultName: "Tomaten, gehackt",
 };
 
-const cancelledMaterialEntry: CreationLogEntry = {
+const cancelledMaterialEntry: ItemCreationLogDomain = {
   itemType: CreationItemType.MATERIAL,
   origin: CreationOrigin.MATERIAL_LIST,
   enteredName: "Alufolie",

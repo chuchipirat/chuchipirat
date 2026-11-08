@@ -35,6 +35,7 @@ import {AdminOperationsRepository} from "./Repository/AdminOperationsRepository"
 import {CronJobLogRepository} from "./Repository/CronJobLogRepository";
 import {MailLogRepository} from "./Repository/MailLogRepository";
 import {ExpenseStorageRepository} from "./Repository/ExpenseStorageRepository";
+import {ItemCreationLogRepository} from "./Repository/ItemCreationLogRepository";
 /* =====================================================================
 // DatabaseService — Zentraler Einstiegspunkt für Datenbankzugriff
 // Bündelt alle Repository-Instanzen und den AuthService.
@@ -58,6 +59,8 @@ import {ExpenseStorageRepository} from "./Repository/ExpenseStorageRepository";
  * @property units - Repository für Einheiten
  * @property materials - Repository für Materialien
  * @property products - Repository für Produkte
+ * @property productSynonyms - Repository für Produkt-Synonyme
+ * @property itemCreationLogs - Repository für das Anlegen-Protokoll (Produkte und Materialien)
  * @property unitConversionBasic - Repository für Standard-Einheitenumrechnungen
  * @property unitConversionProducts - Repository für produktspezifische Einheitenumrechnungen
  * @property recipes - Repository für Rezept-Kopfdaten
@@ -93,6 +96,7 @@ export class DatabaseService {
   materials: MaterialRepository;
   products: ProductRepository;
   productSynonyms: ProductSynonymRepository;
+  itemCreationLogs: ItemCreationLogRepository;
   unitConversionBasic: UnitConversionBasicRepository;
   unitConversionProducts: UnitConversionProductRepository;
   recipes: RecipeRepository;
@@ -134,6 +138,7 @@ export class DatabaseService {
     this.materials = new MaterialRepository();
     this.products = new ProductRepository();
     this.productSynonyms = new ProductSynonymRepository();
+    this.itemCreationLogs = new ItemCreationLogRepository();
     this.unitConversionBasic = new UnitConversionBasicRepository();
     this.unitConversionProducts = new UnitConversionProductRepository();
     this.recipes = new RecipeRepository();
