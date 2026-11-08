@@ -90,3 +90,26 @@ export type ItemCreationLogRow = {
   created_at: string;
   created_by: string | null;
 };
+
+/**
+ * Ausgang eines Anlegen-Vorgangs, wie ihn der Dialog meldet.
+ *
+ * Der Dialog gibt nur an, was im jeweiligen Fall zutrifft; fehlende Felder
+ * werden im Protokoll zu `null`.
+ *
+ * @example
+ * {decision: CreationDecision.SUGGESTION_TAKEN, resultProductId: "p-1", resultName: "Tomaten"}
+ * {decision: CreationDecision.CANCELLED}
+ */
+export type CreationAttemptResult = {
+  /** Wie der Vorgang endete. */
+  decision: CreationDecision;
+  /** Name, unter dem angelegt wurde; nur bei `CREATED`. */
+  finalName?: string;
+  /** Angelegtes oder übernommenes Produkt. */
+  resultProductId?: string;
+  /** Angelegtes oder übernommenes Material. */
+  resultMaterialId?: string;
+  /** Name des angelegten oder übernommenen Eintrags. */
+  resultName?: string;
+};
