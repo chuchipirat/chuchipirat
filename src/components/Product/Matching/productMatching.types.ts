@@ -53,6 +53,14 @@ export enum MatchRule {
   COMPOUND = "compound",
 }
 
+/** Ergebnis, wenn zwei einzelne Wörter zusammenpassen. */
+export type WordComparison = {
+  /** Regel, über die die Wörter zusammenpassen. */
+  rule: MatchRule;
+  /** Gewicht der Regel zwischen 0 und 1, siehe `WORD_WEIGHTS`. */
+  weight: number;
+};
+
 /** Liste, aus der ein Eintrag stammt. */
 export type MatchSource = "product" | "material";
 
