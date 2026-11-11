@@ -320,7 +320,9 @@ const EventCompletionDonation = ({
             value={message}
             onChange={(event) => setMessage(event.target.value)}
             multiline
-            rows={2}
+            // minRows statt rows: rows fixiert die Höhe (minRows = maxRows), dann
+            // zeichnet iOS Safari Notch und Text erst nach dem Überlaufen neu
+            minRows={2}
             slotProps={{htmlInput: {maxLength: 200}}}
             helperText={`${message.length}/200`}
             size="small"

@@ -194,14 +194,13 @@ describe("EventGroupConfiguration", () => {
 
   describe("calculateTotals", () => {
     it("should sum portions across intolerances per diet", () => {
-      const config = createMinimalGroupConfig();
       // 2 Diäten, 2 Intoleranzen hinzufügen
-      EventGroupConfiguration.addDietGroup({
-        groupConfig: config,
+      const withDiet = EventGroupConfiguration.addDietGroup({
+        groupConfig: createMinimalGroupConfig(),
         dietGroupName: "Vegan",
       });
-      EventGroupConfiguration.addIntolerance({
-        groupConfig: config,
+      const config = EventGroupConfiguration.addIntolerance({
+        groupConfig: withDiet,
         intoleranceName: "Laktose",
       });
 
@@ -234,6 +233,38 @@ describe("EventGroupConfiguration", () => {
       });
 
       expect(result.totalPortions).toBe(0);
+    });
+  });
+
+  describe("verändert die übergebene Konfiguration nicht", () => {
+    // Die Methoden arbeiten auf dem React-State. Würden sie ihn direkt
+    // verändern, teilten sich alter und neuer Zustand dieselben Objekte.
+    const operations: Array<[string, (config: EventGroupConfiguration) => void]> = [
+      ["addDietGroup", (config) =>
+        EventGroupConfiguration.addDietGroup({groupConfig: config, dietGroupName: "Vegan"})],
+      ["deleteDiet", (config) =>
+        EventGroupConfiguration.deleteDiet({groupConfig: config, dietUidToDelete: "diet-1"})],
+      ["addIntolerance", (config) =>
+        EventGroupConfiguration.addIntolerance({groupConfig: config, intoleranceName: "Laktose"})],
+      ["deleteIntolerance", (config) =>
+        EventGroupConfiguration.deleteIntolerance({
+          groupConfig: config,
+          intoleranceUidToDelete: "intol-1",
+        })],
+      ["calculateTotals", (config) =>
+        EventGroupConfiguration.calculateTotals({groupConfig: config})],
+    ];
+
+    it.each(operations)("%s", (_operationName, operation) => {
+      // Totale absichtlich falsch, damit calculateTotals etwas zu ändern hätte
+      const config = createMinimalGroupConfig(5);
+      config.totalPortions = 0;
+      const snapshotBefore = structuredClone(config);
+
+      operation(config);
+
+      // Beide Seiten durch structuredClone, weil der Jest-Polyfill Dates zu Strings macht
+      expect(structuredClone(config)).toEqual(snapshotBefore);
     });
   });
 });

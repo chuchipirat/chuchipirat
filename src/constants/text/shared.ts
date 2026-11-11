@@ -174,17 +174,15 @@ export const SEARCH_STRING = "Suchbegriff";
 export const DIALOG_TITLE_DELETION_CONFIRMATION = "Daten löschen?";
 export const DIALOG_SUBTITLE_DELETION_CONFIRMATION =
   "Dadurch werden alle Daten endgültig gelöscht. Dieser Schritt kann nicht rückgängig gemacht werden.";
-export const DIALOG_TEXT_DELETION_CONFIRMATION =
-  "Bestätige, dass du diese Daten löschen möchtest. Gib dazu die folgende ID ein:";
 export const DIALOG_SIGNOUT_USERS_CONFIRMATION = "Alle Users abmelden?";
 export const DIALOG_SUBTITLE_SIGNOUT_USERS_CONFIRMATION =
   "Dadurch werden Benutzer*innen (ausser Admins) vom chuchipirat abgemeldet.";
 export const DIALOG_TEXT_SIGNOUT_USERS_CONFIRMATION =
-  "Bestätige, dass du alle abmelden möchtest. Gib dazu die folgende ID ein:";
+  "Bestätige, dass du alle abmelden möchtest. Gib dazu das folgende Wort ein:";
 
 export const REQUIRED = "Erforderlich";
 export const DIALOG_DELETION_CONFIRMATION_STRING_DOES_NOT_MATCH =
-  "Die angegebene ID ist nicht korrekt";
+  "Die Eingabe stimmt nicht überein";
 export const VERSION = "Version";
 export const LOG = "Log";
 export const ADVANCED_SEARCH = "Erweiterte Suche";

@@ -121,13 +121,25 @@ type State = {
   snackbar: SnackbarState;
 };
 
-const initialState: State = {
+/**
+ * Erzeugt den Startzustand der Seite mit einer frischen Standard-Gruppenkonfiguration.
+ *
+ * Muss pro Mount aufgerufen werden: Ein einmal pro Modul erzeugter Zustand würde
+ * von einem Anlass zum nächsten weitergereicht — inklusive Portionen, eigener
+ * Gruppen und derselben IDs, die beim Speichern die Zeilen des vorherigen
+ * Anlasses überschreiben.
+ *
+ * @returns Neuer, unabhängiger Startzustand.
+ * @example
+ * React.useReducer(groupConfigurationReducer, undefined, createInitialState);
+ */
+const createInitialState = (): State => ({
   groupConfig: EventGroupConfiguration.factory(),
   isError: false,
   isLoading: false,
   error: null,
   snackbar: {open: false, severity: "success", message: ""},
-};
+});
 
 /**
  * Reducer für die Gruppenkonfiguration.
@@ -229,7 +241,8 @@ const EventGroupConfigurationPage = ({
 
   const [state, dispatch] = React.useReducer(
     groupConfigurationReducer,
-    initialState
+    undefined,
+    createInitialState
   );
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     React.useState<HTMLElement | null>(null);
@@ -351,7 +364,9 @@ const EventGroupConfigurationPage = ({
   // Portion anpassen
   // ------------------------------------------ */
   const onPortionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    let updatedGroupConfig = {...state.groupConfig};
+    // Tiefe Kopie: die Portionenmatrix ist verschachtelt und darf im State
+    // nicht direkt verändert werden
+    const updatedGroupConfig = structuredClone(state.groupConfig);
     const changedField = event.target.id.split("_");
     const changedDiet = changedField[1];
     const changedIntolerance = changedField[2];
@@ -366,15 +381,13 @@ const EventGroupConfigurationPage = ({
         ? 0
         : Math.min(POSTGRES_INT4_MAX, Math.max(0, parsedValue));
 
-    updatedGroupConfig = EventGroupConfiguration.calculateTotals({
-      groupConfig: updatedGroupConfig,
-    });
-
     markConfigDirty();
 
     dispatch({
       type: ReducerActions.UPDATE_GROUP_CONFIG,
-      payload: updatedGroupConfig,
+      payload: EventGroupConfiguration.calculateTotals({
+        groupConfig: updatedGroupConfig,
+      }),
     });
   };
   /* ------------------------------------------
@@ -433,18 +446,17 @@ const EventGroupConfigurationPage = ({
 
     if (userInput.valid && userInput.input !== "") {
       if (contextMenuSelectedItem.dietUid) {
-        const diets = {...state.groupConfig.diets};
-        const diet = diets.entries[contextMenuSelectedItem.dietUid];
-        diet.name = userInput.input;
+        // Tiefe Kopie, damit der Eintrag im bisherigen State unverändert bleibt
+        const diets = structuredClone(state.groupConfig.diets);
+        diets.entries[contextMenuSelectedItem.dietUid].name = userInput.input;
         dispatch({
           type: ReducerActions.UPDATE_FIELD,
           payload: {field: "diets", value: diets},
         });
       } else if (contextMenuSelectedItem.intoleranceUid) {
-        const updatedIntolerances = {...state.groupConfig.intolerances};
-        const intolerance =
-          updatedIntolerances.entries[contextMenuSelectedItem.intoleranceUid];
-        intolerance.name = userInput.input;
+        const updatedIntolerances = structuredClone(state.groupConfig.intolerances);
+        updatedIntolerances.entries[contextMenuSelectedItem.intoleranceUid].name =
+          userInput.input;
         dispatch({
           type: ReducerActions.UPDATE_FIELD,
           payload: {field: "intolerances", value: updatedIntolerances},
@@ -499,7 +511,7 @@ const EventGroupConfigurationPage = ({
         });
       } else if (type === GroupConfigDimension.intolerance) {
         const updatedGroupConfig = EventGroupConfiguration.addIntolerance({
-          groupConfig: {...state.groupConfig},
+          groupConfig: state.groupConfig,
           intoleranceName: userInput.input,
         });
         dispatch({
@@ -900,9 +912,18 @@ const EventGroupConfigDietColumn = ({
                   onWheel={(event) =>
                     event.target instanceof HTMLElement && event.target.blur()
                   }
-                  value={groupConfig.portions[dietUid][intoleranceUid]}
+                  // 0 als leeres Feld: React lässt sonst "01" stehen, weil es
+                  // numerisch 1 entspricht. Der Platzhalter zeigt die 0 weiterhin an.
+                  value={
+                    groupConfig.portions[dietUid][intoleranceUid] === 0
+                      ? ""
+                      : groupConfig.portions[dietUid][intoleranceUid]
+                  }
+                  placeholder="0"
                   onChange={onFieldChange}
                   slotProps={{
+                    // Label immer oben, damit der Platzhalter sichtbar bleibt
+                    inputLabel: {shrink: true},
                     input: {
                       inputProps: {
                         min: 0,

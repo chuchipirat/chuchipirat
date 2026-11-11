@@ -122,7 +122,8 @@ describe("EventGroupConfigurationPage — Portionen-Eingabe", () => {
 
     fireEvent.change(portionsInput, {target: {value: "-7"}});
 
-    expect(portionsInput.value).toBe("0");
+    // 0 wird als leeres Feld mit Platzhalter angezeigt
+    expect(portionsInput.value).toBe("");
   });
 
   test("uebernimmt eine positive Portionenzahl unveraendert", () => {
@@ -161,7 +162,7 @@ describe("EventGroupConfigurationPage — Portionen-Eingabe", () => {
 
     fireEvent.change(portionsInput, {target: {value: ""}});
 
-    expect(portionsInput.value).toBe("0");
+    expect(portionsInput.value).toBe("");
   });
 
   test("das Eingabefeld ist ein natives number-Input mit min=0", () => {
@@ -173,6 +174,23 @@ describe("EventGroupConfigurationPage — Portionen-Eingabe", () => {
 
     expect(portionsInput).toHaveAttribute("type", "number");
     expect(portionsInput).toHaveAttribute("min", "0");
+  });
+
+  test("zeigt 0 Portionen als leeres Feld mit Platzhalter, damit kein '01' entsteht", () => {
+    // Regression: React lässt "01" im number-Input stehen, weil es numerisch
+    // 1 entspricht. Ein leeres Feld verhindert die führende 0.
+    renderPage(createMinimalGroupConfig(0));
+
+    const portionsInput = document.getElementById(
+      "portions_diet-1_intol-1",
+    ) as HTMLInputElement;
+
+    expect(portionsInput.value).toBe("");
+    expect(portionsInput).toHaveAttribute("placeholder", "0");
+
+    fireEvent.change(portionsInput, {target: {value: "1"}});
+
+    expect(portionsInput.value).toBe("1");
   });
 });
 
@@ -218,5 +236,91 @@ describe("EventGroupConfigurationPage — Speichern (CHUCHIPIRAT-FV)", () => {
     fireEvent.click(screen.getByRole("button", {name: "Speichern"}));
 
     await waitFor(() => expect(onConfirm.onClick).toHaveBeenCalledTimes(1));
+  });
+});
+
+/**
+ * Rendert die Seite wie im Erstellungsassistenten: ohne bestehende
+ * Gruppenkonfiguration und mit aufgeschobenem Speichern.
+ *
+ * @param onConfirm Callback, das die bestätigte Gruppenkonfiguration erhält.
+ * @returns Render-Resultat von Testing Library.
+ */
+const renderWizardPage = (onConfirm: {buttonText: string; onClick: jest.Mock}) =>
+  render(
+    <MemoryRouter>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <EventGroupConfigurationPage
+          authUser={new AuthUser()}
+          event={new Event()}
+          deferSave={true}
+          onConfirm={onConfirm}
+        />
+      </DatabaseContext.Provider>
+    </MemoryRouter>,
+  );
+
+/**
+ * Liefert die Gruppenkonfiguration, die beim letzten Klick auf
+ * "Weiter" an onConfirm übergeben wurde.
+ *
+ * @param onConfirmClick Gemocktes onClick von onConfirm.
+ * @returns Übergebene Gruppenkonfiguration.
+ */
+const lastConfirmedGroupConfig = (onConfirmClick: jest.Mock): EventGroupConfiguration =>
+  onConfirmClick.mock.calls[onConfirmClick.mock.calls.length - 1][1];
+
+describe("EventGroupConfigurationPage — neuer Anlass startet frisch", () => {
+  // Regression: Der Startzustand wurde einmal pro Modul erzeugt und im
+  // Assistenten wiederverwendet. Ein zweiter Anlass in derselben Sitzung
+  // übernahm Portionen, Gruppen und sogar die IDs des vorherigen — die IDs
+  // haben beim Speichern die Zeilen des ersten Anlasses umgehängt.
+  test("übernimmt weder Portionen, Gruppen noch IDs des vorherigen Anlasses", () => {
+    const firstConfirm = {buttonText: "Weiter", onClick: jest.fn()};
+    const firstRender = renderWizardPage(firstConfirm);
+    const firstPortionsInput = document.querySelector(
+      'input[id^="portions_"]',
+    ) as HTMLInputElement;
+    fireEvent.change(firstPortionsInput, {target: {value: "7"}});
+    fireEvent.click(screen.getByRole("button", {name: "Weiter"}));
+    const firstGroupConfig = structuredClone(lastConfirmedGroupConfig(firstConfirm.onClick));
+    firstRender.unmount();
+
+    const secondConfirm = {buttonText: "Weiter", onClick: jest.fn()};
+    renderWizardPage(secondConfirm);
+    fireEvent.click(screen.getByRole("button", {name: "Weiter"}));
+    const secondGroupConfig = lastConfirmedGroupConfig(secondConfirm.onClick);
+
+    expect(firstGroupConfig.totalPortions).toBe(7);
+    expect(secondGroupConfig.totalPortions).toBe(0);
+    // Einzelne Zellen prüfen: das Total allein verrät die übernommenen Werte nicht
+    Object.values(secondGroupConfig.portions).forEach((intolerancePortions) =>
+      Object.values(intolerancePortions).forEach((servings) => expect(servings).toBe(0)),
+    );
+    expect(secondGroupConfig.diets.order).toHaveLength(firstGroupConfig.diets.order.length);
+    secondGroupConfig.diets.order.forEach((dietUid) =>
+      expect(firstGroupConfig.diets.order).not.toContain(dietUid),
+    );
+    secondGroupConfig.intolerances.order.forEach((intoleranceUid) =>
+      expect(firstGroupConfig.intolerances.order).not.toContain(intoleranceUid),
+    );
+  });
+});
+
+describe("EventGroupConfigurationPage — bestätigte Zustände bleiben unverändert", () => {
+  // Die Portionen-Eingabe veränderte die Portionenmatrix direkt. Ein bereits
+  // an den Aufrufer übergebener Zustand änderte sich dadurch nachträglich mit.
+  test("eine spätere Portionen-Eingabe verändert die zuvor bestätigte Konfiguration nicht", () => {
+    const onConfirm = {buttonText: "Weiter", onClick: jest.fn()};
+    renderWizardPage(onConfirm);
+    fireEvent.click(screen.getByRole("button", {name: "Weiter"}));
+    const confirmedGroupConfig = lastConfirmedGroupConfig(onConfirm.onClick);
+    const snapshotBefore = structuredClone(confirmedGroupConfig);
+
+    const portionsInput = document.querySelector('input[id^="portions_"]') as HTMLInputElement;
+    fireEvent.change(portionsInput, {target: {value: "4"}});
+
+    // Beide Seiten durch structuredClone, weil der Jest-Polyfill Dates zu Strings macht
+    expect(structuredClone(confirmedGroupConfig)).toEqual(snapshotBefore);
   });
 });

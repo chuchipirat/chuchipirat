@@ -368,7 +368,8 @@ const CronJobsPage = () => {
                   fontSize: "0.85rem",
                   whiteSpace: "pre-wrap",
                   wordBreak: "break-word",
-                  backgroundColor: "#f5f5f5",
+                  // Theme-Token statt fixer Farbe, damit der Kontrast auch im Dark Mode stimmt
+                  backgroundColor: "action.hover",
                   padding: 2,
                   borderRadius: 1,
                   maxHeight: "60vh",
