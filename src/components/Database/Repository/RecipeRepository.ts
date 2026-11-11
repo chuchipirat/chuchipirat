@@ -496,6 +496,39 @@ export class RecipeRepository extends BaseRepository<RecipeDomain, RecipeRow> {
   }
 
   /**
+   * Lädt pro Rezept den Zeitpunkt der letzten inhaltlichen Änderung
+   * (`content_updated_at`: Rezeptfelder, Zutaten, Materialien, Schritte;
+   * nicht aber Bewertungen oder Kommentare).
+   *
+   * Fragt bewusst ohne Cache ab: Der Rezept-Cache hält Daten bis zu einer
+   * Stunde und würde genau die Änderung verbergen, die erkannt werden soll.
+   *
+   * @param recipeIds - IDs der Rezepte (Duplikate erlaubt).
+   * @returns Map von Rezept-ID auf Änderungszeitpunkt — IDs ohne Treffer fehlen.
+   * @throws Supabase-Fehler, wenn die Abfrage scheitert.
+   * @example
+   * const changeDates = await database.recipes.getContentChangeDates(["recipe-1"]);
+   * changeDates.get("recipe-1"); // Date
+   */
+  async getContentChangeDates(recipeIds: string[]): Promise<Map<string, Date>> {
+    const uniqueRecipeIds = Array.from(new Set(recipeIds));
+    if (uniqueRecipeIds.length === 0) return new Map();
+
+    const {data, error} = await this.client
+      .from(this.tableName)
+      .select("id, content_updated_at")
+      .in("id", uniqueRecipeIds);
+
+    if (error) throw error;
+    return new Map(
+      (data ?? []).map((row) => [
+        row.id as string,
+        new Date(row.content_updated_at as string),
+      ]),
+    );
+  }
+
+  /**
    * Lädt alle öffentlichen Rezepte.
    *
    * @returns Array der öffentlichen Rezepte, sortiert nach Name

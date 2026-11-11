@@ -18,9 +18,9 @@ export const SELECT_DAY = "Tag auswählen";
 export const SELECT_ALL = "Alle auswählen";
 export const EXISTING_LISTS = "Bestehende Listen";
 export const LIST_ENTRY_MAYBE_OUT_OF_DATE = (listName: string) =>
-  `Bitte beachte, dass der Menüplan in der Zwischenzeit geändert wurde. Dadurch könnten die Werte der angezeigten ${listName} möglicherweise nicht mehr korrekt sein. Bitte wähle Aktualisieren, um die Auswahl neu zu berechnen.`;
+  `Bitte beachte, dass der Menüplan oder ein Rezept daraus in der Zwischenzeit geändert wurde. Dadurch könnten die Werte der angezeigten ${listName} möglicherweise nicht mehr korrekt sein. Bitte wähle Aktualisieren, um die Auswahl neu zu berechnen.`;
 export const USED_RECIPES_OF_SHOPPINGLIST_POSSIBLE_OUT_OF_DATE =
-  "Bitte beachte, dass der Menüplan in der Zwischenzeit geändert wurde. Dadurch könnten die angezeigten Mengen und Produkte möglicherweise nicht mehr korrekt sein. Bitte wähle Aktualisieren, um die Einkaufsliste neu zu generieren.";
+  "Bitte beachte, dass der Menüplan oder ein Rezept daraus in der Zwischenzeit geändert wurde. Dadurch könnten die angezeigten Mengen und Produkte möglicherweise nicht mehr korrekt sein. Bitte wähle Aktualisieren, um die Einkaufsliste neu zu generieren.";
 export const SHOPPINTLIST_ITEM_MOVED_TO_RIGHT_DEPARTMENT = (
   itemName: string,
   departmentName: string,
