@@ -324,6 +324,12 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Other
 
+- **Jest-Polyfill für `structuredClone` verliert Dates** (`src/__mocks__/jestSetup.ts`) — Der Polyfill ist `JSON.parse(JSON.stringify(value))` und macht aus `Date` einen String, aus Klasseninstanzen plain Objects und verliert `undefined`/`Map`/`Set`. Browser klonen korrekt, Tests sehen damit ein anderes Verhalten als die App. Aufgefallen bei der Gruppenkonfiguration: Vergleiche mit einem Snapshot mussten beide Seiten durch `structuredClone` schicken. Ersatz z.B. über `v8.serialize`/`deserialize` oder `core-js`, danach prüfen, ob Tests auf die String-Dates angewiesen sind.
+  **Priorität:** tief · **Komplexität:** klein
+
+- **Gruppenkonfiguration: Client-UUIDs als DB-IDs mit `upsert` auf `id`** (`src/components/Database/Repository/EventGroupConfigRepository.ts`, `saveGroupConfig`; RLS-Policy `event_groupconfiguration_diets_update`/`_intolerances_update`) — Der Client schickt seine `crypto.randomUUID()`-IDs als `id` und speichert per `upsert(..., {onConflict: "id"})`. Die UPDATE-Policies prüfen nur `is_event_cook(event_id)`, ein Upsert darf eine Zeile also auf ein anderes Event umhängen, wenn man in beiden Koch ist. Genau das ist passiert, als der Erstellungsassistent IDs zwischen zwei Anlässen wiederverwendete (behoben im Assistenten). Absicherung in der DB: `event_id` per Trigger unveränderlich machen oder die Policy um einen `WITH CHECK` gegen Wechsel ergänzen. Ausserdem stimmt der Kommentar in `createNewEvent.tsx` (`mapGroupConfigToGroupConfigDomain`, „Repository erkennt anhand der Länge …") nicht mehr, seit die IDs volle UUIDs sind.
+  **Priorität:** mittel · **Komplexität:** mittel
+
 - **Duplikate Produkte in `products`-Tabelle** — Mind. 7 Produkte existieren als zwei separate DB-Zeilen mit identischem Namen, aber unterschiedlicher `uid` (bestätigt: Äpfel, Birnen, Diverse Früchte, Frühstücksflocken, Mascarpone vegan, Rotkabis, Weisswein alkoholfrei — siehe [[RC-001 Rezept erstellen]]). Hat einen React-Key-Kollisions-Bug im Produkt-Autocomplete verursacht (behoben via `getOptionKey`), macht Produktauswahl in Zutaten-/Einkaufslisten aber weiterhin für Nutzer verwirrend (zwei identisch benannte, evtl. unterschiedlich klassifizierte Einträge zur Auswahl). Bereinigung (Duplikate zusammenführen oder eindeutig benennen) erfordert Prüfung, ob beide Zeilen bereits in Rezepten/Einkaufslisten referenziert werden.
   **Priorität:** mittel · **Komplexität:** mittel
 
