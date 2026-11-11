@@ -1,3 +1,11 @@
+/** Ein Wort des Namens in beiden Schreibweisen. */
+export type NameToken = {
+  /** Wie eingegeben, z.B. «Rüebli»; für Hinweise und den Namen ohne Detail. */
+  original: string;
+  /** Normalisiert, z.B. «rueebli»; für den Vergleich. */
+  normalized: string;
+};
+
 /**
  * Bringt einen Produkt- oder Materialnamen in eine Vergleichsform, damit
  * zwei Schreibweisen desselben Namens gleich werden.
@@ -50,4 +58,28 @@ export const tokenizeName = (name: string): string[] => {
   return normalizeName(name)
     .split(" ")
     .filter((word) => word !== "");
+};
+
+/**
+ * Zerlegt einen Namen in Wörter und behält zu jedem die Eingabe-Schreibweise.
+ *
+ * Liefert dieselben normalisierten Wörter wie `tokenizeName`; die Eingabe
+ * wird dafür an denselben Stellen getrennt (alles ausser Buchstaben, Zeichen
+ * wie Akzente und Ziffern).
+ *
+ * @param name Name, wie er eingegeben wurde.
+ * @returns Wörter in ihrer Reihenfolge, ohne solche, die beim Normalisieren
+ * leer werden (z.B. «Ø»).
+ * @example
+ * tokenizeWithOriginal("Zimt, gemahlen")
+ * // [{original: "Zimt", normalized: "zimt"},
+ * //  {original: "gemahlen", normalized: "gemahlen"}]
+ */
+export const tokenizeWithOriginal = (name: string): NameToken[] => {
+  // NFC vor dem Trennen, sonst wäre ein zerlegtes «ü» zwei Zeichen
+  return name
+    .normalize("NFC")
+    .split(/[^\p{L}\p{M}\p{N}]+/u)
+    .map((piece) => ({original: piece, normalized: normalizeName(piece)}))
+    .filter((nameToken) => nameToken.normalized !== "");
 };

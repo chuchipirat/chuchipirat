@@ -117,6 +117,9 @@ export const BASE_RULES: MatchingRules = {
     {word: "Material", kind: NameWordKind.NOT_A_PRODUCT},
     {word: "Reste", kind: NameWordKind.NOT_A_PRODUCT},
     {word: "fertig", kind: NameWordKind.FILLER},
+    // Trennwörter einer Aufzählung sind kein Teil des Produkts
+    {word: "und", kind: NameWordKind.FILLER},
+    {word: "oder", kind: NameWordKind.FILLER},
     {word: "z.B.", kind: NameWordKind.FILLER},
     {word: "gemahlen", kind: NameWordKind.DETAIL},
     {word: "gerieben", kind: NameWordKind.DETAIL},

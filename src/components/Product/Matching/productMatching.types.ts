@@ -115,22 +115,26 @@ export type MatchingRules = {
 export type NameAnalysis = {
   /** Normalisierter Name (klein, Umlaute ersetzt, ohne Satzzeichen). */
   normalized: string;
-  /** Wörter, die das Produkt ausmachen: Stamm, Synonyme aufgelöst. */
+  /** Wörter, die das Produkt ausmachen, normalisiert; Stamm und Synonym bildet erst der Vergleich. */
   coreWords: string[];
-  /** Gefundene Detail-Wörter in Originalschreibweise. */
-  detailWords: string[];
-  /** Gefundene Eigenschaften. */
-  properties: NameProperty[];
-  /** Gefundene Marken samt allgemeinem Begriff, falls gepflegt. */
-  brands: NameWord[];
-  /** Gefundene Wörter der Art `not_a_product` in Originalschreibweise. */
-  notAProductWords: string[];
+  /** Gefundene Wörter der Wortliste, in der Reihenfolge des Namens. */
+  listWords: FoundListWord[];
   /** Ob der Name mehrere Produkte zusammenfasst. */
   isCombination: boolean;
   /** Bei einer Kombination die einzelnen Teile, sonst leer. */
   combinationParts: string[];
   /** Name in Originalschreibweise ohne Detail-Wörter, für «Name ohne Detail übernehmen». */
   nameWithoutDetails: string;
+};
+
+/** Ein Wort des Namens, das in der Wortliste steht. */
+export type FoundListWord = {
+  /** Wort, wie es im Namen steht («vegane»); bei Teilwörtern wie im Eintrag («Hafer»). */
+  word: string;
+  /** Der passende Eintrag der Wortliste. */
+  entry: NameWord;
+  /** Ob nur ein Teil des Wortes passt («Hafer» in «Haferrahm»); das Wort bleibt dann Kernwort. */
+  isPart: boolean;
 };
 
 /** Ein bestehender Eintrag, der zu einem Namen passt. */
