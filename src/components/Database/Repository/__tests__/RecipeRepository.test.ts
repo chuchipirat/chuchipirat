@@ -278,6 +278,60 @@ describe("RecipeRepository", () => {
   });
 
   /* ------------------------------------------
+  // getContentChangeDates()
+  // ------------------------------------------ */
+  describe("getContentChangeDates()", () => {
+    test("liefert pro Rezept den Zeitpunkt der letzten inhaltlichen Änderung", async () => {
+      supabaseMock.queryMock.in = jest.fn().mockResolvedValue({
+        data: [
+          {id: "recipe-uuid-001", content_updated_at: "2026-11-09T17:20:00+00:00"},
+          {id: "recipe-uuid-002", content_updated_at: "1970-01-01T00:00:00+00:00"},
+        ],
+        error: null,
+      });
+
+      const result = await repo.getContentChangeDates([
+        "recipe-uuid-001",
+        "recipe-uuid-002",
+        "recipe-uuid-001",
+      ]);
+
+      // Eine Anfrage, nur die zwei benötigten Spalten, IDs dedupliziert
+      expect(supabaseMock.client.from).toHaveBeenCalledTimes(1);
+      expect(supabaseMock.queryMock.select).toHaveBeenCalledWith("id, content_updated_at");
+      expect(supabaseMock.queryMock.in).toHaveBeenCalledWith("id", [
+        "recipe-uuid-001",
+        "recipe-uuid-002",
+      ]);
+      expect(result.get("recipe-uuid-001")).toEqual(new Date("2026-11-09T17:20:00Z"));
+      expect(result.get("recipe-uuid-002")).toEqual(new Date(0));
+    });
+
+    test("fragt bei jedem Aufruf neu ab, statt den Rezept-Cache zu nutzen", async () => {
+      supabaseMock.queryMock.in = jest.fn().mockResolvedValue({data: [], error: null});
+
+      await repo.getContentChangeDates(["recipe-uuid-001"]);
+      await repo.getContentChangeDates(["recipe-uuid-001"]);
+
+      expect(supabaseMock.client.from).toHaveBeenCalledTimes(2);
+    });
+
+    test("stellt keine Anfrage bei leerem Array", async () => {
+      const result = await repo.getContentChangeDates([]);
+
+      expect(supabaseMock.client.from).not.toHaveBeenCalled();
+      expect(result.size).toBe(0);
+    });
+
+    test("wirft den Supabase-Fehler weiter", async () => {
+      const dbError = {code: "42501", message: "permission denied"};
+      supabaseMock.queryMock.in = jest.fn().mockResolvedValue({data: null, error: dbError});
+
+      await expect(repo.getContentChangeDates(["recipe-uuid-001"])).rejects.toBe(dbError);
+    });
+  });
+
+  /* ------------------------------------------
   // getAllPublicRecipes()
   // ------------------------------------------ */
   describe("getAllPublicRecipes()", () => {
