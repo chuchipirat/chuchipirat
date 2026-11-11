@@ -324,6 +324,9 @@ Dateien mit >1'000 LOC, die in kleinere Einheiten aufgeteilt werden sollten. Än
 
 ## Other
 
+- **Frontend-Deploy räumt alte Build-Dateien nie auf** (`.github/workflows/deploy-test.yml`, Schritt „Copy build to server": `scp` nach `/opt/chuchipirat/test/app/html/` ohne vorheriges Löschen) — Auf TEST liegen alle je gebauten Chunks (Stand 2026-11-11: 7497 Dateien in `assets/`, zurück bis Juni). Vorteil: offene alte Tabs finden ihre Chunks weiterhin, darum treten fehlgeschlagene Chunk-Importe nach einem Deploy praktisch nicht auf. Die Annahme in `index.jsx`/`sentryOptions.ts` („Chunk nach Deploy gelöscht") stimmt deshalb nicht. Nachteil: Speicher wächst unbegrenzt. Lösung: beim Deploy Dateien älter als z.B. 14 Tage löschen, dann bleiben alte Tabs trotzdem eine Weile lauffähig. PROD-Workflow (`deploy-prod.yml`) auf dasselbe Verhalten prüfen (nicht direkt auf dem Server).
+  **Priorität:** tief · **Komplexität:** klein
+
 - **Jest-Polyfill für `structuredClone` verliert Dates** (`src/__mocks__/jestSetup.ts`) — Der Polyfill ist `JSON.parse(JSON.stringify(value))` und macht aus `Date` einen String, aus Klasseninstanzen plain Objects und verliert `undefined`/`Map`/`Set`. Browser klonen korrekt, Tests sehen damit ein anderes Verhalten als die App. Aufgefallen bei der Gruppenkonfiguration: Vergleiche mit einem Snapshot mussten beide Seiten durch `structuredClone` schicken. Ersatz z.B. über `v8.serialize`/`deserialize` oder `core-js`, danach prüfen, ob Tests auf die String-Dates angewiesen sind.
   **Priorität:** tief · **Komplexität:** klein
 
