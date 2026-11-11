@@ -912,9 +912,18 @@ const EventGroupConfigDietColumn = ({
                   onWheel={(event) =>
                     event.target instanceof HTMLElement && event.target.blur()
                   }
-                  value={groupConfig.portions[dietUid][intoleranceUid]}
+                  // 0 als leeres Feld: React lässt sonst "01" stehen, weil es
+                  // numerisch 1 entspricht. Der Platzhalter zeigt die 0 weiterhin an.
+                  value={
+                    groupConfig.portions[dietUid][intoleranceUid] === 0
+                      ? ""
+                      : groupConfig.portions[dietUid][intoleranceUid]
+                  }
+                  placeholder="0"
                   onChange={onFieldChange}
                   slotProps={{
+                    // Label immer oben, damit der Platzhalter sichtbar bleibt
+                    inputLabel: {shrink: true},
                     input: {
                       inputProps: {
                         min: 0,

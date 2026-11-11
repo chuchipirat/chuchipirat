@@ -122,7 +122,8 @@ describe("EventGroupConfigurationPage — Portionen-Eingabe", () => {
 
     fireEvent.change(portionsInput, {target: {value: "-7"}});
 
-    expect(portionsInput.value).toBe("0");
+    // 0 wird als leeres Feld mit Platzhalter angezeigt
+    expect(portionsInput.value).toBe("");
   });
 
   test("uebernimmt eine positive Portionenzahl unveraendert", () => {
@@ -161,7 +162,7 @@ describe("EventGroupConfigurationPage — Portionen-Eingabe", () => {
 
     fireEvent.change(portionsInput, {target: {value: ""}});
 
-    expect(portionsInput.value).toBe("0");
+    expect(portionsInput.value).toBe("");
   });
 
   test("das Eingabefeld ist ein natives number-Input mit min=0", () => {
@@ -173,6 +174,23 @@ describe("EventGroupConfigurationPage — Portionen-Eingabe", () => {
 
     expect(portionsInput).toHaveAttribute("type", "number");
     expect(portionsInput).toHaveAttribute("min", "0");
+  });
+
+  test("zeigt 0 Portionen als leeres Feld mit Platzhalter, damit kein '01' entsteht", () => {
+    // Regression: React lässt "01" im number-Input stehen, weil es numerisch
+    // 1 entspricht. Ein leeres Feld verhindert die führende 0.
+    renderPage(createMinimalGroupConfig(0));
+
+    const portionsInput = document.getElementById(
+      "portions_diet-1_intol-1",
+    ) as HTMLInputElement;
+
+    expect(portionsInput.value).toBe("");
+    expect(portionsInput).toHaveAttribute("placeholder", "0");
+
+    fireEvent.change(portionsInput, {target: {value: "1"}});
+
+    expect(portionsInput.value).toBe("1");
   });
 });
 
