@@ -4,7 +4,12 @@ import React from "react";
 import DatabaseService from "../../Database/DatabaseService";
 import {useRealtimeConnectionStatus} from "../../Shared/useRealtimeConnectionStatus";
 import {FieldValidationError} from "../../Shared/fieldValidation.error.class";
-import {isTransientNetworkError, toError} from "../../../utils/errorUtils";
+import {
+  isChunkLoadError,
+  isTransientNetworkError,
+  toError,
+} from "../../../utils/errorUtils";
+import {ERROR_MODULE_LOAD_FAILED as TEXT_ERROR_MODULE_LOAD_FAILED} from "../../../constants/text";
 import {
   expenseTrackingReducer,
   initialState,
@@ -60,10 +65,27 @@ export const useExpenseTrackingData = ({
    * meldet ihn an Sentry. Nutzerhinweise (`FieldValidationError`) und
    * vorübergehende Netzwerkfehler werden bewusst nicht gemeldet.
    *
+   * Ein nicht nachgeladener App-Teil (dynamischer Import der Exporte)
+   * erscheint mit einer verständlichen Meldung. Die Originalmeldung filtert
+   * Sentry weg und der automatische Reload in `index.jsx` greift hier nicht,
+   * weil der Fehler nie die ErrorBoundary erreicht. Darum eine Warnung mit
+   * eigenem Text, damit Häufigkeit und Browser sichtbar bleiben.
+   *
    * @param error - Der aufgetretene Fehler.
    * @param context - Kurzbeschreibung der Aktion für den Sentry-Kontext.
    */
   const handleError = React.useCallback((error: unknown, context: string) => {
+    if (isChunkLoadError(error)) {
+      Sentry.captureMessage("App-Teil konnte nicht nachgeladen werden", {
+        level: "warning",
+        extra: {context},
+      });
+      dispatch({
+        type: ReducerActions.GENERIC_ERROR,
+        payload: new Error(TEXT_ERROR_MODULE_LOAD_FAILED),
+      });
+      return;
+    }
     const isUserHint = error instanceof FieldValidationError;
     if (!isTransientNetworkError(error) && !isUserHint) {
       Sentry.captureException(error, {extra: {context}});

@@ -34,7 +34,10 @@ import {
   LOADING_MENUPLAN,
 } from "../Evaluation/__mocks__/menuplan.mock";
 import {expense as mockExpense} from "../Expense/__mocks__/expense.mock";
-import {REALTIME_RECONNECTING as TEXT_REALTIME_RECONNECTING} from "../../../../constants/text";
+import {
+  ERROR_MODULE_LOAD_FAILED as TEXT_ERROR_MODULE_LOAD_FAILED,
+  REALTIME_RECONNECTING as TEXT_REALTIME_RECONNECTING,
+} from "../../../../constants/text";
 import {
   NEW_BUDGET as TEXT_NEW_BUDGET,
   NEW_EXPENSE as TEXT_NEW_EXPENSE,
@@ -86,6 +89,7 @@ jest.mock("../../../Shared/customDialogContext", () => ({
 jest.mock("@sentry/react", () => ({
   ...jest.requireActual("@sentry/react"),
   captureException: jest.fn(),
+  captureMessage: jest.fn(),
 }));
 jest.mock("@mui/x-date-pickers", () => ({
   DatePicker: (props: any) => (
@@ -3598,6 +3602,27 @@ describe("EventExpenseTrackingPage: Ausgaben als CSV", () => {
     expect(Sentry.captureException).toHaveBeenCalledWith(downloadError, {
       extra: {context: "CSV exportieren"},
     });
+    expect(getExportButton()).toBeEnabled();
+  });
+
+  test("nicht geladener App-Teil: deutsche Meldung und Sentry-Warnung statt Rohfehler", async () => {
+    // So meldet Safari einen fehlgeschlagenen dynamischen Import. Die
+    // Originalmeldung filtert Sentry weg und ist für Nutzer unverständlich.
+    jest.mocked(Sentry.captureMessage).mockClear();
+    mockedDownloadExpenseCsv.mockImplementationOnce(() => {
+      throw new TypeError("Importing a module script failed.");
+    });
+
+    fireEvent.click(await openCsvMenuItem());
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(TEXT_ERROR_MODULE_LOAD_FAILED);
+    expect(alert).not.toHaveTextContent("Importing a module script failed");
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+    expect(Sentry.captureMessage).toHaveBeenCalledWith(
+      "App-Teil konnte nicht nachgeladen werden",
+      {level: "warning", extra: {context: "CSV exportieren"}},
+    );
     expect(getExportButton()).toBeEnabled();
   });
 });
