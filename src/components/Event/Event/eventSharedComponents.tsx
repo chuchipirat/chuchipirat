@@ -56,6 +56,12 @@ import {MaterialList} from "../MaterialList/materialList.class";
 import {Action} from "../../../constants/actions";
 import Recipe from "../../Recipe/recipe.class";
 import {useCustomStyles} from "../../../constants/styles";
+import {
+  getLatestRecipeChange,
+  getRecipeUidsOfMenues,
+  isListOutOfDate,
+} from "./listOutOfDate";
+import {useRecipeContentChanges} from "./useRecipeContentChanges";
 export enum OperationType {
   none,
   Create,
@@ -100,6 +106,19 @@ export const EventListCard = ({
   onRefreshLists,
   onGeneratePrintVersion,
 }: EventListCardProps) => {
+  const recipeChangeDates = useRecipeContentChanges(menuplan);
+  const selectedList = selectedListItem ? lists[selectedListItem] : undefined;
+  const isSelectedListOutOfDate =
+    selectedList !== undefined &&
+    isListOutOfDate({
+      listGeneratedAt: selectedList.properties.generated.date,
+      menuplanChangedAt: menuplan.lastChange.date,
+      recipesChangedAt: getLatestRecipeChange(
+        getRecipeUidsOfMenues(menuplan, selectedList.properties.selectedMenues),
+        recipeChangeDates,
+      ),
+    });
+
   return (
     <Card>
       <CardHeader
@@ -145,27 +164,24 @@ export const EventListCard = ({
           </List>
         )}
 
-        {/* Warnung abgeben, wenn das Änderungsdatum des Menüplan kleiner ist, als der Listen */}
-        {selectedListItem &&
-          menuplan.lastChange.date >
-            lists[selectedListItem]?.properties.generated.date &&
-          noOfLists > 0 && (
-            <Grid container>
-              <Grid
-                size={1}
-                style={{
-                  display: "flex",
-                  justifyContent: "center",
-                  // alignItems: "center",
-                }}
-              >
-                <ErrorOutlineIcon color="error" />
-              </Grid>
-              <Grid size={11}>
-                <Typography color="error">{outOfDateWarnMessage}</Typography>
-              </Grid>
+        {/* Warnung, wenn Menüplan oder ein Rezept der Liste jünger ist als die Liste */}
+        {isSelectedListOutOfDate && noOfLists > 0 && (
+          <Grid container>
+            <Grid
+              size={1}
+              style={{
+                display: "flex",
+                justifyContent: "center",
+                // alignItems: "center",
+              }}
+            >
+              <ErrorOutlineIcon color="error" />
             </Grid>
-          )}
+            <Grid size={11}>
+              <Typography color="error">{outOfDateWarnMessage}</Typography>
+            </Grid>
+          </Grid>
+        )}
       </CardContent>
       <CardActions style={{justifyContent: "flex-end"}}>
         <Button color="primary" variant="outlined" onClick={onCreateList}>
