@@ -220,3 +220,71 @@ describe("EventGroupConfigurationPage — Speichern (CHUCHIPIRAT-FV)", () => {
     await waitFor(() => expect(onConfirm.onClick).toHaveBeenCalledTimes(1));
   });
 });
+
+/**
+ * Rendert die Seite wie im Erstellungsassistenten: ohne bestehende
+ * Gruppenkonfiguration und mit aufgeschobenem Speichern.
+ *
+ * @param onConfirm Callback, das die bestätigte Gruppenkonfiguration erhält.
+ * @returns Render-Resultat von Testing Library.
+ */
+const renderWizardPage = (onConfirm: {buttonText: string; onClick: jest.Mock}) =>
+  render(
+    <MemoryRouter>
+      <DatabaseContext.Provider value={mockDatabase}>
+        <EventGroupConfigurationPage
+          authUser={new AuthUser()}
+          event={new Event()}
+          deferSave={true}
+          onConfirm={onConfirm}
+        />
+      </DatabaseContext.Provider>
+    </MemoryRouter>,
+  );
+
+/**
+ * Liefert die Gruppenkonfiguration, die beim letzten Klick auf
+ * "Weiter" an onConfirm übergeben wurde.
+ *
+ * @param onConfirmClick Gemocktes onClick von onConfirm.
+ * @returns Übergebene Gruppenkonfiguration.
+ */
+const lastConfirmedGroupConfig = (onConfirmClick: jest.Mock): EventGroupConfiguration =>
+  onConfirmClick.mock.calls[onConfirmClick.mock.calls.length - 1][1];
+
+describe("EventGroupConfigurationPage — neuer Anlass startet frisch", () => {
+  // Regression: Der Startzustand wurde einmal pro Modul erzeugt und im
+  // Assistenten wiederverwendet. Ein zweiter Anlass in derselben Sitzung
+  // übernahm Portionen, Gruppen und sogar die IDs des vorherigen — die IDs
+  // haben beim Speichern die Zeilen des ersten Anlasses umgehängt.
+  test("übernimmt weder Portionen, Gruppen noch IDs des vorherigen Anlasses", () => {
+    const firstConfirm = {buttonText: "Weiter", onClick: jest.fn()};
+    const firstRender = renderWizardPage(firstConfirm);
+    const firstPortionsInput = document.querySelector(
+      'input[id^="portions_"]',
+    ) as HTMLInputElement;
+    fireEvent.change(firstPortionsInput, {target: {value: "7"}});
+    fireEvent.click(screen.getByRole("button", {name: "Weiter"}));
+    const firstGroupConfig = structuredClone(lastConfirmedGroupConfig(firstConfirm.onClick));
+    firstRender.unmount();
+
+    const secondConfirm = {buttonText: "Weiter", onClick: jest.fn()};
+    renderWizardPage(secondConfirm);
+    fireEvent.click(screen.getByRole("button", {name: "Weiter"}));
+    const secondGroupConfig = lastConfirmedGroupConfig(secondConfirm.onClick);
+
+    expect(firstGroupConfig.totalPortions).toBe(7);
+    expect(secondGroupConfig.totalPortions).toBe(0);
+    // Einzelne Zellen prüfen: das Total allein verrät die übernommenen Werte nicht
+    Object.values(secondGroupConfig.portions).forEach((intolerancePortions) =>
+      Object.values(intolerancePortions).forEach((servings) => expect(servings).toBe(0)),
+    );
+    expect(secondGroupConfig.diets.order).toHaveLength(firstGroupConfig.diets.order.length);
+    secondGroupConfig.diets.order.forEach((dietUid) =>
+      expect(firstGroupConfig.diets.order).not.toContain(dietUid),
+    );
+    secondGroupConfig.intolerances.order.forEach((intoleranceUid) =>
+      expect(firstGroupConfig.intolerances.order).not.toContain(intoleranceUid),
+    );
+  });
+});

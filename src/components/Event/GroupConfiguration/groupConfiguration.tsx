@@ -121,13 +121,25 @@ type State = {
   snackbar: SnackbarState;
 };
 
-const initialState: State = {
+/**
+ * Erzeugt den Startzustand der Seite mit einer frischen Standard-Gruppenkonfiguration.
+ *
+ * Muss pro Mount aufgerufen werden: Ein einmal pro Modul erzeugter Zustand würde
+ * von einem Anlass zum nächsten weitergereicht — inklusive Portionen, eigener
+ * Gruppen und derselben IDs, die beim Speichern die Zeilen des vorherigen
+ * Anlasses überschreiben.
+ *
+ * @returns Neuer, unabhängiger Startzustand.
+ * @example
+ * React.useReducer(groupConfigurationReducer, undefined, createInitialState);
+ */
+const createInitialState = (): State => ({
   groupConfig: EventGroupConfiguration.factory(),
   isError: false,
   isLoading: false,
   error: null,
   snackbar: {open: false, severity: "success", message: ""},
-};
+});
 
 /**
  * Reducer für die Gruppenkonfiguration.
@@ -229,7 +241,8 @@ const EventGroupConfigurationPage = ({
 
   const [state, dispatch] = React.useReducer(
     groupConfigurationReducer,
-    initialState
+    undefined,
+    createInitialState
   );
   const [contextMenuAnchorElement, setContextMenuAnchorElement] =
     React.useState<HTMLElement | null>(null);
