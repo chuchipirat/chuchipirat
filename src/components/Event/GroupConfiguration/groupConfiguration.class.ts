@@ -111,122 +111,149 @@ export class EventGroupConfiguration {
     return groupConfig;
   }
   /**
-   * Unverträglichkeit hinzufügen
-   * @param Objekt mit Unverträglichkeit-Array und Name der neuen Unverträglichkeit
-   * @returns Unverträglichkeiten-Array mit neuer Unverträglichkeit
+   * Fügt eine neue Unverträglichkeit mit 0 Portionen für alle Diäten hinzu.
+   *
+   * Die übergebene Konfiguration bleibt unverändert, weil sie in der Regel
+   * der aktuelle React-State ist.
+   *
+   * @param props.groupConfig Bestehende Gruppenkonfiguration.
+   * @param props.intoleranceName Name der neuen Unverträglichkeit.
+   * @returns Neue Gruppenkonfiguration inklusive der Unverträglichkeit.
+   * @example
+   * const updated = EventGroupConfiguration.addIntolerance({groupConfig, intoleranceName: "Laktose"});
    */
   static addIntolerance({groupConfig, intoleranceName}: AddIntoleranceProps) {
+    const updatedGroupConfig = structuredClone(groupConfig);
     const newIntolerance: Intolerance = {
       uid: crypto.randomUUID(),
       name: intoleranceName,
       totalPortions: 0,
     };
-    groupConfig.intolerances.entries[newIntolerance.uid] = newIntolerance;
-    groupConfig.intolerances.order.push(newIntolerance.uid);
+    updatedGroupConfig.intolerances.entries[newIntolerance.uid] = newIntolerance;
+    updatedGroupConfig.intolerances.order.push(newIntolerance.uid);
 
-    groupConfig.diets.order.forEach((dietUid) => {
-      groupConfig.portions[dietUid] = {
-        ...groupConfig.portions[dietUid],
-        [newIntolerance.uid]: 0,
-      };
+    updatedGroupConfig.diets.order.forEach((dietUid) => {
+      updatedGroupConfig.portions[dietUid][newIntolerance.uid] = 0;
     });
 
-    return groupConfig;
+    return updatedGroupConfig;
   }
   /**
-   * Intoleranz löschen
-   * @param Objekt mit groupConfig und UID der Intoleranz, die gelöscht werden muss
-   * @returns Gesamte GroupConfig
+   * Entfernt eine Unverträglichkeit samt ihrer Portionen und berechnet die Totale neu.
+   *
+   * Die übergebene Konfiguration bleibt unverändert.
+   *
+   * @param props.groupConfig Bestehende Gruppenkonfiguration.
+   * @param props.intoleranceUidToDelete UID der zu entfernenden Unverträglichkeit.
+   * @returns Neue Gruppenkonfiguration ohne die Unverträglichkeit.
+   * @example
+   * const updated = EventGroupConfiguration.deleteIntolerance({groupConfig, intoleranceUidToDelete: "intol-1"});
    */
   static deleteIntolerance({
     groupConfig,
     intoleranceUidToDelete,
   }: DeleteIntoleranceProps) {
-    delete groupConfig.intolerances.entries[intoleranceUidToDelete];
-    groupConfig.intolerances.order = groupConfig.intolerances.order.filter(
-      (intoleranceUid) => intoleranceUid != intoleranceUidToDelete
-    );
+    const updatedGroupConfig = structuredClone(groupConfig);
+    delete updatedGroupConfig.intolerances.entries[intoleranceUidToDelete];
+    updatedGroupConfig.intolerances.order =
+      updatedGroupConfig.intolerances.order.filter(
+        (intoleranceUid) => intoleranceUid != intoleranceUidToDelete
+      );
 
-    Object.keys(groupConfig.portions).forEach((diet) => {
-      delete groupConfig.portions[diet][intoleranceUidToDelete];
+    Object.values(updatedGroupConfig.portions).forEach((intolerancePortions) => {
+      delete intolerancePortions[intoleranceUidToDelete];
     });
 
-    groupConfig = EventGroupConfiguration.calculateTotals({
-      groupConfig: groupConfig,
+    return EventGroupConfiguration.calculateTotals({
+      groupConfig: updatedGroupConfig,
     });
-
-    return groupConfig;
   }
   /**
-   * Diät-Gruppe hinzufügen
-   * @param Objekt mit Diät-Array und Name der neuen Diätgruppe
-   * @returns Diät-Array mit neuer Gruppe
+   * Fügt eine neue Diätgruppe mit 0 Portionen für alle Unverträglichkeiten hinzu.
+   *
+   * Die übergebene Konfiguration bleibt unverändert.
+   *
+   * @param props.groupConfig Bestehende Gruppenkonfiguration.
+   * @param props.dietGroupName Name der neuen Diätgruppe.
+   * @returns Neue Gruppenkonfiguration inklusive der Diätgruppe.
+   * @example
+   * const updated = EventGroupConfiguration.addDietGroup({groupConfig, dietGroupName: "Vegan"});
    */
   static addDietGroup({groupConfig, dietGroupName}: AddDietGroupProps) {
+    const updatedGroupConfig = structuredClone(groupConfig);
     const newDiet: Diet = {
       uid: crypto.randomUUID(),
       name: dietGroupName,
       totalPortions: 0,
     };
 
-    groupConfig.diets.entries[newDiet.uid] = newDiet;
-    groupConfig.diets.order.push(newDiet.uid);
+    updatedGroupConfig.diets.entries[newDiet.uid] = newDiet;
+    updatedGroupConfig.diets.order.push(newDiet.uid);
 
     const intolerancePortions = {} as IntolerancePortions;
-    groupConfig.intolerances.order.forEach((intoleranceUid) => {
+    updatedGroupConfig.intolerances.order.forEach((intoleranceUid) => {
       intolerancePortions[intoleranceUid] = 0;
     });
-    groupConfig.portions[newDiet.uid] = intolerancePortions;
+    updatedGroupConfig.portions[newDiet.uid] = intolerancePortions;
 
-    return groupConfig;
+    return updatedGroupConfig;
   }
   /**
-   * Diät aus Diät-Array löschen
-   * @param Objekt mit groupConfig und UID der Diät, die gelöscht werden muss
-   * @returns Gesamte GroupConfig
+   * Entfernt eine Diätgruppe samt ihrer Portionen und berechnet die Totale neu.
+   *
+   * Die übergebene Konfiguration bleibt unverändert.
+   *
+   * @param props.groupConfig Bestehende Gruppenkonfiguration.
+   * @param props.dietUidToDelete UID der zu entfernenden Diätgruppe.
+   * @returns Neue Gruppenkonfiguration ohne die Diätgruppe.
+   * @example
+   * const updated = EventGroupConfiguration.deleteDiet({groupConfig, dietUidToDelete: "diet-1"});
    */
   static deleteDiet({groupConfig, dietUidToDelete}: DeleteDietProps) {
-    delete groupConfig.diets.entries[dietUidToDelete];
-    groupConfig.diets.order = groupConfig.diets.order.filter(
+    const updatedGroupConfig = structuredClone(groupConfig);
+    delete updatedGroupConfig.diets.entries[dietUidToDelete];
+    updatedGroupConfig.diets.order = updatedGroupConfig.diets.order.filter(
       (dietUid) => dietUid != dietUidToDelete
     );
 
-    delete groupConfig.portions[dietUidToDelete];
+    delete updatedGroupConfig.portions[dietUidToDelete];
 
-    groupConfig = EventGroupConfiguration.calculateTotals({
-      groupConfig: groupConfig,
+    return EventGroupConfiguration.calculateTotals({
+      groupConfig: updatedGroupConfig,
     });
-
-    return groupConfig;
   }
   /**
-   * Die Totale der Diäten und Intoleranzen neu berechnen
-   * @param groupConfig
-   * @returns groupConfig - mit neu berechneten Total-Summern
+   * Berechnet die Totale pro Diät, pro Unverträglichkeit und gesamthaft neu.
+   *
+   * Die übergebene Konfiguration bleibt unverändert.
+   *
+   * @param props.groupConfig Gruppenkonfiguration mit aktueller Portionenmatrix.
+   * @returns Neue Gruppenkonfiguration mit neu berechneten Totalen.
+   * @example
+   * const withTotals = EventGroupConfiguration.calculateTotals({groupConfig});
    */
   static calculateTotals({groupConfig}: CalculateTotals) {
-    groupConfig.totalPortions = 0;
+    const updatedGroupConfig = structuredClone(groupConfig);
+    updatedGroupConfig.totalPortions = 0;
 
-    groupConfig.diets.order.forEach((dietUid) => {
-      groupConfig.diets.entries[dietUid].totalPortions = Object.values(
-        groupConfig.portions[dietUid]
-      ).reduce((runningSum, portion) => runningSum + portion, 0);
-      // Gleich die Total-Portionen über alles dazurechnen
-      groupConfig.totalPortions =
-        groupConfig.totalPortions +
-        groupConfig.diets.entries[dietUid].totalPortions;
+    updatedGroupConfig.diets.order.forEach((dietUid) => {
+      const dietTotal = Object.values(updatedGroupConfig.portions[dietUid]).reduce(
+        (runningSum, portion) => runningSum + portion,
+        0
+      );
+      updatedGroupConfig.diets.entries[dietUid].totalPortions = dietTotal;
+      updatedGroupConfig.totalPortions += dietTotal;
     });
 
-    groupConfig.intolerances.order.forEach((intoleranceUid) => {
-      groupConfig.intolerances.entries[intoleranceUid].totalPortions = 0;
-
-      groupConfig.diets.order.forEach((dietUid) => {
-        groupConfig.intolerances.entries[intoleranceUid].totalPortions =
-          groupConfig.intolerances.entries[intoleranceUid].totalPortions +
-          groupConfig.portions[dietUid][intoleranceUid];
-      });
+    updatedGroupConfig.intolerances.order.forEach((intoleranceUid) => {
+      updatedGroupConfig.intolerances.entries[intoleranceUid].totalPortions =
+        updatedGroupConfig.diets.order.reduce(
+          (runningSum, dietUid) =>
+            runningSum + updatedGroupConfig.portions[dietUid][intoleranceUid],
+          0
+        );
     });
 
-    return groupConfig;
+    return updatedGroupConfig;
   }
 }

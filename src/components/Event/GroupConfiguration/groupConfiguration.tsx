@@ -364,7 +364,9 @@ const EventGroupConfigurationPage = ({
   // Portion anpassen
   // ------------------------------------------ */
   const onPortionChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    let updatedGroupConfig = {...state.groupConfig};
+    // Tiefe Kopie: die Portionenmatrix ist verschachtelt und darf im State
+    // nicht direkt verändert werden
+    const updatedGroupConfig = structuredClone(state.groupConfig);
     const changedField = event.target.id.split("_");
     const changedDiet = changedField[1];
     const changedIntolerance = changedField[2];
@@ -379,15 +381,13 @@ const EventGroupConfigurationPage = ({
         ? 0
         : Math.min(POSTGRES_INT4_MAX, Math.max(0, parsedValue));
 
-    updatedGroupConfig = EventGroupConfiguration.calculateTotals({
-      groupConfig: updatedGroupConfig,
-    });
-
     markConfigDirty();
 
     dispatch({
       type: ReducerActions.UPDATE_GROUP_CONFIG,
-      payload: updatedGroupConfig,
+      payload: EventGroupConfiguration.calculateTotals({
+        groupConfig: updatedGroupConfig,
+      }),
     });
   };
   /* ------------------------------------------
@@ -446,18 +446,17 @@ const EventGroupConfigurationPage = ({
 
     if (userInput.valid && userInput.input !== "") {
       if (contextMenuSelectedItem.dietUid) {
-        const diets = {...state.groupConfig.diets};
-        const diet = diets.entries[contextMenuSelectedItem.dietUid];
-        diet.name = userInput.input;
+        // Tiefe Kopie, damit der Eintrag im bisherigen State unverändert bleibt
+        const diets = structuredClone(state.groupConfig.diets);
+        diets.entries[contextMenuSelectedItem.dietUid].name = userInput.input;
         dispatch({
           type: ReducerActions.UPDATE_FIELD,
           payload: {field: "diets", value: diets},
         });
       } else if (contextMenuSelectedItem.intoleranceUid) {
-        const updatedIntolerances = {...state.groupConfig.intolerances};
-        const intolerance =
-          updatedIntolerances.entries[contextMenuSelectedItem.intoleranceUid];
-        intolerance.name = userInput.input;
+        const updatedIntolerances = structuredClone(state.groupConfig.intolerances);
+        updatedIntolerances.entries[contextMenuSelectedItem.intoleranceUid].name =
+          userInput.input;
         dispatch({
           type: ReducerActions.UPDATE_FIELD,
           payload: {field: "intolerances", value: updatedIntolerances},
@@ -512,7 +511,7 @@ const EventGroupConfigurationPage = ({
         });
       } else if (type === GroupConfigDimension.intolerance) {
         const updatedGroupConfig = EventGroupConfiguration.addIntolerance({
-          groupConfig: {...state.groupConfig},
+          groupConfig: state.groupConfig,
           intoleranceName: userInput.input,
         });
         dispatch({

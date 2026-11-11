@@ -288,3 +288,21 @@ describe("EventGroupConfigurationPage — neuer Anlass startet frisch", () => {
     );
   });
 });
+
+describe("EventGroupConfigurationPage — bestätigte Zustände bleiben unverändert", () => {
+  // Die Portionen-Eingabe veränderte die Portionenmatrix direkt. Ein bereits
+  // an den Aufrufer übergebener Zustand änderte sich dadurch nachträglich mit.
+  test("eine spätere Portionen-Eingabe verändert die zuvor bestätigte Konfiguration nicht", () => {
+    const onConfirm = {buttonText: "Weiter", onClick: jest.fn()};
+    renderWizardPage(onConfirm);
+    fireEvent.click(screen.getByRole("button", {name: "Weiter"}));
+    const confirmedGroupConfig = lastConfirmedGroupConfig(onConfirm.onClick);
+    const snapshotBefore = structuredClone(confirmedGroupConfig);
+
+    const portionsInput = document.querySelector('input[id^="portions_"]') as HTMLInputElement;
+    fireEvent.change(portionsInput, {target: {value: "4"}});
+
+    // Beide Seiten durch structuredClone, weil der Jest-Polyfill Dates zu Strings macht
+    expect(structuredClone(confirmedGroupConfig)).toEqual(snapshotBefore);
+  });
+});

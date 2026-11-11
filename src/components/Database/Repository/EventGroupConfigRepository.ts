@@ -476,10 +476,8 @@ export class EventGroupConfigRepository extends BaseRepository<GroupConfigDomain
       }
     }
 
-    // Totale berechnen
-    EventGroupConfiguration.calculateTotals({groupConfig});
-
-    return groupConfig;
+    // Totale berechnen — calculateTotals liefert ein neues Objekt zurück
+    return EventGroupConfiguration.calculateTotals({groupConfig});
   }
 
   /**
