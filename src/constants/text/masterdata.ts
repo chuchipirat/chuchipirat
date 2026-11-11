@@ -49,6 +49,8 @@ export const SHOW_ALL_PRODUCTS = "Zeige alle Produkte";
 export const UNIT_CREATED = (unit: string) => {
   return `Einheit «${unit}» wurde angelegt.`;
 };
+export const UNIT_DELETION_CONFIRMATION_TEXT =
+  "Bestätige, dass du diese Einheit löschen möchtest. Gib dazu die Einheit ein:";
 export const UNIT_DELETED = (unit: string) =>
   `Einheit «${unit}» wurde gelöscht.`;
 export const BASIC = "Basic";

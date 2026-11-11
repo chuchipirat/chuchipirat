@@ -129,3 +129,5 @@ export const MAKE_RECIPE_PRIVATE_QUESTION =
   "Möchtest du dieses Rezept wirklich auf privat setzen? Es wird danach nur noch für den*die Ersteller*in sichtbar sein.";
 export const RECIPE_TYPE_CHANGED_SUCCESS =
   "Rezepttyp wurde erfolgreich geändert.";
+export const RECIPE_DELETION_CONFIRMATION_TEXT =
+  "Bestätige, dass du dieses Rezept löschen möchtest. Gib dazu den Namen des Rezepts ein:";
