@@ -42,6 +42,10 @@ describe("buildVocabulary: Wortliste", () => {
     expect(tokensOf("z.B.")).toEqual(["z", "b"]);
   });
 
+  test("ein neues Vokabular hat noch nichts gemerkt", () => {
+    expect(buildVocabulary(BASE_RULES).foundEntries.size).toBe(0);
+  });
+
   test("mehrwortige Einträge stehen vorne, damit sie vor ihren Teilen greifen", () => {
     const tokenCounts = vocabulary.entries.map(
       (vocabularyEntry) => vocabularyEntry.tokens.length,

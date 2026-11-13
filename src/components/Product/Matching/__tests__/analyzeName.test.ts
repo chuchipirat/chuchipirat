@@ -48,6 +48,12 @@ describe("analyzeName: Kernwörter und Wortliste", () => {
     // Gebeugt: nur über Tippfehler bzw. Stamm erkennbar
     ["vegane Wiernerli", ["wiernerli"], [found("vegane", "vegan")]],
     ["vegane Fischstäbchen", ["fischstaebchen"], [found("vegane", "vegan")]],
+    // Gleiches Wort, andere Schreibweise: Jeder Fund behält seine eigene
+    [
+      "Vegane vegane Wienerli",
+      ["wienerli"],
+      [found("Vegane", "vegan"), found("vegane", "vegan")],
+    ],
     // Marke ist kein Kernwort, der allgemeine Begriff kommt aus dem Eintrag
     [
       "Philadelphia, vegan",
@@ -127,6 +133,27 @@ describe("analyzeName: Kernwörter und Wortliste", () => {
 
     expect(analysis.coreWords).toEqual(["vegane", "wiernerli"]);
     expect(analysis.listWords).toEqual([]);
+  });
+
+  test("merkt sich den Eintrag pro Wort im Vokabular, auch kein Eintrag", () => {
+    const freshVocabulary = buildVocabulary(BASE_RULES);
+    analyzeName("Zimt, gemahlen", freshVocabulary);
+
+    expect(freshVocabulary.foundEntries.get("gemahlen")).toEqual({
+      vocabularyEntry: expect.objectContaining({entry: entryOf("gemahlen")}),
+      isPart: false,
+    });
+    expect(freshVocabulary.foundEntries.get("zimt")).toBeNull();
+  });
+
+  test("merkt sich Teilwörter mit ihrer Art", () => {
+    const freshVocabulary = buildVocabulary(BASE_RULES);
+    analyzeName("Haferrahm", freshVocabulary);
+
+    expect(freshVocabulary.foundEntries.get("haferrahm")).toEqual({
+      vocabularyEntry: expect.objectContaining({entry: entryOf("Hafer")}),
+      isPart: true,
+    });
   });
 
   test("leere Eingabe ergibt eine leere Analyse", () => {

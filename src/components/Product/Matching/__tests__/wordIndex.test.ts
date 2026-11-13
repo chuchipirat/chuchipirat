@@ -80,6 +80,11 @@ describe("WordIndex", () => {
   test("leerer Index findet nichts", () => {
     expect(new WordIndex([]).findPartners("zimt")).toEqual([]);
   });
+
+  test("merkt sich die Treffer eines Worts", () => {
+    // Dieselbe Liste, nicht nur eine gleiche: Das Wort wurde nur einmal gesucht
+    expect(index.findPartners("zimt")).toBe(index.findPartners("zimt"));
+  });
 });
 
 /* =====================================================================

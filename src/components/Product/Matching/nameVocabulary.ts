@@ -25,6 +25,16 @@ export type NameVocabulary = {
   entries: VocabularyEntry[];
   /** Normalisiertes Synonym → Vertreter seiner Gruppe, z.B. «rueebli» → «karotten». */
   synonymOf: Map<string, string>;
+  /** Gemerkter Fund pro normalisiertem Wort; `null` heisst «nicht in der Wortliste». */
+  foundEntries: Map<string, FoundEntry | null>;
+};
+
+/** Eintrag der Wortliste, der zu einem Wort gefunden wurde. */
+export type FoundEntry = {
+  /** Passender Eintrag der Wortliste. */
+  vocabularyEntry: VocabularyEntry;
+  /** Ob nur ein Teil des Worts passt («Hafer» in «Haferrahm»). */
+  isPart: boolean;
 };
 
 /**
@@ -81,7 +91,7 @@ export const buildVocabulary = (rules: MatchingRules): NameVocabulary => {
     group.forEach((word) => synonymOf.set(word, representative));
   });
 
-  return {entries, synonymOf};
+  return {entries, synonymOf, foundEntries: new Map()};
 };
 
 /**

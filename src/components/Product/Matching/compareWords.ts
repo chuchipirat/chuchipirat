@@ -224,6 +224,10 @@ export const deletionVariants = (
  * «zwibeln»/«zwiebel» liegen erst als Stämme nah beieinander, «tomatem»/
  * «tomaten» nur als ganze Wörter.
  *
+ * Der Abstand ist nie kleiner als der Längenunterschied. Liegt schon der
+ * über der Grenze, entfällt die teure Tabelle; die Stämme werden nur
+ * verglichen, wenn die Wörter nicht reichen.
+ *
  * @param wordA Erstes, bereits normalisiertes Wort.
  * @param wordB Zweites, bereits normalisiertes Wort.
  * @returns `true`, wenn der Abstand innerhalb der Grenze des kürzeren Wortes liegt.
@@ -234,12 +238,18 @@ const isTypo = (wordA: string, wordB: string): boolean => {
   // Spart den teuren Abstand bei kurzen Wörtern
   if (limit === 0) return false;
 
-  const distance = Math.min(
-    editDistance(wordA, wordB),
-    editDistance(stemWord(wordA), stemWord(wordB)),
-  );
+  // Der Abstand ist nie kleiner als der Längenunterschied
+  const isWithinLimit = (textA: string, textB: string): boolean => {
+    return (
+      Math.abs(textA.length - textB.length) <= limit &&
+      editDistance(textA, textB) <= limit
+    );
+  };
 
-  return distance <= limit;
+  return (
+    isWithinLimit(wordA, wordB) ||
+    isWithinLimit(stemWord(wordA), stemWord(wordB))
+  );
 };
 
 /**

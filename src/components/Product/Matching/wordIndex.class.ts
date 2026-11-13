@@ -39,10 +39,14 @@ export type WordPartner = {
 const typoVariants = (word: string): Set<string> => {
   const depth = maxTypos(word.length);
 
-  const wordVariants = deletionVariants(word, depth);
-  const stemVariants = deletionVariants(stemWord(word), depth);
+  const variants = deletionVariants(word, depth);
+  const stem = stemWord(word);
 
-  return new Set([...wordVariants, ...stemVariants]);
+  if (stem !== word) {
+    deletionVariants(stem, depth).forEach((variant) => variants.add(variant));
+  }
+
+  return variants;
 };
 
 /**
@@ -107,6 +111,8 @@ export class WordIndex {
   private words: Set<string>;
   private wordsByVariant = new Map<string, Set<string>>();
   private wordsByPart = new Map<string, Set<string>>();
+  /** Gemerkte Treffer pro gesuchtem Wort; der Index ändert sich nach dem Aufbau nicht. */
+  private partnersByWord = new Map<string, WordPartner[]>();
 
   /**
    * @param words Wörter in Vergleichsform; doppelte werden einmal geführt.
@@ -127,11 +133,18 @@ export class WordIndex {
   /**
    * Sucht alle Wörter des Index, die zu einem Wort passen.
    *
+   * Das Ergebnis wird gemerkt: Dasselbe Wort liefert beim nächsten Mal
+   * dieselbe Liste. Sie darf darum nicht verändert werden (kein `push`,
+   * kein `sort`).
+   *
    * @param word Wort in Vergleichsform.
    * @returns Passende Wörter mit Regel, das Wort selbst eingeschlossen;
    * leer, wenn keins passt.
    */
   findPartners(word: string): WordPartner[] {
+    const known = this.partnersByWord.get(word);
+    if (known) return known;
+
     const partners: WordPartner[] = [];
 
     this.findCandidates(word).forEach((indexWord) => {
@@ -140,6 +153,8 @@ export class WordIndex {
         partners.push({word: indexWord, comparison});
       }
     });
+
+    this.partnersByWord.set(word, partners);
 
     return partners;
   }

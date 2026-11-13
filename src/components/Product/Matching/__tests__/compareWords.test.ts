@@ -159,6 +159,9 @@ describe("compareWords", () => {
     // Nur über die Stämme: «zwibel» gegen «zwiebel» ist ein Tippfehler,
     // die ganzen Wörter liegen zwei auseinander.
     ["zwibeln", "zwiebel", MatchRule.TYPO],
+    // Längenunterschied genau an der Grenze: ein bzw. zwei fehlende Buchstaben
+    ["joghurt", "joghurtt", MatchRule.TYPO],
+    ["kartoffelstock", "kartofelstok", MatchRule.TYPO],
     ["restengemuese", "gemuese", MatchRule.COMPOUND],
     ["haferrahm", "rahm", MatchRule.COMPOUND],
     ["zitronenschale", "zitronen", MatchRule.COMPOUND],

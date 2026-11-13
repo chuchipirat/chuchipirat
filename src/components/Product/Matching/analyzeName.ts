@@ -6,7 +6,12 @@
  * Detail-Wörter. Arbeitet nur mit dem Vokabular, ohne Bestand.
  */
 import {compareWords, stemWord} from "./compareWords";
-import {canonicalWord, NameVocabulary, VocabularyEntry} from "./nameVocabulary";
+import {
+  canonicalWord,
+  FoundEntry,
+  NameVocabulary,
+  VocabularyEntry,
+} from "./nameVocabulary";
 import {NameToken, normalizeName, tokenizeWithOriginal} from "./normalizeName";
 import {
   FoundListWord,
@@ -95,8 +100,40 @@ const findPartEntry = (
 };
 
 /**
+ * Sucht den Eintrag der Wortliste zu einem Wort, zuerst als ganzes Wort,
+ * dann als Teilwort.
+ *
+ * Liefert nur den Eintrag, nicht die Schreibweise: So lässt sich das
+ * Ergebnis pro Wort merken, auch wenn es einmal «Vegane» und einmal
+ * «vegane» heisst.
+ *
+ * @param word Vergleichsform des Worts.
+ * @param vocabulary Vorbereitetes Vokabular aus `buildVocabulary`.
+ * @returns Eintrag und ob er nur Teil des Worts ist; `null` ohne Eintrag.
+ */
+const findEntry = (
+  word: string,
+  vocabulary: NameVocabulary,
+): FoundEntry | null => {
+  const wholeEntry = findWholeEntry(word, vocabulary);
+  if (wholeEntry) {
+    return {vocabularyEntry: wholeEntry, isPart: false};
+  }
+
+  const partEntry = findPartEntry(word, vocabulary);
+  if (partEntry) {
+    return {vocabularyEntry: partEntry, isPart: true};
+  }
+
+  return null;
+};
+
+/**
  * Sucht für ein einzelnes Wort den Fund in der Wortliste, zuerst als ganzes
  * Wort, dann als Teilwort.
+ *
+ * Der Eintrag wird pro normalisiertem Wort im Vokabular gemerkt, auch wenn
+ * es keinen gibt (`null`); die Schreibweise kommt jedes Mal vom Wort selbst.
  *
  * @param token Wort des Namens mit Original- und Normalform.
  * @param vocabulary Vorbereitetes Vokabular aus `buildVocabulary`.
@@ -110,19 +147,22 @@ const findListWord = (
   token: NameToken,
   vocabulary: NameVocabulary,
 ): FoundListWord | undefined => {
-  const word = canonicalWord(token.normalized, vocabulary);
+  let found = vocabulary.foundEntries.get(token.normalized);
 
-  const wholeEntry = findWholeEntry(word, vocabulary);
-  if (wholeEntry) {
-    return {word: token.original, entry: wholeEntry.entry, isPart: false};
+  if (found === undefined) {
+    found = findEntry(canonicalWord(token.normalized, vocabulary), vocabulary);
+    vocabulary.foundEntries.set(token.normalized, found);
   }
 
-  const partEntry = findPartEntry(word, vocabulary);
-  if (partEntry) {
-    return {word: partEntry.entry.word, entry: partEntry.entry, isPart: true};
-  }
+  if (found === null) return undefined;
 
-  return undefined;
+  const entry = found?.vocabularyEntry.entry;
+
+  return {
+    word: found.isPart ? entry.word : token.original,
+    entry,
+    isPart: found.isPart,
+  };
 };
 
 /**
