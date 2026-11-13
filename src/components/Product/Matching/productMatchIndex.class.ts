@@ -184,7 +184,7 @@ export class ProductMatchIndex {
    * @param analysis Zerlegter Name aus `analyzeName`.
    * @param options `excludeUid` lässt einen Eintrag weg (z.B. beim
    * Umbenennen sich selbst), `limit` begrenzt die Anzahl.
-   * @returns Treffer mit Score, Regel und `containsAll`.
+   * @returns Treffer mit Score, Regel, `containsAll` und `coversQuery`.
    */
   findMatches(
     analysis: NameAnalysis,
@@ -205,6 +205,7 @@ export class ProductMatchIndex {
         score: matchScore.score,
         rule: matchScore.rule,
         containsAll: matchScore.containsAll,
+        coversQuery: matchScore.coversQuery,
       }));
   }
 

@@ -294,12 +294,12 @@ export const ADMIN_CASES: MatchingCase[] = [
     adminDecision: "Schokoladencreme, laktosefrei",
   },
   {
-    name: "Andere Reihenfolge und Kleinschreibung: griechischer joghurt laktosefrei",
+    name: "Gleicher Name ohne Komma und Grossschrift: griechischer joghurt laktosefrei",
     input: "griechischer joghurt laktosefrei",
     dialog: "product",
-    // Ein Eigenschafts-Hinweis ist erlaubt, aber nicht nötig: Es gibt nur
-    // eine Variante, und sie hat die Eigenschaft schon.
-    expectedHints: [{kind: NameHintKind.SIMILAR_PRODUCT, score: 1}],
+    // Nach der Normalisierung derselbe Name, darum blockiert er. Ein
+    // Eigenschafts-Hinweis ist erlaubt, aber nicht nötig.
+    expectedHints: [{kind: NameHintKind.EXACT_PRODUCT, blocking: true}],
     bestSuggestion: "Griechischer Joghurt, laktosefrei",
     adminDecision: "dasselbe Produkt",
   },

@@ -157,7 +157,7 @@ describe("ProductMatchIndex: findMatches, Fälle", () => {
 
   test("gleiche Kernwörter in anderer Reihenfolge ergeben Score 1", () => {
     const [bestMatch] = indexFor(BASE_CANDIDATES).findMatches(
-      analyzeName("griechischer joghurt laktosefrei", vocabulary),
+      analyzeName("Joghurt griechischer laktosefrei", vocabulary),
     );
 
     expect(bestMatch?.score).toBe(1);
@@ -170,13 +170,14 @@ describe("ProductMatchIndex: findMatches, Fälle", () => {
 describe("ProductMatchIndex: findMatches, Auswahl und Reihenfolge", () => {
   const index = indexFor(BASE_CANDIDATES);
 
-  test("jeder Treffer hat Score, Regel und containsAll", () => {
+  test("jeder Treffer hat Score, Regel, containsAll und coversQuery", () => {
     expect(index.findMatches(analyzeName("Tomatem", vocabulary))).toEqual([
       {
         candidate: expect.objectContaining({name: "Tomaten"}),
         score: 0.8,
         rule: MatchRule.TYPO,
         containsAll: true,
+        coversQuery: true,
       },
     ]);
   });

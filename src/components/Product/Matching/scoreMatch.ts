@@ -161,11 +161,13 @@ const pickBestPairs = (pairs: WordPair[]): WordPair[] => {
  *
  * @param queryWords Kernwörter der Anfrage.
  * @param candidateWords Kernwörter des Kandidaten.
- * @returns Score, Regel, ob der Kandidat ganz in der Anfrage steckt, und die
- * Stelle des frühesten gepaarten Worts; `null` ohne passendes Wort.
+ * @returns Score, Regel, ob der Kandidat ganz in der Anfrage steckt
+ * (`containsAll`), ob die Anfrage ganz im Kandidaten steckt (`coversQuery`),
+ * und die Stelle des frühesten gepaarten Worts; `null` ohne passendes Wort.
  * @example
  * scoreMatch(burgerPattiesFleischVegi, bugerPatties)
- * // {score: 0.6, rule: "typo", containsAll: true, firstQueryPosition: 0}
+ * // {score: 0.6, rule: "typo", containsAll: true, coversQuery: false,
+ * //  firstQueryPosition: 0}
  */
 export const scoreMatch = (
   queryWords: MatchWord[],
@@ -187,6 +189,7 @@ export const scoreMatch = (
     score: (2 * weightSum) / (queryWords.length + candidateWords.length),
     rule: RULE_ORDER[weakestPosition],
     containsAll: pairs.length === candidateWords.length,
+    coversQuery: pairs.length === queryWords.length,
     firstQueryPosition: Math.min(...pairs.map((pair) => pair.queryPosition)),
   };
 };

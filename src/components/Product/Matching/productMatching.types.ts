@@ -147,4 +147,6 @@ export type ProductMatch = {
   rule: MatchRule;
   /** Ob alle Kernwörter des Eintrags im Namen vorkommen. */
   containsAll: boolean;
+  /** Ob alle Kernwörter des Namens im Eintrag vorkommen; sonst hat der Name zusätzliche Wörter. */
+  coversQuery: boolean;
 };

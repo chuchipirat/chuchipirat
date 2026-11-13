@@ -79,6 +79,7 @@ describe("scoreMatch", () => {
       score: 1,
       rule: MatchRule.EXACT,
       containsAll: true,
+      coversQuery: true,
       firstQueryPosition: 0,
     });
   });
@@ -149,6 +150,22 @@ describe("scoreMatch", () => {
     ).toBe(false);
     expect(
       scoreMatch(matchWordsOf("Rahm"), matchWordsOf("Rahm Rahm"))?.containsAll,
+    ).toBe(false);
+  });
+
+  test("coversQuery nur, wenn jedes Wort der Anfrage gepaart ist", () => {
+    // Der Name hat Wörter, die im Kandidaten fehlen: «Fleisch», «Vegi»
+    expect(
+      scoreMatch(
+        matchWordsOf("Burger Patties (Fleisch und Vegi)"),
+        matchWordsOf("Buger Patties"),
+      )?.coversQuery,
+    ).toBe(false);
+    expect(
+      scoreMatch(matchWordsOf("Haferrahm"), matchWordsOf("Rahm"))?.coversQuery,
+    ).toBe(true);
+    expect(
+      scoreMatch(matchWordsOf("Rahm Rahm"), matchWordsOf("Rahm"))?.coversQuery,
     ).toBe(false);
   });
 
