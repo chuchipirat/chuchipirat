@@ -21,9 +21,9 @@ const NO_TYPO_MAX_LENGTH = 4;
 const ONE_TYPO_MAX_LENGTH = 8;
 
 /** Kürzere Wörter stecken in zu vielen anderen («Eis» in «Eiscreme»). */
-const MINIMUM_COMPOUND_PART_LENGTH = 4;
+export const MINIMUM_COMPOUND_PART_LENGTH = 4;
 /** Ein kürzerer Rest ist eher eine Endung als ein eigenes Wort («Reisig»). */
-const MINIMUM_COMPOUND_REST_LENGTH = 3;
+export const MINIMUM_COMPOUND_REST_LENGTH = 3;
 
 /**
  * Gewicht je Regel. Unsichere Regeln zählen weniger, damit ein Vorschlag

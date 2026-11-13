@@ -4,7 +4,14 @@
  * Kennt nur Wörter, keine Produkte: Welche Produkte zu einem Wort gehören,
  * weiss der Produkt-Index.
  */
-import {compareWords} from "./compareWords";
+import {
+  compareWords,
+  deletionVariants,
+  maxTypos,
+  MINIMUM_COMPOUND_PART_LENGTH,
+  MINIMUM_COMPOUND_REST_LENGTH,
+  stemWord,
+} from "./compareWords";
 import {WordComparison} from "./productMatching.types";
 
 /** Ein Wort des Index, das zu einem gesuchten Wort passt. */
@@ -16,11 +23,80 @@ export type WordPartner = {
 };
 
 /**
+ * Alle Schlüssel, unter denen ein Wort für gleich, Stamm und Tippfehler
+ * nachgeschlagen wird.
+ *
+ * Zwei Wörter mit höchstens k Tippfehlern Abstand haben eine gemeinsame
+ * Variante mit je höchstens k gelöschten Buchstaben. Die Stämme zählen mit,
+ * weil `compareWords` auch deren Abstand nimmt («wuerstchen»/«wurst»). Die
+ * Tiefe richtet sich nach dem Wort, nicht nach dem Stamm, wie die Grenze dort.
+ *
+ * @param word Wort in Vergleichsform.
+ * @returns Wort, Stamm und ihre Löschvarianten, ohne Doppelte.
+ * @example
+ * typoVariants("burger") // Set {"burger", "urger", …, "burg", "urg", …}
+ */
+const typoVariants = (word: string): Set<string> => {
+  const depth = maxTypos(word.length);
+
+  const wordVariants = deletionVariants(word, depth);
+  const stemVariants = deletionVariants(stemWord(word), depth);
+
+  return new Set([...wordVariants, ...stemVariants]);
+};
+
+/**
+ * Alle Anfänge und Enden eines Worts, die nach der Teilwort-Regel ein
+ * eigenes Wort sein können.
+ *
+ * @param word Wort in Vergleichsform.
+ * @returns Anfänge und Enden ab der Mindestlänge, mit genug Rest; leer bei
+ * kurzen Wörtern.
+ * @example
+ * compoundParts("haferrahm") // ["hafe", "rahm", "hafer", "rrahm", "haferr", "errahm"]
+ */
+const compoundParts = (word: string): string[] => {
+  const parts: string[] = [];
+
+  for (
+    let length = MINIMUM_COMPOUND_PART_LENGTH;
+    length <= word.length - MINIMUM_COMPOUND_REST_LENGTH;
+    length++
+  ) {
+    parts.push(word.slice(0, length), word.slice(word.length - length));
+  }
+
+  return parts;
+};
+
+/**
+ * Legt ein Wort unter einem Schlüssel ab; die Menge entsteht bei Bedarf.
+ *
+ * @param map Nachschlage-Tabelle.
+ * @param key Schlüssel, z.B. eine Variante.
+ * @param word Wort des Index.
+ */
+const addTo = (
+  map: Map<string, Set<string>>,
+  key: string,
+  word: string,
+): void => {
+  const words = map.get(key);
+  if (words) {
+    words.add(word);
+  } else {
+    map.set(key, new Set([word]));
+  }
+};
+
+/**
  * Index über alle bekannten Wörter, einmal gebaut und für viele Anfragen
  * verwendet.
  *
- * Geht für jede Anfrage alle Wörter durch. Das ist die gründliche Fassung;
- * eine schnelle muss genau dieselben Wörter finden.
+ * Der Konstruktor legt Tabellen an, eine Anfrage schlägt dort nur wenige
+ * Kandidaten nach und bestätigt sie mit `compareWords`. Die Tabellen finden
+ * eher zu viel als zu wenig, darum findet der Index genau dieselben Wörter
+ * wie ein Vergleich mit jedem Wort.
  *
  * @example
  * const index = new WordIndex(["zimt", "zimtstangen"]);
@@ -29,12 +105,23 @@ export type WordPartner = {
  */
 export class WordIndex {
   private words: Set<string>;
+  private wordsByVariant = new Map<string, Set<string>>();
+  private wordsByPart = new Map<string, Set<string>>();
 
   /**
    * @param words Wörter in Vergleichsform; doppelte werden einmal geführt.
    */
   constructor(words: Iterable<string>) {
     this.words = new Set(words);
+
+    this.words.forEach((word) => {
+      typoVariants(word).forEach((typoVariant) =>
+        addTo(this.wordsByVariant, typoVariant, word),
+      );
+      compoundParts(word).forEach((compoundPart) =>
+        addTo(this.wordsByPart, compoundPart, word),
+      );
+    });
   }
 
   /**
@@ -47,7 +134,7 @@ export class WordIndex {
   findPartners(word: string): WordPartner[] {
     const partners: WordPartner[] = [];
 
-    this.words.forEach((indexWord) => {
+    this.findCandidates(word).forEach((indexWord) => {
       const comparison = compareWords(word, indexWord);
       if (comparison) {
         partners.push({word: indexWord, comparison});
@@ -55,5 +142,36 @@ export class WordIndex {
     });
 
     return partners;
+  }
+
+  /**
+   * Sammelt die Wörter des Index, die zum Wort passen könnten.
+   *
+   * @param word Wort in Vergleichsform.
+   * @returns Kandidaten, jeder einmal; können zu viele sein, nie zu wenige.
+   */
+  private findCandidates(word: string): Set<string> {
+    const candidates = new Set<string>();
+
+    // gleich, Stamm und Tippfehler
+    typoVariants(word).forEach((typoVariant) => {
+      this.wordsByVariant
+        .get(typoVariant)
+        ?.forEach((indexWord) => candidates.add(indexWord));
+    });
+
+    // ein Wort des Index steckt im gesuchten Wort («rahm» in «haferrahm»)
+    compoundParts(word).forEach((part) => {
+      if (this.words.has(part)) {
+        candidates.add(part);
+      }
+    });
+
+    // das gesuchte Wort steckt in einem Wort des Index («zimt» in «zimtstangen»)
+    this.wordsByPart
+      .get(word)
+      ?.forEach((indexWord) => candidates.add(indexWord));
+
+    return candidates;
   }
 }
