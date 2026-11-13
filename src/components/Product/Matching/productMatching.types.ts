@@ -143,7 +143,7 @@ export type ProductMatch = {
   candidate: MatchCandidate;
   /** Ähnlichkeit 0..1 über die Kernwörter (Dice-Koeffizient). */
   score: number;
-  /** Stärkste Regel, die gegriffen hat. */
+  /** Schwächste Regel der gepaarten Wörter: erklärt, warum die Namen nicht gleich sind. */
   rule: MatchRule;
   /** Ob alle Kernwörter des Eintrags im Namen vorkommen. */
   containsAll: boolean;
