@@ -408,6 +408,7 @@ export const canKeepCardTogether = (
 /**
  * Höhe der Budget-Balken und der Totalzeile in Aufbau B. Mehrere
  * Währungen stehen untereinander, jede weitere braucht eine Zeile mehr.
+ * Bei nur einem Budget zeigt der Balken kein Zwischentotal.
  *
  * @param section - Block der Person.
  * @returns Geschätzte Höhe in pt.
@@ -415,8 +416,12 @@ export const canKeepCardTogether = (
 const getPerBudgetTotalsHeight = (section: ReportPayeeSection): number => {
   const extraLines = (totals: CurrencyTotal[]) =>
     Math.max(totals.length - 1, 0) * CARD_PART_HEIGHT.extraCurrencyLine;
+  const showsGroupTotals = section.groups.length > 1;
   const barsHeight = section.groups.reduce(
-    (sum, group) => sum + CARD_PART_HEIGHT.budgetBar + extraLines(group.totals),
+    (sum, group) =>
+      sum +
+      CARD_PART_HEIGHT.budgetBar +
+      (showsGroupTotals ? extraLines(group.totals) : 0),
     0,
   );
   return barsHeight + CARD_PART_HEIGHT.total + extraLines(section.totals);

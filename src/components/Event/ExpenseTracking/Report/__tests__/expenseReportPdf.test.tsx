@@ -423,6 +423,24 @@ describe("ExpenseReportPdf: Aufbau A und B", () => {
     );
   });
 
+  test("B: nur ein Budget, Balken ohne Zwischentotal (gleich wie das Total)", () => {
+    const {container} = renderReportPdf({
+      mode: ReportMode.PER_PERSON_AND_BUDGET,
+      payeeSelection: {kind: "single", payeeKey: BEN.uid},
+    });
+    const texts = textsOf(container);
+
+    expect(countViewsWithStyle(container, reportLayoutStyles.budgetBar)).toBe(
+      1,
+    );
+    // Betrag nur in der Zeile und im Total, nicht im Balken
+    expect(texts[texts.indexOf("Küche") + 1]).not.toBe(amountText(1000, "CHF"));
+    expect(countViewsWithStyle(container, reportLayoutStyles.colAmount)).toBe(
+      1,
+    );
+    expect(texts[texts.indexOf("Total Ben") + 1]).toBe(amountText(1000, "CHF"));
+  });
+
   test("B: Balken mit dem Icon des Budgets", () => {
     const {container} = renderReportPdf({
       mode: ReportMode.PER_PERSON_AND_BUDGET,

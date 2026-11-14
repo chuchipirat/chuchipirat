@@ -102,6 +102,8 @@ export const PayeeCard = ({
             key={`${groupIndex}_${group.budgetName}`}
             group={group}
             showBudgetColumn={!isPerBudget}
+            // Nur ein Budget: Zwischentotal wäre gleich wie das Total
+            showGroupTotals={section.groups.length > 1}
             includeComments={includeComments}
             receiptStartPages={receiptStartPages}
             lastExpenseId={lastExpenseId}
@@ -132,6 +134,7 @@ export const PayeeCard = ({
  *
  * @param group - Eine Tabelle der Person (Aufbau B: ein Budget).
  * @param showBudgetColumn - Budgetspalte (Aufbau A).
+ * @param showGroupTotals - Zwischentotal im Budget-Balken (Aufbau B) zeigen.
  * @param includeComments - Kommentare zeigen.
  * @param receiptStartPages - Belegnummer → Startseite im PDF.
  * @param lastExpenseId - Letzte Ausgabe der Karte (ohne Trennlinie).
@@ -139,6 +142,7 @@ export const PayeeCard = ({
 type GroupRowsProps = {
   group: ReportGroup;
   showBudgetColumn: boolean;
+  showGroupTotals: boolean;
   includeComments: boolean;
   receiptStartPages: Map<number, number>;
   lastExpenseId: string | undefined;
@@ -152,6 +156,7 @@ type GroupRowsProps = {
 const GroupRows = ({
   group,
   showBudgetColumn,
+  showGroupTotals,
   includeComments,
   receiptStartPages,
   lastExpenseId,
@@ -162,6 +167,7 @@ const GroupRows = ({
         budgetName={group.budgetName}
         budgetIcon={group.budgetIcon ?? BudgetIcon.OTHER}
         totals={group.totals}
+        showTotals={showGroupTotals}
       />
     ) : null}
     {group.rows.map((row) => (
