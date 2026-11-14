@@ -133,3 +133,27 @@ Der Nutzer antwortete auf meinen Vorschlag `buildReminderGreeting` mit «No» un
 **Rule**: In coaching mode, bulk edits (`sed`, scripts) touch only files I wrote. For the user's files, list the places and let the user change them.
 
 **How to apply**: Before a `sed -i` over several files, `grep -l` first and drop every file that isn't mine.
+
+## Sort tests: every level must contradict the next one (2026-11-14)
+
+**What happened**: In Product Matching 2.4–2.7, twelve mutation probes on sort orders stayed green. The test data happened to give the same order with a level removed: alphabetical matched the position in the name, alphabetical matched the score ("Tomatem" < "Zimt"), contains/similar never had a counter-example.
+
+**Rule**: For each sort level, the test data contains a pair where this level and the next lower one disagree.
+
+**How to apply**: Before writing an order test, write down for each level: "without this level, the result would be …". If that equals the expected result, change the data.
+
+## Check fixture expectations against existing functions (2026-11-14)
+
+**What happened**: Case 14 of the matching fixture expected "similar, score 1" for "griechischer joghurt laktosefrei". After `normalizeName` it was the same name as an existing product, so it must block. Found only in 2.6.
+
+**Rule**: When a fixture states an expected result, run its inputs through the functions that already exist (normalization, analysis) and check the expectation still makes sense.
+
+**How to apply**: After writing a fixture case, run a one-off script with the existing functions on its input.
+
+## Lists for people: look at volume and top entries on real data while planning (2026-11-14)
+
+**What happened**: The plan for the duplicate search took "same matches as the creation check" literally. Only the measurement after the tests showed 15,964 pairs, the top 300 mostly property variants ("Rahm" ↔ "Rahm, vegan") that are never duplicates. A decision (same properties only) had to be added afterwards.
+
+**Rule**: For any output a person works through (QA list, suggestions), check during planning how many entries real data gives and what the top 20 look like, not just the runtime.
+
+**How to apply**: Run the throwaway implementation on the local data export before showing the plan, and put count + top examples into the plan.

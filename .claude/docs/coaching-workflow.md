@@ -95,6 +95,17 @@ Allgemein, jedes Paket:
 - [ ] Dateinamen == Hauptexport; JSDoc-`@example` zeigt existierende Methodennamen
 - [ ] Editor formatiert beim Speichern mit Prettier (nicht dem TypeScript-Formatter); nach dem
       Speichern `tsc` laufen lassen, bevor es weitergeht
+- [ ] Keine Importe aus `__mocks__`/Tests in Produktivcode; nach dem Speichern den Import-Block
+      ansehen (der Editor importiert beim Tippen eines Namens gern eine gleichnamige Mock-Datei)
+
+Domain-Logik/reine Funktionen:
+
+- [ ] Helfer stehen vor ihren Aufrufern, die exportierte Funktion zuletzt (`const`-Funktionen
+      werden nicht hochgezogen); nur die Schnittstelle exportieren
+- [ ] `map`/`filter` nur, um ein neues Array zu bauen; Nebenwirkungen mit `forEach`; `Map`/`Set`
+      direkt aus Paaren bauen (`new Map(list.map(…))`)
+- [ ] Kein Name überdeckt eine äussere Variable (z.B. Parameter `matches` in einer Funktion, die
+      selbst `matches` hat)
 
 Repositories/Domain-Typen:
 
@@ -113,8 +124,7 @@ UI/Komponenten:
 - [ ] Jeder Schreibaufruf in `try/catch` → zentrales `handleError`; Dialog schliesst nicht
       «erfolgreich», wenn nichts gespeichert wurde
 - [ ] Keine Hooks nach frühem `return` (prüft ESLint `rules-of-hooks` als Fehler); `exhaustive-deps`-Warnungen nicht durch blosses Ergänzen der Abhängigkeiten «beheben», erst fragen, ob der Effekt bei jeder Änderung wirklich neu laufen soll
-- [ ] Keine Importe aus `__mocks__`/Tests in Produktivcode; kein `console.log`, `debugger`,
-      auskommentierter Code, ungenutzte Exporte
+- [ ] Kein `console.log`, `debugger`, auskommentierter Code, ungenutzte Exporte
 - [ ] Eigener Analytics-Event pro Aktion (kein kopiertes `..._CREATED`)
 - [ ] Neues Pflichtfeld → alle Fixtures/Mocks nachgezogen
 - [ ] `[...array].sort()`, nie in place auf State; `useMemo`-Dependencies vollständig
@@ -132,6 +142,12 @@ Tests:
 - [ ] Mutationsprobe gemacht: Code absichtlich kaputt → Test wird rot
 - [ ] Vorab geschriebene Tests nie an den Code anpassen; scheint ein Test falsch, im Review melden
 - [ ] Jeder Wert eines Entscheidungs-/Ergebnis-Enums hat mindestens einen Test
+- [ ] Sortierung: Testdaten so wählen, dass jede Stufe der nächsttieferen widerspricht (sonst
+      bleibt «Stufe weg» grün, weil z.B. alphabetisch zufällig dieselbe Reihenfolge ergibt)
+- [ ] Algorithmen (Abstand, Index, Zwischenspeicher): zusätzlich gegen eine einfache Referenz
+      über erzeugte kleine Eingaben prüfen, nicht nur Beispiele
+- [ ] Erwartungen einer Fixture mit den schon vorhandenen Funktionen gegenrechnen (z.B. ist der
+      Name nach der Normalisierung schon gleich?)
 - [ ] Beträge mit Tausender-Apostroph/geschütztem Leerzeichen über die Formatierungsfunktion
       erwarten, nicht hart codiert
 
