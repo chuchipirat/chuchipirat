@@ -319,6 +319,8 @@ const CARD_PART_HEIGHT = {
   comment: 12,
   budgetBar: 28,
   total: 24,
+  /** Jede weitere Währung im Zwischentotal bzw. Total: eine Zeile mehr. */
+  extraCurrencyLine: 13,
 } as const;
 
 /**
@@ -361,11 +363,25 @@ export const canKeepCardTogether = (
     CARD_PART_HEIGHT.tableHeader +
     rows.length * CARD_PART_HEIGHT.row +
     commentCount * CARD_PART_HEIGHT.comment +
-    (isPerBudget
-      ? section.groups.length * CARD_PART_HEIGHT.budgetBar +
-        CARD_PART_HEIGHT.total
-      : 0);
+    (isPerBudget ? getPerBudgetTotalsHeight(section) : 0);
   return estimatedHeight <= MAX_UNBROKEN_CARD_HEIGHT;
+};
+
+/**
+ * Höhe der Budget-Balken und der Totalzeile in Aufbau B. Mehrere
+ * Währungen stehen untereinander, jede weitere braucht eine Zeile mehr.
+ *
+ * @param section - Block der Person.
+ * @returns Geschätzte Höhe in pt.
+ */
+const getPerBudgetTotalsHeight = (section: ReportPayeeSection): number => {
+  const extraLines = (totals: CurrencyTotal[]) =>
+    Math.max(totals.length - 1, 0) * CARD_PART_HEIGHT.extraCurrencyLine;
+  const barsHeight = section.groups.reduce(
+    (sum, group) => sum + CARD_PART_HEIGHT.budgetBar + extraLines(group.totals),
+    0,
+  );
+  return barsHeight + CARD_PART_HEIGHT.total + extraLines(section.totals);
 };
 
 /**

@@ -8,7 +8,7 @@ import {
 import {BudgetIcon} from "../Budget/budget.types";
 import {BUDGET_ICON_PDF_PATHS} from "../Budget/budgetIconPaths";
 import {CurrencyTotal} from "./expenseReport.types";
-import {formatTotals} from "./expenseReportPdfHelpers";
+import {ColumnAlignedTotals} from "./expenseReportColumnTotals";
 import {PdfIcon} from "./expenseReportPdfIcon";
 
 /**
@@ -32,7 +32,7 @@ type BudgetBarProps = {
 
 /**
  * Balken über den Ausgaben eines Budgets (Aufbau B, Spez. 4): Icon, Name
- * und Zwischentotal, mehrere Währungen mit « · ».
+ * und Zwischentotal in der Spalte «Betrag», je Währung eine Zeile.
  *
  * @param props - Siehe {@link BudgetBarProps}.
  * @returns Der Balken.
@@ -49,8 +49,6 @@ export const BudgetBar = ({budgetName, budgetIcon, totals}: BudgetBarProps) => (
       />
       <Text style={styles.budgetBarText}>{budgetName}</Text>
     </View>
-    <Text style={styles.budgetBarTotal}>
-      {formatTotals(totals).join(" · ")}
-    </Text>
+    <ColumnAlignedTotals totals={totals} textStyle={styles.budgetBarTotal} />
   </View>
 );

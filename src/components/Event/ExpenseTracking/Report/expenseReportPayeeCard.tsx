@@ -17,10 +17,11 @@ import {BudgetBar} from "./expenseReportBudgetBar";
 import {PaymentDetailsBlock} from "./expenseReportPaymentDetails";
 import {
   canKeepCardTogether,
-  formatTotals,
   getCardStartHeight,
+  formatTotals,
   isPaymentDetailsComplete,
 } from "./expenseReportPdfHelpers";
+import {ColumnAlignedTotals} from "./expenseReportColumnTotals";
 import {ReportTableHeader, ReportTableRow} from "./expenseReportTableRow";
 
 /** Mindestplatz (pt) für die Totalzeile, damit sie nicht verwaist. */
@@ -49,7 +50,8 @@ type PayeeCardProps = {
  * Karte einer Person (Spez. 3, 4, 6): Name und Rückerstattungsbetrag,
  * Zahlungsangaben (ausser bei «Ohne Rückerstattung»), dann die Ausgaben.
  * Aufbau A: eine Tabelle mit Budgetspalte. Aufbau B: je Budget ein Balken
- * mit Zwischentotal, am Ende «Total <Name>».
+ * mit Zwischentotal, am Ende «Total <Name>»; beide Beträge stehen in der
+ * Spalte «Betrag», je Währung eine Zeile.
  *
  * @param props - Siehe {@link PayeeCardProps}.
  * @returns Die Karte.
@@ -116,12 +118,13 @@ export const PayeeCard = ({
             wrap={false}
             minPresenceAhead={TOTAL_MIN_PRESENCE_AHEAD}
           >
-            <Text style={styles.totalText}>
+            <Text style={[styles.totalText, styles.totalLabel]}>
               {TEXT_REPORT_TOTAL_OF(section.displayName)}
             </Text>
-            <Text style={styles.totalText}>
-              {formatTotals(section.totals).join(" · ")}
-            </Text>
+            <ColumnAlignedTotals
+              totals={section.totals}
+              textStyle={styles.totalText}
+            />
           </View>
         ) : null}
       </View>
@@ -182,3 +185,4 @@ const GroupRows = ({
     ))}
   </React.Fragment>
 );
+
