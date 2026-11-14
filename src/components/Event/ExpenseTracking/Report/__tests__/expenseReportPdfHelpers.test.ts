@@ -24,8 +24,10 @@ import {
   getReceiptStartPages,
   getReportKpis,
   isPaymentDetailsComplete,
+  splitTotalsForAccounting,
 } from "../expenseReportPdfHelpers";
 import {getReceiptPageSlots} from "../receiptPageSlots";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 
 /* =====================================================================
 // Fixture
@@ -219,6 +221,34 @@ describe("formatTotals", () => {
     expect(
       formatTotals([CHF_300, EUR_500]).map((text) => text.replace(/\s/g, " ")),
     ).toEqual(["CHF 3.00", "EUR 5.00"]);
+  });
+});
+
+describe("splitTotalsForAccounting", () => {
+  test("Währung und Zahl getrennt, Zahl wie formatAmountFromCents", () => {
+    expect(
+      splitTotalsForAccounting([
+        {currency: "CHF", amountInCents: 200000},
+        EUR_500,
+      ]),
+    ).toEqual([
+      // Trennzeichen wie in der Tabelle, egal welches Apostroph Intl setzt
+      {
+        currency: "CHF",
+        amount: formatAmountFromCents(200000, "CHF").replace(/^CHF\s*/, ""),
+      },
+      {currency: "EUR", amount: "5.00"},
+    ]);
+  });
+
+  test("negativer Betrag: Vorzeichen bleibt bei der Zahl", () => {
+    expect(
+      splitTotalsForAccounting([{currency: "CHF", amountInCents: -1250}]),
+    ).toEqual([{currency: "CHF", amount: "-12.50"}]);
+  });
+
+  test("ohne Beträge: leere Liste", () => {
+    expect(splitTotalsForAccounting([])).toEqual([]);
   });
 });
 

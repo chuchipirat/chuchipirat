@@ -487,14 +487,17 @@ describe("ExpenseReportPdf: Kommentare", () => {
 });
 
 describe("ExpenseReportPdf: Beträge pro Währung", () => {
-  test("Kartenkopf: Personentotal pro Währung untereinander", () => {
+  test("Kartenkopf: Buchhaltungsformat, Währungen und Zahlen je untereinander", () => {
     const {container} = renderReportPdf();
     const texts = textsOf(container);
     const nameIndex = texts.indexOf("Anna");
 
-    expect(texts.slice(nameIndex + 1, nameIndex + 3)).toEqual([
-      amountText(4250 + 2500, "CHF"),
-      amountText(1100, "EUR"),
+    // erst die Spalte der Währungen, dann die rechtsbündige Spalte der Zahlen
+    expect(texts.slice(nameIndex + 1, nameIndex + 5)).toEqual([
+      "CHF",
+      "EUR",
+      "67.50",
+      "11.00",
     ]);
   });
 });

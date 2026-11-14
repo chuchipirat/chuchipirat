@@ -9,6 +9,7 @@ import {reportLayoutStyles as styles} from "../../../../constants/styles/expense
 import {BudgetIcon} from "../Budget/budget.types";
 import {PaymentDetailsFormValues} from "../../../User/userPaymentDetails.types";
 import {
+  CurrencyTotal,
   ReportGroup,
   ReportMode,
   ReportPayeeSection,
@@ -18,8 +19,8 @@ import {PaymentDetailsBlock} from "./expenseReportPaymentDetails";
 import {
   canKeepCardTogether,
   getCardStartHeight,
-  formatTotals,
   isPaymentDetailsComplete,
+  splitTotalsForAccounting,
 } from "./expenseReportPdfHelpers";
 import {ColumnAlignedTotals} from "./expenseReportColumnTotals";
 import {ReportTableHeader, ReportTableRow} from "./expenseReportTableRow";
@@ -84,13 +85,7 @@ export const PayeeCard = ({
       >
         <View style={styles.cardHead}>
           <Text style={styles.payeeName}>{section.displayName}</Text>
-          <View>
-            {formatTotals(section.totals).map((amount) => (
-              <Text key={amount} style={styles.payeeTotal}>
-                {amount}
-              </Text>
-            ))}
-          </View>
+          <AccountingTotals totals={section.totals} />
         </View>
         {section.isNoRefund ? (
           <Text style={styles.noRefundHint}>{TEXT_REPORT_NO_REFUND_HINT}</Text>
@@ -186,3 +181,34 @@ const GroupRows = ({
   </React.Fragment>
 );
 
+/**
+ * Personentotal im Kartenkopf im Buchhaltungsformat: Währungen
+ * linksbündig untereinander, Zahlen rechtsbündig daneben, damit die
+ * Dezimalpunkte untereinander stehen.
+ *
+ * @param props.totals - Beträge pro Währung, CHF zuerst.
+ * @returns Zwei Spalten; ohne Beträge leer.
+ * @example
+ * <AccountingTotals totals={section.totals} />
+ */
+const AccountingTotals = ({totals}: {totals: CurrencyTotal[]}) => {
+  const amounts = splitTotalsForAccounting(totals);
+  return (
+    <View style={styles.accountingAmounts}>
+      <View style={styles.accountingCurrencies}>
+        {amounts.map(({currency}) => (
+          <Text key={currency} style={styles.payeeTotalCurrency}>
+            {currency}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.accountingNumbers}>
+        {amounts.map(({currency, amount}) => (
+          <Text key={currency} style={styles.payeeTotal}>
+            {amount}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+};

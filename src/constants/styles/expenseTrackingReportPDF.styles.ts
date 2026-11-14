@@ -232,11 +232,24 @@ export const reportLayoutStyles = StyleSheet.create({
     fontWeight: PDF_TOKENS.fontWeight.bold,
     color: REPORT_COLORS.primary,
   },
+  /**
+   * Personentotal im Buchhaltungsformat: links die Spalte der Währungen,
+   * rechts die der Zahlen. Gleiche Schrift in beiden Spalten, darum stehen
+   * die Zeilen auf gleicher Höhe und die Dezimalpunkte untereinander.
+   */
+  accountingAmounts: {flexDirection: "row"},
+  accountingCurrencies: {marginRight: 4},
+  accountingNumbers: {alignItems: "flex-end"},
   payeeTotal: {
     ...TEXT_BASE,
     fontSize: FONT_SIZE.name,
     fontWeight: PDF_TOKENS.fontWeight.bold,
     textAlign: "right",
+  },
+  payeeTotalCurrency: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.name,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
   },
   noRefundHint: {
     ...TEXT_BASE,
