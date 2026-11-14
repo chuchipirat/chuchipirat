@@ -43,7 +43,7 @@ type ScoredEntry = {entry: IndexEntry; matchScore: MatchScore};
  * @example
  * propertyKeyOf(analyzeName("Haferrahm, vegan", vocabulary)) // "vegan"
  */
-const propertyKeyOf = (analysis: NameAnalysis): string => {
+export const propertyKeyOf = (analysis: NameAnalysis): string => {
   const properties = analysis.listWords
     .filter((listWord) => listWord.entry.kind === NameWordKind.PROPERTY)
     .map((listWord) => listWord.entry.property ?? "");
