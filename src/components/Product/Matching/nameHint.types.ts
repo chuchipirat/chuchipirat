@@ -1,3 +1,5 @@
+import {MatchRule, ProductMatch} from "./productMatching.types";
+
 /**
  * Art eines Hinweises, den die Namensprüfung beim Anlegen eines Produkts
  * oder Materials zeigt.
@@ -60,4 +62,25 @@ export type LoggedNameHint = {
   word: string | null;
   /** Angezeigte Vorschläge, bester zuerst; leer, wenn es keine gab. */
   suggestions: NameHintSuggestion[];
+};
+
+/**
+ * Ein Hinweis, den die Abgleich-Logik zu einem Namen liefert.
+ *
+ * Reine Daten, kein Text: Die Oberfläche übersetzt die Art in einen Satz.
+ * Fürs Protokoll wird er in einen `LoggedNameHint` umgewandelt.
+ */
+export type NameHint = {
+  /** Art des Hinweises. */
+  kind: NameHintKind;
+  /** Regel, die den besten Vorschlag gefunden hat, falls ein Vergleich beteiligt war. */
+  rule?: MatchRule;
+  /** Ähnlichkeit 0..1 des besten Vorschlags, falls ein Vergleich beteiligt war. */
+  score?: number;
+  /** Vorschläge, bester zuerst; leer, wenn es keine gibt. */
+  suggestions: ProductMatch[];
+  /** Wort im Namen, das den Hinweis ausgelöst hat, z.B. «gemahlen». */
+  word?: string;
+  /** Ob der Hinweis das Anlegen verhindert (nur gleicher Name, aktiv oder deaktiviert). */
+  blocking: boolean;
 };
