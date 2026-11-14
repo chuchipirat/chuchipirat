@@ -287,7 +287,9 @@ export const ExpenseReportDialog = ({
             </MenuItem>
           </TextField>
           <FormControl>
-            <FormLabel id={modeLabelId}>{TEXT_REPORT_MODE}</FormLabel>
+            <FormLabel id={modeLabelId} focused={false}>
+              {TEXT_REPORT_MODE}
+            </FormLabel>
             <RadioGroup
               aria-labelledby={modeLabelId}
               value={mode}
