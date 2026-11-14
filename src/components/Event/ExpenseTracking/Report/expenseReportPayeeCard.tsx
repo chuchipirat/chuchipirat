@@ -9,6 +9,7 @@ import {reportLayoutStyles as styles} from "../../../../constants/styles/expense
 import {BudgetIcon} from "../Budget/budget.types";
 import {PaymentDetailsFormValues} from "../../../User/userPaymentDetails.types";
 import {
+  CurrencyTotal,
   ReportGroup,
   ReportMode,
   ReportPayeeSection,
@@ -17,10 +18,11 @@ import {BudgetBar} from "./expenseReportBudgetBar";
 import {PaymentDetailsBlock} from "./expenseReportPaymentDetails";
 import {
   canKeepCardTogether,
-  formatTotals,
   getCardStartHeight,
   isPaymentDetailsComplete,
+  splitTotalsForAccounting,
 } from "./expenseReportPdfHelpers";
+import {ColumnAlignedTotals} from "./expenseReportColumnTotals";
 import {ReportTableHeader, ReportTableRow} from "./expenseReportTableRow";
 
 /** Mindestplatz (pt) für die Totalzeile, damit sie nicht verwaist. */
@@ -49,7 +51,8 @@ type PayeeCardProps = {
  * Karte einer Person (Spez. 3, 4, 6): Name und Rückerstattungsbetrag,
  * Zahlungsangaben (ausser bei «Ohne Rückerstattung»), dann die Ausgaben.
  * Aufbau A: eine Tabelle mit Budgetspalte. Aufbau B: je Budget ein Balken
- * mit Zwischentotal, am Ende «Total <Name>».
+ * mit Zwischentotal, am Ende «Total <Name>»; beide Beträge stehen in der
+ * Spalte «Betrag», je Währung eine Zeile.
  *
  * @param props - Siehe {@link PayeeCardProps}.
  * @returns Die Karte.
@@ -82,13 +85,7 @@ export const PayeeCard = ({
       >
         <View style={styles.cardHead}>
           <Text style={styles.payeeName}>{section.displayName}</Text>
-          <View>
-            {formatTotals(section.totals).map((amount) => (
-              <Text key={amount} style={styles.payeeTotal}>
-                {amount}
-              </Text>
-            ))}
-          </View>
+          <AccountingTotals totals={section.totals} />
         </View>
         {section.isNoRefund ? (
           <Text style={styles.noRefundHint}>{TEXT_REPORT_NO_REFUND_HINT}</Text>
@@ -105,6 +102,8 @@ export const PayeeCard = ({
             key={`${groupIndex}_${group.budgetName}`}
             group={group}
             showBudgetColumn={!isPerBudget}
+            // Nur ein Budget: Zwischentotal wäre gleich wie das Total
+            showGroupTotals={section.groups.length > 1}
             includeComments={includeComments}
             receiptStartPages={receiptStartPages}
             lastExpenseId={lastExpenseId}
@@ -116,12 +115,13 @@ export const PayeeCard = ({
             wrap={false}
             minPresenceAhead={TOTAL_MIN_PRESENCE_AHEAD}
           >
-            <Text style={styles.totalText}>
+            <Text style={[styles.totalText, styles.totalLabel]}>
               {TEXT_REPORT_TOTAL_OF(section.displayName)}
             </Text>
-            <Text style={styles.totalText}>
-              {formatTotals(section.totals).join(" · ")}
-            </Text>
+            <ColumnAlignedTotals
+              totals={section.totals}
+              textStyle={styles.totalText}
+            />
           </View>
         ) : null}
       </View>
@@ -134,6 +134,7 @@ export const PayeeCard = ({
  *
  * @param group - Eine Tabelle der Person (Aufbau B: ein Budget).
  * @param showBudgetColumn - Budgetspalte (Aufbau A).
+ * @param showGroupTotals - Zwischentotal im Budget-Balken (Aufbau B) zeigen.
  * @param includeComments - Kommentare zeigen.
  * @param receiptStartPages - Belegnummer → Startseite im PDF.
  * @param lastExpenseId - Letzte Ausgabe der Karte (ohne Trennlinie).
@@ -141,6 +142,7 @@ export const PayeeCard = ({
 type GroupRowsProps = {
   group: ReportGroup;
   showBudgetColumn: boolean;
+  showGroupTotals: boolean;
   includeComments: boolean;
   receiptStartPages: Map<number, number>;
   lastExpenseId: string | undefined;
@@ -154,6 +156,7 @@ type GroupRowsProps = {
 const GroupRows = ({
   group,
   showBudgetColumn,
+  showGroupTotals,
   includeComments,
   receiptStartPages,
   lastExpenseId,
@@ -164,6 +167,7 @@ const GroupRows = ({
         budgetName={group.budgetName}
         budgetIcon={group.budgetIcon ?? BudgetIcon.OTHER}
         totals={group.totals}
+        showTotals={showGroupTotals}
       />
     ) : null}
     {group.rows.map((row) => (
@@ -182,3 +186,35 @@ const GroupRows = ({
     ))}
   </React.Fragment>
 );
+
+/**
+ * Personentotal im Kartenkopf im Buchhaltungsformat: Währungen
+ * linksbündig untereinander, Zahlen rechtsbündig daneben, damit die
+ * Dezimalpunkte untereinander stehen.
+ *
+ * @param props.totals - Beträge pro Währung, CHF zuerst.
+ * @returns Zwei Spalten; ohne Beträge leer.
+ * @example
+ * <AccountingTotals totals={section.totals} />
+ */
+const AccountingTotals = ({totals}: {totals: CurrencyTotal[]}) => {
+  const amounts = splitTotalsForAccounting(totals);
+  return (
+    <View style={styles.accountingAmounts}>
+      <View style={styles.accountingCurrencies}>
+        {amounts.map(({currency}) => (
+          <Text key={currency} style={styles.payeeTotalCurrency}>
+            {currency}
+          </Text>
+        ))}
+      </View>
+      <View style={styles.accountingNumbers}>
+        {amounts.map(({currency, amount}) => (
+          <Text key={currency} style={styles.payeeTotal}>
+            {amount}
+          </Text>
+        ))}
+      </View>
+    </View>
+  );
+};

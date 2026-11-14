@@ -232,11 +232,24 @@ export const reportLayoutStyles = StyleSheet.create({
     fontWeight: PDF_TOKENS.fontWeight.bold,
     color: REPORT_COLORS.primary,
   },
+  /**
+   * Personentotal im Buchhaltungsformat: links die Spalte der Währungen,
+   * rechts die der Zahlen. Gleiche Schrift in beiden Spalten, darum stehen
+   * die Zeilen auf gleicher Höhe und die Dezimalpunkte untereinander.
+   */
+  accountingAmounts: {flexDirection: "row"},
+  accountingCurrencies: {marginRight: 4},
+  accountingNumbers: {alignItems: "flex-end"},
   payeeTotal: {
     ...TEXT_BASE,
     fontSize: FONT_SIZE.name,
     fontWeight: PDF_TOKENS.fontWeight.bold,
     textAlign: "right",
+  },
+  payeeTotalCurrency: {
+    ...TEXT_BASE,
+    fontSize: FONT_SIZE.name,
+    fontWeight: PDF_TOKENS.fontWeight.bold,
   },
   noRefundHint: {
     ...TEXT_BASE,
@@ -299,7 +312,8 @@ export const reportLayoutStyles = StyleSheet.create({
     backgroundColor: REPORT_COLORS.primaryTint,
     borderRadius: 4,
     paddingVertical: 4,
-    paddingHorizontal: 6,
+    // rechts ohne Abstand: Der Betrag steht so genau unter der Spalte «Betrag»
+    paddingLeft: 6,
     marginTop: 8,
     marginBottom: 2,
   },
@@ -316,11 +330,14 @@ export const reportLayoutStyles = StyleSheet.create({
     fontSize: FONT_SIZE.table,
     fontWeight: PDF_TOKENS.fontWeight.bold,
     color: REPORT_COLORS.primary,
-    textAlign: "right",
   },
+  /** Betrag in der Spalte «Betrag» (Balken und Totalzeile). */
+  columnTotal: {textAlign: "right"},
+  /** Bezeichnung «Total <Name>»: füllt den Platz bis zur Spalte «Betrag». */
+  totalLabel: {flex: 1},
   totalRow: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "flex-start",
     paddingTop: 6,
     marginTop: 4,
     borderTopWidth: HAIRLINE,

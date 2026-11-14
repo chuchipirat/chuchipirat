@@ -387,17 +387,58 @@ describe("ExpenseReportPdf: Aufbau A und B", () => {
     expect(countViewsWithStyle(container, reportLayoutStyles.budgetBar)).toBe(
       2,
     );
-    // Küche: Migros (CHF) und Edeka (EUR), Zwischentotal mit « · »
-    expect(texts[indexOf("Küche") + 1]).toBe(
-      `${amountText(4250, "CHF")} · ${amountText(1100, "EUR")}`,
-    );
+    // Küche: Migros (CHF) und Edeka (EUR), Zwischentotal je Währung eine Zeile
+    expect(texts.slice(indexOf("Küche") + 1, indexOf("Küche") + 3)).toEqual([
+      amountText(4250, "CHF"),
+      amountText(1100, "EUR"),
+    ]);
     expect(indexOf("Küche")).toBeLessThan(indexOf("Migros"));
     expect(indexOf("Migros")).toBeLessThan(indexOf("Motto"));
     expect(indexOf("Motto")).toBeLessThan(indexOf("Bastelladen"));
     expect(indexOf("Bastelladen")).toBeLessThan(indexOf("Total Anna"));
-    expect(texts[indexOf("Total Anna") + 1]).toBe(
-      `${amountText(6750, "CHF")} · ${amountText(1100, "EUR")}`,
+    expect(
+      texts.slice(indexOf("Total Anna") + 1, indexOf("Total Anna") + 3),
+    ).toEqual([amountText(6750, "CHF"), amountText(1100, "EUR")]);
+  });
+
+  test("B: Total und Zwischentotal stehen in der Spalte «Betrag»", () => {
+    const {container} = renderReportPdf({
+      mode: ReportMode.PER_PERSON_AND_BUDGET,
+    });
+
+    // je Balken und Totalzeile ein Betragsblock mit der Breite der Spalte
+    expect(countViewsWithStyle(container, reportLayoutStyles.colAmount)).toBe(
+      3,
     );
+    // danach ein leerer Platzhalter in der Breite der Spalte «Beleg»
+    const amountBlocks = Array.from(container.querySelectorAll("View")).filter(
+      (element) =>
+        element.getAttribute("data-style") ===
+        JSON.stringify(reportLayoutStyles.colAmount),
+    );
+    amountBlocks.forEach((block) =>
+      expect(block.nextElementSibling?.getAttribute("data-style")).toBe(
+        JSON.stringify(reportLayoutStyles.colReceiptRef),
+      ),
+    );
+  });
+
+  test("B: nur ein Budget, Balken ohne Zwischentotal (gleich wie das Total)", () => {
+    const {container} = renderReportPdf({
+      mode: ReportMode.PER_PERSON_AND_BUDGET,
+      payeeSelection: {kind: "single", payeeKey: BEN.uid},
+    });
+    const texts = textsOf(container);
+
+    expect(countViewsWithStyle(container, reportLayoutStyles.budgetBar)).toBe(
+      1,
+    );
+    // Betrag nur in der Zeile und im Total, nicht im Balken
+    expect(texts[texts.indexOf("Küche") + 1]).not.toBe(amountText(1000, "CHF"));
+    expect(countViewsWithStyle(container, reportLayoutStyles.colAmount)).toBe(
+      1,
+    );
+    expect(texts[texts.indexOf("Total Ben") + 1]).toBe(amountText(1000, "CHF"));
   });
 
   test("B: Balken mit dem Icon des Budgets", () => {
@@ -464,14 +505,17 @@ describe("ExpenseReportPdf: Kommentare", () => {
 });
 
 describe("ExpenseReportPdf: Beträge pro Währung", () => {
-  test("Kartenkopf: Personentotal pro Währung untereinander", () => {
+  test("Kartenkopf: Buchhaltungsformat, Währungen und Zahlen je untereinander", () => {
     const {container} = renderReportPdf();
     const texts = textsOf(container);
     const nameIndex = texts.indexOf("Anna");
 
-    expect(texts.slice(nameIndex + 1, nameIndex + 3)).toEqual([
-      amountText(4250 + 2500, "CHF"),
-      amountText(1100, "EUR"),
+    // erst die Spalte der Währungen, dann die rechtsbündige Spalte der Zahlen
+    expect(texts.slice(nameIndex + 1, nameIndex + 5)).toEqual([
+      "CHF",
+      "EUR",
+      "67.50",
+      "11.00",
     ]);
   });
 });

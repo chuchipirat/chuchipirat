@@ -4,6 +4,7 @@
  */
 import AuthUser from "../../../../Session/authUser.class";
 import {
+  CurrencyTotal,
   ExpenseReportData,
   LoadedReceipt,
   ReportMode,
@@ -23,8 +24,10 @@ import {
   getReceiptStartPages,
   getReportKpis,
   isPaymentDetailsComplete,
+  splitTotalsForAccounting,
 } from "../expenseReportPdfHelpers";
 import {getReceiptPageSlots} from "../receiptPageSlots";
+import {formatAmountFromCents} from "../../../../Shared/utils/currencyUtils";
 
 /* =====================================================================
 // Fixture
@@ -221,6 +224,34 @@ describe("formatTotals", () => {
   });
 });
 
+describe("splitTotalsForAccounting", () => {
+  test("Währung und Zahl getrennt, Zahl wie formatAmountFromCents", () => {
+    expect(
+      splitTotalsForAccounting([
+        {currency: "CHF", amountInCents: 200000},
+        EUR_500,
+      ]),
+    ).toEqual([
+      // Trennzeichen wie in der Tabelle, egal welches Apostroph Intl setzt
+      {
+        currency: "CHF",
+        amount: formatAmountFromCents(200000, "CHF").replace(/^CHF\s*/, ""),
+      },
+      {currency: "EUR", amount: "5.00"},
+    ]);
+  });
+
+  test("negativer Betrag: Vorzeichen bleibt bei der Zahl", () => {
+    expect(
+      splitTotalsForAccounting([{currency: "CHF", amountInCents: -1250}]),
+    ).toEqual([{currency: "CHF", amount: "-12.50"}]);
+  });
+
+  test("ohne Beträge: leere Liste", () => {
+    expect(splitTotalsForAccounting([])).toEqual([]);
+  });
+});
+
 describe("isPaymentDetailsComplete", () => {
   test("alle vier Angaben: vollständig", () => {
     expect(isPaymentDetailsComplete(COMPLETE_DETAILS)).toBe(true);
@@ -364,6 +395,37 @@ describe("canKeepCardTogether", () => {
     // 20 Zeilen mit grauer Zeile: ohne Kommentare passt es, mit nicht mehr
     expect(canKeepCardTogether(sectionWithRows(20), false, false)).toBe(true);
     expect(canKeepCardTogether(sectionWithRows(20), true, false)).toBe(false);
+  });
+
+  test("Aufbau B: jede weitere Währung braucht eine Zeile mehr", () => {
+    /**
+     * Section in Aufbau B mit einem Budget und den gegebenen Beträgen.
+     *
+     * @param totals - Beträge pro Währung (Balken und Total).
+     * @returns Die Section.
+     */
+    const perBudgetSection = (totals: CurrencyTotal[]) =>
+      makeSection({
+        groups: [
+          {
+            budgetName: "Küche",
+            budgetIcon: null,
+            rows: Array.from({length: 23}, (_unused, index) =>
+              makeRow({expenseId: `expense-${index}`}),
+            ),
+            totals,
+          },
+        ],
+        totals,
+      });
+
+    // 23 Zeilen passen knapp mit einer Währung, mit zweien nicht mehr
+    expect(canKeepCardTogether(perBudgetSection([CHF_300]), false, false)).toBe(
+      true,
+    );
+    expect(
+      canKeepCardTogether(perBudgetSection([CHF_300, EUR_500]), false, false),
+    ).toBe(false);
   });
 
   test("Kommentare und Kasten zählen mit", () => {

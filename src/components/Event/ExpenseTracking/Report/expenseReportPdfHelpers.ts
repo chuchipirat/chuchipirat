@@ -183,6 +183,44 @@ export const formatTotals = (totals: CurrencyTotal[]): string[] =>
   );
 
 /**
+ * Betrag einer Währung, aufgeteilt für das Buchhaltungsformat: Währung
+ * linksbündig, Zahl rechtsbündig in einer eigenen Spalte.
+ *
+ * @param currency - Währungscode, z.B. «CHF».
+ * @param amount - Zahl mit Tausendertrennzeichen und Dezimalen, z.B. «2’000.00».
+ */
+export type AccountingAmount = {currency: string; amount: string};
+
+/**
+ * Teilt Beträge pro Währung in Währung und Zahl auf (Buchhaltungsformat).
+ * Nutzt dieselbe `Intl`-Formatierung wie `formatAmountFromCents`, damit
+ * Trennzeichen und Dezimalen gleich bleiben wie in der Tabelle.
+ *
+ * @param totals - Beträge pro Währung, CHF zuerst.
+ * @returns Pro Währung Code und Zahl; leer ohne Beträge.
+ * @example
+ * splitTotalsForAccounting([{currency: "CHF", amountInCents: 200000}])
+ * // [{currency: "CHF", amount: "2’000.00"}]
+ */
+export const splitTotalsForAccounting = (
+  totals: CurrencyTotal[],
+): AccountingAmount[] =>
+  totals.map((total) => {
+    const parts = new Intl.NumberFormat("de-CH", {
+      style: "currency",
+      currency: total.currency,
+    }).formatToParts(total.amountInCents / 100);
+    return {
+      currency: total.currency,
+      // «literal» ist das Leerzeichen zwischen Währung und Zahl
+      amount: parts
+        .filter((part) => part.type !== "currency" && part.type !== "literal")
+        .map((part) => part.value)
+        .join(""),
+    };
+  });
+
+/**
  * Sind alle Zahlungsangaben da? Nur dann erscheinen sie als graue Zeile,
  * sonst als Kasten zum Ergänzen.
  *
@@ -319,6 +357,8 @@ const CARD_PART_HEIGHT = {
   comment: 12,
   budgetBar: 28,
   total: 24,
+  /** Jede weitere Währung im Zwischentotal bzw. Total: eine Zeile mehr. */
+  extraCurrencyLine: 13,
 } as const;
 
 /**
@@ -361,11 +401,30 @@ export const canKeepCardTogether = (
     CARD_PART_HEIGHT.tableHeader +
     rows.length * CARD_PART_HEIGHT.row +
     commentCount * CARD_PART_HEIGHT.comment +
-    (isPerBudget
-      ? section.groups.length * CARD_PART_HEIGHT.budgetBar +
-        CARD_PART_HEIGHT.total
-      : 0);
+    (isPerBudget ? getPerBudgetTotalsHeight(section) : 0);
   return estimatedHeight <= MAX_UNBROKEN_CARD_HEIGHT;
+};
+
+/**
+ * Höhe der Budget-Balken und der Totalzeile in Aufbau B. Mehrere
+ * Währungen stehen untereinander, jede weitere braucht eine Zeile mehr.
+ * Bei nur einem Budget zeigt der Balken kein Zwischentotal.
+ *
+ * @param section - Block der Person.
+ * @returns Geschätzte Höhe in pt.
+ */
+const getPerBudgetTotalsHeight = (section: ReportPayeeSection): number => {
+  const extraLines = (totals: CurrencyTotal[]) =>
+    Math.max(totals.length - 1, 0) * CARD_PART_HEIGHT.extraCurrencyLine;
+  const showsGroupTotals = section.groups.length > 1;
+  const barsHeight = section.groups.reduce(
+    (sum, group) =>
+      sum +
+      CARD_PART_HEIGHT.budgetBar +
+      (showsGroupTotals ? extraLines(group.totals) : 0),
+    0,
+  );
+  return barsHeight + CARD_PART_HEIGHT.total + extraLines(section.totals);
 };
 
 /**

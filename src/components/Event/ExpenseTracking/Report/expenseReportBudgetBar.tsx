@@ -8,7 +8,7 @@ import {
 import {BudgetIcon} from "../Budget/budget.types";
 import {BUDGET_ICON_PDF_PATHS} from "../Budget/budgetIconPaths";
 import {CurrencyTotal} from "./expenseReport.types";
-import {formatTotals} from "./expenseReportPdfHelpers";
+import {ColumnAlignedTotals} from "./expenseReportColumnTotals";
 import {PdfIcon} from "./expenseReportPdfIcon";
 
 /**
@@ -23,23 +23,33 @@ const MIN_PRESENCE_AHEAD = 40;
  * @param budgetName - Name des Budgets.
  * @param budgetIcon - Icon des Budgets.
  * @param totals - Zwischentotal pro Währung.
+ * @param showTotals - Zwischentotal zeigen; `false`, wenn die Person nur
+ *   ein Budget hat und der Betrag gleich dem Total ist.
  */
 type BudgetBarProps = {
   budgetName: string;
   budgetIcon: BudgetIcon;
   totals: CurrencyTotal[];
+  showTotals: boolean;
 };
 
 /**
  * Balken über den Ausgaben eines Budgets (Aufbau B, Spez. 4): Icon, Name
- * und Zwischentotal, mehrere Währungen mit « · ».
+ * und Zwischentotal in der Spalte «Betrag», je Währung eine Zeile. Ohne
+ * Zwischentotal nur Icon und Name.
  *
  * @param props - Siehe {@link BudgetBarProps}.
  * @returns Der Balken.
  * @example
- * <BudgetBar budgetName="Küche" budgetIcon={BudgetIcon.KITCHEN} totals={group.totals} />
+ * <BudgetBar budgetName="Küche" budgetIcon={BudgetIcon.KITCHEN}
+ *   totals={group.totals} showTotals />
  */
-export const BudgetBar = ({budgetName, budgetIcon, totals}: BudgetBarProps) => (
+export const BudgetBar = ({
+  budgetName,
+  budgetIcon,
+  totals,
+  showTotals,
+}: BudgetBarProps) => (
   <View style={styles.budgetBar} minPresenceAhead={MIN_PRESENCE_AHEAD}>
     <View style={styles.budgetBarName}>
       <PdfIcon
@@ -49,8 +59,8 @@ export const BudgetBar = ({budgetName, budgetIcon, totals}: BudgetBarProps) => (
       />
       <Text style={styles.budgetBarText}>{budgetName}</Text>
     </View>
-    <Text style={styles.budgetBarTotal}>
-      {formatTotals(totals).join(" · ")}
-    </Text>
+    {showTotals ? (
+      <ColumnAlignedTotals totals={totals} textStyle={styles.budgetBarTotal} />
+    ) : null}
   </View>
 );
